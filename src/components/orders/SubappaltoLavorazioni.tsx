@@ -1,9 +1,11 @@
 import { lazy, Suspense, useCallback, useState } from "react";
-import { FileText, Handshake, Mail, Plus } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Handshake, Mail, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { nomeBreve } from "@/lib/acquisti/fabbisogno";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRegistroSubappaltoLocale } from "@/hooks/useRegistroSubappaltoLocale";
 import { useDatiAffidaContratto } from "@/hooks/useDatiAffidaContratto";
@@ -182,43 +184,35 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, onOc
   </div>;
   if (!misurate.data || !affidamenti.data || !datiContratti.data || carica) return <p role="status" className="text-sm text-muted-foreground">Carico il subappalto…</p>;
 
-  return <section className="space-y-3" aria-label="Riepilogo subappalto">
-    <header className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-slate-50 p-3">
-      <div>
-        <h3 className="flex items-center gap-2 text-sm font-semibold"><Handshake className="h-4 w-4 text-primary" />Subappalto</h3>
-        <p className="mt-1 text-sm text-slate-600">{righe.length === 0 ? "Nessuna lavorazione nella selezione"
-          : quotabili.length === 0 ? "Nessuna lavorazione da quotare"
-          : `${quotabili.length} ${quotabili.length === 1 ? "lavorazione con quantità da affidare" : "lavorazioni con quantità da affidare"}`}</p>
-      </div>
-      {apri ? <Button size="sm" variant="outline" onClick={apri}>Gestisci subappalto</Button>
-        : <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={!ambiti.length} onClick={() => prepara(false)}>{quotabili.length ? "Prepara contratto" : "Gestisci computo"}</Button>
-          {quotabili.length > 0 && <Button size="sm" onClick={() => prepara(true)}><Plus className="mr-1 h-4 w-4" />Prepara richiesta</Button>}
-        </div>}
-    </header>
-    {!apri && <p className="text-sm text-muted-foreground">Scegli le lavorazioni e la ditta. Puoi chiedere un’offerta oppure preparare il contratto usando il listino della ditta e confermare i costi prima della firma.</p>}
-    {righe.length > 0 && <ul className="divide-y overflow-hidden rounded-lg border bg-background">{(apri ? righe.slice(0, 4) : righe).map((r) =>
-      <li key={r.ambito.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+  const elenco = righe.length > 0 && <ul aria-label="Lavorazioni del subappalto" className="divide-y overflow-hidden rounded-lg border bg-background">
+    {(apri ? righe.slice(0, 4) : righe).map((r) => {
+      const { nome } = r.ambito;
+      const breve = nome.length > 85 ? nomeBreve(nome).titolo : nome;
+      return <li key={r.ambito.id} className="grid items-start gap-2.5 px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          <span className="font-medium">{r.ambito.nome}</span>
-          <span className="ml-2 text-xs text-muted-foreground">
-            {r.dettaglio}
-          </span>
+          <p className="break-words font-medium">{breve}</p>
+          {r.dettaglio && <p className="mt-0.5 text-xs text-muted-foreground">{r.dettaglio}</p>}
+          {!apri && breve !== nome && <details className="group mt-1 text-xs text-muted-foreground">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <ChevronDown className="size-3.5 group-open:rotate-180" aria-hidden="true" />Descrizione
+            </summary>
+            <p className="mt-1.5 break-words leading-relaxed">{nome}</p>
+          </details>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <Badge variant="outline" className={colori[r.stato]}>{r.stato}</Badge>
           {!apri && disponibile && r.residua > 0 && <Button size="sm" variant="ghost" className="h-7" disabled={salvaInCorso} onClick={() => {
             void aggiorna({ tipo: "interno", interno: !r.interna, ambito: r.ambito.id }).catch((e: Error) => toast.error(e.message));
           }}>{r.interna ? "Rimetti da quotare" : "Lavoro interno"}</Button>}
           {!apri && !r.interna && r.residua > 0 && <Button size="sm" variant="outline" className="h-7" onClick={() => prepara(true, [r])}>Quota voce</Button>}
         </div>
-      </li>)}
-      {apri && righe.length > 4 && <li className="px-3 py-2 text-xs text-muted-foreground">Altre {righe.length - 4} lavorazioni in Subappalto</li>}
-    </ul>}
-    {!apri && <ContrattiSubappaltoCommessa companyId={companyId} orderId={orderId} dati={datiContratti.data} voci={misurate.data} affidamenti={affidamenti.data} inRicarica={datiContratti.isFetching || affidamenti.isFetching} />}
-    {!apri && disponibile && <div className="space-y-2">
-      <h4 className="text-sm font-semibold">Richieste e offerte</h4>
-      {!richieste.length && <p className="text-sm text-muted-foreground">Nessuna richiesta per queste lavorazioni.</p>}
+      </li>;
+    })}
+    {apri && righe.length > 4 && <li className="px-3 py-2 text-xs text-muted-foreground">Altre {righe.length - 4} lavorazioni in Subappalto</li>}
+  </ul>;
+
+  const richiesteEOfferte = disponibile && <div className="space-y-2">
+      {!richieste.length && <p className="rounded-lg border border-dashed bg-background p-4 text-sm text-muted-foreground">Nessuna richiesta per queste lavorazioni.</p>}
       {richieste.map((r) => <article key={r.id} className="space-y-3 rounded-lg border bg-background p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -253,7 +247,33 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, onOc
             .catch((e: Error) => toast.error(e.message));
         }} />}
       </article>)}
-    </div>}
+    </div>;
+
+  return <section className="space-y-3" aria-label="Riepilogo subappalto">
+    <header className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3">
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-semibold"><Handshake className="size-4 text-primary" aria-hidden="true" />Subappalto</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{righe.length === 0 ? "Nessuna lavorazione nella selezione"
+          : quotabili.length === 0 ? "Nessuna lavorazione da quotare"
+          : `${quotabili.length} ${quotabili.length === 1 ? "voce da affidare" : "voci da affidare"}`}</p>
+      </div>
+      {apri ? <Button size="sm" variant="outline" onClick={apri}>Gestisci subappalto</Button>
+        : <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={!ambiti.length} onClick={() => prepara(false)}>{quotabili.length ? "Prepara contratto" : "Gestisci computo"}</Button>
+          {quotabili.length > 0 && <Button size="sm" onClick={() => prepara(true)}><Plus className="size-4" aria-hidden="true" />Prepara richiesta</Button>}
+        </div>}
+    </header>
+    {apri ? elenco : <Tabs defaultValue="lavorazioni" activationMode="manual">
+      <TabsList aria-label="Sezioni del subappalto" className="h-auto w-full flex-wrap justify-start gap-1">
+        <TabsTrigger value="lavorazioni" className="gap-1.5"><ClipboardList className="size-4 shrink-0" aria-hidden="true" />Lavorazioni</TabsTrigger>
+        {disponibile && <TabsTrigger value="offerte" className="gap-1.5"><Mail className="size-4 shrink-0" aria-hidden="true" />Richieste e offerte{richieste.length > 0 && <span className="text-xs text-muted-foreground">{richieste.length}</span>}</TabsTrigger>}
+        <TabsTrigger value="contratti" className="gap-1.5"><FileText className="size-4 shrink-0" aria-hidden="true" />Contratti</TabsTrigger>
+      </TabsList>
+      <TabsContent value="lavorazioni">{elenco || <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Seleziona una fase o una voce per vedere cosa affidare.</p>}</TabsContent>
+      {disponibile && <TabsContent value="offerte">{richiesteEOfferte}</TabsContent>}
+      <TabsContent value="contratti"><ContrattiSubappaltoCommessa companyId={companyId} orderId={orderId} dati={datiContratti.data}
+        voci={misurate.data} affidamenti={affidamenti.data} inRicarica={datiContratti.isFetching || affidamenti.isFetching} /></TabsContent>
+    </Tabs>}
     {email && <Suspense fallback={<p role="status">Apro l’email…</p>}>
       <EmailComposeDialog open context={email.context} companyIdOverride={companyId} onOpenChange={(open) => !open && setEmail(undefined)}
         documentSummary={{ title: "Computo per la ditta", mode: "pdf", rows: email.richiesta.righe.length }}

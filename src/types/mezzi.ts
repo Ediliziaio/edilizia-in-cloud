@@ -44,6 +44,7 @@ export interface Mezzo {
   contatore_unita: ContatoreUnita;
   contatore_aggiornato_il: string | null;
   possesso: MezzoPossesso;
+  noleggio_dedicato?: boolean;
   stato: MezzoStato;
   assegnato_hr_profilo_id: string | null;
   assegnato_order_id: string | null;

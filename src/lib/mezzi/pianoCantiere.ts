@@ -1,4 +1,5 @@
 import { differenceInCalendarDays, parseISO, isValid } from "date-fns";
+import type { MezzoTipo, UnitaQuantita } from "@/types/mezzi";
 export type BaseCostoMezzo = "totale" | "giorno" | "settimana" | "mese";
 export interface CostoPianoMezzo {
   tariffa: number;
@@ -6,6 +7,10 @@ export interface CostoPianoMezzo {
   extra: number;
   fornitore: string | null;
   supplier_id?: string | null;
+  per_unita?: boolean;
+  trasporto?: number;
+  montaggio?: number;
+  smontaggio?: number;
 }
 export interface PianoMezzo {
   id: string;
@@ -20,21 +25,53 @@ export interface PianoMezzo {
   note: string | null;
   annullato: boolean;
   rientrato_il?: string | null;
+  al_concordato?: string | null;
+  fornitore_id?: string | null;
+  fornitore_noleggio?: string | null;
+  riferimento_noleggio?: string | null;
+  origine_computo_id?: string | null;
+  origine_noleggio_id?: string | null;
+}
+export interface NuovoNoleggio {
+  nome: string;
+  tipo: MezzoTipo;
+  unita: UnitaQuantita | null;
+}
+export type SalvataggioPianoMezzo = Partial<PianoMezzo> & {
+  nuovo_noleggio?: NuovoNoleggio;
+  arrivato_oggi?: boolean;
+  costo?: CostoPianoMezzo | null;
+};
+
+export function unitaNoleggio(unita: string): UnitaQuantita | null {
+  const u = unita.trim().toLowerCase();
+  if (["mq", "m2", "m²"].includes(u)) return "mq";
+  if (["m", "ml", "mt", "m.l."].includes(u)) return "ml";
+  if (["pz", "cad", "cad.", "n", "n.", "pezzi"].includes(u)) return "pz";
+  if (["mc", "m3", "m³"].includes(u)) return "mc";
+  return u === "kg" ? "kg" : null;
+}
+
+export function quantitaMezzoValida(q: number, unita?: string | null) {
+  return Number.isFinite(q) && q > 0 && q < 10000000000
+    && Math.abs(q * 100 - Math.round(q * 100)) < 0.0001
+    && (unita !== "pz" || Number.isInteger(q));
 }
 export function costoPianoMezzo(
-  p: Pick<PianoMezzo, "dal" | "al">,
+  p: Pick<PianoMezzo, "dal" | "al"> & Partial<Pick<PianoMezzo, "quantita">>,
   c: CostoPianoMezzo,
 ): number | null {
-  if (c.base === "totale") return Math.round((c.tariffa + c.extra) * 100) / 100;
+  const extra = Number(c.extra) + Number(c.trasporto ?? 0) + Number(c.montaggio ?? 0) + Number(c.smontaggio ?? 0);
+  const tariffa = Number(c.tariffa) * (c.per_unita ? (p.quantita ?? 1) : 1);
+  if (c.base === "totale") return Math.round((tariffa + extra) * 100) / 100;
   if (!p.al || !isValid(parseISO(p.dal)) || !isValid(parseISO(p.al)))
     return null;
   const giorni = differenceInCalendarDays(parseISO(p.al), parseISO(p.dal)) + 1;
   if (giorni <= 0) return null;
-  // Tariffa dell'assegnazione, non per pezzo; settimana e mese sono pro-rata.
+  // Settimane e mesi sono pro rata. Le spese accessorie si aggiungono una sola volta.
   return (
     Math.round(
-      ((c.tariffa * giorni) / { giorno: 1, settimana: 7, mese: 30 }[c.base] +
-        c.extra) *
+      ((tariffa * giorni) / { giorno: 1, settimana: 7, mese: 30 }[c.base] + extra) *
         100,
     ) / 100
   );
@@ -68,6 +105,7 @@ export interface PresenzaMezzo {
   dal: string;
   /** Montaggio a quantità: serve per il rientro. */
   allocazione_id?: string;
+  piano_id?: string | null;
   quantita?: number;
 }
 export interface RigaMezzoCantiere {
@@ -84,20 +122,22 @@ export function pianoAttivo(p: Pick<PianoMezzo, "annullato" | "al" | "rientrato_
 }
 
 export function righeMezziCantiere(piani: PianoMezzo[], presenti: PresenzaMezzo[], oggi: string): RigaMezzoCantiere[] {
-  const usate = new Set<PresenzaMezzo>();
-  const righe: RigaMezzoCantiere[] = piani
-    .filter((p) => pianoAttivo(p, oggi))
-    .sort((a, b) => a.dal.localeCompare(b.dal))
-    .map((p) => {
-      const presenza = presenti.find((x) => x.mezzo_id === p.mezzo_id && !usate.has(x)) ?? null;
-      if (presenza) usate.add(presenza);
-      const stato: StatoMezzoCantiere = presenza ? "sul_cantiere" : p.dal > oggi ? "prenotato" : "atteso";
-      return { chiave: p.id, mezzo_id: p.mezzo_id, piano: p, presenza, stato };
-    });
-  // Sul cantiere senza prenotazione: messo lì direttamente, o dal telefono.
-  for (const x of presenti)
-    if (!usate.has(x))
-      righe.push({ chiave: `presenza-${x.allocazione_id ?? x.mezzo_id}`, mezzo_id: x.mezzo_id, piano: null, presenza: x, stato: "sul_cantiere" });
+  const righe: RigaMezzoCantiere[] = [];
+  const associate = new Set<string>();
+  const iniziate = piani.filter(p => !p.annullato && !p.rientrato_il && p.dal <= oggi);
+  for (const presenza of presenti) {
+    const candidati = iniziate.filter(p => p.mezzo_id === presenza.mezzo_id && !associate.has(p.id));
+    const compatibili = candidati.filter(p => p.dal <= presenza.dal && (!p.al || p.al >= presenza.dal));
+    const piano = (presenza.piano_id
+      ? candidati.find(p => p.id === presenza.piano_id)
+      : compatibili.length === 1 ? compatibili[0] : null) ?? null;
+    if (piano) associate.add(piano.id);
+    righe.push({ chiave: piano?.id ?? `presenza-${presenza.allocazione_id ?? presenza.mezzo_id}`,
+      mezzo_id: presenza.mezzo_id, piano, presenza, stato: "sul_cantiere" });
+  }
+  for (const piano of piani.filter(p => !associate.has(p.id) && pianoAttivo(p, oggi)).sort((a, b) => a.dal.localeCompare(b.dal))) {
+    righe.push({ chiave: piano.id, mezzo_id: piano.mezzo_id, piano, presenza: null, stato: piano.dal > oggi ? "prenotato" : "atteso" });
+  }
   const ordine: Record<StatoMezzoCantiere, number> = { sul_cantiere: 0, atteso: 1, prenotato: 2 };
   return righe.sort((a, b) => ordine[a.stato] - ordine[b.stato]);
 }

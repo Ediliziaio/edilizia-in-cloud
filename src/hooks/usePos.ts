@@ -24,9 +24,11 @@ export interface IterPos {
   firma_datore_il?: string | null;
   consultazione_rls_il?: string | null;
   affidataria_inviato_il?: string | null;
+  affidataria_ricevuto_il?: string | null;
   affidataria_esito?: "positivo" | "negativo" | null;
   affidataria_esito_il?: string | null;
   cse_inviato_il?: string | null;
+  cse_ricevuto_il?: string | null;
   cse_esito?: "positivo" | "negativo" | null;
   cse_esito_il?: string | null;
   note?: string | null;
@@ -86,19 +88,20 @@ function daDb(r: RigaDb): PosRiga {
   };
 }
 
-export function usePosElenco() {
+export function usePosElenco(orderId?: string) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: chiavi.elenco(companyId),
+    queryKey: orderId ? [...chiavi.elenco(companyId), orderId] : chiavi.elenco(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<PosRiga[]> => {
-      const rows = await readAllPages((from,to)=>supabase
-        .from("pos_documents")
-        .select(SELECT_POS)
-        .eq("company_id",companyId!)
-        .or("document_type.is.null,document_type.eq.pos")
-        .is("superseded_by",null)
-        .order("created_at",{ascending:false}).order("id").range(from,to));
+      const rows = await readAllPages((from, to) => {
+        let query = supabase.from("pos_documents").select(SELECT_POS)
+          .eq("company_id", companyId!)
+          .or("document_type.is.null,document_type.eq.pos")
+          .is("superseded_by", null);
+        if (orderId) query = query.eq("order_id", orderId);
+        return query.order("created_at", { ascending: false }).order("id").range(from, to);
+      });
       return (rows as unknown as RigaDb[]).map(daDb);
     },
     staleTime: 30 * 1000,
@@ -116,6 +119,7 @@ export function usePos(id: string | undefined) {
         .select(SELECT_POS)
         .eq("id", id!)
         .eq("company_id", companyId!)
+        .or("document_type.is.null,document_type.eq.pos")
         .maybeSingle();
       if (error) throw error;
       return data ? daDb(data as unknown as RigaDb) : null;
@@ -134,7 +138,7 @@ export class ErrorePos extends Error {
 }
 
 /** Che cosa sa fare questo editor: il server lo legge a ogni richiesta e rifiuta di approvare ciò che l'editor non può riesaminare. */
-const CAPACITA_CLIENT = { versione_client: 2, versione_psc_client: 1, versione_prodotti_client: 1, versione_tecnica_client: 1, versione_fonti_tecniche_client: 1, versione_mezzi_client: 1, versione_documenti_mezzi_client: 1, versione_requisiti_addetti_client: 1 };
+const CAPACITA_CLIENT = { versione_client: 2, versione_evidenze_operative_client: 1, versione_psc_client: 1, versione_prodotti_client: 1, versione_tecnica_client: 1, versione_fonti_tecniche_client: 1, versione_mezzi_client: 1, versione_documenti_mezzi_client: 1, versione_requisiti_addetti_client: 1 };
 const URL_GENERA_POS = () => `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/genera-pos`;
 
 async function tokenPos(): Promise<string> {
@@ -177,7 +181,7 @@ export function messaggioServerPos(status: number, json: Record<string, unknown>
   if (status >= 500) return "Problema temporaneo del server. Riprova tra qualche secondo.";
   // Un testo semplice e breve è già un messaggio; un JSON o una pagina HTML no.
   const semplice = testo.trim();
-  return semplice && semplice.length <= 200 && !/^[{<\[]/.test(semplice) ? semplice : predefinito;
+  return semplice && semplice.length <= 200 && !/^[{<[]/.test(semplice) ? semplice : predefinito;
 }
 
 async function leggiRispostaPos<T>(res: Response): Promise<T> {
@@ -252,8 +256,14 @@ export async function datiAppPos(companyId: string, posId: string) {
   return chiamaServerPos<{ contenuto: PosContenuto; contesto: ContestoPos }>({ azione: "dati_app", company_id: companyId, pos_id: posId });
 }
 
-export async function lavorazioniAiPos(companyId: string, posId: string) {
-  return chiamaServerPos<{ lavorazioni: Lavorazione[]; modalita_organizzative?: string }>({ azione: "lavorazioni_ai", company_id: companyId, pos_id: posId });
+export async function lavorazioniAiPos(companyId: string, posId: string, perimetro?: {
+  fasi: string[]; ambito: string; pscOcrDa?: number; computo?: { id: string; capitoli: string[] };
+}) {
+  return chiamaServerPos<{ lavorazioni: Lavorazione[]; modalita_organizzative?: string; avvisi?: string[]; ditte?: string[] }>({
+    azione: "lavorazioni_ai", company_id: companyId, pos_id: posId,
+    fasi_ai: perimetro?.fasi, ambito_ai: perimetro?.ambito, psc_ocr_da: perimetro?.pscOcrDa,
+    capitoli_ai: perimetro?.computo?.capitoli, computo_ai_id: perimetro?.computo?.id,
+  });
 }
 
 export function useApprovaPos() {

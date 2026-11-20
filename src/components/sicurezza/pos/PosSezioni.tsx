@@ -1,3 +1,14 @@
+import { EsitiDalRapportoRumore } from "./EsitiDalRapportoRumore";
+import { EmergenzeDalPsc } from "./EmergenzeDalPsc";
+import { fontiEmergenzeDaRiesaminare, normalizzaFontiEmergenzePsc, testoIndicazioniEmergenza } from "../../../../supabase/functions/_shared/posEmergenzePsc";
+import { LetturaOcrPsc, type ContestoLetturaPsc } from "./LetturaOcrPsc";
+import { apriFileRiservato } from "@/lib/storagePrivato";
+import { CAMPI_EMERGENZE_POS, dpiPrevistiPos, type CampoEmergenzePos } from "../../../../supabase/functions/_shared/posEvidenzeOperative";
+import { apriRapportoRumorePos, ConsegneDpiLavorazionePos, ScegliRapportoRumorePos } from "./EvidenzeOperativePos";
+import { ProgrammaDemolizioniPos } from "./ProgrammaDemolizioniPos";
+import type { RiferimentoPsc } from "../../../../supabase/functions/_shared/posPsc";
+import { CatalogoSchedeStandardPos, QuesitiSchedaPos, RiferimentiSchedaPos } from "./SchedeStandardPos";
+import { ocrPscDaConfermare, pscSchedaDaRiesaminare } from "../../../../supabase/functions/_shared/posFontiScheda";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {RiferimentoPscPos} from "./RiferimentoPscPos";
 import {SegnaleticaLavorazionePos} from "./SegnaleticaLavorazionePos";
@@ -23,12 +34,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Area, Campo, Riga, Sezione } from "./campi";
 import {
   ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, RIFERIMENTI_SEZIONE, RSPP_LABEL, RUOLO_IMPRESA_LABEL, SVOLGIMENTO_LABEL,
-  applicaValutazione, lavorazioneVuota, soggettoVuoto, valutazioneDaElenchi, vociMancanti,
+  applicaValutazione, lavorazioneVuota, soggettoVuoto, titoloDemolizionePos, valutazioneDaElenchi, vociMancanti,
   type GestioneEmergenze, type Lavorazione, type PosContenuto, type RsppSvoltoDa, type RuoloImpresa, type Svolgimento,
-  type TipoAllegato,
+  type AllegatoPos, type TipoAllegato,
 } from "../../../../supabase/functions/_shared/posModello";
 import type { ContestoPos } from "../../../../supabase/functions/_shared/posModello";
 import { caricaAllegatoPos, linkAllegatoPos } from "@/hooks/usePos";
+import { useFasiFascicolo } from "@/hooks/useFascicoloCantiere";
 
 import { ProdottiLavorazionePos } from "./ProdottiLavorazionePos";
 import { FunzioniAvanzatePos } from "./FunzioniAvanzatePos";
@@ -298,8 +310,9 @@ export function SezioneFigure({ d, modifica, ro, mancanti }: BaseProps) {
 
 // ── 4. Emergenze ─────────────────────────────────────────────────────────────
 
-export function SezioneEmergenze({ d, modifica, ro, mancanti }: BaseProps) {
+export function SezioneEmergenze({ d, modifica, ro, mancanti, lettura }: BaseProps & { lettura?: ContestoLetturaPsc }) {
   const e = d.emergenze;
+  const superate = fontiEmergenzeDaRiesaminare(e.fonti_psc, e.piano, d.procedure_psc.psc_presente ? d.procedure_psc.documento : undefined);
   return (
     <Sezione id="emergenze" numero={4} titolo="Pronto soccorso, antincendio ed evacuazione" riferimento={RIFERIMENTI_SEZIONE.emergenze} mancanti={mancanti}
       descrizione="Se c'è il PSC, controlla cosa prevede per emergenze, evacuazione e primo soccorso.">
@@ -316,6 +329,45 @@ export function SezioneEmergenze({ d, modifica, ro, mancanti }: BaseProps) {
         <Campo id="imprese-comune" label="Imprese che gestiscono insieme le emergenze" value={e.imprese_gestione_comune} readOnly={ro}
           onChange={(v) => modifica((x) => { x.emergenze.imprese_gestione_comune = v; })} />
       )}
+      {(!ro || e.piano) && <fieldset className="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
+        <legend className="px-1 text-sm font-semibold">Organizzazione operativa delle emergenze</legend>
+        {!ro && <p className="text-xs text-muted-foreground sm:col-span-2">Se una disposizione è nel PSC o nella planimetria, indica dove trovarla e come applicarla in cantiere.</p>}
+        {!ro && lettura && <div className="sm:col-span-2">
+          <EmergenzeDalPsc key={`${lettura.fonte.id}:${lettura.fonte.sha256}:${lettura.fonte.revisione}`} origine={lettura} piano={e.piano} fonti={e.fonti_psc} applica={proposte => modifica(x => {
+            const psc = x.procedure_psc.documento;
+            if (!x.procedure_psc.psc_presente || proposte.some(p => pscSchedaDaRiesaminare(p, psc))) return;
+            const raggruppate = normalizzaFontiEmergenzePsc(Object.fromEntries(
+              Object.keys(CAMPI_EMERGENZE_POS).map(k => [k, proposte.filter(p => p.campo === k)]),
+            ));
+            for (const [k, fonti] of Object.entries(raggruppate ?? {})) {
+              const campo = k as CampoEmergenzePos;
+              (x.emergenze.piano ??= {})[campo] = testoIndicazioniEmergenza(fonti);
+              (x.emergenze.fonti_psc ??= {})[campo] = fonti;
+            }
+          })} />
+        </div>}
+        {(Object.entries(CAMPI_EMERGENZE_POS) as [CampoEmergenzePos, string][]).filter(([k]) => !ro || e.piano?.[k]).map(([k, label]) => {
+          const fonti = e.fonti_psc?.[k], superata = superate.includes(k);
+          return <div key={k} className={k === "allarme" || k === "planimetria" ? "sm:col-span-2" : undefined}>
+            {fonti?.length ? <>
+              <p className="mb-1 text-sm font-medium">{label}</p>
+              <ul className="space-y-1">
+                {fonti.map((fonte, i) => <li key={i} className="rounded-md border px-2.5 py-2 text-sm">
+                  {fonte.fase && <p className="font-medium">{fonte.fase}</p>}
+                  <p>{fonte.estratto}</p>
+                  <p className={cn("mt-1 text-xs", superata ? "text-amber-800" : "text-muted-foreground")}>
+                    {superata ? "Fonte da riesaminare · " : ""}PSC rev. {fonte.revisione} · pagina {fonte.pagina}{fonte.metodo === "ocr" ? " · OCR" : ""}
+                  </p>
+                </li>)}
+              </ul>
+              {!ro && <Button type="button" size="sm" variant="ghost" className="mt-1" onClick={() => modifica(x => {
+                if (x.emergenze.fonti_psc) delete x.emergenze.fonti_psc[k];
+              })}>Modifica come testo libero</Button>}
+            </> : <Area id={`emergenza-${k}`} label={label} rows={2} value={e.piano?.[k] ?? ""} readOnly={ro}
+              onChange={v => modifica(x => { (x.emergenze.piano ??= {})[k] = v; })} />}
+          </div>;
+        })}
+      </fieldset>}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Lavoratori incaricati</h3>
         {!ro && (
@@ -349,9 +401,26 @@ export function SezioneEmergenze({ d, modifica, ro, mancanti }: BaseProps) {
 
 // ── 5. Lavoratori e autonomi ─────────────────────────────────────────────────
 
-export function SezioneLavoratori({ d, modifica, ro, mancanti }: BaseProps) {
+export function SezioneLavoratori({ d, modifica, ro, mancanti, organico, confronta }: BaseProps & {
+  organico?: ContestoPos["organico"];
+  confronta?: () => void;
+}) {
   return (
     <Sezione id="lavoratori" numero={5} titolo="Lavoratori in cantiere per conto dell'impresa" riferimento={RIFERIMENTI_SEZIONE.lavoratori} mancanti={mancanti}>
+      {!ro && organico && <details className="rounded-md border bg-muted/20 p-3">
+        <summary className="cursor-pointer text-sm font-medium">Organico proposto dalla commessa · {organico.length}</summary>
+        <ul className="mt-2 divide-y text-sm">
+          {organico.map((p) => <li key={p.chiave} className="py-2">
+            <p>{p.nome} · {p.qualifica}</p>
+            <p className="text-xs text-muted-foreground">
+              {[p.assegnato && "Assegnato alla commessa", p.daCampo && "App di cantiere",
+                ...p.periodi.map(({ dal, al }) => `Pianificato ${dal} – ${al}`)].filter(Boolean).join(" · ")}
+            </p>
+          </li>)}
+        </ul>
+        {!organico.length && <p className="mt-2 text-xs text-muted-foreground">Nessun addetto recuperato dalle assegnazioni o dalla pianificazione.</p>}
+        {confronta && <Button type="button" variant="link" size="sm" className="mt-1 h-auto p-0" onClick={confronta}>Confronta con i dati salvati nel POS</Button>}
+      </details>}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Numero e qualifica dei lavoratori</h3>
@@ -446,32 +515,108 @@ export function SezioneFormazione({ d, modifica, ro, mancanti }: BaseProps) {
 
 // ── 7. Rumore ────────────────────────────────────────────────────────────────
 
-export function SezioneRumore({ d, modifica, ro, mancanti }: BaseProps) {
+export function SezioneRumore({ d, modifica, ro, mancanti, companyId, orderId, posId, allegatiSalvati = [], salvaPrimaDellaLettura }: BaseProps & {
+  companyId?: string; orderId?: string; posId?: string; allegatiSalvati?: AllegatoPos[]; salvaPrimaDellaLettura?: () => Promise<boolean>;
+}) {
+  const [scegli, setScegli] = useState(false);
+  const rapporto = d.rumore.rapporto;
+  const modificaEsiti: Modifica = fn => modifica(x => {
+    fn(x);
+    if (x.rumore.rapporto) x.rumore.rapporto.esiti_riesaminati = false;
+  });
+  const aggiornaRapporto = (k: "codice" | "data" | "revisione" | "collocazione", v: string) =>
+    modificaEsiti(x => { (x.rumore.rapporto ??= { codice: "", data: "", revisione: "" })[k] = v; });
   return (
     <Sezione id="rumore" numero={7} titolo="Esito del rapporto di valutazione del rumore" riferimento={RIFERIMENTI_SEZIONE.rumore} mancanti={mancanti}
-      descrizione="Riporta l'esito della valutazione del rumore dell'impresa: i valori vengono dal rapporto, non si stimano qui. Il rapporto si può allegare.">
+      descrizione="Indica i livelli di esposizione e i relativi riferimenti nel rapporto dell’impresa.">
+      {(!ro || rapporto) && <fieldset className="space-y-3 rounded-md border p-3">
+        <legend className="px-1 text-sm font-semibold">Rapporto di riferimento</legend>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Campo id="rumore-rapporto" label="Numero o titolo" value={rapporto?.codice ?? ""} readOnly={ro} onChange={v => aggiornaRapporto("codice", v)} />
+          <Campo id="rumore-data" type="date" label="Data del rapporto" value={rapporto?.data ?? ""} readOnly={ro} onChange={v => aggiornaRapporto("data", v)} />
+          <Campo id="rumore-rev" label="Revisione" value={rapporto?.revisione ?? ""} readOnly={ro} onChange={v => aggiornaRapporto("revisione", v)} />
+        </div>
+        {rapporto?.fonte ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted px-3 py-2 text-sm">
+          <span>Originale collegato · {rapporto.fonte.titolo}</span>
+          <div className="flex flex-wrap gap-1">
+            {companyId && posId && <Button type="button" size="sm" variant="outline" onClick={() => {
+              void apriRapportoRumorePos(companyId, posId, rapporto.fonte!).catch(e =>
+                toast.error(e instanceof Error ? e.message : "Originale non disponibile"));
+            }}><ExternalLink className="mr-1 size-4" />Apri originale</Button>}
+            {!ro && companyId && posId && <EsitiDalRapportoRumore key={`${rapporto.fonte.id}:${rapporto.fonte.sha256}`} companyId={companyId} posId={posId}
+              fonte={rapporto.fonte} salva={salvaPrimaDellaLettura} applica={proposte => modificaEsiti(x => {
+                const ref = x.rumore.rapporto?.fonte;
+                if (!ref || ref.id !== rapporto.fonte?.id || ref.sha256 !== rapporto.fonte.sha256 || ref.origine !== rapporto.fonte.origine) return;
+                for (const p of proposte) {
+                  const riferimento = `Pagina ${p.pagina}${p.metodo === "ocr" ? " · OCR" : ""}`;
+                  if (x.rumore.righe.some(r => r.riferimento?.replace(/ · OCR$/, "") === `Pagina ${p.pagina}` &&
+                      r.mansione === p.mansione && r.esposizione === p.esposizione && r.lavorazione === p.lavorazione)) continue;
+                  x.rumore.righe.push({ mansione: p.mansione, lavorazione: p.lavorazione, esposizione: p.esposizione, livello_sorgenti: "", note: "", riferimento });
+                }
+              })} />}
+            {!ro && <Button type="button" size="sm" variant="ghost" onClick={() => modificaEsiti(x => { if (x.rumore.rapporto) delete x.rumore.rapporto.fonte; })}>Scollega</Button>}
+          </div>
+        </div> : (!ro || rapporto?.collocazione) && <Campo id="rumore-collocazione" label="Dove è conservato l’originale, se esterno" value={rapporto?.collocazione ?? ""} readOnly={ro} onChange={v => aggiornaRapporto("collocazione", v)} />}
+        {!ro && companyId && orderId && posId && <Button type="button" size="sm" variant="outline" aria-expanded={scegli} onClick={() => setScegli(v => !v)}>
+          <Paperclip className="mr-1 size-4" />{scegli ? "Chiudi scelta" : rapporto?.fonte ? "Sostituisci originale" : "Scegli dall’archivio o dagli allegati"}
+        </Button>}
+        {!ro && scegli && companyId && orderId && posId && <ScegliRapportoRumorePos companyId={companyId} orderId={orderId} posId={posId}
+          allegati={d.allegati.filter(a => a.tipo === "valutazione_rumore" && allegatiSalvati.some(v => v.file_path === a.file_path && v.nome === a.nome && v.tipo === a.tipo))} collega={fonte => {
+            modificaEsiti(x => {
+              const precedente = x.rumore.rapporto;
+              const stessaFonte = precedente?.fonte?.sha256 === fonte.sha256;
+              x.rumore.rapporto = {
+                codice: stessaFonte ? precedente!.codice : fonte.titolo,
+                data: fonte.data_archivio ?? (stessaFonte ? precedente!.data : ""),
+                revisione: stessaFonte ? precedente!.revisione : "",
+                fonte,
+              };
+            });
+            setScegli(false);
+          }} />}
+      </fieldset>}
       <Area id="rumore-esito" label="Esito della valutazione" rows={3} value={d.rumore.esito} readOnly={ro}
         placeholder="Es.: dalla valutazione del rumore del … (rev. …), l'esposizione giornaliera degli addetti è inferiore/superiore a … dB(A)"
-        onChange={(v) => modifica((x) => { x.rumore.esito = v; })} />
+        onChange={(v) => modificaEsiti((x) => { x.rumore.esito = v; })} />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Tabella dei livelli di esposizione</h3>
         {!ro && (
-          <Button size="sm" variant="outline" onClick={() => modifica((x) => { x.rumore.righe.push({ mansione: "", lavorazione: "", livello_sorgenti: "", esposizione: "", note: "" }); })}>
+          <Button size="sm" variant="outline" onClick={() => modificaEsiti((x) => { x.rumore.righe.push({ mansione: "", lavorazione: "", livello_sorgenti: "", esposizione: "", note: "" }); })}>
             <Plus className="mr-1 h-4 w-4" />Aggiungi riga
           </Button>
         )}
       </div>
       {d.rumore.righe.map((r, n) => (
-        <Riga key={`rum-${n}`} readOnly={ro} etichettaRimuovi={`Togli la riga ${n + 1}`} onRemove={() => modifica((x) => { x.rumore.righe.splice(n, 1); })}>
+        <Riga key={`rum-${n}`} readOnly={ro} etichettaRimuovi={`Togli la riga ${n + 1}`} onRemove={() => modificaEsiti((x) => { x.rumore.righe.splice(n, 1); })}>
           <div className="grid gap-3 pr-10 sm:grid-cols-2">
-            <Campo id={`rum-${n}-m`} label="Mansione (o nominativo)" value={r.mansione} readOnly={ro} onChange={(v) => modifica((x) => { x.rumore.righe[n].mansione = v; })} />
-            <Campo id={`rum-${n}-l`} label="Lavorazione" value={r.lavorazione} readOnly={ro} onChange={(v) => modifica((x) => { x.rumore.righe[n].lavorazione = v; })} />
-            <Campo id={`rum-${n}-s`} label="Pressione sonora delle sorgenti" value={r.livello_sorgenti} readOnly={ro} onChange={(v) => modifica((x) => { x.rumore.righe[n].livello_sorgenti = v; })} />
-            <Campo id={`rum-${n}-e`} label="Esposizione giornaliera/settimanale" value={r.esposizione} readOnly={ro} onChange={(v) => modifica((x) => { x.rumore.righe[n].esposizione = v; })} />
-            <Campo id={`rum-${n}-note`} label="Note" value={r.note} readOnly={ro} className="sm:col-span-2" onChange={(v) => modifica((x) => { x.rumore.righe[n].note = v; })} />
+            <Campo id={`rum-${n}-m`} label="Mansione (o nominativo)" value={r.mansione} readOnly={ro} onChange={(v) => modificaEsiti((x) => { x.rumore.righe[n].mansione = v; })} />
+            {(!ro && d.lavorazioni.length > 0) ? <label className="space-y-1.5 text-sm font-medium">
+              <span>Lavorazione collegata</span>
+              <select className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={r.lavorazione_id ?? ""}
+                onChange={e => modificaEsiti(x => {
+                  const voce = x.lavorazioni.find(l => l.id === e.target.value), riga = x.rumore.righe[n];
+                  riga.lavorazione_id = voce?.id;
+                  if (voce) riga.lavorazione = voce.titolo;
+                })}>
+                <option value="">Riferimento libero</option>
+                {!!r.lavorazione_id && !d.lavorazioni.some(l => l.id === r.lavorazione_id) && <option value={r.lavorazione_id}>Lavorazione rimossa</option>}
+                {d.lavorazioni.map((l, i) => <option key={l.id} value={l.id}>{l.titolo || `Lavorazione ${i + 1}`}</option>)}
+              </select>
+            </label> : null}
+            {(!r.lavorazione_id || ro || !d.lavorazioni.length) && <Campo id={`rum-${n}-l`} label="Lavorazione" value={d.lavorazioni.find(l => l.id === r.lavorazione_id)?.titolo ?? r.lavorazione} readOnly={ro} onChange={(v) => modificaEsiti((x) => { x.rumore.righe[n].lavorazione = v; delete x.rumore.righe[n].lavorazione_id; })} />}
+            <Campo id={`rum-${n}-rif`} label="Pagina o punto del rapporto" value={r.riferimento ?? ""} readOnly={ro}
+              onChange={v => modificaEsiti(x => { x.rumore.righe[n].riferimento = v; })} />
+            <Campo id={`rum-${n}-s`} label="Pressione sonora delle sorgenti" value={r.livello_sorgenti} readOnly={ro} onChange={(v) => modificaEsiti((x) => { x.rumore.righe[n].livello_sorgenti = v; })} />
+            <Campo id={`rum-${n}-e`} label="Esposizione giornaliera/settimanale" value={r.esposizione} readOnly={ro} onChange={(v) => modificaEsiti((x) => { x.rumore.righe[n].esposizione = v; })} />
+            <Campo id={`rum-${n}-note`} label="Note" value={r.note} readOnly={ro} className="sm:col-span-2" onChange={(v) => modificaEsiti((x) => { x.rumore.righe[n].note = v; })} />
           </div>
         </Riga>
       ))}
+      {rapporto && <label className="flex items-center gap-2 rounded-md border bg-muted/20 p-3 text-sm">
+        <Checkbox checked={rapporto.esiti_riesaminati === true} disabled={ro} onCheckedChange={v =>
+          modifica(x => { if (x.rumore.rapporto) x.rumore.rapporto.esiti_riesaminati = v === true; })} />
+        Ho confrontato gli esiti riportati con questa revisione del rapporto
+      </label>}
     </Sezione>
   );
 }
@@ -482,11 +627,12 @@ interface LavorazioniProps extends BaseProps {
   companyId?:string;
   orderId?:string;
   contesto: ContestoPos | null;
+  pscVigente?: RiferimentoPsc | null;
   onProponiAi: () => void;
   proponendo: boolean;
 }
 
-export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo, companyId, orderId }: LavorazioniProps) {
+export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo, companyId, orderId, pscVigente }: LavorazioniProps) {
   // Quante voci mancano a ogni scheda: una scheda completa si chiude, quella da fare resta aperta (le altre si aprono a un tocco).
   const mancantiPerScheda = useMemo(() => {
     const m = new Map<string, number>();
@@ -506,7 +652,8 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
       descrizione="Una scheda per lavorazione: sostanze, opere provvisionali, macchine, rischi, misure e DPI. Le schede proposte dall'AI o riprese da altri POS e modelli richiedono adattamento e conferma."
       azioni={!ro ? (
         // Telefono: due icone (prima i due pulsanti col testo uscivano dallo schermo e «Scheda vuota» si tagliava).
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <CatalogoSchedeStandardPos companyId={companyId} orderId={orderId} onAggiungi={l => modifica(x => { x.lavorazioni.push(l); })} />
           <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Proponi con l'AI" title="Proponi le lavorazioni con l'AI" onClick={onProponiAi} disabled={proponendo}>
             {proponendo ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden="true" /> : <Sparkles className="h-4 w-4 sm:mr-1" aria-hidden="true" />}<span className="max-sm:hidden">Proponi con l'AI</span>
           </Button>
@@ -522,7 +669,8 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
           {contesto.subappaltatori.length > 0 && <p className="mt-1"><span className="font-medium">Subappaltatori della commessa:</span> {contesto.subappaltatori.map((s) => s.tipo_lavori ? `${s.ragione_sociale} (${s.tipo_lavori})` : s.ragione_sociale).join(", ")}</p>}
         </div>
       )}
-      {d.lavorazioni.length === 0 && <p className="text-sm text-muted-foreground">Nessuna lavorazione. Proponile con l'AI partendo dalla descrizione dell'attività, o scrivile a mano.</p>}
+      {!ro && companyId && orderId && <AggiungiLavorazioneDaFase companyId={companyId} orderId={orderId} lavorazioni={d.lavorazioni} modifica={modifica} />}
+      {d.lavorazioni.length === 0 && <p className="text-sm text-muted-foreground">Nessuna lavorazione. Parti da una scheda standard, da una fase della commessa o da una proposta AI.</p>}
       {d.lavorazioni.map((l, n) => (
         <div key={l.id} className={`rounded-xl border ${l.origine !== "utente" && !l.verificata ? "border-amber-300 bg-amber-50/30" : "bg-slate-50/50"}`}>
           <div className={cn("flex flex-wrap items-center gap-2 px-3 py-2", schedaAperta(l.id) && "border-b")}>
@@ -553,23 +701,90 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={n === d.lavorazioni.length - 1} aria-label="Sposta giù"
                   onClick={() => modifica((x) => { const [it] = x.lavorazioni.splice(n, 1); x.lavorazioni.splice(n + 1, 0, it); })}><ArrowDown className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Duplica"
-                  onClick={() => modifica((x) => { x.lavorazioni.splice(n + 1, 0, { ...structuredClone(x.lavorazioni[n]), prodotti: x.lavorazioni[n].prodotti?.map(p=>({...p,verificato:false})), prodotti_riesaminati:false, ...(x.lavorazioni[n].tecnica?{tecnica:{...structuredClone(x.lavorazioni[n].tecnica!),riesaminata:false}}:{}), requisiti_addetti: undefined, segnaletica: undefined, id: nuovoId(), titolo: `${x.lavorazioni[n].titolo} (copia)`, origine: "modello", verificata: false }); })}><Copy className="h-4 w-4" /></Button>
+                  onClick={() => modifica((x) => { x.lavorazioni.splice(n + 1, 0, { ...structuredClone(x.lavorazioni[n]), prodotti: x.lavorazioni[n].prodotti?.map(p=>({...p,verificato:false})), prodotti_riesaminati:false, ...(x.lavorazioni[n].tecnica?{tecnica:{...structuredClone(x.lavorazioni[n].tecnica!),riesaminata:false}}:{}), requisiti_addetti: undefined, riscontri_dpi: undefined, segnaletica: undefined, id: nuovoId(), titolo: `${x.lavorazioni[n].titolo} (copia)`, origine: "modello", verificata: false }); })}><Copy className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" aria-label={`Elimina la lavorazione ${l.titolo || n + 1}`}
                   onClick={() => modifica((x) => { x.lavorazioni.splice(n, 1); })}><Trash2 className="h-4 w-4" /></Button>
               </div>
             )}
           </div>
           <div className={cn("grid gap-3 p-3 sm:grid-cols-2", !schedaAperta(l.id) && "hidden")}>
+            {l.fonti_scheda && <div className="space-y-3 sm:col-span-2">
+              <RiferimentiSchedaPos fonti={l.fonti_scheda}
+                superato={pscSchedaDaRiesaminare(l.fonti_scheda.psc, pscVigente === undefined ? d.procedure_psc.documento : pscVigente)}
+                apriOriginale={d.procedure_psc.documento ? pagina => {
+                  const psc = d.procedure_psc.documento!;
+                  void apriFileRiservato(psc.archivio === "sicurezza_documenti" ? "sicurezza-documenti" : "fascicoli-cantiere", psc.file_path, pagina)
+                    .catch(() => toast.error("Originale PSC non disponibile"));
+                } : undefined}
+                confermaOcr={ro ? undefined : (indice, confermato) => modifica(x => {
+                  const scheda = x.lavorazioni[n];
+                  const estratto = scheda.fonti_scheda?.psc?.estratti[indice];
+                  if (estratto?.metodo !== "ocr") return;
+                  estratto.confermato = confermato;
+                  scheda.verificata = false;
+                  if (scheda.tecnica) scheda.tecnica.riesaminata = false;
+                })}
+                usaPrescrizione={ro ? undefined : estratto => modifica(x => {
+                  const psc = x.procedure_psc;
+                  const fonte = l.fonti_scheda?.psc;
+                  if (!psc.psc_presente || !psc.documento || !fonte || pscSchedaDaRiesaminare(fonte, psc.documento) || (estratto.metodo === "ocr" && !estratto.confermato)) return;
+                  const { id, revisione, sha256 } = fonte;
+                  if (!psc.voci.some(v => v.lavorazione_id === l.id && v.pagina === String(estratto.pagina) && v.procedura === estratto.testo)) {
+                    psc.richieste = true;
+                    psc.voci.push({ fonte_estratto: { id, revisione, sha256, ...(estratto.metodo ? { metodo: estratto.metodo } : {}) }, procedura: estratto.testo, indicazioni: "", pagina: String(estratto.pagina), lavorazione_id: l.id });
+                  }
+                })}
+                rimuoviPsc={ro ? undefined : () => modifica(x => {
+                  const scheda = x.lavorazioni[n];
+                  if (scheda.fonti_scheda) delete scheda.fonti_scheda.psc;
+                  scheda.verificata = false;
+                  if (scheda.tecnica) scheda.tecnica.riesaminata = false;
+                })} />
+              {!!l.fonti_scheda.quesiti?.length && <QuesitiSchedaPos quesiti={l.fonti_scheda.quesiti} readonly={ro}
+                rispondi={(i, risposta) => modifica(x => {
+                  const scheda = x.lavorazioni[n];
+                  const q = scheda.fonti_scheda?.quesiti?.[i];
+                  if (!q) return;
+                  q.risposta = risposta;
+                  scheda.verificata = false;
+                  if (scheda.tecnica) scheda.tecnica.riesaminata = false;
+                })} />}
+            </div>}
             {d.versione_tecnica===1&&<TecnicaLavorazionePos d={d} n={n} ro={ro} modifica={modifica} companyId={companyId} orderId={orderId}/>}
             <SegnaleticaLavorazionePos l={l} ro={ro} onChange={segnaletica=>modifica(x=>{x.lavorazioni[n].segnaletica=segnaletica;x.lavorazioni[n].verificata=false;if(x.lavorazioni[n].tecnica)x.lavorazioni[n].tecnica!.riesaminata=false;})}/>
             {campo(l, n, "descrizione", "Descrizione della lavorazione")}
             {campo(l, n, "modalita", "Modalità e organizzazione della fase di lavoro")}
+            {(l.programma_demolizioni || titoloDemolizionePos(l.titolo)) && <ProgrammaDemolizioniPos id={`pos-demolizioni-${n}`} valore={l.programma_demolizioni} preposti={d.preposti.map(p => p.nominativo.trim())}
+              ro={ro} cambia={programma => modifica(x => {
+                const scheda = x.lavorazioni[n];
+                scheda.programma_demolizioni = programma;
+                if (scheda.origine !== "utente") scheda.verificata = false;
+              })} />}
             {campo(l, n, "sostanze", "Sostanze e preparati pericolosi", 2, "«Nessuna», oppure descrivi le sostanze e collega i singoli prodotti")}
             {d.versione_prodotti===1&&companyId&&orderId&&<ProdottiLavorazionePos companyId={companyId} orderId={orderId} d={d} l={l} n={n} modifica={modifica} ro={ro}/>}
             {campo(l, n, "opere_provvisionali", "Opere provvisionali", 2, "Ponteggi, trabattelli, parapetti… o «Nessuna»")}
             {campo(l, n, "macchine", "Macchine e attrezzature", 2, "Anche «Nessuna»")}
             {campo(l, n, "impianti", "Impianti", 2, "Elettrico di cantiere, idrico… o «Nessuno»")}
             <RischiLavorazionePos l={l} n={n} ro={ro} cambia={(fn) => modifica((x) => { const lav = x.lavorazioni[n]; fn(lav); invalidaProdottiLavorazione(lav); if (lav.origine !== "utente") lav.verificata = false; })} />
+            {schedaAperta(l.id) && <ConsegneDpiLavorazionePos l={l} companyId={companyId} orderId={orderId} ro={ro}
+              aggiungi={r => modifica(x => {
+                const lav = x.lavorazioni[n];
+                const precedenti = (lav.riscontri_dpi ?? []).filter(v => v.previsto !== r.previsto || v.consegna_id !== r.consegna_id);
+                if (precedenti.length < 250) lav.riscontri_dpi = [...precedenti, r];
+              })}
+              aggiungiInGruppo={righe => modifica(x => {
+                const lav = x.lavorazioni[n];
+                if (lav.svolgimento === "subappalto") return;
+                const previsti = dpiPrevistiPos(lav.dpi);
+                const collegati = lav.riscontri_dpi ?? [];
+                const nuove = righe.filter(r => previsti.includes(r.previsto) &&
+                  !collegati.some(v => v.previsto === r.previsto && v.addetto_id === r.addetto_id));
+                lav.riscontri_dpi = [...collegati, ...nuove].slice(0, 250);
+              })}
+              togli={r => modifica(x => {
+                const lav = x.lavorazioni[n];
+                lav.riscontri_dpi = lav.riscontri_dpi?.filter(v => v.previsto !== r.previsto || v.consegna_id !== r.consegna_id);
+              })} />}
             {campo(l, n, "turni", "Turni di lavoro", 3)}
             <Campo id={`lv-${n}-durata`} label="Durata presunta (giorni)" type="number" value={l.durata_giorni == null ? "" : String(l.durata_giorni)} readOnly={ro}
               onChange={(v) => modifica((x) => { x.lavorazioni[n].durata_giorni = v === "" ? null : Math.max(0, Math.round(Number(v) || 0)); invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
@@ -590,7 +805,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             {d.versione_requisiti_addetti===1&&companyId&&orderId&&<RequisitiLavorazionePos companyId={companyId} orderId={orderId} d={d} l={l} n={n} modifica={modifica} ro={ro}/>}
             {l.origine !== "utente" && (
               <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-white p-2 text-sm sm:col-span-2">
-                <Checkbox checked={l.verificata} disabled={ro} onCheckedChange={(c) => modifica((x) => { x.lavorazioni[n].verificata = c === true; })} className="mt-0.5" />
+                <Checkbox checked={l.verificata} disabled={ro || ocrPscDaConfermare(l.fonti_scheda?.psc) || !!l.fonti_scheda?.quesiti?.some(q => !q.risposta.trim()) || pscSchedaDaRiesaminare(l.fonti_scheda?.psc, d.procedure_psc.documento)} onCheckedChange={(c) => modifica((x) => { x.lavorazioni[n].verificata = c === true; })} className="mt-0.5" />
                 Ho letto questa scheda, l'ho adattata al cantiere e la confermo
               </label>
             )}
@@ -601,9 +816,51 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
   );
 }
 
+function AggiungiLavorazioneDaFase({ companyId, orderId, lavorazioni, modifica }: {
+  companyId: string; orderId: string; lavorazioni: Lavorazione[]; modifica: Modifica;
+}) {
+  const fasi = useFasiFascicolo(companyId, orderId);
+  const [faseDaInserire, setFaseDaInserire] = useState("");
+  const fasiDisponibili = (fasi.data ?? []).filter((fase) => !lavorazioni.some((l) => l.fase_id === fase.id));
+  const faseScelta = fasiDisponibili.find((fase) => fase.id === faseDaInserire);
+  const aggiungiDaFase = () => {
+    if (!faseScelta) return;
+    modifica((x) => {
+      if (x.lavorazioni.some((l) => l.fase_id === faseScelta.id)) return;
+      const nuova = lavorazioneVuota(nuovoId());
+      nuova.titolo = faseScelta.name;
+      nuova.fase_id = faseScelta.id;
+      applicaValutazione(nuova, valutazioneDaElenchi(nuova));
+      x.lavorazioni.push(nuova);
+    });
+    setFaseDaInserire("");
+  };
+  return (
+    <>
+      {fasiDisponibili.length > 0 && (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Label htmlFor="pos-fase-da-inserire">Parti da una fase della commessa</Label>
+            <UniformSelect id="pos-fase-da-inserire" className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              value={faseScelta?.id ?? ""} onChange={(e) => setFaseDaInserire(e.target.value)}>
+              <option value="">Scegli la fase</option>
+              {fasiDisponibili.map((fase) => <option key={fase.id} value={fase.id}>{fase.name}</option>)}
+            </UniformSelect>
+          </div>
+          <Button type="button" size="sm" variant="outline" disabled={!faseScelta} onClick={aggiungiDaFase}>Aggiungi la fase</Button>
+          <p className="w-full text-xs text-muted-foreground">La scheda riprende il titolo e il collegamento. Completa rischi, misure e DPI del lavoro effettivo.</p>
+        </div>
+      )}
+      {fasi.isError && (
+        <p role="alert" className="text-sm text-muted-foreground">Fasi della commessa non disponibili. <button type="button" className="underline" onClick={() => void fasi.refetch()}>Riprova</button> oppure aggiungi una scheda vuota.</p>
+      )}
+    </>
+  );
+}
+
 // ── 9. Procedure del PSC ─────────────────────────────────────────────────────
 
-export function SezionePsc({ d, modifica, ro, mancanti, companyId, orderId }: BaseProps & {companyId:string;orderId:string}) {
+export function SezionePsc({ d, modifica, ro, mancanti, companyId, orderId, lettura, onLetturaPronta }: BaseProps & {companyId:string;orderId:string; lettura?: ContestoLetturaPsc; onLetturaPronta?: () => void }) {
   const p = d.procedure_psc;
   return (
     <Sezione id="psc" numero={9} titolo="Procedure complementari o di dettaglio richieste dal PSC" riferimento={RIFERIMENTI_SEZIONE.psc} mancanti={mancanti}>
@@ -616,6 +873,7 @@ export function SezionePsc({ d, modifica, ro, mancanti, companyId, orderId }: Ba
         <Label htmlFor="psc-presente" className="text-sm">Per questo cantiere c'è un Piano di Sicurezza e Coordinamento (PSC)</Label>
       </div>
       {p.psc_presente && <RiferimentoPscPos companyId={companyId} orderId={orderId} valore={p.documento} ro={ro} onChange={r=>modifica(x=>{x.versione_psc=1;if(r)x.procedure_psc.documento=r;else delete x.procedure_psc.documento;})}/>}
+      {p.psc_presente && lettura && <LetturaOcrPsc {...lettura} ro={ro} onPronta={onLetturaPronta} />}
       {p.psc_presente && (
         <div className="flex items-center gap-2">
           <Switch id="psc-richieste" checked={p.richieste} disabled={ro} onCheckedChange={(on) => modifica((x) => { x.procedure_psc.richieste = on; })} />
@@ -632,11 +890,20 @@ export function SezionePsc({ d, modifica, ro, mancanti, companyId, orderId }: Ba
           {p.voci.map((v, n) => (
             <Riga key={`psc-${n}`} readOnly={ro} etichettaRimuovi={`Togli la procedura ${n + 1}`} onRemove={() => modifica((x) => { x.procedure_psc.voci.splice(n, 1); })}>
               <div className="grid gap-3 pr-10 sm:grid-cols-2">
-                <Area id={`psc-${n}-p`} label="Procedura richiesta nel PSC" rows={2} value={v.procedura} readOnly={ro} onChange={(t) => modifica((x) => { x.procedure_psc.voci[n].procedura = t; })} />
+                {(v.fonte_estratto?.metodo === "ocr" || pscSchedaDaRiesaminare(v.fonte_estratto, p.documento)) && <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 sm:col-span-2">
+                  <p>{pscSchedaDaRiesaminare(v.fonte_estratto, p.documento) ? "La citazione proviene da una revisione diversa del PSC." : "Citazione acquisita con OCR e collegata al riesame della lavorazione."}</p>
+                  {!ro && <Button type="button" size="sm" variant="outline" onClick={() => modifica(x => {
+                    const procedura = x.procedure_psc.voci[n];
+                    delete procedura.fonte_estratto;
+                    procedura.procedura = "";
+                    procedura.pagina = "";
+                  })}>Aggiorna la citazione manualmente</Button>}
+                </div>}
+                <Area id={`psc-${n}-p`} label="Procedura richiesta nel PSC" rows={2} value={v.procedura} readOnly={ro || v.fonte_estratto?.metodo === "ocr"} onChange={(t) => modifica((x) => { x.procedure_psc.voci[n].procedura = t; })} />
                 <Area id={`psc-${n}-i`} label="Indicazioni complementari e di dettaglio" rows={2} value={v.indicazioni} readOnly={ro} onChange={(t) => modifica((x) => { x.procedure_psc.voci[n].indicazioni = t; })} />
-                <Campo id={`psc-${n}-pagina`} label="Pagina / paragrafo del PSC" value={v.pagina||""} readOnly={ro} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].pagina=t;})}/>
+                <Campo id={`psc-${n}-pagina`} label="Pagina / paragrafo del PSC" value={v.pagina||""} readOnly={ro || v.fonte_estratto?.metodo === "ocr"} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].pagina=t;})}/>
                 <Campo id={`psc-${n}-responsabile`} label="Responsabile operativo della procedura" value={v.responsabile||""} readOnly={ro} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].responsabile=t;})}/>
-                <div className="space-y-1 sm:col-span-2"><Label htmlFor={`psc-${n}-lavorazione`} className="text-xs">Lavorazione interessata</Label><UniformSelect id={`psc-${n}-lavorazione`} value={v.lavorazione_id||""} disabled={ro} className="h-9 w-full rounded-md border bg-background px-2 text-sm" onChange={e=>modifica(x=>{x.procedure_psc.voci[n].lavorazione_id=e.target.value;})}><option value="">Procedura generale / da associare</option>{v.lavorazione_id&&!d.lavorazioni.some(l=>l.id===v.lavorazione_id)&&<option value={v.lavorazione_id}>Lavorazione non più presente: da riesaminare</option>}{d.lavorazioni.map(l=><option key={l.id} value={l.id}>{l.titolo||l.id}</option>)}</UniformSelect></div>
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor={`psc-${n}-lavorazione`} className="text-xs">Lavorazione interessata</Label><UniformSelect id={`psc-${n}-lavorazione`} value={v.lavorazione_id||""} disabled={ro || v.fonte_estratto?.metodo === "ocr"} className="h-9 w-full rounded-md border bg-background px-2 text-sm" onChange={e=>modifica(x=>{x.procedure_psc.voci[n].lavorazione_id=e.target.value;})}><option value="">Procedura generale / da associare</option>{v.lavorazione_id&&!d.lavorazioni.some(l=>l.id===v.lavorazione_id)&&<option value={v.lavorazione_id}>Lavorazione non più presente: da riesaminare</option>}{d.lavorazioni.map(l=><option key={l.id} value={l.id}>{l.titolo||l.id}</option>)}</UniformSelect></div>
               </div>
             </Riga>
           ))}

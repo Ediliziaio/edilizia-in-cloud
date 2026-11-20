@@ -27,23 +27,23 @@ describe("lista di controllo della commessa", () => {
   });
 
   it("con un subappaltatore servono PSC, coordinatori, notifica e i documenti dell'impresa", () => {
-    const voci = listaControlloCommessa({ ...base, subappaltatori: [{ id: "s1", ragione_sociale: "Edil Rossi", durc_scadenza: "2026-10-01" }] });
+    const voci = listaControlloCommessa({ ...base, avvio: { stato: "previsto" }, subappaltatori: [{ id: "s1", ragione_sociale: "Edil Rossi", durc_scadenza: "2026-10-01", ruolo: "esecutrice" }] });
     const chiavi = voci.map((v) => v.chiave);
     expect(chiavi).toEqual(expect.arrayContaining(["psc", "nomina", "notifica", "pos-s1", "durc-s1", "itp-s1"]));
     // Il DURC dalla scheda del subappaltatore è scaduto.
     expect(voci.find((v) => v.chiave === "durc-s1")).toMatchObject({ stato: "scaduto" });
   });
 
-  it("POS approvato = a posto; in bozza = da completare; documenti validi = a posto", () => {
+  it("un PDF approvato richiede ancora l’iter, mentre i documenti verificati mantengono il loro stato", () => {
     const voci = listaControlloCommessa({
       ...base,
       pos: [{ status: "approvato" }],
       documenti: [doc({ tipo: "patente_crediti", order_id: null, data_scadenza: "2027-06-01" }), doc({ tipo: "durc", order_id: null, data_scadenza: "2026-11-01" })],
     });
-    expect(voci.find((v) => v.chiave === "pos")?.stato).toBe("ok");
+    expect(voci.find((v) => v.chiave === "pos")?.stato).toBe("in_corso");
     expect(voci.find((v) => v.chiave === "patente")?.stato).toBe("ok");
     expect(voci.find((v) => v.chiave === "durc")?.stato).toBe("in_scadenza");
-    expect(daSistemare(voci)).toBe(1);
+    expect(daSistemare(voci)).toBe(2);
     expect(listaControlloCommessa({ ...base, pos: [{ status: "bozza" }] })[0].stato).toBe("in_corso");
   });
 
@@ -54,7 +54,7 @@ describe("lista di controllo della commessa", () => {
   });
 
   it("idoneità tecnico-professionale: visura e DVR, anche se arrivano dalla scheda del subappaltatore", () => {
-    const sub = [{ id: "s1", ragione_sociale: "Edil Rossi", durc_scadenza: null as string | null }];
+    const sub = [{ id: "s1", ragione_sociale: "Edil Rossi", durc_scadenza: null as string | null, ruolo: "esecutrice" as const }];
     const soloVisura = listaControlloCommessa({ ...base, subappaltatori: sub, documenti: [doc({ tipo: "idoneita_tecnica", subappaltatore_id: "s1", fonte: "fascicolo" })] });
     expect(soloVisura.find((v) => v.chiave === "itp-s1")).toMatchObject({ stato: "in_corso", dettaglio: "Da raccogliere / confermare secondo applicabilità: DVR" });
     const complete = listaControlloCommessa({ ...base, subappaltatori: sub, documenti: [
@@ -63,7 +63,7 @@ describe("lista di controllo della commessa", () => {
       doc({ tipo: "pos_impresa", subappaltatore_id: "s1", fonte: "subappaltatore" }),
     ] });
     expect(complete.find((v) => v.chiave === "itp-s1")?.stato).toBe("in_corso");
-    expect(complete.find((v) => v.chiave === "pos-s1")?.stato).toBe("ok");
+    expect(complete.find((v) => v.chiave === "pos-s1")?.stato).toBe("in_corso");
   });
 
   it("i tipi dei subappaltatori si leggono come quelli della sicurezza e viceversa", () => {
@@ -97,7 +97,7 @@ describe("DUVRI stampabile", () => {
 
 describe('Evidenze native e archivio precedente nella stessa lista',()=>{
   const evidenza=(p:Partial<EvidenzaFascicolo>):EvidenzaFascicolo=>({id:'e1',company_id:'az',subappaltatore_id:'s1',operaio_id:null,order_id:null,tipo:'durc',titolo:'Evidenza',origine_requisito:'da_verificare',riferimento_requisito:null,stato:'ricevuto',file_path:'az/e1/prova.pdf',file_name:'prova.pdf',data_rilascio:null,data_scadenza:null,competenza:null,revisione:null,termine:null,referente:null,verificato_da:null,verificato_il:null,note:null,updated_at:'2026-10-26T12:00:00Z',...p});
-  const sub=[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null as null}];
+  const sub=[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null as null,ruolo:'esecutrice' as const}];
   it('un upload non diventa verifica, ma resta visibile come attività da completare',()=>{
     const d=documentoDaEvidenza(evidenza({}));expect(d?.bucket).toBe('fascicoli-cantiere');
     expect(listaControlloCommessa({...base,subappaltatori:sub,documenti:[d!]}).find(v=>v.chiave==='durc-s1')?.stato).toBe('in_corso');
@@ -127,7 +127,20 @@ describe('Presenza dei file distinta dalla verifica',()=>{
 
 describe('Promemoria documenti specifici del cantiere',()=>{
  it('non considera un PSC generico, di altro cantiere o della sola ditta come PSC di questa commessa',()=>{
-  const voci=listaControlloCommessa({...base,orderId:'o1',subappaltatori:[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null}],documenti:[doc({tipo:'psc',order_id:null}),doc({tipo:'psc',order_id:'altro'}),doc({tipo:'psc',order_id:'o1',subappaltatore_id:'s1'})]});
+  const voci=listaControlloCommessa({...base,orderId:'o1',avvio:{stato:'previsto'},subappaltatori:[{id:'s1',ragione_sociale:'Impresa',durc_scadenza:null}],documenti:[doc({tipo:'psc',order_id:null}),doc({tipo:'psc',order_id:'altro'}),doc({tipo:'psc',order_id:'o1',subappaltatore_id:'s1'})]});
   expect(voci.find(v=>v.chiave==='psc')?.stato).toBe('manca');
  });
+});
+
+it("la sola fornitura non produce richieste di PSC, POS o notifica", () => {
+  const voci = listaControlloCommessa({ ...base, subappaltatori: [
+    { id: "fornitore", ragione_sociale: "Fornitore", durc_scadenza: null, ruolo: "fornitura" },
+  ] });
+  expect(voci.map((v) => v.chiave)).toEqual(["pos", "patente", "durc"]);
+});
+
+it("il riepilogo riporta una non applicabilità motivata come decisione", () => {
+  const voci = listaControlloCommessa({ ...base, avvio: { stato: "previsto", pscVigente: true },
+    documenti: [doc({ tipo: "notifica_preliminare", stato_verifica: "non_applicabile", file_path: "", note: "Decisione registrata" })] });
+  expect(voci.find((v) => v.chiave === "notifica")).toMatchObject({ stato: "ok", dettaglio: "Non applicabile · Decisione registrata" });
 });

@@ -21,7 +21,15 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: true, data: {amount: 26}, isLoading: false, isError: false}), useDipendentiDeiProfili: () => ({}), useCostiOrariPrevisione: () => ({ allowed: true, data: new Map([["e1", 26]]), isPending: false })}));
-vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data:[{id:'s1',label:'Edil Alfa',kind:'esterna'}],isError:false,isLoading:false,isFetching:false,refetch:vi.fn()})}));
+vi.mock('@/hooks/useAssignmentCompanies', () => ({
+  useAssignmentCompanies: () => ({
+    data: [
+      { id: 's1', label: 'Edil Alfa', kind: 'esterna' },
+      { id: 'subappaltatore:beta', label: 'Impresa Beta', kind: 'esterna', subappaltatoreId: 'beta' },
+    ],
+    isError: false, isLoading: false, isFetching: false, refetch: vi.fn(),
+  }),
+}));
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => state.mobile}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -127,6 +135,26 @@ const chooseEmployee = () => {
 };
 
 describe("Lavorazioni e squadra", () => {
+  it("assegna un subappaltatore senza squadra dalla sezione Chi lavora", async () => {
+    state.phases = [phase({ start_date: null, end_date: null })];
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
+    fireEvent.click(screen.getByRole("button", { name: /^Assegna$/ }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Organizza il lavoro" }));
+    fireEvent.click(dialog.getByRole("button", { name: /^Opere murarie$/ }));
+    fireEvent.click(dialog.getByRole("button", { name: "Ditte e subappaltatori" }));
+    const assegna = dialog.getByRole("button", { name: "Assegna ditta" });
+    expect(assegna).toBeDisabled();
+    fireEvent.change(dialog.getByRole("textbox", { name: "Cerca ditta o subappaltatore" }), { target: { value: "Beta" } });
+    expect(dialog.queryByRole("radio", { name: "Edil Alfa" })).not.toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("radio", { name: "Impresa Beta" }));
+    expect(dialog.queryByRole("region", { name: "Costo della ditta" })).not.toBeInTheDocument();
+    fireEvent.click(assegna);
+    expect(state.add).toHaveBeenCalledWith(expect.objectContaining({
+      phase_id: "p1", executor_type: "esterno", subappaltatore_id: "beta",
+      external_team_id: null, cost_preventivo: 0, cost_consuntivo: 0,
+    }), expect.any(Object));
+  });
+
   it("mostra una sola scheda di assegnazioni passando tra le schede di una fase", async () => {
     state.phases = [phase({ start_date: null, end_date: null })];
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);

@@ -79,6 +79,7 @@ function tabella(n: HtmlNode): PdfBlock {
   if (!righe.length) throw new Error("Tabella POS senza righe");
   const colonne = Math.max(...righe.map(r => celle(r).reduce((sum, c) => sum + span(c), 0)));
   if (colonne > 8) throw new Error("Tabella POS non supportata");
+  const margineVerticale = classe(n, "tabella-emergenze") ? 1.5 : 4;
   const corpo = righe.map(r => {
     const row: PdfBlock[] = [];
     for (const cella of celle(r)) {
@@ -88,7 +89,7 @@ function tabella(n: HtmlNode): PdfBlock {
       row.push({ text: nonCompilato ? "—" : t ? contenuto(cella) : " ", colSpan: span(cella), bold: cella.tagName === "th" || classe(cella, "et"),
         ...(nonCompilato ? { color: "#8a97a6" } : {}),
         fillColor: cella.tagName === "th" ? "#eaf0f7" : classe(cella, "et") ? "#f5f7fa" : "#ffffff",
-        alignment: classe(cella, "num") || classe(cella, "centro") ? "center" : "left", margin: [3, 4, 3, 4] });
+        alignment: classe(cella, "num") || classe(cella, "centro") ? "center" : "left", margin: [3, margineVerticale, 3, margineVerticale] });
       for (let i = 1; i < span(cella); i++) row.push({});
     }
     while (row.length < colonne) row.push({ text: " " });

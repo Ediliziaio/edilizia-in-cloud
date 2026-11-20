@@ -9,14 +9,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AbacoComputo } from "./AbacoComputo";
 import { PianoAcquistiCommessa } from "./PianoAcquistiCommessa";
-import { PianoRisorseComputo } from "./PianoRisorseComputo";
+import { PianoRisorseComputo, type AzioniNoleggiComputo } from "./PianoRisorseComputo";
 
 const Documento = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 type Sezione = "acquisti" | "abaco" | "servizi" | "documento";
-export function StrumentiComputo({ companyId, orderId, nomeFase, fase, voceIds = [], leggiQuery = false, iniziale = "acquisti", etichetta, onSelezionaArticoli }: {
+export function StrumentiComputo({ companyId, orderId, nomeFase, fase, voceIds = [], leggiQuery = false, iniziale = "acquisti", etichetta, onSelezionaArticoli, noleggi, soloSeDocumento = false }: {
   companyId: string; orderId: string; nomeFase: (id: string | null) => string;
   fase?: { id: string; nome: string }; voceIds?: string[]; leggiQuery?: boolean; iniziale?: Sezione; etichetta?: string;
   onSelezionaArticoli?: (ids: string[]) => void;
+  noleggi?: AzioniNoleggiComputo;
+  soloSeDocumento?: boolean;
 }) {
   const query = new URLSearchParams(window.location.search);
   const [aperto, setAperto] = useState(() => leggiQuery && ["piano_acquisti", "abaco", "servizi"].some(k => query.get(k) === "1"));
@@ -38,6 +40,7 @@ export function StrumentiComputo({ companyId, orderId, nomeFase, fase, voceIds =
     },
   });
   const idVoci = fase ? [...new Set([...voceIds, ...(legami.data ?? [])])] : undefined;
+  if (soloSeDocumento && !computo) return null;
   return <>
     <Button type="button" size="sm" variant="outline" className={fase ? "tap-compact h-7 px-1.5 text-xs" : "tap-compact h-8 px-2.5 text-xs"}
       title={fase ? "Acquisti, abaco e servizi della fase" : "Acquisti, abaco, servizi e documento"}
@@ -66,7 +69,8 @@ export function StrumentiComputo({ companyId, orderId, nomeFase, fase, voceIds =
                 : fase && legami.isError ? <p role="alert">Non riesco a collegare le voci alla fase. <button type="button" className="underline" onClick={() => void legami.refetch()}>Riprova</button></p>
                 : <AbacoComputo companyId={companyId} orderId={orderId} computoId={computo.id} integrato voceIds={idVoci} />}
             </TabsContent>
-            <TabsContent value="servizi" className="mt-0">{computo ? <PianoRisorseComputo companyId={companyId} orderId={orderId} computoId={computo.id} integrato faseId={fase?.id} />
+            <TabsContent value="servizi" className="mt-0">{computo ? <PianoRisorseComputo companyId={companyId} orderId={orderId} computoId={computo.id} integrato faseId={fase?.id}
+              noleggi={noleggi && { ...noleggi, apri: (id, proposta) => { setAperto(false); noleggi.apri(id, proposta); } }} />
               : <p className="text-sm text-muted-foreground">Carica un computo per preparare noleggi e servizi.</p>}</TabsContent>
             <TabsContent value="documento" className="mt-0"><Suspense fallback={<p role="status">Carico il documento…</p>}>
               <Documento key={computo?.id ?? "nessuno"} orderId={orderId} companyId={companyId} computoInizialeId={computo?.id} soloEsistenti canEdit={!!permessi.canEditOrders} canViewAmounts={!!permessi.canViewOrderAmounts} />

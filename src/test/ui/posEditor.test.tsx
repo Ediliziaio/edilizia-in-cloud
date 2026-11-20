@@ -14,6 +14,7 @@ import { lavorazioneVuota, posVuoto, type PosContenuto } from "../../../supabase
 const stato = vi.hoisted(() => ({
   errore: null as Error | null,
   pos: null as unknown,
+  sceltaPscDaConfermare: false,
   approva: vi.fn(),
   salva: vi.fn(),
   // l'avanzamento del PDF: approvazione e anteprima
@@ -24,7 +25,17 @@ const stato = vi.hoisted(() => ({
   apriAnteprima: vi.fn(),
 }));
 
-vi.mock("@/hooks/usePscCommessa",()=>({usePscCommessa:()=>({data:[] as never[],isPending:false,isError:false,isFetching:false,refetch:vi.fn()}),identificaPsc:vi.fn()}));
+const pscDellaProva = () => (stato.pos as { contenuto?: PosContenuto } | null)?.contenuto?.procedure_psc.documento;
+vi.mock("@/hooks/usePscCommessa", () => ({
+  usePscCommessa: () => ({ data: pscDellaProva() ? [{ ...pscDellaProva(), created_at: "" }] : [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }),
+  identificaPsc: vi.fn(),
+}));
+vi.mock("@/hooks/useAvvioSicurezza", () => ({
+  useAvvioSicurezza: () => ({ isLoading: false, isError: false, data: stato.sceltaPscDaConfermare ? null : {
+    stato: pscDellaProva() ? "previsto" : "non_previsto", psc: pscDellaProva() ?? null, motivazione: "Verifica dimostrativa", versione: "v1",
+  } }),
+  useSalvaAvvioSicurezza: () => ({ isPending: false, mutate: vi.fn() }),
+}));
 vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavorazionePos:(): null =>null}));
 vi.mock("@/lib/sicurezza/apriPdfPos",()=>({apriAnteprimaPos:vi.fn()}));
 vi.mock("@/hooks/useAnteprimaPos",()=>({useAnteprimaPos:()=>({apri:stato.apriAnteprima,inCorso:stato.anteprimaInCorso,fase:stato.anteprimaInCorso?stato.fase:null,annulla:stato.annulla})}));
@@ -51,6 +62,7 @@ vi.mock("@/hooks/usePos", () => {
     useNuovaRevisione: mut,
     datiAppPos: vi.fn(() => new Promise(() => {})),
     lavorazioniAiPos: vi.fn(),
+    chiamaServerPos: vi.fn().mockResolvedValue({ lettura: null }),
     caricaAllegatoPos: vi.fn(),
     linkAllegatoPos: vi.fn(),
   };
@@ -60,8 +72,14 @@ vi.mock("@/hooks/usePermissions", () => ({
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 
-import { datiAppPos, lavorazioniAiPos } from "@/hooks/usePos";
+import { chiamaServerPos, datiAppPos, lavorazioniAiPos } from "@/hooks/usePos";
 import PosEditor from "@/pages/azienda/sicurezza/PosEditor";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
+
+vi.mock("@/hooks/useFascicoloCantiere", () => ({
+  useFasiFascicolo: () => ({ data: [{ id: "fase-demo", name: "Preparazione del cantiere" }], isError: false }),
+  useCommesseFascicolo: () => ({ data: [] as never[], isLoading: false, isError: false }),
+}));
 
 beforeAll(() => {
   if (!("ResizeObserver" in globalThis)) {
@@ -72,7 +90,7 @@ beforeAll(() => {
     (globalThis as unknown as { structuredClone: unknown }).structuredClone = (v: unknown) => JSON.parse(JSON.stringify(v));
   }
 });
-afterEach(() => { cleanup(); stato.errore = null; stato.approva.mockReset(); stato.salva.mockReset(); stato.approvaInCorso = false; stato.anteprimaInCorso = false; stato.fase = null; stato.annulla.mockReset(); stato.apriAnteprima.mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); });
+afterEach(() => { cleanup(); stato.errore = null; stato.sceltaPscDaConfermare = false; stato.approva.mockReset(); stato.salva.mockReset(); stato.approvaInCorso = false; stato.anteprimaInCorso = false; stato.fase = null; stato.annulla.mockReset(); stato.apriAnteprima.mockReset(); vi.mocked(lavorazioniAiPos).mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); vi.mocked(chiamaServerPos).mockReset().mockResolvedValue({ lettura: null }); });
 
 function riga(contenuto: PosContenuto, status = "bozza") {
   // The complete fixture now includes a declared PSC original; this suite exercises save concurrency, not source verification.
@@ -219,6 +237,33 @@ describe("la proposta dell'AI", () => {
     return originale;
   };
 
+  it("seleziona un capitolo e modifica la ditta proposta prima di salvare la lavorazione", async () => {
+    const originale = bozzaSenzaModalita();
+    originale.contenuto.impresa.ruolo = "affidataria_esecutrice";
+    const indice = { computo: { id: "computo-demo", titolo: "Computo stradale",
+      capitoli: [{ nome: "Barriere", voci: 90, fase: { id: "fase-demo", name: "Preparazione del cantiere" } }] } };
+    vi.mocked(chiamaServerPos).mockImplementation(async body => (body.azione === "computo_ai" ? indice : { lettura: null }) as never);
+    const risposta = proposta("");
+    risposta.lavorazioni[0] = { ...risposta.lavorazioni[0], titolo: "Posa delle barriere", svolgimento: "subappalto", svolgimento_con: "Asfalti Demo" };
+    vi.mocked(lavorazioniAiPos).mockResolvedValue({ ...risposta, ditte: ["Asfalti Demo", "Barriere Demo", "Segnaletica Demo"] });
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Capitoli del computo" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Barriere · 90 voci/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Seleziona le fasi proposte" }));
+    fireEvent.click(screen.getByRole("button", { name: "Genera proposte" }));
+    const revisione = await screen.findByRole("dialog", { name: "Rivedi le proposte AI" });
+    expect(lavorazioniAiPos).toHaveBeenCalledWith("az-1", "pos-1", {
+      fasi: ["fase-demo"], ambito: "", computo: { id: "computo-demo", capitoli: ["Barriere"] },
+    });
+    fireEvent.change(within(revisione).getByRole("combobox", { name: /Chi esegue.*Posa delle barriere/ }), { target: { value: "Barriere Demo" } });
+    fireEvent.click(within(revisione).getByRole("button", { name: "Applica alla bozza (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva.mock.lastCall?.[0].contenuto.lavorazioni).toContainEqual(
+      expect.objectContaining({ titolo: "Posa delle barriere", svolgimento: "subappalto", svolgimento_con: "Barriere Demo", verificata: false }),
+    ));
+  });
+
   it("le modalità organizzative scritte dall'AI restano «da verificare» e fermano l'approvazione finché non si conferma", async () => {
     bozzaSenzaModalita();
     vi.mocked(lavorazioniAiPos).mockResolvedValue(proposta("Accesso dal cancello su via Roma"));
@@ -226,10 +271,18 @@ describe("la proposta dell'AI", () => {
     const campoModalita = screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement;
     const testoModalita = () => campoModalita.value;
     fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    const genera = screen.getByRole("button", { name: "Genera proposte" }) as HTMLButtonElement;
+    expect(genera.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
+    fireEvent.click(genera);
+    const revisione = await screen.findByRole("dialog", { name: "Rivedi le proposte AI" });
+    expect(testoModalita()).toBe("");
+    fireEvent.click(within(revisione).getByRole("checkbox", { name: "Demolizione tramezzi" }));
+    fireEvent.click(within(revisione).getByRole("checkbox", { name: "Inserisci anche le modalità organizzative" }));
+    fireEvent.click(within(revisione).getByRole("button", { name: "Applica alla bozza" }));
     await waitFor(() => expect(testoModalita()).toBe("Accesso dal cancello su via Roma"));
     expect(screen.getByText(/le ha proposte l'AI/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Annulla" })); // chiude la finestra delle proposte
-    await waitFor(() => expect(screen.queryByText("Lavorazioni proposte dall'AI")).toBeNull());
+    expect(screen.queryByDisplayValue("Demolizione tramezzi")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Approva e prepara/ }));
     expect(await screen.findByText(/Modalità organizzative proposte dall'AI/)).toBeTruthy();
@@ -242,6 +295,36 @@ describe("la proposta dell'AI", () => {
     expect(testoModalita()).toBe("Accesso dal cancello su via Roma");
   });
 
+  it("mostra le fonti collegate e porta nel PSC soltanto la prescrizione scelta", async () => {
+    const originale = bozzaSenzaModalita();
+    const psc = originale.contenuto.procedure_psc.documento!;
+    const estratto = "Separare la posa dal lavoro sullo stesso fronte.";
+    const adegua = proposta("");
+    vi.mocked(lavorazioniAiPos).mockResolvedValue({
+      ...adegua, lavorazioni: [
+        { ...adegua.lavorazioni[0], titolo: "Posa delle finestre",
+          fonti_scheda: { psc: { id: psc.id, revisione: psc.revisione, sha256: psc.sha256, estratti: [{ pagina: 4, testo: estratto }] } } },
+        { ...adegua.lavorazioni[0], id: "ai-2", titolo: "Sola consegna al varco" },
+      ],
+    });
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
+    fireEvent.click(screen.getByRole("button", { name: "Genera proposte" }));
+    const revisione = await screen.findByRole("dialog", { name: "Rivedi le proposte AI" });
+    fireEvent.click(within(revisione).getByRole("checkbox", { name: "Sola consegna al varco" }));
+    fireEvent.click(within(revisione).getByRole("button", { name: "Applica alla bozza (1)" }));
+    expect(screen.queryByDisplayValue("Sola consegna al varco")).toBeNull();
+    fireEvent.click(screen.getByText("Fonti della scheda"));
+    fireEvent.click(screen.getByRole("button", { name: "Porta in Procedure PSC" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva).toHaveBeenCalled());
+    expect(stato.salva.mock.lastCall![0].contenuto.procedure_psc.voci).toContainEqual({
+      procedura: estratto, indicazioni: "", pagina: "4", lavorazione_id: "ai-1",
+      fonte_estratto: { id: psc.id, revisione: psc.revisione, sha256: psc.sha256 },
+    });
+  });
+
   it("quello che si scrive mentre l'AI risponde non viene sovrascritto", async () => {
     bozzaSenzaModalita();
     let rispondi: (v: ReturnType<typeof proposta>) => void = () => {};
@@ -250,12 +333,45 @@ describe("la proposta dell'AI", () => {
     const campoModalita = screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement;
     const testoModalita = () => campoModalita.value;
     fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
-    await waitFor(() => expect(lavorazioniAiPos).toHaveBeenCalled());
+    const genera = screen.getByRole("button", { name: "Genera proposte" }) as HTMLButtonElement;
+    expect(genera.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
+    fireEvent.click(genera);
+    await waitFor(() => expect(lavorazioniAiPos).toHaveBeenCalledWith("az-1", "pos-1", { fasi: ["fase-demo"], ambito: "" }));
     fireEvent.change(campoModalita, { target: { value: "Scritto a mano nell'attesa" } });
     await act(async () => { rispondi(proposta("Testo dell'AI")); });
-    await waitFor(() => expect(screen.getByText("Lavorazioni proposte dall'AI")).toBeTruthy());
+    expect(await screen.findByRole("dialog", { name: "Rivedi le proposte AI" })).toBeTruthy();
+    expect(screen.queryByText("Inserisci anche le modalità organizzative")).toBeNull();
     expect(testoModalita()).toBe("Scritto a mano nell'attesa");
     expect(screen.queryByText(/le ha proposte l'AI/)).toBeNull();
+  });
+});
+
+describe("schede standard", () => {
+  it("cerca un modello senza chiamare l’AI e salva i dettagli della scheda modificabile", async () => {
+    const originale = riga(posVuoto());
+    stato.pos = originale;
+    stato.salva.mockResolvedValue(originale);
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Schede standard" }));
+    const catalogo = screen.getByRole("dialog", { name: "Schede standard POS" });
+    fireEvent.change(within(catalogo).getByRole("textbox", { name: "Cerca una scheda standard" }), { target: { value: "zanzariere" } });
+    expect(within(catalogo).getAllByRole("button", { name: /Aggiungi scheda/ })).toHaveLength(1);
+    fireEvent.change(within(catalogo).getByRole("combobox", { name: "Associa a una fase della commessa" }), { target: { value: "fase-demo" } });
+    fireEvent.click(within(catalogo).getByRole("button", { name: /Aggiungi scheda Tapparelle/ }));
+    const scheda = screen.getByDisplayValue("Tapparelle, zanzariere, cassonetti e persiane");
+    expect(scheda).toBeTruthy();
+    const risposta = screen.getByRole("textbox", { name: "Chi gestisce alimentazione e prove dei sistemi motorizzati?" });
+    fireEvent.change(risposta, { target: { value: "Il referente elettrico dopo consegna del fronte." } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva).toHaveBeenCalled());
+    const salvata = stato.salva.mock.calls[0][0].contenuto.lavorazioni[0];
+    expect(salvata.fase_id).toBe("fase-demo");
+    expect(salvata.fonti_scheda).toMatchObject({
+      standard: { id: "schermature", versione: 1 },
+      quesiti: [{ risposta: "" }, { risposta: "Il referente elettrico dopo consegna del fronte." }],
+    });
+    expect(lavorazioniAiPos).not.toHaveBeenCalled();
   });
 });
 
@@ -275,16 +391,16 @@ describe("approvato ma con una verifica negativa", () => {
     c.procedure_psc.psc_presente = false;
     stato.pos = { ...riga(c, "approvato"), iter: { affidataria_esito: "negativo", cse_esito: "negativo" } };
     mostra();
-    expect(screen.getByText("Approvato")).toBeTruthy();
+    expect(screen.getByText("PDF approvato · iter da completare")).toBeTruthy();
   });
 });
 
 describe("invio del POS a chi lo deve verificare", () => {
-  it("i pulsanti d'invio stanno accanto alla consegna al CSE e all'impresa affidataria, solo in un POS approvato", () => {
-    const c = esempioPdfPos().contenuto; // subappalto con PSC: ci sono entrambi i destinatari
+  it("il subappaltatore invia all’affidataria e può registrare il riscontro del CSE", () => {
+    const c = esempioPdfPos().contenuto;
     stato.pos = riga(c, "approvato");
     mostra();
-    expect(screen.getByTestId("invio-cse")).toBeTruthy();
+    expect(screen.queryByTestId("invio-cse")).toBeNull();
     expect(screen.getByTestId("invio-affidataria")).toBeTruthy();
     cleanup();
     stato.pos = riga(c, "bozza");
@@ -315,6 +431,20 @@ describe("nuova revisione con firme non salvate", () => {
 });
 
 describe("ricarica in background fallita", () => {
+  it("quando la precompilazione fallisce, consente di riprovare e recuperare i dati", async () => {
+    stato.pos = { ...riga(posVuoto()), daCompilare: true };
+    const contenuto = posVuoto();
+    contenuto.impresa.datore_lavoro = "Datore recuperato";
+    vi.mocked(datiAppPos).mockRejectedValueOnce(new Error("Fonti non disponibili"))
+      .mockResolvedValueOnce({ contenuto, contesto: { avvisi: [], mezzi: [], subappaltatori: [] } });
+    mostra();
+    expect(await screen.findByRole("alert")).toHaveTextContent("non sono disponibili per la precompilazione");
+    expect(screen.queryByRole("heading", { name: "Piano Operativo di Sicurezza" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Riprova a recuperare i dati" }));
+    const campo = await screen.findByLabelText("Datore di lavoro");
+    expect(campo).toHaveValue("Datore recuperato");
+    expect(stato.salva).not.toHaveBeenCalled();
+  });
   it("con un POS già letto l'editor resta aperto e la bozza non si perde", () => {
     stato.pos = riga(esempioPdfPos().contenuto);
     stato.errore = new Error("rete caduta");
@@ -329,6 +459,18 @@ describe("ricarica in background fallita", () => {
     expect(screen.getByText("Non riesco a caricare il POS.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Riprova" })).toBeTruthy();
   });
+});
+
+it("dalla fase crea una scheda collegata, lascia il rischio da compilare e non la ripropone", () => {
+  stato.pos = riga(posVuoto());
+  mostra();
+  const selettore = screen.getByLabelText("Parti da una fase della commessa");
+  changeFormControl(selettore, { target: { value: "fase-demo" } });
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi la fase" }));
+  expect(screen.getByLabelText("Titolo della lavorazione 1")).toHaveValue("Preparazione del cantiere");
+  expect(screen.queryByRole("option", { name: "Preparazione del cantiere" })).toBeNull();
+  expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
+  expect(stato.approva).not.toHaveBeenCalled();
 });
 
 
@@ -375,4 +517,14 @@ describe("Avanzamento del PDF nell'editor", () => {
     fireEvent.click(screen.getByRole("button", { name: /Anteprima PDF/ }));
     expect(stato.apriAnteprima).toHaveBeenCalledWith("az-1", "pos-1");
   });
+});
+
+it("una bozza completa richiede la decisione sulla pertinenza del PSC prima di emettere", () => {
+  stato.pos = riga(esempioPdfPos().contenuto);
+  stato.sceltaPscDaConfermare = true;
+  mostra();
+  fireEvent.click(screen.getByRole("button", { name: /Approva e prepara PDF/ }));
+  expect(stato.approva).not.toHaveBeenCalled();
+  expect(screen.getByText("POS non approvato")).toBeInTheDocument();
+  expect(screen.getAllByText(/Conferma l’applicabilità del PSC/).length).toBeGreaterThan(0);
 });

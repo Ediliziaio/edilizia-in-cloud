@@ -56,6 +56,7 @@ import {
   type TipoDocumentoSicurezza,
 } from "@/lib/sicurezza/documentiSicurezza";
 import { extractDurcExpiryFromPdf } from "@/lib/sicurezza/durcExpiry";
+import { LIMITE_PSC_BYTES } from "../../../supabase/functions/_shared/posPsc";
 
 const AZIENDA = "__azienda__";
 const NESSUNA = "__nessuna__";
@@ -164,13 +165,13 @@ export function CaricaDocumentoSicurezzaDialog({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     // Qualunque formato: PDF, foto, Word, Excel, disegni. Il limite è la dimensione.
-    maxSize: LIMITE_FILE_SICUREZZA,
+    maxSize: tipo === "psc" ? LIMITE_PSC_BYTES : LIMITE_FILE_SICUREZZA,
     disabled: carica.isPending,
     onDrop: (accettati, rifiutati) => {
       if (uploadInCorso.current) return;
       if (rifiutati.length)
         toast.error(
-          `${rifiutati.length} file superano i 50 MB e sono rimasti fuori.`,
+          `${rifiutati.length} file superano i ${tipo === "psc" ? 20 : 50} MB.`,
         );
       setFile((f) => [
         ...f,
@@ -252,7 +253,7 @@ export function CaricaDocumentoSicurezzaDialog({
         <DialogHeader>
           <DialogTitle>Carica documenti di sicurezza</DialogTitle>
           <DialogDescription>
-            Qualunque formato (PDF, foto, Word, Excel…), fino a 50 MB per file.
+            {tipo === "psc" ? "Originale PSC fino a 20 MB per file." : "Documenti fino a 50 MB per file."}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={carica.isPending} className="min-w-0 space-y-3">

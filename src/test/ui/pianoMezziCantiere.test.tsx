@@ -60,6 +60,7 @@ const state = vi.hoisted(() => ({
   priceError: false,
   rows: [] as unknown[],
   presenti: [] as unknown[],
+  montati: [] as unknown[],
   mutate: vi.fn().mockResolvedValue(undefined),
   assegna: vi.fn().mockResolvedValue(undefined),
   chiudi: vi.fn().mockResolvedValue(undefined),
@@ -93,7 +94,7 @@ vi.mock("@/hooks/useMezzi", () => ({
     refetch: vi.fn(),
   }),
   useMezziDellaCommessa: () => ({ data: state.presenti, isLoading: false, isError: false, refetch: vi.fn() }),
-  useMontaggiDellaCommessa: () => ({ data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn() }),
+  useMontaggiDellaCommessa: () => ({ data: state.montati, isLoading: false, isError: false, refetch: vi.fn() }),
   useAssegnaMezzoACommessa: () => ({ mutateAsync: state.assegna, isPending: false }),
   useMontaQuantita: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRientroQuantita: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -146,6 +147,7 @@ vi.mock("@/components/mezzi/MezzoFormDialog", () => ({
 import { PianoMezziCantiere } from "@/components/mezzi/PianoMezziCantiere";
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 beforeEach(() => {
+  state.montati = [];
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-02T12:00:00+01:00"));
   state.costi = true;
@@ -251,18 +253,59 @@ describe("UX pianificazione mezzi", () => {
       { id: "p", mezzo_id: "betoniera", fase_ids: [], dal: "2020-01-01", al: null, quantita: 1, annullato: false },
     ];
     render(<PianoMezziCantiere orderId="o" />);
-    expect(screen.getByText(/^Atteso dal/)).toBeTruthy();
+    expect(screen.getByText("Arrivo in ritardo")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "È arrivato" }));
-    await waitFor(() => expect(state.assegna).toHaveBeenCalledWith({ mezzoId: "betoniera", orderId: "o" }));
+    await waitFor(() => expect(state.mutate).toHaveBeenCalledWith(expect.objectContaining({ id: "p", mezzo_id: "betoniera", arrivato_oggi: true })));
+    state.mutate.mockClear();
     cleanup();
     state.presenti = [{ mezzo_id: "betoniera", adesso: true, periodi: [{ dal: "2020-01-02", al: null }] }];
     render(<PianoMezziCantiere orderId="o" />);
-    expect(screen.getByText(/^Sul cantiere dal/)).toBeTruthy();
+    expect(screen.getByText("Dal 02/01/2020")).toBeTruthy();
     expect(screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("Betoniera propria"))).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "È rientrato" }));
-    await waitFor(() => expect(state.chiudi).toHaveBeenCalledWith({ pianoId: "p", allocazioneId: undefined }));
+    await waitFor(() => expect(state.chiudi).toHaveBeenCalledWith(expect.objectContaining({ pianoId: "p" })));
     expect(state.assegna).not.toHaveBeenCalledWith({ mezzoId: "betoniera", orderId: null });
     expect(state.mutate).not.toHaveBeenCalled();
+  });
+  it("registra un noleggio a metri quadri senza computo e senza un prezzo confermato", async () => {
+    render(<PianoMezziCantiere orderId="o" />);
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi noleggio" }));
+    fireEvent.change(screen.getByLabelText("Nome del mezzo o dell’attrezzatura"), { target: { value: "Ponteggio a telai" } });
+    fireEvent.change(screen.getByLabelText("Unità di noleggio"), { target: { value: "mq" } });
+    fireEvent.change(screen.getByLabelText("Quantità (m²)"), { target: { value: "300" } });
+    fireEvent.change(screen.getByLabelText("Dal"), { target: { value: "2026-11-20" } });
+    fireEvent.change(screen.getByLabelText("Nome del noleggiatore"), { target: { value: "Noli Demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva noleggio" }));
+    await waitFor(() => expect(state.mutate).toHaveBeenCalledWith(expect.objectContaining({
+      nuovo_noleggio: { nome: "Ponteggio a telai", tipo: "attrezzatura", unita: "mq" },
+      quantita: 300, dal: "2026-11-20", fornitore_noleggio: "Noli Demo", costo: null,
+    })));
+  });
+  it("mantiene sul cantiere il noleggio scaduto e invia solo la quantità rientrata", async () => {
+    state.rows = [{ id: "p", mezzo_id: "betoniera", fase_ids: [], dal: "2020-01-01", al: "2020-01-02", quantita: 100, annullato: false }];
+    state.montati = [{ id: "all", piano_id: "p", mezzo_id: "betoniera", adesso: true, dal: "2020-01-02", quantita: 100 }];
+    render(<PianoMezziCantiere orderId="o" />);
+    expect(screen.getByText("Rientro in ritardo")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Registra rientro" }));
+    fireEvent.change(screen.getByLabelText(/^Quantità che rientra/), { target: { value: "35" } });
+    expect(screen.getByText(/Restano in cantiere 65/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Conferma rientro" }));
+    await waitFor(() => expect(state.chiudi).toHaveBeenCalledWith({ pianoId: "p", allocazioneId: "all", quantita: 35, quantitaPresente: 100 }));
+  });
+  it("filtra i rientri in ritardo e trova una prenotazione dal nome del fornitore", () => {
+    state.rows = [
+      { id: "p", mezzo_id: "betoniera", fase_ids: [], dal: "2020-01-01", al: "2020-01-03", quantita: 100, annullato: false },
+      { id: "p2", mezzo_id: "betoniera", fase_ids: [], dal: "2026-11-08", al: null, quantita: 1, annullato: false, fornitore_noleggio: "Noli Rossi" },
+    ];
+    state.montati = [{ id: "all", piano_id: "p", mezzo_id: "betoniera", adesso: true, dal: "2020-01-02", quantita: 100 }];
+    render(<PianoMezziCantiere orderId="o" />);
+    fireEvent.click(screen.getByRole("button", { name: "Rientri in ritardo 1" }));
+    expect(screen.getByText("Rientro in ritardo")).toBeVisible();
+    expect(screen.queryByText("Noli Rossi")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tutti 2" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca mezzi e attrezzature" }), { target: { value: "rossi" } });
+    expect(screen.getByText("Noli Rossi")).toBeVisible();
+    expect(screen.queryByText("Rientro in ritardo")).toBeNull();
   });
   it("le fasi spostate si segnalano e si allineano con un clic", async () => {
     state.rows = [

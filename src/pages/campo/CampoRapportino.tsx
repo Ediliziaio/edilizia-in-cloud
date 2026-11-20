@@ -24,7 +24,9 @@ import {
   Camera, X, Minus, Plus, Loader2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MezziFineGiornata, righeDaSalvare, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
+import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
+import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
+import { ARRIVO_VUOTO, campoArrivo, leggiArrivo, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import type { Json } from "@/integrations/supabase/types";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
@@ -131,6 +133,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [materialiSel, setMaterialiSel] = useState<Record<string, RapportinoMaterialDraft>>({});
   // Mezzi e attrezzi di oggi: usati e dove restano stasera (si salvano col rapportino)
   const [mezziSel, setMezziSel] = useState<Record<string, RigaMezzoGiornata>>({});
+  const [arrivo, setArrivo] = useState(ARRIVO_VUOTO);
   const [materialeLibero, setMaterialeLibero] = useState("");
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
@@ -155,7 +158,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     descrizione: "", meteo: "", oreLavorate: "" as CampoHoursDraft, oreStraordinario: 0,
     percentuale: 0, fasiDichiarate: {} as Record<string, number>, materialiSel: {} as Record<string, RapportinoMaterialDraft>,
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
-    campiValori: {} as Record<string, unknown>,
+    campiValori: {} as Record<string, unknown>, arrivo: ARRIVO_VUOTO,
     sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], sottofasiAvanzate: {} as Record<string, { quantita?: number; percentuale?: number }>, presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
@@ -305,11 +308,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori }),
-    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori]);
+  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori, arrivo }),
+    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori, arrivo]);
   useEffect(() => {
     if (!ripresaDecisa || !companyId || !user?.id) return;
-    if (bozzaAttivata.current || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
+    if (bozzaAttivata.current || bozzaCorrente.arrivo.mezzoId || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
       bozzaAttivata.current = true;
       aggiornaBozza(bozzaCorrente);
     }
@@ -323,6 +326,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
     setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []); setSottofasiAvanzate(b.sottofasiAvanzate && typeof b.sottofasiAvanzate === "object" ? b.sottofasiAvanzate : {});
     setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || ""); setCampiValori(b.campiValori || {});
+    setArrivo(b.arrivo ?? ARRIVO_VUOTO);
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
   };
@@ -456,6 +460,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       setFotoUrls(foto);
       setFotoPreviews(foto);
       setCampiValori(valoriInBozza(leggiValori(r.campi_extra)));
+      setArrivo(leggiArrivo(r.campi_extra));
       if (Array.isArray(r.fasi_lavorate)) {
         setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
         setSottofasiSpunte(sottofasiSpuntate(r.fasi_lavorate));
@@ -748,6 +753,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       if (!companyId || !orderId || !user?.id) {
         throw new Error("Sessione non pronta, ricarica la pagina");
       }
+      const arrivoDaSalvare = !lavoro_completato && (parti.mezzi || daRifare) ? campoArrivo(arrivo) : [];
 
       const hasAssignment = await hasRapportinoAssignment(orderId, user.id, companyId);
       if (!hasAssignment) {
@@ -834,9 +840,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             }))
         : null;
       const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
-      const campiExtra = componiValori(campiModulo, campiValori, campiPrecedenti, fasiPerCampi);
+      const campiExtra = [...componiValori(campiModulo, campiValori, campiPrecedenti, fasiPerCampi), ...arrivoDaSalvare];
       const campi = {
-        ...(campiExtra.length > 0 || campiPrecedenti.length > 0 ? { campi_extra: campiExtra as unknown as Json } : {}),
+        ...(campiExtra.length > 0 || campiPrecedenti.length > 0 || leggiArrivo(rapportinoGiaOggi?.campi_extra).mezzoId ? { campi_extra: campiExtra as unknown as Json } : {}),
         ore_lavorate: orePayload,
         ore_straordinario: !confermaCliente && !oreNonMie && straordinarioDaInviare > 0 ? straordinarioDaInviare : 0,
         descrizione_lavori: descrizione || null,
@@ -986,7 +992,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
     descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
-    fotoUrls.length > 0 || Object.keys(campiValori).length > 0 ||
+    fotoUrls.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
     Object.keys(presenzeSel).length > 0 ||
     Object.keys(materialiSel).length > 0 || Object.keys(mezziSel).length > 0 ||
@@ -1439,6 +1445,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   );
   // Mezzi e attrezzi si spostano solo per oggi e ieri: per un giorno più vecchio non si chiede dove restano.
   const mezziAmmessi = workDay >= shiftWorkDay(campoWorkDay(), -1);
+  const compilaArrivo = !lavoro_completato && (parti.mezzi || (daRifare && !!arrivo.mezzoId));
+  const mezziPerArrivo = useMezziDellaGiornata(compilaArrivo && !!companyId && !!user?.id ? orderId : undefined);
   const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} /> : null;
   const bloccoCampiFase = campiDiFase.length > 0 ? fasiPerCampi.map(f => (
     <div key={f.id} className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
@@ -1746,6 +1754,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               </div>
             )}
 
+            {compilaArrivo && <ArrivoRapportino valore={arrivo} onChange={setArrivo}
+              mezzi={(mezziPerArrivo.data ?? []).filter(mezzoStradale)} caricamento={mezziPerArrivo.isLoading}
+              errore={mezziPerArrivo.isError} riprova={() => void mezziPerArrivo.refetch()} />}
+
             {semplice && !soloOreAllOperaio && (parti.fasi || parti.materiali || parti.mezzi || (parti.straordinario && !oreNonMie) || (parti.avanzamento && puoDichiararePercentuali)) && (
               <details className="rounded-2xl border bg-background p-4 shadow-sm">
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
@@ -1770,6 +1782,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         {step === 2 && !semplice && (
           <>
             <h2 className="text-lg font-black text-foreground md:text-xl">Controlla prima di inviare</h2>
+            {compilaArrivo && arrivo.mezzoId && <p className="text-sm text-muted-foreground">Arrivo dichiarato con {(mezziPerArrivo.data ?? []).find(m => m.id === arrivo.mezzoId)?.nome ?? "il mezzo selezionato"}{arrivo.km.trim() ? ` · ${arrivo.km} km all’andata` : ""}.</p>}
             {!confermaCliente && <>{(parti.avanzamento || parti.fasi) && <details className="rounded-2xl border p-3">
               <summary className="min-h-11 cursor-pointer text-sm font-semibold">{parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento"}{Object.keys(fasiDichiarate).length > 0 ? ` · ${Object.keys(fasiDichiarate).length} selezionate` : ""}</summary>
               <div className="space-y-3">{parti.avanzamento && bloccoAvanzamento}{parti.fasi && bloccoFasi}</div>

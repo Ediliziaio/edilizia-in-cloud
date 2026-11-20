@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
+import { prossimoPassoPos, verificaIterNegativa } from "@/lib/sicurezza/posIter";
+import type { AvvioSicurezza } from "@/hooks/useAvvioSicurezza";
 import { listaControlloCommessa, type DatiControllo } from "@/lib/sicurezza/documentiSicurezza";
 
 const subappalto = { impresa: { ruolo: "esecutrice_subappalto" }, procedure_psc: { psc_presente: false } };
@@ -28,7 +29,7 @@ const vocePos = (pos: DatiControllo["pos"]) => listaControlloCommessa(base(pos))
 
 describe("lista di controllo: POS approvato con verifica negativa", () => {
   it("un POS approvato e verificato resta «ok»", () => {
-    expect(vocePos([{ status: "approvato" }]).stato).toBe("ok");
+    expect(vocePos([{ status: "approvato", prossimoPasso: null }]).stato).toBe("ok");
   });
   it("con una verifica negativa non è «ok»: serve una nuova revisione", () => {
     const v = vocePos([{ status: "approvato", verificaNegativa: true }]);
@@ -39,4 +40,12 @@ describe("lista di controllo: POS approvato con verifica negativa", () => {
     expect(vocePos([{ status: "bozza" }]).stato).toBe("in_corso");
     expect(vocePos([]).stato).toBe("manca");
   });
+});
+
+it("il POS senza PSC conclude l’iter locale dopo la firma, se la valutazione è registrata", () => {
+  const avvio: AvvioSicurezza = { stato: "non_previsto", motivazione: "Una sola impresa", psc: null, versione: "v1", updated_at: "" };
+  const firmato = { status: "approvato", contenuto: senza, iter: { firma_datore_il: "2026-10-28" } };
+  expect(prossimoPassoPos(firmato, null)).toMatch(/Conferma l’applicabilità/);
+  expect(prossimoPassoPos(firmato, avvio)).toBeNull();
+  expect(prossimoPassoPos({ ...firmato, iter: {} }, avvio)).toMatch(/firma/);
 });

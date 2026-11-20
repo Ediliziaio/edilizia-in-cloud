@@ -13,7 +13,7 @@ pdfMake.addVirtualFileSystem(vfs);
 registraFontPos(pdfMake);
 const fonts = ["Roboto-Regular.ttf", "Roboto-Medium.ttf"];
 const copertura = fonts.map(nome => create(Buffer.from(vfs[nome], "base64")));
-export const VERSIONE_RENDERER_POS = "pos-pdf-10-design/pdfmake-0.3.9";
+export const VERSIONE_RENDERER_POS = "pos-pdf-11-evidenze-operative/pdfmake-0.3.9";
 
 export async function generaPdfPos(dati: DatiStampaPos, emessoIl: string, opzioni: { anteprima?: boolean } = {}): Promise<{ bytes: Uint8Array; html: string; fonts: Array<{ nome: string; sha256: string }>; sezioni: string[] }> {
   if (!opzioni.anteprima && dati.stato !== "approvato") throw new Error("Emetti soltanto un contenuto POS approvato");

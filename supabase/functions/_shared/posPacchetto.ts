@@ -1,3 +1,4 @@
+import type { OriginaleRapportoPos, verificaConsegnePos } from "./posFontiOperative.ts";
 import {normalizzaRiferimentoPsc, type RiferimentoPsc} from "./posPsc.ts";
 import type {RequisitiAddettiPos} from "./posRequisitiAddetti.ts";
 import type {DocumentazioneMezzoPos} from "./posDocumentiMezzi.ts";
@@ -99,6 +100,7 @@ export async function preparaPacchettoPos(
   requisitiAddetti?:FontiRequisitiAddettiEmissione,
   pscVerificato?:RiferimentoPsc,
   pdfPronto?:PdfProntoPos,
+  fontiOperative?: { originaleRumore?: OriginaleRapportoPos; consegneDpi?: Awaited<ReturnType<typeof verificaConsegnePos>> },
 ) {
   if (dati.stato !== "approvato") throw new Error("Il contenuto POS deve essere approvato prima dell’emissione");
   for (const id of [identita.id, identita.tentativoId, identita.companyId, identita.posId]) if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error("Identità emissione non valida");
@@ -109,7 +111,15 @@ export async function preparaPacchettoPos(
   if(dati.contenuto.versione_requisiti_addetti===1&&(!requisitiAddetti||requisitiAddetti.versione!==1||!Array.isArray(requisitiAddetti.collegamenti)||!Array.isArray(requisitiAddetti.allegati)))throw new Error("Riscontri nominativi non verificati: emissione non completata");
   const psc=dati.contenuto.procedure_psc.psc_presente?normalizzaRiferimentoPsc(dati.contenuto.procedure_psc.documento):undefined;
   if(psc && (identita.origine!=="approvazione_corrente" || !pscVerificato || psc.company_id!==identita.companyId || jsonCanonico(psc)!==jsonCanonico(pscVerificato)))throw new Error("Originale PSC non verificato per questa emissione: nessuna ricostruzione dalle fonti correnti.");
-  if ((psc?1:0)+dati.contenuto.allegati.length+(requisitiAddetti?.allegati.length||0)+(prodottiSds?.allegati.length||0)+(fontiTecniche?.allegati.length||0)+(documentiMezzi?.allegati.length||0) > 80) throw new Error("Il fascicolo supera il limite di 80 allegati per emissione");
+  const rapporto = dati.contenuto.rumore.rapporto?.fonte;
+  const originaleRumore = fontiOperative?.originaleRumore;
+  if (rapporto && (!originaleRumore || jsonCanonico(rapporto) !== jsonCanonico(originaleRumore.fonte) || await sha256Hex(originaleRumore.bytes) !== rapporto.sha256)) {
+    throw new Error("Originale del rapporto del rumore non verificato");
+  }
+  if (dati.contenuto.lavorazioni.some(l => l.riscontri_dpi?.length) && !fontiOperative?.consegneDpi) {
+    throw new Error("Collegamenti DPI non verificati");
+  }
+  if ((psc?1:0)+(rapporto?.origine === "archivio" ? 1 : 0)+dati.contenuto.allegati.length+(requisitiAddetti?.allegati.length||0)+(prodottiSds?.allegati.length||0)+(fontiTecniche?.allegati.length||0)+(documentiMezzi?.allegati.length||0) > 80) throw new Error("Il fascicolo supera il limite di 80 allegati per emissione");
   const base = `${identita.companyId}/${identita.id}/${identita.tentativoId}`;
   const zip: Record<string, Uint8Array> = {};
   const oggetti: Array<{ path: string; bytes: Uint8Array; contentType: string }> = [];
@@ -129,11 +139,18 @@ export async function preparaPacchettoPos(
     totale+=bytes.length;
     await aggiungi(`allegati/PSC-${nomeSicuro(psc.file_name)}`,bytes,"allegato","application/octet-stream",{tipo:"psc",nomeOriginale:psc.file_name,evidenza_id:psc.id,fonte:{bucket,path:psc.file_path}});
   }
+  if (originaleRumore?.fonte.origine === "archivio") {
+    const { bytes, fonte, nome, path } = originaleRumore;
+    totale += bytes.length;
+    if (!bytes.length || bytes.length > LIMITE_ALLEGATO || totale > LIMITE_ALLEGATI) throw new Error("Il fascicolo supera i limiti di emissione");
+    await aggiungi(`allegati/RUMORE-${nomeSicuro(nome)}`, bytes, "allegato", "application/octet-stream",
+      { tipo: "valutazione_rumore", nomeOriginale: nome, evidenza_id: fonte.id, fonte: { bucket: "sicurezza-documenti", path } });
+  }
   // Fetch every declared attachment first. One missing or excessive file aborts the entire package.
   for (const [i, a] of dati.contenuto.allegati.entries()) {
     validaPathAllegatoPos(a.file_path, identita.companyId, identita.posId);
     let bytes: Uint8Array;
-    try { bytes = new Uint8Array(await scarica("sicurezza-documenti", a.file_path)); }
+    try { bytes = originaleRumore?.fonte.origine === "allegato" && originaleRumore.path === a.file_path ? originaleRumore.bytes : new Uint8Array(await scarica("sicurezza-documenti", a.file_path)); }
     catch { throw new Error(`Allegato ${i + 1} «${a.nome}» non disponibile: emissione non completata`); }
     if (!bytes.length) throw new Error(`L’allegato ${i + 1} «${a.nome}» è vuoto`);
     totale += bytes.length;

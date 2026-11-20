@@ -20,11 +20,13 @@ import { ViaggioDialog } from "@/components/mezzi/ViaggioDialog";
 import { draftViaggioKey } from "@/lib/mezzi/viaggi";
 import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
 import type { ContestoViaggi, Viaggio } from "@/lib/mezzi/viaggi";
+import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 
 const state = vi.hoisted(() => ({
   user: "u1",
   context: null as ContestoViaggi | null,
   rows: [] as Viaggio[],
+  arrivi: [] as ArrivoDaRapportino[],
   mutate: vi.fn(),
   lastRead: null as unknown,
   readError: false,
@@ -56,6 +58,8 @@ vi.mock("@/hooks/useMezziViaggi", () => ({
     };
   },
   useViaggioStorico: () => ({ data: [] as never[], isPending: false, isError: false }),
+  useArriviDaRapportini: () => ({ data: { items: state.arrivi, has_more: false }, isSuccess: true, isError: false, isPending: false }),
+  useCollegaArrivoRapportino: () => ({ mutate: vi.fn(), isError: false, isPending: false }),
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({
   useEffectiveCompanyId: () => "c1",
@@ -84,6 +88,7 @@ beforeEach(() => {
   localStorage.clear();
   state.user = "u1";
   state.rows = [];
+  state.arrivi = [];
   state.readError = false;
   state.mutate.mockReset().mockResolvedValue({ id: "v1", versione: 1 });
   state.context = {
@@ -128,6 +133,27 @@ function fill() {
   });
 }
 describe("Viaggi nell’app operai e nell’ufficio", () => {
+  it("apre l’arrivo di due rapportini con la partenza dichiarata e lascia vuoti km e orari mancanti", () => {
+    state.arrivi = [{
+      id: "arrivo", giorno: "2026-11-20", mezzoId: "m1", nomeMezzo: "Ducato",
+      partenza: "Deposito", km: null, rapportini: 2, datiDiscordanti: false,
+      viaggioId: null, viaggioStato: null, viaggiCompatibili: [],
+    }];
+    render(<MemoryRouter><ViaggiMezzoWorkspace companyId="c1" orderId="o1" integrato /></MemoryRouter>);
+    expect(screen.getByText("1 da completare")).toBeVisible();
+    expect(screen.queryByLabelText("Viaggi dal")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Periodo" }));
+    expect(screen.getByLabelText("Viaggi dal")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Oggi" }));
+    expect(screen.queryByLabelText("Viaggi dal")).not.toBeInTheDocument();
+    expect(screen.getByText(/Km da completare · 2 rapportini/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Completa viaggio" }));
+    expect(screen.getByLabelText("Partenza tratta 1")).toHaveValue("Deposito");
+    expect(screen.getByLabelText("Destinazione tratta 1")).toHaveValue("Cantiere A");
+    expect(screen.getByLabelText("Km tratta 1")).toHaveValue("");
+    expect(screen.getByLabelText("Data e ora arrivo")).toHaveValue("");
+    expect(state.mutate).not.toHaveBeenCalled();
+  });
   it("propone il mezzo in carico, niente tariffe né verifica; aggiunge tappe senza raddoppiare i km", async () => {
     form();
     fill();

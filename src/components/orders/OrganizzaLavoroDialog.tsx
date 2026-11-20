@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { nomeBreve } from "@/lib/acquisti/fabbisogno";
 import { INTERA_COMMESSA, type AmbitoLavoro } from "@/lib/orders/previsionaleLavoro";
 
 export type SezioneLavoro = "sottofasi" | "economia" | "chi" | "mezzi" | "materiali" | "note" | "subappalto" | "previsionale";
@@ -14,6 +15,8 @@ export interface AperturaLavoro {
   ids: string[];
   sezione: SezioneLavoro;
 }
+
+const titoloAmbito = (r: AmbitoLavoro) => r.faseId && r.id !== r.faseId && r.nome.length > 85 ? nomeBreve(r.nome).titolo : r.nome;
 
 export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onCambio, onChiudi, children }: {
   apertura: AperturaLavoro;
@@ -77,11 +80,13 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
             : si ? [...candidati, r.id] : apertura.ids.filter((id) => id !== r.id);
           onCambio({ ...apertura, ids });
         }} />
-      <button type="button" className={cn("min-w-0 flex-1 break-words rounded-sm py-2.5 text-left text-sm leading-snug",
+      <button type="button" className={cn("min-w-0 flex-1 rounded-sm py-2 text-left text-sm leading-snug",
         apertura.attiva === r.id ? "font-semibold text-primary" : "text-foreground")} disabled={occupato}
         aria-current={apertura.attiva === r.id ? "true" : undefined}
+        aria-label={r.nome}
+        title={titoloAmbito(r) !== r.nome ? r.nome : undefined}
         onClick={() => vai(r)}>
-        {r.nome}
+        <span className="line-clamp-2 break-words">{titoloAmbito(r)}</span>
       </button>
     </div>
   );
@@ -128,7 +133,7 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
               <div className="mb-1.5 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {padre && <p className="text-xs text-muted-foreground">{padre.nome}</p>}
-                  <h3 className="break-words text-base font-semibold">{attiva?.nome ?? "Lavorazioni"}</h3>
+                  <h3 className="break-words text-base font-semibold">{attiva ? titoloAmbito(attiva) : "Lavorazioni"}</h3>
                 </div>
                 {vicine.length > 1 && <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                   <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={occupato || posizione < 1}
@@ -138,15 +143,19 @@ export function OrganizzaLavoroDialog({ apertura, albero, sezioni, occupato, onC
                     aria-label={padre ? "Voce dopo" : "Fase dopo"} onClick={() => vai(vicine[posizione + 1])}><ChevronRight size={15} /></Button>
                 </div>}
               </div>
-              <nav aria-label="Sezioni lavorazione" className="flex gap-1 overflow-x-auto">
+              <nav aria-label="Sezioni lavorazione" className="flex flex-wrap gap-0.5 sm:flex-nowrap sm:gap-1 sm:overflow-x-auto">
                 {sezioni.map(([id, nome]) => <button key={id} type="button" disabled={occupato}
                   aria-current={apertura.sezione === id ? "page" : undefined}
                   onClick={() => onCambio({ ...apertura, sezione: id })}
-                  className={cn("shrink-0 rounded-t-md border-b-2 px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
+                  className={cn("shrink-0 rounded-t-md border-b-2 px-2 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:px-2.5 sm:text-sm",
                     apertura.sezione === id ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground")}>{nome}</button>)}
               </nav>
             </div>
             <div ref={corpo} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 [scrollbar-gutter:stable]" tabIndex={0}>
+              {attiva && titoloAmbito(attiva) !== attiva.nome && <details key={attiva.id} className="mb-3 rounded-lg border px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-medium text-muted-foreground">Descrizione completa</summary>
+                <p className="mt-2 break-words">{attiva.nome}</p>
+              </details>}
               <FooterLavorazioniProvider value={naviga ? null : footer}>{children}</FooterLavorazioniProvider>
             </div>
           </section>

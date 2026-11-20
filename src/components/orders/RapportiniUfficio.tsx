@@ -1,5 +1,7 @@
 // src/components/orders/RapportiniUfficio.tsx
 import { VociRapportinoUfficio } from "@/components/orders/VociRapportinoUfficio";
+import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
+import { ARRIVO_VUOTO, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +22,7 @@ import { useSottofasi } from "@/hooks/useSottofasi";
 import { useMezzi, useMezziDellaCommessa } from "@/hooks/useMezzi";
 import { nomeAccesso, useAccessiCommessa } from "@/hooks/useAccessiCommessa";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { refreshRapportinoQueries } from "@/lib/orders/refreshRapportinoQueries";
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { compressImage } from "@/lib/campo/compressImage";
@@ -107,7 +110,8 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
   const { phases, unassigned, employees } = useOrderWorkPhases(orderId);
   const { perFase: sottofasiDi } = useSottofasi(orderId);
   const { data: accessi = [] } = useAccessiCommessa(orderId);
-  const { data: tuttiMezzi = [] } = useMezzi();
+  const mezziQuery = useMezzi();
+  const tuttiMezzi = mezziQuery.data ?? [];
   const { data: mezziQui = [] } = useMezziDellaCommessa(orderId);
   const autori = accessi.filter((a) => a.role_type === "employee");
 
@@ -242,6 +246,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
     },
     onSuccess: (n) => {
       refreshWorkQueries(qc, orderId);
+      refreshRapportinoQueries(qc, orderId, companyId);
       void qc.invalidateQueries({ predicate: ({ queryKey }) => typeof queryKey[0] === "string" && queryKey[0].includes("rapportini") });
       toast.success(n === 1 ? "Rapportino scritto: è da approvare" : `${n} rapportini scritti: sono da approvare`);
       onFatto();
@@ -401,6 +406,10 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                 )}
               />
             </Blocco>
+
+            {parti.mezzi && <ArrivoRapportino valore={g.arrivo ?? ARRIVO_VUOTO} onChange={arrivo => cambia(g.chiave, { arrivo })}
+              mezzi={tuttiMezzi.filter(mezzoStradale)} caricamento={mezziQuery.isLoading} errore={mezziQuery.isError}
+              riprova={() => void mezziQuery.refetch()} />}
 
             {parti.mezzi && <Blocco titolo="Mezzi e attrezzi usati">
               <RigheConValore etichetta="mezzo" voci={mezzi.map((m) => ({ id: m.id, nome: m.nome, gruppo: m.qui ? "Su questo cantiere" : "Altri del parco" }))}

@@ -13,6 +13,7 @@ import {usePermissions} from "@/hooks/usePermissions";
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { LIMITE_PSC_BYTES } from "../../supabase/functions/_shared/posPsc";
 import {
   tipoDaSubappaltatore, tipoPerSubappaltatore,
   type DocumentoSicurezza, type TipoDocumentoSicurezza,
@@ -131,7 +132,11 @@ export function useCaricaDocumentiSicurezza(companyId: string | null | undefined
     mutationFn: async (nuovi: NuovoDocumentoSicurezza[]) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       for (const n of nuovi) {
+        if (n.tipo === "psc" && !n.file.size) throw new Error("Il file del PSC è vuoto.");
+        if (n.tipo === "psc" && n.file.size > LIMITE_PSC_BYTES) throw new Error(`«${n.file.name}» supera i 20 MB ammessi per il PSC nel fascicolo POS.`);
         if (n.file.size > LIMITE_FILE_SICUREZZA) throw new Error(`«${n.file.name}» supera i 50 MB.`);
+      }
+      for (const n of nuovi) {
         if (n.subappaltatoreId) await caricaPerSubappaltatore(companyId, n);
         else await caricaInSicurezza(companyId, n);
       }

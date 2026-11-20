@@ -1,4 +1,5 @@
 import type { EvidenzaFascicolo } from "./fascicolo";
+import type { StatoAvvioPsc, RuoloDittaSicurezza } from "@/hooks/useAvvioSicurezza";
 /** Promemoria documentali: la raccolta dei file non dimostra l’applicabilità
  * di un obbligo né l’idoneità complessiva dell’impresa. Le scelte del caso
  * concreto vengono registrate nel fascicolo, con soggetto e riferimenti. */
@@ -80,8 +81,12 @@ export interface DatiControllo {
   /** Documenti della commessa più quelli di tutta l'azienda (order_id null). */
   documenti: DocumentoSicurezza[];
   /** `verificaNegativa`: l'affidataria o il CSE hanno dato esito negativo (art. 101 c. 3): i lavori non possono iniziare. */
-  pos: Array<{ status: string | null; verificaNegativa?: boolean }>;
-  subappaltatori: Array<{ id: string; ragione_sociale: string | null; durc_scadenza: string | null }>;
+  pos: Array<{ status: string | null; verificaNegativa?: boolean; prossimoPasso?: string | null }>;
+  subappaltatori: Array<{
+    id: string; ragione_sociale: string | null; durc_scadenza: string | null;
+    ruolo?: RuoloDittaSicurezza; esitoPos?: { completo: boolean; dettaglio: string };
+  }>;
+  avvio?: { stato: StatoAvvioPsc; motivazione?: string | null; pscVigente?: boolean };
   ponteggiMontati: boolean;
 }
 
@@ -114,6 +119,9 @@ function voceDocumento(
   tipo: TipoDocumentoSicurezza, subappaltatoreId?: string,
 ): VoceControllo {
   if (!doc) return { chiave, titolo, perche, stato: "manca", tipo, subappaltatoreId };
+  if (doc.stato_verifica === "non_applicabile" && doc.note?.trim()) {
+    return { chiave, titolo, perche, stato: "ok", tipo, subappaltatoreId, dettaglio: `Non applicabile · ${doc.note}` };
+  }
   const scadenza = statoScadenza(doc.data_scadenza, oggi);
   if(doc.ambito_da_verificare) return {chiave,titolo,perche,stato:scadenza==='scaduto'?'scaduto':'in_corso',tipo,subappaltatoreId,dettaglio:'Associa e verifica il POS per questo cantiere: il caricamento precedente non ne documenta l’ambito.'};
   if(!doc.file_path.trim()) return {chiave,titolo,perche,stato:'in_corso',tipo,subappaltatoreId,dettaglio:'Richiesta registrata: documento da ricevere e verificare.'};
@@ -128,19 +136,18 @@ function voceDocumento(
 /** La lista di controllo della commessa, nell'ordine in cui conviene leggerla. */
 export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
   const voci: VoceControllo[] = [];
-  const piuImprese = d.subappaltatori.length > 0;
   const docsCantiere=d.documenti.filter(x=>!!x.order_id&&(!d.orderId||x.order_id===d.orderId)&&!x.subappaltatore_id);
 
-  // POS della propria impresa: sempre.
-  const approvati = d.pos.filter((p) => p.status === "approvato" || p.status === "firmato" || p.status === "consegnato");
-  const posApprovato = approvati.length > 0;
-  // Approvato nell'app ma con esito negativo di chi verifica (art. 101 c. 3): non è «ok», i lavori non possono iniziare.
-  const verificaNegativa = approvati.some((p) => p.verificaNegativa);
+  const posCorrente = d.pos[0];
+  const dettaglioPos = posCorrente?.verificaNegativa
+    ? "Verifica negativa. Prepara una revisione."
+    : posCorrente?.prossimoPasso === null
+      ? "Firma e verifiche applicabili registrate"
+      : posCorrente?.prossimoPasso ?? (posCorrente ? "Completa il POS e registra le verifiche applicabili." : undefined);
   voci.push({
-    chiave: "pos", titolo: "POS della tua impresa", perche: "Controlla il POS pertinente, la sua revisione e l’iter applicabile; l’approvazione nell’app non attesta firme o consegne.",
-    stato: posApprovato ? (verificaNegativa ? "in_corso" : "ok") : d.pos.length ? "in_corso" : "manca", nelPos: true,
-    dettaglio: verificaNegativa ? "Verifica negativa dell’impresa affidataria o del coordinatore: i lavori non possono iniziare. Apri una nuova revisione e correggi il POS."
-      : posApprovato ? "Approvato" : d.pos.length ? "In preparazione: completalo e approvalo" : undefined,
+    chiave: "pos", titolo: "POS della tua impresa", perche: "Controlla il piano e le verifiche riferite alla revisione corrente.",
+    stato: !posCorrente ? "manca" : posCorrente.prossimoPasso === null && !posCorrente.verificaNegativa ? "ok" : "in_corso",
+    nelPos: true, dettaglio: dettaglioPos,
   });
 
   // Impresa: patente a crediti e DURC (anche caricati per tutta l'azienda).
@@ -152,17 +159,35 @@ export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
   voci.push(voceDocumento("durc", "DURC dell'impresa", "Regolarità contributiva, vale 120 giorni.",
     ultimo(docsImpresa, "durc", undefined, true), d.oggi, "durc"));
 
-  if (piuImprese) {
-    voci.push(voceDocumento("psc", "PSC del committente", "Verifica il PSC previsto per il caso concreto e la revisione pertinente.",
-      ultimo(docsCantiere, "psc"), d.oggi, "psc"));
-    voci.push(voceDocumento("nomina", "Nomina dei coordinatori (CSP/CSE)", "Controlla gli incarichi dei coordinatori applicabili e i relativi atti.",
+  if (d.avvio?.stato === "previsto") {
+    voci.push({
+      chiave: "psc", titolo: "PSC di riferimento", perche: "Collega la revisione vigente in Avvio sicurezza.",
+      stato: d.avvio.pscVigente ? "ok" : "manca", tipo: "psc",
+    });
+    voci.push(voceDocumento("nomina", "Nomina dei coordinatori (CSP/CSE)", "Controlla gli incarichi e gli atti applicabili.",
       ultimo(docsCantiere, "nomina_coordinatori"), d.oggi, "nomina_coordinatori"));
-    voci.push(voceDocumento("notifica", "Notifica preliminare", "Verifica applicabilità, aggiornamenti e ricevute della notifica per il cantiere.",
+    voci.push(voceDocumento("notifica", "Notifica preliminare", "Verifica applicabilità, aggiornamenti e ricevute.",
       ultimo(docsCantiere, "notifica_preliminare"), d.oggi, "notifica_preliminare"));
-    for (const s of d.subappaltatori) {
+  } else if (d.avvio?.stato === "non_previsto") {
+    voci.push({ chiave: "psc", titolo: "PSC non previsto", perche: "Decisione registrata in Avvio sicurezza.", stato: "ok", dettaglio: d.avvio.motivazione ?? undefined });
+  }
+
+  for (const s of d.subappaltatori) {
       const nome = s.ragione_sociale || "Subappaltatore";
-      voci.push(voceDocumento(`pos-${s.id}`, `POS di ${nome}`, "Ogni impresa in cantiere consegna il proprio POS prima di entrare.",
-        ultimo(d.documenti, "pos_impresa", s.id), d.oggi, "pos_impresa", s.id));
+      if (s.ruolo === "esecutrice") {
+        const documento = ultimo(d.documenti.filter((i) => !d.orderId || i.order_id === d.orderId || i.ambito_da_verificare), "pos_impresa", s.id);
+        const voce = voceDocumento(`pos-${s.id}`, `POS di ${nome}`, "Acquisisci il piano e registra le verifiche applicabili.", documento, d.oggi, "pos_impresa", s.id);
+        if (s.esitoPos) Object.assign(voce, { stato: s.esitoPos.completo ? "ok" : "in_corso", dettaglio: s.esitoPos.dettaglio });
+        else if (voce.stato === "ok" && documento?.stato_verifica !== "non_applicabile") {
+          voce.stato = "in_corso";
+          voce.dettaglio = "Documento nel fascicolo · prendi in carico il POS per registrare l’iter.";
+        }
+        voci.push(voce);
+      }
+      if (!s.ruolo || s.ruolo === "da_valutare") {
+        voci.push({ chiave: `ruolo-${s.id}`, titolo: `Ruolo di ${nome}`, perche: "Indica se esegue lavori, opera come autonomo o fornisce soltanto materiali.", stato: "in_corso", subappaltatoreId: s.id });
+      }
+      if (s.ruolo === "fornitura") continue;
       // Il DURC del subappaltatore può essere un documento caricato o la data in anagrafica.
       const durcDoc = ultimo(d.documenti, "durc", s.id);
       const durcVoce = voceDocumento(`durc-${s.id}`, `DURC di ${nome}`, "Da verificare prima dell'ingresso e a ogni scadenza.", durcDoc, d.oggi, "durc", s.id);
@@ -184,7 +209,6 @@ export function listaControlloCommessa(d: DatiControllo): VoceControllo[] {
         dettaglio:mancanti.length?`Da raccogliere / confermare secondo applicabilità: ${mancanti.join(", ")}`:'Documentazione presente; consulta nella scheda impresa l’esito della valutazione e il suo ambito.',
         tipo: visura ? "dvr" : "idoneita_tecnica", subappaltatoreId: s.id,
       });
-    }
   }
 
   if (d.ponteggiMontati) {
@@ -237,7 +261,7 @@ export function tipoPerSubappaltatore(tipo: TipoDocumentoSicurezza): "durc" | "p
 
 /** Shared checklist reads native evidence without copying files or promoting uploads to verification. */
 export function documentoDaEvidenza(e:EvidenzaFascicolo):DocumentoSicurezza|null {
-  if(e.stato==='superato'||e.stato==='non_applicabile')return null;
+  if(e.stato==='superato'||(e.stato==='non_applicabile'&&!e.note?.trim()))return null;
   const tipi:Record<string,TipoDocumentoSicurezza>={pos:'pos_impresa',visura:'idoneita_tecnica',dpi:'consegna_dpi',sds:'schede_sicurezza',attrezzatura:'libretti_macchine'};
   const tipo=tipi[e.tipo]??(e.tipo in TIPI_SICUREZZA?e.tipo as TipoDocumentoSicurezza:'altro');
   return {id:`evidenza-${e.id}`,fonte:'fascicolo_cantiere',bucket:'fascicoli-cantiere',order_id:e.order_id,subappaltatore_id:e.subappaltatore_id,tipo,titolo:e.titolo,file_path:e.file_path??'',file_name:e.file_name??'',data_documento:e.data_rilascio,data_scadenza:e.data_scadenza,note:e.note,created_at:e.updated_at,stato_verifica:e.stato};

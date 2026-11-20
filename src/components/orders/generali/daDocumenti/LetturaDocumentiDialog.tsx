@@ -9,6 +9,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, Check, CircleHelp, FileText, Loader2, ShieldOff, Sparkles, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ProgressiveFluxLoader } from "@/components/ui/progressive-flux-loader";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { catalogoPer, campoDelCatalogo, nomeDocumento, SCELTE_DECISE, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
@@ -248,9 +249,11 @@ const FASI: { id: FaseLettura; titolo: string }[] = [
 function Avanzamento({ foto, tipo }: { foto: FotoLettura; tipo: TipoDaDocumenti }) {
   const ridotto = useReducedMotion();
   const conto = soloPagine(foto);
-  const quota = foto.finita ? 1 : conto.totale ? conto.chiuse / conto.totale : 0;
   const attuale = FASI.findIndex((f) => f.id === foto.fase);
   const gruppi = (foto as { gruppi?: { fatti: number; totali: number | null } }).gruppi;
+  const percento = foto.finita ? 100
+    : foto.fase === "pagine" && conto.totale ? 100 * conto.chiuse / conto.totale
+    : foto.fase === "estrazione" && gruppi?.totali ? 100 * gruppi.fatti / gruppi.totali : undefined;
   const dati = foto.arrivati.length;
   const ultimo = foto.arrivati[foto.arrivati.length - 1];
   return (
@@ -271,15 +274,8 @@ function Avanzamento({ foto, tipo }: { foto: FotoLettura; tipo: TipoDaDocumenti 
           </li>
         ))}
       </ol>
-      <div className="mt-2 flex items-center gap-3">
-        <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(quota * 100)} aria-label="Pagine lette">
-          <motion.div className="h-full rounded-full bg-primary" animate={{ width: `${quota * 100}%` }} transition={{ duration: ridotto ? 0 : 0.3 }} />
-          {!ridotto && !foto.finita && (
-            <motion.div className="absolute inset-y-0 w-1/4 bg-gradient-to-r from-transparent via-white/60 to-transparent"
-              animate={{ left: ["-25%", "100%"] }} transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }} />
-          )}
-        </div>
-      </div>
+      <ProgressiveFluxLoader className="mt-2" label={FASI[attuale]?.titolo ?? "Lettura documenti"}
+        value={percento} active={!foto.finita} ariaLabel="Avanzamento analisi documenti" />
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
         <span><b className="tabular-nums text-foreground">{dati}</b> dati trovati</span>
         <span>Costo <b className="tabular-nums text-foreground">{euro(foto.costo)}</b> · stima {euro(foto.stimaCosto)}</span>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Link } from "react-router-dom";
 import { FileText, Loader2 } from "lucide-react";
+import { ProgressiveFluxLoader } from "@/components/ui/progressive-flux-loader";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
@@ -234,9 +235,7 @@ export function RigaDocumentoInIngresso({
       </td>
       <td className="p-3">
         {inLettura ? (
-          <span className="text-xs text-muted-foreground">
-            Analisi in corso…
-          </span>
+          <ProgressiveFluxLoader className="min-w-28" label="Analisi in corso…" ariaLabel="Avanzamento analisi DDT" />
         ) : daLeggere ? (
           <div className="flex gap-2">
             <Button

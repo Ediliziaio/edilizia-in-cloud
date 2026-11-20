@@ -101,6 +101,7 @@ interface OrderData {
   // ── Modulo Appaltatori ─────────────────────────────────────────
   order_type: "cliente" | "appaltatore_lavoro" | null;
   work_address: string | null;
+  indirizzo_lavori?: string | null;
   work_description: string | null;
   materials_location: string | null;
   /* I campi che decidono come si valorizza il lavoro. C'erano alla creazione
@@ -454,7 +455,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       setAssignedTo(draft.assignedTo ?? order.assigned_to ?? "");
       setDestinationWarehouseId(draft.destinationWarehouseId === undefined ? order.destination_warehouse_id ?? null : draft.destinationWarehouseId);
       setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
-      setWorkAddress(order.work_address || "");
+      setWorkAddress(order.work_address?.trim() || order.indirizzo_lavori || "");
       setWorkDescription(order.work_description || "");
       setMaterialsLocation(order.materials_location || "");
       setValorizzazione(order.valorizzazione === "a_misura" ? "a_misura" : "a_corpo");
@@ -490,7 +491,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     setDestinationWarehouseId(order.destination_warehouse_id ?? null);
     // Modulo Appaltatori
     setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
-    setWorkAddress(order.work_address || "");
+    setWorkAddress(order.work_address?.trim() || order.indirizzo_lavori || "");
     setWorkDescription(order.work_description || "");
     setMaterialsLocation(order.materials_location || "");
     setValorizzazione(order.valorizzazione === "a_misura" ? "a_misura" : "a_corpo");
@@ -712,6 +713,10 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       // a NULL (no-op silenzioso anche se l'utente li avesse riempiti).
       if (orderTypeState === "appaltatore_lavoro") {
         campi.work_address = workAddress.trim() || null;
+        if (workAddress.trim() !== (order?.work_address?.trim() || order?.indirizzo_lavori?.trim() || "")) {
+          campi.work_lat = workCoords?.testo === workAddress.trim() ? workCoords.lat : null;
+          campi.work_lng = workCoords?.testo === workAddress.trim() ? workCoords.lng : null;
+        }
         campi.work_description = workDescription.trim() || null;
         campi.materials_location = materialsLocation.trim() || null;
         /* Il tetto e il loro numero d'ordine si correggono anche dopo: alla
@@ -881,13 +886,18 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       // Indirizzo scelto tra i suggerimenti: le sue coordinate, senza ricalcolarle.
       if (orderTypeState === "appaltatore_lavoro" && workAddress.trim()) {
         const scelte = workCoords && workCoords.testo === workAddress.trim() ? { lat: workCoords.lat, lng: workCoords.lng } : null;
-        void (scelte ? Promise.resolve(scelte) : geocodeBestEffort([workAddress])).then((coords) => {
+        void (scelte ? Promise.resolve(scelte) : geocodeBestEffort([workAddress])).then(async (coords) => {
           if (!coords) return;
-          return supabase
+          const risultato = await supabase
             .from("orders")
             .update({ work_lat: coords.lat, work_lng: coords.lng } as never)
             .eq("id", id!)
-            .eq("company_id", effectiveCompany.id);
+            .eq("company_id", effectiveCompany.id)
+            .eq("work_address", workAddress.trim());
+          if (!risultato.error) {
+            void queryClient.invalidateQueries({ queryKey: ["cantiere-indirizzo", id] });
+            void queryClient.invalidateQueries({ queryKey: ["distanza-cantieri"] });
+          }
         }).catch(() => { /* geocoding best-effort: non bloccante */ });
       }
     },
@@ -895,6 +905,8 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order", id] });
+      queryClient.invalidateQueries({ queryKey: ["cantiere-indirizzo", id] });
+      queryClient.invalidateQueries({ queryKey: ["distanza-cantieri"] });
       queryClient.invalidateQueries({ queryKey: ["order-items", id] });
       queryClient.invalidateQueries({ queryKey: ["order-salesperson", id] });
       queryClient.invalidateQueries({ queryKey: ["order-installments", id] });

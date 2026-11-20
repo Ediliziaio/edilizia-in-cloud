@@ -21,7 +21,7 @@ export function useDistanzeCantieri(orderIds: readonly string[]) {
     queryKey: ["distanza-cantieri", ids.join(","), base?.lat, base?.lng],
     enabled: ids.length > 0,
     staleTime: 30 * 60_000,
-    queryFn: async (): Promise<Record<string, DistanzaCantiere>> => {
+    queryFn: async ({ signal }): Promise<Record<string, DistanzaCantiere>> => {
       const { data, error } = await supabase
         .from("orders")
         .select("id, work_lat, work_lng, distanza_sede_km, distanza_sede_minuti")
@@ -29,13 +29,14 @@ export function useDistanzeCantieri(orderIds: readonly string[]) {
       if (error) throw error;
       const out: Record<string, DistanzaCantiere> = {};
       for (const o of data ?? []) {
+        if (signal.aborted) break;
         if (o.distanza_sede_km != null) {
           out[o.id] = { km: Number(o.distanza_sede_km), minuti: o.distanza_sede_minuti };
           continue;
         }
         if (!base || o.work_lat == null || o.work_lng == null) continue;
         const percorso = await getRoute([base, { lat: Number(o.work_lat), lng: Number(o.work_lng) }]);
-        if (!percorso) continue;
+        if (!percorso || signal.aborted) continue;
         const km = Math.round((percorso.distanceMeters / 1000) * 10) / 10;
         const minuti = Math.round(percorso.durationSec / 60);
         out[o.id] = { km, minuti };

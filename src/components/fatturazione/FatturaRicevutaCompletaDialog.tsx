@@ -19,7 +19,7 @@ export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOrigina
     if (!vista?.xmlOriginale || pdfInCorso) return;
     setPdfInCorso(true);
     try {
-      const bytes = await generaPdfFatturaXml(vista.xmlOriginale, { indiceCorpo: vista.indiceCorpo ?? 0 });
+      const bytes = await generaPdfFatturaXml(vista.xmlOriginale, { indiceCorpo: vista.indiceCorpo ?? 0, direzione: 'ricevuta' });
       const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = url;
@@ -36,7 +36,7 @@ export function FatturaRicevutaCompletaDialog({ vista, onClose, onScaricaOrigina
   };
   const allegati = vista?.allegatiFile ?? vista?.allegatiPdf.map(a => ({ ...a, formato: 'PDF', compressione: '', descrizione: '' })) ?? [];
   return <Dialog open={!!vista} onOpenChange={o => { if (!o) onClose(); }}>
-    <DialogContent className="max-w-4xl h-[90dvh] flex flex-col p-0 gap-0">
+    <DialogContent className="max-w-5xl h-[90dvh] flex flex-col p-0 gap-0 overflow-hidden">
       <DialogHeader className="px-4 py-3 pr-14 border-b shrink-0 space-y-2">
         <DialogTitle className="flex items-start gap-2 text-sm font-medium">
           <FileText className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{vista?.titolo}</span>

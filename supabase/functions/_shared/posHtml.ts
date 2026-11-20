@@ -1,3 +1,5 @@
+import { TIPI_DPI } from "./consegneDpi.ts";
+import { CAMPI_EMERGENZE_POS, dpiPrevistiPos } from "./posEvidenzeOperative.ts";
 import {SEGNALI_POS,segnalePosSvg,normalizzaSegnaliPos} from "./posSegnaletica.ts";
 import { dataRomaDaIso } from "./posData.ts";
 import { ICONE_POS, iconaPosSvg } from "./posIcone.ts";
@@ -270,8 +272,19 @@ export function costruisciHtmlPos(d: DatiStampaPos): string {
     : `<tr><td class="num">1</td><td>${testo("")}</td><td>${testo("")}</td><td class="centro">${scatola(false)}</td><td class="centro">${scatola(false)}</td><td class="centro">${scatola(false)}</td><td class="centro">${scatola(false)}</td><td>${testo("")}</td></tr>`;
 
   const rumore = p.rumore.righe.length
-    ? p.rumore.righe.map((r) => `<tr><td>${testo(r.mansione)}</td><td>${testo(r.lavorazione)}</td><td>${testo(r.livello_sorgenti)}</td><td>${testo(r.esposizione)}</td><td>${testo(r.note)}</td></tr>`).join("")
+    ? p.rumore.righe.map((r) => `<tr><td>${testo(r.mansione)}</td><td>${testo(p.lavorazioni.find(l => l.id === r.lavorazione_id)?.titolo ?? r.lavorazione)}</td><td>${testo(r.livello_sorgenti)}</td><td>${testo(r.esposizione)}</td><td>${r.riferimento ? `<strong>${esc(r.riferimento)}</strong>${r.note ? "<br>" : ""}` : ""}${r.note ? testo(r.note) : ""}</td></tr>`).join("")
     : `<tr><td>${testo("")}</td><td></td><td></td><td></td><td></td></tr>`;
+
+  const rapporto = p.rumore.rapporto;
+  const piano = p.emergenze.piano;
+  const emergenzeOperative = piano ? Object.entries(CAMPI_EMERGENZE_POS).flatMap(([k, label]) => {
+    const valore = piano[k as keyof typeof piano];
+    const fonti = p.emergenze.fonti_psc?.[k as keyof typeof piano];
+    if (fonti?.length) return fonti.map(fonte =>
+      `<tr><td class="et">${esc(label)}${fonte.fase ? `<br><span class="rif">${esc(fonte.fase)}</span>` : ""}</td>
+        <td>${testo(fonte.estratto)}<br><span class="rif">PSC rev. ${esc(fonte.revisione)} · pagina ${fonte.pagina}${fonte.metodo === "ocr" ? " · trascrizione OCR" : ""}</span></td></tr>`);
+    return valore ? [`<tr><td class="et">${esc(label)}</td><td>${testo(valore)}</td></tr>`] : [];
+  }).join("") : "";
 
   const lavorazioni = p.lavorazioni.length
     ? p.lavorazioni.map((l, i) => `
@@ -289,6 +302,15 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
         <tr><td class="et" colspan="2">Macchine</td><td>${testo(l.macchine)}</td></tr>
         <tr><td class="et" colspan="2">Impianti</td><td>${testo(l.impianti)}</td></tr>
         <tr><td class="et" colspan="2">Turni di lavoro</td><td>${testo(l.turni)}</td></tr>
+        ${l.programma_demolizioni?.applicabilita === "si" ? `<tr><td class="et" colspan="2">Programma delle demolizioni (art. 151)</td><td>${testo(l.programma_demolizioni.sequenza)}</td></tr>
+          <tr><td class="et" colspan="2">Preposto alla sorveglianza</td><td>${testo(l.programma_demolizioni.preposto)}</td></tr>` : ""}
+        ${l.programma_demolizioni?.applicabilita === "no" && l.programma_demolizioni.motivo ? `<tr><td class="et" colspan="2">Programma delle demolizioni non applicabile</td><td>${testo(l.programma_demolizioni.motivo)}</td></tr>` : ""}
+        ${l.fonti_scheda?.computo ? `<tr><td class="et" colspan="2">Riferimenti al computo</td><td>${testo([
+          l.fonti_scheda.computo.titolo, l.fonti_scheda.computo.voci.map(v => v.codice || v.titolo).join(", "),
+        ].filter(Boolean).join(" · "))}</td></tr>` : ""}
+        ${l.fonti_scheda?.psc ? `<tr><td class="et" colspan="2">Riferimenti al PSC</td><td>${testo(`Rev. ${l.fonti_scheda.psc.revisione} · pagine ${[...new Set(l.fonti_scheda.psc.estratti.map(r => r.pagina))].join(", ")}${l.fonti_scheda.psc.estratti.some(r => r.metodo === "ocr") ? "\nEstratti OCR: " + l.fonti_scheda.psc.estratti.filter(r => r.metodo === "ocr").map(r => `pag. ${r.pagina} ${r.confermato ? "confrontata" : "da confrontare"}`).join(", ") : ""}`)}</td></tr>` : ""}
+        ${(l.fonti_scheda?.quesiti ?? []).filter(q => q.risposta.trim()).map(q =>
+          `<tr><td class="et" colspan="2">${testo(q.domanda)}</td><td>${testo(q.risposta)}</td></tr>`).join("")}
         ${valutazioneAttiva(l) ? "" : `<tr><td class="et" colspan="2">Rischi</td><td>${testo(l.rischi)}</td></tr>
         <tr><td class="et" colspan="2">Misure preventive e protettive</td><td>${testo(l.misure)}</td></tr>
         <tr><td class="et" colspan="2">DPI</td><td>${testo(l.dpi)}</td></tr>`}
@@ -297,12 +319,13 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
       </table>${valutazioneAttiva(l) ? rischiMisureHtml(l, i + 1, valutazioneAttiva(l)!) : ""}${normalizzaSegnaliPos(l.segnaletica).length?`<h4>Segnaletica della lavorazione</h4><p class="nota">Pittogrammi schematici per la documentazione. Ubicazione dichiarata dal compilatore; posa e presenza effettiva da verificare sul cantiere.</p>${normalizzaSegnaliPos(l.segnaletica).map(s=>`<div class="segnale-pos" data-segnale="${s.id}" style="display:flex;gap:12px;align-items:center;margin:8px 0">${segnalePosSvg(s.id)}<p>${esc(SEGNALI_POS.find(x=>x.id===s.id)!.nome)}<br>Ubicazione: ${esc(s.ubicazione||"Da definire")}<br>${esc(s.note)}</p></div>`).join("")}`:""}${p.versione_requisiti_addetti===1?requisitiAddettiHtml(l):""}${p.versione_tecnica===1?dettaglioTecnicoHtml(l.tecnica||tecnicaPosVuota(),l.titolo||`Lavorazione ${i+1}`,p.versione_fonti_tecniche===1,p.versione_mezzi===1,p.versione_documenti_mezzi===1):""}`).join("")
     : `<p class="vuoto-blocco">Nessuna lavorazione descritta.</p>`;
 
-  // The phase list states planned DPI; it does not prove delivery to a worker.
-  const dpi = [...new Set(p.lavorazioni.flatMap((l) => l.dpi.split(/\n|;/).map((x) => x.replace(/^[-•\s]+/, "").trim())).filter(Boolean))];
+  const dpi = [...new Set(p.lavorazioni.flatMap(l => dpiPrevistiPos(l.dpi)))];
+  const riscontriDpi = p.lavorazioni.flatMap((l, i) => (l.riscontri_dpi ?? []).map(r =>
+    `<tr><td>${esc(l.titolo || `Lavorazione ${i + 1}`)}</td><td>${esc(r.previsto)}</td><td>${esc(r.addetto)}</td><td>${esc(TIPI_DPI[r.tipo] ?? r.tipo)}</td><td>${esc(r.data)}</td></tr>`)).join("");
 
   const psc = p.procedure_psc;
   const procedure = psc.richieste && psc.voci.length
-    ? psc.voci.map((v, i) => `<tr><td class="num">${i + 1}</td><td>${testo(v.procedura)}${v.pagina?`<br>Rif. PSC: ${esc(v.pagina)}`:""}</td><td>${testo(v.indicazioni)}${v.responsabile?`<br>Responsabile operativo: ${esc(v.responsabile)}`:""}${v.lavorazione_id?`<br>Lavorazione: ${esc(p.lavorazioni.find(l=>l.id===v.lavorazione_id)?.titolo||"Riferimento non più presente: da riesaminare")}`:""}</td></tr>`).join("")
+    ? psc.voci.map((v, i) => `<tr><td class="num">${i + 1}</td><td>${testo(v.procedura)}${v.pagina?`<br>Rif. PSC: ${esc(v.pagina)}${v.fonte_estratto?.metodo === "ocr" ? " · citazione acquisita con OCR" : ""}`:""}</td><td>${testo(v.indicazioni)}${v.responsabile?`<br>Responsabile operativo: ${esc(v.responsabile)}`:""}${v.lavorazione_id?`<br>Lavorazione: ${esc(p.lavorazioni.find(l=>l.id===v.lavorazione_id)?.titolo||"Riferimento non più presente: da riesaminare")}`:""}</td></tr>`).join("")
     : "";
 
   const schedeProdotti = [...new Map(p.lavorazioni.flatMap(l=>l.prodotti||[]).filter(pr=>pr.evidenza_id&&pr.sds_file_name).map(pr=>[pr.evidenza_id,pr])).values()];
@@ -310,7 +333,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
   const altriAllegati = p.allegati.filter((a) => a.tipo !== "scheda_sicurezza");
 
   const avvisoBozza = bozza
-    ? `<div class="bozza"><strong>BOZZA — non vale come POS approvato.</strong>${mancanti.length ? `<br>${mancanti.length === 1 ? "Manca ancora 1 contenuto minimo" : `Mancano ancora ${mancanti.length} contenuti minimi`} dell'Allegato XV:<ul>${mancanti.map((m) => `<li>${esc(m.testo)} <span class="rif">(${esc(m.riferimento)})</span></li>`).join("")}</ul>` : "<br>Tutti i contenuti minimi sono presenti: manca l'approvazione del datore di lavoro."}</div>`
+    ? `<div class="bozza"><strong>BOZZA — non vale come POS approvato.</strong>${mancanti.length ? `<br>${mancanti.length === 1 ? "Resta 1 voce da completare" : `Restano ${mancanti.length} voci da completare`}:<ul>${mancanti.map((m) => `<li>${esc(m.testo)} <span class="rif">(${esc(m.riferimento)})</span></li>`).join("")}</ul>` : "<br>Tutti i contenuti minimi sono presenti: manca l'approvazione del datore di lavoro."}</div>`
     : "";
 
   return `<!DOCTYPE html>
@@ -365,6 +388,9 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
     <tr><td class="et">Lavori</td><td>${testo(p.opera.descrizione_attivita)}</td></tr>
     ${periodoLavori ? `<tr><td class="et">Inizio e fine lavori</td><td>${esc(periodoLavori)}</td></tr>` : ""}
     ${d.codiceCommessa ? `<tr><td class="et">Commessa</td><td>${esc(d.codiceCommessa)}</td></tr>` : ""}
+    ${p.procedure_psc.psc_presente ? `<tr><td class="et">PSC di riferimento</td><td>${p.procedure_psc.documento
+      ? `Rev. ${esc(p.procedure_psc.documento.revisione)} · ${esc(p.procedure_psc.documento.titolo)}`
+      : "Originale da collegare"}</td></tr>` : ""}
   </table>
   <table>
     <tr><th style="width:8%">REV</th><th style="width:16%">DATA</th><th>DESCRIZIONE REVISIONE</th><th style="width:28%">REDAZIONE (firma)</th></tr>
@@ -427,6 +453,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
     <tr><th style="width:28%">Nominativo</th><th style="width:36%">Tipo nomina</th><th>Mansioni specifiche svolte in cantiere ai fini della sicurezza</th></tr>
     ${addetti}
   </table>
+  ${emergenzeOperative ? `<table class="tabella-emergenze"><tr><th colspan="2">Organizzazione operativa delle emergenze</th></tr>${emergenzeOperative}</table>` : ""}
 
   <h2>${iconaPosSvg(ICONE_POS[4].id)}Numero e qualifica dei lavoratori operanti in cantiere per conto dell'impresa <span class="rif">(3.2.1 lettera a) punto 7)</span></h2>
   <table>
@@ -449,10 +476,17 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
 
   <h2>${iconaPosSvg(ICONE_POS[6].id)}Esito del rapporto di valutazione del rumore <span class="rif">(3.2.1 lettera f)</span></h2>
   <p>Il rapporto di valutazione di esposizione dei lavoratori al rumore, relativamente alle lavorazioni svolte in cantiere, è il seguente:</p>
+  ${rapporto ? `<table>
+    <tr><th colspan="2">Rapporto di riferimento</th></tr>
+    <tr><td class="et">Numero o titolo</td><td>${testo(rapporto.codice)}</td></tr>
+    <tr><td class="et">Data e revisione</td><td>${testo([rapporto.data, rapporto.revisione].filter(Boolean).join(" · "))}</td></tr>
+    <tr><td class="et">Esiti riportati</td><td>${rapporto.esiti_riesaminati ? "Confrontati dal compilatore con il rapporto" : "Da confrontare con il rapporto"}</td></tr>
+    ${rapporto.fonte ? `<tr><td class="et">Originale collegato</td><td>${testo(rapporto.fonte.titolo)}<br>SHA-256 ${esc(rapporto.fonte.sha256)}</td></tr>` : rapporto.collocazione ? `<tr><td class="et">Conservazione dichiarata</td><td>${testo(rapporto.collocazione)}</td></tr>` : ""}
+  </table>` : ""}
   ${p.rumore.esito.trim() ? `<table><tr><td>${testo(p.rumore.esito)}</td></tr></table>` : ""}
   <h3>Tabella riepilogativa dei livelli di esposizione</h3>
   <table>
-    <tr><th>Mansione (o nominativo)</th><th>Lavorazione</th><th>Livello di pressione sonora delle sorgenti di rumore utilizzate</th><th>Livelli di esposizione giornaliera/settimanale</th><th>Note</th></tr>
+    <tr><th>Mansione (o nominativo)</th><th>Lavorazione</th><th>Livello di pressione sonora delle sorgenti di rumore utilizzate</th><th>Livelli di esposizione giornaliera/settimanale</th><th>Riferimento e note</th></tr>
     ${rumore}
   </table>
 
@@ -463,6 +497,10 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
   <p class="nota">L’elenco indica i DPI previsti. La consegna ai singoli lavoratori richiede le relative evidenze; non è attestata dalla sola scheda di lavorazione.</p>
   ${dpi.length ? `<ul>${dpi.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p class="vuoto-blocco">Da indicare nelle schede delle lavorazioni.</p>`}
 
+  ${riscontriDpi ? `<h3>Consegne DPI collegate al registro</h3>
+    <p class="nota">La tabella riporta le registrazioni collegate dal compilatore. La firma e la disponibilità fisica dei DPI richiedono riscontri dedicati.</p>
+    <table><tr><th>Lavorazione</th><th>DPI previsto</th><th>Addetto</th><th>DPI registrato</th><th>Consegnato il</th></tr>${riscontriDpi}</table>` : ""}
+
   <h2>${iconaPosSvg(ICONE_POS[8].id)}Procedure complementari o di dettaglio richieste dal PSC (se previsto) <span class="rif">(3.2.1 lettera h)</span></h2>
   <p>${psc.psc_presente ? "" : "Per questo cantiere non è previsto il PSC. "}Nel PSC sono state richieste delle procedure complementari o di dettaglio: ${casella(!psc.richieste, "no")} ${casella(psc.richieste, "si")}</p>
   ${psc.psc_presente ? psc.documento ? `<table><tr><th colspan="2">Originale PSC di riferimento dichiarato dal compilatore</th></tr><tr><td>Titolo / file</td><td>${esc(psc.documento.titolo)} · ${esc(psc.documento.file_name)}</td></tr><tr><td>Revisione / data</td><td>${esc(psc.documento.revisione)} · ${esc(psc.documento.data_documento||"Non indicata")}</td></tr><tr><td>Identificazione</td><td>${esc(psc.documento.archivio)} · ${esc(psc.documento.id)}</td></tr><tr><td>SHA-256</td><td>${esc(psc.documento.sha256)}</td></tr></table><p class="nota">Il riferimento identifica il file consultato; non attesta la verifica tecnica del PSC o della coerenza del POS.</p>` : `<p class="nota">Originale PSC non collegato: riferimento documentale da completare.</p>` : ""}
@@ -472,6 +510,10 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
   <p>${casella(schede.length > 0 || schedeProdotti.length > 0, "Schede di sicurezza delle sostanze e preparati pericolosi")}</p>
   ${schede.length ? `<ul>${schede.map((a) => `<li>${esc(a.nome)}</li>`).join("")}</ul>` : ""}
   ${schedeProdotti.length ? `<ul>${schedeProdotti.map(pr=>`<li>${esc(pr.sds_file_name||"")} · ${esc(pr.nome)} · revisione ${esc(pr.sds_revisione||"non indicata")} · ${esc(pr.evidenza_id||"")}</li>`).join("")}</ul>` : ""}
+  ${(rapporto?.fonte?.origine === "archivio" || (psc.psc_presente && psc.documento)) ? `<h3>Originali collegati nel fascicolo</h3><ul>
+    ${psc.psc_presente && psc.documento ? `<li>PSC · ${esc(psc.documento.file_name)} · revisione ${esc(psc.documento.revisione)}</li>` : ""}
+    ${rapporto?.fonte?.origine === "archivio" ? `<li>Valutazione del rumore · ${esc(rapporto.fonte.titolo)} · revisione ${esc(rapporto.revisione)}</li>` : ""}
+  </ul>` : ""}
   ${altriAllegati.length ? `<ul>${altriAllegati.map((a) => `<li>${esc(ALLEGATO_LABEL[a.tipo])}: ${esc(a.nome)}</li>`).join("")}</ul>` : ""}
 
   <h2>${iconaPosSvg(ICONE_POS[10].id)}Firme</h2>

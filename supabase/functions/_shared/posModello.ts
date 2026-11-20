@@ -1,3 +1,7 @@
+import { fontiEmergenzeDaRiesaminare, normalizzaFontiEmergenzePsc, type FontiEmergenzePsc } from "./posEmergenzePsc.ts";
+import { dataValidaDpi } from "./consegneDpi.ts";
+import { CAMPI_EMERGENZE_POS, dpiPrevistiPos, normalizzaPianoEmergenze, normalizzaRapportoRumore, normalizzaRiscontriDpi, type PianoEmergenzePos, type RapportoRumorePos, type RiscontroDpiPos } from "./posEvidenzeOperative.ts";
+import { normalizzaFontiSchedaPos, normalizzaIdentitaPscSchedaPos, ocrPscDaConfermare, pscSchedaDaRiesaminare, type FontiSchedaPos, type IdentitaPscSchedaPos } from "./posFontiScheda.ts";
 import {normalizzaRiferimentoPsc, type RiferimentoPsc} from "./posPsc.ts";
 import {normalizzaSegnaliPos,type SceltaSegnalePos} from "./posSegnaletica.ts";
 import { normalizzaRequisitiAddettiPos, erroriRequisitiAddettiPos, type RequisitiAddettiPos } from "./posRequisitiAddetti.ts";
@@ -99,6 +103,8 @@ export interface RigaFormazione {
 export interface RigaRumore {
   mansione: string;
   lavorazione: string;
+  lavorazione_id?: string;
+  riferimento?: string;
   livello_sorgenti: string;
   esposizione: string;
   note: string;
@@ -123,12 +129,26 @@ export interface ValutazioneLavorazione {
   dpi_comuni: string;
 }
 
+export interface ProgrammaDemolizioniPos {
+  applicabilita: "da_valutare" | "si" | "no";
+  sequenza: string;
+  preposto: string;
+  motivo: string;
+}
+
+export const titoloDemolizionePos = (titolo: string) => /\bdemolizi/i.test(titolo);
+export const programmaDemolizioniVuoto = (): ProgrammaDemolizioniPos =>
+  ({ applicabilita: "da_valutare", sequenza: "", preposto: "", motivo: "" });
+
 export interface Lavorazione {
   /**
    * Rischi, misure e DPI legati fra loro. I campi `rischi`, `misure` e `dpi` restano la verità per controlli, elenchi e
    * app non aggiornate: la tabella vale solo finché dice le stesse cose (vedi `valutazioneAttiva`).
    */
   valutazione?: ValutazioneLavorazione;
+  fonti_scheda?: FontiSchedaPos;
+  riscontri_dpi?: RiscontroDpiPos[];
+  programma_demolizioni?: ProgrammaDemolizioniPos;
   segnaletica?: SceltaSegnalePos[];
   requisiti_addetti?: RequisitiAddettiPos;
   tecnica?: TecnicaLavorazionePos;
@@ -157,6 +177,7 @@ export interface Lavorazione {
 }
 
 export interface ProceduraPsc {
+  fonte_estratto?: IdentitaPscSchedaPos & { metodo?: "ocr" };
   procedura: string;
   indicazioni: string;
   pagina?: string;
@@ -173,6 +194,7 @@ export interface AllegatoPos {
 export interface PosContenuto {
   versione_psc?: 1;
   versione_requisiti_addetti?: 1;
+  versione_evidenze_operative?: 1;
   versione_controlli?: 1 | 2;
   versione_prodotti?: 1;
   versione_tecnica?: 1;
@@ -216,11 +238,13 @@ export interface PosContenuto {
     gestione: GestioneEmergenze;
     imprese_gestione_comune: string;
     addetti: AddettoEmergenze[];
+    piano?: PianoEmergenzePos;
+    fonti_psc?: FontiEmergenzePsc;
   };
   lavoratori: RigaLavoratori[];
   autonomi: LavoratoreAutonomo[];
   formazione: RigaFormazione[];
-  rumore: { esito: string; righe: RigaRumore[] };
+  rumore: { esito: string; righe: RigaRumore[]; rapporto?: RapportoRumorePos };
   lavorazioni: Lavorazione[];
   procedure_psc: { psc_presente: boolean; richieste: boolean; voci: ProceduraPsc[]; documento?: RiferimentoPsc };
   allegati: AllegatoPos[];
@@ -324,10 +348,21 @@ function normalizzaValutazione(v: unknown): ValutazioneLavorazione | undefined {
 export function normalizzaLavorazione(v: unknown, id: string): Lavorazione {
   const o = isObj(v) ? v : {};
   const valutazione = o.valutazione !== undefined ? normalizzaValutazione(o.valutazione) : undefined;
+  const fonti = normalizzaFontiSchedaPos(o.fonti_scheda);
+  const riscontriDpi = normalizzaRiscontriDpi(o.riscontri_dpi);
+  const programma = isObj(o.programma_demolizioni) ? {
+    applicabilita: uno(o.programma_demolizioni.applicabilita, ["da_valutare", "si", "no"] as const, "da_valutare"),
+    sequenza: str(o.programma_demolizioni.sequenza).slice(0, 8000),
+    preposto: str(o.programma_demolizioni.preposto).slice(0, 200),
+    motivo: str(o.programma_demolizioni.motivo).slice(0, 1500),
+  } : undefined;
   const origine = uno(o.origine, ["ai", "utente", "modello"] as const, "utente");
   return {
     id: str(o.id) || id,
     ...(valutazione ? { valutazione } : {}),
+    ...(fonti ? { fonti_scheda: fonti } : {}),
+    ...(riscontriDpi.length ? { riscontri_dpi: riscontriDpi } : {}),
+    ...(programma ? { programma_demolizioni: programma } : {}),
     ...(o.segnaletica !== undefined ? {segnaletica:normalizzaSegnaliPos(o.segnaletica)} : {}),
     ...(o.requisiti_addetti !== undefined ? {requisiti_addetti:normalizzaRequisitiAddettiPos(o.requisiti_addetti)} : {}),
     titolo: str(o.titolo),
@@ -369,9 +404,13 @@ export function normalizzaPos(v: unknown): PosContenuto {
   const rls = isObj(v.rls) ? v.rls : {};
   const emergenze = isObj(v.emergenze) ? v.emergenze : {};
   const rumore = isObj(v.rumore) ? v.rumore : {};
+  const rapporto = normalizzaRapportoRumore(rumore.rapporto);
+  const pianoEmergenze = normalizzaPianoEmergenze(emergenze.piano);
+  const fontiEmergenze = normalizzaFontiEmergenzePsc(emergenze.fonti_psc);
   const psc = isObj(v.procedure_psc) ? v.procedure_psc : {};
   return {
     versione_modello: POS_VERSIONE_MODELLO,
+    ...(v.versione_evidenze_operative === 1 ? { versione_evidenze_operative: 1 as const } : {}),
     ...(v.versione_requisiti_addetti===1?{versione_requisiti_addetti:1 as const}:{}),
     ...(v.versione_psc===1 ? {versione_psc:1 as const} : {}),
     versione_controlli: v.versione_controlli === 2 ? 2 : 1,
@@ -417,6 +456,8 @@ export function normalizzaPos(v: unknown): PosContenuto {
     emergenze: {
       gestione: uno(emergenze.gestione, ["committente", "interna", "comune"] as const, "interna"),
       imprese_gestione_comune: str(emergenze.imprese_gestione_comune),
+      ...(pianoEmergenze ? { piano: pianoEmergenze } : {}),
+      ...(fontiEmergenze ? { fonti_psc: fontiEmergenze } : {}),
       addetti: arr(emergenze.addetti).map((a) => ({
         ...figura(a),
         antincendio: bool(isObj(a) ? a.antincendio : false),
@@ -446,11 +487,14 @@ export function normalizzaPos(v: unknown): PosContenuto {
     }),
     rumore: {
       esito: str(rumore.esito),
+      ...(rapporto ? { rapporto } : {}),
       righe: arr(rumore.righe).map((r) => {
         const o = isObj(r) ? r : {};
         return {
           mansione: str(o.mansione), lavorazione: str(o.lavorazione), livello_sorgenti: str(o.livello_sorgenti),
           esposizione: str(o.esposizione), note: str(o.note),
+          ...(str(o.lavorazione_id) ? { lavorazione_id: str(o.lavorazione_id).trim().slice(0, 120) } : {}),
+          ...(str(o.riferimento) ? { riferimento: str(o.riferimento).trim().slice(0, 250) } : {}),
         };
       }),
     },
@@ -461,7 +505,9 @@ export function normalizzaPos(v: unknown): PosContenuto {
       ...(normalizzaRiferimentoPsc(psc.documento) ? {documento:normalizzaRiferimentoPsc(psc.documento)} : {}),
       voci: arr(psc.voci).map((p) => {
         const o = isObj(p) ? p : {};
-        return { procedura: str(o.procedura), indicazioni: str(o.indicazioni), ...(typeof o.pagina === "string" ? {pagina:str(o.pagina)} : {}), ...(typeof o.lavorazione_id === "string" ? {lavorazione_id:str(o.lavorazione_id)} : {}), ...(typeof o.responsabile === "string" ? {responsabile:str(o.responsabile)} : {}) };
+        const fonteEstratto = normalizzaIdentitaPscSchedaPos(o.fonte_estratto);
+        const metodo = isObj(o.fonte_estratto) && o.fonte_estratto.metodo === "ocr" ? { metodo: "ocr" as const } : {};
+        return { ...(fonteEstratto ? { fonte_estratto: { ...fonteEstratto, ...metodo } } : {}), procedura: str(o.procedura), indicazioni: str(o.indicazioni), ...(typeof o.pagina === "string" ? {pagina:str(o.pagina)} : {}), ...(typeof o.lavorazione_id === "string" ? {lavorazione_id:str(o.lavorazione_id)} : {}), ...(typeof o.responsabile === "string" ? {responsabile:str(o.responsabile)} : {}) };
       }),
     },
     allegati: arr(v.allegati).map((a) => {
@@ -541,6 +587,8 @@ export interface VoceMancante {
 }
 
 const vuoto = (s: string | null | undefined) => !s || !s.trim();
+const daCompletare = (s: string | null | undefined) =>
+  vuoto(s) || /^(?:in attesa(?: di (?:verifica|valutazione|rapporto))?|[a-z ]{0,40}\bda (?:confermare|valutare|definire|verificare|acquisire|misurare)|non ancora (?:valutato|definito|disponibile|misurato)|tbd)[.! ]*$/i.test(s!.trim());
 /**
  * «Nessuna», «non presenti», «assenti», «N/A», «nessuna sostanza pericolosa»… contano come risposta: la voce è stata
  * considerata. Solo la risposta intera: «Nessuna, salvo il collante» o «Nessuna scheda disponibile» NO.
@@ -624,6 +672,17 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     add("3.2.1 a) 3", "emergenze", "Imprese che gestiscono insieme le emergenze");
   }
 
+  if (pos.versione_evidenze_operative === 1) {
+    const campi = Object.entries(CAMPI_EMERGENZE_POS).filter(([k]) => k !== "planimetria");
+    const assenti = campi.filter(([k]) => daCompletare(pos.emergenze.piano?.[k as keyof PianoEmergenzePos] ?? ""));
+    if (assenti.length) add("Controllo operativo", "emergenze", `Organizzazione delle emergenze da completare: ${assenti.map(([, label]) => label).join(", ")}`);
+  }
+
+  const emergenzeDaRiesaminare = fontiEmergenzeDaRiesaminare(pos.emergenze.fonti_psc, pos.emergenze.piano,
+    pos.procedure_psc.psc_presente ? pos.procedure_psc.documento : undefined);
+  if (emergenzeDaRiesaminare.length) add("Controllo operativo", "emergenze",
+    `Riesamina le indicazioni di emergenza rispetto al PSC vigente: ${emergenzeDaRiesaminare.map(k => CAMPI_EMERGENZE_POS[k]).join(", ")}`);
+
   // Lavoratori e formazione
   if (!pos.lavoratori.some((r) => !vuoto(r.qualifica) && r.numero > 0)) {
     add("3.2.1 a) 7", "lavoratori", "Numero e qualifica dei lavoratori in cantiere");
@@ -641,8 +700,23 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   }
 
   // Rumore
-  if (vuoto(pos.rumore.esito) && !pos.rumore.righe.some((r) => !vuoto(r.esposizione))) {
+  if (daCompletare(pos.rumore.esito) && !pos.rumore.righe.some((r) => !daCompletare(r.esposizione))) {
     add("3.2.1 f)", "rumore", "Esito del rapporto di valutazione del rumore");
+  }
+
+  const rapporto = pos.rumore.rapporto;
+  if (pos.versione_evidenze_operative === 1 || rapporto) {
+    if (!rapporto || daCompletare(rapporto.codice) || !dataValidaDpi(rapporto.data) || daCompletare(rapporto.revisione) ||
+        (!rapporto.fonte && daCompletare(rapporto.collocazione ?? ""))) {
+      add("3.2.1 f)", "rumore", "Identifica il rapporto del rumore con data, revisione e originale collegato o archivio di conservazione");
+    }
+    if (rapporto && !rapporto.esiti_riesaminati) add("3.2.1 f)", "rumore", "Riesamina gli esiti rispetto alla revisione del rapporto del rumore");
+    pos.rumore.righe.forEach((r, i) => {
+      const voce = r.lavorazione_id ? pos.lavorazioni.find(l => l.id === r.lavorazione_id) : r.lavorazione.trim();
+      if (daCompletare(r.mansione) || !voce || daCompletare(r.esposizione) || daCompletare(r.riferimento ?? "")) {
+        add("3.2.1 f)", "rumore", `Esposizione ${i + 1}: indica mansione, lavorazione, esposizione e punto del rapporto`);
+      }
+    });
   }
 
   // Lavorazioni (lettere a2, c, d, e, g, i)
@@ -654,6 +728,28 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     // Le voci di una scheda portano l'id della lavorazione: l'editor sa quante ne mancano a ognuna.
     const addL = (riferimento: string, _sezione: SezionePos, testo: string, gruppo?: VoceMancante["gruppo"]) =>
       m.push({ riferimento, sezione: "lavorazioni", testo, lavorazione_id: l.id, ...(gruppo ? { gruppo } : {}) });
+    const programma = l.programma_demolizioni;
+    if (programma?.applicabilita === "da_valutare" || (!programma && pos.versione_controlli === 2 && titoloDemolizionePos(l.titolo))) {
+      addL("art. 151", "lavorazioni", `Lavorazione «${nome}»: indica se serve il programma delle demolizioni`);
+    } else if (programma?.applicabilita === "si") {
+      if (daCompletare(programma.sequenza)) addL("art. 151, comma 2", "lavorazioni", `Lavorazione «${nome}»: descrivi la successione delle demolizioni`);
+      if (vuoto(programma.preposto) || !pos.preposti.some(p => p.nominativo.trim() === programma.preposto.trim())) {
+        addL("art. 151, comma 1", "lavorazioni", `Lavorazione «${nome}»: scegli il preposto che sorveglia le demolizioni`);
+      }
+    } else if (programma?.applicabilita === "no" && daCompletare(programma.motivo)) {
+      addL("art. 151", "lavorazioni", `Lavorazione «${nome}»: spiega perché il programma delle demolizioni non si applica`);
+    }
+    const senzaRisposta = l.fonti_scheda?.quesiti?.filter(q => daCompletare(q.risposta)).length ?? 0;
+    if (senzaRisposta) addL("3.2.1 c) g)", "lavorazioni", `Lavorazione «${nome}»: completa i dettagli del cantiere (${senzaRisposta} da chiarire)`);
+    if (pscSchedaDaRiesaminare(l.fonti_scheda?.psc, pos.procedure_psc.documento)) {
+      addL("3.2.1 h)", "lavorazioni", `Lavorazione «${nome}»: riesamina gli estratti rispetto al PSC di riferimento`);
+    }
+    if (ocrPscDaConfermare(l.fonti_scheda?.psc)) {
+      addL("3.2.1 h)", "lavorazioni", `Lavorazione «${nome}»: confronta gli estratti OCR con le pagine originali del PSC`);
+    }
+    if (l.riscontri_dpi?.some(r => !dpiPrevistiPos(l.dpi).includes(r.previsto))) {
+      addL("3.2.1 i)", "lavorazioni", `Lavorazione «${nome}»: aggiorna i collegamenti DPI dopo le modifiche alla scheda`);
+    }
     const manca: string[] = [];
     if (vuoto(l.descrizione)) manca.push("descrizione");
     if (vuoto(l.rischi)) manca.push("rischi");
@@ -706,6 +802,15 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   }
   if (pos.procedure_psc.psc_presente && pos.procedure_psc.richieste) {
     pos.procedure_psc.voci.forEach((v,i) => {
+      if (pscSchedaDaRiesaminare(v.fonte_estratto, pos.procedure_psc.documento)) {
+        add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: aggiorna la citazione alla revisione corrente`);
+      }
+      if (v.fonte_estratto?.metodo === "ocr") {
+        const fonte = pos.lavorazioni.find(l => l.id === v.lavorazione_id)?.fonti_scheda?.psc;
+        const citazione = fonte && !pscSchedaDaRiesaminare(fonte, v.fonte_estratto) &&
+          fonte.estratti.some(r => r.metodo === "ocr" && r.confermato && String(r.pagina) === v.pagina && r.testo === v.procedura);
+        if (!citazione) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: ricollega un estratto OCR confermato dalla lavorazione`);
+      }
       if (vuoto(v.procedura) || vuoto(v.indicazioni)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: completa prescrizione e risposta operativa`);
       if(v.lavorazione_id && !pos.lavorazioni.some(l=>l.id===v.lavorazione_id)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: lavorazione non più presente`);
     });
@@ -748,6 +853,14 @@ export interface ContestoPos {
   subappaltatori: Array<{ ragione_sociale: string; tipo_lavori: string; durc_scadenza: string | null }>;
   /** Fasi di lavoro della commessa, nell'ordine (per l'AI delle lavorazioni). */
   fasi?: string[];
+  organico?: Array<{
+    chiave: string;
+    nome: string;
+    qualifica: string;
+    assegnato: boolean;
+    daCampo: boolean;
+    periodi: Array<{ dal: string; al: string }>;
+  }>;
   /** Cosa non si è trovato e va scritto a mano. */
   avvisi: string[];
 }

@@ -1,7 +1,6 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
 import { ListinoDitta } from "@/components/subappaltatori/ListinoDitta";
-import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { SALContabilita, RitenuteContabilita } from "@/components/subappaltatori/ContabilitaSubappalto";
 import { SchedaCommessaDialog } from "@/components/sicurezza/SchedaCommessaDialog";
@@ -43,7 +42,7 @@ import {
 } from '@/components/ui/alert';
 import {
   ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, ExternalLink,
-  Upload, Trash2, Mail, MapPin, Link2, Link2Off, FileArchive, Phone,
+  Upload, Trash2, Link2, FileArchive, Phone,
 } from 'lucide-react';
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
 import type {
@@ -149,7 +148,7 @@ export default function SubappaltatoreDetail() {
   const [invioDaAprire, setInvioDaAprire] = useState<string | null>(() => (parametri.get('invia') === '1' ? parametri.get('contratto') : null));
   const [tabAttiva, setTabAttiva] = useState(() => {
     const scheda = parametri.get('tab');
-    return scheda === 'contratto' || scheda === 'contabilita' || scheda === 'listino' ? scheda : 'anagrafica';
+    return scheda && ['lavori', 'contratto', 'operai', 'documenti', 'contabilita', 'listino'].includes(scheda) ? scheda : 'anagrafica';
   });
   const [commessaPopup, setCommessaPopup] = useState<string | null>(null);
   const [vistaContabilita, setVistaContabilita] = useState('sal');
@@ -769,7 +768,7 @@ export default function SubappaltatoreDetail() {
     documentiCompliance.some((d) => d.tipo === 'durc');
 
   return (
-    <div className={`${schedaCommessa ? 'space-y-3' : 'space-y-6'} max-sm:space-y-3`}>
+    <div className={`${schedaCommessa ? 'space-y-3' : 'space-y-4'} max-sm:space-y-3`}>
       {/* Header. Mobile: senza riquadro e senza la seconda freccia (c'è quella
           della barra in alto); dati fiscali e app cantiere stanno in «Dati». */}
       <div className={`rounded-2xl border border-slate-200 bg-white px-4 shadow-sm sm:px-6 ${schedaCommessa ? 'py-3' : 'py-5'} max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none`}>
@@ -781,26 +780,9 @@ export default function SubappaltatoreDetail() {
         <div className="flex-1 min-w-0">
               <h1 className={`${schedaCommessa ? 'text-lg' : 'text-xl sm:text-2xl'} font-bold truncate max-sm:text-lg max-sm:leading-tight`}>{sub.ragione_sociale}</h1>
               <p className="text-sm text-muted-foreground max-sm:text-xs">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500 max-sm:hidden">
-                {sub.piva && <span>P.IVA {sub.piva}</span>}
-                {sub.indirizzo && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{sub.indirizzo}</span>}
-                {sub.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{sub.email}</span>}
-              </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <SubcontractorSupplierLink subcontractorId={id!} />
-            {hasAppCantiere ? (
-              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 max-sm:hidden">
-                <Link2 className="mr-1 h-3 w-3" />
-                {appCantiere?.user_id ? 'Account app cantiere attivo' : 'Anagrafica app cantiere collegata'}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 max-sm:hidden">
-                <Link2Off className="mr-1 h-3 w-3" />
-                App cantiere non collegata
-              </Badge>
-            )}
             <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
             {/* «Collega app cantiere» qui non c'è più: era lo stesso bottone del
                 riquadro «Account app cantiere» in Anagrafica, dove si spiega cosa fa. */}
@@ -810,31 +792,22 @@ export default function SubappaltatoreDetail() {
               </Button>
             )}
             <Button variant="outline" size="sm" className="tap-compact max-sm:h-7 max-sm:px-2.5 max-sm:text-xs" onClick={openAnagraficaDialog}>
-              Modifica
+              Modifica dati
             </Button>
           </div>
         </div>
       </div>
 
-      <Tabs value={tabAttiva} onValueChange={setTabAttiva}>
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto">
-          <TabsTrigger value="anagrafica" className="shrink-0 py-2">Panoramica</TabsTrigger>
-          <TabsTrigger value="operai" className="shrink-0 py-2">Operai e squadre</TabsTrigger>
-          <TabsTrigger value="documenti" className="shrink-0 py-2">Documenti e sicurezza</TabsTrigger>
-          <TabsTrigger value="lavori" className="shrink-0 py-2">Commesse</TabsTrigger>
-          <TabsTrigger value="contratto" className="shrink-0 py-2">Contratti</TabsTrigger>
-          <TabsTrigger value="contabilita" className="shrink-0 py-2">Contabilità</TabsTrigger>
-          {permessi.canViewCosts && <TabsTrigger value="listino" className="shrink-0 py-2">Listino</TabsTrigger>}
-        </TabsList>
+      <Tabs value={tabAttiva === 'contratto' ? 'lavori' : tabAttiva} onValueChange={setTabAttiva} activationMode="manual">
+        <PercorsiSubappaltatore mostraListino={!!permessi.canViewCosts} />
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
         <TabsContent value="anagrafica" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <PercorsiSubappaltatore amministrazione={puoConsultareSalSub(permessi)} onApri={setTabAttiva} />
           <div className="grid items-start gap-4 xl:grid-cols-2 [&>*]:min-w-0">
           <Card>
-            <CardHeader className="pb-3 max-sm:hidden">
+            <CardHeader className="pb-3 max-sm:p-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <HardHat className="h-4 w-4" /> Dati anagrafici
+                <HardHat className="size-4" aria-hidden="true" /> Contatti e dati della ditta
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3">
@@ -867,30 +840,28 @@ export default function SubappaltatoreDetail() {
                   )}
                 </div>
               </div>
-              {[
-                // Mobile: ragione sociale, tipo lavori e DURC sono già nella testata.
-                { label: 'Ragione sociale', value: sub.ragione_sociale, giaInTestata: true },
-                { label: 'P.IVA', value: sub.piva },
-                { label: 'Codice Fiscale', value: sub.codice_fiscale },
-                { label: 'Indirizzo', value: sub.indirizzo },
-                { label: 'Responsabile', value: sub.responsabile },
-                { label: 'Telefono', value: sub.telefono },
-                { label: 'Email', value: sub.email },
-                { label: 'PEC', value: sub.pec },
-                { label: 'Tipo lavori', value: sub.tipo_lavori, giaInTestata: true },
-                { label: 'Note', value: sub.note },
-              ].map(({ label, value, giaInTestata }) => value ? (
-                <div key={label} className={`flex gap-3 ${giaInTestata ? 'max-sm:hidden' : ''}`}>
-                  <span className="text-sm text-muted-foreground w-32 shrink-0 max-sm:w-24 max-sm:text-xs">{label}</span>
-                  <span className="text-sm font-medium max-sm:min-w-0 max-sm:break-words max-sm:text-[13px]">{value}</span>
-                </div>
-              ) : null)}
-              <div className={`flex flex-wrap items-center gap-3 ${effectiveDurc ? 'max-sm:hidden' : ''}`}>
-                <span className="text-sm text-muted-foreground w-32 shrink-0 max-sm:w-24 max-sm:text-xs">Scadenza DURC</span>
-                <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
-                {!effectiveDurc && (
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                {[
+                  { label: 'Partita IVA', value: sub.piva },
+                  { label: 'Codice fiscale', value: sub.codice_fiscale },
+                  { label: 'Responsabile', value: sub.responsabile },
+                  { label: 'Telefono', value: sub.telefono, href: sub.telefono && `tel:${sub.telefono}` },
+                  { label: 'Email', value: sub.email, href: sub.email && `mailto:${sub.email}` },
+                  { label: 'PEC', value: sub.pec, href: sub.pec && `mailto:${sub.pec}` },
+                  { label: 'Indirizzo', value: sub.indirizzo },
+                  { label: 'Note', value: sub.note },
+                ].map(({ label, value, href }) => value ? <div key={label} className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="break-words text-sm font-medium">{href
+                    ? <a className="underline-offset-2 hover:underline" href={href}>{value}</a> : value}</dd>
+                </div> : null)}
+              </dl>
+              <SubcontractorSupplierLink subcontractorId={id!} />
+              {!effectiveDurc && <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                <label className="text-sm text-muted-foreground" htmlFor="scadenza-durc-ditta">Scadenza DURC</label>
                   <div className="flex items-center gap-2">
                     <Input
+                      id="scadenza-durc-ditta"
                       type="date"
                       max={DATA_MASSIMA}
                       value={durcDateInput}
@@ -908,8 +879,7 @@ export default function SubappaltatoreDetail() {
                       {setDurcMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Salva scadenza'}
                     </Button>
                   </div>
-                )}
-              </div>
+              </div>}
             </CardContent>
           </Card>
 
@@ -921,7 +891,11 @@ export default function SubappaltatoreDetail() {
         </TabsContent>
         <TabsContent value="documenti" className="mt-4 space-y-4">
           <FascicoloDocumenti key={`${companyId}:${id}`} companyId={companyId} subId={id!} />
-          <div className="rounded-lg border p-3 text-sm text-muted-foreground">Archivio precedente: i documenti già caricati restano disponibili qui sotto. Il nuovo fascicolo distingue impresa, operaio e commessa e registra le verifiche.</div>
+          <details className="rounded-xl border bg-muted/20 p-3">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Archivio documenti <span className="ml-1 text-xs font-normal text-muted-foreground">{documenti.length + documentiCompliance.length}</span>
+            </summary>
+            <div className="mt-3 space-y-3">
           {/* Documenti */}
           {/* Mobile: niente import ZIP né spiegazione; «Carica» per fotografare
               o scegliere il documento. */}
@@ -1054,13 +1028,30 @@ export default function SubappaltatoreDetail() {
               </CardContent>
             </Card>
           )}
+            </div>
+          </details>
         </TabsContent>
 
-        {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
+        {/* ─── Lavori e contratti ──────────────────────────────────────────── */}
         <TabsContent value="lavori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <LavoriSubappaltatore subId={id!}
-            onApriCommessa={(oid) => {if (schedaCommessa) navigate(`/azienda/ordini/${oid}`); else setCommessaPopup(oid);}}
-            onApriContratto={(cid) => { setContrattoSelId(cid); setContrattoDaAprire(cid); setTabAttiva('contratto'); }} />
+          <Tabs value={tabAttiva} onValueChange={setTabAttiva} activationMode="manual">
+            <TabsList aria-label="Commesse e contratti della ditta" className="h-auto justify-start">
+              <TabsTrigger value="lavori">Commesse</TabsTrigger>
+              <TabsTrigger value="contratto">Contratti</TabsTrigger>
+            </TabsList>
+            <TabsContent value="lavori">
+              <LavoriSubappaltatore subId={id!}
+                onApriCommessa={(oid) => { if (schedaCommessa) navigate(`/azienda/ordini/${oid}`); else setCommessaPopup(oid); }}
+                onApriContratto={(cid) => { setContrattoSelId(cid); setContrattoDaAprire(cid); setTabAttiva('contratto'); }} />
+            </TabsContent>
+            <TabsContent value="contratto">
+              <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null} richiestaApertura={contrattoDaAprire} onAperturaGestita={() => setContrattoDaAprire(null)} invioRichiesto={invioDaAprire}
+                onInvioGestito={() => { setInvioDaAprire(null); setParametri((p) => { const n = new URLSearchParams(p); n.delete('invia'); return n; }, { replace: true }); }}
+                onSeleziona={(cid) => setContrattoSelId(cid)}
+                onApriAnagrafica={openAnagraficaDialog}
+                onApriContabilita={(cid) => { setContrattoDaAprire(null); setContrattoSelId(cid); setVistaContabilita('sal'); setTabAttiva('contabilita'); }} />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* ─── Listino della ditta (10/11/2026): i suoi prezzi sulle voci dell'azienda ─── */}
@@ -1071,14 +1062,6 @@ export default function SubappaltatoreDetail() {
               : <p className="text-sm text-muted-foreground">Questa scheda non è ancora collegata alla ditta: il listino vale per la ditta in tutte le commesse, quindi prima va collegata (Panoramica → «Collega app cantiere»).</p>}
           </TabsContent>
         )}
-
-        {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
-        <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null} richiestaApertura={contrattoDaAprire} onAperturaGestita={() => setContrattoDaAprire(null)} invioRichiesto={invioDaAprire} onInvioGestito={() => { setInvioDaAprire(null); setParametri((p) => { const n = new URLSearchParams(p); n.delete('invia'); return n; }, { replace: true }); }}
-            onSeleziona={(cid) => setContrattoSelId(cid)}
-            onApriAnagrafica={openAnagraficaDialog}
-            onApriContabilita={(cid) => {setContrattoDaAprire(null);setContrattoSelId(cid);setVistaContabilita('sal');setTabAttiva('contabilita');}} />
-        </TabsContent>
 
         {/* ─── Tab 3: SAL Ricevuti ────────────────────────────────────────────── */}
         <TabsContent value="contabilita" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">

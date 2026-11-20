@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "./useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import type { PianoMezzo, CostoPianoMezzo } from "@/lib/mezzi/pianoCantiere";
+import type { PianoMezzo, CostoPianoMezzo, SalvataggioPianoMezzo } from "@/lib/mezzi/pianoCantiere";
 // Nuove tabelle: tipi locali fino alla rigenerazione del client generale.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -65,34 +65,37 @@ export function usePianoMezziCantiere(
     },
   });
   const salva = useMutation({
-    mutationFn: async (
-      input: Partial<PianoMezzo> & { costo?: CostoPianoMezzo | null },
-    ) => {
-      const { error } = await db.rpc("salva_piano_mezzo", {
+    mutationFn: async (input: SalvataggioPianoMezzo) => {
+      const { error } = await db.rpc("salva_piano_mezzo_operativo", {
         p_dati: { ...input, order_id: orderId },
       });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       void qc.invalidateQueries({
         queryKey: ["mezzi-piani-cantiere", companyId, orderId],
       });
-      toast.success("Pianificazione salvata");
+      if (input.nuovo_noleggio || input.arrivato_oggi) void qc.invalidateQueries({ queryKey: ["mezzi"] });
+      if (input.arrivato_oggi) void qc.invalidateQueries({ queryKey: ["commessa-mezzi-lavoro", orderId] });
+      toast.success(input.arrivato_oggi ? "Arrivo registrato" : "Pianificazione salvata");
     },
-    onError: (e: { message?: string }) =>
-      toast.error(e.message || "Impossibile salvare la pianificazione"),
+    onError: (e: { message?: string; code?: string }) =>
+      toast.error(e.code === "PGRST202" ? "Per salvare la pianificazione serve l’aggiornamento del database." : e.message || "Impossibile salvare la pianificazione"),
   });
   const chiudiRientro = useMutation({
-    mutationFn: async (input: { pianoId: string; allocazioneId?: string }) => {
-      const { error } = await db.rpc("rientra_piano_mezzo", {
-        p_piano: input.pianoId, p_allocazione: input.allocazioneId ?? null,
-      });
+    mutationFn: async (input: { pianoId?: string; allocazioneId?: string; quantita?: number; quantitaPresente?: number }) => {
+      const parametri = { p_piano: input.pianoId ?? null, p_allocazione: input.allocazioneId ?? null };
+      const { error } = input.quantita != null
+        ? await db.rpc("registra_rientro_piano_mezzo", { ...parametri, p_quantita: input.quantita, p_presente: input.quantitaPresente })
+        : await db.rpc("rientra_piano_mezzo", parametri);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       void qc.invalidateQueries({ queryKey: ["mezzi"] });
       void qc.invalidateQueries({ queryKey: ["mezzi-piani-cantiere", companyId, orderId] });
-      toast.success("Rientro registrato e prenotazione conclusa");
+      void qc.invalidateQueries({ queryKey: ["commessa-mezzi-lavoro", orderId] });
+      toast.success(input.quantita != null && input.quantita !== input.quantitaPresente ? "Rientro parziale registrato"
+        : input.pianoId ? "Rientro registrato e prenotazione conclusa" : "Rientro registrato");
     },
     onError: (e: { message?: string; code?: string }) => toast.error(
       e.code === "PGRST202" ? "Il rientro della prenotazione richiede l’aggiornamento del servizio. Nessuna modifica eseguita."

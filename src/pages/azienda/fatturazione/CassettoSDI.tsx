@@ -10,13 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, RefreshCw, ExternalLink, FileText, Search, Eye, CheckCircle2, AlertTriangle, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { puoReinviare, isInvioInCorso, faseSdi, type FaseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
+import { fatturaXmlTabellareHtml } from "@/lib/fatturazione/fatturaXmlTabellare";
+import { scaricaFileOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 const SDI_QUERY_TIMEOUT_MS = 12_000;
@@ -67,7 +69,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState("all");
   const [xmlPreviewOpen, setXmlPreviewOpen] = useState(false);
-  const [xmlPreviewContent, setXmlPreviewContent] = useState<{ numero: string; xml: string } | null>(null);
+  const [xmlPreviewContent, setXmlPreviewContent] = useState<{ numero: string; xml: string; file: Blob; nome: string; html: string | null } | null>(null);
   const navigate = useNavigate();
 
   const { data: documenti = [], isLoading, isError, isFetching, refetch } = useQuery({
@@ -154,12 +156,17 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
   const handlePreviewXml = async (xmlUrl: string | null, numero: string) => {
     if (!xmlUrl) return;
     try {
-      const { data } = await supabase.storage.from("fatture-xml").download(xmlUrl);
-      if (data) {
-        const text = await data.text();
-        setXmlPreviewContent({ numero, xml: formatXml(text) });
-        setXmlPreviewOpen(true);
+      const { data, error } = await supabase.storage.from("fatture-xml").download(xmlUrl);
+      if (error || !data) throw error ?? new Error("File originale non disponibile.");
+      const xml = await data.text();
+      let html: string | null = null;
+      try {
+        html = fatturaXmlTabellareHtml(xml, { direzione: 'emessa', dentroIframe: true }).html;
+      } catch {
+        // L'originale si può ancora consultare anche se il formato non è rappresentabile.
       }
+      setXmlPreviewContent({ numero, xml, file: data, nome: xmlUrl.split("/").pop() || "fattura.xml", html });
+      setXmlPreviewOpen(true);
     } catch {
       toast.error("Errore nel caricamento XML");
     }
@@ -355,21 +362,26 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
         </CardContent>
       </Card>
 
-      {/* GAP-10: Modale anteprima XML formattata */}
-      <Dialog open={xmlPreviewOpen} onOpenChange={setXmlPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+      <Dialog open={xmlPreviewOpen} onOpenChange={open => {
+        setXmlPreviewOpen(open);
+        if (!open) setXmlPreviewContent(null);
+      }}>
+        <DialogContent className="max-w-5xl h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               XML Fattura Elettronica — {xmlPreviewContent?.numero}
             </DialogTitle>
+            <DialogDescription className="sr-only">Dati della fattura elettronica letti dal file originale archiviato.</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1 rounded border bg-muted/30">
-            <pre className="p-4 text-xs font-mono whitespace-pre text-foreground leading-relaxed">
-              {xmlPreviewContent?.xml || ""}
-            </pre>
-          </ScrollArea>
-          {/* La lettura dell'XML resta, lo scarico no. */}
+          {xmlPreviewContent?.html && <iframe title="Vista leggibile della fattura XML" srcDoc={xmlPreviewContent.html}
+            sandbox="" className="w-full flex-1 min-h-28 rounded border bg-white" />}
+          {xmlPreviewContent && <details className="shrink-0 rounded border bg-muted/30" open={!xmlPreviewContent.html || undefined}>
+            <summary className="cursor-pointer p-2 text-sm">Sorgente XML</summary>
+            <ScrollArea className="h-[24dvh]">
+              <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all">{formatXml(xmlPreviewContent.xml)}</pre>
+            </ScrollArea>
+          </details>}
           {!isMobile && (
           <div className="flex justify-end pt-2">
             <Button
@@ -377,13 +389,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
               size="sm"
               onClick={() => {
                 if (!xmlPreviewContent) return;
-                const blob = new Blob([xmlPreviewContent.xml], { type: "application/xml" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `${xmlPreviewContent.numero}.xml`;
-                a.click();
-                URL.revokeObjectURL(url);
+                scaricaFileOriginale(xmlPreviewContent.file, xmlPreviewContent.nome);
               }}
             >
               <Download className="h-3.5 w-3.5 mr-1" /> Scarica XML

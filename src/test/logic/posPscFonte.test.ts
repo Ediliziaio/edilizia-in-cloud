@@ -8,4 +8,9 @@ describe('Fonte PSC verificata dal servizio',()=>{
  it('non usa un errore come assenza favorevole',async()=>{await expect(verificaFontePsc(db(null,{message:'unavailable'}),'c','o',r)).rejects.toThrow('non verificabile');});
  it('respinge fonte rimossa e metadati cambiati',async()=>{await expect(verificaFontePsc(db(null),'c','o',r)).rejects.toThrow('non più disponibile');await expect(verificaFontePsc(db({...r,titolo:'PSC cambiato'}),'c','o',r)).rejects.toThrow('cambiata');});
  it('confronta anche revisione e data del fascicolo',async()=>{const ref={...r,archivio:'sicurezza_fascicolo' as const};const d=db({...r,data_documento:undefined,data_rilascio:r.data_documento,revisione:'03'});await expect(verificaFontePsc(d,'c','o',ref)).rejects.toThrow('cambiata');});
+ it('esclude il PSC superato anche se tutti i metadati coincidono', async () => {
+   const ref = { ...r, archivio: 'sicurezza_fascicolo' as const };
+   const d = db({ ...ref, data_rilascio: r.data_documento, stato: 'superato' });
+   await expect(verificaFontePsc(d, 'c', 'o', ref)).rejects.toThrow('non più disponibile');
+ });
 });
