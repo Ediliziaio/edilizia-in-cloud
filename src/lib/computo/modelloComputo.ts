@@ -15,6 +15,7 @@ import type { BozzaComputo } from "./editorNativo";
 import { testoPiano, type Clausola } from "@/lib/condizioni/archivio";
 import { condizioniStandard } from "@/lib/condizioniStandard";
 import { FONT_DOCUMENTO_IDS } from "./fontDocumento";
+import { STILI_COPERTINA_COMPUTO } from "./copertineComputo";
 
 const colore = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const testo = (max: number) => z.string().max(max).default("");
@@ -28,8 +29,9 @@ export const campoModelloSchema = z.object({
 export const modelloComputoSchema = z.object({
   /** Vuoto = il colore del marchio dell'azienda. */
   colorePrimario: colore.or(z.literal("")).default(""),
-  /** La copertina della prima pagina: fascia piena col colore, banda sottile, oppure sobria senza colore. */
-  copertina: z.enum(["piena", "editoriale", "fascia", "sobria"]).default("piena"),
+  copertina: z.enum(STILI_COPERTINA_COMPUTO).default("piena"),
+  /** Assente nei vecchi modelli: «fascia» e «sobria» erano soltanto testate. */
+  copertinaSeparata: z.boolean().optional(),
   fontFamiglia: carattere.default("helvetica"),
   fontTitoli: carattere.nullable().default(null),
   dimensioneTitolo: z.number().min(18).max(48).default(34),
@@ -103,7 +105,7 @@ export function leggiModelloComputo(dato: unknown): ModelloComputo {
 }
 
 /** La parte del modello che serve al PDF. */
-export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "sopratitolo" | "premessa" | "mostraFirma" | "firmatario" | "piePagina"> & Partial<Pick<ModelloComputo, "scalaLogo" | "clausoleDaApprovare" | "giorniValidita" | "fontFamiglia" | "fontTitoli" | "dimensioneTitolo" | "dimensioneSottotitoli" | "dimensioneTesto" | "fontPersonalizzato" | "immagineCopertina" | "logoPersonalizzato" | "logoLarghezza" | "logoAllineamento" | "logoFondoBianco" | "mostraIntestazione" | "campiPersonalizzati" | "mostraNumeriPagina" | "sezioni">> & {
+export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "sopratitolo" | "premessa" | "mostraFirma" | "firmatario" | "piePagina"> & Partial<Pick<ModelloComputo, "copertinaSeparata" | "scalaLogo" | "clausoleDaApprovare" | "giorniValidita" | "fontFamiglia" | "fontTitoli" | "dimensioneTitolo" | "dimensioneSottotitoli" | "dimensioneTesto" | "fontPersonalizzato" | "immagineCopertina" | "logoPersonalizzato" | "logoLarghezza" | "logoAllineamento" | "logoFondoBianco" | "mostraIntestazione" | "campiPersonalizzati" | "mostraNumeriPagina" | "sezioni">> & {
   /** Il logo già letto (data URL PNG o JPEG): jsPDF non scarica immagini da solo. */
   logo?: { dati: string; formato: "PNG" | "JPEG"; larghezza: number; altezza: number } | null;
   /** TTF validati e letti prima del rendering, mai salvati nel JSON del modello. */
@@ -111,7 +113,7 @@ export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "so
   fontSistemaCaricati?: Record<string, { normale: string; grassetto?: string }>;
 };
 export const vesteDalModello = (m: ModelloComputo): VesteComputo => ({
-  copertina: m.copertina, mostraLogo: m.mostraLogo, scalaLogo: m.scalaLogo, sopratitolo: m.sopratitolo, premessa: m.premessa,
+  copertina: m.copertina, copertinaSeparata: m.copertinaSeparata, mostraLogo: m.mostraLogo, scalaLogo: m.scalaLogo, sopratitolo: m.sopratitolo, premessa: m.premessa,
   mostraFirma: m.mostraFirma, firmatario: m.firmatario, piePagina: m.piePagina,
   clausoleDaApprovare: m.clausoleDaApprovare, giorniValidita: m.giorniValidita,
   fontFamiglia: m.fontFamiglia, mostraNumeriPagina: m.mostraNumeriPagina, sezioni: m.sezioni,

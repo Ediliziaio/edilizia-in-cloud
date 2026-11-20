@@ -3,20 +3,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { modelloComputoDiSerie } from "@/lib/computo/modelloComputo";
 import ComputoModelloPanel from "@/components/computo/ComputoModelloPanel";
 
-const stato = vi.hoisted(() => ({ mutate: vi.fn(), modello: {} as ReturnType<typeof modelloComputoDiSerie> }));
+const stato = vi.hoisted(() => ({ mutate: vi.fn(), anteprima: vi.fn(), modello: {} as ReturnType<typeof modelloComputoDiSerie> }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda", name: "Impresa demo" } }) }));
 vi.mock("@/hooks/useQuoteTemplates", () => ({ useQuoteTemplates: () => ({ templates: [] as unknown[], isLoading: false }) }));
 vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => ({ modelli: [] as unknown[], inCaricamento: false }) }));
-vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({ PdfBlobLivePreviewPanel: () => <div>PDF reale</div> }));
+vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({ PdfBlobLivePreviewPanel: (props: { activeDestination?: string; destinationRequest?: number }) => { stato.anteprima(props); return <div>PDF reale</div>; } }));
 vi.mock("@/components/preventivi/CondizioniContratto", () => ({ CondizioniContratto: (): null => null }));
 vi.mock("@/lib/computo/modelloComputo", async original => ({
   ...await original<typeof import("@/lib/computo/modelloComputo")>(),
   useModelloComputo: () => ({ data: { modello: stato.modello, salvato: true }, isLoading: false, error: null as Error | null }),
   useSalvaModelloComputo: () => ({ mutate: stato.mutate, isPending: false }),
 }));
-beforeEach(() => { stato.modello = modelloComputoDiSerie(); stato.mutate.mockReset(); });
+beforeEach(() => { stato.modello = modelloComputoDiSerie(); stato.mutate.mockReset(); stato.anteprima.mockClear(); });
 
 describe("builder modello aziendale", () => {
+  it("riattiva la copertina Compatta e porta l'anteprima alla sua pagina", () => {
+    stato.modello.copertina = "fascia";
+    stato.modello.sezioni.copertina = false;
+    render(<ComputoModelloPanel canEdit />);
+    fireEvent.click(screen.getByRole("radio", { name: "Compatta" }));
+    expect(stato.anteprima).toHaveBeenLastCalledWith(expect.objectContaining({ activeDestination: "computo.copertina", destinationRequest: 1 }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+    expect(stato.mutate).toHaveBeenCalledWith(expect.objectContaining({ copertina: "fascia", copertinaSeparata: true, sezioni: expect.objectContaining({ copertina: true }) }), expect.any(Object));
+  });
   it("offre nove caratteri del sistema senza chiedere un file all'azienda", () => {
     render(<ComputoModelloPanel canEdit />);
     for (const nome of ["Helvetica", "Times", "Courier", "Lato", "PT Sans", "PT Serif", "Carlito", "Caladea", "EB Garamond"]) expect(screen.getByRole("radio", { name: nome })).toBeInTheDocument();

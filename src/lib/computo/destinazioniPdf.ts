@@ -2,11 +2,12 @@ import type { jsPDF } from "jspdf";
 
 /** Identità della voce, indipendente da numero, descrizione e ordine nell'editor. */
 export const destinazioneVoceComputo = (id: string) => `computo.voce.${encodeURIComponent(id).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+export const DESTINAZIONE_COPERTINA_COMPUTO = "computo.copertina";
 
 const destinazioni = new WeakMap<jsPDF, Map<string, { pagina: number; alto: number }>>();
 
 /** Il riferimento viene registrato dopo la paginazione, sulla prima riga realmente stampata. */
-export function segnaVoceComputoPdf(doc: jsPDF, id: string, y: number) {
+function segnaDestinazioneComputoPdf(doc: jsPDF, nome: string, y: number) {
   let mappa = destinazioni.get(doc);
   if (!mappa) {
     mappa = new Map(); destinazioni.set(doc, mappa);
@@ -18,6 +19,8 @@ export function segnaVoceComputoPdf(doc: jsPDF, id: string, y: number) {
       write(`/Names << /Dests << /Names [${voci.join("\n")}] >> >>`);
     });
   }
-  const nome = destinazioneVoceComputo(id);
   if (!mappa.has(nome)) mappa.set(nome, { pagina: doc.getCurrentPageInfo().pageNumber, alto: Math.max(0, doc.internal.pageSize.getHeight() - y) });
 }
+
+export function segnaVoceComputoPdf(doc: jsPDF, id: string, y: number) { segnaDestinazioneComputoPdf(doc, destinazioneVoceComputo(id), y); }
+export function segnaCopertinaComputoPdf(doc: jsPDF) { segnaDestinazioneComputoPdf(doc, DESTINAZIONE_COPERTINA_COMPUTO, 0); }

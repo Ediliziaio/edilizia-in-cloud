@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, FileText, Layers3, Loader2, Palette, Plus, RotateCcw, Save, Settings2, Trash2, Type } from "lucide-react";
+import { FileText, Layers3, Loader2, Palette, Plus, RotateCcw, Save, Settings2, Trash2, Type } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
@@ -21,13 +21,10 @@ import { ComputoPagineModello } from "./ComputoPagineModello";
 import { FONT_DOCUMENTO, cssFontDocumento, fontDelDocumento } from "@/lib/computo/fontDocumento";
 import { bozzaVuota, voceVuota, vociPerAnteprima, numeroEditor, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { aspettoDaOfferta } from "@/lib/computo/personalizzaDocumento";
+import { ComputoSceltaCopertina } from "./ComputoSceltaCopertina";
+import { haPaginaCopertina } from "@/lib/computo/copertineComputo";
+import { DESTINAZIONE_COPERTINA_COMPUTO } from "@/lib/computo/destinazioniPdf";
 
-const COPERTINE = [
-  ["piena", "Architettura", "Colore pieno, trama tecnica e titolo in evidenza."],
-  ["editoriale", "Editoriale", "Carta chiara, ampio respiro e dettagli del marchio."],
-  ["fascia", "Compatta", "Una testata a colori, subito seguita dal preventivo."],
-  ["sobria", "Essenziale", "Bianco, tipografia e un filetto sottile."],
-] as const;
 const COLORI = ["#1E3A5F", "#244C3A", "#8B4C36", "#252525", "#3746A0", "#A65A13"];
 
 function bozzaEsempio(m: ModelloComputo): BozzaComputo {
@@ -47,22 +44,6 @@ function bozzaEsempio(m: ModelloComputo): BozzaComputo {
   };
 }
 
-function MiniCopertina({ tipo, colore, font }: { tipo: ModelloComputo["copertina"]; colore: string; font: string }) {
-  const piena = tipo === "piena", editoriale = tipo === "editoriale";
-  return <span aria-hidden="true" className="relative mx-auto mb-3 flex aspect-[.76] w-full max-w-32 flex-col overflow-hidden rounded-sm border p-3 shadow-sm"
-    style={{ background: piena ? colore : editoriale ? "#FAF8F4" : "#FFFFFF", color: piena ? "#FFFFFF" : "#172033", fontFamily: font }}>
-    {piena && <span className="absolute inset-0 opacity-10" style={{ backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)", backgroundSize: "12px 12px" }} />}
-    {editoriale && <span className="absolute right-0 top-0 h-[28%] w-[24%]" style={{ background: colore }} />}
-    {tipo === "fascia" && <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: colore }} />}
-    <span className="relative text-[7px] font-bold tracking-widest">LA TUA AZIENDA</span>
-    <span className={`relative text-[7px] tracking-wider ${piena || editoriale ? "mt-auto" : "mt-6"}`}>PREVENTIVO</span>
-    <span className="relative mt-1 text-[15px] font-semibold leading-[1.05]">Il tuo<br />progetto.</span>
-    <span className="relative mt-3 block h-px opacity-35" style={{ background: "currentColor" }} />
-    <span className="relative mt-2 text-[6px] opacity-75">CLIENTE · DATA · RIFERIMENTO</span>
-    {!piena && !editoriale && <span className="mt-3 space-y-1.5">{[1, 2, 3].map(n => <span key={n} className="block h-0.5 bg-slate-200" />)}</span>}
-  </span>;
-}
-
 export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -73,6 +54,7 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
   const offerte = templates.filter(t => (t.kind ?? "offerta") === "offerta");
   const [modello, setModello] = useState<ModelloComputo | null>(null);
   const [scheda, setScheda] = useState("aspetto");
+  const [richiestaCopertina, setRichiestaCopertina] = useState(0);
   const [assetInCorso, setAssetInCorso] = useState(0);
   const [destinazioneCampo, setDestinazioneCampo] = useState<"premessa" | "piePagina" | "sopratitolo" | "condizioni" | "inclusioni" | "esclusioni" | "tempi" | "pagamenti" | "riferimentoPrezzi">("premessa");
   const [logo, setLogo] = useState<VesteComputo["logo"]>(null);
@@ -154,19 +136,11 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
             <div className="space-y-2"><Label htmlFor="modello-offerta" className="text-xs">Riprendi lo stile di un modello salvato</Label>
               <Select value={m.modelloOffertaId ?? "personalizzato"} disabled={modelliInCaricamento || !canEdit} onValueChange={id => {
                 if (id === "personalizzato") cambia({ modelloOffertaId: null });
-                else { const t = offerte.find(t => t.id === id); if (t) cambia(aspettoDaOfferta(t)); }
+                else { const t = offerte.find(t => t.id === id); if (t) { cambia({ ...aspettoDaOfferta(t), sezioni: { ...m.sezioni, copertina: true } }); setRichiestaCopertina(n => n + 1); } }
               }}><SelectTrigger id="modello-offerta"><SelectValue placeholder="Scegli un modello" /></SelectTrigger><SelectContent><SelectItem value="personalizzato">Stile personalizzato</SelectItem>{offerte.map(t => <SelectItem key={t.id} value={t.id}>{t.name}{t.is_default ? " · predefinito" : ""}</SelectItem>)}</SelectContent></Select>
               <p className="text-xs text-muted-foreground">Riprendi colori, font e stile delle tue offerte. Le condizioni restano quelle di questo modello.</p>
             </div>
-            <div><h3 className="text-sm font-semibold">Scegli la copertina</h3><p className="mt-1 text-xs text-muted-foreground">Quattro stili pronti, tutti con i tuoi colori.</p>
-              <div role="radiogroup" aria-label="Stile della copertina" className="mt-4 grid grid-cols-2 gap-3 2xl:grid-cols-4">
-                {COPERTINE.map(([v, titolo, testo]) => <button key={v} type="button" role="radio" aria-label={titolo} aria-checked={m.copertina === v} onClick={() => cambia({ copertina: v })}
-                  className={`relative min-w-0 rounded-xl border p-3 text-left transition-colors ${m.copertina === v ? "border-primary bg-orange-50/40 ring-1 ring-primary" : "border-slate-200 hover:border-slate-400"}`} title={testo}>
-                  {m.copertina === v && <span className="absolute right-1.5 top-1.5 z-10 rounded-full bg-primary p-0.5 text-white"><Check className="h-3 w-3" /></span>}
-                  <MiniCopertina tipo={v} colore={colore} font={font} /><span className="block text-center text-xs font-medium">{titolo}</span>
-                </button>)}
-              </div><p className="mt-3 text-xs text-muted-foreground">{COPERTINE.find(([v]) => v === m.copertina)?.[2]}</p>
-            </div>
+            <ComputoSceltaCopertina modello={m} colore={colore} font={font} onChange={m => { cambia(m); setRichiestaCopertina(n => n + 1); }} />
             <ComputoAssetUpload {...fileProps} tipo="copertina" label="Immagine di copertina" valore={m.immagineCopertina} onChange={immagineCopertina => cambia({ immagineCopertina })} />
             {!m.sezioni.copertina && m.immagineCopertina && <p className="text-xs text-amber-700">L'immagine è caricata. Attiva la copertina in «Pagine e contenuti» per mostrarla.</p>}
             <div className="border-t pt-5"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Type className="h-4 w-4 text-muted-foreground" />Carattere e colori</h3>
@@ -250,7 +224,9 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
       </Tabs>
       <aside aria-label="Anteprima del modello" className="min-w-0 lg:sticky lg:top-4">
         <div className="mb-3 flex items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">Il tuo documento, in anteprima</h3><p className="mt-0.5 text-xs text-muted-foreground">Dati dimostrativi · stesso PDF del download</p></div><span className="rounded-full border bg-white px-2.5 py-1 text-[10px] font-medium text-muted-foreground">A4</span></div>
-        <div className="h-[76dvh] min-h-[520px] overflow-hidden rounded-2xl border bg-slate-100 shadow-sm"><PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={depsKey} debounceMs={500} downloadFileName="modello-preventivo.pdf" headerLabel="Anteprima PDF" showDownloadOnMobile /></div>
+        <div className="h-[76dvh] min-h-[520px] overflow-hidden rounded-2xl border bg-slate-100 shadow-sm"><PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={depsKey} debounceMs={500} downloadFileName="modello-preventivo.pdf" headerLabel="Anteprima PDF" showDownloadOnMobile
+          activeDestination={scheda === "aspetto" && richiestaCopertina > 0 && ["cliente", "riepilogo"].includes(m.formatoPredefinito) && haPaginaCopertina(m, m.sezioni.copertina) ? DESTINAZIONE_COPERTINA_COMPUTO : null}
+          destinationRequest={richiestaCopertina} destinationLabel="Copertina" /></div>
       </aside>
     </div>
   </section>;
