@@ -264,6 +264,7 @@ export function TabCashFlow({ anno }: Props) {
           Non è stato possibile leggere: {q.data.fontiNonLette.join(", ")}. I numeri riguardano solo il resto.
         </p>
       )}
+      {q.data.avvisoSaldo && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{q.data.avvisoSaldo}</p>}
 
       <Riquadri r={r} haPrevisione={haPrevisione} dopo={q.data.saldoDopoMovimenti ? { cents: q.data.saldoDopoCents ?? 0, n: q.data.saldoDopoMovimenti, banca: q.data.saldoBancaCents ?? null } : null} />
 
@@ -486,7 +487,7 @@ function Avvisi({ r, daBanca, bancaForseDoppi, onClassifica, onIncludiGiaInBanca
       ),
     });
   if (e.forseDoppi.numero)
-    righe.push({ chiave: "doppi", testo: <>{e.forseDoppi.numero} incassi forse già compresi nelle rate (netto {euro(e.forseDoppi.cents)}) restano fuori: collegali alla rata giusta.</> });
+    righe.push({ chiave: "doppi", testo: <>{e.forseDoppi.numero} movimenti da verificare per una possibile doppia registrazione (netto {euro(e.forseDoppi.cents)}). I totali includono entrambe le righe fino al collegamento.</> });
   if (r.nonClassificati.numero)
     righe.push({
       chiave: "nc",

@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface ExpensePaymentDetail {
   id: string; company_id: string; nome: string; totale: number; pagato: number; residuo: number; da_verificare: boolean;
+  compensato?: number;
+  puo_compensare?: boolean;
   movimenti: { id: string; data: string; importo: number; direzione: string; banca: string | null; riferimento: string | null; storno_di: string | null; conto?: string | null; metodo?: string | null; bank_account_id?: string | null }[];
 }
 

@@ -41,6 +41,7 @@ const SOURCE_LABELS: Record<DettaglioRiga["source_table"], string> = {
   orders: "Commessa",
   cedolini: "Cedolino",
   cespiti: "Cespite",
+  contabilita_righe: "Contabilità generale",
 };
 
 export function DettaglioVoceMeseSheet({

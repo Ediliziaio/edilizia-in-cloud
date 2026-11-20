@@ -138,9 +138,12 @@ describe("Che cosa dice la pagina", () => {
   });
 
   it("tace quando non c'è niente da dire", () => {
-    expect(serveLavoriInCorso({ ...base, lavori_in_corso: 0, anticipi: 0 })).toBe(false);
-    expect(serveLavoriInCorso({ ...base, commesse_misurate: 0 })).toBe(false);
+    expect(serveLavoriInCorso({ ...base, lavori_in_corso: 0, anticipi: 0, commesse_senza_avanzamento: 0 })).toBe(false);
     expect(serveLavoriInCorso(null)).toBe(false);
+  });
+
+  it("mostra le commesse escluse anche quando la copertura è zero", () => {
+    expect(serveLavoriInCorso({ ...base, lavori_in_corso: 0, anticipi: 0, commesse_misurate: 0 })).toBe(true);
   });
 
   it("senza rimanenza iniziale spiega che cosa manca, e perché", () => {

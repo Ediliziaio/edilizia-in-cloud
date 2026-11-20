@@ -89,12 +89,49 @@ export function ScritturaChiusuraCassa({ companyId, gruppo, valori, onClose }: {
 
 type CandidatoPos = { id: string; conto: string; giorno: string; descrizione: string | null };
 
+type ContiAccredito = { banca: string; commissioni: string };
+const contiVuoti: ContiAccredito = { banca: "", commissioni: "" };
+
+function ContiPos({ companyId, commissioni, conti, onChange, disabled }: {
+  companyId: string; commissioni: number; conti: ContiAccredito; onChange: (value: ContiAccredito) => void; disabled: boolean;
+}) {
+  const q = useQuery({
+    queryKey: [...chiaveQueryCassa(companyId), "conti-contabili"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("contabilita_conti").select("id,codice,descrizione,natura")
+        .eq("company_id", companyId).eq("attivo", true).eq("movimentabile", true).order("codice");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const campi = [
+    { id: "banca", label: "Conto bancario nel piano dei conti", natura: "attivo" },
+    ...(commissioni > 0 ? [{ id: "commissioni", label: "Conto costi per le commissioni POS", natura: "costo" }] : []),
+  ];
+  return (
+    <div className="grid gap-2 rounded-md border p-3">
+      {campi.map(({ id, label, natura }) => (
+        <label className="space-y-1 text-sm" key={id}>
+          <span>{label}</span>
+          <select className={campoSelect} disabled={q.isLoading || disabled}
+            value={conti[id as keyof ContiAccredito]} onChange={(e) => onChange({ ...conti, [id]: e.target.value })}>
+            <option value="">Scegli il conto</option>
+            {q.data?.filter((c) => c.natura === natura).map((c) => <option key={c.id} value={c.id}>{c.codice} · {c.descrizione}</option>)}
+          </select>
+        </label>
+      ))}
+      {q.isError && <p role="alert" className="text-sm text-destructive">Piano dei conti non disponibile. <button className="underline" onClick={() => void q.refetch()}>Riprova</button></p>}
+    </div>
+  );
+}
+
 export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
   companyId: string; gruppi: ConfrontoCassa[]; onClose: () => void; onFatto: () => void;
 }) {
   const qc = useQueryClient();
   const [commissioni, setCommissioni] = useState("0");
   const [movimento, setMovimento] = useState("");
+  const [conti, setConti] = useState<ContiAccredito>(contiVuoti);
   const selezione = useQuery({
     queryKey: [...chiaveQueryCassa(companyId), "pos", gruppi.map((g) => gruppoCassa(companyId, g))],
     queryFn: async () => Promise.all(gruppi.map((g) => leggiPropostaCassa(companyId, g))),
@@ -112,17 +149,20 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
     queryFn: () => rpcCassa<CandidatoPos[]>("cassa_in_cloud_candidati_pos", { p_company_id: companyId, p_dal: dal, p_netto: netto }),
   });
   const valido = candidati.data?.some((c) => c.id === movimento);
+  const contabilizza = !!selezione.data?.every((s) => s.puo_registrare && s.scrittura_id && !s.scrittura_da_verificare);
+  const contiSelezionati = !!conti.banca && (!(commissione && commissione > 0) || !!conti.commissioni);
   const abbina = useMutation({
-    mutationFn: () => rpcCassa("cassa_in_cloud_abbina_pos", {
+    mutationFn: () => rpcCassa(contabilizza ? "cassa_in_cloud_abbina_e_contabilizza_pos" : "cassa_in_cloud_abbina_pos", {
       p_company_id: companyId, p_tx: movimento, p_commissioni: commissione,
       p_chiusure: gruppi.map((g, i) => ({
         punto: g.punto_vendita_id, cassa: g.cassa_id, giorno: g.giorno, versione: selezione.data[i].valori.versione,
       })),
+      ...(contabilizza ? { p_banca: conti.banca, p_commissioni_conto: conti.commissioni || null } : {}),
     }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chiaveQueryCassa(companyId) });
       void refreshFinancialQueries(qc);
-      toast.success("Accredito POS abbinato.");
+      toast.success(contabilizza ? "Accredito POS abbinato e contabilizzato." : "Accredito POS abbinato.");
       onFatto();
     },
   });
@@ -153,7 +193,7 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
               <div className="space-y-1">
                 <Label htmlFor="cassa-pos-accredito">Accredito da abbinare</Label>
                 <select id="cassa-pos-accredito" className={campoSelect} value={movimento} disabled={abbina.isPending}
-                  onChange={(e) => setMovimento(e.target.value)}>
+                  onChange={(e) => { setMovimento(e.target.value); setConti(contiVuoti); }}>
                   <option value="">Scegli conto e movimento</option>
                   {candidati.data.map((c) => <option key={c.id} value={c.id}>
                     {c.conto} · {formatDateShort(c.giorno)} · {c.descrizione || "Accredito"}
@@ -161,12 +201,15 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
                 </select>
               </div>
             )}
+            {contabilizza && valido && <ContiPos companyId={companyId} commissioni={commissione ?? 0} conti={conti}
+              onChange={setConti} disabled={abbina.isPending} />}
           </div>
         )}
         {abbina.isError && <p role="alert" className="text-sm text-destructive">{messaggio(abbina.error)}</p>}
         <DialogFooter>
           <Button variant="outline" disabled={abbina.isPending} onClick={onClose}>Annulla</Button>
-          <Button disabled={abbina.isPending || !disponibili || !valido || netto <= 0} onClick={() => abbina.mutate()}>Conferma abbinamento</Button>
+          <Button disabled={abbina.isPending || !disponibili || !valido || netto <= 0 || (contabilizza && !contiSelezionati)}
+            onClick={() => abbina.mutate()}>{contabilizza ? "Abbina e contabilizza" : "Conferma abbinamento"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -176,6 +219,8 @@ export function AbbinaAccreditoCassa({ companyId, gruppi, onClose, onFatto }: {
 export function RiepilogoAccreditoCassa({ companyId, id, puoScollegare }: { companyId: string; id: string; puoScollegare: boolean }) {
   const qc = useQueryClient();
   const [conferma, setConferma] = useState(false);
+  const [apriConti, setApriConti] = useState(false);
+  const [conti, setConti] = useState<ContiAccredito>(contiVuoti);
   const accredito = useQuery({
     queryKey: [...chiaveQueryCassa(companyId), "accredito", id],
     queryFn: () => rpcCassa<AccreditoCassa | null>("cassa_in_cloud_accredito_pos", { p_company_id: companyId, p_id: id }),
@@ -189,6 +234,17 @@ export function RiepilogoAccreditoCassa({ companyId, id, puoScollegare }: { comp
       setConferma(false);
     },
   });
+  const registra = useMutation({
+    mutationFn: () => rpcCassa("cassa_in_cloud_contabilizza_pos", {
+      p_company_id: companyId, p_id: id, p_banca: conti.banca, p_commissioni_conto: conti.commissioni || null,
+    }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chiaveQueryCassa(companyId) });
+      void refreshFinancialQueries(qc);
+      setApriConti(false);
+      toast.success("Scrittura dell’accredito registrata.");
+    },
+  });
   if (accredito.isLoading) return <p role="status" className="text-sm text-muted-foreground">Caricamento accredito…</p>;
   if (accredito.isError) return <p role="alert" className="text-sm text-destructive">{messaggio(accredito.error)}</p>;
   const a = accredito.data;
@@ -197,10 +253,19 @@ export function RiepilogoAccreditoCassa({ companyId, id, puoScollegare }: { comp
     <div className="space-y-2 rounded-md border p-3 text-sm">
       <p>Accredito POS · <strong>{a.conto}</strong>{a.giorno ? ` · ${formatDateShort(a.giorno)}` : ""}</p>
       <p>Lordo {formatCurrency(a.lordo)} · Commissioni {formatCurrency(a.commissioni)} · Netto {formatCurrency(a.netto)}</p>
+      {a.scrittura_id && <p className="text-muted-foreground">Scrittura dell’accredito registrata in Contabilità generale.</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" asChild><Link to={`/azienda/tesoreria?tab=movimenti&movimento=${a.bank_transaction_id}`}>Apri in Tesoreria</Link></Button>
+        {a.puo_contabilizzare && !apriConti && <Button size="sm" variant="outline" onClick={() => setApriConti(true)}>Contabilizza accredito</Button>}
         {puoScollegare && <Button size="sm" variant="ghost" onClick={() => setConferma(true)}>Scollega accredito</Button>}
       </div>
+      {apriConti && a.puo_contabilizzare && <div className="space-y-2">
+        <ContiPos companyId={companyId} commissioni={a.commissioni} conti={conti} onChange={setConti} disabled={registra.isPending} />
+        <Button size="sm" variant="outline" onClick={() => setApriConti(false)} disabled={registra.isPending}>Annulla</Button>
+        <Button size="sm" className="ml-2" onClick={() => registra.mutate()}
+          disabled={registra.isPending || !conti.banca || (a.commissioni > 0 && !conti.commissioni)}>Registra accredito</Button>
+        {registra.isError && <p role="alert" className="text-destructive">{messaggio(registra.error)}</p>}
+      </div>}
       {conferma && <div role="group" aria-label="Conferma scollegamento" className="flex flex-wrap items-center gap-2">
         <span>Riaprire l’accredito per {a.chiusure} {a.chiusure === 1 ? "chiusura" : "chiusure"}?</span>
         <Button size="sm" variant="outline" disabled={scollega.isPending} onClick={() => setConferma(false)}>Annulla</Button>

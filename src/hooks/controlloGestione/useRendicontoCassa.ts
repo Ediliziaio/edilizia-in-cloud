@@ -14,9 +14,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import { loadForecastDataset } from "@/hooks/useForecastLedger";
+import { loadOpeningBalance } from "@/lib/finance/caricaPrevisionale";
 import {
   dayKey,
-  resolveOpeningBalance,
   toCents,
   type BankRow,
   type ForecastMovement,
@@ -37,6 +37,7 @@ export interface DatiRendicontoCassa {
   saldoBancaCents?: number | null;
   saldoDopoCents?: number;
   saldoDopoMovimenti?: number;
+  avvisoSaldo?: string;
   registrati: MovimentoRegistrato[];
   flussoDopoAnnoCents: number | null;
   previsti: ForecastMovement[] | null;
@@ -46,7 +47,7 @@ export interface DatiRendicontoCassa {
   fontiNonLette: string[];
   /** Movimenti di banca entrati nel consuntivo senza essere in prima nota. */
   daBanca: number;
-  /** Movimenti di banca lasciati fuori perché hanno una scrittura gemella non collegata. */
+  /** Movimenti da verificare per una possibile doppia registrazione. */
   bancaForseDoppi: { numero: number; cents: number };
   /** Movimenti di banca non ancora in prima nota: riconoscono i previsti già pagati in anticipo. */
   bancaNonRegistrati?: MovimentoBancaCassa[];
@@ -66,6 +67,7 @@ interface RigaPrimaNota {
   documento_fiscale_id: string | null;
   installment_id: string | null;
   bank_transaction_id: string | null;
+  account_label: string | null;
   cost: { category: string | null } | null;
   installment: { type: string | null } | null;
   supplier: { name: string | null } | null;
@@ -101,7 +103,7 @@ export function useRendicontoCassa(anno: number) {
         db
           .from("prima_nota_entries")
           .select(
-            "id,direction,amount,entry_date,category,description,supplier_id,order_item_id,order_id,invoice_id,documento_fiscale_id,installment_id,bank_transaction_id,cost:company_costs(category),installment:order_installments(type),supplier:suppliers(name)",
+            "id,direction,amount,entry_date,category,description,supplier_id,order_item_id,order_id,invoice_id,documento_fiscale_id,installment_id,bank_transaction_id,account_label,cost:company_costs(category),installment:order_installments(type),supplier:suppliers(name)",
           )
           .eq("company_id", companyId)
           .gte("entry_date", `${anno}-01-01`)
@@ -126,7 +128,7 @@ export function useRendicontoCassa(anno: number) {
               facoltativo("Conti bancari", async () => {
                 const { data, error } = await db
                   .from("bank_accounts_operativi")
-                  .select("id,current_balance,available_balance,currency,balance_updated_at")
+                  .select("id,current_balance,available_balance,currency,balance_updated_at,is_manual")
                   .eq("company_id", companyId)
                   .eq("is_active", true);
                 if (error) throw error;
@@ -141,17 +143,7 @@ export function useRendicontoCassa(anno: number) {
                 return { dopo: toCents(d1?.saldo), totale: toCents(d2?.saldo), righe: Number(d2?.entry_count) || 0 };
               }, null as { dopo: number; totale: number; righe: number } | null),
             ]);
-            let opening = resolveOpeningBalance(banche, []);
-            // 15/11/2026: un saldo dei conti vecchio si porta a oggi coi movimenti registrati dopo
-            // la sua data (come nel Previsionale, vedi portaSaldoAOggi).
-            if (opening.source === "banca" && opening.cents != null && opening.updatedAt && opening.updatedAt.slice(0, 10) < today) {
-              const dal = new Date(`${opening.updatedAt.slice(0, 10)}T12:00:00`);
-              dal.setDate(dal.getDate() + 1);
-              const { data: d3 } = await db.rpc("get_prima_nota_saldo", { p_company_id: companyId, p_from_date: dal.toISOString().slice(0, 10), p_to_date: today });
-              const dopoCents = toCents(d3?.saldo);
-              if (Number(d3?.entry_count) > 0)
-                opening = { ...opening, bancaCents: opening.cents, cents: opening.cents + dopoCents, dopoCents, dopoMovimenti: Number(d3.entry_count) };
-            }
+            let opening = await loadOpeningBalance(db, companyId!, today, banche);
             // Senza conti, come il Previsionale: il saldo è quello della prima nota.
             if (!banche.length && dopo && dopo.righe > 0)
               opening = { cents: dopo.totale, source: "prima-nota", updatedAt: today };
@@ -218,6 +210,7 @@ export function useRendicontoCassa(anno: number) {
         installmentId: r.installment_id,
         orderId: r.order_id,
         bankTransactionId: r.bank_transaction_id,
+        accountLabel: r.account_label,
       }));
       const unione = uniscMovimentiBanca(registrati, movimentiBanca.movimenti);
 
@@ -230,6 +223,7 @@ export function useRendicontoCassa(anno: number) {
         saldoBancaCents: opening.bancaCents ?? null,
         saldoDopoCents: opening.dopoCents ?? 0,
         saldoDopoMovimenti: opening.dopoMovimenti ?? 0,
+        avvisoSaldo: opening.warning,
         registrati: unione.registrati,
         // Il saldo degli anni passati si ricostruisce anche coi movimenti di banca dopo l'anno.
         flussoDopoAnnoCents: storico && storico.dopo != null ? storico.dopo + Number(movimentiBanca.dopo_anno_cents ?? 0) : null,

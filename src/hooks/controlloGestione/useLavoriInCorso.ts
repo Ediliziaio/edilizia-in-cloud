@@ -32,6 +32,7 @@ export interface LavoriInCorso {
   rimanenza_registrata: number | null;
   /** Rimanenza al 31/12 dell'anno prima: senza, la voce 02 resta a zero. */
   rimanenza_iniziale: number | null;
+  ultime_rimanenze?: { mese: number; importo: number }[];
   variazione_nel_ce: number;
 }
 
@@ -42,8 +43,7 @@ export function useLavoriInCorso(anno: number) {
     enabled: !!companyId,
     queryFn: async (): Promise<LavoriInCorso | null> => {
       const { data, error } = await cgRpc<LavoriInCorso>("cg_lavori_in_corso", { p_anno: anno });
-      // È una lettura in più su una pagina già piena: se non c'è, tace.
-      if (error) return null;
+      if (error) throw new Error(error.message);
       return data ?? null;
     },
     staleTime: 5 * 60_000,
@@ -53,20 +53,21 @@ export function useLavoriInCorso(anno: number) {
 export function useRegistraRimanenza() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { esercizio: number; importo?: number | null; note?: string }) => {
-      const { data, error } = await cgRpc<{ esercizio: number; importo: number; fonte: string }>(
-        "cg_registra_rimanenza_lavori",
+    mutationFn: async (input: { esercizio: number; mese: number; importo: number; note?: string }) => {
+      const { data, error } = await cgRpc<{ esercizio: number; fine: string; importo: number; fonte: string }>(
+        "cg_registra_rimanenza_lavori_mese",
         {
           p_esercizio: input.esercizio,
-          p_importo: input.importo ?? null,
+          p_mese: input.mese,
+          p_importo: input.importo,
           p_note: input.note ?? null,
         },
       );
       if (error) throw new Error(error.message);
       return data;
     },
-    onSuccess: (data) => {
-      toast.success(`Rimanenza al 31/12/${data?.esercizio} registrata`);
+    onSuccess: () => {
+      toast.success("Rimanenza registrata per il mese scelto");
       // Cambia il conto economico, il patrimoniale e tutti gli indici.
       qc.invalidateQueries({ queryKey: ["cg"] });
     },

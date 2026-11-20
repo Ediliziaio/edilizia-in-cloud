@@ -492,6 +492,7 @@ const FASCE_LABELS: Record<keyof AgingFasce, string> = {
   sc_60: "Scaduto 31-60g",
   sc_90: "Scaduto 61-90g",
   sc_oltre: "Scaduto >90g",
+  senza_data: "Senza data",
 };
 
 const FASCE_COLORS: Record<keyof AgingFasce, string> = {
@@ -500,6 +501,7 @@ const FASCE_COLORS: Record<keyof AgingFasce, string> = {
   sc_60:     "bg-muted/40",
   sc_90:     "bg-muted/40",
   sc_oltre:  "bg-muted/40",
+  senza_data: "bg-muted/40",
 };
 
 function AgingSection() {
@@ -539,7 +541,7 @@ function AgingSection() {
         {q.data && (
           <>
             {/* Top fasce */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               {(Object.keys(FASCE_LABELS) as Array<keyof AgingFasce>).map((k) => (
                 <div
                   key={k}
@@ -550,7 +552,7 @@ function AgingSection() {
                 >
                   <p className="text-[10px] uppercase">{FASCE_LABELS[k]}</p>
                   <p className="mt-0.5 text-base font-bold tabular-nums">
-                    {formatCurrency(q.data.fasce[k])}
+                    {formatCurrency(q.data.fasce[k] ?? 0)}
                   </p>
                 </div>
               ))}
@@ -591,7 +593,7 @@ function AgingSection() {
                           {r.controparte ?? "—"}
                         </td>
                         <td className="px-3 py-2 text-right text-xs tabular-nums">
-                          {formatDate(r.due_date)}
+                          {r.due_date ? formatDate(r.due_date) : "Da pianificare"}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums font-medium">
                           {formatCurrency(r.residuo)}

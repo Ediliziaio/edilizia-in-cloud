@@ -15,7 +15,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export interface DettaglioRiga {
   id: string;
-  source_table: "company_costs" | "bank_transactions" | "prima_nota" | "invoices" | "orders" | "cedolini" | "cespiti";
+  source_table: "company_costs" | "bank_transactions" | "prima_nota" | "invoices" | "orders" | "cedolini" | "cespiti" | "contabilita_righe";
   data: string;
   descrizione: string;
   controparte: string | null;

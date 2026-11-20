@@ -118,6 +118,8 @@ export type PropostaCassa = {
 };
 
 export type AccreditoCassa = {
+  scrittura_id?: string | null;
+  puo_contabilizzare?: boolean;
   id: string;
   bank_transaction_id: string;
   giorno: string | null;
