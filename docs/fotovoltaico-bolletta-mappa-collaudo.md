@@ -42,6 +42,8 @@ Le protezioni SQL sono state applicate in produzione via MCP il 20 novembre 2026
 | Divergenza fra scenario, finanza e PDF aziendale | `supabase/functions/_shared/fvHtmlTemplate.ts` | Percorso del documento ricostruiva consumi e flussi annuali | Stesso motore orario, inclusi consumi futuri e accumulo |
 | Conteggio del tetto non collegato al modulo reale | `src/components/fotovoltaico/FvScenariEnergia.tsx` | Capacità teorica e quantità commerciali separate | Conteggio dalla posa fisica e aggiornamento dei soli campi dello scenario |
 
+Il controllo globale dei conflitti ha rilevato nella prima versione della RPC il codice serializzabile `40001`, che induce PostgREST a riprovare un salvataggio già rifiutato per versione obsoleta. La migrazione della PR è stata corretta per restituire `PT409`, già riconosciuto dal client, e il test verifica che il dato del collega rimanga invariato. Dopo il verde del commit corretto si riapplica la migrazione idempotente e si riconcilia unicamente la sua voce nel registro, prima del merge.
+
 ## ♿ ACCESSIBILITÀ
 
 | Problema | Fix |

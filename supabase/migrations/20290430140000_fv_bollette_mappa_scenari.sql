@@ -232,7 +232,7 @@ begin
   if jsonb_array_length(p_components) = 0 then raise exception 'Configura almeno un componente' using errcode = '22023'; end if;
   if same_configuration then return jsonb_build_object('projectId', p_project_id, 'updatedAt', project_row.updated_at, 'replayed', true); end if;
   if project_row.updated_at is distinct from p_expected_updated_at then
-    raise exception 'Il preventivo è stato modificato: ricarica prima di salvare' using errcode = '40001'; end if;
+    raise exception 'Il preventivo è stato modificato: ricarica prima di salvare' using errcode = 'PT409'; end if;
   -- No exception handler: any constraint, trigger or RLS failure rolls back ALL
   -- deletes/inserts AND the project patch in the caller's single RPC transaction.
   delete from public.fv_componenti_progetto where progetto_id = p_project_id;

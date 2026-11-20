@@ -160,7 +160,7 @@ describe("Bollette e snapshot FV in PostgreSQL locale", () => {
   it("rejects a stale update before replacing any rows", async () => {
     await expect(
       save({ expected: "2026-10-23T08:00:00Z" }),
-    ).rejects.toMatchObject({ code: "40001" });
+    ).rejects.toMatchObject({ code: "PT409" });
     expect(
       (await db.query("select descrizione from public.fv_componenti_progetto"))
         .rows[0],
