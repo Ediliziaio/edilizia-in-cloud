@@ -1,4 +1,6 @@
-import type { PagamentoCassa, PuntoVenditaCassa, ScontrinoCassa } from "../../../shared/cassaInCloud.ts";
+import type {
+  ChiusuraCassa, FatturaDaCassa, IvaChiusuraCassa, PagamentoCassa, PuntoVenditaCassa, ScontrinoCassa,
+} from "../../../shared/cassaInCloud.ts";
 
 const API = "https://api.cassanova.com";
 const PAGINA = 100;
@@ -44,6 +46,28 @@ function mappaPagamento(v: unknown): PagamentoCassa {
   };
 }
 
+export function dataDocumentoCassa(v: unknown): string | null {
+  const giorno = typeof v === "string" ? v.match(/^\d{4}-\d\d-\d\d(?=[T ]|$)/)?.[0] : null;
+  if (!giorno) return null;
+  const d = new Date(`${giorno}T00:00:00Z`);
+  return Number.isFinite(+d) && d.toISOString().slice(0, 10) === giorno ? giorno : null;
+}
+
+function riferimentiFatture(documento: Oggetto): { conFattura: boolean; fatture: FatturaDaCassa[] } {
+  const documenti = [documento.documentConnectionSources, documento.documentConnectionDestinations]
+    .flatMap((connessioni) => elenco(oggetto(connessioni).invoices));
+  const fatture = new Map<string, FatturaDaCassa>();
+  for (const dato of documenti) {
+    const f = oggetto(dato);
+    const id = stringa(f.id, 128);
+    if (id) fatture.set(id, {
+      id, numero: intero(f.number), data: dataDocumentoCassa(f.date ?? f.datetime),
+      differita: typeof f.deferred === "boolean" ? f.deferred : null,
+    });
+  }
+  return { conFattura: documenti.length > 0, fatture: [...fatture.values()].sort((a, b) => a.id.localeCompare(b.id)) };
+}
+
 function mappaScontrino(v: unknown, punto: string, dal: string, al: string): ScontrinoCassa {
   const s = oggetto(v);
   const d = oggetto(s.document);
@@ -56,15 +80,17 @@ function mappaScontrino(v: unknown, punto: string, dal: string, al: string): Sco
     locale = FORMATO_ORA.format(istante);
   }
   // «date» è il giorno di emissione del fornitore e «datetime» precisa l'ora.
-  const giornoFornitore = typeof s.date === "string" ? s.date.match(/^\d{4}-\d\d-\d\d(?=T|$)/)?.[0] : null;
+  const giornoFornitore = dataDocumentoCassa(s.date);
   const data = giornoFornitore ?? locale.slice(0, 10);
   const totale = numero(d.amount);
   if (!id || intero(d.idSalesPoint) !== punto || totale === null ||
       !/^\d{4}-\d\d-\d\d(?: \d\d:\d\d:\d\d(?:\.\d+)?)?$/.test(locale) ||
       data < dal || data > al) rispostaInvalida();
 
+  const { conFattura, fatture } = riferimentiFatture(d);
   return {
     esterno_id: id,
+    cassa_id: intero(d.idDevice),
     numero: intero(s.number),
     numero_z: intero(s.zNumber),
     data,
@@ -74,8 +100,62 @@ function mappaScontrino(v: unknown, punto: string, dal: string, al: string): Sco
     pagamenti: elenco(d.payments).map(mappaPagamento),
     confermato: typeof d.confirmed === "boolean" ? d.confirmed : null,
     con_reso: elenco(d.rows).some((r) => oggetto(r).refund === true),
-    con_fattura: [d.documentConnectionSources, d.documentConnectionDestinations]
-      .some((connessioni) => elenco(oggetto(connessioni).invoices).length > 0),
+    con_fattura: conFattura,
+    fatture,
+  };
+}
+
+function mappaIva(v: unknown): IvaChiusuraCassa {
+  const riga = oggetto(v);
+  const tax = oggetto(riga.tax);
+  return {
+    id: stringa(riga.idTax ?? tax.id, 128),
+    nome: stringa(tax.description, 120),
+    aliquota: numero(tax.rate),
+    natura: stringa(tax.nature, 12),
+    ventilazione: tax.ventilazione === true,
+    non_fiscale: tax.noFiscalPrint === true || tax.noFiscalPrintOnMixedReceipt === true,
+    scontrini: numero(riga.receiptsAmount),
+    annulli: numero(riga.canceledAmount),
+    pagamenti: elenco(riga.payments).map((valore) => {
+      const p = oggetto(valore);
+      const tipo = stringa(p.paymentType, 40);
+      if (!tipo) rispostaInvalida();
+      return {
+        tipo, importo: numero(p.receiptsAmount), annulli: numero(p.canceledAmount),
+        descrizione: stringa(oggetto(p.customPayment).description, 120),
+      };
+    }),
+  };
+}
+
+function mappaChiusura(v: unknown, punto: string, dal: string, al: string): ChiusuraCassa {
+  const c = oggetto(v);
+  const id = typeof c.id === "string" && c.id.length <= 128 ? c.id.trim() : "";
+  const data = dataDocumentoCassa(c.date);
+  if (!id || !data || data < dal || data > al || intero(c.idSalesPoint) !== punto) rispostaInvalida();
+  return {
+    esterno_id: id,
+    cassa_id: intero(c.idDevice),
+    numero: intero(c.number),
+    giorno: dataDocumentoCassa(c.referenceDate) ?? data,
+    data_chiusura: data,
+    ora: typeof c.date === "string" ? c.date.match(/[T ](\d\d:\d\d:\d\d)/)?.[1] ?? null : null,
+    tipo: stringa(c.reconciliationType, 40),
+    numero_scontrini: typeof c.receiptsCount === "number" && intero(c.receiptsCount) !== null ? c.receiptsCount : null,
+    numero_annulli: typeof c.canceledCount === "number" && intero(c.canceledCount) !== null ? c.canceledCount : null,
+    totale_scontrini: numero(c.receiptsAmount),
+    annulli: numero(c.canceledAmount),
+    contanti: numero(c.cashAmount),
+    elettronici: numero(c.electronicAmount),
+    ticket: numero(c.ticketsAmount),
+    non_incassato: numero(c.notCachedAmount),
+    differiti: numero(c.deferredReceiptsAmount),
+    sconti: numero(c.discountOnPaymentAmount),
+    fatture_dirette: numero(c.directInvoicesAmount),
+    note_credito: numero(c.creditNotesAmount),
+    conti: numero(c.billsAmount),
+    iva: elenco(c.taxes).map(mappaIva),
   };
 }
 
@@ -102,6 +182,9 @@ export class ClientCassaInCloud {
       throw new ErroreCassa("Chiave API Cassa in Cloud non valida o revocata. Verifica la chiave e ricollega il punto vendita.", 422);
     }
     if (response.status === 403) {
+      if (path.startsWith("/reconciliations?")) {
+        throw new ErroreCassa("La chiave API deve avere anche il permesso di lettura delle chiusure di cassa.", 422);
+      }
       throw new ErroreCassa("La chiave deve poter leggere i punti vendita e gli scontrini in Cassa in Cloud.", 422);
     }
     if (!response.ok) throw new ErroreCassa("Cassa in Cloud non è riuscita a completare la richiesta. Riprova tra poco.", 502);
@@ -146,7 +229,7 @@ export class ClientCassaInCloud {
     });
   }
 
-  private paginaScontrini(punto: string, dal: string, al: string, start: number, limit: number) {
+  private pagina(percorso: string, punto: string, dal: string, al: string, start: number, limit: number) {
     const query = new URLSearchParams({
       start: String(start),
       limit: String(limit),
@@ -155,38 +238,50 @@ export class ClientCassaInCloud {
       datetimeTo: JSON.stringify(al),
       sorts: JSON.stringify([{ key: "date", direction: 1 }]),
     });
-    return this.get(`/documents/receipts?${query}`);
+    return this.get(`${percorso}?${query}`);
   }
 
   async verificaScontrini(punto: string, giorno: string) {
-    const dati = await this.paginaScontrini(punto, giorno, giorno, 0, 1);
+    const dati = await this.pagina("/documents/receipts", punto, giorno, giorno, 0, 1);
     if (!Array.isArray(dati.receipts) || typeof dati.totalCount !== "number" ||
         intero(dati.totalCount) === null || dati.receipts.length !== Math.min(1, dati.totalCount)) rispostaInvalida();
     if (dati.receipts.length) mappaScontrino(dati.receipts[0], punto, giorno, giorno);
   }
 
-  async scontrini(punto: string, dal: string, al: string): Promise<ScontrinoCassa[]> {
-    const righe: ScontrinoCassa[] = [];
+  private async tutteLePagine<Riga extends { esterno_id: string }>(
+    percorso: string, chiave: string, punto: string, dal: string, al: string,
+    normalizza: (value: unknown, punto: string, dal: string, al: string) => Riga,
+  ): Promise<Riga[]> {
+    const righe: Riga[] = [];
     const ids = new Set<string>();
     let totale: number | null = null;
     do {
-      const dati = await this.paginaScontrini(punto, dal, al, righe.length, PAGINA);
-      if (!Array.isArray(dati.receipts) || typeof dati.totalCount !== "number" ||
+      const dati = await this.pagina(percorso, punto, dal, al, righe.length, PAGINA);
+      const pagina = dati[chiave];
+      if (!Array.isArray(pagina) || typeof dati.totalCount !== "number" ||
           intero(dati.totalCount) === null) rispostaInvalida();
       totale ??= dati.totalCount;
       if (totale > MASSIMO_SCONTRINI) {
-        throw new ErroreCassa("Il periodo contiene più di 5.000 scontrini. Riprova su un singolo giorno.", 422);
+        throw new ErroreCassa("Il periodo contiene più di 5.000 documenti. Riprova su un singolo giorno.", 422);
       }
-      if (totale !== dati.totalCount || dati.receipts.length !== Math.min(PAGINA, totale - righe.length)) {
+      if (totale !== dati.totalCount || pagina.length !== Math.min(PAGINA, totale - righe.length)) {
         rispostaInvalida();
       }
-      for (const v of dati.receipts) {
-        const riga = mappaScontrino(v, punto, dal, al);
+      for (const v of pagina) {
+        const riga = normalizza(v, punto, dal, al);
         if (ids.has(riga.esterno_id)) rispostaInvalida();
         ids.add(riga.esterno_id);
         righe.push(riga);
       }
     } while (righe.length < totale);
     return righe;
+  }
+
+  scontrini(punto: string, dal: string, al: string) {
+    return this.tutteLePagine("/documents/receipts", "receipts", punto, dal, al, mappaScontrino);
+  }
+
+  chiusure(punto: string, dal: string, al: string) {
+    return this.tutteLePagine("/reconciliations", "reconciliations", punto, dal, al, mappaChiusura);
   }
 }

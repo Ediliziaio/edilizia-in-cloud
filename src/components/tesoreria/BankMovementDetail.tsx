@@ -48,6 +48,8 @@ import {
   type BankTarget,
 } from "@/lib/finance/bankWorkspace";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { CHIUSURE_CASSA, chiaveQueryCassa, rpcCassa } from "@/lib/cassaInCloud";
+import type { AccreditoCassa } from "../../../shared/cassaInCloud";
 import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
 import { BankContextEditor } from "./BankContextEditor";
 import {
@@ -201,6 +203,12 @@ function Detail({
     return refreshFinancialQueries(client);
   };
   const esito = useEsitoMovimento(company, m.id);
+  const accreditoPos = useQuery({
+    queryKey: [...chiaveQueryCassa(company), "pos-da-banca", m.id],
+    enabled: m.transaction_type === "credit" && m.chiuso_senza_documento === "nessun_costo",
+    queryFn: () => rpcCassa<AccreditoCassa | null>("cassa_in_cloud_accredito_pos", { p_company_id: company, p_id: null, p_tx: m.id }),
+  });
+  const pos = accreditoPos.data;
   const conEsito = !!esito.data && esito.data.natura !== "gia_riconciliato";
   async function act(action: () => Promise<void>, message: string) {
     if (busy) return;
@@ -264,13 +272,13 @@ function Detail({
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">
-              Abbinato <strong className="text-foreground tabular-nums">{monetary(m.links.matched)}</strong>
+              Abbinato <strong className="text-foreground tabular-nums">{monetary(pos ? pos.netto : m.links.matched)}</strong>
               {" · "}da abbinare <strong className={`tabular-nums ${m.links.remaining > 0 ? "text-amber-700 dark:text-amber-400" : "text-foreground"}`}>{monetary(m.links.remaining)}</strong>
             </span>
             <Badge variant="outline" className={state.className}>
-              {state.label}
+              {pos ? "Accredito POS" : state.label}
             </Badge>
-            <BadgeEsito esito={esito.data} />
+            {!pos && <BadgeEsito esito={esito.data} />}
           </div>
         </div>
         <p className="mt-3 whitespace-pre-wrap break-words font-medium">
@@ -307,7 +315,12 @@ function Detail({
           <Link2 className="h-4 w-4" /> A cosa è collegato
         </h3>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
-          {conEsito && riga("Esito", <RigaEsitoMovimento company={company} movement={m} esito={esito.data!} puoScrivere={write} onCambiato={refresh} />)}
+          {conEsito && !pos && riga("Esito", <RigaEsitoMovimento company={company} movement={m} esito={esito.data!} puoScrivere={write} onCambiato={refresh} />)}
+          {pos && riga("Cassa in Cloud", <>
+            <span>{pos.chiusure} {pos.chiusure === 1 ? "chiusura" : "chiusure"} · Lordo {monetary(pos.lordo)} · Commissioni {monetary(pos.commissioni)}</span>
+            {perms.canViewBilling && <Link className="font-medium text-primary hover:underline"
+              to={`${CHIUSURE_CASSA}&dal=${pos.dal_chiusure ?? ""}&al=${pos.al_chiusure ?? ""}`}>Apri chiusure</Link>}
+          </>)}
           {riga("Controparte", <ControparteRiconosciuta s={s} onCollegaOda={puoContesti && !editContexts ? collegaOda : undefined} odaCollegate={contesti(["oda"]).map((c) => c.id)} />)}
           {riga(
             "Categoria",

@@ -207,6 +207,7 @@ jobs:
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/cassaInCloud.test.ts
+          src/test/logic/cassaInCloudChiusure.test.ts
           src/test/ui/cassaInCloud.test.tsx
 
   frontend-build:
