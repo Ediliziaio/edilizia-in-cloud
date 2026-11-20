@@ -426,7 +426,7 @@ begin
   esito:=private.ddt_piano_prezzi(p_fattura);
   if esito->>'stato' is distinct from 'pronta' then return esito; end if;
   if esito->'ddts' is distinct from ddts or esito->'materiali' is distinct from materiali then
-    raise exception 'I documenti sono cambiati durante il confronto' using errcode='40001';
+    raise exception 'I documenti sono cambiati durante il confronto' using errcode='PT409';
   end if;
   for d in
     select (r->>'ddt_id')::uuid id,jsonb_agg(r order by (r->>'riga_id')::uuid) righe
@@ -455,7 +455,7 @@ begin
       where fattura_id=v.fattura_id and revisione=v.revisione;
       n:=n+1;
     exception
-      when lock_not_available or deadlock_detected or serialization_failure then
+      when sqlstate 'PT409' or lock_not_available or deadlock_detected or serialization_failure then
         update private.fattura_prezzi_verifiche set prossima_verifica=now()+interval '2 minutes'
         where fattura_id=v.fattura_id and revisione=v.revisione;
       when others then
