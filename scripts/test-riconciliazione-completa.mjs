@@ -30,6 +30,10 @@ const perRiga = readFileSync(
   "supabase/migrations/20290430142000_riferimenti_fattura_per_riga.sql",
   "utf8",
 );
+const righeXml = readFileSync(
+  "supabase/migrations/20290430145000_allinea_riferimenti_righe_xml.sql",
+  "utf8",
+);
 const numeri = readFileSync("supabase/migrations/20290404210000_acquisti_collegamenti_traccia.sql", "utf8")
   .split("create or replace function public.acquisti_numero_documento(")[1]
   .split("revoke all on function public.acquisti_numero_documento")[0];
@@ -52,7 +56,7 @@ create table orders(id uuid primary key,company_id uuid);
 create table order_items(id uuid primary key,order_id uuid,ddt_riga_origine_id uuid,purchase_price numeric,prezzo_da_definire boolean,updated_at timestamptz);
 create function user_can_access_company(p uuid) returns boolean language sql stable as $$select p=any(aziende_con_permesso('can_manage_purchasing')||aziende_con_permesso('can_view_costs'))$$;
 create function has_permission_for_company(u uuid,p text,c uuid) returns boolean language sql stable as $$select c=any(aziende_con_permesso(p))$$;
-${migrazione}\n${ordineStabile}\n${ordineStabile}\n${contestoCorretto}\n${perRiga}\n${perRiga}\n${anchor}`,
+${migrazione}\n${ordineStabile}\n${ordineStabile}\n${contestoCorretto}\n${perRiga}\n${perRiga}\n${righeXml}\n${righeXml}\n${anchor}`,
 );
 const extra = `
 update ddt_ricezione set supplier_id='${supplier}' where id='${d}';

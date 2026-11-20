@@ -48,8 +48,14 @@ const invoice = {
   cedente_ragione_sociale: "Fornitore prova",
 };
 const clients: QueryClient[] = [];
+const rpcDiLettura = new Set(["ddt_fatture_fornitore", "fattura_riconciliazione_contesto", "fattura_ddt_riepilogo"]);
 beforeEach(() => {
-  m.rpc.mockReset().mockResolvedValue({ data: [invoice, { ...invoice, id: 'seconda', numero_fattura: '2020-46' }], error: null });
+  m.rpc.mockReset().mockImplementation(async (nome: string): Promise<{ data: unknown; error: null }> => {
+    if (nome === "ddt_fatture_fornitore") return { data: [invoice, { ...invoice, id: 'seconda', numero_fattura: '2020-46' }], error: null };
+    if (nome === "fattura_ddt_riepilogo") return { data: { ddt: [] }, error: null };
+    if (nome === "fattura_riconciliazione_contesto") return { data: { contesto: {} }, error: null };
+    throw new Error(`RPC inattesa: ${nome}`);
+  });
   m.documento.mockReset().mockResolvedValue({ data: { id: 'fattura', righe: [{ descrizione: 'Rete', quantita: 1, unita_misura: 'mq', prezzo_unitario: 30, imponibile: 24 }] }, error: null });
   m.collegate.mockReset().mockResolvedValue({ data: [], error: null });
 });
@@ -124,7 +130,7 @@ it('propone il prezzo scontato della fattura senza scritture e azzera i dati sce
   await waitFor(() => expect(screen.getByLabelText('Prezzo in fattura Rete')).toHaveValue('24'));
   expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('1');
   expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeDisabled();
-  expect(m.rpc.mock.calls.every(([nome]) => nome === 'ddt_fatture_fornitore')).toBe(true);
+  expect(m.rpc.mock.calls.every(([nome]) => rpcDiLettura.has(nome))).toBe(true);
   changeFormControl(screen.getByLabelText('Prezzo in fattura Rete'), { target: { value: '26' } });
   expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('1');
   fireEvent.click(screen.getByLabelText(/Ho confrontato le righe/));
@@ -146,5 +152,5 @@ it('propone l’unica fattura già collegata al DDT senza chiedere di riselezion
   await waitFor(() => expect(screen.getByLabelText('Prezzo in fattura Rete')).toHaveValue('24'));
   expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('1');
   expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeDisabled();
-  expect(m.rpc.mock.calls.every(([nome]) => nome === 'ddt_fatture_fornitore')).toBe(true);
+  expect(m.rpc.mock.calls.every(([nome]) => rpcDiLettura.has(nome))).toBe(true);
 });
