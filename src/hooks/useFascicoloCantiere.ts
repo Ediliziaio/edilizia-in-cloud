@@ -156,6 +156,7 @@ export function useImpreseCommessa(companyId: string, orderId: string) {
             .select("subappaltatore_id")
             .eq("company_id", companyId)
             .eq("order_id", orderId)
+            .not("stato", "in", "(annullato,risolto)")
             .order("id"),
         ),
         pagine(

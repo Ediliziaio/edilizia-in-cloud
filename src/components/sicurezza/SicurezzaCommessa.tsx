@@ -23,7 +23,7 @@ import {
  * Riepilogo della sicurezza con dettagli su richiesta. Le fonti e i permessi
  * restano quelli dei moduli esistenti; la creazione POS conferma prima di aprire la scheda interna.
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   Dialog,
@@ -52,7 +52,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScadenzeCommessa } from "./ScadenzeCommessa";
-import { useCreaPos, usePosElenco } from "@/hooks/usePos";
+import { NuovoPosDialog, type PosCreato } from "./pos/NuovoPosDialog";
+import { usePosElenco } from "@/hooks/usePos";
 import { useDocumentiSicurezza } from "@/hooks/useDocumentiSicurezza";
 import {
   daSistemare,
@@ -60,7 +61,11 @@ import {
   documentoDaEvidenza,
   type VoceControllo,
 } from "@/lib/sicurezza/documentiSicurezza";
-import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
+import { errorePscAvvio, prossimoPassoPos, verificaIterNegativa } from "@/lib/sicurezza/posIter";
+import { STATI_POS_ESTERNO, useAvvioSicurezza, useRuoliSicurezza, useConsegnePosEsterno } from "@/hooks/useAvvioSicurezza";
+import { usePscCommessa } from "@/hooks/usePscCommessa";
+import { stessaFontePsc } from "../../../supabase/functions/_shared/posPsc";
+import { AvvioSicurezzaPos } from "./AvvioSicurezzaPos";
 import {
   CaricaDocumentoSicurezzaDialog,
   DocumentiSicurezza,
@@ -88,9 +93,11 @@ const STILE: Record<
 export function SicurezzaCommessa({
   companyId,
   orderId,
+  nomeCommessa,
 }: {
   companyId: string;
   orderId: string;
+  nomeCommessa?: string;
 }) {
   const [scheda, setScheda] = useState<DestinazioneScheda | null>(null);
   const navigate = (to: string, opzioni?: { state?: unknown }) => {
@@ -99,12 +106,8 @@ export function SicurezzaCommessa({
   };
   const permessi = usePermissions();
   const [vista, setVista] = useState<string | null>(null);
-  const [posCreato, setPosCreato] = useState<{
-    pos_id: string;
-    avvisi: string[];
-  } | null>(null);
-  const [erroreCreazione, setErroreCreazione] = useState("");
-  const inCreazione = useRef(false);
+  const [posCreato, setPosCreato] = useState<PosCreato | null>(null);
+  const [nuovoPosAperto, setNuovoPosAperto] = useState(false);
   const scrive = permessi.canViewSicurezzaCantiere && !permessi.solaLettura;
   const [documentoSelezionato, setDocumentoSelezionato] = useState<
     string | null
@@ -116,12 +119,13 @@ export function SicurezzaCommessa({
   const faseAttiva = fasi.data?.some((f) => f.id === faseScelta)
     ? faseScelta
     : "";
-  const posQuery = usePosElenco();
+  const posQuery = usePosElenco(orderId);
   const { data: tuttiPos = [], isLoading: caricoPos } = posQuery;
   const pos = tuttiPos.filter(
     (p) => p.order_id === orderId && p.company_id === companyId,
   );
-  const creaPos = useCreaPos();
+  const puoCrearePos = scrive && !caricoPos && !posQuery.isError;
+  const commesseConPos = new Set(pos.map((p) => p.order_id));
   const documentiQuery = useDocumentiSicurezza(companyId, orderId);
   const { data: documenti = [], isLoading: caricoDoc } = documentiQuery;
   const [preset, setPreset] = useState<PresetCaricamento | null>(null);
@@ -129,6 +133,16 @@ export function SicurezzaCommessa({
   const imprese = useImpreseCommessa(companyId, orderId);
   const evidenze = useEvidenzeFascicolo({ companyId, orderId });
   const subappaltatori = imprese.data?.imprese ?? [];
+  const avvioQuery = useAvvioSicurezza(companyId, orderId);
+  const ruoli = useRuoliSicurezza(companyId, orderId);
+  const consegne = useConsegnePosEsterno({ companyId, orderId });
+  const pscDichiarato = avvioQuery.data?.psc;
+  const psc = usePscCommessa(companyId, pscDichiarato ? orderId : "");
+  const pscVigente = !!pscDichiarato && !!psc.data?.some((f) => stessaFontePsc(pscDichiarato, f));
+  const avvio = avvioQuery.data && pscDichiarato && !pscVigente ? { ...avvioQuery.data, psc: null } : avvioQuery.data;
+  const candidatoAffidataria = pos.find((p) => ["affidataria", "affidataria_esecutrice"].includes(p.contenuto.impresa.ruolo));
+  const affidataria = candidatoAffidataria?.status === "approvato" && !errorePscAvvio(candidatoAffidataria.contenuto.procedure_psc, avvio)
+    ? candidatoAffidataria : undefined;
   const caricoSub = imprese.isLoading;
 
   // Ponteggi montati adesso sul cantiere: servono il PiMUS.
@@ -187,14 +201,14 @@ export function SicurezzaCommessa({
     imprese.isError ||
     evidenze.isError ||
     ponteggiQuery.isError ||
-    fasi.isError;
+    fasi.isError || avvioQuery.isError || ruoli.isError || consegne.isError || (pscDichiarato && psc.isError) === true;
   const caricamento =
     caricoPos ||
     caricoDoc ||
     caricoSub ||
     evidenze.isLoading ||
     ponteggiQuery.isLoading ||
-    fasi.isLoading;
+    fasi.isLoading || avvioQuery.isLoading || ruoli.isLoading || consegne.isLoading || (pscDichiarato && psc.isLoading) === true;
   const addettiIds = (imprese.data?.assegnazioni ?? [])
     .filter(
       (a) =>
@@ -221,8 +235,17 @@ export function SicurezzaCommessa({
     orderId,
     oggi,
     documenti: [...documenti, ...native],
-    pos: pos.map((p) => ({ status: p.status, verificaNegativa: verificaIterNegativa(p.contenuto, p.iter) })),
-    subappaltatori,
+    pos: pos.map((p) => ({ status: p.status, verificaNegativa: verificaIterNegativa(p.contenuto, p.iter), prossimoPasso: prossimoPassoPos(p, avvio) })),
+    avvio: avvio && { ...avvio, pscVigente },
+    subappaltatori: subappaltatori.map((ditta) => {
+      const c = consegne.data?.find((d) => d.corrente && d.subappaltatore_id === ditta.id);
+      const stessaVersione = !!c?.versione_avvio && c.versione_avvio === avvio?.versione
+        && c.pos_affidataria_id === affidataria?.id && c.pos_affidataria_revisione === affidataria?.revisione;
+      const completo = stessaVersione && (avvio?.stato === "previsto" ? pscVigente && c?.stato === "positivo" : avvio?.stato === "non_previsto" && c?.stato === "congruo");
+      return { ...ditta, ruolo: ruoli.data?.[ditta.id], esitoPos: c ? { completo,
+        dettaglio: c.versione_avvio && (!stessaVersione || (avvio?.stato === "previsto" && !pscVigente))
+          ? "Da riesaminare con PSC e POS dell’affidataria correnti." : STATI_POS_ESTERNO[c.stato] } : undefined };
+    }),
     ponteggiMontati,
   });
   const aperte = daSistemare(voci);
@@ -274,33 +297,13 @@ export function SicurezzaCommessa({
     );
   };
 
-  const preparaPos = async () => {
-    if (!scrive || inCreazione.current) return;
-    inCreazione.current = true;
-    setErroreCreazione("");
-    try {
-      const r = await creaPos.mutateAsync({
-        orderId,
-        ruoloImpresa: "affidataria_esecutrice",
-      });
-      if (!r?.pos_id)
-        throw new Error(
-          "Creazione non confermata. Aggiorna l’elenco prima di riprovare.",
-        );
-      setVista(null);
-      setPosCreato(r);
-    } catch (e) {
-      setErroreCreazione(
-        e instanceof Error
-          ? e.message
-          : "POS non creato. Riprova dopo aver verificato i dati.",
-      );
-    } finally {
-      inCreazione.current = false;
-    }
+  const preparaPos = () => {
+    if (puoCrearePos) setNuovoPosAperto(true);
   };
 
   const azione = (v: VoceControllo) => {
+    if (v.chiave.startsWith("ruolo-") || v.chiave.startsWith("pos-"))
+      return <Button size="sm" variant="outline" onClick={() => setVista("imprese")}>Apri la ditta</Button>;
     if (v.chiave.startsWith("itp-"))
       return (
         <Button size="sm" variant="outline" onClick={() => setVista("imprese")}>
@@ -322,11 +325,8 @@ export function SicurezzaCommessa({
           size="sm"
           className="h-8"
           onClick={preparaPos}
-          disabled={creaPos.isPending}
+          disabled={!puoCrearePos}
         >
-          {creaPos.isPending && (
-            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-          )}
           Prepara il POS
         </Button>
       ) : null;
@@ -437,7 +437,7 @@ export function SicurezzaCommessa({
         <div>
           <h3 className="text-lg font-semibold">Sicurezza della commessa</h3>
           <p className="text-sm text-muted-foreground">
-            Parti dal POS o scegli un’area. I dettagli si aprono senza lasciare
+            Parti dall’avvio sicurezza o scegli un’area. I dettagli si aprono senza lasciare
             la commessa.
           </p>
         </div>
@@ -474,6 +474,7 @@ export function SicurezzaCommessa({
           </label>
         </div>
       </div>
+      <AvvioSicurezzaPos companyId={companyId} orderId={orderId} solaLettura={!scrive} />
       {fasi.isError && (
         <p
           role="alert"
@@ -509,7 +510,9 @@ export function SicurezzaCommessa({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {pos.length > 0 && (
+            {posQuery.isError ? (
+              <Button variant="outline" onClick={() => void posQuery.refetch()}>Ricarica elenco POS</Button>
+            ) : pos.length > 0 && (
               <Button
                 onClick={() => setVista("pos")}
                 disabled={caricoPos || posQuery.isError}
@@ -519,23 +522,15 @@ export function SicurezzaCommessa({
             )}
             {!pos.length && scrive && (
               <Button
-                onClick={() => void preparaPos()}
-                disabled={caricoPos || posQuery.isError || creaPos.isPending}
+                onClick={preparaPos}
+                disabled={!puoCrearePos}
               >
-                {creaPos.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
                 Prepara il POS
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
-      {erroreCreazione && (
-        <p role="alert" className="text-sm text-destructive">
-          {erroreCreazione}
-        </p>
-      )}
       <div className="grid gap-3 md:grid-cols-2">
         {aree.map((a) => (
           <button
@@ -577,7 +572,7 @@ export function SicurezzaCommessa({
       <Dialog
         open={!!attiva}
         onOpenChange={(o) => {
-          if (!o && !creaPos.isPending) setVista(null);
+          if (!o && !nuovoPosAperto) setVista(null);
         }}
       >
         <DialogContent
@@ -671,6 +666,9 @@ export function SicurezzaCommessa({
                 dataRiferimento={oggi}
                 faseRiferimento={faseAttiva}
                 contestoNonDisponibile={contestoParziale}
+                gestionePos={{ avvio, affidataria, ruoli: ruoli.data ?? {}, consegne: consegne.data ?? [],
+                  disponibile: ruoli.isSuccess && consegne.isSuccess,
+                  riprova: () => { void ruoli.refetch(); void consegne.refetch(); } }}
               />
             )}
             {vista === "prodotti" && (
@@ -880,10 +878,10 @@ export function SicurezzaCommessa({
                   {scrive && (
                     <Button
                       variant="outline"
-                      onClick={() => void preparaPos()}
-                      disabled={creaPos.isPending}
+                      onClick={preparaPos}
+                      disabled={!puoCrearePos}
                     >
-                      {creaPos.isPending ? "Preparazione…" : "Nuova bozza POS"}
+                      Nuova bozza POS
                     </Button>
                   )}
                 </div>
@@ -931,18 +929,12 @@ export function SicurezzaCommessa({
                     Nessun POS presente.
                   </p>
                 )}
-                {erroreCreazione && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {erroreCreazione}
-                  </p>
-                )}
               </div>
             )}
           </div>
           <div className="flex shrink-0 justify-end border-t p-3">
             <Button
               variant="outline"
-              disabled={creaPos.isPending}
               onClick={() => setVista(null)}
             >
               Torna al riepilogo
@@ -950,6 +942,15 @@ export function SicurezzaCommessa({
           </div>
         </DialogContent>
       </Dialog>
+      {nuovoPosAperto && scrive && (
+        <NuovoPosDialog commessa={{ id: orderId, nome: nomeCommessa }} commesseConPos={commesseConPos}
+          onClose={() => setNuovoPosAperto(false)}
+          onCreato={(nuovo) => {
+            setNuovoPosAperto(false);
+            setVista(null);
+            setPosCreato(nuovo);
+          }} />
+      )}
       <Dialog
         open={!!posCreato}
         onOpenChange={(o) => {

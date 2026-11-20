@@ -239,3 +239,18 @@ describe("POS preparato dai dati dell'app", () => {
  });
 
 });
+
+it("include gli operai pianificati nel periodo, deduplica e scarta i periodi fuori cantiere o annullati", async () => {
+  const dati = base();
+  dati.orders[0].work_end_date = "2026-10-30";
+  dati.employees.push({ id: "solo-periodo", company_id: AZ, first_name: "Sara", last_name: "Demo", qualifica: "Posatrice", role_type: "employee" });
+  dati.cantiere_allocations = [
+    { id: "periodo-1", employee_id: "solo-periodo", company_id: AZ, cantiere_id: ORD, resource_type: "employee", start_date: "2026-10-01", end_date: "2026-10-05", status: "planned" },
+    { id: "periodo-2", employee_id: "solo-periodo", company_id: AZ, cantiere_id: ORD, resource_type: "employee", start_date: "2026-10-06", end_date: "2026-10-15", status: "planned" },
+    { id: "periodo-3", employee_id: "fuori", company_id: AZ, cantiere_id: ORD, resource_type: "employee", start_date: "2026-11-01", end_date: "2026-11-05", status: "planned" },
+    { id: "periodo-4", employee_id: "annullato", company_id: AZ, cantiere_id: ORD, resource_type: "employee", start_date: "2026-10-01", end_date: "2026-10-05", status: "cancelled" },
+  ];
+  const pos = await preparaPosDaApp(dbFinto(dati), AZ, ORD);
+  expect(pos.contenuto.lavoratori).toContainEqual({ qualifica: "Posatrice", numero: 1, note: "" });
+  expect(pos.fonti.periodi_operai).toMatchObject([{ id: "periodo-1" }, { id: "periodo-2" }]);
+});

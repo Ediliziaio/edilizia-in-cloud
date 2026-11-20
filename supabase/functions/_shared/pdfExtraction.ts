@@ -98,6 +98,9 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
   restoreOp?: number;
   maxOcrPages?: number;
   maxPages?: number;
+  pagineOcr?: number[];
+  pagineSelezionate?: number[];
+  interrompiSuErrore?: (errore: unknown) => boolean;
   keepPositions?: boolean;
   deadlineMs?: number;
   ocrPage?: (page: number) => Promise<{ text: string; finishReason?: string }>;
@@ -106,7 +109,11 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
   const maxChars = Math.max(1, Math.min(1_000_000, Math.floor(options.maxChars)));
   const deadline = Date.now() + (options.deadlineMs ?? 90_000);
   let ocrCalls = 0;
-  for (let number = 1; number <= Math.min(pdf.numPages, options.maxPages ?? 250); number++) {
+  const prioritarie = new Set(options.pagineOcr?.filter(n => Number.isSafeInteger(n) && n > 0 && n <= pdf.numPages));
+  const numeri = options.pagineSelezionate
+    ? [...new Set(options.pagineSelezionate.filter(n => Number.isSafeInteger(n) && n > 0 && n <= pdf.numPages))]
+    : [...new Set([...prioritarie, ...Array.from({ length: Math.min(pdf.numPages, options.maxPages ?? 250) }, (_, i) => i + 1)])];
+  for (const number of numeri) {
     if (Date.now() >= deadline) break;
     let page: PdfPageLike | undefined;
     try {
@@ -118,21 +125,23 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
       const image = operators ? hasLargePdfImage(operators, options, page.getViewport?.({ scale: 1 })) : false;
       if (text && !image) pages.push({ page: number, text, method: "native", positioned: options.keepPositions ? pdfPositionedItems(content.items) : undefined });
       else if (!text && operators?.fnArray.length === 0) pages.push({ page: number, text: "", method: "blank" });
-      else if (options.ocrPage && ocrCalls < (options.maxOcrPages ?? 8)) {
+      else if (options.ocrPage && (!options.pagineOcr || prioritarie.has(number)) && ocrCalls < (options.maxOcrPages ?? 8)) {
         ocrCalls++;
         const result = await options.ocrPage(number);
         if (!result.text.trim() || result.finishReason !== "stop") {
           pages.push({ page: number, text: result.text.trim(), method: "unreadable", warning: "OCR vuoto, interrotto o completezza non confermata." });
         } else pages.push({ page: number, text: result.text.trim(), method: "ocr" });
-      } else pages.push({ page: number, text, method: "unreadable", warning: "Pagina da leggere con OCR: limite di elaborazione raggiunto." });
+      } else pages.push({ page: number, text, method: "unreadable", warning: "Pagina da leggere con OCR." });
     } catch (error) {
       // Carta mancante, abbonamento sospeso o scaduto, credito finito (11/11/2026): non è
       // la pagina, e vale per tutte le pagine. Si rilancia, così chi legge dice il motivo
       // vero invece di «pagina non letta» o «verifica il file».
       if (bloccoAiPerUtente(error)) throw error;
+      if (options.interrompiSuErrore?.(error)) break;
       pages.push({ page: number, text: "", method: "unreadable", warning: "Lettura della pagina non riuscita." });
     } finally { try { page?.cleanup?.(); } catch { /* Cleanup does not change page coverage. */ } }
   }
+  pages.sort((a, b) => a.page - b.page);
   const full = pages.map(p => `--- Pagina ${p.page} (${p.method}) ---\n${p.text}${p.warning ? `\n[${p.warning}]` : ""}`).join("\n\n");
   const truncated = full.length > maxChars;
   return { text: full.slice(0, maxChars), pages, coverage: pdfCoverage(pages, pdf.numPages, truncated) };
@@ -161,10 +170,59 @@ async function pdfModules() {
   return await modules;
 }
 
+/** Bounded text-layer read. Pages without usable text are reported by number. */
+export function estraiPagineTestoPdf(bytes: Uint8Array, maxPages: number, maxChars: number) {
+  return leggiPagineTestoPdf(bytes, maxPages, maxChars, 80);
+}
+
+export function estraiPagineTestoRapportoRumore(bytes: Uint8Array) {
+  return leggiPagineTestoPdf(bytes, 70, 125_000, 1, true);
+}
+
+async function leggiPagineTestoPdf(bytes: Uint8Array, maxPages: number, maxChars: number, minCharsPerPage: number, conservaColonne = false) {
+  const started = Date.now();
+  const { pdfjs } = await pdfModules();
+  const loading = pdfjs.getDocument({ data: bytes.slice(), useSystemFonts: false, disableFontFace: true, isEvalSupported: false, verbosity: 0 });
+  const pagine: { pagina: number; testo: string }[] = [];
+  const illeggibili: number[] = [];
+  let consumati = 0;
+  let ispezionate = 0;
+  try {
+    const pdf: PdfDocumentLike = await loading.promise;
+    for (let pagina = 1; pagina <= Math.min(pdf.numPages, maxPages); pagina++) {
+      if (Date.now() - started >= 8_000 || consumati >= maxChars) break;
+      ispezionate = pagina;
+      let page: PdfPageLike | undefined;
+      try {
+        page = await pdf.getPage(pagina);
+        const righe = pdfTextByLines((await page.getTextContent()).items);
+        const testo = conservaColonne ? righe : righe.replace(/\t/g, " ");
+        if (testo.trim().length < minCharsPerPage) {
+          illeggibili.push(pagina);
+          continue;
+        }
+        if (consumati + testo.length > maxChars) {
+          ispezionate--;
+          break;
+        }
+        pagine.push({ pagina, testo });
+        consumati += testo.length;
+      } catch {
+        illeggibili.push(pagina);
+      } finally { page?.cleanup?.(); }
+    }
+    return { pagine, illeggibili, ispezionate, totale: pdf.numPages };
+  } finally { await loading.destroy(); }
+}
+
 /** OCR gets just its page, never the entire scanned document with one output budget. */
 export async function extractPdfWithCoverage(bytes: ArrayBuffer, options: {
   maxChars: number;
   keepPositions?: boolean;
+  maxPages?: number;
+  pagineOcr?: number[];
+  pagineSelezionate?: number[];
+  interrompiSuErrore?: (errore: unknown) => boolean;
   maxOcrPages?: number;
   deadlineMs?: number;
   ocrPage: (page: number, bytes: Uint8Array) => Promise<{ text: string; finishReason?: string }>;

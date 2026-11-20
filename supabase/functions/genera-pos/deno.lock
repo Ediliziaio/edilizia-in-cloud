@@ -169,6 +169,10 @@
     "https://esm.sh/pdf-lib@1.17.1/denonext/es/utils.mjs": "cf96c5836fdd5f60eeccd53603c87b52c43c11c8b99e85f79f586be58a59f4d1",
     "https://esm.sh/pdf-lib@1.17.1/denonext/es/utils/index.mjs": "34773d399ffdacd2972f527377d293aa3bff9d3a0d31d48d956a00c9c0c32329",
     "https://esm.sh/pdf-lib@1.17.1/denonext/pdf-lib.mjs": "3be07aa3466e0e9eee79730a775211d6bb8547c0cb9d203c09dde6feca1dc559",
+    "https://esm.sh/pdfjs-dist@4.0.379/denonext/legacy/build/pdf.bundle.mjs": "301eaab6cd65c7c05277c78a158d68031db76be621426384bbc18349207125f1",
+    "https://esm.sh/pdfjs-dist@4.0.379/denonext/legacy/build/pdf.worker.bundle.mjs": "f83fc54a03e7db28839112433b16c3f6f147973bf2883c90ceac12ff7e01e318",
+    "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs?bundle&no-check": "bb145f4b898158671381cfbb770d8dc7b3c3e30a54c32d524107c097ef6f6918",
+    "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs?bundle&no-check": "52dbe87acf47cc49454d97daf6a34c12aa568420b802acbb7a775aace2e8a73c",
     "https://esm.sh/tslib@1.14.1/denonext/tslib.mjs": "748739307d67fbaa8ae634eed70715714dd1f54f04fe8635bcb7f72cb0aaed62",
     "https://esm.sh/tslib@1.14.1?target=denonext": "2982231d9e09e6f007540c7a24c12a7cccb0e84ca98df2ad86ff2bdca1c0fa35"
   },

@@ -71,14 +71,14 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   if (orderErr) throw new Error(`Commessa non leggibile: ${orderErr.message}`);
   if (!order || order.deleted_at) throw new Error("Commessa non trovata in questa azienda");
 
-  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes, fasiRes, incarichiRes, contrattiRes, assegnazioniEsterneRes] = await Promise.all([
+  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes, fasiRes, incarichiRes, contrattiRes, assegnazioniEsterneRes, periodiRes] = await Promise.all([
     db.from("anagrafica_azienda")
       .select("ragione_sociale, partita_iva, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia, telefono, email, pec")
       .eq("company_id", companyId).maybeSingle(),
     db.from("companies").select("name").eq("id", companyId).maybeSingle(),
     db.from("sicurezza_figure").select("*").eq("company_id", companyId).eq("attivo", true).order("created_at"),
     db.from("order_employees").select("employee_id").eq("order_id", orderId),
-    db.from("order_campo_assignments").select("user_id, role_type, is_capocantiere").eq("order_id", orderId).eq("company_id", companyId),
+    db.from("order_campo_assignments").select("user_id, role_type, is_capocantiere, data_inizio, data_fine_prevista").eq("order_id", orderId).eq("company_id", companyId),
     db.from("mezzi").select("id, nome, tipo, targa, su_mezzo_id").eq("company_id", companyId).eq("assegnato_order_id", orderId).is("deleted_at", null),
     db.from("subappaltatori_sicurezza").select("id, ragione_sociale, tipo_lavori, durc_scadenza").eq("company_id", companyId).eq("order_id", orderId),
     // Ponteggi, transenne e altre attrezzature a quantità montati sul cantiere (dal 05/10/2026).
@@ -90,9 +90,11 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     db.from("sicurezza_incarichi").select("*").eq("company_id",companyId).eq("order_id",orderId).order("dal",{ascending:false}),
     db.from("contratti_subappalto").select("subappaltatore_id,stato").eq("company_id",companyId).eq("order_id",orderId),
     db.from("subappaltatori_assegnazioni").select("subappaltatore_id,dal,al").eq("company_id",companyId).eq("order_id",orderId),
+    db.from("cantiere_allocations").select("id,employee_id,start_date,end_date,status")
+      .eq("company_id", companyId).eq("cantiere_id", orderId).eq("resource_type", "employee"),
   ]);
 
-  for(const [fonte,res] of Object.entries({anagrafica:anag,azienda:company,figure:figureRes,operai:oeRes,assegnazioni:campoRes,mezzi:mezziRes,imprese:subRes,attrezzature:montatiRes,fasi:fasiRes,incarichi:incarichiRes,contratti:contrattiRes,assegnazioni_esterne:assegnazioniEsterneRes})) {
+  for(const [fonte,res] of Object.entries({anagrafica:anag,azienda:company,figure:figureRes,operai:oeRes,assegnazioni:campoRes,mezzi:mezziRes,imprese:subRes,attrezzature:montatiRes,fasi:fasiRes,incarichi:incarichiRes,contratti:contrattiRes,assegnazioni_esterne:assegnazioniEsterneRes,periodi_operai:periodiRes})) {
     if(res?.error) throw new Error(`Fonte POS non disponibile (${fonte}): ${res.error.message}`);
   }
   const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
@@ -202,8 +204,15 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   if (!figure.length) avvisi.push("Non ci sono figure della sicurezza: compilale una volta in Sicurezza cantiere › Figure, e ogni POS le riprende.");
 
   // ── Lavoratori della commessa ────────────────────────────────────────────
-  const employeeIds = [...new Set(((oeRes.data ?? []) as Row[]).map((r) => s(r.employee_id)).filter(Boolean))];
-  const campo = (campoRes.data ?? []) as Row[];
+  const fineLavori = s(order.work_end_date);
+  const nelPeriodoLavori = (dal: string, al: string) =>
+    (!dal || !al || dal <= al) && (!al || al >= riferimento) && (!fineLavori || !dal || dal <= fineLavori);
+  const periodi = ((periodiRes.data ?? []) as Row[]).filter((r) =>
+    r.status !== "cancelled" && nelPeriodoLavori(s(r.start_date), s(r.end_date)));
+  const dipendentiDiretti = (oeRes.data ?? []) as Row[];
+  const employeeIds = [...new Set([...dipendentiDiretti, ...periodi].map((r) => s(r.employee_id)).filter(Boolean))];
+  const campo = ((campoRes.data ?? []) as Row[]).filter((r) =>
+    nelPeriodoLavori(s(r.data_inizio), s(r.data_fine_prevista)));
   const userIds = [...new Set([...campo.map((r) => s(r.user_id)), s(order.capomastro_user_id)].filter(Boolean))];
 
   const [empRes, empByUser, hrByUser] = await Promise.all([
@@ -256,6 +265,19 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
 
   const elenco = risolti.persone;
   if (!elenco.length) avvisi.push("Nessun lavoratore è assegnato alla commessa: aggiungili alla commessa o scrivili nel POS.");
+  const organico = elenco.map((persona) => {
+    const profilo = [...hrByEmp, ...hrUtenti].find((h) => h.id === persona.hrId);
+    const dipendente = employees.find((e) => `employee:${s(e.id)}` === persona.chiave ||
+      (profilo && (profilo.employee_id === e.id || (!profilo.employee_id && s(profilo.user_id) && e.user_id === profilo.user_id))));
+    const id = s(dipendente?.id);
+    const user = s(profilo?.user_id) || s(dipendente?.user_id);
+    return {
+      chiave: persona.chiave, nome: persona.nome, qualifica: persona.qualifica || "Operaio",
+      assegnato: !!id && dipendentiDiretti.some((r) => r.employee_id === id),
+      daCampo: !!user && campo.some((r) => r.user_id === user),
+      periodi: id ? periodi.filter((r) => r.employee_id === id).map((r) => ({ dal: s(r.start_date), al: s(r.end_date) })) : [],
+    };
+  });
 
   // Numero e qualifica
   const perQualifica = new Map<string, number>();
@@ -347,13 +369,14 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     incarichi: riferimenti((incarichiRes.data??[]) as Row[],["id","ruolo","stato","dal","al","figura_id","subappaltatore_id","updated_at"]),
     dipendenti: riferimenti(employees,["id","user_id","qualifica","livello_inquadramento"]),
     profili_hr: riferimenti([...hrByEmp,...((hrByUser.data??[]) as Row[])],["id","user_id","employee_id","mansione"]),
-    assegnazioni_campo: riferimenti(campo,["user_id","role_type","is_capocantiere"]),
+    assegnazioni_campo: riferimenti(campo,["user_id","role_type","is_capocantiere","data_inizio","data_fine_prevista"]),
+    periodi_operai: riferimenti(periodi,["id","employee_id","start_date","end_date","status"]),
     attestati: riferimenti(attestati,["id","hr_profilo_id","titolo","ente","data_scadenza"]),
     mezzi: riferimenti((mezziRes.data??[]) as Row[],["id","nome","tipo","targa"]),
     fasi: riferimenti((fasiRes.data??[]) as Row[],["id","name","position"]),
     imprese: riferimenti([...impreseDirette,...((altreImprese.data??[]) as Row[])],["id","ragione_sociale","tipo_lavori","durc_scadenza"]),
   };
-  return { contenuto: pos, contesto: { mezzi, subappaltatori, fasi, avvisi }, order, fonti };
+  return { contenuto: pos, contesto: { mezzi, subappaltatori, fasi, avvisi, organico }, order, fonti };
 }
 
 /** Colonne «vecchie» di pos_documents tenute allineate per la lista e per chi le legge ancora. */

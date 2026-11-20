@@ -7,7 +7,8 @@ export const eAzioneBrowserPos = (a: string): a is (typeof AZIONI_BROWSER_POS)[n
 
 /** Le azioni di genera-pos e quali di esse scrivono (o consumano credito) e quindi non spettano a chi è in sola lettura. */
 export const AZIONI_POS = [
-  "apri_originale_addetto", "apri_documento_mezzo", "crea", "dati_app", "lavorazioni_ai", "approva",
+  "fonte_rapporto_rumore", "apri_originale_addetto", "apri_documento_mezzo", "crea", "dati_app", "computo_ai", "lavorazioni_ai", "approva",
+  "stato_ocr_psc", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore",
   "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf",
   ...AZIONI_BROWSER_POS,
 ] as const;
@@ -19,5 +20,5 @@ export type AzionePos = typeof AZIONI_POS[number];
  * davanti al PDF di un POS già emesso, mentre lavorazioni_ai (credito AI) passava.
  */
 const SCRIVONO: ReadonlySet<AzionePos> = new Set<AzionePos>(["crea", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai",
-  "prepara_emissione", "completa_emissione", "annulla_emissione"]);
+  "prepara_emissione", "completa_emissione", "annulla_emissione", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore"]);
 export const scriveAzionePos = (azione: AzionePos): boolean => SCRIVONO.has(azione);

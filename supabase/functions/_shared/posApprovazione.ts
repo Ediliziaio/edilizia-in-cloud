@@ -33,7 +33,12 @@ export function controlliApprovazione(pos: any, body: Record<string, any>): Risp
   if (contenuto.versione_requisiti_addetti === 1 && !supportaRequisitiAddettiPos(body)) return erroreRispostaPos("Ricarica l’editor per i riscontri nominativi della propria impresa", 409);
   if (contenuto.versione_documenti_mezzi === 1 && !supportaDocumentiMezziPos(body)) return erroreRispostaPos("Ricarica l’editor per verificare documenti e controlli delle attrezzature", 409);
   if (contenuto.versione_psc === 1 && body.versione_psc_client !== 1) return erroreRispostaPos("Ricarica l’editor per il riferimento originale del PSC", 409);
+  const conFontiOperative = contenuto.versione_evidenze_operative === 1 || contenuto.rumore.rapporto?.fonte ||
+    contenuto.lavorazioni.some(l => l.riscontri_dpi?.length);
+  if (conFontiOperative && (body.versione_client !== 2 || body.versione_evidenze_operative_client !== 1)) {
+    return erroreRispostaPos("Ricarica l’editor per verificare le evidenze operative del POS", 409);
+  }
   const mancanti = vociMancanti(contenuto);
-  if (mancanti.length) return rispostaPos(422, { ok: false, error: "Il POS non ha ancora tutti i contenuti minimi dell'Allegato XV", mancanti });
+  if (mancanti.length) return rispostaPos(422, { ok: false, error: "Completa i contenuti e i controlli indicati per il POS", mancanti });
   return { tipo: "contenuto", contenuto };
 }

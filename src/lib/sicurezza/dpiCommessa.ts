@@ -1,3 +1,5 @@
+import { statoConsegnaDpi, type StatoConsegna, type ConsegnaRegistrata } from "../../../supabase/functions/_shared/consegneDpi";
+export { TIPI_DPI, statoConsegnaDpi, type StatoConsegna } from "../../../supabase/functions/_shared/consegneDpi";
 export interface VerbaleDpi {
   revisione?: string | null;
   impronta: string;
@@ -16,25 +18,17 @@ export interface VerbaleDpi {
   data_scadenza: string | null;
   updated_at: string;
 }
-export interface ConsegnaDpi {
+export interface ConsegnaDpi extends ConsegnaRegistrata {
   evidenza_impronta?: string | null;
   evidenza_id?: string | null;
   evidenza_attesa?: string | null;
   evidenza_snapshot?: VerbaleDpi | null;
-  versione?: number;
   aggiornato_il?: string;
   taglia?: string | null;
   note?: string;
-  annullata?: boolean;
   annullamento_motivo?: string | null;
-  id: string;
-  tipo: string;
   marca: string | null;
   matricola: string | null;
-  consegnato_il: string;
-  scade_il: string | null;
-  stato: string | null;
-  restituito_il: string | null;
   modulo_registrato: boolean;
 }
 export interface AddettoDpi {
@@ -57,55 +51,6 @@ export interface QuadroDpi {
   fase_id: string | null;
   addetti: AddettoDpi[];
   campo_senza_dipendente: number;
-}
-export const TIPI_DPI: Record<string, string> = {
-  casco: "Casco",
-  scarpe_antinfortunistiche: "Scarpe antinfortunistiche",
-  imbragatura: "Imbragatura",
-  occhiali: "Occhiali",
-  guanti: "Guanti",
-  mascherina_ffp: "Mascherina FFP",
-  tappi_auricolari: "Tappi auricolari",
-  giubbino_alta_visibilita: "Giubbino ad alta visibilità",
-  tuta_chimica: "Tuta chimica",
-  elmetto_arrampicata: "Elmetto da arrampicata",
-};
-export type StatoConsegna =
-  | "annullata"
-  | "da_controllare"
-  | "futura"
-  | "restituita"
-  | "scaduta"
-  | "danneggiata"
-  | "smarrita"
-  | "in_uso";
-const dataValida = (s: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(s) &&
-  Number.isFinite(Date.parse(`${s}T12:00:00Z`)) &&
-  new Date(`${s}T12:00:00Z`).toISOString().slice(0, 10) === s;
-/** Current status plus selected date: this is not a reconstruction of past possession. */
-export function statoConsegnaDpi(d: ConsegnaDpi, data: string): StatoConsegna {
-  if (d.annullata) return "annullata";
-  if (
-    !dataValida(data) ||
-    !dataValida(d.consegnato_il) ||
-    (d.scade_il && !dataValida(d.scade_il)) ||
-    (d.restituito_il && !dataValida(d.restituito_il))
-  )
-    return "da_controllare";
-  if (
-    (d.scade_il && d.scade_il < d.consegnato_il) ||
-    (d.restituito_il && d.restituito_il < d.consegnato_il)
-  )
-    return "da_controllare";
-  if (d.consegnato_il > data) return "futura";
-  if (d.stato === "returned" || (d.restituito_il && d.restituito_il <= data))
-    return "restituita";
-  if (d.stato === "damaged") return "danneggiata";
-  if (d.stato === "lost") return "smarrita";
-  if (d.stato === "expired" || (d.scade_il && d.scade_il < data))
-    return "scaduta";
-  return d.stato === "in_use" ? "in_uso" : "da_controllare";
 }
 export const ETICHETTE_CONSEGNA: Record<StatoConsegna, string> = {
   annullata: "Registrazione annullata",

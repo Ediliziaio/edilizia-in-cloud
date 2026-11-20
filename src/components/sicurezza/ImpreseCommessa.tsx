@@ -19,6 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { PosEsternoImpresa } from "./PosEsternoImpresa";
+import { RUOLI_DITTA, useSalvaRuoloSicurezza, type AvvioSicurezza, type ConsegnaPosEsterno, type RuoloDittaSicurezza } from "@/hooks/useAvvioSicurezza";
+import { UniformSelect } from "@/components/ui/uniform-select";
+import { Label } from "@/components/ui/label";
 
 export function ImpreseCommessa({
   companyId,
@@ -26,12 +30,16 @@ export function ImpreseCommessa({
   dataRiferimento,
   faseRiferimento,
   contestoNonDisponibile = false,
+  gestionePos,
 }: {
   companyId: string;
   orderId: string;
   dataRiferimento?: string;
   faseRiferimento?: string;
   contestoNonDisponibile?: boolean;
+  gestionePos?: { avvio?: AvvioSicurezza | null; ruoli: Record<string, RuoloDittaSicurezza>;
+    affidataria?: { id: string; revisione: number };
+    consegne: ConsegnaPosEsterno[]; disponibile: boolean; riprova: () => void };
 }) {
   const p = usePermissions();
   const q = useImpreseCommessa(companyId, orderId);
@@ -68,7 +76,7 @@ export function ImpreseCommessa({
         {q.isError || comuni.isError ? (
           <p role="alert">
             Imprese o fascicoli non disponibili.{" "}
-            <Button variant="link" onClick={() => void q.refetch()}>
+            <Button variant="link" onClick={() => { void q.refetch(); void comuni.refetch(); }}>
               Riprova
             </Button>
           </p>
@@ -111,6 +119,15 @@ export function ImpreseCommessa({
                 >
                   {sub.ragione_sociale}
                 </Link>
+                {gestionePos && (gestionePos.disponibile ? <>
+                  <RuoloImpresaInCantiere companyId={companyId} orderId={orderId} subId={sub.id}
+                    ruolo={gestionePos.ruoli[sub.id] ?? "da_valutare"} solaLettura={p.solaLettura} />
+                  {gestionePos.ruoli[sub.id] === "esecutrice" && <PosEsternoImpresa companyId={companyId} orderId={orderId} subId={sub.id}
+                    avvio={gestionePos.avvio} affidataria={gestionePos.affidataria} righe={gestionePos.consegne.filter((r) => r.subappaltatore_id === sub.id)}
+                    documenti={documenti} solaLettura={p.solaLettura} />}
+                </> : <p className="text-sm text-muted-foreground">Ruolo e consegne non disponibili.
+                  <Button variant="link" size="sm" onClick={gestionePos.riprova}>Riprova</Button>
+                </p>)}
                 <div className="mt-3 grid gap-4 lg:grid-cols-2">
                   <div>
                     <h4 className="text-sm font-medium">
@@ -153,7 +170,7 @@ export function ImpreseCommessa({
                     <h4 className="text-sm font-medium">
                       Evidenze pertinenti · {documenti.length}
                     </h4>
-                    {!documenti.some((d) => d.tipo === "pos") && (
+                    {!gestionePos && !documenti.some((d) => d.tipo === "pos") && (
                       <p className="mt-2 text-sm text-amber-700">
                         POS di questa impresa per questo cantiere non presente
                         nel nuovo fascicolo.
@@ -234,4 +251,19 @@ export function ImpreseCommessa({
       </CardContent>
     </Card>
   );
+}
+
+function RuoloImpresaInCantiere({ companyId, orderId, subId, ruolo, solaLettura }: {
+  companyId: string; orderId: string; subId: string; ruolo: RuoloDittaSicurezza; solaLettura: boolean;
+}) {
+  const salva = useSalvaRuoloSicurezza(companyId, orderId);
+  return <div className="mt-2 flex flex-wrap items-center gap-2">
+    <Label htmlFor={`ruolo-sicurezza-${subId}`} className="text-xs">Ruolo nel cantiere</Label>
+    <UniformSelect id={`ruolo-sicurezza-${subId}`} className="rounded-md border bg-background px-2 py-1.5 text-sm"
+      value={ruolo} disabled={solaLettura || salva.isPending}
+      onChange={(e) => salva.mutate({ subId, ruolo: e.target.value as RuoloDittaSicurezza })}>
+      {Object.entries(RUOLI_DITTA).map(([valore, testo]) => <option key={valore} value={valore}>{testo}</option>)}
+    </UniformSelect>
+    {salva.error && <p role="alert" className="text-xs text-destructive">{salva.error.message}</p>}
+  </div>;
 }

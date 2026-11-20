@@ -1,3 +1,4 @@
+import { originaleRapportoRumorePos, verificaConsegnePos, type LeggiConsegnePos, type OriginaleRapportoPos } from "./posFontiOperative.ts";
 import {verificaFontePsc} from "./posPscFonte.ts";
 import { preparaPacchettoPos, BUCKET_EMISSIONI_POS, type PdfProntoPos } from "./posPacchetto.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
@@ -28,9 +29,12 @@ export interface SorgenteEmissione {
   posId: string; companyId: string; attesoUpdatedAt: string | null; snapshotId?: string;
   dati: DatiStampaPos; nomeAutore: string;
   fonti: () => Promise<unknown>;
+  leggiConsegne?: LeggiConsegnePos;
 }
 /** Le fonti verificate di un'emissione: ciò che entra nel fascicolo oltre al POS e agli allegati dichiarati. */
 export interface FontiEmissione {
+  originaleRumore?: OriginaleRapportoPos;
+  consegneDpi?: Awaited<ReturnType<typeof verificaConsegnePos>>;
   pscVerificato?: RiferimentoPsc; prodottiSds?: FontiProdottiPos; fontiTecniche?: FontiTecnicheEmissione;
   fontiMezzi?: FontiMezziEmissione; documentiMezzi?: FontiDocumentiMezziEmissione; requisitiAddetti?: FontiRequisitiAddettiEmissione;
 }
@@ -99,20 +103,51 @@ export async function raccogliFontiEmissione(db: Db, userId: string, e: RigaEmis
     if(!prova||prova.versione!==1||!Array.isArray(prova.collegamenti)||!Array.isArray(prova.allegati))throw new ErroreEmissionePos("Riscontri nominativi non verificabili: nessuna emissione completata");
     fonti.requisitiAddetti=prova;
   }
+  const riferita = dati.contenuto.rumore.rapporto?.fonte;
+  if (riferita || dati.contenuto.lavorazioni.some(l => l.riscontri_dpi?.length)) {
+    if (sorgente.snapshotId || e.origine !== "approvazione_corrente") {
+      throw new ErroreEmissionePos("Le evidenze operative storiche richiedono il fascicolo originale conservato", 409);
+    }
+    const { data: pos, error } = await db.from("pos_documents").select("order_id").eq("id", sorgente.posId).eq("company_id", sorgente.companyId).maybeSingle();
+    if (error || !pos?.order_id) throw new ErroreEmissionePos("Commessa delle evidenze operative non verificabile", 409);
+    try {
+      if (riferita) {
+        const originale = await originaleRapportoRumorePos(db, sorgente.companyId, pos.order_id, sorgente.posId, dati.contenuto, { origine: riferita.origine, id: riferita.id });
+        if (riferita.sha256 !== originale.fonte.sha256 || riferita.titolo !== originale.fonte.titolo || riferita.data_archivio !== originale.fonte.data_archivio) {
+          throw new Error("L’originale del rapporto del rumore è cambiato. Ricollegalo e riesamina gli esiti.");
+        }
+        fonti.originaleRumore = originale;
+      }
+      fonti.consegneDpi = await verificaConsegnePos(dati.contenuto, pos.order_id, e.emesso_il, sorgente.leggiConsegne);
+    } catch (e) {
+      throw new ErroreEmissionePos(e instanceof Error ? e.message : "Evidenze operative non verificabili", 409);
+    }
+  }
   return fonti;
 }
 
 /** Scarica gli allegati dichiarati e compone il pacchetto (PDF, modello, fonti, manifest, ZIP). Il PDF lo disegna il server, salvo che arrivi già pronto. */
 export async function pacchettoEmissionePos(db: Db, e: RigaEmissionePos, sorgente: SorgenteEmissione, dati: DatiStampaPos, fonti: FontiEmissione, pdfPronto?: PdfProntoPos) {
-  const {pscVerificato,prodottiSds,fontiTecniche,fontiMezzi,documentiMezzi,requisitiAddetti}=fonti;
-  const fontiApp=await sorgente.fonti();
+  const { pscVerificato, prodottiSds, fontiTecniche, fontiMezzi, documentiMezzi, requisitiAddetti, originaleRumore, consegneDpi } = fonti;
+  const fontiApp = await sorgente.fonti();
+  const documentali = {
+    ...(prodottiSds ? { prodotti_sds: prodottiSds } : {}),
+    ...(fontiTecniche ? { fonti_tecniche: fontiTecniche } : {}),
+    ...(fontiMezzi ? { mezzi_pos: fontiMezzi } : {}),
+    ...(documentiMezzi ? { documenti_mezzi: documentiMezzi } : {}),
+    ...(requisitiAddetti ? { requisiti_addetti: requisitiAddetti } : {}),
+    ...(originaleRumore ? { rapporto_rumore: originaleRumore.fonte } : {}),
+    ...(consegneDpi ? { consegne_dpi: consegneDpi } : {}),
+  };
+  const archiviate = Object.keys(documentali).length ? { fonti_app: fontiApp, ...documentali } : fontiApp;
   return preparaPacchettoPos({ id: e.id, tentativoId: e.token, companyId: e.company_id, posId: e.pos_id, emessoIl: e.emesso_il,
     origine: e.origine, ...(e.snapshot_id ? { snapshotId: e.snapshot_id } : {}) }, dati,
     async (bucket, path) => {
-      const { data: blob, error: err } = await db.storage.from(bucket).download(path);
-      if (err || !blob || blob.size > 20 * 1024 * 1024) throw new Error("Allegato assente o troppo grande");
+      const { data: blob, error } = await db.storage.from(bucket).download(path);
+      if (error || !blob || blob.size > 20 * 1024 * 1024) throw new Error("Allegato assente o troppo grande");
       return new Uint8Array(await blob.arrayBuffer());
-    }, prodottiSds||fontiTecniche||fontiMezzi||documentiMezzi||requisitiAddetti?{fonti_app:fontiApp,...(prodottiSds?{prodotti_sds:prodottiSds}:{}),...(fontiTecniche?{fonti_tecniche:fontiTecniche}:{}),...(fontiMezzi?{mezzi_pos:fontiMezzi}:{}),...(documentiMezzi?{documenti_mezzi:documentiMezzi}:{}),...(requisitiAddetti?{requisiti_addetti:requisitiAddetti}:{})}:fontiApp, prodottiSds, fontiTecniche, fontiMezzi, documentiMezzi, requisitiAddetti, pscVerificato, pdfPronto);
+    }, archiviate, prodottiSds, fontiTecniche, fontiMezzi, documentiMezzi, requisitiAddetti, pscVerificato, pdfPronto,
+    { originaleRumore, consegneDpi });
 }
 
 /** Carica i file in piccoli gruppi, li rilegge confrontando l'impronta e solo allora completa l'emissione. */

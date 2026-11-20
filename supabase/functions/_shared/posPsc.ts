@@ -1,4 +1,5 @@
 /** Declared reference to an original PSC. A digest identifies bytes; it is not technical approval. */
+export const LIMITE_PSC_BYTES = 20 * 1024 * 1024;
 export interface RiferimentoPsc {
   archivio: "sicurezza_documenti" | "sicurezza_fascicolo";
   id: string;
@@ -60,9 +61,13 @@ export function stessaFontePsc(
     r.file_path === f.file_path && r.data_documento === f.data_documento &&
     (!t(f.revisione) || t(r.revisione) === t(f.revisione));
 }
+export function stessoRiferimentoPsc(a?: RiferimentoPsc | null, b?: RiferimentoPsc | null): boolean {
+  if (!a || !b) return !a && !b;
+  return a.sha256 === b.sha256 && a.revisione === b.revisione && stessaFontePsc(a, { ...b, created_at: "" });
+}
 export async function improntaPsc(file: Blob): Promise<string> {
-  if (!file.size || file.size > 50 * 1024 * 1024) {
-    throw new Error("PSC vuoto o superiore a 50 MB.");
+  if (!file.size || file.size > LIMITE_PSC_BYTES) {
+    throw new Error("PSC vuoto o superiore a 20 MB.");
   }
   const bytes = await file.arrayBuffer();
   return Array.from(

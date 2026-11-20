@@ -121,8 +121,8 @@ export function InvioPos({ tipo, companyId, orderId, emissioneId, codice, revisi
     if (user?.id) {
       const { error } = await supabase.from("tasks").insert({
         company_id: companyId, created_by: user.id, assigned_to: user.id, order_id: orderId, priority: "alta",
-        title: `Verifica del POS ${codice} (${tipo === "cse" ? "CSE" : "impresa affidataria"}): scade il ${piuGiorni(oggi, GIORNI_VERIFICA_POS).split("-").reverse().join("/")}`,
-        notes: `POS ${codice}, revisione ${revisione}, inviato il ${oggi.split("-").reverse().join("/")} a ${nome.trim() || email.trim()}. Chi lo riceve deve verificarlo entro ${GIORNI_VERIFICA_POS} giorni (art. 101, comma 3, D.Lgs 81/2008): senza riscontro, sollecita.`,
+        title: `Controlla ricezione ed esito del POS ${codice} (${tipo === "cse" ? "CSE" : "impresa affidataria"})`,
+        notes: `POS ${codice}, revisione ${revisione}, inviato il ${oggi.split("-").reverse().join("/")} a ${nome.trim() || email.trim()}. Registra la ricezione effettiva: da quella data decorrono i ${GIORNI_VERIFICA_POS} giorni per la verifica (art. 101, comma 3, D.Lgs 81/2008).`,
         due_date: piuGiorni(oggi, GIORNI_VERIFICA_POS - GIORNI_ANTICIPO_PROMEMORIA),
       } as never);
       if (error) toast.warning("Invio registrato, ma il promemoria non è stato creato: segnati tu la scadenza dei 15 giorni");

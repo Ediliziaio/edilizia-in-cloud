@@ -3,18 +3,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { posVuoto } from "../../../supabase/functions/_shared/posModello";
 import type { ReactNode } from "react";
-const s=vi.hoisted(()=>({company:'azienda-a',conflitto:false,filtri:[] as Array<[string,unknown]>,clock:1}));
+const s=vi.hoisted(()=>({company:'azienda-a',conflitto:false,tipoDocumento:'pos' as string|null,filtri:[] as Array<[string,unknown]>,clock:1}));
 vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=>s.company}));
 vi.mock('sonner',()=>({toast:{error:vi.fn(),success:vi.fn()}}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{auth:{getSession:async()=>({data:{session:{access_token:'token-di-prova'}}})},from:()=>{
  const filters:Record<string,unknown>={};let update:Record<string,unknown>|null=null;
- const q={select:()=>q,eq:(k:string,v:unknown)=>{filters[k]=v;s.filtri.push([k,v]);return q;},is:(k:string,v:unknown)=>{filters[k]=v;s.filtri.push([k,v]);return q;},update:(v:Record<string,unknown>)=>{update=v;return q;},maybeSingle:async()=>{
+ const q={select:()=>q,eq:(k:string,v:unknown)=>{filters[k]=v;s.filtri.push([k,v]);return q;},is:(k:string,v:unknown)=>{filters[k]=v;s.filtri.push([k,v]);return q;},or:(value:string)=>{filters.or=value;return q;},update:(v:Record<string,unknown>)=>{update=v;return q;},maybeSingle:async()=>{
   if(filters.company_id!=='azienda-a'||s.conflitto)return {data:null,error:null};
-  return {data:{id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[] as never[],contenuto:update?.contenuto||{},iter:update?.iter||{},approvato_da_nome:null as null,approvato_il:null as null,created_at:'2026-10-27T00:00:00Z',updated_at:`2026-10-27T00:00:0${++s.clock}Z`,document_type:'pos',commessa:null as null},error:null as null};
+  if(filters.or==='document_type.is.null,document_type.eq.pos'&&s.tipoDocumento!==null&&s.tipoDocumento!=='pos')return {data:null,error:null};
+  return {data:{id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[] as never[],contenuto:update?.contenuto||{},iter:update?.iter||{},approvato_da_nome:null as null,approvato_il:null as null,created_at:'2026-10-27T00:00:00Z',updated_at:`2026-10-27T00:00:0${++s.clock}Z`,document_type:s.tipoDocumento,commessa:null as null},error:null as null};
  }};return q;
 }}}));
 import { usePos, useSalvaPos, useApprovaPos, type PosRiga } from '@/hooks/usePos';
-afterEach(()=>{cleanup();vi.unstubAllGlobals();});beforeEach(()=>{s.company='azienda-a';s.conflitto=false;s.filtri=[];s.clock=1;});
+afterEach(()=>{cleanup();vi.unstubAllGlobals();});beforeEach(()=>{s.company='azienda-a';s.conflitto=false;s.tipoDocumento='pos';s.filtri=[];s.clock=1;});
 function contesto(seed=true){const qc=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
  const originale={id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[],contenuto:posVuoto(),daCompilare:false,iter:{},approvato_da_nome:null,approvato_il:null,created_at:'2026-10-27T00:00:00Z',updated_at:'2026-10-27T00:00:01Z',commessa:null} as PosRiga;
  if(seed)qc.setQueryData(['pos','uno','azienda-a','pos-1'],originale);
@@ -27,4 +28,11 @@ describe('Salvataggio POS senza sovrascrivere una versione diversa',()=>{
  it('un aggiornamento della cache non cambia il token esplicitamente letto nell’editor',async()=>{const c=contesto();c.qc.setQueryData(['pos','uno','azienda-a','pos-1'],{...c.originale,updated_at:'2026-10-27T00:00:09Z'});const h=renderHook(()=>useSalvaPos('pos-1'),{wrapper:c.wrapper});await act(async()=>{await h.result.current.mutateAsync({contenuto:posVuoto(),attesa_updated_at:c.originale.updated_at});});expect(s.filtri).toContainEqual(['updated_at','2026-10-27T00:00:01Z']);expect(s.filtri).not.toContainEqual(['updated_at','2026-10-27T00:00:09Z']);});
  it('l’approvazione trasmette la versione letta e propaga il conflitto senza dichiarare successo',async()=>{const c=contesto();const richieste:Record<string,unknown>[]=[];vi.stubGlobal('fetch',vi.fn(async(_url,options)=>{richieste.push(JSON.parse(options.body));return new Response(JSON.stringify({ok:false,error:'Versione modificata'}),{status:409});}));const h=renderHook(()=>useApprovaPos(),{wrapper:c.wrapper});await act(async()=>{await expect(h.result.current.mutateAsync({posId:'pos-1',attesaUpdatedAt:c.originale.updated_at})).rejects.toThrow('Versione modificata');});expect(richieste[0]).toMatchObject({azione:'prepara_emissione',company_id:'azienda-a',pos_id:'pos-1',attesa_updated_at:c.originale.updated_at,versione_client:2});expect(richieste).toHaveLength(1);vi.unstubAllGlobals();});
  it('il cambio azienda non conserva il documento della precedente nella stessa URL',async()=>{const c=contesto(false);const h=renderHook(()=>usePos('pos-1'),{wrapper:c.wrapper});await waitFor(()=>expect(h.result.current.data?.company_id).toBe('azienda-a'));s.company='azienda-b';h.rerender();await waitFor(()=>expect(h.result.current.isSuccess).toBe(true));expect(h.result.current.data).toBeNull();expect(s.filtri).toContainEqual(['company_id','azienda-b']);});
+ it.each(['psc', null])('l’editor distingue i POS storici dagli altri documenti di sicurezza (%s)', async (tipo) => {
+  s.tipoDocumento = tipo;
+  const c = contesto(false);
+  const h = renderHook(() => usePos('pos-1'), { wrapper: c.wrapper });
+  await waitFor(() => expect(h.result.current.isSuccess).toBe(true));
+  expect(h.result.current.data?.id ?? null).toBe(tipo === null ? 'pos-1' : null);
+ });
 });

@@ -22,6 +22,7 @@ type PosRiga = any;
 export interface ContestoAzioneBrowser {
   azione: (typeof AZIONI_BROWSER_POS)[number];
   db: Db; userId: string; companyId: string;
+  leggiConsegne?: import("./posFontiOperative.ts").LeggiConsegnePos;
   // deno-lint-ignore no-explicit-any
   body: Record<string, any>;
   pdf?: Uint8Array;
@@ -43,7 +44,7 @@ export async function gestisciAzioneBrowserPos(c: ContestoAzioneBrowser): Promis
     let nome: string | undefined;
     const r = await completaEmissioneBrowser(db, userId, { companyId, emissioneId: testo(body.emissione_id), token: testo(body.token), pdf: c.pdf,
       dichiarato: { pdfSha256: testo(body.pdf_sha256), htmlSha256: testo(body.html_sha256), layout: testo(body.layout) },
-      sorgente: async e => { const s = await sorgenteDaPrenotazione(db, { companyId, userId, e, rilevaFonti: c.rilevaFonti }); nome = s.nomeAutore; return s; } });
+      sorgente: async e => { const s = await sorgenteDaPrenotazione(db, { companyId, userId, e, rilevaFonti: c.rilevaFonti }); nome = s.nomeAutore; return { ...s, leggiConsegne: c.leggiConsegne }; } });
     return rispostaPos(200, { ok: true, emissione_id: r.id, ...(nome ? { approvato_da_nome: nome } : {}) });
   }
 
@@ -77,7 +78,7 @@ export async function gestisciAzioneBrowserPos(c: ContestoAzioneBrowser): Promis
     if (verificato.tipo === "risposta") return verificato;
     sorgente = await sorgenteApprovazione(db, { companyId, pos, nomeAutore: await nomeDiChiApprova(db, userId), rilevaFonti: c.rilevaFonti });
   }
-  const p = await preparaEmissioneBrowser(db, userId, sorgente);
+  const p = await preparaEmissioneBrowser(db, userId, { ...sorgente, leggiConsegne: c.leggiConsegne });
   if (p.giaCompleta) return rispostaPos(200, { ok: true, gia_completa: true, emissione_id: p.emissione.id });
   return rispostaPos(200, { ok: true, emissione_id: p.emissioneId, token: p.token, emesso_il: p.emessoIl, html: p.html, layout: p.layout, codice: p.codice, revisione: p.revisione });
 }

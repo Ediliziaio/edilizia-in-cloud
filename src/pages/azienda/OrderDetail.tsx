@@ -2318,7 +2318,7 @@ function OrderDetailInner() {
             </>}
             {vistaCantiere === "sicurezza" && <div id="section-sicurezza" className="scroll-mt-24">
               {permissions.canViewSicurezzaCantiere && companyId
-                ? <ErrorBoundary><SicurezzaCommessa key={id} companyId={companyId} orderId={id!} /></ErrorBoundary>
+                ? <ErrorBoundary><SicurezzaCommessa key={id} companyId={companyId} orderId={id!} nomeCommessa={[order.order_code, order.description].filter(Boolean).join(" · ")} /></ErrorBoundary>
                 : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Per vedere i documenti di sicurezza serve il permesso «Sicurezza cantiere». Chiedilo al titolare.</p>}
             </div>}
             {vistaCantiere === "cronoprogramma" && <div id="section-cronoprogramma" className="scroll-mt-24">

@@ -28,7 +28,7 @@ export async function verificaFontePsc(
   if (error) {
     throw new Error("Fonte PSC non verificabile: emissione non completata.");
   }
-  if (!data || data.stato === "non_applicabile") {
+  if (!data || data.stato === "non_applicabile" || data.stato === "superato") {
     throw new Error("Originale PSC non più disponibile per questa commessa.");
   }
   const s = (k: string) => typeof data[k] === "string" ? data[k] : "";

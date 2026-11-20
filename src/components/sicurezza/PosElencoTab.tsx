@@ -1,5 +1,6 @@
 import { apriPdfPos } from "@/lib/sicurezza/apriPdfPos";
 import { toast } from "sonner";
+import { NuovoPosDialog } from "@/components/sicurezza/pos/NuovoPosDialog";
 import { RiusoPosDialog } from "@/components/sicurezza/pos/RiusoPosDialog";
 import { SafetyWorkflow } from "@/components/sicurezza/SafetyWorkflow";
 import { POS_STAGES, fasePos } from "@/lib/sicurezza/workflow";
@@ -10,27 +11,10 @@ import { POS_STAGES, fasePos } from "@/lib/sicurezza/workflow";
  */
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, Copy, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, FileDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,27 +28,14 @@ import {
 import { usePermissions } from "@/hooks/usePermissions";
 import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
 import {
-  useCreaPos,
-  useModelliPos,
-  useArchiviaModelloPos,
   useEliminaPos,
   usePosElenco,
   type PosRiga,
 } from "@/hooks/usePos";
 import {
-  RUOLO_IMPRESA_LABEL,
   completezzaPercento,
   vociMancanti,
-  type RuoloImpresa,
 } from "../../../supabase/functions/_shared/posModello";
-
-interface Props {
-  orders: Array<{
-    id: string;
-    description: string | null;
-    order_code: string | null;
-  }>;
-}
 
 function dataIt(iso: string | null | undefined) {
   if (!iso) return "";
@@ -72,25 +43,19 @@ function dataIt(iso: string | null | undefined) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
-export function PosElencoTab({ orders }: Props) {
+export function PosElencoTab({ orders }: { orders: Array<{ id: string; description: string | null; order_code: string | null }> }) {
   const navigate = useNavigate();
   const perms = usePermissions();
   const puoScrivere =
     (perms.canViewSicurezzaCantiere || perms.isAdmin) && !perms.solaLettura;
   const { data: elenco = [], isLoading, isError, refetch } = usePosElenco();
-  const crea = useCreaPos();
   const [riuso,setRiuso]=useState<PosRiga|null>(null);
-  const [modelloId,setModelloId]=useState("vuoto");
   const elimina = useEliminaPos();
-  const archiviaModello=useArchiviaModelloPos();
 
   const [expandedMissing, setExpandedMissing] = useState<Set<string>>(
     new Set(),
   );
   const [nuovoAperto, setNuovoAperto] = useState(false);
-  const modelli=useModelliPos(nuovoAperto);
-  const [orderId, setOrderId] = useState("");
-  const [ruolo, setRuolo] = useState<RuoloImpresa>("affidataria_esecutrice");
   const [daEliminare, setDaEliminare] = useState<PosRiga | null>(null);
   const [scaricando,setScaricando]=useState("");
 
@@ -120,19 +85,6 @@ export function PosElencoTab({ orders }: Props) {
       )}
     </>
   );
-  const creaPos = async () => {
-    if (!puoScrivere || !orderId) return;
-    try {
-      const r = await crea.mutateAsync({ orderId, ruoloImpresa: ruolo, modelloId: modelloId === "vuoto" ? undefined : modelloId });
-      setNuovoAperto(false);
-      navigate(`/azienda/sicurezza-cantiere/pos/${r.pos_id}`, {
-        state: { avvisi: r.avvisi },
-      });
-    } catch {
-      // l'errore lo mostra la mutation
-    }
-  };
-
   return (
     <div className="space-y-4 max-sm:space-y-2">
       {isLoading ? (
@@ -158,12 +110,7 @@ export function PosElencoTab({ orders }: Props) {
             puoScrivere ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  setOrderId("");
-                  setModelloId("vuoto");
-                  setRuolo("affidataria_esecutrice");
-                  setNuovoAperto(true);
-                }}
+                onClick={() => setNuovoAperto(true)}
                 className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
               >
                 <Plus className="mr-1 h-4 w-4" />
@@ -320,86 +267,13 @@ export function PosElencoTab({ orders }: Props) {
       )}
 
       {riuso && <RiusoPosDialog key={riuso.id} pos={riuso} onClose={()=>setRiuso(null)}/>}
-      <Dialog open={nuovoAperto} onOpenChange={setNuovoAperto}>
-        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nuovo POS</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">
-              L’app recupera i dati disponibili della commessa. Verifica incarichi, lavoratori e formazione prima dell’approvazione.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2"><Label htmlFor="nuovo-pos-modello">Punto di partenza</Label>
-                {modelloId!=="vuoto" && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={archiviaModello.isPending||crea.isPending} onClick={async()=>{try{await archiviaModello.mutateAsync(modelloId);setModelloId("vuoto");}catch{/* keep selection on error */}}}>Archivia versione</Button>}
-              </div>
-              <Select value={modelloId} onValueChange={setModelloId} disabled={crea.isPending}><SelectTrigger id="nuovo-pos-modello"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="vuoto">Dati della commessa, senza modello</SelectItem>{(modelli.data||[]).map(m=><SelectItem key={m.id} value={m.id}>{m.nome} · v{m.versione}</SelectItem>)}</SelectContent></Select>
-              {modelli.isError && <p role="alert" className="text-xs text-destructive">Modelli non caricati. <button onClick={()=>modelli.refetch()} className="underline">Riprova</button></p>}
-              {modelloId!=="vuoto" && <p className="text-xs text-muted-foreground">{modelli.data?.find(m=>m.id===modelloId)?.ambito} — Le lavorazioni riprese richiedono verifica nel nuovo cantiere.</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nuovo-pos-commessa">Commessa</Label>
-              <Select value={orderId || undefined} onValueChange={setOrderId}>
-                <SelectTrigger id="nuovo-pos-commessa">
-                  <SelectValue placeholder="Scegli la commessa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {orders.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.order_code ? `${o.order_code} — ` : ""}
-                      {o.description}
-                      {conPos.has(o.id) ? " (ha già un POS)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {orderId && conPos.has(orderId) && (
-                <p className="flex items-center gap-1 text-xs text-amber-800">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Questa commessa ha già un POS: per cambiarlo di solito basta
-                  una nuova revisione.
-                </p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label>La tua impresa in questo cantiere è</Label>
-              <RadioGroup
-                value={ruolo}
-                onValueChange={(v) => setRuolo(v as RuoloImpresa)}
-                className="space-y-1"
-              >
-                {(Object.keys(RUOLO_IMPRESA_LABEL) as RuoloImpresa[]).map(
-                  (r) => (
-                    <Label
-                      key={r}
-                      htmlFor={`nuovo-ruolo-${r}`}
-                      className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm font-normal"
-                    >
-                      <RadioGroupItem id={`nuovo-ruolo-${r}`} value={r} />
-                      {RUOLO_IMPRESA_LABEL[r]}
-                    </Label>
-                  ),
-                )}
-              </RadioGroup>
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              className="max-sm:hidden"
-              onClick={() => setNuovoAperto(false)}
-            >
-              Annulla
-            </Button>
-            <Button onClick={creaPos} disabled={!orderId || crea.isPending}>
-              {crea.isPending && (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              )}
-              Crea il POS
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {nuovoAperto && puoScrivere && (
+        <NuovoPosDialog commesseConPos={conPos} onClose={() => setNuovoAperto(false)}
+          onCreato={(pos) => {
+            setNuovoAperto(false);
+            navigate(`/azienda/sicurezza-cantiere/pos/${pos.pos_id}`, { state: { avvisi: pos.avvisi } });
+          }} />
+      )}
 
       <AlertDialog
         open={!!daEliminare}
