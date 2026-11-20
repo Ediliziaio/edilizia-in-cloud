@@ -6,6 +6,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
 import { creaFasiCommessa, type CompanySector } from "../_shared/fasiCommessa.ts";
+import { generateSecurePassword } from "../_shared/securePassword.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -49,8 +50,8 @@ Deno.serve(conMetriche("create-company", async (req) => {
     } = await req.json();
 
     // --- Input Validation ---
-    if (!companyName || !companyEmail || !adminEmail || !adminPassword || !sector) {
-      return errorResponse("Mancano dati obbligatori: nome ed email dell'azienda, settore, email e password dell'amministratore");
+    if (!companyName || !companyEmail || !adminEmail || !sector) {
+      return errorResponse("Inserisci nome ed email dell'azienda, settore ed email dell'amministratore");
     }
 
     const trimmedCompanyName = String(companyName).trim().slice(0, 200);
@@ -61,9 +62,11 @@ Deno.serve(conMetriche("create-company", async (req) => {
       return errorResponse("Indirizzo email non valido");
     }
 
-    if (String(adminPassword).length < 8) {
+    if (adminPassword != null && (typeof adminPassword !== "string" || adminPassword.length < 8)) {
       return errorResponse("La password deve avere almeno 8 caratteri");
     }
+    const passwordGenerata = adminPassword == null;
+    const password = adminPassword ?? generateSecurePassword(20);
 
     // Resolve trial_days from selected plan (default 14 if no plan or field missing).
     // Piani a prezzo zero (Scopri, Marketing): l'azienda parte "free" senza scadenza
@@ -153,7 +156,7 @@ Deno.serve(conMetriche("create-company", async (req) => {
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
         email: trimmedAdminEmail,
-        password: adminPassword,
+        password,
         email_confirm: true,
       });
 
@@ -225,7 +228,9 @@ Deno.serve(conMetriche("create-company", async (req) => {
     // Email di BENVENUTO all'admin (1.1 — subito). Best-effort: un errore di invio
     // NON annulla la creazione dell'azienda (già committata sopra). Si può non
     // mandare (spunta nel modulo): in mancanza del campo parte, come prima.
+    let welcomeEmailStatus: "sent" | "skipped" | "failed" = "skipped";
     if (inviaBenvenuto !== false) try {
+      welcomeEmailStatus = "failed";
       const siteUrl =
         (await getPlatformSetting("site_url", "SITE_URL")) ||
         Deno.env.get("SITE_URL") ||
@@ -239,9 +244,7 @@ Deno.serve(conMetriche("create-company", async (req) => {
       // "Email link is invalid or has expired" e restava fuori. Successo davvero
       // (Best Infissi, 21/07: email alle 09:14, primo clic tre giorni dopo).
       //
-      // La password l'ha scelta chi crea l'azienda: l'email la scrive e il
-      // bottone porta dritto all'accesso. Senza password scritta il cliente non
-      // saprebbe con cosa entrare (30/10: il benvenuto lo mandava a reimpostarla).
+      // L'email contiene la stessa password impostata in Auth e il link all'accesso.
       const loginUrl = base ? `${base}/login` : "";
       const rendered = await renderEmailTemplate({
         templateName: "welcome",
@@ -254,10 +257,10 @@ Deno.serve(conMetriche("create-company", async (req) => {
           roleLabel: "Amministratore",
           companyName: trimmedCompanyName,
           loginEmail: trimmedAdminEmail,
-          password: String(adminPassword),
+          password,
         },
       });
-      await sendEmailUnified({
+      const invio = await sendEmailUnified({
         companyId,
         stream: "transactional",
         to: [trimmedAdminEmail],
@@ -269,8 +272,13 @@ Deno.serve(conMetriche("create-company", async (req) => {
         platformSender: true,
         adminClient: supabaseAdmin,
       });
+      if (invio.ok) {
+        welcomeEmailStatus = "sent";
+      } else {
+        console.error("[create-company] invio email benvenuto fallito, HTTP", invio.status);
+      }
     } catch (emailErr) {
-      console.error("[create-company] invio email benvenuto fallito:", emailErr);
+      console.error("[create-company] invio email benvenuto fallito:", emailErr instanceof Error ? emailErr.name : "Errore");
     }
 
     // Niente email «copia dei termini accettati»: l'azienda la crea il super
@@ -282,7 +290,10 @@ Deno.serve(conMetriche("create-company", async (req) => {
       message: "Azienda creata",
       company: companyData,
       adminUserId: newUserId,
-    });
+      ...(passwordGenerata ? {
+        adminCredentials: { email: trimmedAdminEmail, password, welcomeEmailStatus },
+      } : {}),
+    }, 200, { ...corsH, "Cache-Control": "no-store" });
   } catch (error) {
     if (error instanceof Response) return error;
 

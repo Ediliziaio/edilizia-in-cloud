@@ -10,6 +10,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Copy,
   ListChecks,
   Receipt,
   MapPin,
@@ -23,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,6 +53,14 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getOrderStatusTemplate } from "@/lib/orderStatusTemplates";
 import { sectors } from "@/lib/companyUtils";
@@ -84,7 +94,6 @@ const formSchema = z.object({
 
   // Admin (richiesto)
   adminEmail: z.string().email("Email non valida"),
-  adminPassword: z.string().min(8, "La password deve avere almeno 8 caratteri"),
   adminFirstName: z.string().min(2, "Il nome deve avere almeno 2 caratteri"),
   adminLastName: z.string().min(2, "Il cognome deve avere almeno 2 caratteri"),
 
@@ -144,24 +153,17 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-/* -------------------------------------------------------------------------- */
-/*  Password strength helper                                                  */
-/* -------------------------------------------------------------------------- */
-
-function passwordStrength(pw: string): { score: number; label: string; tone: string } {
-  if (!pw) return { score: 0, label: "—", tone: "bg-muted" };
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (pw.length >= 12) score++;
-  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
-  if (/\d/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  const tones = ["bg-destructive", "bg-destructive", "bg-amber-500", "bg-amber-500", "bg-emerald-500", "bg-emerald-500"];
-  const labels = ["Molto debole", "Debole", "Discreta", "Buona", "Forte", "Eccellente"];
-  return { score, label: labels[score] ?? "—", tone: tones[score] ?? "bg-muted" };
+interface AdminCredentials {
+  email: string;
+  password: string;
+  welcomeEmailStatus: "sent" | "skipped" | "failed";
 }
 
-/* -------------------------------------------------------------------------- */
+const welcomeEmailMessages: Record<AdminCredentials["welcomeEmailStatus"], string> = {
+  sent: "Email di benvenuto inviata all’amministratore.",
+  skipped: "Invio dell’email di benvenuto disattivato. Puoi comunicare tu le credenziali.",
+  failed: "Invio dell’email di benvenuto non riuscito. Puoi comunicare tu le credenziali.",
+};
 
 export default function CreateCompany() {
   const navigate = useNavigate();
@@ -171,9 +173,8 @@ export default function CreateCompany() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsLegal, setSameAsLegal] = useState(false);
-  // il benvenuto all'amministratore si può non mandare (es. azienda di prova,
-  // o lo avvisi tu a voce): senza, entra con la password scelta qui
   const [inviaBenvenuto, setInviaBenvenuto] = useState(true);
+  const [createdAdmin, setCreatedAdmin] = useState<(AdminCredentials & { companyName: string }) | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedReferrerId, setSelectedReferrerId] = useState<string>("none");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("none");
@@ -218,7 +219,6 @@ export default function CreateCompany() {
       companyName: "",
       companyEmail: "",
       adminEmail: "",
-      adminPassword: "",
       adminFirstName: "",
       adminLastName: "",
       sector: "altro",
@@ -241,12 +241,10 @@ export default function CreateCompany() {
   });
 
   const watchedSector = form.watch("sector");
-  const watchedPassword = form.watch("adminPassword");
   const statusTemplate = useMemo(
     () => (watchedSector ? getOrderStatusTemplate(watchedSector as CompanySector) : []),
     [watchedSector],
   );
-  const pwStrength = useMemo(() => passwordStrength(watchedPassword || ""), [watchedPassword]);
 
   // ── Sync sede operativa quando "uguale alla sede legale" è attivo ───────
   // Watch legali per ricopiare in tempo reale (no più "solo on submit").
@@ -275,7 +273,6 @@ export default function CreateCompany() {
         companyName: data.companyName.trim(),
         companyEmail: data.companyEmail.trim().toLowerCase(),
         adminEmail: data.adminEmail.trim().toLowerCase(),
-        adminPassword: data.adminPassword,
         adminFirstName: data.adminFirstName.trim(),
         adminLastName: data.adminLastName.trim(),
         sector: data.sector,
@@ -343,13 +340,12 @@ export default function CreateCompany() {
         error?: string;
         message?: string;
         company?: { id: string };
+        adminCredentials?: AdminCredentials;
       } | null = null;
       try {
         parsed = rawText ? JSON.parse(rawText) : null;
       } catch {
-        throw new Error(
-          `Risposta server non-JSON (HTTP ${response.status}): ${rawText.slice(0, 200)}`,
-        );
+        throw new Error(`Risposta server non valida (HTTP ${response.status}).`);
       }
 
       if (!response.ok) {
@@ -362,6 +358,9 @@ export default function CreateCompany() {
       }
 
       const companyId = parsed.company?.id;
+      if (parsed.adminCredentials) {
+        setCreatedAdmin({ ...parsed.adminCredentials, companyName: data.companyName.trim() });
+      }
 
       // ── Referrer (post-create) ─────────────────────────────────────────
       // Best-effort: se fallisce non bloccare la creazione, ma logga e mostra
@@ -415,12 +414,13 @@ export default function CreateCompany() {
         queryClient.invalidateQueries({ queryKey: ["admin-home-aziende"] }),
       ]);
 
-      toast({
-        title: "Azienda creata con successo",
-        description: `${data.companyName} è stata creata con ${statusTemplate.length} stati ordine.`,
-      });
-
-      navigate("/admin/aziende");
+      if (!parsed.adminCredentials) {
+        toast({
+          title: "Azienda creata con successo",
+          description: `${data.companyName} è stata creata con ${statusTemplate.length} stati ordine.`,
+        });
+        navigate("/admin/aziende");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossibile creare l'azienda";
       toast({
@@ -430,6 +430,26 @@ export default function CreateCompany() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function closeCredentials() {
+    setCreatedAdmin(null);
+    setShowPassword(false);
+    navigate("/admin/aziende");
+  }
+
+  async function copyPassword() {
+    if (!createdAdmin) return;
+    try {
+      await navigator.clipboard.writeText(createdAdmin.password);
+      toast({ title: "Password copiata" });
+    } catch {
+      toast({
+        title: "Copia non riuscita",
+        description: "Usa «Mostra password» per copiarla a mano.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -963,8 +983,7 @@ export default function CreateCompany() {
                   <Alert className="bg-muted/50">
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                      L'admin riceverà l'accesso con email e password qui sotto. Email confermata
-                      automaticamente.
+                      La password viene generata quando crei l’azienda. Puoi copiarla dalla conferma.
                     </AlertDescription>
                   </Alert>
 
@@ -1017,59 +1036,6 @@ export default function CreateCompany() {
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="adminPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          Password <span className="text-destructive">*</span>
-                        </FormLabel>
-                        <div className="relative">
-                          <FormControl>
-                            <Input
-                              type={showPassword ? "text" : "password"}
-                              autoComplete="new-password"
-                              placeholder="Minimo 8 caratteri"
-                              {...field}
-                            />
-                          </FormControl>
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword((v) => !v)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
-                            aria-label={showPassword ? "Nascondi password" : "Mostra password"}
-                            tabIndex={-1}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
-                        {/* Strength meter */}
-                        <div className="space-y-1 pt-1">
-                          <div className="flex gap-1">
-                            {[0, 1, 2, 3, 4].map((i) => (
-                              <div
-                                key={i}
-                                className={cn(
-                                  "h-1 flex-1 rounded-full transition-colors",
-                                  i < pwStrength.score ? pwStrength.tone : "bg-muted",
-                                )}
-                              />
-                            ))}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Sicurezza:{" "}
-                            <span className="font-medium text-foreground">{pwStrength.label}</span>
-                          </p>
-                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1144,8 +1110,7 @@ export default function CreateCompany() {
                 <span>
                   <span className="font-medium text-foreground">Invia l'email di benvenuto</span>
                   <span className="block text-xs text-muted-foreground">
-                    Subito all'amministratore: «Benvenuto in Edilizia in Cloud», con email e password scritte qui e il bottone per entrare.
-                    Senza, gliele dai tu.
+                    Il messaggio contiene l’email di accesso, la password generata e il link per entrare.
                   </span>
                 </span>
               </label>
@@ -1203,6 +1168,59 @@ export default function CreateCompany() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={createdAdmin !== null} onOpenChange={(open) => { if (!open) closeCredentials(); }}>
+        {createdAdmin && (
+          <DialogContent onInteractOutside={(event) => event.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Azienda creata</DialogTitle>
+              <DialogDescription>
+                Credenziali dell’amministratore di {createdAdmin.companyName}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 rounded-lg border bg-muted/40 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Email amministratore</p>
+                <p className="break-all text-sm text-muted-foreground">{createdAdmin.email}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password-iniziale-azienda">Password iniziale</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="password-iniziale-azienda"
+                    className="min-w-0 font-mono"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="off"
+                    value={createdAdmin.password}
+                    readOnly
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="shrink-0"
+                    aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>{welcomeEmailMessages[createdAdmin.welcomeEmailStatus]}</p>
+              <p>La password è disponibile in questa finestra fino alla chiusura.</p>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button variant="outline" onClick={copyPassword}>
+                <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
+                Copia password
+              </Button>
+              <Button onClick={closeCredentials}>Torna alle aziende</Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
