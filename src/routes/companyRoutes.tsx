@@ -413,6 +413,7 @@ const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
 import { BillingActivationGuard } from "@/components/billing/BillingActivationGuard";
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
+const ScontriniCassa = lazy(() => import("@/pages/azienda/fatturazione/ScontriniCassa"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
 const DettaglioFatturaImportata = lazy(() => import("@/pages/azienda/fatturazione/DettaglioFatturaImportata"));
@@ -824,6 +825,7 @@ export default function CompanyRoutesContainer() {
         {/* Hub fatture — gated: documenti (core). Le pagine si leggono in entrambi i modi;
             creare e modificare un documento (nuovo, editor) resta del modo nativo. */}
         <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><DocumentiFiscaliList /></FeatureRoute>)} />
+        <Route path="documenti/scontrini" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><ScontriniCassa /></FeatureRoute>)} />
         <Route path="documenti/nuovo" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaWriteGuard fallback="/azienda/documenti"><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="documenti/cassetto-sdi" element={<Navigate to="/azienda/documenti?tab=sdi" replace />} />
         {/* Fatture ricevute = passive: valgono per QUALSIASI modalità (anche provider
