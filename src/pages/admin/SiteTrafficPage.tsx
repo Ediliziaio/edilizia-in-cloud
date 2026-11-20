@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
-import { DOMINIO_EIC, dominioSito, PERIODI_TRAFFICO, periodoTraffico, useSitiGoogleMetriche } from "@/hooks/useSitiGoogleMetriche";
+import {
+  DOMINIO_EIC, dominioSito, PERIODI_TRAFFICO, periodoTraffico, periodoConfrontoGoogle,
+  useSitiGoogleMetriche, useConfrontoGoogle,
+} from "@/hooks/useSitiGoogleMetriche";
 import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 import { ArrowUpRight, BarChart3, RefreshCw, LogIn, Compass, FileText, Inbox, CalendarDays } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -105,6 +108,8 @@ type Metrica = keyof typeof METRICHE;
 function DatiGoogleTraffico({ giorni }: { giorni: number }) {
   const { data, isLoading, isError, refetch } = useSitiGoogleMetriche(giorni);
   const sito = data?.siti.find(s => dominioSito(s.dominio) === DOMINIO_EIC);
+  const organico = useConfrontoGoogle(giorni, !!(sito?.ga4_property_id && sito?.gsc_site_url));
+  const confronto = sito && organico.data?.[sito.id];
   const ga4ConDati = sito && (sito.sessioni > 0 || sito.visualizzazioni > 0 || sito.utenti > 0);
   const gscConDati = sito && (sito.impressioni > 0 || sito.clic > 0);
   const statoFonte = (proprieta: string | null | undefined, conDati: boolean | undefined) =>
@@ -117,7 +122,7 @@ function DatiGoogleTraffico({ giorni }: { giorni: number }) {
           <p className="mt-1 text-sm text-muted-foreground">GA4 misura le visite. Search Console mostra la visibilità nella ricerca Google.</p>
         </div>
         <Button asChild size="sm" variant="outline">
-          <Link to={`/admin/siti?giorni=${giorni}&sito=${DOMINIO_EIC}`}>Apri Siti e Google <ArrowUpRight className="size-4" /></Link>
+          <Link to={`/admin/siti?giorni=${giorni}&sito=${DOMINIO_EIC}&traffico=organico`}>Confronta tutti i siti <ArrowUpRight className="size-4" /></Link>
         </Button>
       </CardHeader>
       <CardContent className="space-y-3 px-4 pb-4">
@@ -130,10 +135,38 @@ function DatiGoogleTraffico({ giorni }: { giorni: number }) {
           L’account di servizio Google va configurato in «Siti e Google».
         </p>}
         {data && !sito && <p className="text-sm text-muted-foreground">Il sito va aggiunto in «Siti e Google».</p>}
+        {sito?.ga4_property_id && sito?.gsc_site_url && (
+          <section className="rounded-lg border bg-muted/25 p-4" aria-label="Confronto Google organico">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-semibold">Google organico</h3>
+              {confronto && <p className="text-xs text-muted-foreground">{periodoConfrontoGoogle(confronto)}</p>}
+            </div>
+            {organico.isLoading && <Skeleton className="mt-3 h-14 w-full" />}
+            {organico.isError && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" role="alert">
+              Impossibile aggiornare il confronto organico.
+              <Button size="sm" variant="outline" onClick={() => void organico.refetch()}>Riprova confronto</Button>
+            </div>}
+            {!confronto && !organico.isLoading && !organico.isError && (
+              <p className="mt-1.5 text-sm text-muted-foreground">Nessun giorno in comune nel periodo selezionato.</p>
+            )}
+            {confronto && (
+              <dl className="mt-3 grid grid-cols-2 gap-3">
+                <div className="rounded-md border bg-card p-2.5 sm:p-3">
+                  <dt className="text-xs text-muted-foreground">Clic Search Console</dt>
+                  <dd className="mt-1 text-2xl font-semibold tabular-nums">{numero.format(confronto.clic)}</dd>
+                </div>
+                <div className="rounded-md border bg-card p-2.5 sm:p-3">
+                  <dt className="text-xs text-muted-foreground">Sessioni organiche GA4</dt>
+                  <dd className="mt-1 text-2xl font-semibold tabular-nums">{numero.format(confronto.sessioni)}</dd>
+                </div>
+              </dl>
+            )}
+          </section>
+        )}
         {sito && (
           <div className="grid min-w-0 gap-3 md:grid-cols-2">
             {[
-              { label: "GA4", stato: statoFonte(sito.ga4_property_id, ga4ConDati), valori: [{ label: "Visite", valore: sito.sessioni }, { label: "Pagine viste", valore: sito.visualizzazioni }] },
+              { label: "GA4 · Tutti i canali", stato: statoFonte(sito.ga4_property_id, ga4ConDati), valori: [{ label: "Visite", valore: sito.sessioni }, { label: "Pagine viste", valore: sito.visualizzazioni }] },
               { label: "Search Console", stato: statoFonte(sito.gsc_site_url, gscConDati), valori: [{ label: "Clic dalla ricerca", valore: sito.clic }, { label: "Impressioni", valore: sito.impressioni }] },
             ].map(fonte => (
               <section key={fonte.label} className="rounded-lg border p-3">
@@ -242,7 +275,7 @@ export default function SiteTrafficPage() {
         </div>
       )}
 
-      <Tabs defaultValue="andamento">
+      <Tabs defaultValue={parametri.get("scheda") === "google" ? "google" : "andamento"}>
         <TabsList aria-label="Dettaglio del traffico" className="h-auto w-full flex-wrap justify-start gap-0.5">
           <TabsTrigger value="andamento">Andamento</TabsTrigger>
           <TabsTrigger value="pagine">Pagine</TabsTrigger>

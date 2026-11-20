@@ -60,3 +60,35 @@ export function useSitiGoogleMetriche(giorni: number) {
     staleTime: 60_000,
   });
 }
+
+export interface ConfrontoGoogle {
+  dal: string;
+  al: string;
+  giorni: number;
+  sessioni: number;
+  clic: number;
+  impressioni: number;
+}
+
+const dataGoogle = new Intl.DateTimeFormat("it-IT", { timeZone: "UTC" });
+
+export function periodoConfrontoGoogle({ dal, al, giorni }: ConfrontoGoogle) {
+  const inizio = dataGoogle.format(new Date(dal));
+  const fine = dataGoogle.format(new Date(al));
+  return dal === al ? inizio : `${inizio} – ${fine} · ${giorni} giorni confrontabili`;
+}
+
+export function useConfrontoGoogle(giorni: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin-siti-confronto-google", giorni],
+    enabled,
+    retry: retryAuthorizedRead,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_siti_confronto_google" as never, { p_giorni: giorni } as never);
+      if (error) throw error;
+      if (!data) throw new Error("Confronto Google non disponibile.");
+      return data as unknown as Record<string, ConfrontoGoogle | undefined>;
+    },
+    staleTime: 60_000,
+  });
+}

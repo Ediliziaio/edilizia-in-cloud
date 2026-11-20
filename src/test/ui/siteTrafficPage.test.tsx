@@ -47,8 +47,20 @@ const traffico = {
   calcolato_il: "2026-09-11T18:00:00+00:00",
 };
 
+const metricheGoogle = {
+  siti: [{ id: "eic", dominio: "www.ediliziaincloud.com", ga4_property_id: "123",
+    gsc_site_url: "sc-domain:ediliziaincloud.com", sessioni: 70, visualizzazioni: 120,
+    impressioni: 300, clic: 42 }],
+  chiave_google: true,
+};
+
+const confrontoGoogle = {
+  eic: { dal: "2026-09-08", al: "2026-09-09", giorni: 2, sessioni: 11, clic: 18, impressioni: 160 },
+};
+
 const rpc = vi.fn(async (nome: string, _parametri: unknown) => ({
-  data: nome === "admin_siti_metriche" ? { siti: [], chiave_google: false } : traffico,
+  data: nome === "admin_siti_metriche" ? metricheGoogle
+    : nome === "admin_siti_confronto_google" ? confrontoGoogle : traffico,
   error: null,
 }));
 
@@ -146,6 +158,19 @@ describe("SiteTrafficPage", () => {
     await apriScheda("Dati Google");
     expect(rpc).toHaveBeenCalledWith("admin_siti_metriche", { p_giorni: 28 });
     expect([...contenitore.querySelectorAll("a")].map(a => a.getAttribute("href")))
-      .toContain("/admin/siti?giorni=28&sito=ediliziaincloud.com");
+      .toContain("/admin/siti?giorni=28&sito=ediliziaincloud.com&traffico=organico");
+  });
+  it("mostra i due valori confrontabili nel tab Google, accanto ai totali per fonte", async () => {
+    await rendi();
+    await apriScheda("Dati Google");
+    const fine = Date.now() + 10_000;
+    const confronto = () => contenitore.querySelector('[aria-label="Confronto Google organico"]');
+    while (!confronto()?.textContent?.includes("2 giorni confrontabili")) {
+      if (Date.now() > fine) throw new Error("Confronto organico non caricato");
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    }
+    expect(rpc).toHaveBeenCalledWith("admin_siti_confronto_google", { p_giorni: 30 });
+    expect([...confronto()!.querySelectorAll("dd")].map(x => x.textContent)).toEqual(["18", "11"]);
+    expect(contenitore.textContent).toContain("GA4 · Tutti i canali");
   });
 });

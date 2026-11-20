@@ -22,7 +22,10 @@ import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
-import { dominioSito, PERIODI_TRAFFICO, periodoTraffico, useSitiGoogleMetriche, type SitoGoogle as Sito } from "@/hooks/useSitiGoogleMetriche";
+import {
+  dominioSito, PERIODI_TRAFFICO, periodoTraffico, periodoConfrontoGoogle,
+  useSitiGoogleMetriche, useConfrontoGoogle, type ConfrontoGoogle, type SitoGoogle as Sito,
+} from "@/hooks/useSitiGoogleMetriche";
 
 interface Scoperta {
   ok: boolean; configurato?: boolean; messaggio?: string; account?: string;
@@ -150,6 +153,26 @@ const ORDINAMENTI = {
   recente: "Dato più recente",
 };
 
+const ORDINAMENTI_ORGANICI = {
+  nome: ORDINAMENTI.nome,
+  clic: ORDINAMENTI.clic,
+  impressioni: ORDINAMENTI.impressioni,
+  visite: "Sessioni organiche GA4",
+  recente: ORDINAMENTI.recente,
+};
+
+function ordineOrganico(dato: ConfrontoGoogle | undefined, ordine: keyof typeof ORDINAMENTI) {
+  if (ordine === "nome") return 0;
+  if (!dato) return -1;
+  switch (ordine) {
+    case "clic": return dato.clic;
+    case "impressioni": return dato.impressioni;
+    case "visite": return dato.sessioni;
+    case "recente": return Date.parse(dato.al);
+    default: return 0;
+  }
+}
+
 function opzione<T extends Record<string, string>>(opzioni: T, valore: string | null, predefinita: keyof T & string): keyof T & string {
   return valore && Object.hasOwn(opzioni, valore) ? valore as keyof T & string : predefinita;
 }
@@ -236,10 +259,18 @@ export default function SitiGooglePage() {
 
   const { data, isLoading, isFetching, error, refetch } = useSitiGoogleMetriche(giorni);
   const siti = data?.siti ?? [];
+  const organico = parametri.get("traffico") === "organico";
+  const confrontoGoogle = useConfrontoGoogle(giorni, organico && !!data);
+  const confronti = confrontoGoogle.data;
+  const opzioniOrdine = organico ? ORDINAMENTI_ORGANICI : ORDINAMENTI;
   const ricercaSiti = parametri.get("q") ?? "";
   const stato = opzione(STATI, parametri.get("stato"), "tutti");
   const fonte = opzione(FONTI, parametri.get("fonte"), "tutte");
-  const ordine = opzione(ORDINAMENTI, parametri.get("ordine"), "nome");
+  const ordineRichiesto = opzione(ORDINAMENTI, parametri.get("ordine"), "nome");
+  const ordine = organico && ordineRichiesto === "viste" ? "nome" : ordineRichiesto;
+  const valoreOrdinato = (sito: Sito) => organico
+    ? ordineOrganico(confronti?.[sito.id], ordine)
+    : valoreOrdine(sito, ordine);
   const filtriAttivi = !!ricercaSiti || stato !== "tutti" || fonte !== "tutte" || ordine !== "nome";
   const parole = testoRicerca(ricercaSiti.trim()).split(/\s+/).filter(Boolean);
   const sitiVisibili = siti.filter(sito => {
@@ -247,7 +278,7 @@ export default function SitiGooglePage() {
     return parole.every(parola => termine.includes(parola))
       && verificaStato(sito, stato)
       && (fonte === "tutte" || fonteSito(sito) === fonte);
-  }).sort((a, b) => valoreOrdine(b, ordine) - valoreOrdine(a, ordine) || ordineItaliano.compare(a.nome, b.nome));
+  }).sort((a, b) => valoreOrdinato(b) - valoreOrdinato(a) || ordineItaliano.compare(a.nome, b.nome));
   const dominioRichiesto = dominioSito(parametri.get("sito") ?? "");
   const dettaglio = sitiVisibili.find(sito => dominioSito(sito.dominio) === dominioRichiesto)?.id;
 
@@ -268,7 +299,7 @@ export default function SitiGooglePage() {
 
   const { data: pagine, isLoading: caricaPagine, isError: errorePagine, refetch: ricaricaPagine } = useQuery({
     queryKey: ["admin-sito-pagine", dettaglio, giorni],
-    enabled: !!dettaglio,
+    enabled: !!dettaglio && !organico,
     retry: retryAuthorizedRead,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("admin_sito_pagine_google" as never,
@@ -298,6 +329,7 @@ export default function SitiGooglePage() {
       setInModifica(null);
       qc.invalidateQueries({ queryKey: ["admin-siti-metriche"] });
       qc.invalidateQueries({ queryKey: ["admin-sito-pagine"] });
+      qc.invalidateQueries({ queryKey: ["admin-siti-confronto-google"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -329,6 +361,7 @@ export default function SitiGooglePage() {
       if (azione === "sincronizza") await Promise.all([
         qc.invalidateQueries({ queryKey: ["admin-siti-metriche"] }),
         qc.invalidateQueries({ queryKey: ["admin-sito-pagine"] }),
+        qc.invalidateQueries({ queryKey: ["admin-siti-confronto-google"] }),
       ]);
     },
   });
@@ -359,6 +392,16 @@ export default function SitiGooglePage() {
     }
     return tot;
   }, { clic: 0, impressioni: 0, visite: 0, viste: 0 });
+  const totaliOrganici = siti.reduce((tot, sito) => {
+    const confronto = confronti?.[sito.id];
+    if (sito.attivo && confronto) {
+      tot.siti++;
+      tot.clic += confronto.clic;
+      tot.sessioni += confronto.sessioni;
+    }
+    return tot;
+  }, { siti: 0, clic: 0, sessioni: 0 });
+
   const configuraGsc = (proprieta: string) => {
     const host = proprieta.match(/^(?:sc-domain:|https?:\/\/)([^/]+)/i)?.[1];
     if (!host) return;
@@ -394,7 +437,10 @@ export default function SitiGooglePage() {
             <Plus className="h-4 w-4 md:mr-1.5" />
             <span className="ml-1.5 md:ml-0">Aggiungi sito</span>
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => refetch()} disabled={isFetching}
+          <Button size="sm" variant="ghost" onClick={() => {
+            void refetch();
+            if (organico) void confrontoGoogle.refetch();
+          }} disabled={isFetching || confrontoGoogle.isFetching}
                   aria-label="Ricarica">
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
@@ -521,6 +567,29 @@ export default function SitiGooglePage() {
         </Card>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="group" aria-label="Traffico GA4" className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+          <Button type="button" size="sm" variant={organico ? "ghost" : "outline"} aria-pressed={!organico}
+            onClick={() => impostaParametro("traffico", null)}>Tutti i canali</Button>
+          <Button type="button" size="sm" variant={organico ? "outline" : "ghost"} aria-pressed={organico}
+            onClick={() => impostaParametro("traffico", "organico")}>Google organico</Button>
+        </div>
+        {organico && totaliOrganici.siti > 0 && (
+          <p className="text-xs text-muted-foreground">{totaliOrganici.siti} siti attivi con giorni in comune</p>
+        )}
+      </div>
+
+      {organico && confrontoGoogle.isLoading && <Skeleton className="h-24 w-full" />}
+      {organico && confrontoGoogle.isError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="size-4" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            Impossibile caricare il confronto Google organico.
+            <Button size="sm" variant="outline" onClick={() => void confrontoGoogle.refetch()}>Riprova confronto</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {isLoading && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-24 w-full" />)}
@@ -539,15 +608,19 @@ export default function SitiGooglePage() {
           <Card>
             <CardContent className="p-3 sm:p-4">
               <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><MousePointer2 className="size-4 shrink-0" aria-hidden="true" /> Clic da Google</p>
-              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{totali.impressioni || totali.clic ? numero.format(totali.clic) : "—"}</p>
-              <p className="text-xs text-muted-foreground">{numero.format(totali.impressioni)} impressioni</p>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{organico
+                ? totaliOrganici.siti > 0 ? numero.format(totaliOrganici.clic) : "—"
+                : totali.impressioni || totali.clic ? numero.format(totali.clic) : "—"}</p>
+              <p className="text-xs text-muted-foreground">{organico ? "Nei giorni in comune" : `${numero.format(totali.impressioni)} impressioni`}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3 sm:p-4">
-              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Activity className="size-4 shrink-0" aria-hidden="true" /> Visite GA4</p>
-              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{totali.visite || totali.viste ? numero.format(totali.visite) : "—"}</p>
-              <p className="text-xs text-muted-foreground">{numero.format(totali.viste)} pagine viste</p>
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Activity className="size-4 shrink-0" aria-hidden="true" /> {organico ? "Sessioni organiche GA4" : "Visite GA4"}</p>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{organico
+                ? totaliOrganici.siti > 0 ? numero.format(totaliOrganici.sessioni) : "—"
+                : totali.visite || totali.viste ? numero.format(totali.visite) : "—"}</p>
+              <p className="text-xs text-muted-foreground">{organico ? "Google organico · stessi giorni dei clic" : `${numero.format(totali.viste)} pagine viste`}</p>
             </CardContent>
           </Card>
           <Card className={stato === "verifica" ? "border-primary" : ""}>
@@ -571,9 +644,14 @@ export default function SitiGooglePage() {
                 <p aria-live="polite" className="mt-1 text-xs text-muted-foreground">{sitiVisibili.length} di {siti.length} siti · Ultimi {giorni} giorni</p>
               </div>
               <Button asChild size="sm" variant="outline">
-                <Link to={`/admin/sito?giorni=${giorni}`}><BarChart3 className="size-4" /> Traffico sito</Link>
+                <Link to={`/admin/sito?giorni=${giorni}${organico ? "&scheda=google" : ""}`}><BarChart3 className="size-4" /> Traffico sito</Link>
               </Button>
             </div>
+            {organico && (
+              <p className="text-xs text-muted-foreground">
+                Ogni riga confronta clic e sessioni solo nei giorni disponibili in entrambe le fonti.
+              </p>
+            )}
             <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(12rem,1.3fr)_repeat(3,minmax(8rem,1fr))_auto]">
               <label className="col-span-2 min-w-0 text-xs font-medium text-muted-foreground sm:col-span-3 lg:col-span-1">
                 Cerca sito
@@ -587,7 +665,7 @@ export default function SitiGooglePage() {
                 onChange={v => impostaParametro("stato", v === "tutti" ? null : v)} />
               <FiltroSiti label="Fonti collegate" value={fonte} options={FONTI}
                 onChange={v => impostaParametro("fonte", v === "tutte" ? null : v)} />
-              <FiltroSiti label="Ordina per" value={ordine} options={ORDINAMENTI}
+              <FiltroSiti label="Ordina per" value={ordine} options={opzioniOrdine}
                 onChange={v => impostaParametro("ordine", v === "nome" ? null : v)} />
               <Button type="button" size="sm" variant="ghost" onClick={azzeraFiltri} disabled={!filtriAttivi}
                 className="justify-self-end"><X className="size-4" /> Azzera</Button>
@@ -601,7 +679,7 @@ export default function SitiGooglePage() {
                 <tr className="text-left">
                   <th scope="col" className="px-3 py-2 font-medium sm:px-4">Sito</th>
                   <th scope="col" className="px-1 py-2 text-right font-medium sm:px-2">Search Console</th>
-                  <th scope="col" className="px-1 py-2 text-right font-medium sm:px-2">GA4</th>
+                  <th scope="col" className="px-1 py-2 text-right font-medium sm:px-2">{organico ? "GA4 organico" : "GA4"}</th>
                   <th scope="col"><span className="sr-only">Azioni</span></th>
                 </tr>
               </thead>
@@ -614,8 +692,9 @@ export default function SitiGooglePage() {
                       : <p className="mt-1 text-sm text-muted-foreground">Usa «Scopri proprietà» o «Aggiungi sito».</p>}
                   </td></tr>
                 )}
-                {sitiVisibili.map(s => (
-                  <Fragment key={s.id}>
+                {sitiVisibili.map(s => {
+                  const confronto = confronti?.[s.id];
+                  return <Fragment key={s.id}>
                     <tr className="border-b last:border-0 hover:bg-muted/30">
                       <td className="min-w-0 px-3 py-2.5 sm:px-4">
                         <button type="button" className="inline-flex max-w-full items-start gap-1.5 text-left font-semibold hover:underline"
@@ -626,23 +705,35 @@ export default function SitiGooglePage() {
                         </button>
                         <p className="block break-all text-xs text-muted-foreground">{s.dominio}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-[11px] text-muted-foreground">{statoSito(s)}</span>
+                          <span className="text-[11px] text-muted-foreground">{organico
+                            ? confronto ? periodoConfrontoGoogle(confronto) : !confrontoGoogle.isFetching && !confrontoGoogle.isError ? "Nessun giorno in comune disponibile" : null
+                            : statoSito(s)}</span>
                           {!s.attivo && <Badge variant="secondary" className="text-[10px]">Sospeso</Badge>}
                           {s.ultimo_errore
                             ? <Badge variant="destructive" className="gap-1 text-[10px]"><AlertTriangle className="size-3" /> Errore</Badge>
                             : s.attivo && (!s.ga4_property_id || !s.gsc_site_url) && <Badge variant="outline" className="text-[10px]">Fonti da completare</Badge>}
                         </div>
                       </td>
-                      <td className="px-1 py-2.5 text-right sm:px-2">
-                        <DatoSito titolo="clic" valore={s.gsc_site_url && s.ultimo_dato ? s.clic : null} confronto={crescita(s.clic, s.clic_prima)} />
-                        {s.gsc_site_url && s.ultimo_dato && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(s.impressioni)} impr.</p>}
-                        {s.posizione_media != null && <p className="hidden text-[11px] text-muted-foreground lg:block">Pos. {numero.format(s.posizione_media)}{s.ctr_pct != null && ` · CTR ${numero.format(s.ctr_pct)}%`}</p>}
-                      </td>
-                      <td className="px-1 py-2.5 text-right sm:px-2">
-                        <DatoSito titolo="visite" valore={s.ga4_property_id && s.ultimo_dato ? s.sessioni : null} confronto={crescita(s.sessioni, s.sessioni_prima)} />
-                        {s.ga4_property_id && s.ultimo_dato && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(s.visualizzazioni)} viste</p>}
-                        {s.durata_media_s != null && <p className="hidden text-[11px] text-muted-foreground lg:block">{durata(s.durata_media_s)} a visita</p>}
-                      </td>
+                      {organico ? <>
+                        <td className="px-1 py-2.5 text-right sm:px-2">
+                          <DatoSito titolo="clic" valore={confronto?.clic ?? null} />
+                          {confronto && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(confronto.impressioni)} impr.</p>}
+                        </td>
+                        <td className="px-1 py-2.5 text-right sm:px-2">
+                          <DatoSito titolo="sessioni" valore={confronto?.sessioni ?? null} />
+                        </td>
+                      </> : <>
+                        <td className="px-1 py-2.5 text-right sm:px-2">
+                          <DatoSito titolo="clic" valore={s.gsc_site_url && s.ultimo_dato ? s.clic : null} confronto={crescita(s.clic, s.clic_prima)} />
+                          {s.gsc_site_url && s.ultimo_dato && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(s.impressioni)} impr.</p>}
+                          {s.posizione_media != null && <p className="hidden text-[11px] text-muted-foreground lg:block">Pos. {numero.format(s.posizione_media)}{s.ctr_pct != null && ` · CTR ${numero.format(s.ctr_pct)}%`}</p>}
+                        </td>
+                        <td className="px-1 py-2.5 text-right sm:px-2">
+                          <DatoSito titolo="visite" valore={s.ga4_property_id && s.ultimo_dato ? s.sessioni : null} confronto={crescita(s.sessioni, s.sessioni_prima)} />
+                          {s.ga4_property_id && s.ultimo_dato && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(s.visualizzazioni)} viste</p>}
+                          {s.durata_media_s != null && <p className="hidden text-[11px] text-muted-foreground lg:block">{durata(s.durata_media_s)} a visita</p>}
+                        </td>
+                      </>}
                       <td className="p-1 text-center">
                         <Button size="icon" variant="ghost" className="size-8" aria-label={`Modifica ${s.nome}`}
                           onClick={() => setInModifica(s)}><Settings2 className="size-4" /></Button>
@@ -658,64 +749,71 @@ export default function SitiGooglePage() {
                     {dettaglio === s.id && (
                       <tr className="border-b last:border-0 bg-muted/20">
                         <td colSpan={4} className="p-3 sm:p-4">
-                          <div className="mb-3 grid gap-2 rounded-md border bg-card p-3 text-xs sm:grid-cols-2">
-                            <div className="[overflow-wrap:anywhere]">
-                              <p className="font-medium">Search Console</p>
-                              <p className="text-muted-foreground">{s.gsc_site_url ?? "Proprietà da associare"}</p>
-                              {!!s.gsc_site_url && <p className="mt-1">CTR {s.ctr_pct == null ? "—" : `${numero.format(s.ctr_pct)}%`} · Pos. {s.posizione_media == null ? "—" : numero.format(s.posizione_media)} · {numero.format(s.pagine_viste_da_google)} pagine su Google</p>}
+                          {organico ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <p className="text-muted-foreground">Per vedere le pagine e le metriche complete del sito, apri «Tutti i canali».</p>
+                              <Button size="sm" variant="outline" onClick={() => impostaParametro("traffico", null)}>Apri tutti i canali</Button>
                             </div>
-                            <div className="[overflow-wrap:anywhere]">
-                              <p className="font-medium">GA4</p>
-                              <p className="text-muted-foreground">{s.ga4_property_id ?? "Proprietà da associare"}</p>
-                              {!!s.ga4_property_id && s.durata_media_s != null && <p className="mt-1">Durata media della visita {durata(s.durata_media_s)}</p>}
-                            </div>
-                          </div>
-                          {caricaPagine && <Skeleton className="h-24 w-full" />}
-                          {errorePagine && <div className="flex flex-wrap items-center gap-2 text-sm" role="alert">
-                            Impossibile aggiornare il dettaglio Google.
-                            <Button size="sm" variant="outline" onClick={() => void ricaricaPagine()}>Riprova dettaglio</Button>
-                          </div>}
-                          {((!caricaPagine && !errorePagine) || pagine) && (
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <div>
-                                <p className="text-xs font-medium mb-1">Pagine che Google mostra</p>
-                                {(pagine?.ricerca?.length ?? 0) === 0 && (
-                                  <p className="text-xs text-muted-foreground">Nessun dato di ricerca nel periodo.</p>
-                                )}
-                                {(pagine?.ricerca ?? []).slice(0, 12).map((p) => (
-                                  <div key={p.percorso} className="flex items-baseline justify-between gap-2 py-0.5">
-                                    <span className="font-mono text-[11px] truncate" title={p.percorso}>
-                                      {percorsoLeggibile(p.percorso, s.dominio)}
-                                    </span>
-                                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                      {p.impressioni.toLocaleString("it-IT")} impr · {p.clic} clic
-                                      {p.posizione !== null && ` · pos ${p.posizione}`}
-                                    </span>
-                                  </div>
-                                ))}
+                          ) : <>
+                            <div className="mb-3 grid gap-2 rounded-md border bg-card p-3 text-xs sm:grid-cols-2">
+                              <div className="[overflow-wrap:anywhere]">
+                                <p className="font-medium">Search Console</p>
+                                <p className="text-muted-foreground">{s.gsc_site_url ?? "Proprietà da associare"}</p>
+                                {!!s.gsc_site_url && <p className="mt-1">CTR {s.ctr_pct == null ? "—" : `${numero.format(s.ctr_pct)}%`} · Pos. {s.posizione_media == null ? "—" : numero.format(s.posizione_media)} · {numero.format(s.pagine_viste_da_google)} pagine su Google</p>}
                               </div>
-                              <div>
-                                <p className="text-xs font-medium mb-1">Pagine più aperte</p>
-                                {(pagine?.visite?.length ?? 0) === 0 && (
-                                  <p className="text-xs text-muted-foreground">Nessun dato GA4 nel periodo.</p>
-                                )}
-                                {(pagine?.visite ?? []).slice(0, 12).map((p) => (
-                                  <div key={p.percorso} className="flex items-baseline justify-between gap-2 py-0.5">
-                                    <span className="font-mono text-[11px] truncate" title={p.percorso}>{p.percorso}</span>
-                                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                      {p.visualizzazioni.toLocaleString("it-IT")} viste
-                                      {p.durata_media_s !== null && ` · ${durata(p.durata_media_s)} a vista`}
-                                    </span>
-                                  </div>
-                                ))}
+                              <div className="[overflow-wrap:anywhere]">
+                                <p className="font-medium">GA4</p>
+                                <p className="text-muted-foreground">{s.ga4_property_id ?? "Proprietà da associare"}</p>
+                                {!!s.ga4_property_id && s.durata_media_s != null && <p className="mt-1">Durata media della visita {durata(s.durata_media_s)}</p>}
                               </div>
                             </div>
-                          )}
+                            {caricaPagine && <Skeleton className="h-24 w-full" />}
+                            {errorePagine && <div className="flex flex-wrap items-center gap-2 text-sm" role="alert">
+                              Impossibile aggiornare il dettaglio Google.
+                              <Button size="sm" variant="outline" onClick={() => void ricaricaPagine()}>Riprova dettaglio</Button>
+                            </div>}
+                            {((!caricaPagine && !errorePagine) || pagine) && (
+                              <div className="grid gap-4 lg:grid-cols-2">
+                                <div>
+                                  <p className="text-xs font-medium mb-1">Pagine che Google mostra</p>
+                                  {(pagine?.ricerca?.length ?? 0) === 0 && (
+                                    <p className="text-xs text-muted-foreground">Nessun dato di ricerca nel periodo.</p>
+                                  )}
+                                  {(pagine?.ricerca ?? []).slice(0, 12).map((p) => (
+                                    <div key={p.percorso} className="flex items-baseline justify-between gap-2 py-0.5">
+                                      <span className="font-mono text-[11px] truncate" title={p.percorso}>
+                                        {percorsoLeggibile(p.percorso, s.dominio)}
+                                      </span>
+                                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                        {p.impressioni.toLocaleString("it-IT")} impr · {p.clic} clic
+                                        {p.posizione !== null && ` · pos ${p.posizione}`}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium mb-1">Pagine più aperte</p>
+                                  {(pagine?.visite?.length ?? 0) === 0 && (
+                                    <p className="text-xs text-muted-foreground">Nessun dato GA4 nel periodo.</p>
+                                  )}
+                                  {(pagine?.visite ?? []).slice(0, 12).map((p) => (
+                                    <div key={p.percorso} className="flex items-baseline justify-between gap-2 py-0.5">
+                                      <span className="font-mono text-[11px] truncate" title={p.percorso}>{p.percorso}</span>
+                                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                        {p.visualizzazioni.toLocaleString("it-IT")} viste
+                                        {p.durata_media_s !== null && ` · ${durata(p.durata_media_s)} a vista`}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>}
                         </td>
                       </tr>
                     )}
-                  </Fragment>
-                ))}
+                  </Fragment>;
+                })}
               </tbody>
             </table>
           </CardContent>

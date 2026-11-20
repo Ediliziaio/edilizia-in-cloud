@@ -289,6 +289,43 @@ function dataGa4(grezza: string): string {
   return `${grezza.slice(0, 4)}-${grezza.slice(4, 6)}-${grezza.slice(6, 8)}`;
 }
 
+// Le API omettono i giorni a zero. Completiamo solo i giorni interni
+// alla finestra che il report dimostra di aver coperto.
+function giorniCoperti(giorni: string[], da: string, a: string): string[] {
+  const disponibili = giorni.filter(giorno => /^\d{4}-\d{2}-\d{2}$/.test(giorno) && giorno >= da && giorno <= a).sort();
+  const primo = disponibili[0];
+  const ultimo = disponibili.at(-1);
+  if (!primo || !ultimo) return [];
+  const risultato: string[] = [];
+  for (const d = new Date(primo); d.toISOString().slice(0, 10) <= ultimo; d.setUTCDate(d.getUTCDate() + 1)) {
+    risultato.push(d.toISOString().slice(0, 10));
+  }
+  return risultato;
+}
+
+type RigaGa4 = { dimensionValues: Array<{ value: string }>; metricValues: Array<{ value: string }> };
+
+async function raccogliGa4Organico(token: string, propertyId: string, da: string, a: string) {
+  return chiamaGoogle(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+    token,
+    {
+      dateRanges: [{ startDate: da, endDate: a }],
+      dimensions: [{ name: "date" }],
+      metrics: [{ name: "sessions" }],
+      dimensionFilter: {
+        andGroup: {
+          expressions: [
+            { filter: { fieldName: "sessionSource", stringFilter: { matchType: "EXACT", value: "google" } } },
+            { filter: { fieldName: "sessionMedium", stringFilter: { matchType: "EXACT", value: "organic" } } },
+          ],
+        },
+      },
+      limit: 400,
+    },
+  );
+}
+
 async function raccogliGsc(token: string, siteUrl: string, da: string, a: string) {
   const base = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
   const totali = await chiamaGoogle(base, token, {
@@ -434,20 +471,23 @@ serveConMetriche("siti-metriche-sync", async (req) => {
     const a = giornoIso(1);
     const da = giornoIso(giorni);
 
-    const { data: siti } = await db
+    const { data: siti, error: erroreSiti } = await db
       .from("siti_monitorati").select("*").eq("attivo", true);
+    if (erroreSiti) throw new Error(`Impossibile leggere i siti monitorati: ${erroreSiti.message}`);
 
     const esito: Array<Record<string, unknown>> = [];
 
     for (const sito of (siti ?? []) as Array<Record<string, string>>) {
       const righeMetriche: Record<string, unknown>[] = [];
       const righePagine: Record<string, unknown>[] = [];
-      let errore: string | null = null;
+      const righeOrganiche: Record<string, unknown>[] = [];
+      const errori: string[] = [];
 
       if (sito.ga4_property_id) {
         try {
           const { totali, pagine } = await raccogliGa4(token, sito.ga4_property_id, da, a);
-          for (const r of (totali.rows as Array<Record<string, Array<{ value: string }>>>) ?? []) {
+          const righeTotali = (totali.rows as RigaGa4[] | undefined) ?? [];
+          for (const r of righeTotali) {
             righeMetriche.push({
               sito_id: sito.id, giorno: dataGa4(r.dimensionValues[0].value), fonte: "ga4",
               utenti: Number(r.metricValues[0].value) || 0,
@@ -457,7 +497,7 @@ serveConMetriche("siti-metriche-sync", async (req) => {
               raccolto_il: new Date().toISOString(),
             });
           }
-          for (const r of (pagine.rows as Array<Record<string, Array<{ value: string }>>>) ?? []) {
+          for (const r of (pagine.rows as RigaGa4[] | undefined) ?? []) {
             const viste = Number(r.metricValues[0].value) || 0;
             // userEngagementDuration è la SOMMA dei secondi di tutti i
             // visitatori: salvata così com'era, una pagina da 400 viste
@@ -472,20 +512,39 @@ serveConMetriche("siti-metriche-sync", async (req) => {
               durata_media_s: viste > 0 ? Math.round((secondiTotali / viste) * 10) / 10 : null,
             });
           }
+          try {
+            const organico = await raccogliGa4Organico(token, sito.ga4_property_id, da, a);
+            const sessioni = new Map(((organico.rows as RigaGa4[] | undefined) ?? [])
+              .map(r => [dataGa4(r.dimensionValues[0].value), Number(r.metricValues[0].value) || 0]));
+            const giorni = giorniCoperti(righeTotali.map(r => dataGa4(r.dimensionValues[0].value)), da, a);
+            // In caso di soglia Google, una riga assente può essere oscurata.
+            const metadati = organico.metadata as { subjectToThresholding?: boolean } | undefined;
+            for (const giorno of giorni) {
+              if (metadati?.subjectToThresholding && !sessioni.has(giorno)) continue;
+              righeOrganiche.push({
+                sito_id: sito.id, giorno, ga4_property_id: sito.ga4_property_id, sessioni: sessioni.get(giorno) ?? 0,
+              });
+            }
+          } catch (e) {
+            errori.push(`GA4 organico: ${(e as Error).message}`);
+          }
         } catch (e) {
-          errore = `GA4: ${(e as Error).message}`;
+          errori.push(`GA4: ${(e as Error).message}`);
         }
       }
 
       if (sito.gsc_site_url) {
         try {
           const { totali, pagine } = await raccogliGsc(token, sito.gsc_site_url, da, a);
-          for (const r of (totali.rows as Array<Record<string, unknown>>) ?? []) {
+          const perGiorno = new Map(((totali.rows as Array<Record<string, unknown>> | undefined) ?? [])
+            .map(r => [String((r.keys as string[])[0]), r]));
+          for (const giorno of giorniCoperti([...perGiorno.keys()], da, a)) {
+            const r = perGiorno.get(giorno);
             righeMetriche.push({
-              sito_id: sito.id, giorno: String((r.keys as string[])[0]), fonte: "gsc",
-              impressioni: Math.round(Number(r.impressions) || 0),
-              clic: Math.round(Number(r.clicks) || 0),
-              posizione_media: Math.round((Number(r.position) || 0) * 100) / 100,
+              sito_id: sito.id, giorno, fonte: "gsc",
+              impressioni: Math.round(Number(r?.impressions) || 0),
+              clic: Math.round(Number(r?.clicks) || 0),
+              posizione_media: r ? Math.round((Number(r.position) || 0) * 100) / 100 : null,
               raccolto_il: new Date().toISOString(),
             });
           }
@@ -500,25 +559,23 @@ serveConMetriche("siti-metriche-sync", async (req) => {
             });
           }
         } catch (e) {
-          errore = errore ? `${errore} · Search Console: ${(e as Error).message}`
-                          : `Search Console: ${(e as Error).message}`;
+          errori.push(`Search Console: ${(e as Error).message}`);
         }
       }
 
       const erroriSalvataggio = [
         await salva(db, "siti_metriche_giornaliere", righeMetriche, "sito_id,giorno,fonte"),
         await salva(db, "siti_pagine_giornaliere", righePagine, "sito_id,giorno,fonte,percorso"),
-      ].filter(Boolean);
-      if (erroriSalvataggio.length) {
-        errore = [errore, ...erroriSalvataggio].filter(Boolean).join(" · ");
-      }
+        await salva(db, "siti_ga4_organico_giornaliero", righeOrganiche, "sito_id,giorno"),
+      ].filter((valore): valore is string => !!valore);
+      const errore = [...errori, ...erroriSalvataggio].join(" · ") || null;
 
       await db.from("siti_monitorati")
         .update({ ultimo_sync: new Date().toISOString(), ultimo_errore: errore })
         .eq("id", sito.id);
 
       esito.push({
-        sito: sito.dominio, giorni_metriche: righeMetriche.length,
+        sito: sito.dominio, giorni_metriche: righeMetriche.length + righeOrganiche.length,
         righe_pagine: righePagine.length, errore,
       });
     }

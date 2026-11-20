@@ -58,7 +58,11 @@ const collegato = {
 };
 
 let metriche: unknown = statoVero;
-const rpc = vi.fn(async () => ({ data: metriche, error: null as unknown }));
+let confronti: unknown = {};
+const rpc = vi.fn(async (nome: string, _argomenti: unknown) => ({
+  data: nome === "admin_siti_confronto_google" ? confronti : metriche,
+  error: null as unknown,
+}));
 const invoke = vi.fn(async () => ({
   data: { ok: false, configurato: false, messaggio: "Service account non trovato." } as unknown,
   error: null as unknown,
@@ -66,7 +70,7 @@ const invoke = vi.fn(async () => ({
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: (...args: unknown[]) => rpc(...(args as [])),
+    rpc: (...args: unknown[]) => rpc(args[0] as string, args[1]),
     functions: { invoke: (...args: unknown[]) => invoke(...(args as [])) },
   },
 }));
@@ -86,6 +90,7 @@ describe("SitiGooglePage", () => {
 
   beforeEach(() => {
     metriche = statoVero;
+    confronti = {};
     vi.clearAllMocks();
   });
 
@@ -240,5 +245,27 @@ describe("SitiGooglePage", () => {
     expect(righe).toHaveLength(2);
     expect(righe[0]?.textContent).toContain("Edilizia in Cloud");
     expect(righe[1]?.textContent).toContain("Altro sito");
+  });
+  it("affianca clic e sessioni organiche delle stesse date, distinguendo zero e dati assenti", async () => {
+    metriche = {
+      ...collegato,
+      siti: [...collegato.siti, sito("Sito in attesa", "attesa.example")],
+    };
+    confronti = {
+      [collegato.siti[0].id]: {
+        dal: "2026-09-07", al: "2026-09-09", giorni: 2, sessioni: 0, clic: 25, impressioni: 500,
+      },
+    };
+    await rendi("/admin/siti?giorni=7");
+    await act(async () => bottone("Google organico").click());
+    await aspetta(() => !!contenitore.textContent?.includes("2 giorni confrontabili"), "il confronto organico");
+    expect(rpc).toHaveBeenCalledWith("admin_siti_confronto_google", { p_giorni: 7 });
+    const [dati, attesa] = [...contenitore.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+    expect(dati?.cells[1]?.textContent).toContain("25");
+    expect(dati?.cells[2]?.textContent).toContain("0sessioni");
+    expect(dati?.textContent).not.toContain("900");
+    expect(attesa?.cells[2]?.textContent).toBe("—");
+    await act(async () => bottone("Tutti i canali").click());
+    expect(contenitore.querySelector("tbody tr")?.textContent).toContain("900");
   });
 });
