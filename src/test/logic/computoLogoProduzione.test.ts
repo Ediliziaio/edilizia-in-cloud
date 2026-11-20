@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { preparaAssetModello } from "@/lib/computo/assetModello";
-import { leggiLogoPerPdf } from "@/lib/computo/modelloComputo";
+import { leggiLogoPerPdf, modelloComputoDiSerie, vesteDalModello } from "@/lib/computo/modelloComputo";
 
 const storage = vi.hoisted(() => ({ createSignedUrl: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { storage: { from: () => storage } } }));
@@ -28,7 +28,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("logo del computo con le restrizioni di produzione", () => {
   it("decodifica direttamente il file autenticato senza effettuare fetch su blob URL", async () => {
-    const risultato = await preparaAssetModello({ titolo: "Computo", companyId: "azienda-demo", veste: { logoPersonalizzato: "azienda-demo/logo-valido.png" } });
+    const risultato = await preparaAssetModello({ titolo: "Computo", companyId: "azienda-demo", veste: { ...vesteDalModello(modelloComputoDiSerie()), logoPersonalizzato: "azienda-demo/logo-valido.png" } });
     expect(risultato.veste?.logo).toEqual({ dati: png, formato: "PNG", larghezza: 400, altezza: 200 });
     expect(fetchLogo.mock.calls.map(([url]) => url)).toEqual(["https://files.example.test/logo.png"]);
     expect(decode).toHaveBeenCalledWith(logo);
@@ -41,7 +41,7 @@ describe("logo del computo con le restrizioni di produzione", () => {
   });
   it("continua a segnalare un logo personalizzato realmente illeggibile", async () => {
     decode.mockRejectedValueOnce(new Error("PNG non valido"));
-    await expect(preparaAssetModello({ titolo: "Computo", companyId: "azienda-demo", veste: { logoPersonalizzato: "azienda-demo/logo-invalido.png" } })).rejects.toThrow("Logo del modello illeggibile");
+    await expect(preparaAssetModello({ titolo: "Computo", companyId: "azienda-demo", veste: { ...vesteDalModello(modelloComputoDiSerie()), logoPersonalizzato: "azienda-demo/logo-invalido.png" } })).rejects.toThrow("Logo del modello illeggibile");
   });
   it("libera il bitmap anche quando la conversione del canvas fallisce", async () => {
     vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockImplementationOnce(() => { throw new Error("Conversione fallita"); });
