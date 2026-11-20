@@ -10,11 +10,8 @@
  *     testo copiato nella prima nota al momento dell'import. Adesso, se il
  *     movimento ha una categoria CONFERMATA, vale quella.
  *
- * Un movimento senza prima nota collegata può però avere una scrittura gemella
- * fatta a mano e mai collegata (stessi soldi, stesso giorno o quasi): contarli
- * entrambi raddoppierebbe l'importo. Se c'è una scrittura non collegata con lo
- * stesso verso e lo stesso importo entro 5 giorni, il movimento di banca resta
- * fuori e si conta tra i «forse doppi»: il saldo resta quello della prima nota.
+ * Importo, verso e data vicina segnalano una possibile doppia registrazione.
+ * Il rendiconto conserva entrambi i movimenti fino a quando esiste un legame verificato.
  *
  * Un movimento RIPARTITO (15/11/2026: 1.000 € al fornitore, 700 di materiali e
  * 300 di trasporto) va in tante righe quante sono le quote. La scrittura di
@@ -100,8 +97,8 @@ export function uniscMovimentiBanca(
     return b?.voce ? [{ ...r, codiceCassa: b.voce.codice }] : [r];
   });
 
-  // 2. I movimenti senza prima nota, tranne quelli che hanno una scrittura gemella non collegata.
-  const liberi = registrati.filter((r) => !r.bankTransactionId);
+  // 2. Le somiglianze si segnalano. Solo un collegamento già accertato evita il doppio conteggio.
+  const liberi = registrati.filter((r) => !r.bankTransactionId && !/^cassa(?:\b|$)/i.test(r.accountLabel?.trim() ?? ""));
   const usati = new Set<string>();
   const forseDoppi = { numero: 0, cents: 0 };
   let daBanca = 0;
@@ -112,6 +109,8 @@ export function uniscMovimentiBanca(
     const gemello = liberi.find(
       (r) =>
         !usati.has(r.id) &&
+        (!r.supplierName || !b.controparte ||
+          r.supplierName.trim().toLocaleLowerCase("it-IT") === b.controparte.trim().toLocaleLowerCase("it-IT")) &&
         (r.direction === "entrata") === entrata &&
         Math.round(Number(r.amount) * 100) === assoluto &&
         giorni(r.entry_date, b.data) <= GIORNI_GEMELLO,
@@ -120,7 +119,6 @@ export function uniscMovimentiBanca(
       usati.add(gemello.id);
       forseDoppi.numero++;
       forseDoppi.cents += b.cents;
-      continue;
     }
     daBanca++;
     const riga: MovimentoRegistrato = {

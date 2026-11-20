@@ -75,18 +75,27 @@ describe("un movimento già in prima nota", () => {
 });
 
 describe("una scrittura gemella non collegata", () => {
-  it("stesso verso, stesso importo, entro 5 giorni: il movimento di banca resta fuori e si dice", () => {
+  it("segnala una somiglianza e conserva il movimento bancario", () => {
     const registrati = [pn({ id: "p1", amount: 1800, entry_date: "2026-03-08" })];
     const u = uniscMovimentiBanca(registrati, [banca({ id: "t1", cents: -180000, data: "2026-03-10" })]);
-    expect(u.registrati).toHaveLength(1);
+    expect(u.registrati).toHaveLength(2);
     expect(u.forseDoppi).toEqual({ numero: 1, cents: -180000 });
   });
 
   it("una scrittura gemella vale per un movimento solo", () => {
     const registrati = [pn({ id: "p1", amount: 50 })];
     const u = uniscMovimentiBanca(registrati, [banca({ id: "t1", cents: -5000 }), banca({ id: "t2", cents: -5000 })]);
-    expect(u.daBanca).toBe(1);
+    expect(u.daBanca).toBe(2);
     expect(u.forseDoppi.numero).toBe(1);
+  });
+
+  it("somma due incassi distinti di 500 euro anche con date vicine", () => {
+    const u = uniscMovimentiBanca(
+      [pn({ id: "contanti", direction: "entrata", amount: 500, accountLabel: "cassa", supplierName: "Cliente A" })],
+      [banca({ id: "bonifico", cents: 50000, controparte: "Cliente B" })],
+    );
+    expect(u.registrati.reduce((tot, r) => tot + Number(r.amount), 0)).toBe(1000);
+    expect(u.forseDoppi.numero).toBe(0);
   });
 
   it("verso diverso, importo diverso o troppo lontana: non è gemella", () => {
@@ -105,11 +114,11 @@ describe("quadratura con la banca", () => {
   it("il flusso dell'anno è la somma di prima nota collegata e movimenti non registrati, senza doppi", () => {
     const registrati = [
       pn({ id: "p1", amount: 1000, direction: "entrata", bankTransactionId: "t1", category: "Incassi fatture" }),
-      pn({ id: "p2", amount: 300, entry_date: "2026-03-09" }),
+      pn({ id: "p2", amount: 300, entry_date: "2026-03-09", bankTransactionId: "t2" }),
     ];
     const u = uniscMovimentiBanca(registrati, [
       banca({ id: "t1", cents: 100000, in_prima_nota: true }),
-      banca({ id: "t2", cents: -30000 }), // gemello di p2
+      banca({ id: "t2", cents: -30000, in_prima_nota: true }),
       banca({ id: "t3", cents: -20000 }), // solo in banca
     ]);
     const r = rendiconto(u.registrati);

@@ -7,7 +7,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useImpostazioniIVA } from "@/hooks/useImpostazioniIVA";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { usePermissions } from "@/hooks/usePermissions";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,11 @@ export interface CalcoloLiquidazioneIVA {
   debito_riportabile?: number;
   credito_riportabile?: number;
   richiede_registro?: boolean;
+  versamento?: {
+    stato: "da_versare" | "riporto" | "annuale" | "nessuno" | "sconosciuto";
+    scadenza?: string;
+    codice?: string;
+  };
   manuali?: Record<string, number | boolean>;
   avvisi?: string[];
   righi?: RighiLipe;
@@ -89,6 +94,7 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
   company: string; anno: number; periodo: number; mensile: boolean; confermata?: LiquidazioneIVAConfermata; puoScrivere: boolean; finito: boolean;
   onCambiato: () => void; onApriRegistro: () => void;
 }) {
+  const qc = useQueryClient();
   const [manuali, setManuali] = useState<Record<string, string>>({});
   const [usaRegistro, setUsaRegistro] = useState(false);
   const bloccata = !!confermata;
@@ -134,9 +140,15 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
     mutationFn: async () => {
       const { data, error } = await db.rpc("liquidazione_iva_crea_f24", { p_report: confermata!.id });
       if (error) throw error;
-      return data as { gia_creato?: boolean; codice?: string };
+      return data as { gia_creato?: boolean; aggiornato?: boolean; codice?: string };
     },
-    onSuccess: (d) => toast.success(d.gia_creato ? "F24 già creato: lo trovi nel Registro F24" : `F24 creato, codice ${d.codice}: lo trovi nel Registro F24`),
+    onSuccess: (d) => {
+      void qc.invalidateQueries({ queryKey: ["f24"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow"] });
+      toast.success(d.gia_creato ? "F24 già presente nel Registro F24"
+        : d.aggiornato ? "F24 aggiornato con i dati della liquidazione"
+        : `F24 con codice ${d.codice} aggiunto al Registro F24`);
+    },
     onError: (e: Error) => toast.error("F24 non creato", { description: e.message }),
   });
   const riapri = useMutation({
@@ -154,7 +166,9 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
   const acconto = mensile ? periodo === 12 : periodo === 4;
   const ora = bloccata ? calcolo.data : undefined;
   const cambiati = !!righi && !!ora && (!ora.calcolabile || !ora.righi || !stessiRighiLipe(righi, ora.righi));
-  const versabile = !!righi && righi.vp14_debito > 100 && r?.trimestre !== 5;
+  const versabile = r?.versamento
+    ? r.versamento.stato === "da_versare"
+    : !!righi && righi.vp14_debito > 100 && r?.trimestre !== 5;
   const editabile = (k: keyof RighiLipe) => !bloccata && puoScrivere && (A_MANO.has(k)
     || (k === "vp7" && ((r?.debito_riportabile ?? 0) > 0 || manuali[k] !== undefined))
     || (k === "vp8" && ((r?.credito_riportabile ?? 0) > 0 || manuali[k] !== undefined))
@@ -224,6 +238,9 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
       {bloccata && !!righi?.vp14_debito && !versabile && r?.trimestre !== 5 && (
         <p className="text-xs text-muted-foreground">Verifica la scadenza del versamento e l'eventuale rinvio dell'importo.</p>
       )}
+      {versabile && r?.versamento?.scadenza && (
+        <p className="text-xs text-muted-foreground">Versamento entro il {formatDate(r.versamento.scadenza)} · Codice {r.versamento.codice}</p>
+      )}
       {!bloccata && !finito && <p className="text-xs text-muted-foreground">Periodo ancora in corso: si conferma quando è finito. Intanto vedi il calcolo a oggi.</p>}
       {sbagliati.length > 0 && <p role="alert" className="text-xs text-destructive">Scrivi un importo valido, per esempio 1.234,50.</p>}
       {puoScrivere && (
@@ -234,7 +251,7 @@ function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScri
             </Button>
           )}
           {bloccata && versabile && (
-            <Button size="sm" onClick={() => creaF24.mutate()} disabled={creaF24.isPending}>Crea F24 da questa liquidazione</Button>
+            <Button size="sm" onClick={() => creaF24.mutate()} disabled={creaF24.isPending || (cambiati && !inviati)}>Crea F24 da questa liquidazione</Button>
           )}
           {bloccata && !inviati && (
             <Button size="sm" variant="outline" onClick={() => riapri.mutate()} disabled={riapri.isPending}>Riapri</Button>
@@ -268,6 +285,8 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
     setAperto(undefined);
     void qc.invalidateQueries({ queryKey: ["liquidazioni-iva"] });
     void qc.invalidateQueries({ queryKey: ["liquidazione-righi"] });
+    void qc.invalidateQueries({ queryKey: ["f24"] });
+    void qc.invalidateQueries({ queryKey: ["cashflow"] });
   };
 
   if (isLoading) return <p className="p-4 text-sm text-muted-foreground">Caricamento…</p>;

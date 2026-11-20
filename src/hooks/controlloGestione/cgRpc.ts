@@ -40,6 +40,7 @@ export const CG_RPC_NAMES = [
   "cg_get_versamenti_fiscali",
   "cg_lavori_in_corso",
   "cg_registra_rimanenza_lavori",
+  "cg_registra_rimanenza_lavori_mese",
   "cg_ricavi_provenienza",
   "cg_simula_piano_safe",
   "cg_simulazione_what_if",

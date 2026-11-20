@@ -59,6 +59,7 @@ export interface BankRow {
   available_balance: Money;
   currency?: string | null;
   balance_updated_at: string | null;
+  is_manual?: boolean | null;
 }
 export interface OrderRow {
   id: string;
@@ -389,6 +390,7 @@ export interface NoteRow {
   direction: string;
   amount: Money;
   entry_date: string;
+  bank_account_id?: string | null;
   category?: string;
   description?: string;
   invoice_id?: string | null;
@@ -444,6 +446,7 @@ export interface ForecastSources {
   blocked: ForecastMovement[];
   purchases: PurchaseRow[];
   purchaseItems: { purchase_order_id: string; order_item_id: string | null }[];
+  vatProjection?: { movements: ForecastMovement[]; warnings: string[] };
   /** Documenti con l'IVA dei mesi recenti, per la stima della liquidazione. */
   vatDocuments: VatDocumentRow[];
   /** F24 IVA già registrati (codici 6001-6012): il loro mese non si stima. */
@@ -574,29 +577,26 @@ export interface OpeningBalance {
   updatedAt: string | null;
   /** Conti attivi senza data di aggiornamento: non si sa quanto è vecchio il loro saldo. */
   undatedAccounts?: number;
+  accountDates?: Record<string, string>;
   /** Somma dei saldi contabili (quella della Tesoreria): il disponibile può comprendere il fido. */
   contabileCents?: number | null;
   /** Saldo dei conti alla loro data, prima dei movimenti registrati dopo (vedi portaSaldoAOggi). */
   bancaCents?: number | null;
-  /** Movimenti di prima nota registrati dopo la data del saldo dei conti, già sommati in `cents`. */
+  /** Movimenti registrati dopo la data del saldo del rispettivo conto, già sommati in `cents`. */
   dopoCents?: number;
   dopoMovimenti?: number;
   warning?: string;
 }
-/**
- * 15/11/2026: un saldo dei conti vecchio (aggiornato il 13/09) non è il saldo di oggi. I movimenti
- * registrati in prima nota DOPO quella data non ci sono dentro: si sommano, e si dice quanti sono.
- * Prima il saldo del 13/09 era trattato come quello di oggi, e il rendiconto del Controllo di
- * gestione, togliendo i movimenti dell'anno, metteva i mesi passati in negativo e un salto a dicembre.
- */
+/** Ogni movimento aggiorna soltanto il conto di cui conosciamo saldo e data. */
 export function portaSaldoAOggi(opening: OpeningBalance, notes: NoteRow[], today: string): OpeningBalance {
   if (opening.source !== "banca" || opening.cents == null || !opening.updatedAt) return opening;
-  const dal = opening.updatedAt.slice(0, 10);
-  if (dal >= today) return opening;
   let dopo = 0;
   let n = 0;
   for (const r of notes) {
+    const dal = r.bank_account_id && opening.accountDates?.[r.bank_account_id];
+    if (!dal) continue;
     if (r.entry_date <= dal || r.entry_date > today) continue;
+    if (r.direction !== "entrata" && r.direction !== "uscita") continue;
     dopo += toCents(r.amount) * (r.direction === "entrata" ? 1 : -1);
     n += 1;
   }
@@ -610,6 +610,15 @@ export function portaSaldoAOggi(opening: OpeningBalance, notes: NoteRow[], today
     dopoMovimenti: n,
   };
 }
+
+function giornoSaldo(aggiornato: string | null): string | null {
+  if (!aggiornato) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(aggiornato)) return aggiornato;
+  const istante = new Date(aggiornato);
+  return Number.isNaN(istante.getTime()) ? null
+    : istante.toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" });
+}
+
 export function resolveOpeningBalance(
   banks: BankRow[],
   notes: NoteRow[],
@@ -634,12 +643,16 @@ export function resolveOpeningBalance(
         updatedAt: null,
         warning: "Il saldo di uno o più conti non è disponibile.",
       };
-    const refreshed = banks
-      .map((b) => b.balance_updated_at)
-      .filter((v): v is string => !!v)
-      .sort();
-    // La data è quella del conto aggiornato meno di recente tra quelli che la hanno: un conto
-    // senza data non cancella l'informazione degli altri, ma viene contato a parte.
+    const accountDates: Record<string, string> = {};
+    const refreshed: string[] = [];
+    for (const bank of banks) {
+      const giorno = giornoSaldo(bank.balance_updated_at);
+      if (giorno && bank.balance_updated_at) {
+        accountDates[bank.id] = giorno;
+        refreshed.push(bank.balance_updated_at);
+      }
+    }
+    refreshed.sort();
     return {
       cents: banks.reduce(
         (sum, b) => sum + toCents(b.available_balance ?? b.current_balance),
@@ -647,6 +660,7 @@ export function resolveOpeningBalance(
       ),
       source: "banca",
       updatedAt: refreshed[0] ?? null,
+      accountDates,
       undatedAccounts: banks.length - refreshed.length,
       contabileCents: banks.some((b) => b.current_balance == null)
         ? null
@@ -1881,7 +1895,7 @@ export function buildForecastLedger(
       );
     }
   for (const m of s.blocked) add(m);
-  const vat = vatEstimates(s, today);
+  const vat = s.vatProjection ?? vatEstimates(s, today);
   vat.movements.forEach((m) => add(m));
   vat.warnings.forEach((w) => warnings.add(w));
   const trattenutoPerCosto = new Map<string, number>();

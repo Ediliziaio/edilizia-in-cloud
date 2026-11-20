@@ -700,6 +700,9 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onSt
               </tr></tfoot>
             </table>
           </TabellaContabile>
+          {dettaglio.origine === "manuale" && !dettaglio.storno_di && (
+            <RaccordoControlloGestione companyId={companyId} scritturaId={dettaglio.id} puoScrivere={!!onRettifica || !!onStorno} />
+          )}
           <DialogFooter>
             {onElimina && <Button variant="destructive" onClick={() => { onClose(); onElimina(dettaglio); }}>Elimina scrittura</Button>}
             {onRettifica && <Button variant="outline" onClick={() => { onClose(); onRettifica(dettaglio); }}>{modificabile ? "Modifica scrittura" : "Rettifica con storno"}</Button>}
@@ -708,6 +711,41 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onSt
           </DialogFooter>
         </DialogContent>}
       </Dialog>
+  );
+}
+
+function RaccordoControlloGestione({ companyId, scritturaId, puoScrivere }: {
+  companyId: string; scritturaId: string; puoScrivere: boolean;
+}) {
+  const qc = useQueryClient();
+  const key = chiave(companyId, "raccordo-cdg", scritturaId);
+  const call = async (includi?: boolean) => {
+    const { data, error } = await db.rpc("contabilita_raccordo_cdg", {
+      p_company: companyId, p_scrittura: scritturaId, p_includi: includi ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return data === true;
+  };
+  const q = useQuery({ queryKey: key, queryFn: () => call() });
+  const aggiorna = useMutation({
+    mutationFn: call,
+    onSuccess: (value) => {
+      qc.setQueryData(key, value);
+      void qc.invalidateQueries({ queryKey: ["cg"] });
+    },
+  });
+  if (q.isLoading) return null;
+  return (
+    <div className="space-y-1 rounded-md border p-3 text-sm">
+      <label className="flex items-center gap-2">
+        <Checkbox checked={q.data ?? false} disabled={!puoScrivere || aggiorna.isPending || q.isError}
+          onCheckedChange={(v) => aggiorna.mutate(v === true)} />
+        Includi nel Controllo di gestione
+      </label>
+      <p className="text-xs text-muted-foreground">Usa questa opzione per gli assestamenti economici non ancora rilevati da fatture, costi o cedolini.</p>
+      {q.isError && <p role="alert" className="text-xs text-destructive">Raccordo non disponibile. <button className="underline" onClick={() => void q.refetch()}>Riprova</button></p>}
+      {aggiorna.isError && <p role="alert" className="text-xs text-destructive">{aggiorna.error.message}</p>}
+    </div>
   );
 }
 

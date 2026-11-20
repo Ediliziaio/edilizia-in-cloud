@@ -53,6 +53,7 @@ export interface MovimentoRegistrato {
   orderId?: string | null;
   /** Movimento di banca collegato (o da cui viene la riga). */
   bankTransactionId?: string | null;
+  accountLabel?: string | null;
   /** Vero se la riga è un movimento di banca non ancora in prima nota. */
   fonteBanca?: boolean;
   /** Riga del rendiconto indicata dalla categoria CONFERMATA del movimento: vince sul testo. */

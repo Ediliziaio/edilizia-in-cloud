@@ -156,6 +156,7 @@ export function useDeleteLoan() {
 
 export interface AgingFasce {
   a_scadere: number;
+  senza_data: number;
   sc_30: number;
   sc_60: number;
   sc_90: number;
@@ -164,7 +165,7 @@ export interface AgingFasce {
 export interface AgingRiga {
   id: string;
   descrizione: string;
-  due_date: string;
+  due_date: string | null;
   residuo: number;
   fascia: keyof AgingFasce;
   controparte: string | null;

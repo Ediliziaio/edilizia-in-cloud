@@ -968,16 +968,30 @@ describe("giro 1: numeri giusti", () => {
   it("porta a oggi un saldo dei conti vecchio coi movimenti registrati dopo (15/11/2026)", () => {
     const vecchio = resolveOpeningBalance([{ id: "a", current_balance: 1000, available_balance: 1000, balance_updated_at: "2026-09-13T08:00:00Z" }], []);
     const note = [
-      { id: "prima", direction: "entrata", amount: 500, entry_date: "2026-09-13" },
-      { id: "dopo1", direction: "entrata", amount: 300, entry_date: "2026-10-01" },
-      { id: "dopo2", direction: "uscita", amount: 100, entry_date: "2026-11-11" },
-      { id: "futuro", direction: "uscita", amount: 999, entry_date: "2026-12-01" },
+      { id: "prima", direction: "entrata", amount: 500, entry_date: "2026-09-13", bank_account_id: "a" },
+      { id: "dopo1", direction: "entrata", amount: 300, entry_date: "2026-10-01", bank_account_id: "a" },
+      { id: "dopo2", direction: "uscita", amount: 100, entry_date: "2026-11-11", bank_account_id: "a" },
+      { id: "futuro", direction: "uscita", amount: 999, entry_date: "2026-12-01", bank_account_id: "a" },
     ];
     const oggi = portaSaldoAOggi(vecchio, note, "2026-11-15");
     expect(oggi).toEqual(expect.objectContaining({ cents: 120000, bancaCents: 100000, dopoCents: 20000, dopoMovimenti: 2 }));
     // Saldo aggiornato oggi: niente da aggiungere.
-    const fresco = { ...vecchio, updatedAt: "2026-11-15T07:00:00Z" };
+    const fresco = { ...vecchio, updatedAt: "2026-11-15T07:00:00Z", accountDates: { a: "2026-11-15" } };
     expect(portaSaldoAOggi(fresco, note, "2026-11-15")).toBe(fresco);
+  });
+  it("usa le date dei singoli conti e conserva le operazioni di cassa fuori dal saldo bancario", () => {
+    const apertura = resolveOpeningBalance([
+      { id: "a", current_balance: 100, available_balance: null, balance_updated_at: "2026-11-01" },
+      { id: "b", current_balance: 500, available_balance: null, balance_updated_at: "2026-11-20" },
+    ], []);
+    const note = [
+      { id: "b-incasso", direction: "entrata", amount: 100, entry_date: "2026-11-10", bank_account_id: "b" },
+      { id: "contanti", direction: "entrata", amount: 50, entry_date: "2026-11-10" },
+    ];
+    expect(portaSaldoAOggi(apertura, note, "2026-11-20").cents).toBe(60000);
+    expect(portaSaldoAOggi(apertura, [...note,
+      { id: "a-incasso", direction: "entrata", amount: 80, entry_date: "2026-11-11", bank_account_id: "a" },
+    ], "2026-11-20")).toMatchObject({ cents: 68000, dopoCents: 8000, dopoMovimenti: 1 });
   });
   it("stima anche una spesa mensile senza generazione automatica (15/11/2026)", () => {
     const s = emptyForecastSources();

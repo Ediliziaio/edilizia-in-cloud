@@ -5,7 +5,8 @@
 // delle commesse, senza la finanziaria. L'app dal 08/11/2026 dice un altro
 // numero, quello del Previsionale (rate, scadenze e fatture una volta sola:
 // src/lib/finance/incassiScaduti.ts). Qui lo stesso calcolo, dallo stesso
-// codice: caricaPrevisionale legge le fonti col client del servizio,
+// codice: caricaPrevisionale legge le fonti col client del servizio, incluse
+// le liquidazioni IVA confermate e le compensazioni già registrate,
 // incassiScaduti le filtra. La risposta ha la stessa forma di prima (count,
 // total_overdue_eur, priorita_recupero…), così chi la legge non cambia.
 //

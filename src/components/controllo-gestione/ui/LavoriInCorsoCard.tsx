@@ -24,16 +24,19 @@ import {
   type LavoriInCorso,
 } from "@/hooks/controlloGestione/useLavoriInCorso";
 
-/** Vero quando c'è qualcosa da mostrare: un lavoro in corso o un acconto. */
 export function serveLavoriInCorso(d: LavoriInCorso | null | undefined): boolean {
   if (!d) return false;
-  return d.commesse_misurate > 0 && (d.lavori_in_corso > 0 || d.anticipi > 0);
+  return d.commesse_senza_avanzamento > 0 || d.rimanenza_registrata !== null ||
+    !!d.ultime_rimanenze?.length || (d.commesse_misurate > 0 && (d.lavori_in_corso > 0 || d.anticipi > 0));
 }
 
 /** Il testo che spiega se la voce 02 è entrata nel conto economico, e perché no. */
 export function spiegaVariazione(d: LavoriInCorso, anno: number): string {
   if (d.rimanenza_iniziale === null) {
     return `Nel conto economico non entra ancora: serve la rimanenza al 31/12/${anno - 1}. Senza quella non si sa quanto di questo lavoro è stato fatto quest'anno, e darla per zero gonfierebbe il margine di tutto il lavoro cominciato prima.`;
+  }
+  if (d.ultime_rimanenze?.length === 0 && d.rimanenza_registrata === null) {
+    return "Per includere la variazione nel conto economico, registra una rimanenza alla fine di un mese.";
   }
   const v = d.variazione_nel_ce;
   if (v === 0) {
@@ -53,9 +56,19 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
   const registra = useRegistraRimanenza();
   const [apri, setApri] = useState(false);
   const [importo, setImporto] = useState("");
+  const [mese, setMese] = useState(0);
 
   const d = query.data;
+  if (query.isError) return <p role="alert" className="rounded-lg border p-3 text-sm text-destructive">
+    Lavori in corso non disponibili. <button className="underline" onClick={() => void query.refetch()}>Riprova</button>
+  </p>;
   if (!serveLavoriInCorso(d) || !d) return null;
+  const [annoOggi, meseOggi] = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }).split("-").map(Number);
+  const mesiChiusi = anno < annoOggi ? 12 : anno === annoOggi ? meseOggi - 1 : 0;
+  const meseScelto = mese > 0 && mese <= mesiChiusi ? mese : mesiChiusi;
+  const valoreRegistrato = meseScelto === 12 ? d.rimanenza_registrata
+    : d.ultime_rimanenze?.find((r) => r.mese === meseScelto)?.importo;
+  const valore = Number(importo.replace(",", "."));
 
   const copertura =
     d.commesse_senza_avanzamento > 0
@@ -75,7 +88,7 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {d.commesse_misurate > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Riquadro titolo="Eseguito" valore={d.maturato} />
           <Riquadro titolo="Fatturato" valore={d.fatturato} />
           <Riquadro titolo="Lavoro in corso" valore={d.lavori_in_corso} forte />
@@ -84,7 +97,7 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
             valore={d.anticipi}
             nota="fatturato più di quanto eseguito"
           />
-        </div>
+        </div>}
 
         <p className="text-sm text-muted-foreground">{spiegaVariazione(d, anno)}</p>
 
@@ -104,10 +117,10 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
         <div className="flex flex-wrap items-center gap-2">
           {d.rimanenza_registrata !== null && (
             <Badge variant="outline" className="font-normal">
-              Rimanenza registrata al 31/12/{anno}: {formatCurrency(d.rimanenza_registrata)}
+              Rimanenza al 31/12/{anno} · {formatCurrency(d.rimanenza_registrata)}
             </Badge>
           )}
-          <Button variant="outline" size="sm" onClick={() => setApri(true)}>
+          <Button disabled={!mesiChiusi} variant="outline" size="sm" onClick={() => setApri(true)}>
             Registra la rimanenza
           </Button>
         </div>
@@ -118,13 +131,20 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
           <DialogHeader>
             <DialogTitle>Registra la rimanenza dei lavori in corso</DialogTitle>
             <DialogDescription>
-              È il valore del lavoro eseguito e non fatturato al 31 dicembre. Si registra una volta
-              per esercizio, perché l'avanzamento delle fasi è un dato di oggi e non si può
-              ricostruire a una data passata. Serve al conto economico dell'anno dopo come
-              rimanenza iniziale.
+              Inserisci il valore verificato del lavoro eseguito e da fatturare alla fine del mese scelto.
+              La chiusura di dicembre determina anche la rimanenza iniziale dell’anno successivo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="rimanenza-mese">Mese di chiusura</Label>
+              <select id="rimanenza-mese" className="h-9 w-full rounded-md border bg-background px-3"
+                value={meseScelto} onChange={(e) => { setMese(Number(e.target.value)); setImporto(""); }}>
+                {Array.from({ length: mesiChiusi }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>{new Date(anno, i, 1).toLocaleDateString("it-IT", { month: "long" })}</option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="rimanenza-esercizio">Esercizio</Label>
               <Input id="rimanenza-esercizio" value={anno} readOnly className="bg-muted" />
@@ -136,14 +156,12 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder={String(d.lavori_in_corso)}
                 value={importo}
                 onChange={(e) => setImporto(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Lasciandolo vuoto si registra quello che il sistema calcola adesso:{" "}
-                {formatCurrency(d.lavori_in_corso)}.
-              </p>
+              {valoreRegistrato != null && <p className="text-xs text-muted-foreground">
+                Valore già registrato per questo mese · {formatCurrency(valoreRegistrato)}
+              </p>}
             </div>
           </div>
           <DialogFooter>
@@ -151,19 +169,15 @@ export function LavoriInCorsoCard({ anno }: LavoriInCorsoCardProps) {
               Annulla
             </Button>
             <Button
-              disabled={registra.isPending}
+              disabled={registra.isPending || !meseScelto || !importo.trim() || !Number.isFinite(valore) || valore < 0}
               onClick={() => {
-                const n = importo.trim() === "" ? null : Number(importo.replace(",", "."));
-                if (n !== null && (Number.isNaN(n) || n < 0)) {
-                  return;
-                }
                 registra.mutate(
-                  { esercizio: anno, importo: n },
+                  { esercizio: anno, mese: meseScelto, importo: valore },
                   { onSuccess: () => { setApri(false); setImporto(""); } },
                 );
               }}
             >
-              Registra
+              {valoreRegistrato != null ? "Aggiorna rimanenza" : "Registra"}
             </Button>
           </DialogFooter>
         </DialogContent>

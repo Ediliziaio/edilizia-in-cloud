@@ -24,10 +24,12 @@ import {
   resolveOpeningBalance,
   portaSaldoAOggi,
   toCents,
+  type BankRow,
+  type CostPaymentRow,
   type ForecastMovement,
   type ForecastSources,
+  type NoteRow,
   type OpeningBalance,
-  type VatDocumentRow,
 } from "./forecastLedger.ts";
 
 export interface ReadResult {
@@ -82,6 +84,41 @@ export interface ForecastDataset {
   warnings: string[];
   updatedAt: string;
 }
+
+export async function loadOpeningBalance(
+  client: ReadClient, companyId: string, today: string, banks: BankRow[],
+): Promise<OpeningBalance> {
+  const opening = resolveOpeningBalance(banks, []);
+  const dateConti = opening.accountDates ?? {};
+  const piuVecchia = Object.values(dateConti).sort()[0];
+  if (opening.cents == null || !piuVecchia || piuVecchia >= today) return opening;
+
+  const attivi = banks.filter((b) => dateConti[b.id] && dateConti[b.id] < today);
+  const collegati = attivi.filter((b) => !b.is_manual).map((b) => b.id);
+  const manuali = attivi.filter((b) => b.is_manual).map((b) => b.id);
+  const dopo = moveDay(piuVecchia, 1);
+  try {
+    const [bank, notes] = await Promise.all([
+      collegati.length ? readForecastPages<{ id: string; account_id: string; booking_date: string; amount: number | string; amount_eur: number | string | null }>(() =>
+        client.from("bank_transactions_operativi").select("id,account_id,booking_date,amount,amount_eur")
+          .eq("company_id",companyId).in("account_id",collegati)
+          .or("status.eq.booked,status.is.null").gte("booking_date",dopo).lte("booking_date",today).order("id")) : [],
+      manuali.length ? readForecastPages<NoteRow>(() =>
+        client.from("prima_nota_entries").select("id,bank_account_id,direction,amount,entry_date")
+          .eq("company_id",companyId).in("bank_account_id",manuali)
+          .is("bank_transaction_id",null).gte("entry_date",dopo).lte("entry_date",today).order("id")) : [],
+    ]);
+    const movimentiBanca: NoteRow[] = bank.map((r) => {
+      const importo = Number(r.amount_eur ?? r.amount);
+      return { id: r.id, bank_account_id: r.account_id, entry_date: r.booking_date,
+        direction: importo < 0 ? "uscita" : "entrata", amount: Math.abs(importo) };
+    });
+    return portaSaldoAOggi(opening, [...movimentiBanca, ...notes], today);
+  } catch {
+    return { ...opening, warning: "Aggiornamento dei saldi non disponibile. La previsione parte dai saldi dichiarati all’ultima lettura." };
+  }
+}
+
 export async function loadForecastDataset(
   companyId: string,
   today: string,
@@ -91,15 +128,7 @@ export async function loadForecastDataset(
     throw new Error("Seleziona un’azienda per vedere il previsionale.");
   const s = emptyForecastSources();
   const issues: string[] = [];
-  const softWarnings: string[] = [];
   const year = Number(today.slice(0, 4));
-  // L'IVA si stima sui mesi la cui liquidazione può ancora cadere da oggi in avanti: bastano
-  // gli ultimi tre mesi (il credito dei mesi prima si perde: limite dichiarato).
-  const vatFrom = (() => {
-    const d = calendarDate(`${today.slice(0, 7)}-01`);
-    d.setMonth(d.getMonth() - 3);
-    return dayKey(d);
-  })();
   const scoped = (table: string, columns: string) =>
     client.from(table).select(columns).eq("company_id", companyId).order("id");
   const jobScoped = (table: string, columns: string) =>
@@ -121,7 +150,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "bank_accounts_operativi",
-          "id,current_balance,available_balance,currency,balance_updated_at",
+          "id,current_balance,available_balance,currency,balance_updated_at,is_manual",
         ).eq("is_active", true),
     },
     {
@@ -383,6 +412,7 @@ export async function loadForecastDataset(
     },
   ];
   let primaNota: { saldo?: number; entry_count?: number } | null = null;
+  let compensazioni: CostPaymentRow[] = [];
   await Promise.all([
     ...sources.map(async (source) => {
       try {
@@ -394,76 +424,22 @@ export async function loadForecastDataset(
       }
     }),
     (async () => {
-      // Stima IVA: fonti facoltative. Se non si leggono (permessi, modulo spento) il piano resta
-      // valido e lo diciamo tra le ipotesi, senza segnare la previsione come incompleta.
       try {
-        const [native, received, f24] = await Promise.all([
-          readForecastPages<{
-            data_emissione: string | null;
-            iva_totale: number | null;
-            tipo: string;
-          }>(() =>
-            scoped("documenti_fiscali", "id,data_emissione,iva_totale,tipo")
-              .in("tipo", ["fattura", "fattura_pa", "nota_credito"])
-              .not("stato", "in", "(bozza,annullata,rifiutata)")
-              .is("deleted_at", null)
-              .gte("data_emissione", vatFrom),
-          ),
-          readForecastPages<{
-            data_fattura: string | null;
-            iva_totale: number | null;
-            tipo_documento: string | null;
-          }>(() =>
-            scoped(
-              "fatture_ricevute",
-              "id,data_fattura,iva_totale,tipo_documento",
-            )
-              .neq("stato", "rifiutata")
-              .gte("data_fattura", vatFrom),
-          ),
-          readForecastPages<{
-            anno: number;
-            mese: number | null;
-            tributo_code: string | null;
-            stato: string;
-          }>(() =>
-            scoped("f24_entries", "id,anno,mese,tributo_code,stato")
-              .like("tributo_code", "60%")
-              .neq("stato", "annullato")
-              .gte("anno", String(year - 1)),
-          ),
-        ]);
-        s.vatDocuments.push(
-          ...native.map(
-            (d): VatDocumentRow => ({
-              date: d.data_emissione,
-              vat: d.iva_totale,
-              kind: "vendita",
-              credit: d.tipo === "nota_credito",
-              origin: "nativa",
-            }),
-          ),
-          ...received
-            // Autofatture e integrazioni (reverse charge) hanno l'IVA da entrambe le parti.
-            .filter(
-              (d) =>
-                !/^TD(16|17|18|19)$|self_invoice/i.test(d.tipo_documento ?? ""),
-            )
-            .map(
-              (d): VatDocumentRow => ({
-                date: d.data_fattura,
-                vat: d.iva_totale,
-                kind: "acquisto",
-                credit: /^TD04$|credit/i.test(d.tipo_documento ?? ""),
-                origin: "ricevuta",
-              }),
-            ),
-        );
-        s.vatF24 = f24;
+        const { data, error } = await client.rpc("previsionale_liquidazioni_iva", { p_company_id: companyId, p_oggi: today });
+        if (error) throw error;
+        const proiezione = data as unknown as ForecastSources["vatProjection"];
+        if (!Array.isArray(proiezione?.movements) || !Array.isArray(proiezione?.warnings)) throw new Error("Liquidazioni IVA indisponibili");
+        s.vatProjection = proiezione;
       } catch {
-        softWarnings.push(
-          "Stima IVA non disponibile: non è stato possibile leggere fatture o F24 dell’IVA.",
-        );
+        s.vatProjection = { movements: [], warnings: ["Stima IVA non disponibile. Verifica le liquidazioni in Contabilità fiscale."] };
+      }
+    })(),
+    (async () => {
+      try {
+        compensazioni = await readForecastPages<CostPaymentRow>(() =>
+          client.rpc("previsionale_compensazioni_anticipi", { p_company_id: companyId, p_al: today }).order("id"));
+      } catch {
+        issues.push("Compensazioni anticipi fornitori");
       }
     })(),
     (async () => {
@@ -507,25 +483,6 @@ export async function loadForecastDataset(
       }
     })(),
   ]);
-  s.vatDocuments.push(
-    ...s.invoices
-      .filter(
-        (i) =>
-          (i.issue_date ?? "") >= vatFrom &&
-          !["proforma"].includes(i.document_type ?? ""),
-      )
-      .map(
-        (i): VatDocumentRow => ({
-          date: i.issue_date ?? null,
-          vat: i.tax_amount ?? 0,
-          kind: "vendita",
-          credit: ["credit_note", "nota_credito", "TD04"].includes(
-            i.document_type ?? "",
-          ),
-          origin: "esterna",
-        }),
-      ),
-  );
   // Le righe della funzione sono piatte: la commessa torna nell'oggetto `order` come prima.
   s.installments = (s.installments as unknown as Array<Record<string, unknown>>).map((r) =>
     r.order
@@ -542,7 +499,8 @@ export async function loadForecastDataset(
           },
         } as unknown as ForecastSources["installments"][number]),
   );
-  let opening = portaSaldoAOggi(resolveOpeningBalance(s.banks, []), s.notes, today);
+  let opening = await loadOpeningBalance(client, companyId, today, s.banks);
+  s.costPayments = [...(s.costPayments ?? []), ...compensazioni];
   // The full server aggregate, not the 12 months of detail used for collections.
   const pn = primaNota as { saldo?: number; entry_count?: number } | null;
   if (!s.banks.length && pn && Number(pn.entry_count) > 0)
@@ -551,9 +509,6 @@ export async function loadForecastDataset(
       source: "prima-nota",
       updatedAt: today,
     };
-  // A partial VAT source set must never generate a seemingly complete tax estimate.
-  const vatReady = !softWarnings.length && !issues.includes("Fatture");
-  if (!vatReady) s.vatDocuments = [];
   const ledger = buildForecastLedger(
     s,
     today,
@@ -564,9 +519,6 @@ export async function loadForecastDataset(
     today,
     opening,
     ...ledger,
-    warnings: [...ledger.warnings, ...softWarnings].filter(
-      (w) => vatReady || !w.startsWith("IVA da versare stimata"),
-    ),
     issues: issues.sort(),
     updatedAt: new Date().toISOString(),
   };
