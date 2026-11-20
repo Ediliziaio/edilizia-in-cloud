@@ -1,9 +1,9 @@
 // src/components/orders/generali/NuovaGeneraleDialog.tsx
 // Una schermata: tipo, nome, committente (o società dell'operazione), valore. Si può partire già
 // pronti: unità preparate e piano con le voci tipiche. Il resto si completa dalla pagina della generale.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { FileText, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -24,6 +24,7 @@ import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesse
 import { cn } from "@/lib/utils";
 import { CreaDaDocumenti } from "@/components/orders/generali/daDocumenti/CreaDaDocumenti";
 import { tipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
+import { ACCEPT_INPUT, MAX_MB_PER_FILE, problemaFile } from "@/lib/commesse/documentiCommessa";
 
 interface Props {
   open: boolean;
@@ -33,20 +34,25 @@ interface Props {
   iniziale: ModelloGenerale | null;
 }
 
-export function NuovaGeneraleDialog({ open, onOpenChange, modelli, iniziale }: Props) {
+export function NuovaGeneraleDialog(props: Props) {
+  return props.open ? <DialogAperto {...props} /> : null;
+}
+
+function DialogAperto({ open, onOpenChange, modelli, iniziale }: Props) {
+  const crea = useAvviaGenerale();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={o => { if (!crea.isPending) onOpenChange(o); }}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         {/* Il modulo nasce a ogni apertura: si riparte sempre da campi vuoti. */}
-        <Modulo onOpenChange={onOpenChange} modelli={modelli} iniziale={iniziale} />
+        <Modulo onOpenChange={onOpenChange} modelli={modelli} iniziale={iniziale} crea={crea} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
+function Modulo({ onOpenChange, modelli, iniziale, crea }: Omit<Props, "open"> & { crea: ReturnType<typeof useAvviaGenerale> }) {
   const navigate = useNavigate();
-  const crea = useAvviaGenerale();
+  const fileContrattoRef = useRef<HTMLInputElement>(null);
   // Il piano è dentro il permesso sui margini: chi non lo ha non può prepararlo.
   const permessi = usePermissions();
   const puoFarePiano = !!permessi.canViewMargins || !!permessi.isAdmin;
@@ -59,6 +65,8 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   const [conPiano, setConPiano] = useState(true);
   const [originePiano, setOriginePiano] = useState<"tipiche" | "excel">("tipiche");
   const [importaContratto, setImportaContratto] = useState(false);
+  const [fileContratto, setFileContratto] = useState<File | null>(null);
+  const [erroreContratto, setErroreContratto] = useState<string | null>(null);
   const [tipoAppalto, setTipoAppalto] = useState<"" | "Pubblico" | "Privato">("");
   const [indirizzo, setIndirizzo] = useState("");
   const [inizio, setInizio] = useState("");
@@ -79,7 +87,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   const prezzoSbagliato = prezzoTesto.trim() !== "" && (prezzo === null || prezzo < 0);
   // Un appalto senza committente non si fattura: lo chiede il modello (DEFINIZIONI_MODELLI).
   const senzaCommittente = appalto && !clienteId;
-  const puoCreare = !!modello && nome.trim().length > 0 && !valoreSbagliato && !prezzoSbagliato && !senzaCommittente && quante !== null && !crea.isPending;
+  const puoCreare = !!modello && nome.trim().length > 0 && !valoreSbagliato && !prezzoSbagliato && !senzaCommittente && quante !== null && !crea.isPending && !(appalto && erroreContratto);
 
   /** I dati chiesti qui vanno nella scheda «Dati»: solo quelli scritti. */
   const datiIniziali = (): Record<string, unknown> => {
@@ -118,16 +126,17 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
         unita: unitaDiPartenza(quante ?? 0),
         voci: conVociTipiche ? vociIniziali() : null,
         dati: datiIniziali(),
+        ...(appalto && fileContratto ? { contratto: fileContratto } : {}),
       },
       {
         onSuccess: ({ id, rimasti }) => {
           if (rimasti.length > 0) {
-            toast.warning("Commessa generale creata", { description: `Non sono riuscito a preparare ${rimasti.map((x) => (x === "unita" ? "le unità" : x === "piano" ? "il piano" : "i dati")).join(" e ")}: fallo dalla sua pagina.` });
+            toast.warning("Commessa generale creata", { description: `Non sono riuscito a preparare ${rimasti.map((x) => (x === "unita" ? "le unità" : x === "piano" ? "il piano" : x === "contratto" ? "il documento del contratto" : "i dati")).join(" e ")}: completa dalla sua pagina, senza creare un'altra commessa.` });
           } else {
             toast.success("Commessa generale creata");
           }
           onOpenChange(false);
-          navigate(`/azienda/ordini/${id}${modello === "appalto" && importaContratto ? "?scheda=contratto&importa-contratto=1" : conPiano && puoFarePiano && originePiano === "excel" ? "?scheda=piano&importa=1" : ""}`);
+          navigate(`/azienda/ordini/${id}${modello === "appalto" && importaContratto ? "?scheda=contratto&importa-contratto=1" : modello === "appalto" && fileContratto ? "?scheda=contratto" : conPiano && puoFarePiano && originePiano === "excel" ? "?scheda=piano&importa=1" : ""}`);
         },
         onError: (e) => toast.error(messaggioGenerale(e, "la commessa generale")),
       },
@@ -146,8 +155,10 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
 
         <form
           className="space-y-4"
+          aria-busy={crea.isPending}
           onSubmit={(e) => { e.preventDefault(); conferma(); }}
         >
+          <fieldset disabled={crea.isPending} className="contents">
           {modelli.length > 1 && (
             <fieldset className="space-y-1.5">
               <legend className="text-sm font-medium">Tipo</legend>
@@ -205,11 +216,26 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
           )}
 
           {appalto && (
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+              <Label htmlFor="generale-file-contratto" className="flex items-center gap-2"><FileText className="h-4 w-4" aria-hidden="true" />Contratto d’appalto originale <span className="font-normal text-muted-foreground">(facoltativo)</span></Label>
+              <p id="generale-file-aiuto" className="text-xs text-muted-foreground">Carica qui il contratto della commessa principale, anche con molte pagine. I contratti applicativi e gli ordini di lavoro avranno i propri documenti.</p>
+              <Input ref={fileContrattoRef} id="generale-file-contratto" type="file" accept={ACCEPT_INPUT} disabled={crea.isPending} aria-describedby={`generale-file-aiuto generale-file-limite${erroreContratto ? " generale-file-errore" : ""}`} aria-invalid={!!erroreContratto} onChange={e => {
+                const file = e.target.files?.[0] ?? null;
+                const errore = file ? problemaFile(file) : null;
+                setErroreContratto(errore); setFileContratto(errore ? null : file);
+              }} />
+              <p id="generale-file-limite" className="text-xs text-muted-foreground">PDF, documenti firmati e altri formati dell’archivio · massimo {MAX_MB_PER_FILE} MB. L’originale viene conservato integralmente; l’AI è facoltativa.</p>
+              {erroreContratto && <p id="generale-file-errore" role="alert" className="text-xs text-destructive">{erroreContratto}</p>}
+              {(fileContratto || erroreContratto) && <Button type="button" variant="ghost" size="sm" disabled={crea.isPending} onClick={() => { setFileContratto(null); setErroreContratto(null); if (fileContrattoRef.current) fileContrattoRef.current.value = ""; }}><X className="mr-1 h-3.5 w-3.5" />Rimuovi file selezionato</Button>}
+            </div>
+          )}
+
+          {appalto && (
             <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
               <input type="checkbox" checked={importaContratto} onChange={(e) => setImportaContratto(e.target.checked)} className="mt-1" />
               <span>
                 Ho il contratto: importalo con l’AI dopo la creazione
-                <span className="mt-1 block text-xs text-muted-foreground">PDF o immagine. Importo, ribasso, oneri, date e penali li legge l’AI; li verifichi in Contratto e SAL prima di salvarli.</span>
+                <span className="mt-1 block text-xs text-muted-foreground">Facoltativo, per leggere i dati da PDF o immagini fino a 18 MB. Il caricamento dell’originale qui sopra funziona anche senza AI e non cambia importi, date o SAL.</span>
               </span>
             </label>
           )}
@@ -309,6 +335,8 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
               Crea commessa generale
             </Button>
           </DialogFooter>
+          </fieldset>
+          {crea.isPending && fileContratto && <p role="status" className="text-sm text-muted-foreground">Creazione della commessa e archiviazione del contratto originale in corso…</p>}
         </form>
     </>
   );

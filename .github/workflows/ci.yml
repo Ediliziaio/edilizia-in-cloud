@@ -809,6 +809,16 @@ jobs:
         if: matrix.group == 'worksite'
         run: bunx vitest run --maxWorkers=1 src/test/logic/ordinePdfTypeBoundary.test.tsx
 
+      - name: Appalto original contracts, large files and parent/application navigation
+        if: matrix.group == 'worksite'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/contrattoAppaltoOriginale.test.ts
+          src/test/ui/contrattoAppaltoOriginale.test.tsx
+          src/test/ui/generaleImpostazioneSemplice.test.tsx
+          src/test/ui/commesseGenerali.test.tsx
+          src/test/ui/generaleDocumentiScheda.test.tsx
+
       - name: Run typed quote, task and catalogue data regressions
         if: matrix.group == 'access'
         run: >-
