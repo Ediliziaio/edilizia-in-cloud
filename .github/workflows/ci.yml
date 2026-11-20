@@ -107,6 +107,9 @@ jobs:
           src/test/logic/operazioniPerRiga.test.ts
           src/test/ui/scadenzarioFiltriAperti.test.tsx
           src/test/ui/scadenzarioSenzaData.test.tsx
+          src/test/logic/ricercaRateRicevute.test.ts
+          src/test/ui/contiFornitoriRateExport.test.tsx
+          src/test/ui/fattureModificheConcorrenti.test.tsx
           src/test/ui/stornaPagamentiPrimaNota.test.tsx
           src/test/ui/primaNotaSelezione.test.tsx
           src/test/ui/primaNotaStorniFuoriPagina.test.tsx

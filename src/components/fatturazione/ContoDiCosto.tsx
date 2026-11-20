@@ -57,7 +57,8 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
     mutationFn: async (categoria: string) => {
       const { error } = costoId
         ? await supabase.from("company_costs").update({ category: categoria }).eq("id", costoId).eq("company_id", companyId)
-        : await supabase.from("fatture_ricevute").update({ categoria_ai: categoria }).eq("id", fatturaId).eq("company_id", companyId);
+        : await supabase.from("fatture_ricevute").update({ categoria_ai: categoria, conto_costo_origine: "manuale" })
+          .eq("id", fatturaId).eq("company_id", companyId);
       if (error) throw error;
       // La contabilità generale segue: niente da fare se la fattura non c'è ancora.
       const { data, error: errGiornale } = await (supabase as unknown as {

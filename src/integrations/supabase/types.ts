@@ -48837,6 +48837,7 @@ export type Database = {
           condizioni_pagamento: string | null
           conti_righe: Json
           contratto_subappalto_id: string | null
+          conto_costo_origine: string | null
           created_at: string | null
           da_leggere: boolean | null
           data_fattura: string
@@ -48919,6 +48920,7 @@ export type Database = {
           condizioni_pagamento?: string | null
           conti_righe?: Json
           contratto_subappalto_id?: string | null
+          conto_costo_origine?: string | null
           created_at?: string | null
           da_leggere?: boolean | null
           data_fattura: string
@@ -49001,6 +49003,7 @@ export type Database = {
           condizioni_pagamento?: string | null
           conti_righe?: Json
           contratto_subappalto_id?: string | null
+          conto_costo_origine?: string | null
           created_at?: string | null
           da_leggere?: boolean | null
           data_fattura?: string
@@ -50475,6 +50478,34 @@ export type Database = {
             columns: ["form_id"]
             isOneToOne: false
             referencedRelation: "lead_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fornitori_conti_costo: {
+        Row: { company_id: string; fornitore_id: string; categoria_id: string }
+        Insert: { company_id: string; fornitore_id: string; categoria_id: string }
+        Update: { company_id?: string; fornitore_id?: string; categoria_id?: string }
+        Relationships: [
+          {
+            foreignKeyName: "fornitori_conti_costo_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "cost_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fornitori_conti_costo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fornitori_conti_costo_fornitore_id_fkey"
+            columns: ["fornitore_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -153227,6 +153258,23 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      scadenzario_rate_fornitori: {
+        Args: { p_company_id: string }
+        Returns: {
+          id: string
+          numero: number
+          scadenza: string | null
+          importo: number | null
+          metodo: string | null
+          stato: string
+          pagata_il: string | null
+          updated_at: string
+          residuo: number | null
+          fattura_id: string | null
+          numero_fattura: string | null
+          fornitore: string | null
+        }[]
       }
       scadenzario_riepilogo_fonti: {
         Args: { p_company_id: string; p_date_from?: string | null; p_date_to?: string | null; p_includi_senza_data?: boolean; p_solo_senza_data?: boolean }

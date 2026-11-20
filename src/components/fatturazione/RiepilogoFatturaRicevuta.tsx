@@ -1,4 +1,5 @@
 import { PagaRataDialog, type RataDaPagare } from "../scadenzario/PagaRataDialog";
+import { statoConsentePagamentoRata } from "@/lib/fatturazione/rateFornitoriScadenzario";
 import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
 import { etichettaModalitaPagamento, pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
@@ -62,7 +63,7 @@ type Riga = Record<string, unknown>;
 interface Dettaglio {
   fattura: Riga;
   riparto: { id?: string; codice?: string; nome: string; centesimi: number; percentuale: number | null }[];
-  rateRegistrate: { id: string; numero: number; scadenza: string | null; metodo: string | null; importo: number | null; stato: string; pagata_il: string | null }[];
+  rateRegistrate: { id: string; numero: number; scadenza: string | null; metodo: string | null; importo: number | null; stato: string; pagata_il: string | null; updated_at: string }[];
   ordini: Array<{ id: string; oda_number: string; importo: number | null; commessa: { id: string; order_code: string } | null }>;
   costo: { id: string; amount: number | null; category: string | null; commessa: { id: string; order_code: string } | null; ripartito: boolean } | null;
   fornitore: { id: string; name: string; tipo?: string | null } | null;
@@ -139,7 +140,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
     f.company_cost_id
       ? db.from("fatture_ricevute_pagamento").select("pagata_il,rate_pagate,rate_totali").eq("company_id", companyId).eq("id", fatturaId).maybeSingle()
       : Promise.resolve({ data: null }),
-    db.from("rate_fornitori").select("id,numero,scadenza,metodo,importo,stato,pagata_il").eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).order("numero"),
+    db.from("rate_fornitori").select("id,numero,scadenza,metodo,importo,stato,pagata_il,updated_at").eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).order("numero"),
   ]);
 
   // Il fornitore dell'anagrafica, se non è collegato: stessa partita IVA o stesso codice
@@ -359,8 +360,10 @@ function ContenutoRiepilogo({
   const riparto = d?.riparto ?? [];
   const pianoDocumento = pagamentoDaMostrare(f);
   const rateRegistrate = d?.rateRegistrate ?? [];
+  const rateNonSaldate = rateRegistrate.filter(r => r.stato !== "pagata" && !r.pagata_il);
   const scadenze = rateRegistrate.length
-    ? rateRegistrate.map(r => ({ data: r.scadenza, pagata: r.stato === "pagata" || !!r.pagata_il, importo: r.importo, metodo: etichettaModalitaPagamento(r.metodo) }))
+    ? rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il || statoConsentePagamentoRata(r.stato))
+      .map(r => ({ data: r.scadenza, pagata: r.stato === "pagata" || !!r.pagata_il, importo: r.importo, metodo: etichettaModalitaPagamento(r.metodo) }))
     : (pianoDocumento?.rate ?? []).map(r => ({ data: r.scadenza, pagata: !!r.pagataIl, importo: r.importo, metodo: r.metodo }));
   const saldata = !!f?.pagata_il || (scadenze.length > 0 && scadenze.every(r => r.pagata));
   const datate = scadenze.filter(r => r.data && (saldata || !r.pagata)).sort((a,b) => a.data!.localeCompare(b.data!));
@@ -655,11 +658,15 @@ function ContenutoRiepilogo({
                   <span>{statoPagamento ? (statoPagamento.da_verificare ? "Da verificare" : statoPagamento.residuo <= 0 ? "Saldata" : statoPagamento.pagato > 0 ? "Pagamento parziale" : "Non saldata") : f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` :
                     Number(f.rate_pagate) > 0 ? `Pagate ${f.rate_pagate} rate su ${f.rate_totali}` : saldata ? "Pagata" : "Non saldata"}</span>
                   {!nonSiPaga(String(f.tipo_documento ?? "")) && rateRegistrate.length > 0 && <div className="space-y-1">
-                    {!statoPagamento && <div className="font-medium">Residuo fattura · {rateRegistrate.some(r => r.stato !== "pagata" && r.importo == null) ? "Da verificare" : formatCurrency(rateRegistrate.reduce((somma,r) => somma + (r.stato === "pagata" ? 0 : Math.round((r.importo ?? 0) * 100)), 0) / 100)}</div>}
-                    {!saldata && rateRegistrate.filter(r => r.stato !== "pagata" && !r.pagata_il).map(r => <div key={r.id || r.numero} className="flex flex-wrap items-center gap-2 text-xs">
+                    {!statoPagamento && <div className="font-medium">Residuo fattura · {rateNonSaldate.some(r => r.importo == null) ? "Da verificare" : formatCurrency(rateNonSaldate.reduce((somma,r) => somma + Math.round((r.importo ?? 0) * 100), 0) / 100)}</div>}
+                    {!saldata && rateNonSaldate.map(r => <div key={r.id || r.numero} className="flex flex-wrap items-center gap-2 text-xs">
                       <span>Rata {r.numero} · {r.scadenza ? formatDateShort(r.scadenza) : "senza scadenza"}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
-                      {!d.costo && permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs"
-                        aria-label={`Segna pagata la rata ${r.numero}`} onClick={() => setRataScelta({id:r.id, stato:r.stato, importo:r.importo!, titolo:`Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}`})}>Segna pagata</Button>}
+                      {r.stato === "da_bloccare" && <span className="text-muted-foreground">Da bloccare</span>}
+                      {r.stato === "richiamata" && <span className="text-muted-foreground">Richiamata</span>}
+                      {!d.costo && permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && r.updated_at && statoConsentePagamentoRata(r.stato) &&
+                        <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs" aria-label={`Segna pagata la rata ${r.numero}`}
+                          onClick={() => setRataScelta({ id: r.id, stato: r.stato, importo: r.importo!, updated_at: r.updated_at,
+                            titolo: `Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}` })}>Segna pagata</Button>}
                     </div>)}
                   </div>}
                   {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">Rata {r.numero} · pagata{r.pagata_il ? ` il ${formatDateShort(r.pagata_il)}` : ""}</div>)}
@@ -811,7 +818,7 @@ function ContenutoRiepilogo({
             <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
             {f.note ? <p className="text-sm"><span className="text-muted-foreground">Note: </span>{String(f.note)}</p> : null}
-            <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={f.note_interne ? String(f.note_interne) : null}
+            <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={typeof f.note_interne === "string" ? f.note_interne : null}
               puoModificare={!permessi.solaLettura} chiaviDaAggiornare={["fatture-ricevute", "fattura-ricevuta-riepilogo"]} />
 
 

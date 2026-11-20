@@ -160,17 +160,11 @@ export default function Scadenzario() {
   // rispondeva "nessuna scadenza trovata" pur essendoci.
   const [searchServer, setSearchServer] = useState("");
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      // Nuova ricerca = si riparte dalla prima pagina, altrimenti restando su
-      // pagina 3 di un elenco piu' corto si vedrebbe il vuoto.
-      setSearchServer((prev) => {
-        const next = search.trim();
-        if (next !== prev) setPage(1);
-        return next;
-      });
-    }, 350);
+    const t = window.setTimeout(() => setSearchServer(search.trim()), 350);
     return () => window.clearTimeout(t);
   }, [search]);
+  const ricercaInAttesa = search.trim() !== searchServer;
+  const dateInvertite = tab !== "senza_data" && datePreset === "custom" && !!customFrom && !!customTo && customFrom > customTo;
 
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
     includiSenzaData: !datePreset || tab === "senza_data",
@@ -240,7 +234,7 @@ export default function Scadenzario() {
   // Export CSV di TUTTE le scadenze che rispettano i filtri correnti (anno/tab/ricerca),
   // non solo la pagina visibile. Anti formula-injection via exportToCSV.
   const handleExport = async () => {
-    if (!companyId) return;
+    if (!companyId || ricercaInAttesa || dateInvertite) return;
     setExporting(true);
     try {
       const data = await readAllPages(async (from, to) => {
@@ -249,10 +243,7 @@ export default function Scadenzario() {
         .order("due_date", { ascending: true, nullsFirst: false }).order("id");
       return await q.range(from, to);
       });
-      const s = (search || "").toLowerCase();
-      const rows = (data || [])
-        .filter((r: any) => !s || (r.description || "").toLowerCase().includes(s) || (r.invoices?.invoice_number || "").toLowerCase().includes(s))
-        .map((r: any) => ({
+      const rows = data.map(r => ({
           scadenza: r.due_date || "",
           tipo: r.direction === "entrata" ? "Incasso" : "Pagamento",
           descrizione: r.description || "",
@@ -280,18 +271,7 @@ export default function Scadenzario() {
     }
   };
 
-  // Client-side search filter (text search remains client-side)
-  const filtered = useMemo(() => {
-    if (!search.trim()) return scadenze;
-    const q = search.toLowerCase();
-    return scadenze.filter((s) =>
-      s.description.toLowerCase().includes(q) ||
-      s.suppliers?.name?.toLowerCase().includes(q) ||
-      s.invoices?.client_company_name?.toLowerCase().includes(q) ||
-      s.invoices?.invoice_number?.toLowerCase().includes(q) ||
-      s.marketing_contacts?.company_name?.toLowerCase().includes(q)
-    );
-  }, [scadenze, search]);
+  const filtered = ricercaInAttesa || dateInvertite ? [] : scadenze;
   const selezione = useSelezioneRighe(filtered, JSON.stringify([companyId, page, pageSize, serverFilters, search]));
   const annullabili = selezione.selezionate.filter((s) => !percheScadenzaNonModificabile(s));
   const escluse = selezione.selezionate.flatMap((s) => {
@@ -462,7 +442,7 @@ export default function Scadenzario() {
             </Button>
             {/* Niente export su telefono: icon-only non lo rende un'altra cosa. */}
             {!isMobile && tab !== "rate" && (
-              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting || isLoading || isError} title="Esporta CSV" aria-label="Esporta CSV">
+              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting || isLoading || isError || ricercaInAttesa || dateInvertite} title="Esporta CSV" aria-label="Esporta CSV">
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
             )}
@@ -576,7 +556,9 @@ export default function Scadenzario() {
         <AdempimentiFiscali />
       ) : (
         /* Table */
-        isLoading ? (
+        dateInvertite ? (
+          <p role="alert" className="text-sm text-destructive">La data finale deve essere uguale o successiva a quella iniziale.</p>
+        ) : isLoading || ricercaInAttesa ? (
           <div role="status" aria-label="Caricamento scadenze" className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
@@ -643,7 +625,7 @@ export default function Scadenzario() {
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
         onAzzera={() => { setTab("aperte"); clearFilters(); }}
-        risultati={isLoading || tab === "rate" ? undefined : totalCount}
+        risultati={isLoading || ricercaInAttesa || dateInvertite || tab === "rate" ? undefined : totalCount}
       >
         <PilloleFiltro
           titolo="Mostra"

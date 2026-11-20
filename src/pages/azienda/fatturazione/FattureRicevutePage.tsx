@@ -1,5 +1,6 @@
+import { corrispondeRicercaRicevute, terminiRicercaRicevute } from "@/lib/fatturazione/ricercaRicevute";
 import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
-import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
@@ -361,10 +362,14 @@ export default function FattureRicevutePage() {
   // righe di PostgREST — che tagliava via una parte dell'anno in corso. Si parte
   // dall'anno corrente, gli altri restano un clic più in là.
   const annoCorrente = String(new Date().getFullYear());
-  const [annoFilter, setAnnoFilter] = useState(annoCorrente);
+  const [annoFilter, salvaAnno] = useState(annoCorrente);
   // Il mese scelto nella striscia (16/11/2026): filtra l'elenco e i sei numeri; cambia anno = si toglie.
   const [meseScelto, setMeseScelto] = useState<string | null>(null);
-  useEffect(() => { setMeseScelto(null); }, [annoFilter]);
+  const setAnnoFilter = (anno: string) => {
+    if (anno === annoFilter) return;
+    salvaAnno(anno);
+    setMeseScelto(null);
+  };
   // La fattura aperta nel riepilogo leggibile (righe, totali, collegamenti).
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [fatturaVista, setFatturaVista] = useState<(FatturaRicevutaVista & { origine: FatturaRicevuta }) | null>(null);
@@ -378,7 +383,7 @@ export default function FattureRicevutePage() {
   // Mobile: anno e stato in un pannello dal basso; una fattura si apre in un
   // riquadro dal basso con i numeri e «Contabilizza».
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const [dettaglioMobile, setDettaglioMobile] = useState<FatturaRicevuta | null>(null);
+  const [selezioneMobile, setDettaglioMobile] = useState<FatturaRicevuta | null>(null);
   // «Da pagare»: le fatture dei fornitori non ancora pagate (né a mano né con tutte le rate).
   const [pagamentoFilter, setPagamentoFilter] = useState<"all" | "da_pagare">("all");
 
@@ -428,7 +433,7 @@ export default function FattureRicevutePage() {
     return Array.from({ length: a - da + 1 }, (_, i) => String(a - i));
   }, [estremiAnni, annoCorrente]);
 
-  const { data: fatture = [], isLoading } = useQuery({
+  const { data: fatture = [], isLoading, isError: erroreFatture, refetch: rileggiFatture } = useQuery({
     queryKey: ["fatture-ricevute", companyId, annoFilter],
     enabled: !!companyId,
     queryFn: async () => {
@@ -457,6 +462,9 @@ export default function FattureRicevutePage() {
       return tutteLePagine<FatturaRicevuta>(pagina);
     },
   });
+  const dettaglioMobile = selezioneMobile?.company_id === companyId && selezioneMobile
+    ? fatture.find(f => f.id === selezioneMobile.id) ?? selezioneMobile
+    : null;
 
   // Le fatture divise tra più ordini: una quota per ordine (30/10/2026).
   // Il tipo dei fornitori collegati (materiali, subappalto, spese generali…).
@@ -464,23 +472,22 @@ export default function FattureRicevutePage() {
     queryKey: ["fatture-ricevute-tipi-fornitori", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("suppliers").select("id, tipo").eq("company_id", companyId).not("tipo", "is", null);
-      if (error) throw error;
-      return Object.fromEntries(((data ?? []) as Array<{ id: string; tipo: string }>).map((x) => [x.id, x.tipo])) as Record<string, string>;
+      const data = await tutteLePagine((from, to) => supabase.from("suppliers").select("id, tipo")
+        .eq("company_id", companyId!).not("tipo", "is", null).order("id").range(from, to));
+      return Object.fromEntries(data.flatMap(x => x.tipo ? [[x.id, x.tipo] as const] : []));
     },
   });
 
-  const { data: quoteOrdini = {} } = useQuery({
+  const { data: quoteOrdini = {}, isLoading: caricaQuote, isError: erroreQuote, refetch: rileggiQuote } = useQuery({
     queryKey: ["fatture-quote-ordini", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const data = await tutteLePagine((from, to) => supabase
         .from("fattura_ricevuta_ordini")
         .select("fattura_id, purchase_order_id, importo")
-        .eq("company_id", companyId!);
-      if (error) throw error;
+        .eq("company_id", companyId!).order("fattura_id").order("purchase_order_id").range(from, to));
       const perFattura: Record<string, Array<{ purchase_order_id: string; importo: number }>> = {};
-      for (const r of (data ?? []) as Array<{ fattura_id: string; purchase_order_id: string; importo: number }>) {
+      for (const r of data) {
         (perFattura[r.fattura_id] ??= []).push({ purchase_order_id: r.purchase_order_id, importo: Number(r.importo) });
       }
       return perFattura;
@@ -499,7 +506,7 @@ export default function FattureRicevutePage() {
   const verificata = useCallback((f: FatturaRicevuta) => fatturaVerificata({ stato: f.stato, verifica_manuale: verifiche[f.id] }), [verifiche]);
   // Le commesse di ogni fattura: stanno sul suo costo, una o più di una.
   const idCosti = useMemo(() => [...new Set(fatture.map((f) => f.company_cost_id).filter(Boolean))].sort() as string[], [fatture]);
-  const { data: datiCosti } = useQuery({
+  const { data: datiCosti, isLoading: caricaCosti, isError: erroreCosti, refetch: rileggiCosti } = useQuery({
     queryKey: ["fatture-costi-commesse", companyId, idCosti],
     enabled: !!companyId && idCosti.length > 0,
     queryFn: async () => {
@@ -511,19 +518,28 @@ export default function FattureRicevutePage() {
       }
       const quote = Object.fromEntries(costi.map((c) => [c.id, quoteDelCosto(c)]));
       const idOrdini = [...new Set(Object.values(quote).flat().map((q) => q.order_id))];
-      const codici = new Map<string, string>();
+      const commesse = new Map<string, { codice: string; descrizione: string | null; indirizzo: string | null }>();
       // Una fattura messa su tutta l'operazione (commessa generale) si riconosce in elenco (18/11/2026).
       const generali = new Set<string>();
       for (let i = 0; i < idOrdini.length; i += 100) {
-        const { data, error } = await (supabase as any).from("orders").select("id, order_code, workflow_kind").eq("company_id", companyId!).in("id", idOrdini.slice(i, i + 100));
+        const { data, error } = await (supabase as any).from("orders").select("id, order_code, description, work_address, workflow_kind").eq("company_id", companyId!).in("id", idOrdini.slice(i, i + 100));
         if (error) throw error;
-        for (const o of (data ?? []) as Array<{ id: string; order_code: string | null; workflow_kind: string | null }>) {
-          codici.set(o.id, o.order_code ?? "Commessa");
+        for (const o of (data ?? []) as Array<{ id: string; order_code: string | null; description: string | null; work_address: string | null; workflow_kind: string | null }>) {
+          commesse.set(o.id, { codice: o.order_code ?? "Commessa", descrizione: o.description, indirizzo: o.work_address });
           if (o.workflow_kind === "generale") generali.add(o.id);
         }
       }
       return {
-        quote: Object.fromEntries(Object.entries(quote).map(([id, q]) => [id, q.map((x) => ({ ...x, codice: codici.get(x.order_id) ?? "Commessa", generale: generali.has(x.order_id) }))])),
+        quote: Object.fromEntries(Object.entries(quote).map(([id, allocazioni]) => [id, allocazioni.map((quota) => {
+          const commessa = commesse.get(quota.order_id);
+          return {
+            ...quota,
+            codice: commessa?.codice ?? "Commessa",
+            descrizione: commessa?.descrizione ?? null,
+            indirizzo: commessa?.indirizzo ?? null,
+            generale: generali.has(quota.order_id),
+          };
+        })])),
         // Il pagamento vero sta sul costo: una fattura può essere pagata senza che sia segnato su di lei.
         pagati: Object.fromEntries(costi.filter((c) => c.is_paid).map((c) => [c.id, c.paid_date])) as Record<string, string | null>,
       };
@@ -545,25 +561,37 @@ export default function FattureRicevutePage() {
   const linkedOdaIds = useMemo(
     () => [...new Set([
       ...fatture.map((f) => f.purchase_order_id),
-      ...Object.values(quoteOrdini).flat().map((q) => q.purchase_order_id),
-    ].filter(Boolean))] as string[],
+      ...fatture.flatMap((f) => (quoteOrdini[f.id] ?? []).map((q) => q.purchase_order_id)),
+    ].filter(Boolean))].sort() as string[],
     [fatture, quoteOrdini],
   );
-  const { data: odaNumbers = {} } = useQuery({
+  const { data: ordiniCollegati = {}, isLoading: caricaOrdini, isError: erroreOrdini, refetch: rileggiOrdini } = useQuery({
     queryKey: ["fatture-oda-numbers", companyId, linkedOdaIds],
     enabled: !!companyId && linkedOdaIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("purchase_orders")
-        .select("id, oda_number")
-        .eq("company_id", companyId!)
-        .in("id", linkedOdaIds);
-      if (error) throw error;
-      return Object.fromEntries(
-        ((data ?? []) as Array<{ id: string; oda_number: string }>).map((o) => [o.id, o.oda_number]),
-      ) as Record<string, string>;
+      const riferimenti: Record<string, { numero: string | null; cantiere: Array<string | null> }> = {};
+      for (let i = 0; i < linkedOdaIds.length; i += 100) {
+        const { data, error } = await supabase.from("purchase_orders")
+          .select("id, oda_number, orders!purchase_orders_order_id_fkey(order_code, description, work_address)")
+          .eq("company_id", companyId!)
+          .in("id", linkedOdaIds.slice(i, i + 100));
+        if (error) throw error;
+        for (const o of data ?? []) {
+          riferimenti[o.id] = {
+            numero: o.oda_number,
+            cantiere: o.orders ? [o.orders.order_code, o.orders.description, o.orders.work_address] : [],
+          };
+        }
+      }
+      return riferimenti;
     },
   });
+  const odaNumbers = useMemo(() => Object.fromEntries(
+    Object.entries(ordiniCollegati).flatMap(([id, ordine]) => ordine.numero ? [[id, ordine.numero] as const] : []),
+  ), [ordiniCollegati]);
+  const erroreRiferimenti = erroreQuote || erroreCosti || erroreOrdini;
+  const filtraPerRiferimenti = !!searchQuery.trim() || ordineFilter !== "all";
+  const ricercaRiferimentiInCorso = filtraPerRiferimenti && (caricaQuote || caricaCosti || caricaOrdini);
 
   // Perché la pagina resta vuota: se il gestionale è collegato ma al token
   // manca il permesso sui documenti ricevuti, il provider risponde 403 e
@@ -701,17 +729,20 @@ export default function FattureRicevutePage() {
     if (pagamentoFilter === "da_pagare") {
       result = result.filter((f) => !nonSiPaga(f.tipo_documento) && !stornataDelTutto(f) && !pagataSulCosto(f) && !pagataIl(f.id));
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (f) =>
-          f.cedente_ragione_sociale?.toLowerCase().includes(q) ||
-          f.numero_fattura?.toLowerCase().includes(q) ||
-          f.cedente_piva?.includes(q) ||
-          f.note_interne?.toLowerCase().includes(q) ||
-          f.note?.toLowerCase().includes(q) ||
-          f.rettifica_motivo?.toLowerCase().includes(q)
-      );
+    const termini = terminiRicercaRicevute(searchQuery);
+    if (termini.length) {
+      result = result.filter((f) => {
+        const ordini = [f.purchase_order_id, ...(quoteOrdini[f.id] ?? []).map(q => q.purchase_order_id)];
+        return corrispondeRicercaRicevute(termini, [
+          f.cedente_ragione_sociale, f.numero_fattura, f.cedente_piva, f.cedente_cf,
+          f.note_interne, f.note, f.rettifica_motivo,
+          ...commesseDi(f).flatMap((c) => [c.codice, c.descrizione, c.indirizzo]),
+          ...ordini.flatMap(id => {
+            const ordine = id ? ordiniCollegati[id] : undefined;
+            return ordine ? [ordine.numero, ...ordine.cantiere] : [];
+          }),
+        ]);
+      });
     }
     const segno = ordinamento.dir === "asc" ? 1 : -1;
     return [...result].sort((a, b) => {
@@ -723,7 +754,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine, meseScelto]);
+  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, commesseDi, ordiniCollegati, quoteOrdini, meseScelto]);
 
   // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
   const puoInBlocco = !permessiCosti.solaLettura;
@@ -757,12 +788,6 @@ export default function FattureRicevutePage() {
   })), [filtered, selezionate, pagataIl, pagataSulCosto, verificata, stornataDelTutto]);
   const tutteSelezionate = filtered.length > 0 && righeInBlocco.length === filtered.length;
   const selezionaTutte = useCallback(() => setSelezionate(new Set(filtered.map((f) => f.id))), [filtered]);
-
-  useEffect(() => {
-    if (!dettaglioMobile) return;
-    const current = fatture.find(f => f.id === dettaglioMobile.id);
-    if (current && (current.stato !== dettaglioMobile.stato || current.da_leggere !== dettaglioMobile.da_leggere)) setDettaglioMobile(current);
-  }, [fatture, dettaglioMobile]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -1032,7 +1057,7 @@ export default function FattureRicevutePage() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={esportando !== null || righeEsporta.length === 0} title="Esporta le fatture che vedi nella lista">
+              <Button variant="outline" disabled={esportando !== null || righeEsporta.length === 0 || erroreFatture || erroreRiferimenti || ricercaRiferimentiInCorso} title="Esporta le fatture che vedi nella lista">
                 {esportando ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
                 {esportando?.startsWith("xml ") ? `Zip ${esportando.slice(4)}…` : "Esporta"}
                 <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
@@ -1086,7 +1111,7 @@ export default function FattureRicevutePage() {
 
       {/* Sei numeri e striscia dei mesi, come nelle emesse (16/11/2026). Con «tutti gli anni»
           resta la testata di prima: la striscia è di un anno. */}
-      {mesi && !isMobile ? (
+      {!erroreFatture && (mesi && !isMobile ? (
         <div className="space-y-3">
           <RiepilogoFatture mesi={mesi} meseScelto={meseScelto} testi={TESTI_RICEVUTE} etichettaDocumenti="fatture ricevute" />
           <MonthlyTimeline
@@ -1126,11 +1151,11 @@ export default function FattureRicevutePage() {
           </div>
         </div>
       </div>
-      )}
+      ))}
 
 
       {/* Mobile: «Da leggere» (filtra) e l'importo del periodo, nome e cifra. */}
-      <KpiMobili
+      {!erroreFatture && <KpiMobili
         className="sm:hidden"
         voci={[
           {
@@ -1147,14 +1172,14 @@ export default function FattureRicevutePage() {
             attivo: pagamentoFilter === "da_pagare",
           },
         ]}
-      />
+      />}
 
       {/* Mobile: ricerca e bottone dei filtri (anno e stato nel pannello). */}
       <CercaConFiltri
         className="sm:hidden"
         valore={searchQuery}
         onCambia={setSearchQuery}
-        segnaposto="Cerca fornitore o numero"
+        segnaposto="Cerca fornitore, fattura o note"
         filtriAttivi={(annoFilter !== annoCorrente ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
@@ -1165,7 +1190,7 @@ export default function FattureRicevutePage() {
           <div className="relative min-w-[220px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cerca per fornitore, numero fattura, P.IVA..."
+              placeholder="Cerca fornitore, fattura, note o riferimenti…"
               className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -1301,15 +1326,31 @@ export default function FattureRicevutePage() {
               <UsciteSenzaFattura moduloAperto={moduloUscitaAperto} onModuloChange={setModuloUscitaAperto} companyId={companyId} puoModificare={!permessiCosti.solaLettura} variante="pillola" />
             </span>
           )}
-          <p className={cn("text-xs tabular-nums text-muted-foreground", !(companyId && permessiCosti.canViewCosts) && "ml-auto")}>
+          {!erroreFatture && <p className={cn("text-xs tabular-nums text-muted-foreground", !(companyId && permessiCosti.canViewCosts) && "ml-auto")}>
             <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
-          </p>
+          </p>}
         </div>
       </div>
 
       {erroreVerifiche && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><span>Stati di verifica non disponibili. I filtri di verifica sono sospesi finché i dati non vengono riletti.</span><Button variant="outline" size="sm" onClick={() => void rileggiVerifiche()}>Rileggi verifiche</Button></div>}
+      {!isLoading && !erroreFatture && ricercaRiferimentiInCorso && <p role="status" className="text-sm text-muted-foreground">
+        Ricerca nei riferimenti a ordini e cantieri in corso…
+      </p>}
+      {!erroreFatture && erroreRiferimenti && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 p-3 text-sm">
+        <span>Alcuni riferimenti a ordini o cantieri non sono disponibili. La ricerca per riferimenti può essere incompleta.</span>
+        <Button variant="outline" size="sm" onClick={() => {
+          if (erroreQuote) void rileggiQuote();
+          if (erroreCosti) void rileggiCosti();
+          if (erroreOrdini) void rileggiOrdini();
+        }}>Rileggi riferimenti</Button>
+      </div>}
       {/* Table */}
-      {isLoading ? (
+      {erroreFatture ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm">
+          <span>Non riesco a caricare le fatture ricevute.</span>
+          <Button variant="outline" size="sm" onClick={() => void rileggiFatture()}>Riprova fatture</Button>
+        </div>
+      ) : isLoading || (ricercaRiferimentiInCorso && !filtered.length) ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -1318,7 +1359,7 @@ export default function FattureRicevutePage() {
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground max-sm:py-4">
           <Inbox className="h-12 w-12 mb-4 max-sm:hidden" />
           <p className="text-lg font-medium max-sm:text-xs max-sm:font-normal">
-            {fatture.length > 0 ? "Nessuna fattura con questi filtri" : "Nessuna fattura ricevuta"}
+            {erroreRiferimenti && searchQuery.trim() ? "Nessun risultato nei dati disponibili" : fatture.length > 0 ? "Nessuna fattura con questi filtri" : "Nessuna fattura ricevuta"}
           </p>
           <p className="text-sm max-sm:hidden">
             {fatture.length > 0 ? (
@@ -1634,7 +1675,7 @@ export default function FattureRicevutePage() {
         onAperto={setFiltriMobileAperti}
         attivi={(annoFilter !== annoCorrente ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
         onAzzera={() => { setAnnoFilter(annoCorrente); setStatoFilter("all"); }}
-        risultati={isLoading ? undefined : filtered.length}
+        risultati={isLoading || erroreFatture ? undefined : filtered.length}
       >
         <PilloleFiltro
           titolo="Anno"
