@@ -8,7 +8,7 @@ vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({canViewOrderAmounts:
 vi.mock('@/lib/orders/refreshWorkQueries',()=>({refreshWorkQueries:vi.fn()}));
 vi.mock('sonner',()=>({toast:{success:vi.fn(),error:m.error}}));
 import { ModificaVoceRapportino } from '@/components/orders/ModificaVoceRapportino';
-beforeEach(()=>{m.sale=true;m.error.mockReset();m.rpc.mockReset().mockResolvedValue({error:null});m.from.mockImplementation(()=>{const q={select:()=>q,eq:()=>q,single:async()=>({data:{descrizione:'Trasporto SIM',quantita:2,unita:'viaggio',costo_unitario:10,vendita_unitaria:30,updated_at:'v1',order_id:'o',viaggio:{carico:'Deposito',km:40}},error:null})};return q;});});afterEach(cleanup);
+beforeEach(()=>{m.sale=true;m.error.mockReset();m.rpc.mockReset().mockResolvedValue({error:null as null});m.from.mockImplementation(()=>{const q={select:()=>q,eq:()=>q,single:async()=>({data:{descrizione:'Trasporto SIM',quantita:2,unita:'viaggio',costo_unitario:10,vendita_unitaria:30,updated_at:'v1',order_id:'o',viaggio:{carico:'Deposito',km:40}},error:null as null})};return q;});});afterEach(cleanup);
 function open(){render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><ModificaVoceRapportino id="v" rapportinoId="r" nome="Trasporto SIM"/></QueryClientProvider>);fireEvent.click(screen.getByRole('button',{name:'Modifica Trasporto SIM'}));}
 it('modifica una voce esistente, conservando i dettagli del viaggio e la versione letta',async()=>{
  open();const campo=await screen.findByLabelText('Descrizione');fireEvent.change(campo,{target:{value:'Trasporto corretto'}});fireEvent.change(screen.getByLabelText('Quantità'),{target:{value:'3'}});fireEvent.click(screen.getByRole('button',{name:'Salva modifiche'}));

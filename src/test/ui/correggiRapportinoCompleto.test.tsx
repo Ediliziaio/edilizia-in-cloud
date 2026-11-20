@@ -10,10 +10,10 @@ vi.mock('@/lib/orders/refreshWorkQueries',()=>({refreshWorkQueries:vi.fn()}));
 vi.mock('sonner',()=>({toast:{success:vi.fn(),error:m.error}}));
 import { CorreggiRapportino } from '@/components/orders/CorreggiRapportino';
 beforeEach(()=>{
- m.readError=false;m.role='company_staff';m.rpc.mockReset().mockResolvedValue({error:null});m.error.mockReset();
+ m.readError=false;m.role='company_staff';m.rpc.mockReset().mockResolvedValue({error:null as null});m.error.mockReset();
  m.report={id:'r',company_id:'c',order_id:'o',user_id:'other',updated_at:'versione-1',descrizione_lavori:'Testo errato',presenze:[{employee_id:'p1',nome:'Primo SIM',ore:8}],mezzi_usati:[{mezzo_id:'m1',nome:'Mezzo SIM',ore:2}],materiali_usati:[{nome:'Materiale errato',quantita:2,unita:'cad'}]};
  m.from.mockImplementation((t:string)=>{
-  const chain={select:()=>chain,eq:()=>chain,is:()=>chain,maybeSingle:async()=>({data:m.readError?null:m.report,error:m.readError?new Error('Lettura fallita'):null}),order:async()=>({data:t==='employees'?[{id:'p1',first_name:'Primo',last_name:'SIM'},{id:'p2',first_name:'Secondo',last_name:'SIM'}]:[{id:'m1',nome:'Mezzo SIM'},{id:'m2',nome:'Altro mezzo SIM'}],error:null})};return chain;
+  const chain={select:()=>chain,eq:()=>chain,is:()=>chain,maybeSingle:async()=>({data:m.readError?null:m.report,error:m.readError?new Error('Lettura fallita'):null}),order:async()=>({data:t==='employees'?[{id:'p1',first_name:'Primo',last_name:'SIM'},{id:'p2',first_name:'Secondo',last_name:'SIM'}]:[{id:'m1',nome:'Mezzo SIM'},{id:'m2',nome:'Altro mezzo SIM'}],error:null as null})};return chain;
  });
 });
 afterEach(cleanup);

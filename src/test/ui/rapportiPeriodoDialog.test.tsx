@@ -224,7 +224,7 @@ describe("Riepilogo automatico dei rapportini approvati", () => {
 
 
 it("dalla commessa apre il rapporto per il trasportatore, senza intestarlo al cliente", async () => {
-  const ordine = { select: () => ordine, eq: vi.fn(() => ordine), single: async () => ({ data: { order_code: "SIM-1", work_address: "Via SIM 10" }, error: null }) };
+  const ordine = { select: () => ordine, eq: vi.fn(() => ordine), single: async () => ({ data: { order_code: "SIM-1", work_address: "Via SIM 10" }, error: null as null }) };
   stato.from.mockReturnValue(ordine);
   apri([], false, "o1"); menu();
   fireEvent.click(screen.getByRole("menuitem", { name: /^Rapporto trasporti/ }));
@@ -237,7 +237,7 @@ it("dalla commessa apre il rapporto per il trasportatore, senza intestarlo al cl
 });
 
 it("se la commessa non si legge non apre un documento intestato male", async () => {
-  const ordine = { select: () => ordine, eq: () => ordine, single: async () => ({ data: null, error: { message: "Commessa non disponibile" } }) };
+  const ordine = { select: () => ordine, eq: () => ordine, single: async () => ({ data: null as null, error: { message: "Commessa non disponibile" } }) };
   stato.from.mockReturnValue(ordine);
   apri([], false, "o1"); menu();
   fireEvent.click(screen.getByRole("menuitem", { name: /^Rapporto trasporti/ }));
