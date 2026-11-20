@@ -13,7 +13,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { FvBolletteConsumi } from "@/components/fotovoltaico/FvBolletteConsumi";
 import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
-import { FvScenariEnergia } from "@/components/fotovoltaico/FvScenariEnergia";
+import {
+  FvProfiloEnergetico,
+  FvScenariEnergia,
+} from "@/components/fotovoltaico/FvScenariEnergia";
 import {
   type AnalisiConsumiFv,
   analisiConsumiIniziale,
@@ -129,7 +132,7 @@ describe("Revisione bollette nelle schermate dell'operatore", () => {
     ) changeFormControl(screen.getByLabelText(label), { target: { value } });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Applica al simulatore i dati confermati",
+        name: "Conferma e usa questi dati",
       }),
     );
     expect(applica).toHaveBeenCalledWith({
@@ -144,6 +147,7 @@ describe("Revisione bollette nelle schermate dell'operatore", () => {
       documenti: [lettura()],
     };
     render(<Bollette iniziale={a} />);
+    fireEvent.click(screen.getByText(/Controlla i documenti e i dati letti/));
     await waitFor(() =>
       expect(screen.getByTitle("Bolletta Esempio bolletta.pdf"))
         .toHaveAttribute("src", "blob:bolletta-test#page=1")
@@ -163,6 +167,70 @@ describe("Revisione bollette nelle schermate dell'operatore", () => {
         name: "Conferma i dati di questa bolletta",
       }),
     ).toBeTruthy();
+  });
+  it("conferma la lettura automatica con una sola azione e senza compilare quattro campi", () => {
+    const d = lettura();
+    d.confermato = false;
+    d.dati = { ...d.dati, totale_da_pagare: 1800, quote_fisse: 360 };
+    const applica = vi.fn();
+    render(
+      <Bollette
+        iniziale={{
+          ...analisiConsumiIniziale(),
+          podSelezionato: pod,
+          documenti: [d],
+        }}
+        onApplica={applica}
+      />,
+    );
+    const summary = screen.getByLabelText(
+      "Riepilogo automatico della bolletta",
+    );
+    expect(summary).toHaveTextContent(/1\.?800/);
+    expect(summary).toHaveTextContent("0,24");
+    expect(
+      screen.getByLabelText("Consumo annuo confermato (kWh)").closest(
+        "details",
+      ),
+    ).not.toHaveAttribute("open");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Conferma e usa questi dati" }),
+    );
+    expect(applica).toHaveBeenCalledWith({
+      consumo: 6000,
+      costoEvitabile: .24,
+    });
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
+      "Dati pronti",
+    );
+  });
+  it("propone il solo POD selezionato e mantiene esplicita la proiezione parziale", () => {
+    const d = lettura();
+    d.confermato = false;
+    d.dati = {
+      ...d.dati,
+      consumo_annuo_kwh: null,
+      periodo_al: "2025-02-28",
+      consumo_periodo_kwh: 1000,
+      totale_da_pagare: 300,
+      quote_fisse: 60,
+    };
+    render(
+      <Bollette
+        iniziale={{
+          ...analisiConsumiIniziale(),
+          podSelezionato: pod,
+          documenti: [d],
+        }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Conferma e usa questi dati" }))
+      .toBeDisabled();
+    fireEvent.click(
+      screen.getByLabelText("Confermo l’uso della proiezione annua indicativa"),
+    );
+    expect(screen.getByRole("button", { name: "Conferma e usa questi dati" }))
+      .toBeEnabled();
   });
   it("conserva le correzioni aggiungendo una bolletta", async () => {
     const a = analisiConsumiIniziale();
@@ -267,6 +335,7 @@ describe("Tetto manuale e mappa indisponibile", () => {
     await waitFor(() =>
       expect(screen.getByText(/Vista Google non disponibile/)).toBeTruthy()
     );
+    fireEvent.click(screen.getByText("Rettangolo rapido e misure precise"));
     changeFormControl(screen.getByLabelText("Rotazione rettangolo falda"), {
       target: { value: "35" },
     });
@@ -308,6 +377,120 @@ describe("Tetto manuale e mappa indisponibile", () => {
     });
   });
 });
+describe("Disegno diretto sulla mappa", () => {
+  const pointer = (el: Element, tipo: string, x: number, y: number) => {
+    const evento = new MouseEvent(tipo, {
+      bubbles: true,
+      clientX: x,
+      clientY: y,
+      button: 0,
+    });
+    Object.defineProperty(evento, "pointerId", { value: 1 });
+    fireEvent(el, evento);
+  };
+  const preparaMappa = () => {
+    const el = screen.getByRole("group", {
+      name: "Mappa satellitare: scegli il tetto o disegna una falda",
+    });
+    vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 640,
+      bottom: 440,
+      width: 640,
+      height: 440,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(el, "setPointerCapture", {
+      value: vi.fn(),
+      configurable: true,
+    });
+    return el;
+  };
+  it("chiude il contorno sul primo vertice e conserva la geometria dopo aver spostato la vista", async () => {
+    const salva = vi.fn();
+    render(
+      <FvMappaTetto
+        ricerca={ricerca}
+        indirizzo="Via Esempio 1"
+        riferimento={{
+          posizione,
+          ricerca: { indirizzo: "Via Esempio 1", posizione: ricerca },
+        }}
+        piano={null}
+        modificabile
+        onPosizione={vi.fn()}
+        onChange={salva}
+      />,
+    );
+    const el = preparaMappa();
+    fireEvent.click(screen.getByRole("button", { name: "Disegna falda" }));
+    for (const [x, y] of [[280, 180], [360, 180], [360, 260], [280, 180]]) {
+      pointer(el, "pointerdown", x, y);
+    }
+    expect(
+      screen.getByRole("button", {
+        name: "Usa falde e prepara nuova disposizione",
+      }),
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Sposta mappa" }));
+    pointer(el, "pointerdown", 300, 200);
+    pointer(el, "pointermove", 400, 200);
+    pointer(el, "pointerup", 400, 200);
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith(
+        "maps-proxy",
+        expect.objectContaining({
+          body: expect.objectContaining({ lng: expect.any(Number) }),
+        }),
+      )
+    );
+    const richieste = mocks.invoke.mock.calls.filter((c) =>
+      c[0] === "maps-proxy"
+    );
+    expect(richieste.at(-1)![1].body.lng).toBeLessThan(posizione.lng);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Usa falde e prepara nuova disposizione",
+      }),
+    );
+    expect(salva).toHaveBeenCalledTimes(1);
+    const p = salva.mock.calls[0][0];
+    expect(p.mappa.origine).toEqual(posizione);
+    expect(p.mappa.falde[0].punti).toHaveLength(3);
+    expect(areaPoligono(p.mappa.falde[0].punti)).toBeGreaterThan(1);
+  });
+  it("annulla il tracciamento da tastiera senza cancellare le falde confermate", () => {
+    render(
+      <FvMappaTetto
+        ricerca={ricerca}
+        indirizzo="Via Esempio 1"
+        riferimento={{
+          posizione,
+          ricerca: { indirizzo: "Via Esempio 1", posizione: ricerca },
+        }}
+        piano={null}
+        modificabile
+        onPosizione={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+    const el = preparaMappa();
+    fireEvent.click(screen.getByRole("button", { name: "Disegna falda" }));
+    pointer(el, "pointerdown", 280, 180);
+    pointer(el, "pointerdown", 360, 180);
+    fireEvent.keyDown(el, { key: "Backspace" });
+    expect(screen.getByText(/1 vertici/)).toBeTruthy();
+    fireEvent.keyDown(el, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Seleziona" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});
+
 const listino = {
   pannelli: [{
     id: "p450",
@@ -405,5 +588,49 @@ describe("Scenari della configurazione", () => {
     expect(
       screen.getByRole("button", { name: "Confermo entrambe le dimensioni" }),
     ).toBeTruthy();
+  });
+});
+
+function ProfiloRapido() {
+  const [a, setA] = useState(analisiConsumiIniziale());
+  return (
+    <>
+      <output aria-label="Profilo salvato">{JSON.stringify(a)}</output>
+      <FvProfiloEnergetico
+        value={a}
+        azienda={false}
+        modificabile
+        consumoAnnuo={6000}
+        onChange={setA}
+      />
+    </>
+  );
+}
+describe("Scelte rapide del commerciale", () => {
+  it("imposta orari e giorni insieme, aggiunge e rimuove consumi futuri conservando i totali della bolletta", () => {
+    render(<ProfiloRapido />);
+    changeFormControl(screen.getByLabelText("Utilizzo rapido dell’energia"), {
+      target: { value: "ufficio" },
+    });
+    let a = JSON.parse(screen.getByLabelText("Profilo salvato").textContent!);
+    expect(a.profilo.giorni).toEqual([1, 2, 3, 4, 5]);
+    expect(a.profilo.oraInizio).toBe(8);
+    expect(a.profilo.oraFine).toBe(18);
+    fireEvent.click(screen.getByRole("button", { name: /Auto elettrica/ }));
+    a = JSON.parse(screen.getByLabelText("Profilo salvato").textContent!);
+    expect(a.profilo.aumentoConsumiPct).toBe(30);
+    expect(a.correzioni).toEqual({});
+    expect(screen.getByText(/Consumo futuro:/)).toBeTruthy();
+    changeFormControl(
+      screen.getByLabelText("Consumo aggiuntivo Auto elettrica 1"),
+      { target: { value: "1200" } },
+    );
+    a = JSON.parse(screen.getByLabelText("Profilo salvato").textContent!);
+    expect(a.profilo.aumentoConsumiPct).toBe(20);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Rimuovi Auto elettrica 1" }),
+    );
+    a = JSON.parse(screen.getByLabelText("Profilo salvato").textContent!);
+    expect(a.profilo.aumentoConsumiPct).toBe(0);
   });
 });

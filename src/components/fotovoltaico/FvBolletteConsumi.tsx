@@ -70,6 +70,8 @@ const euro = (n: number | null) =>
       .format(n);
 type Props = {
   progettoId?: string | null;
+  consumoManuale?: number | null;
+  costoManuale?: number | null;
   value: AnalisiConsumiFv | null;
   azienda: boolean;
   modificabile: boolean;
@@ -80,6 +82,8 @@ type Props = {
 export function FvBolletteConsumi(
   {
     progettoId,
+    consumoManuale,
+    costoManuale,
     value,
     azienda,
     modificabile,
@@ -91,6 +95,9 @@ export function FvBolletteConsumi(
   const companyId = useEffectiveCompanyId(),
     a = value ?? analisiConsumiIniziale(azienda),
     [caricando, setCaricando] = useState(false),
+    [manuale, setManuale] = useState(false),
+    [verificaAperta, setVerificaAperta] = useState(false),
+    [applicato, setApplicato] = useState(false),
     [errore, setErrore] = useState(""),
     [selezione, setSelezione] = useState(""),
     [url, setUrl] = useState<string | null>(null),
@@ -112,7 +119,12 @@ export function FvBolletteConsumi(
     };
   }, []);
   const doc = a.documenti.find((d) => d.id === selezione) ?? a.documenti[0],
-    riepilogo = riepilogoBollette(a),
+    riepilogo = riepilogoBollette({
+      ...a,
+      documenti: a.documenti.map((d) =>
+        (d.dati.pod ?? "") === a.podSelezionato ? { ...d, confermato: true } : d
+      ),
+    }),
     pods = [
       ...new Set(
         a.documenti.map((d) => d.dati.pod).filter((p): p is string => !!p),
@@ -121,7 +133,7 @@ export function FvBolletteConsumi(
   const documentoPath = doc?.path;
   useEffect(() => {
     let corrente = true, u: string | undefined;
-    if (!documentoPath) return;
+    if (!documentoPath || !verificaAperta) return;
     void (async () => {
       await Promise.resolve();
       if (!corrente) return;
@@ -151,9 +163,10 @@ export function FvBolletteConsumi(
       corrente = false;
       if (u) URL.revokeObjectURL(u);
     };
-  }, [documentoPath, tentativoAnteprima]);
+  }, [documentoPath, tentativoAnteprima, verificaAperta]);
   const aggiornaDocumento = (patch: Partial<DatiBollettaFv>) => {
     if (!doc || !modificabile) return;
+    setApplicato(false);
     onChange({
       ...a,
       documenti: a.documenti.map((d) =>
@@ -268,6 +281,7 @@ export function FvBolletteConsumi(
       return;
     }
     setCaricando(true);
+    setApplicato(false);
     setErrore("");
     try {
       for (const f of files) {
@@ -370,11 +384,12 @@ export function FvBolletteConsumi(
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold">Consumi reali dalla bolletta</h3>
+          <h3 className="text-lg font-semibold text-slate-900">
+            Parti dalla bolletta
+          </h3>
           <p className="mt-1 text-sm text-slate-600">
-            PDF anche multipagina, scansioni e foto PNG/JPG/WebP · massimo 20 MB
-            per file. Lettura AI con i crediti aziendali; puoi sempre compilare
-            i campi manualmente.
+            Carica un PDF o una foto: ricaviamo consumi, spesa e quote fisse.
+            Controlla il riepilogo e conferma.
           </p>
         </div>
         <Button
@@ -394,6 +409,17 @@ export function FvBolletteConsumi(
           onChange={(e) => void carica(Array.from(e.target.files ?? []))}
         />
       </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <span>PDF, scansioni e foto · fino a 20 MB</span>
+        <button
+          type="button"
+          className="font-medium text-sky-700 underline"
+          disabled={!modificabile}
+          onClick={() => setManuale((v) => !v)}
+        >
+          Non ho la bolletta · inserisci a mano
+        </button>
+      </div>
       {caricando && (
         <p role="status" className="mt-3 text-sm">
           Leggo i documenti uno alla volta. I valori saranno da verificare prima
@@ -405,232 +431,262 @@ export function FvBolletteConsumi(
       )}
       {!!a.documenti.length && (
         <>
-          <div className="my-3 grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              Documento da verificare<select
-                aria-label="Documento bolletta"
-                className="mt-1 w-full rounded border p-2"
-                value={doc?.id ?? ""}
-                onChange={(e) => setSelezione(e.target.value)}
-              >
-                {a.documenti.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.nome} · {d.dati.pod ?? "POD da verificare"}
-                    {d.confermato ? " · confermato" : " · da verificare"}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Fornitura usata dal preventivo<select
+          {pods.length > 1 && (
+            <label className="mt-4 block text-sm">
+              Quale fornitura vuoi usare?
+              <select
                 aria-label="POD del preventivo"
-                className="mt-1 w-full rounded border p-2"
+                className="ml-2 rounded-lg border p-2"
                 disabled={!modificabile}
                 value={a.podSelezionato}
-                onChange={(e) =>
-                  onChange(selezionaFornituraFv(a, e.target.value))}
+                onChange={(e) => {
+                  onChange(selezionaFornituraFv(a, e.target.value));
+                  setApplicato(false);
+                }}
               >
-                <option value="">Seleziona POD</option>
+                <option value="">Scegli la fornitura</option>
                 {pods.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </label>
-          </div>
-          {doc && (
-            <>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div>
-                  {anteprimaErrore && (
-                    <p role="alert" className="text-sm text-amber-800">
-                      {anteprimaErrore}{" "}
-                      <button
-                        type="button"
-                        className="underline"
-                        onClick={() =>
-                          setTentativoAnteprima((v) =>
-                            v + 1
-                          )}
-                      >
-                        Riprova anteprima
-                      </button>
-                    </p>
-                  )}
-                  {url && (doc.mime === "application/pdf"
-                    ? (
-                      <iframe
-                        title={`Bolletta ${doc.nome}`}
-                        src={`${url}#page=${pagina}`}
-                        className="h-[540px] w-full rounded border"
-                      />
-                    )
-                    : (
-                      <img
-                        src={url}
-                        alt={`Bolletta ${doc.nome}`}
-                        className="max-h-[540px] w-full object-contain"
-                      />
-                    ))}
-                </div>
-                <div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {PRINCIPALI.map(campo)}
+          )}
+          <details
+            className="mt-4 rounded-xl border border-slate-200 p-3"
+            open={verificaAperta}
+            onToggle={(e) => setVerificaAperta(e.currentTarget.open)}
+          >
+            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              Controlla i documenti e i dati letti ({a.documenti.length})
+            </summary>
+            <div className="my-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                Documento da verificare<select
+                  aria-label="Documento bolletta"
+                  className="mt-1 w-full rounded border p-2"
+                  value={doc?.id ?? ""}
+                  onChange={(e) => setSelezione(e.target.value)}
+                >
+                  {a.documenti.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nome} · {d.dati.pod ?? "POD da verificare"}
+                      {d.confermato ? " · confermato" : " · da verificare"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Fornitura usata dal preventivo<select
+                  aria-label="POD nei dettagli della bolletta"
+                  className="mt-1 w-full rounded border p-2"
+                  disabled={!modificabile}
+                  value={a.podSelezionato}
+                  onChange={(e) =>
+                    onChange(selezionaFornituraFv(a, e.target.value))}
+                >
+                  <option value="">Seleziona POD</option>
+                  {pods.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </label>
+            </div>
+            {doc && (
+              <>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div>
+                    {anteprimaErrore && (
+                      <p role="alert" className="text-sm text-amber-800">
+                        {anteprimaErrore}{" "}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() =>
+                            setTentativoAnteprima((v) =>
+                              v + 1
+                            )}
+                        >
+                          Riprova anteprima
+                        </button>
+                      </p>
+                    )}
+                    {url && (doc.mime === "application/pdf"
+                      ? (
+                        <iframe
+                          title={`Bolletta ${doc.nome}`}
+                          src={`${url}#page=${pagina}`}
+                          className="h-[540px] w-full rounded border"
+                        />
+                      )
+                      : (
+                        <img
+                          src={url}
+                          alt={`Bolletta ${doc.nome}`}
+                          className="max-h-[540px] w-full object-contain"
+                        />
+                      ))}
                   </div>
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      Potenza, fasce e altre voci della bolletta
-                    </summary>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {[...CAMPI_TESTO_BOLLETTA, ...CAMPI_NUMERO_BOLLETTA]
-                        .filter((k) => !PRINCIPALI.includes(k)).map(campo)}
+                  <div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {PRINCIPALI.map(campo)}
                     </div>
-                    <fieldset className="mt-3">
-                      <legend className="text-sm">
-                        Storico mensile da verificare
-                      </legend>
-                      <div className="mt-2 grid gap-2">
-                        {doc.dati.storico_mensile.map((r, i) => (
-                          <div
-                            key={`${doc.id}-${i}`}
-                            className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
-                          >
-                            <label className="text-xs">
-                              Mese<Input
-                                aria-label={`Mese storico ${i + 1}`}
-                                type="month"
-                                value={r.mese}
-                                disabled={!modificabile}
-                                onChange={(e) =>
-                                  aggiornaDocumento({
-                                    storico_mensile: doc.dati.storico_mensile
-                                      .map((v, j) =>
-                                        i === j
-                                          ? { ...v, mese: e.target.value }
-                                          : v
-                                      ),
-                                  })}
-                              />
-                            </label>
-                            <label className="text-xs">
-                              kWh<Input
-                                aria-label={`Consumo storico ${i + 1}`}
-                                type="number"
-                                min={0}
-                                value={r.kwh}
-                                disabled={!modificabile}
-                                onChange={(e) => {
-                                  const n = Number(e.target.value);
-                                  if (Number.isFinite(n) && n >= 0) {
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm font-medium">
+                        Potenza, fasce e altre voci della bolletta
+                      </summary>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {[...CAMPI_TESTO_BOLLETTA, ...CAMPI_NUMERO_BOLLETTA]
+                          .filter((k) => !PRINCIPALI.includes(k)).map(campo)}
+                      </div>
+                      <fieldset className="mt-3">
+                        <legend className="text-sm">
+                          Storico mensile da verificare
+                        </legend>
+                        <div className="mt-2 grid gap-2">
+                          {doc.dati.storico_mensile.map((r, i) => (
+                            <div
+                              key={`${doc.id}-${i}`}
+                              className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
+                            >
+                              <label className="text-xs">
+                                Mese<Input
+                                  aria-label={`Mese storico ${i + 1}`}
+                                  type="month"
+                                  value={r.mese}
+                                  disabled={!modificabile}
+                                  onChange={(e) =>
                                     aggiornaDocumento({
                                       storico_mensile: doc.dati.storico_mensile
                                         .map((v, j) =>
-                                          i === j ? { ...v, kwh: n } : v
+                                          i === j
+                                            ? { ...v, mese: e.target.value }
+                                            : v
                                         ),
-                                    });
-                                  }
-                                }}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              className="text-xs underline"
-                              disabled={!modificabile}
-                              onClick={() =>
-                                aggiornaDocumento({
-                                  storico_mensile: doc.dati.storico_mensile
-                                    .filter((_, j) => i !== j),
-                                })}
-                            >
-                              Togli mese {i + 1}
-                            </button>
-                          </div>
+                                    })}
+                                />
+                              </label>
+                              <label className="text-xs">
+                                kWh<Input
+                                  aria-label={`Consumo storico ${i + 1}`}
+                                  type="number"
+                                  min={0}
+                                  value={r.kwh}
+                                  disabled={!modificabile}
+                                  onChange={(e) => {
+                                    const n = Number(e.target.value);
+                                    if (Number.isFinite(n) && n >= 0) {
+                                      aggiornaDocumento({
+                                        storico_mensile: doc.dati
+                                          .storico_mensile
+                                          .map((v, j) =>
+                                            i === j ? { ...v, kwh: n } : v
+                                          ),
+                                      });
+                                    }
+                                  }}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                className="text-xs underline"
+                                disabled={!modificabile}
+                                onClick={() =>
+                                  aggiornaDocumento({
+                                    storico_mensile: doc.dati.storico_mensile
+                                      .filter((_, j) => i !== j),
+                                  })}
+                              >
+                                Togli mese {i + 1}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="mt-2"
+                          disabled={!modificabile ||
+                            doc.dati.storico_mensile.length >= 36}
+                          onClick={() => {
+                            const mesi = doc.dati.storico_mensile,
+                              ultimo = mesi.at(-1)?.mese ??
+                                new Date().toISOString().slice(0, 7),
+                              [y, m] = ultimo.split("-").map(Number),
+                              mese = mesi.length
+                                ? new Date(Date.UTC(y, m, 1)).toISOString()
+                                  .slice(
+                                    0,
+                                    7,
+                                  )
+                                : ultimo;
+                            aggiornaDocumento({
+                              storico_mensile: [...mesi, { mese, kwh: 0 }],
+                            });
+                          }}
+                        >
+                          Aggiungi mese allo storico
+                        </Button>
+                      </fieldset>
+                    </details>
+                    <label className="mt-3 flex gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        disabled={!modificabile}
+                        checked={doc.dati.rettifica}
+                        onChange={(e) =>
+                          aggiornaDocumento({ rettifica: e.target.checked })}
+                      />Questo documento rettifica consumi già fatturati:
+                      escludilo dalla somma dei periodi
+                    </label>
+                    {doc.dati.avvisi.length > 0 && (
+                      <ul className="mt-3 list-disc pl-4 text-xs text-amber-800">
+                        {doc.dati.avvisi.map((v, i) => (
+                          <li key={`${i}-${v}`}>{v}</li>
                         ))}
-                      </div>
+                      </ul>
+                    )}
+                    <Button
+                      type="button"
+                      className="mt-3"
+                      disabled={!modificabile}
+                      onClick={confermaDocumento}
+                    >
+                      {doc.confermato
+                        ? "Riapri verifica"
+                        : "Conferma i dati di questa bolletta"}
+                    </Button>
+                    {doc.dati.indirizzo_fornitura && (
                       <Button
                         type="button"
                         variant="outline"
-                        className="mt-2"
-                        disabled={!modificabile ||
-                          doc.dati.storico_mensile.length >= 36}
-                        onClick={() => {
-                          const mesi = doc.dati.storico_mensile,
-                            ultimo = mesi.at(-1)?.mese ??
-                              new Date().toISOString().slice(0, 7),
-                            [y, m] = ultimo.split("-").map(Number),
-                            mese = mesi.length
-                              ? new Date(Date.UTC(y, m, 1)).toISOString().slice(
-                                0,
-                                7,
-                              )
-                              : ultimo;
-                          aggiornaDocumento({
-                            storico_mensile: [...mesi, { mese, kwh: 0 }],
-                          });
-                        }}
+                        className="ml-2 mt-3"
+                        disabled={!modificabile}
+                        onClick={() =>
+                          onIndirizzo(doc.dati.indirizzo_fornitura!)}
                       >
-                        Aggiungi mese allo storico
+                        Proponi indirizzo di fornitura
                       </Button>
-                    </fieldset>
-                  </details>
-                  <label className="mt-3 flex gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      disabled={!modificabile}
-                      checked={doc.dati.rettifica}
-                      onChange={(e) =>
-                        aggiornaDocumento({ rettifica: e.target.checked })}
-                    />Questo documento rettifica consumi già fatturati:
-                    escludilo dalla somma dei periodi
-                  </label>
-                  {doc.dati.avvisi.length > 0 && (
-                    <ul className="mt-3 list-disc pl-4 text-xs text-amber-800">
-                      {doc.dati.avvisi.map((v, i) => (
-                        <li key={`${i}-${v}`}>{v}</li>
-                      ))}
-                    </ul>
-                  )}
-                  <Button
-                    type="button"
-                    className="mt-3"
-                    disabled={!modificabile}
-                    onClick={confermaDocumento}
-                  >
-                    {doc.confermato
-                      ? "Riapri verifica"
-                      : "Conferma i dati di questa bolletta"}
-                  </Button>
-                  {doc.dati.indirizzo_fornitura && (
+                    )}
                     <Button
                       type="button"
-                      variant="outline"
-                      className="ml-2 mt-3"
+                      variant="ghost"
+                      className="mt-3"
                       disabled={!modificabile}
-                      onClick={() => onIndirizzo(doc.dati.indirizzo_fornitura!)}
+                      onClick={() =>
+                        onChange({
+                          ...a,
+                          documenti: a.documenti.filter((d) => d.id !== doc.id),
+                          proiezioneConfermata: false,
+                        })}
                     >
-                      Proponi indirizzo di fornitura
+                      Escludi documento dall’analisi
                     </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="mt-3"
-                    disabled={!modificabile}
-                    onClick={() =>
-                      onChange({
-                        ...a,
-                        documenti: a.documenti.filter((d) => d.id !== doc.id),
-                        proiezioneConfermata: false,
-                      })}
-                  >
-                    Escludi documento dall’analisi
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-          <p className="mt-4 text-sm">
+              </>
+            )}
+          </details>
+          <p className="mt-3 text-xs text-slate-500">
             Copertura: {riepilogo.giorniCoperti} giorni ·{" "}
-            {riepilogo.mesiCoperti.join(", ") || "periodo non disponibile"}.
-            {" "}
-            {riepilogo.stimato
+            {riepilogo.mesiCoperti.length
+              ? `${riepilogo.mesiCoperti.length} mesi coperti`
+              : "periodo non disponibile"}. {riepilogo.stimato
               ? "Consumo annuo proiettato dal periodo disponibile."
               : "Consumo annuo dichiarato o storico completo."}
           </p>
@@ -647,69 +703,177 @@ export function FvBolletteConsumi(
           )}
         </>
       )}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {([[
-          "consumoAnnuo",
-          "Consumo annuo confermato (kWh)",
-          riepilogo.consumoAnnuo,
-        ], [
-          "spesaAnnua",
-          "Spesa annua ricorrente confermata (€)",
-          riepilogo.spesaAnnua,
-        ], [
-          "costiFissiAnnui",
-          "Quote fisse annue che restano (€)",
-          riepilogo.fissiAnnui,
-        ], [
-          "costiEvitabiliAnnui",
-          "Costi annui proporzionali evitabili (€)",
-          null,
-        ]] as const).map(([k, label, proposta]) => (
-          <label key={k} className="text-sm">
-            {label}
-            <Input
-              aria-label={label}
-              type="number"
-              min={0}
-              step="any"
-              value={a.correzioni[k] ?? ""}
-              disabled={!modificabile}
-              placeholder={proposta == null
-                ? "Da verificare"
-                : String(Math.round(proposta * 100) / 100)}
-              onChange={(e) => {
-                const n = Number(e.target.value), c = { ...a.correzioni };
-                if (e.target.value === "") {
-                  delete c[k];
-                } else if (Number.isFinite(n) && n >= 0) {
-                  c[k] = n;
-                }
-                onChange({ ...a, correzioni: c });
-              }}
-            />
-          </label>
-        ))}
-      </div>
-      <p className="mt-3 text-sm">
-        Oggi: <strong>{euro(riepilogo.spesaAnnua)}/anno</strong> · quote fisse:
-        {" "}
-        <strong>{euro(riepilogo.fissiAnnui)}/anno</strong> · costo evitabile:
-        {" "}
-        <strong>
-          {riepilogo.costoEvitabileKwh == null
-            ? "da confermare"
-            : `${
-              riepilogo.costoEvitabileKwh.toLocaleString("it-IT", {
-                maximumFractionDigits: 4,
-              })
-            } €/kWh`}
-        </strong>.
-      </p>
-      <p className="mt-2 text-xs text-slate-500">
-        Conferma quali quote sono proporzionali ai consumi. Canone TV, depositi,
-        arretrati e conguagli richiedono verifica separata. Le tue correzioni
-        restano quando aggiungi nuove bollette.
-      </p>
+      {(a.documenti.length > 0 || riepilogo.consumoAnnuo != null) && (
+        <div
+          className="mt-5 grid gap-3 sm:grid-cols-3"
+          aria-label="Riepilogo automatico della bolletta"
+        >
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">
+              Consumo annuo{riepilogo.stimato ? " · stima" : ""}
+            </p>
+            <p className="mt-1 text-xl font-semibold text-slate-900">
+              {riepilogo.consumoAnnuo?.toLocaleString("it-IT", {
+                maximumFractionDigits: 0,
+              }) ?? "Da completare"}
+              <span className="ml-1 text-sm font-normal">kWh</span>
+            </p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">
+              Spesa attuale{riepilogo.spesaStimata ? " · annualizzata" : ""}
+            </p>
+            <p className="mt-1 text-xl font-semibold text-slate-900">
+              {euro(riepilogo.spesaAnnua)}
+              <span className="text-sm font-normal">/anno</span>
+            </p>
+            {riepilogo.spesaAnnua != null && (
+              <p className="mt-1 text-xs text-slate-500">
+                Circa {euro(riepilogo.spesaAnnua / 12)}/mese
+              </p>
+            )}
+          </div>
+          <div className="rounded-xl bg-emerald-50 p-4">
+            <p className="text-xs text-emerald-800">
+              Costo usato per il risparmio
+            </p>
+            <p className="mt-1 text-xl font-semibold text-emerald-950">
+              {riepilogo.costoEvitabileKwh?.toLocaleString("it-IT", {
+                maximumFractionDigits: 3,
+              }) ?? "Da verificare"}
+              <span className="ml-1 text-sm font-normal">€/kWh</span>
+            </p>
+            {riepilogo.fissiAnnui != null && (
+              <p className="mt-1 text-xs text-emerald-800">
+                {euro(riepilogo.fissiAnnui)}/anno di quote fisse restano
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      {riepilogo.fonteCosto === "spesa_meno_fissi" && (
+        <p className="mt-2 text-xs text-slate-500">
+          Proposta: spesa ricorrente meno quote fisse, divisa per i consumi.
+          Puoi correggerla qui sotto.
+        </p>
+      )}
+      <details
+        className="mt-4"
+        open={manuale}
+        onToggle={(e) => {
+          setManuale(e.currentTarget.open);
+          if (
+            e.currentTarget.open && !value && consumoManuale &&
+            consumoManuale > 0
+          ) {
+            onChange({
+              ...a,
+              correzioni: {
+                consumoAnnuo: consumoManuale,
+                ...(costoManuale != null
+                  ? { costiEvitabiliAnnui: consumoManuale * costoManuale }
+                  : {}),
+              },
+            });
+          }
+        }}
+      >
+        <summary className="cursor-pointer text-sm font-medium text-sky-700">
+          {a.documenti.length
+            ? "Correggi consumi e spesa"
+            : "Inserisci consumi e spesa a mano"}
+        </summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {([[
+            "consumoAnnuo",
+            "Consumo annuo confermato (kWh)",
+            riepilogo.consumoAnnuo,
+          ], [
+            "spesaAnnua",
+            "Spesa annua ricorrente confermata (€)",
+            riepilogo.spesaAnnua,
+          ], [
+            "costiFissiAnnui",
+            "Quote fisse annue che restano (€)",
+            riepilogo.fissiAnnui,
+          ], [
+            "costiEvitabiliAnnui",
+            "Costi annui proporzionali evitabili (€)",
+            riepilogo.costiEvitabiliAnnui,
+          ]] as const).map(([k, label, proposta]) => (
+            <label key={k} className="text-sm">
+              {label}
+              <Input
+                aria-label={label}
+                type="number"
+                min={0}
+                step="any"
+                value={a.correzioni[k] ??
+                  (proposta == null ? "" : Math.round(proposta * 100) / 100)}
+                disabled={!modificabile}
+                placeholder={proposta == null
+                  ? "Da verificare"
+                  : String(Math.round(proposta * 100) / 100)}
+                onChange={(e) => {
+                  const n = Number(e.target.value), c = { ...a.correzioni };
+                  if (e.target.value === "") {
+                    delete c[k];
+                  } else if (Number.isFinite(n) && n >= 0) {
+                    c[k] = n;
+                  }
+                  onChange({ ...a, correzioni: c });
+                  setApplicato(false);
+                }}
+              />
+            </label>
+          ))}
+        </div>
+        <p className="mt-3 text-sm">
+          Oggi: <strong>{euro(riepilogo.spesaAnnua)}/anno</strong>{" "}
+          · quote fisse: <strong>{euro(riepilogo.fissiAnnui)}/anno</strong>{" "}
+          · costo evitabile:{" "}
+          <strong>
+            {riepilogo.costoEvitabileKwh == null
+              ? "da confermare"
+              : `${
+                riepilogo.costoEvitabileKwh.toLocaleString("it-IT", {
+                  maximumFractionDigits: 4,
+                })
+              } €/kWh`}
+          </strong>.
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Conferma quali quote sono proporzionali ai consumi. Canone TV,
+          depositi, arretrati e conguagli richiedono verifica separata. Le tue
+          correzioni restano quando aggiungi nuove bollette.
+        </p>
+      </details>
+      {a.documenti.filter((d) =>
+        (d.dati.pod ?? "") === a.podSelezionato &&
+        (d.dati.avvisi.length > 0 || d.pagine_non_lette.length > 0)
+      ).map((d) => (
+        <div
+          key={d.id}
+          role="status"
+          className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900"
+        >
+          <strong>{d.nome} · da verificare</strong>
+          {d.pagine_non_lette.length > 0 && (
+            <p>Pagine non lette: {d.pagine_non_lette.join(", ")}.</p>
+          )}
+          {d.dati.avvisi.slice(0, 3).map((v, i) => <p key={i}>{v}</p>)}
+          <button
+            type="button"
+            className="mt-1 underline"
+            onClick={() => {
+              setSelezione(d.id);
+              setVerificaAperta(true);
+            }}
+          >
+            Controlla questo documento
+          </button>
+        </div>
+      ))}
       {riepilogo.avvisi.map((v, i) => (
         <p
           key={`${i}-${v}`}
@@ -719,20 +883,62 @@ export function FvBolletteConsumi(
           {v}
         </p>
       ))}
-      <Button
-        type="button"
-        className="mt-3"
-        disabled={!modificabile || !riepilogo.costiCoerenti ||
-          !(riepilogo.consumoAnnuo && riepilogo.consumoAnnuo > 0) ||
-          (!riepilogo.pronto && a.documenti.length > 0)}
-        onClick={() =>
-          onApplica({
-            consumo: riepilogo.consumoAnnuo!,
-            costoEvitabile: riepilogo.costoEvitabileKwh,
-          })}
-      >
-        Applica al simulatore i dati confermati
-      </Button>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          disabled={!modificabile || caricando || !riepilogo.costiCoerenti ||
+            !(riepilogo.consumoAnnuo && riepilogo.consumoAnnuo > 0) ||
+            riepilogo.costoEvitabileKwh == null ||
+            (!riepilogo.pronto && a.documenti.length > 0)}
+          onClick={() => {
+            const documenti = a.documenti.map((d) => {
+              if ((d.dati.pod ?? "") !== a.podSelezionato) return d;
+              const dati = validaLetturaBolletta(d.dati, d.pagine_totali);
+              const invalidi = [
+                ...CAMPI_TESTO_BOLLETTA,
+                ...CAMPI_NUMERO_BOLLETTA,
+              ].filter((k) => d.dati[k] != null && dati[k] == null);
+              if (
+                invalidi.length ||
+                dati.storico_mensile.length !== d.dati.storico_mensile.length
+              ) return null;
+              return { ...d, dati, confermato: true };
+            });
+            if (documenti.some((d) => d == null)) {
+              setErrore(
+                "Controlla i dati letti: alcuni valori non sono validi.",
+              );
+              setVerificaAperta(true);
+              return;
+            }
+            const next = { ...a, documenti: documenti as typeof a.documenti };
+            onChange(next);
+            onApplica({
+              consumo: riepilogo.consumoAnnuo!,
+              costoEvitabile: riepilogo.costoEvitabileKwh,
+            });
+            setErrore("");
+            setApplicato(true);
+          }}
+        >
+          Conferma e usa questi dati
+        </Button>
+        {applicato && (
+          <span role="status" className="text-sm font-medium text-emerald-700">
+            Dati pronti per il preventivo
+          </span>
+        )}
+        {riepilogo.costoEvitabileKwh == null && (
+          <button
+            type="button"
+            className="text-sm text-sky-700 underline"
+            disabled={!modificabile}
+            onClick={() => setManuale(true)}
+          >
+            Completa solo i dati mancanti
+          </button>
+        )}
+      </div>
     </section>
   );
 }

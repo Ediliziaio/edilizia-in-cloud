@@ -84,6 +84,7 @@ export type AnalisiConsumiFv = {
   obiettivo: "spesa" | "autoconsumo" | "copertura";
   coperturaObiettivo: number;
   correzioniPerPod?: Record<string, AnalisiConsumiFv["correzioni"]>;
+  consumiAggiuntivi?: Array<{ id: string; nome: string; kwhAnnui: number }>;
   prezzoImmissione: number;
   scenario?: "consigliata" | "accumulo" | "massima";
 };
@@ -445,7 +446,27 @@ export function leggiAnalisiConsumi(raw: unknown): AnalisiConsumiFv | null {
   if (["consigliata", "accumulo", "massima"].includes(String(raw.scenario))) {
     out.scenario = raw.scenario as AnalisiConsumiFv["scenario"];
   }
+  if (
+    Array.isArray(raw.consumiAggiuntivi) && raw.consumiAggiuntivi.length <= 8
+  ) {
+    out.consumiAggiuntivi = raw.consumiAggiuntivi.filter((x) =>
+      record(x) &&
+      typeof x.id === "string" && x.id.length <= 60 &&
+      typeof x.nome === "string" &&
+      x.nome.length <= 100 && numero(x.kwhAnnui) && x.kwhAnnui >= 0 &&
+      x.kwhAnnui <= 1e6
+    ) as NonNullable<AnalisiConsumiFv["consumiAggiuntivi"]>;
+  }
   return out;
+}
+export function aggiornaConsumiAggiuntiviFv(
+  a: AnalisiConsumiFv,
+  consumo: number,
+): AnalisiConsumiFv {
+  if (!a.consumiAggiuntivi?.length || !(consumo > 0)) return a;
+  const incremento = a.consumiAggiuntivi.reduce((s, x) => s + x.kwhAnnui, 0) /
+    consumo * 100;
+  return { ...a, profilo: { ...a.profilo, aumentoConsumiPct: incremento } };
 }
 export function riepilogoBollette(a: AnalisiConsumiFv) {
   const avvisi: string[] = [],
@@ -459,6 +480,8 @@ export function riepilogoBollette(a: AnalisiConsumiFv) {
     (b.dati.periodo_al ?? "").localeCompare(a.dati.periodo_al ?? "")
   );
   let consumo = 0, spesa = 0, fissi = 0, fissiPresenti = false;
+  let variabili = 0, consumoConVariabili = 0;
+  let spesaCompleta = true, fissiCompleti = true;
   for (const d of selezionati) {
     const v = d.dati;
     if (hashes.has(d.hash) || v.rettifica || Math.abs(v.conguagli ?? 0) > 0) {
@@ -492,14 +515,19 @@ export function riepilogoBollette(a: AnalisiConsumiFv) {
       mesi.add(new Date(g * 86400000).toISOString().slice(0, 7));
     }
     consumo += v.consumo_periodo_kwh;
+    if (v.quote_consumi != null && v.consumo_periodo_kwh > 0) {
+      variabili += v.quote_consumi;
+      consumoConVariabili += v.consumo_periodo_kwh;
+    }
     // TV, depositi, arretrati e importi a credito non diventano energia risparmiabile.
     if (v.totale_da_pagare != null) {
       spesa += v.totale_da_pagare - (v.canone_tv ?? 0) - (v.depositi ?? 0) -
         (v.arretrati ?? 0) + (Math.abs(v.bonus ?? 0)) +
         (Math.abs(v.crediti ?? 0));
-    }
+    } else spesaCompleta = false;
     fissi += (v.quote_fisse ?? 0) + (v.quote_potenza ?? 0);
     fissiPresenti ||= v.quote_fisse != null || v.quote_potenza != null;
+    fissiCompleti &&= v.quote_fisse != null;
   }
   const mensili = new Map<string, number>();
   for (
@@ -555,11 +583,20 @@ export function riepilogoBollette(a: AnalisiConsumiFv) {
   const consumoAnnuo = a.correzioni.consumoAnnuo ?? dichiarato ??
     (consumoBase > 0 && coperti.size ? consumoBase * 365 / coperti.size : null);
   const spesaAnnua = a.correzioni.spesaAnnua ?? annua ??
-    (spesa > 0 && fattore ? spesa * fattore : null);
+    (spesaCompleta && spesa > 0 && fattore ? spesa * fattore : null);
   const fissiAnnui = a.correzioni.costiFissiAnnui ??
-    (fissiPresenti && fattore ? fissi * fattore : null);
-  // Il costo evitabile richiede conferma esplicita: non si deduce dal totale da pagare.
-  const evitabili = a.correzioni.costiEvitabiliAnnui ?? null;
+    (fissiCompleti && fissiPresenti && fattore ? fissi * fattore : null);
+  // Solo componenti effettivamente lette e confermate: mai tutto il totale da pagare.
+  const daQuote =
+    consumo > 0 && Math.abs(consumoConVariabili - consumo) < .01 &&
+      consumoAnnuo != null
+      ? variabili / consumo * consumoAnnuo
+      : null;
+  const daDifferenza =
+    spesaAnnua != null && fissiAnnui != null && spesaAnnua >= fissiAnnui
+      ? spesaAnnua - fissiAnnui
+      : null;
+  const evitabili = a.correzioni.costiEvitabiliAnnui ?? daQuote ?? daDifferenza;
   if (
     dichiarato != null &&
     selezionati.some((d) =>
@@ -588,6 +625,16 @@ export function riepilogoBollette(a: AnalisiConsumiFv) {
     consumoAnnuo,
     spesaAnnua,
     fissiAnnui,
+    spesaStimata: a.correzioni.spesaAnnua == null && annua == null &&
+      giorni.size > 0 && giorni.size < 364,
+    costiEvitabiliAnnui: evitabili,
+    fonteCosto: a.correzioni.costiEvitabiliAnnui != null
+      ? "operatore"
+      : daQuote != null
+      ? "quote_consumi"
+      : daDifferenza != null
+      ? "spesa_meno_fissi"
+      : null,
     costoEvitabileKwh: consumoAnnuo && evitabili != null
       ? evitabili / consumoAnnuo
       : null,

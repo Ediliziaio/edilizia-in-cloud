@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggiornaConsumiAggiuntiviFv,
   analisiConsumiIniziale,
   datiBollettaVuoti,
   type DocumentoBollettaFv,
@@ -95,7 +96,80 @@ describe("Bollette confermate e POD", () => {
     expect(3000 * r.costoEvitabileKwh!).toBe(720);
   });
   it("non ricava una tariffa dal totale da pagare", () => {
-    expect(riepilogoBollette(analisi([doc()])).costoEvitabileKwh).toBeNull();
+    expect(
+      riepilogoBollette(analisi([doc({ quote_fisse: null })]))
+        .costoEvitabileKwh,
+    ).toBeNull();
+  });
+  it("propone spesa e prezzo dalla bolletta senza ridigitare i costi già letti", () => {
+    const r = riepilogoBollette(analisi([doc()]));
+    expect(r.spesaAnnua).toBe(1800);
+    expect(r.fissiAnnui).toBe(360);
+    expect(r.costiEvitabiliAnnui).toBe(1440);
+    expect(r.costoEvitabileKwh).toBe(.24);
+    expect(r.fonteCosto).toBe("spesa_meno_fissi");
+  });
+  it("usa le quote di consumo esplicite e mantiene escluse le spese particolari", () => {
+    const r = riepilogoBollette(
+      analisi([
+        doc({ totale_da_pagare: 1900, quote_consumi: 1440, canone_tv: 100 }),
+      ]),
+    );
+    expect(r.spesaAnnua).toBe(1800);
+    expect(r.costoEvitabileKwh).toBe(.24);
+    expect(r.fonteCosto).toBe("quote_consumi");
+  });
+  it("non tratta le quote mancanti di un secondo periodo come zero", () => {
+    const r = riepilogoBollette(analisi([
+      doc({
+        periodo_dal: "2025-01-01",
+        periodo_al: "2025-06-30",
+        consumo_periodo_kwh: 3000,
+        totale_da_pagare: 900,
+        quote_fisse: 180,
+      }),
+      doc({
+        periodo_dal: "2025-07-01",
+        periodo_al: "2025-12-31",
+        consumo_periodo_kwh: 3000,
+        totale_da_pagare: null,
+        quote_fisse: null,
+      }, "b".repeat(64)),
+    ]));
+    expect(r.spesaAnnua).toBeNull();
+    expect(r.fissiAnnui).toBeNull();
+    expect(r.costoEvitabileKwh).toBeNull();
+  });
+  it("segnala che la spesa è annualizzata anche se il consumo annuo è dichiarato", () => {
+    const r = riepilogoBollette(
+      analisi([
+        doc({
+          periodo_dal: "2025-01-01",
+          periodo_al: "2025-02-28",
+          consumo_periodo_kwh: 1000,
+          totale_da_pagare: 300,
+          quote_fisse: 60,
+        }),
+      ]),
+    );
+    expect(r.stimato).toBe(false);
+    expect(r.spesaStimata).toBe(true);
+  });
+  it("conserva le nuove utenze e ricalcola la percentuale quando cambia la base in bolletta", () => {
+    const a = analisiConsumiIniziale();
+    a.consumiAggiuntivi = [{
+      id: "auto",
+      nome: "Auto elettrica",
+      kwhAnnui: 1800,
+    }];
+    const futuro = aggiornaConsumiAggiuntiviFv(a, 6000);
+    expect(futuro.profilo.aumentoConsumiPct).toBe(30);
+    expect(leggiAnalisiConsumi(futuro)?.consumiAggiuntivi).toEqual(
+      a.consumiAggiuntivi,
+    );
+    expect(aggiornaConsumiAggiuntiviFv(futuro, 9000).profilo.aumentoConsumiPct)
+      .toBe(20);
+    expect(a.profilo.aumentoConsumiPct).toBe(0);
   });
   it("non somma consumi annui ripetuti né file duplicati", () => {
     const a = analisi([doc(), doc()]);

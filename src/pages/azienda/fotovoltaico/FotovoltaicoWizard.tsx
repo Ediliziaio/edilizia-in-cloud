@@ -48,7 +48,6 @@ import {
   Sun,
   Sparkles,
   Loader2,
-  Compass,
   AlertTriangle,
   TrendingUp,
   TrendingDown,
@@ -153,10 +152,11 @@ import { leggiDisegnoCommerciale, pannelliDaRivedere, type DisegnoCommercialeFv 
 import { FvSceltaProgettazione } from "@/components/fotovoltaico/FvSceltaProgettazione";
 import { cambiaModalitaProgettazione, preventivoSenzaMappa, validaDatiTettoFv } from "../../../../supabase/functions/_shared/fvModalitaProgettazione";
 import { leggiPiano } from "../../../../supabase/functions/_shared/fvPianoTetto";
+import { aggiornaConsumiAggiuntiviFv } from "../../../../supabase/functions/_shared/fvBollette";
 import { FvBolletteConsumi } from "@/components/fotovoltaico/FvBolletteConsumi";
 import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
 import { FvProfiloEnergetico, FvScenariEnergia } from "@/components/fotovoltaico/FvScenariEnergia";
-import { leggiAnalisiConsumi, riepilogoBollette, problemiConsumiFv } from "../../../../supabase/functions/_shared/fvBollette";
+import { leggiAnalisiConsumi, problemiConsumiFv } from "../../../../supabase/functions/_shared/fvBollette";
 import { resaMappaFv } from "../../../../supabase/functions/_shared/fvMappa";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
@@ -811,7 +811,7 @@ function FotovoltaicoWizard() {
     }
     setData((d) => {
       if (k === "riferimento_tetto") return {...d,[k]:v,ore_sole_annue:null,qualita_dati_tetto:null,layout_overlay:null,layout_tetto:null,numero_pannelli_scelti:0,potenza_kwp:0,superficie_tetto_disponibile_mq:null,numero_pannelli_max:null,potenza_max_kwp:null,imagery_date:null};
-      if(d.analisi_consumi&&k==="consumo_annuo_kwh"&&typeof v==="number"&&v>0){const a=d.analisi_consumi,evitabili=a.correzioni.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:{...a,correzioni:{...a.correzioni,consumoAnnuo:v}},...(evitabili!=null?{costo_kwh_attuale:evitabili/v}:{})};}
+      if(d.analisi_consumi&&k==="consumo_annuo_kwh"&&typeof v==="number"&&v>0){const a=d.analisi_consumi,evitabili=a.correzioni.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:aggiornaConsumiAggiuntiviFv({...a,correzioni:{...a.correzioni,consumoAnnuo:v}},v),...(evitabili!=null?{costo_kwh_attuale:evitabili/v}:{})};}
       if(d.analisi_consumi&&k==="costo_kwh_attuale"){const c={...d.analisi_consumi.correzioni};if(typeof v==="number"&&v>=0&&d.consumo_annuo_kwh)c.costiEvitabiliAnnui=v*d.consumo_annuo_kwh;else delete c.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:{...d.analisi_consumi,correzioni:c}};}
       const localitaCambiata = (k === "latitudine" || k === "longitudine") && d[k] !== v;
       if (!localitaCambiata) {
@@ -2831,13 +2831,6 @@ export function Step3Consumi({
   profili: Array<{ codice: string; nome_visualizzato: string; emoji: string | null }>;
   progettoId?: string | null; readOnlyMode?: boolean; onIndirizzoFornitura?: (indirizzo:string)=>void;
 }) {
-  const consumoAnnuo = data.consumo_annuo_kwh ?? 0;
-  // F12: costo_kwh_attuale può essere null (campo svuotato) → tratta come 0
-  // nei derivati per non propagare NaN nei KPI.
-  const costoKwh = data.costo_kwh_attuale ?? 0;
-  const bollette = data.analisi_consumi ? riepilogoBollette(data.analisi_consumi) : null;
-  const spesaAnnua = bollette ? bollette.spesaAnnua ?? 0 : consumoAnnuo * costoKwh;
-  const stima10anni = spesaAnnua * Array.from({length:10},(_,i)=>1.05**i).reduce((a,b)=>a+b,0);
 
   return (
     <>
@@ -2845,47 +2838,13 @@ export function Step3Consumi({
         step={3}
         totalSteps={TOTAL_STEPS}
         title="Consumi elettrici attuali"
-        subtitle={<>Da bolletta o stima rapida. Più dati ⇒ analisi più precisa del payback.</>}
+        subtitle="Carica la bolletta, controlla il riepilogo e personalizza la proposta con poche scelte."
       />
 
-      {/* KPI hero. Telefono: restano i due calcolati (spesa annua, stima a 10
-          anni); consumo e prezzo medio sono gli stessi numeri dei campi qui sotto. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 max-sm:gap-2 max-sm:mb-3">
-        <FvKpi
-          label="Consumo annuo"
-          value={consumoAnnuo > 0 ? consumoAnnuo.toLocaleString("it-IT") : "—"}
-          unit="kWh"
-          variant="orange"
-          className="max-sm:hidden"
-        />
-        <FvKpi
-          label="Spesa annua"
-          value={spesaAnnua > 0 ? spesaAnnua.toLocaleString("it-IT", { maximumFractionDigits: 0 }) : "—"}
-          unit="€"
-        />
-        <FvKpi
-          label="Costo evitabile"
-          value={
-            data.costo_kwh_attuale != null && Number.isFinite(data.costo_kwh_attuale)
-              ? data.costo_kwh_attuale.toFixed(3)
-              : "—"
-          }
-          unit="€/kWh"
-          hint={data.tariffa_tipo}
-          className="max-sm:hidden"
-        />
-        <FvKpi
-          label="Stima 10 anni"
-          value={stima10anni > 0 ? `~${(stima10anni / 1000).toFixed(0)}k` : "—"}
-          unit="€"
-          variant="red"
-          hint="Senza FV (con +5%/anno)"
-        />
-      </div>
-
-      <FvBolletteConsumi progettoId={progettoId} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)} onApplica={r=>{update("consumo_annuo_kwh",r.consumo);update("costo_kwh_attuale",r.costoEvitabile);}} onIndirizzo={indirizzo=>onIndirizzoFornitura?.(indirizzo)}/>
-      <FvProfiloEnergetico value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)}/>
-      <div className="grid gap-4">
+      <FvBolletteConsumi consumoManuale={data.consumo_annuo_kwh} costoManuale={data.costo_kwh_attuale} progettoId={progettoId} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)} onApplica={r=>{update("consumo_annuo_kwh",r.consumo);update("costo_kwh_attuale",r.costoEvitabile);}} onIndirizzo={indirizzo=>onIndirizzoFornitura?.(indirizzo)}/>
+      <FvProfiloEnergetico consumoAnnuo={data.consumo_annuo_kwh} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)}/>
+      {!data.analisi_consumi && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Tariffa e impostazioni manuali</summary>
+      <div className="mt-3 grid gap-4">
         <FvCard title="Dati consumo">
           {/* Telefono: i campi a coppie, come al computer. */}
           <div className="grid grid-cols-2 gap-3 mb-3 max-sm:gap-2">
@@ -2959,6 +2918,7 @@ export function Step3Consumi({
         </FvCard>
 
       </div>
+      </details>}
     </>
   );
 }
@@ -2966,113 +2926,6 @@ export function Step3Consumi({
 // ============================================================================
 // STEP 4 — TETTO
 // ============================================================================
-// Vista satellitare del tetto: immagine reale via maps-proxy (Google Static Maps
-// → fallback HERE). Solo immagine + badge sorgente/orientamento, NESSUN overlay
-// di moduli (la disposizione reale si definisce in sopralluogo). Degrada con
-// grazia: se nessuna chiave/API risponde, la card non viene mostrata.
-function RoofSatelliteView({
-  lat,
-  lng,
-  azimut,
-  tilt,
-  fonte,
-  title,
-}: {
-  lat: number;
-  lng: number;
-  azimut?: string | null;
-  tilt?: number | null;
-  fonte?: string | null;
-  title?: string;
-}) {
-  const [img, setImg] = useState<string | null>(null);
-  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    setState("loading");
-    setImg(null);
-    (async () => {
-      try {
-        const { data: r, error } = await supabase.functions.invoke("maps-proxy", {
-          body: { action: "staticmap", lat, lng, zoom: 20, w: 700, h: 430 },
-        });
-        if (cancelled) return;
-        const url = (r as { dataUrl?: string } | null)?.dataUrl;
-        if (error || !url) {
-          setState("error");
-          return;
-        }
-        setImg(url);
-        setState("ok");
-      } catch {
-        if (!cancelled) setState("error");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [lat, lng]);
-
-  if (state === "error") return null; // niente immagine → nessuna card (graceful)
-
-  const fonteLabel =
-    fonte === "solar_api" ? "Google Solar API" : fonte === "pvgis" ? "PVGIS" : "Satellite";
-
-  return (
-    <FvCard title={title ?? "Vista satellitare del tetto"} className="mt-4">
-      <div
-        className="relative w-full overflow-hidden rounded-xl bg-slate-900/5 ring-1 ring-slate-200"
-        style={{ aspectRatio: "700 / 430" }}
-      >
-        {state === "loading" && (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carico l'immagine del tetto…
-          </div>
-        )}
-        {img && (
-          <img
-            src={img}
-            alt="Vista satellitare del tetto"
-            className="absolute inset-0 w-full h-full object-cover"
-            draggable={false}
-          />
-        )}
-        {img && (
-          <div
-            className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
-            style={{ background: "linear-gradient(to top, rgba(2,6,23,0.55), transparent)" }}
-          />
-        )}
-        {/* Badge sorgente (alto sx) */}
-        {img && (
-          <div
-            className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-white inline-flex items-center gap-1"
-            style={{ background: "rgba(2,6,23,0.55)" }}
-          >
-            <Sparkles className="h-3 w-3 text-amber-300" /> {fonteLabel}
-          </div>
-        )}
-        {/* Orientamento + inclinazione (alto dx) */}
-        {img && (azimut || tilt != null) && (
-          <div
-            className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-white inline-flex items-center gap-1"
-            style={{ background: "rgba(2,6,23,0.55)" }}
-          >
-            <Compass className="h-3 w-3" /> {azimut ?? "—"}
-            {tilt != null ? ` · ${tilt}°` : ""}
-          </div>
-        )}
-      </div>
-
-      <p className="text-xs text-slate-400 mt-1.5 max-md:hidden">
-        Immagine satellitare a scopo illustrativo del tetto; la disposizione reale dei moduli si
-        definisce in sopralluogo.
-      </p>
-    </FvCard>
-  );
-}
-
 export function Step4Tetto({
   data,
   update,
@@ -3142,7 +2995,7 @@ export function Step4Tetto({
         </FvCard>
       )}
       {!senzaMappa && <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Il simulatore 2D e 3D si apre nella fase Impianto. Puoi preparare il tetto prima di scegliere il pannello. Qui calcoli la stima solare; nel simulatore disegni le falde, importi il rilievo e disponi i moduli.</p>}
-      {!senzaMappa && <FvCard title="Sorgente dati">
+      {!senzaMappa && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Origine dei dati e opzioni della stima solare</summary><FvCard title="Sorgente dati" className="mt-3">
         {/* Telefono: le tre sorgenti in una fila di tasselli piccoli, senza descrizioni. */}
         <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
           <SourceTile
@@ -3194,17 +3047,8 @@ export function Step4Tetto({
             )}
           </button>
         )}
-      </FvCard>}
+      </FvCard></details>}
 
-      {!senzaMappa && data.latitudine != null && data.longitudine != null && (
-        <RoofSatelliteView
-          lat={data.latitudine}
-          lng={data.longitudine}
-          azimut={data.azimut_tetto}
-          tilt={data.inclinazione_tetto}
-          fonte={data.fonte_dati_tetto}
-        />
-      )}
 
       {!senzaMappa && data.fonte_dati_tetto === "manuale" && (
         <FvCard title="Parametri manuali" className="mt-4">
@@ -3255,7 +3099,7 @@ export function Step4Tetto({
         </FvCard>
       )}
 
-      {!senzaMappa && data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
+      {!senzaMappa && !leggiDisegnoCommerciale(data.layout_overlay)?.mappa && data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
         <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
           <FvKpi
             label="Sup. utilizzabile"
@@ -3315,7 +3159,7 @@ export function Step4Tetto({
           {/* Ombreggiamento da ostacoli vicini (alberi/edifici adiacenti).
               Lo slider/Select MOSTRA la percentuale ma SALVA la frazione 0..1.
               Default 0 = "Nessuno" → nessun impatto sui progetti esistenti. */}
-          <FvCard title="Ombreggiamento da ostacoli vicini" className="mt-4">
+          <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Ombre vicine e verifiche del tetto</summary><FvCard title="Ombreggiamento da ostacoli vicini" className="mt-3">
             <div className="grid sm:grid-cols-2 gap-3 items-start">
               <div>
                 <Label>Ombra da alberi o edifici vicini (opzionale)</Label>
@@ -3347,7 +3191,7 @@ export function Step4Tetto({
                 Riduce la stima di produzione del valore scelto.
               </p>
             </div>
-          </FvCard>
+          </FvCard></details>
 
           {!senzaMappa && <FvLayoutTetto panels={data.layout_tetto} className="mt-3" />}
         </>

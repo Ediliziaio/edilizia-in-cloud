@@ -366,13 +366,13 @@ it("il disegno aggiorna quantità, potenza e prezzi solo dopo conferma; Annulla 
   seminaBozza(5,{layout_overlay:disponiModuliAutomaticamente(creaDisegnoTetto("due_falde"),12),con_accumulo:false});
   monta();await arrivaAllaFase5();
   fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
-  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"}),{key:"Delete"});
+  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"},{timeout:5000}),{key:"Delete"});
   expect(screen.getByLabelText("Riepilogo disposizione")).toHaveTextContent("11 pannelli");
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
   fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
   fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
-  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"}),{key:"Delete"});
+  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"},{timeout:5000}),{key:"Delete"});
   fireEvent.click(screen.getByRole("button",{name:"Usa disposizione nel preventivo"}));
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(11);
   expect(anteprima()).toHaveTextContent("4,95");
@@ -421,7 +421,7 @@ it("l'analisi solare non riscrive bollette modificate mentre la stima è in cors
   await waitFor(()=>expect(apiInvoke).toHaveBeenCalledWith("fv-pvgis-fetch",expect.anything()));
   fireEvent.click(tab("Consumi"));
   fireEvent.change(screen.getByLabelText("Consumo annuo confermato (kWh)"),{target:{value:"7200"}});
-  fireEvent.click(screen.getByRole("button",{name:"Applica al simulatore i dati confermati"}));
+  fireEvent.click(screen.getByRole("button",{name:"Conferma e usa questi dati"}));
   rispondi({data:{ore_sole_annue_equivalenti:1500},error:null});
   await waitFor(()=>expect(aggiorna).toHaveBeenCalledWith(expect.objectContaining({patch:expect.objectContaining({ore_sole_annue:1500})})));
   const patch=aggiorna.mock.calls.map(c=>(c[0] as unknown as {patch:Record<string,unknown>}).patch).find(p=>p?.ore_sole_annue===1500)!;

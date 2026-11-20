@@ -23,7 +23,7 @@ Archivio: **Marketing e vendita → Preventivi CRM → filtro Fotovoltaico** (`/
 |---|---|
 | Fase 3 · Consumi | **Carica bolletta**, PDF multipagina e foto; file accanto ai campi, pagina di origine, storico mensile modificabile, conferma per documento e POD selezionato |
 | Fase 3 · Consumi | Periodi sovrapposti, file ripetuti e conguagli esclusi dalla somma; storico annuale dichiarato o dodici mesi completi; proiezione parziale da confermare |
-| Fase 3 · Consumi | Correzioni conservate per ciascun POD; spesa ricorrente, quote fisse e costi evitabili separati; **Applica al simulatore** obbligatorio quando i dati cambiano |
+| Fase 3 · Consumi | Correzioni conservate per ciascun POD; spesa ricorrente, quote fisse e costi evitabili separati; **Conferma e usa questi dati** applica il riepilogo con una sola azione; correzioni e originali espandibili |
 | Fase 3 · Profilo | Giorni, orari, carico fuori orario, dodici pesi mensili, aumento futuro dei consumi, obiettivo e valore dell'energia immessa |
 | Fase 4 · Tetto | Selezione del tetto, pin e coordinate manuali; rettangoli ruotati, poligoni e vertici modificabili anche con campi numerici; inclinazione, azimut, lati, area in pianta e inclinata |
 | Fase 4 → 5 | Confermando una nuova geometria si azzera esplicitamente la posa precedente; gli ostacoli si disegnano nell'editor della fase Impianto |
@@ -35,9 +35,19 @@ Archivio: **Marketing e vendita → Preventivi CRM → filtro Fotovoltaico** (`/
 | PDF | Riepilogo, flussi, ipotesi numeriche e tavola vettoriale del layout quando la pagina è attiva; nessuna bolletta originale, POD o identificativo fiscale estratto nel PDF cliente |
 | Riapertura e duplicazione | Documenti, dati confermati, coordinate, falde, modulo, posa e scenario conservati; i preventivi precedenti mantengono il percorso storico |
 
+## Percorso semplificato per il commerciale
+
+La schermata Consumi propone automaticamente consumo annuo, spesa attuale e costo utilizzato per il risparmio. Il commerciale controlla il riepilogo e seleziona **Conferma e usa questi dati**: non deve ridigitare quattro importi già letti. Il prezzo deriva dalle quote di consumo esplicite oppure dalla spesa ricorrente meno le quote fisse note. Se mancano le componenti necessarie il sistema richiede soltanto i valori mancanti; il totale da pagare, da solo, non viene scambiato con il costo risparmiabile. Le proiezioni e le letture parziali restano evidenti.
+
+Due scelte rapide impostano insieme utilizzo dell’energia e obiettivo. Auto elettrica, pompa di calore e altri consumi si aggiungono con un pulsante: gli importi iniziali sono ipotesi modificabili, separate dalla bolletta e conservate nella bozza. Cambiando i consumi di base si ricalcola l’incremento percentuale. Orari precisi, giorni, stagionalità e ipotesi economiche rimangono espandibili. I vecchi campi doppi non sono più mostrati insieme al nuovo riepilogo.
+
+Il disegno usa una sola vista cartografica con strumenti per spostare la mappa, trascinare il pin, tracciare e selezionare le falde. Si chiude il poligono tornando sul primo vertice; Invio chiude, Backspace annulla un punto, Esc abbandona il tracciamento. Spostare la vista non modifica le coordinate delle falde. Pendenza ed esposizione hanno scelte rapide; coordinate, rettangoli, vertici e margini sono nei dettagli. La richiesta satellitare parte al termine del trascinamento.
+
+Riferimento di interazione: [Reonic, disegno dell’edificio](https://docs.reonic.com/docs/en/offers-plan-pv-plan-building). La base rimane Google Static Maps tramite il proxy server esistente; non viene esposta la chiave server e non si introduce la [Drawing Library dismessa](https://developers.google.com/maps/deprecations). Non si dichiara implementata l’intera piattaforma Reonic o una nuova analisi automatica 3D delle ombre.
+
 ## Regole di calcolo
 
-- Esempio verificato: 6.000 kWh, 1.800 €/anno, 360 € fissi e 1.440 € evitabili confermati → **0,24 €/kWh**; 3.000 kWh autoconsumati → **720 €** sugli acquisti. I ricavi delle immissioni sono separati.
+- Esempio verificato: 6.000 kWh, 1.800 €/anno, 360 € fissi e 1.440 € evitabili proposti e confermati → **0,24 €/kWh**; 3.000 kWh autoconsumati → **720 €** sugli acquisti. I ricavi delle immissioni sono separati.
 - Posa verificata: **18 moduli × 450 Wp = 8,10 kWp**, conteggiati dal disegno effettivo.
 - PVGIS per inclinazione e azimut di ogni falda, ponderato sui moduli effettivi; distribuzione mensile conservata. Una risposta dimostrativa `_mock` non viene accettata come stima del nuovo tetto cartografico.
 - Anno orario convenzionale 2025, profilo di utilizzo modificabile e curva solare sintetica normalizzata sui dati mensili. Non è una previsione oraria meteorologica né una misura dei prelievi. Ombre ravvicinate e limiti elettrici richiedono verifica.

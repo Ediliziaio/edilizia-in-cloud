@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  aggiornaConsumiAggiuntiviFv,
   type AnalisiConsumiFv,
   analisiConsumiIniziale,
 } from "../../../supabase/functions/_shared/fvBollette";
@@ -39,45 +40,116 @@ const eur = (n: number) =>
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(n);
+const PROFILI_RAPIDI_FV = [
+  {
+    id: "casa_giorno",
+    nome: "Casa · anche di giorno",
+    tipo: "residenziale" as const,
+    giorni: [0, 1, 2, 3, 4, 5, 6],
+    oraInizio: 7,
+    oraFine: 23,
+    quotaFuoriOrario: .3,
+  },
+  {
+    id: "casa_sera",
+    nome: "Casa · soprattutto la sera",
+    tipo: "residenziale" as const,
+    giorni: [0, 1, 2, 3, 4, 5, 6],
+    oraInizio: 18,
+    oraFine: 24,
+    quotaFuoriOrario: .25,
+  },
+  {
+    id: "ufficio",
+    nome: "Attività · lun–ven, 8–18",
+    tipo: "azienda" as const,
+    giorni: [1, 2, 3, 4, 5],
+    oraInizio: 8,
+    oraFine: 18,
+    quotaFuoriOrario: .12,
+  },
+  {
+    id: "negozio",
+    nome: "Attività · tutti i giorni, 8–20",
+    tipo: "azienda" as const,
+    giorni: [0, 1, 2, 3, 4, 5, 6],
+    oraInizio: 8,
+    oraFine: 20,
+    quotaFuoriOrario: .2,
+  },
+];
 export function FvProfiloEnergetico(
-  { value, azienda, modificabile, onChange }: {
+  { value, azienda, modificabile, onChange, consumoAnnuo }: {
     value: AnalisiConsumiFv | null;
     azienda: boolean;
     modificabile: boolean;
     onChange: (a: AnalisiConsumiFv) => void;
+    consumoAnnuo?: number | null;
   },
 ) {
   const a = value ?? analisiConsumiIniziale(azienda), p = a.profilo;
   const patch = (v: Partial<typeof p>) =>
     onChange({ ...a, profilo: { ...p, ...v } });
+  const selezionato =
+    PROFILI_RAPIDI_FV.find((r) =>
+      r.tipo === p.tipo && r.oraInizio === p.oraInizio &&
+      r.oraFine === p.oraFine && r.quotaFuoriOrario === p.quotaFuoriOrario &&
+      [...r.giorni].sort().join() === [...p.giorni].sort().join()
+    )?.id ?? "personalizzato";
+  const aggiunte = a.consumiAggiuntivi ?? [],
+    base = consumoAnnuo ?? a.correzioni.consumoAnnuo ?? 0;
+  const cambiaAggiunte = (
+    righe: NonNullable<AnalisiConsumiFv["consumiAggiuntivi"]>,
+  ) => {
+    const next = {
+      ...a,
+      consumiAggiuntivi: righe,
+      profilo: { ...p, aumentoConsumiPct: 0 },
+    };
+    onChange(aggiornaConsumiAggiuntiviFv(next, base));
+  };
   return (
     <section
       className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 [&_button]:min-h-11 [&_input:not([type=checkbox])]:min-h-11 [&_select]:min-h-11"
       aria-label="Profilo orario e obiettivo energetico"
     >
-      <h3 className="font-semibold">Quando viene usata l’energia</h3>
-      <p className="mt-1 text-sm text-slate-600">
-        La simulazione usa un anno orario convenzionale. In assenza di misure
-        orarie, questo profilo è un’ipotesi modificabile; ombre e limitazioni di
-        rete richiedono verifica.
-      </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <h3 className="text-lg font-semibold text-slate-900">
+        Due scelte per personalizzare la proposta
+      </h3>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
-          Profilo<select
-            aria-label="Tipo profilo energetico"
-            className="mt-1 block w-full rounded border p-2"
-            value={p.tipo}
+          Quando si usa l’energia?
+          <select
+            aria-label="Utilizzo rapido dell’energia"
+            className="mt-1 w-full rounded-lg border p-2"
             disabled={!modificabile}
-            onChange={(e) => patch({ tipo: e.target.value as typeof p.tipo })}
+            value={selezionato}
+            onChange={(e) => {
+              const r = PROFILI_RAPIDI_FV.find((x) => x.id === e.target.value);
+              if (r) {
+                patch({
+                  tipo: r.tipo,
+                  giorni: r.giorni,
+                  oraInizio: r.oraInizio,
+                  oraFine: r.oraFine,
+                  quotaFuoriOrario: r.quotaFuoriOrario,
+                });
+              }
+            }}
           >
-            <option value="residenziale">Abitazione</option>
-            <option value="azienda">Attività aziendale</option>
+            {PROFILI_RAPIDI_FV.map((r) => (
+              <option key={r.id} value={r.id}>{r.nome}</option>
+            ))}
+            {selezionato === "personalizzato" && (
+              <option value="personalizzato">Orari personalizzati</option>
+            )}
           </select>
         </label>
         <label className="text-sm">
-          Obiettivo<select
+          Cosa conta per il cliente?
+          <select
             aria-label="Obiettivo del cliente"
-            className="mt-1 block w-full rounded border p-2"
+            className="mt-1 w-full rounded-lg border p-2"
             value={a.obiettivo}
             disabled={!modificabile}
             onChange={(e) =>
@@ -87,13 +159,13 @@ export function FvProfiloEnergetico(
               })}
           >
             <option value="spesa">Ridurre la spesa in bolletta</option>
-            <option value="autoconsumo">Aumentare l’autoconsumo</option>
-            <option value="copertura">Copertura dei consumi scelta</option>
+            <option value="autoconsumo">Usare più energia prodotta</option>
+            <option value="copertura">Coprire una quota dei consumi</option>
           </select>
         </label>
         {a.obiettivo === "copertura" && (
           <label className="text-sm">
-            Copertura dei consumi desiderata (%)<Input
+            Copertura desiderata (%)<Input
               aria-label="Copertura obiettivo percentuale"
               type="number"
               min={1}
@@ -109,126 +181,244 @@ export function FvProfiloEnergetico(
             />
           </label>
         )}
-        {([["oraInizio", "Inizio attività (ora)", 0, 23], [
-          "oraFine",
-          "Fine attività (ora)",
-          1,
-          24,
-        ], [
-          "aumentoConsumiPct",
-          "Aumento futuro dei consumi (%)",
-          0,
-          500,
-        ]] as const).map(([k, label, min, max]) => (
-          <label key={k} className="text-sm">
-            {label}
-            <Input
-              aria-label={label}
-              type="number"
-              min={min}
-              max={max}
-              value={p[k]}
-              disabled={!modificabile}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (n >= min && n <= max) {
-                  patch({ [k]: n });
-                }
-              }}
-            />
-          </label>
-        ))}
-        <label className="text-sm">
-          Carico fuori orario rispetto all’attività (%)<Input
-            aria-label="Carico fuori orario percentuale"
-            type="number"
-            min={0}
-            max={100}
-            value={p.quotaFuoriOrario * 100}
-            disabled={!modificabile}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (n >= 0 && n <= 100) patch({ quotaFuoriOrario: n / 100 });
-            }}
-          />
-        </label>
-        <label className="text-sm">
-          Valore dell’energia immessa (€/kWh)<Input
-            aria-label="Valore energia immessa"
-            type="number"
-            step={.001}
-            min={0}
-            max={2}
-            value={a.prezzoImmissione}
-            disabled={!modificabile}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (n >= 0 && n <= 2) onChange({ ...a, prezzoImmissione: n });
-            }}
-          />
-        </label>
       </div>
-      <fieldset className="mt-3">
-        <legend className="text-sm">Giorni di attività</legend>
-        <div className="mt-2 flex flex-wrap gap-3">
-          {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((g, i) => (
-            <label key={g} className="flex min-h-11 items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={p.giorni.includes(i)}
-                disabled={!modificabile}
-                onChange={(e) =>
-                  patch({
-                    giorni: e.target.checked
-                      ? [...p.giorni, i]
-                      : p.giorni.filter((x) => x !== i),
-                  })}
-              />
-              {g}
-            </label>
-          ))}
+      <fieldset className="mt-4 border-t border-slate-100 pt-4">
+        <legend className="text-sm font-medium text-slate-800">
+          Il cliente prevede nuovi consumi?
+        </legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[{ id: "auto", nome: "Auto elettrica", kwhAnnui: 1800 }, {
+            id: "pompa",
+            nome: "Pompa di calore",
+            kwhAnnui: 3000,
+          }].map((v) => {
+            const presente = aggiunte.some((x) => x.id === v.id);
+            return (
+              <Button
+                key={v.id}
+                type="button"
+                variant={presente ? "default" : "outline"}
+                aria-pressed={presente}
+                disabled={!modificabile || !(base > 0)}
+                onClick={() =>
+                  cambiaAggiunte(
+                    presente
+                      ? aggiunte.filter((x) => x.id !== v.id)
+                      : [...aggiunte, v],
+                  )}
+              >
+                {presente ? "✓ " : "+ "}
+                {v.nome}
+              </Button>
+            );
+          })}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!modificabile || !(base > 0) || aggiunte.length >= 8}
+            onClick={() =>
+              cambiaAggiunte([...aggiunte, {
+                id: crypto.randomUUID(),
+                nome: "Altro consumo",
+                kwhAnnui: 1000,
+              }])}
+          >
+            + Altro consumo
+          </Button>
         </div>
+        {aggiunte.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-slate-500">
+              Ipotesi modificabili, aggiunte ai consumi della bolletta. Auto:
+              esempio 10.000 km/anno × 0,18 kWh/km; pompa di calore: 3.000
+              kWh/anno da verificare.
+            </p>
+            {aggiunte.map((v, i) => (
+              <div key={v.id} className="flex flex-wrap items-end gap-2">
+                <label className="min-w-0 flex-1 text-sm">
+                  {v.nome} · kWh/anno<Input
+                    aria-label={`Consumo aggiuntivo ${v.nome} ${i + 1}`}
+                    type="number"
+                    min={0}
+                    max={1000000}
+                    value={v.kwhAnnui}
+                    disabled={!modificabile}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (n >= 0 && n <= 1e6) {
+                        cambiaAggiunte(aggiunte.map((x) =>
+                          x.id === v.id ? { ...x, kwhAnnui: n } : x
+                        ));
+                      }
+                    }}
+                  />
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={!modificabile}
+                  aria-label={`Rimuovi ${v.nome} ${i + 1}`}
+                  onClick={() =>
+                    cambiaAggiunte(aggiunte.filter((x) =>
+                      x.id !== v.id
+                    ))}
+                >
+                  Rimuovi
+                </Button>
+              </div>
+            ))}
+            <p className="text-sm font-medium text-slate-800">
+              Consumo futuro: {numero(
+                base + aggiunte.reduce((s, x) => s + x.kwhAnnui, 0),
+              )} kWh/anno
+            </p>
+          </div>
+        )}
       </fieldset>
-      <details className="mt-3">
-        <summary className="cursor-pointer text-sm">
-          Stagionalità dei consumi · pesi mensili
+      <details className="mt-4 border-t border-slate-100 pt-3">
+        <summary className="cursor-pointer text-sm font-medium text-slate-600">
+          Personalizza orari e ipotesi di calcolo
         </summary>
-        <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-          {p.pesiMensili.map((v, i) => (
-            <label key={i} className="text-xs">
-              {new Intl.DateTimeFormat("it-IT", {
-                month: "short",
-                timeZone: "UTC",
-              }).format(new Date(Date.UTC(2025, i, 1)))}
+        <p className="mt-3 text-xs text-slate-500">
+          In assenza di misure orarie, il profilo è un’ipotesi di utilizzo. La
+          bolletta determina i consumi totali.
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {([["oraInizio", "Inizio attività (ora)", 0, 23], [
+            "oraFine",
+            "Fine attività (ora)",
+            1,
+            24,
+          ], [
+            "aumentoConsumiPct",
+            "Aumento futuro dei consumi (%)",
+            0,
+            500,
+          ]] as const).map(([k, label, min, max]) => (
+            <label key={k} className="text-sm">
+              {label}
               <Input
-                aria-label={`Peso consumi mese ${i + 1}`}
+                aria-label={label}
                 type="number"
-                min={0}
-                max={100}
-                step={.1}
-                value={v}
+                min={min}
+                max={max}
+                value={p[k]}
                 disabled={!modificabile}
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  if (n >= 0 && n <= 100) {
-                    patch({
-                      pesiMensili: p.pesiMensili.map((x, j) => i === j ? n : x),
+                  if (n >= min && n <= max) {
+                    onChange({
+                      ...a,
+                      ...(k === "aumentoConsumiPct"
+                        ? { consumiAggiuntivi: [] }
+                        : {}),
+                      profilo: { ...p, [k]: n },
                     });
                   }
                 }}
               />
             </label>
           ))}
+          <label className="text-sm">
+            Carico fuori orario (%)<Input
+              aria-label="Carico fuori orario percentuale"
+              type="number"
+              min={0}
+              max={100}
+              value={p.quotaFuoriOrario * 100}
+              disabled={!modificabile}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (n >= 0 && n <= 100) patch({ quotaFuoriOrario: n / 100 });
+              }}
+            />
+          </label>
+          <label className="text-sm">
+            Valore energia immessa (€/kWh)<Input
+              aria-label="Valore energia immessa"
+              type="number"
+              min={0}
+              max={2}
+              step={.001}
+              value={a.prezzoImmissione}
+              disabled={!modificabile}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (n >= 0 && n <= 2) onChange({ ...a, prezzoImmissione: n });
+              }}
+            />
+          </label>
         </div>
+        <fieldset className="mt-3">
+          <legend className="text-sm">Giorni di attività</legend>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((g, i) => (
+              <label
+                key={g}
+                className="flex min-h-11 items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={p.giorni.includes(i)}
+                  disabled={!modificabile}
+                  onChange={(e) =>
+                    patch({
+                      giorni: e.target.checked
+                        ? [...p.giorni, i]
+                        : p.giorni.filter((x) => x !== i),
+                    })}
+                />
+                {g}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm">
+            Stagionalità dei consumi · pesi mensili
+          </summary>
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {p.pesiMensili.map((v, i) => (
+              <label key={i} className="text-xs">
+                {new Intl.DateTimeFormat("it-IT", {
+                  month: "short",
+                  timeZone: "UTC",
+                }).format(new Date(Date.UTC(2025, i, 1)))}
+                <Input
+                  aria-label={`Peso consumi mese ${i + 1}`}
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={.1}
+                  value={v}
+                  disabled={!modificabile}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (n >= 0 && n <= 100) {
+                      patch({
+                        pesiMensili: p.pesiMensili.map((x, j) =>
+                          i === j ? n : x
+                        ),
+                      });
+                    }
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+        </details>
       </details>
-      {p.oraFine <= p.oraInizio && (
+      {(p.oraFine <= p.oraInizio || p.aumentoConsumiPct > 500) && (
         <p role="alert" className="mt-2 text-sm text-red-700">
-          L’orario di fine deve seguire quello di inizio.
+          {p.aumentoConsumiPct > 500
+            ? "Verifica i nuovi consumi: superano di oltre cinque volte il consumo attuale."
+            : "L’orario di fine deve seguire quello di inizio."}
         </p>
       )}
     </section>
   );
 }
+
 type ScenarioPatch = Pick<
   WizardData,
   | "layout_overlay"
