@@ -162,7 +162,7 @@ begin
   perform 1 from public.orders where id = _ordine and company_id = _company and deleted_at is null for update;
   if not found then raise exception 'Commessa non disponibile'; end if;
   select * into decisione from public.sicurezza_avvio_commessa where company_id = _company and order_id = _ordine for update;
-  if decisione.updated_at is distinct from _atteso then raise exception 'L’avvio sicurezza è cambiato. Ricarica e riprova.' using errcode = '40001'; end if;
+  if decisione.updated_at is distinct from _atteso then raise exception 'L’avvio sicurezza è cambiato. Ricarica e riprova.' using errcode = 'PT409'; end if;
   if _psc is not null and not sicurezza_privata.psc_utilizzabile(_company, _ordine, _psc)
   then raise exception 'Collega un originale PSC disponibile di questa commessa, fino a 20 MB.'; end if;
   if decisione.id is not null and (decisione.stato,decisione.motivazione,decisione.psc) is not distinct from (_stato,nullif(trim(_motivazione),''),_psc)
@@ -300,7 +300,7 @@ begin
   select * into c from public.sicurezza_consegne_pos where id = _id for update;
   if not c.corrente then raise exception 'C’è una richiesta o revisione più recente'; end if;
   if _azione = 'ricevi' and c.file_path = _path and c.revisione = trim(_revisione) then return c; end if;
-  if c.updated_at is distinct from _atteso then raise exception 'Il POS è cambiato. Ricarica e riprova.' using errcode = '40001'; end if;
+  if c.updated_at is distinct from _atteso then raise exception 'Il POS è cambiato. Ricarica e riprova.' using errcode = 'PT409'; end if;
   if not exists (select 1 from public.sicurezza_ruoli_commessa
     where company_id = c.company_id and order_id = c.order_id and subappaltatore_id = c.subappaltatore_id and ruolo = 'esecutrice')
   then raise exception 'La ditta non è classificata come esecutrice in questa commessa'; end if;
