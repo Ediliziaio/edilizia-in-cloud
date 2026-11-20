@@ -55,7 +55,7 @@ it('scarica un vero PDF dal corpo scelto senza richiamare la stampa o modificare
     expect(m.pdf).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', {name:'Scarica PDF'}));
     await waitFor(() => expect(click).toHaveBeenCalledOnce());
-    expect(m.pdf).toHaveBeenCalledWith(vista.xmlOriginale, {indiceCorpo:1});
+    expect(m.pdf).toHaveBeenCalledWith(vista.xmlOriginale, {indiceCorpo:1,direzione:'ricevuta'});
     const blob = crea.mock.calls[0][0] as Blob;
     expect(blob.type).toBe('application/pdf');
     expect(blob.size).toBe(bytes.length);
