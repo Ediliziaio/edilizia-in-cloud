@@ -10,6 +10,7 @@ import {
 } from "../../../supabase/functions/whatsapp-ai-processor/bolleInConversazione";
 import { aggiungiPaginaBolla } from "../../../supabase/functions/whatsapp-ai-processor/pagineBolla";
 import { creaRapportino } from "../../../supabase/functions/whatsapp-ai-processor/tools/operaio/crea_rapportino";
+import { confirmationPreview } from "../../../supabase/functions/whatsapp-ai-processor/frozenConfirmation";
 import {
   giornoRapportinoWhatsapp, normalizzaPresenze, vocalePermetteBozza,
 } from "../../../supabase/functions/whatsapp-ai-processor/tools/operaio/rapportinoSquadra";
@@ -253,6 +254,10 @@ describe("rapportino operativo", () => {
       attivita: ["Montate cinque finestre e due portefinestre"], note: "Manca il controtelaio" };
     const cantieri = [{ id: rossi.id, titolo: rossi.client_name, dettaglio: rossi.indirizzo_lavori }];
     expect(vocalePermetteBozza(tester, proposta, proposta, cantieri)).toBe(true);
+    const oreScambiate = { ...proposta, persone: [{ nome: "io", ore: 8 }, { nome: "Marco", ore: 4 }, { nome: "Luca", ore: 8 }] };
+    expect(vocalePermetteBozza(tester, oreScambiate, oreScambiate, cantieri)).toBe(false);
+    expect(vocalePermetteBozza({ ...tester, transcript: "Oggi al cantiere Rossi, al civico 4, io 8 ore, Marco 8 ore, Luca 8 ore." }, proposta, proposta, cantieri)).toBe(false);
+    expect(vocalePermetteBozza({ ...tester, transcript: "Oggi al cantiere Rossi, io 8 ore, Marco 8 ore, Luca 4,5 ore." }, proposta, proposta, cantieri)).toBe(false);
     expect(vocalePermetteBozza({ ...tester, transcript: "Oggi al cantiere Rossi io Marco e Luca abbiamo fatto otto ore complessive" }, proposta, proposta, cantieri)).toBe(false);
     expect(vocalePermetteBozza(tester, proposta, proposta, [...cantieri, { id: "altro", titolo: "Luca Rossi", dettaglio: "Via Verdi" }])).toBe(false);
     expect(await creaRapportino(tester, proposta, "bozza")).toMatchObject({ ok: true, user_message: expect.stringContaining("20 ore totali per 3 persone") });
@@ -261,6 +266,16 @@ describe("rapportino operativo", () => {
     expect(tabelle.campo_rapportini[0]).toMatchObject({ stato: "bozza", whatsapp_message_id: "vocale-1" });
     expect(await creaRapportino(tester, proposta)).toMatchObject({ ok: true, data: { is_new: false } });
     expect(tabelle.campo_rapportini[0]).toMatchObject({ stato: "inviato", note: proposta.note, descrizione_lavori: proposta.attivita[0] });
+  });
+
+  it("mostra tutte le ore individuali prima di permettere la conferma WhatsApp", () => {
+    const squadra = Array.from({ length: 8 }, (_, i) => ({ nome: `Operaio di prova ${i + 1}`, ore: i + 1 }));
+    const argomenti = { data_lavoro: "2026-11-20", persone: squadra, attivita: ["Posa serramenti"] };
+    const riepilogo = confirmationPreview("crea_rapportino", argomenti, "Rossi");
+    for (const p of squadra) expect(riepilogo).toContain(`${p.nome} · ${p.ore} h`);
+    const personeLunghe = squadra.map(p => ({ ...p, nome: p.nome.repeat(8) }));
+    expect(() => confirmationPreview("crea_rapportino", { ...argomenti, persone: personeLunghe }, "Rossi"))
+      .toThrow("completalo dall'app");
   });
 
   it("registra 20 ore con tre presenze e separa lavori eseguiti e impedimenti", async () => {

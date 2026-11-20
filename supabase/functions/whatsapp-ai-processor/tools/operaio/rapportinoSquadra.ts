@@ -59,6 +59,40 @@ const NUMERI_ORE = ["zero", "una", "due", "tre", "quattro", "cinque", "sei", "se
   "undici", "dodici", "tredici", "quattordici", "quindici", "sedici", "diciassette", "diciotto", "diciannove", "venti",
   "ventuno", "ventidue", "ventitre", "ventiquattro"];
 
+function orePerPersonaEsplicite(trascrizione: string, persone: OrePersona[]): boolean {
+  const nomi = persone.map(p => normalizza(p.nome));
+  if (nomi.some(nome => !nome) || new Set(nomi).size !== nomi.length) return false;
+
+  const nomiAmmessi = [...nomi].sort((a, b) => b.length - a.length).join("|");
+  const gruppo = `(?:${nomiAmmessi})`;
+  const soggetto = new RegExp(`\\b(${gruppo}(?: e ${gruppo})*)(?: (?:ho|ha|abbiamo|hanno) (?:fatto|lavorato))?$`);
+  const quantitaOre = new RegExp(`\\b(\\d{1,2}|un|${NUMERI_ORE.join("|")}) or[ae]\\b`, "g");
+  // Un decimale deve restare nella stessa frase e passare dalla revisione.
+  const frasi = trascrizione.replace(/(\d)[.,](?=\d)/g, "$1 virgola ").split(/[.,;!?\n]+/);
+  const orePerNome = new Map<string, number>();
+
+  for (const parte of frasi) {
+    const frase = normalizza(parte);
+    const quantita = [...frase.matchAll(quantitaOre)];
+    if (!quantita.length) continue;
+    if (quantita.length !== 1 || /\b(?:non|virgola|correggo|rettifico|anziche)\b/.test(frase)) return false;
+
+    const [ora] = quantita;
+    const nominativi = frase.slice(0, ora.index).trimEnd().match(soggetto)?.[1]?.split(" e ");
+    if (!nominativi?.length) return false;
+    const dopoOre = frase.slice(ora.index + ora[0].length);
+    if (nominativi.length > 1 && !/\b(?:ciascun[oa]|a testa|ognuno)\b/.test(dopoOre)) return false;
+
+    const ore = /^\d+$/.test(ora[1]) ? Number(ora[1]) : ora[1] === "un" ? 1 : NUMERI_ORE.indexOf(ora[1]);
+    for (const nome of nominativi) {
+      if (orePerNome.has(nome)) return false;
+      orePerNome.set(nome, ore);
+    }
+  }
+
+  return persone.every((persona, i) => orePerNome.get(nomi[i]) === persona.ore);
+}
+
 export function vocalePermetteBozza(ctx: ToolCtx, input: Record<string, unknown>, proposto: Record<string, unknown>,
   cantieri: { id: string; titolo: string; dettaglio: string }[]) {
   if (!ctx.user_id || !ctx.sentAt || !ctx.transcript || typeof input.cantiere_hint !== "string" || !proposto.order_id ||
@@ -71,11 +105,7 @@ export function vocalePermetteBozza(ctx: ToolCtx, input: Record<string, unknown>
   if (giorni.size !== 1 || !/\bore\b/.test(testo) || /\b(?:complessive|complessivi|in totale|in tre|in due|non ricordo|forse|poi al cantiere|ripartire)\b/.test(testo) ||
     hint.length < 3 || !testo.includes(` ${hint} `) || posti.length !== 1 || posti[0].id !== proposto.order_id ||
     giornoRapportinoWhatsapp(giorno, new Date(ctx.sentAt)) !== proposto.data_lavoro) return false;
-  return (input.persone as OrePersona[]).every(p => {
-    const nome = normalizza(p.nome);
-    return (testo.includes(` ${nome} `) || testo.includes(` ${nome.split(" ")[0]} `)) && Number.isInteger(p.ore) &&
-      (testo.includes(` ${p.ore} `) || testo.includes(` ${NUMERI_ORE[p.ore]} `));
-  });
+  return orePerPersonaEsplicite(ctx.transcript, input.persone as OrePersona[]);
 }
 
 export async function verificaContestoRapportino(ctx: ToolCtx, orderId: string, giorno: string, persone?: OrePersona[]) {

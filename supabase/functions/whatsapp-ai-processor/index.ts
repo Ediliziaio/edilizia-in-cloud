@@ -687,14 +687,15 @@ Deno.serve(async (req) => {
     const preparaConferma = async (azione: string, input: Record<string, unknown>) => {
       const frozen = await freezeConfirmation(toolCtx, azione, input, msg.id);
       const parametri = frozen.pending.parametri;
+      const testoBozza = `Bozza salvata in Campo.\n\n${frozen.interactive.body.text}`;
       if (azione !== "crea_rapportino" || !parametri || statoSessione.conferma || !mediaCorrente ||
-        operationalTriage.intent !== "rapportino" || sbloccatiOra.includes(azione) ||
+        operationalTriage.intent !== "rapportino" || sbloccatiOra.includes(azione) || testoBozza.length > 1024 ||
         !vocalePermetteBozza(toolCtx, input, parametri, frozen.pending.cantieri ?? [])) return frozen;
 
       const bozza = await runWhatsAppTool(supabase, msg.company_id, `bozza-rapportino:${msg.id}`, azione, parametri,
         () => creaRapportino(toolCtx, parametri, "bozza"));
       if (!bozza.ok) return frozen;
-      return { ...frozen, interactive: buildInteractivePayload(`Bozza salvata in Campo.\n\n${frozen.interactive.body.text}`, [
+      return { ...frozen, interactive: buildInteractivePayload(testoBozza, [
         { id: `approve:${frozen.pending.id}`, title: "Invia all’ufficio" },
         { id: `reject:${frozen.pending.id}`, title: "Rivedo in Campo" },
       ]) };

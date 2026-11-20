@@ -30,7 +30,7 @@ export function confirmationHash(action: string, args: Record<string, unknown>, 
 }
 
 const names: Record<string, string> = {
-  crea_rapportino: "Registrare il rapportino", aggiungi_attivita_rapportino: "Aggiungere attività al rapportino",
+  crea_rapportino: "Inviare il rapportino all’ufficio", aggiungi_attivita_rapportino: "Aggiungere attività al rapportino",
   registra_presenza: "Registrare la presenza", carica_ddt: "Registrare la bolla", carica_scontrino: "Registrare la spesa",
   segna_fase: "Segnare la fase come completata", assegna_fattura: "Assegnare la fattura alla commessa",
   approva_richiesta: "Gestire la richiesta", invia_pdf_preventivo: "Inviare il preventivo", crea_preventivo_ai: "Creare il preventivo",
@@ -90,8 +90,7 @@ function riepilogoOperativo(action: string, args: Record<string, unknown>, voci:
     const persone = Array.isArray(args.persone) ? args.persone as OrePersona[] : [];
     const oreTesto = persone.length ? [
       `Ore di squadra: ${numeroIt(persone.reduce((totale, p) => totale + Number(p.ore), 0))} h`,
-      ...persone.slice(0, voci).map(p => `• ${testo(p.nome, 35)} · ${numeroIt(p.ore)} h`),
-      ...(persone.length > voci ? [`…e altre ${persone.length - voci} persone`] : []),
+      ...persone.map(p => `• ${p.nome.replace(/\s+/g, " ").trim()} · ${numeroIt(p.ore)} h`),
     ] : [`Ore: ${ore}${extra}`];
     return [`Rapportino del ${dataIt(args.data_lavoro)}`, ...oreTesto,
       ...(attivita.length ? ["Lavori:", ...attivita.slice(0, voci).map((a) => `• ${testo(a, 90)}`), ...(attivita.length > voci ? [`…e altri ${attivita.length - voci} lavori`] : [])] : []),
@@ -115,7 +114,7 @@ function riepilogoOperativo(action: string, args: Record<string, unknown>, voci:
   return null;
 }
 
-/** Riepilogo dell'operaio dentro il limite di WhatsApp, riducendo solo le righe dell'elenco. */
+/** Mantiene tutte le ore nominative anche quando riduce il dettaglio di lavori e materiali. */
 export function riepilogoConCantiere(action: string, args: Record<string, unknown>, coda: string[], chiusura: string): string | null {
   for (const voci of [6, 4, 2, 0]) {
     const righe = riepilogoOperativo(action, args, voci);
