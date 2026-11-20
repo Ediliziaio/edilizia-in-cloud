@@ -1,7 +1,8 @@
 // La catena di una fattura lato server (ai-fattura-classify, prima dell'AI): carica dal database solo i
 // documenti dell'azienda della fattura e porta alla commessa, oppure al conflitto. Database finto.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { catenaDellaFattura } from "../../../supabase/functions/_shared/catenaFatturaServer.ts";
+import { verificaRiferimentiRicevuta } from "../../../supabase/functions/_shared/commessaFatturaRegole.ts";
 import { commessaFinale } from "../../../supabase/functions/_shared/regolePrimaDellAi.ts";
 
 type Tabelle = Record<string, Array<Record<string, unknown>>>;
@@ -49,6 +50,42 @@ const tabelle: Tabelle = {
 const fattura = (x: string, over = {}) => ({ id: "f", company_id: AZ, fornitore_id: FORN, data_fattura: "2026-09-30", xml_raw: x, ...over });
 
 describe("catena della fattura lato server", () => {
+  it("all'ingresso registra il riferimento certo senza cambiare la lettura né chiamare un modello", async () => {
+    const appenaRicevuta = {
+      ...fattura(xml("", "Riferimento ordine d'acquisto ODA-2026-0039")),
+      stato: "non_letta", aggancio_oda_manuale: false,
+    };
+    const dati = dbFinto(tabelle);
+    const aggiornaQuery = {
+      eq: (_c: string, _v: unknown) => aggiornaQuery,
+      or: async (_filtro: string): Promise<{ error: null }> => ({ error: null }),
+    };
+    const aggiorna = vi.fn((_campi: Record<string, unknown>) => aggiornaQuery);
+    const rpc = vi.fn(async (_nome: string, _args: Record<string, unknown>): Promise<{ error: null; data: null }> => ({
+      error: null, data: null,
+    }));
+    const invoke = vi.fn();
+    const query = {
+      select: (_campi: string) => query,
+      eq: (_c: string, _v: unknown) => query,
+      maybeSingle: async () => ({ error: null as null, data: appenaRicevuta }),
+      update: aggiorna,
+    };
+    await verificaRiferimentiRicevuta({
+      from: (tabella: string) => tabella === "fatture_ricevute" ? query : dati.from(tabella),
+      rpc, functions: { invoke },
+    }, AZ, appenaRicevuta.id);
+    expect(rpc.mock.calls.map(([nome]) => nome)).toEqual(["commessa_da_codici", "acquisti_commessa_della_fattura"]);
+    expect(rpc).toHaveBeenCalledWith("acquisti_commessa_della_fattura", expect.objectContaining({
+      p_fattura: "f", p_order: "c-A", p_esito: "automatico",
+    }));
+    expect(aggiorna).toHaveBeenCalledWith({
+      order_id_suggerito: "c-A", order_match_confidenza: 1,
+      order_suggerito_motivo: expect.stringContaining("ODA-2026-0039"),
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("un ordine scritto soltanto nella causale carica l’ODA dello stesso fornitore",async()=>{
     const r=await catenaDellaFattura(dbFinto(tabelle),fattura(xml('',"Riferimento ordine d'acquisto ODA-2026-0039")));
     expect(r.commessa?.order_id).toBe('c-A');

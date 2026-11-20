@@ -5,6 +5,7 @@ import {
 } from "./confrontoFatture.ts";
 import {
   datiRiconciliazione,
+  documentoAmmessoPerRiga,
   type ContestoRiconciliazione,
   type PropostaRiconciliazione,
 } from "./riconciliazioneFattureAI.ts";
@@ -31,8 +32,8 @@ export function equivalenzeConfermate(
         );
       return {
         fattura: f.id,
-        ddt: d.bolle.filter(uguale).map((r) => r.id),
-        oda: d.ordini.filter(uguale).map((r) => r.id),
+        ddt: d.bolle.filter(r => documentoAmmessoPerRiga(c.ddt_per_riga, f.id, r.documentoId) && uguale(r)).map((r) => r.id),
+        oda: d.ordini.filter(r => documentoAmmessoPerRiga(c.oda_per_riga, f.id, r.documentoId) && uguale(r)).map((r) => r.id),
         affidabilita: "alta" as const,
         motivo: "Equivalenza confermata in precedenza per questo fornitore.",
       };

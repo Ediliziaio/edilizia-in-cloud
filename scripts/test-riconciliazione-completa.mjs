@@ -26,6 +26,13 @@ const contestoCorretto = readFileSync(
   "supabase/migrations/20290312122000_riconciliazione_ordinamento_contesto.sql",
   "utf8",
 );
+const perRiga = readFileSync(
+  "supabase/migrations/20290430142000_riferimenti_fattura_per_riga.sql",
+  "utf8",
+);
+const numeri = readFileSync("supabase/migrations/20290404210000_acquisti_collegamenti_traccia.sql", "utf8")
+  .split("create or replace function public.acquisti_numero_documento(")[1]
+  .split("revoke all on function public.acquisti_numero_documento")[0];
 const anchor = "set local qa.user_id='00000003-0000-4000-a000-000000000001';";
 sql = sql.replace(
   anchor,
@@ -35,13 +42,17 @@ alter table fattura_ddt alter column id set default gen_random_uuid();
 alter table fattura_ddt add column numero_ddt text,add column data_ddt date,add column origine text,add column created_by uuid;
 alter table suppliers add column vat_number text;
 alter table fatture_ricevute add column cedente_piva text,add column numero_fattura text;
+alter table fatture_ricevute add column xml_raw text, add column indice_corpo int, add column data_fattura date;
+alter table purchase_orders add column supplier_reference text, add column issue_date date;
+create schema private;
+create or replace function public.acquisti_numero_documento(${numeri}
 alter table ddt_valorizzazioni add column prezzo_unitario numeric,add column created_by uuid;
 alter table ddt_valorizzazioni alter column id set default gen_random_uuid();
 create table orders(id uuid primary key,company_id uuid);
 create table order_items(id uuid primary key,order_id uuid,ddt_riga_origine_id uuid,purchase_price numeric,prezzo_da_definire boolean,updated_at timestamptz);
 create function user_can_access_company(p uuid) returns boolean language sql stable as $$select p=any(aziende_con_permesso('can_manage_purchasing')||aziende_con_permesso('can_view_costs'))$$;
 create function has_permission_for_company(u uuid,p text,c uuid) returns boolean language sql stable as $$select c=any(aziende_con_permesso(p))$$;
-${migrazione}\n${ordineStabile}\n${ordineStabile}\n${contestoCorretto}\n${anchor}`,
+${migrazione}\n${ordineStabile}\n${ordineStabile}\n${contestoCorretto}\n${perRiga}\n${perRiga}\n${anchor}`,
 );
 const extra = `
 update ddt_ricezione set supplier_id='${supplier}' where id='${d}';
@@ -73,6 +84,26 @@ select ddt_valorizza_da_fattura('${d}','${f}','[{"riga_id":"${r}","quantita":10,
 select ddt_valorizza_da_fattura('${d}','00000013-0000-4000-a000-000000000001','[{"riga_id":"${r}","quantita":1,"prezzo_unitario":6}]');
 reset role;
 do $$begin assert(select sum(quantita)=10 from fattura_ddt_consumi('${a}',array['${d}'::uuid],null));assert(select prezzo_unitario=5.1 from ddt_righe where id='${r}');end $$;
+update purchase_orders set issue_date='2026-11-10',status='inviato',supplier_reference='CF-0029' where oda_number='TEST-ODA';
+update fattura_ddt set numero_ddt='TEST-1',data_ddt='2026-11-11' where fattura_ricevuta_id='${f}' and ddt_ricezione_id='${d}';
+update fatture_ricevute set indice_corpo=1,xml_raw=$xml$<p:FatturaElettronica xmlns:p="urn:prova">
+ <FatturaElettronicaBody><DatiDDT><NumeroDDT>999</NumeroDDT><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiDDT></FatturaElettronicaBody>
+ <FatturaElettronicaBody><DatiGenerali>
+  <DatiDDT><NumeroDDT>TEST-1</NumeroDDT><DataDDT>2026-11-11</DataDDT><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiDDT>
+  <DatiDDT><NumeroDDT>TEST-99</NumeroDDT><DataDDT>2026-11-11</DataDDT><RiferimentoNumeroLinea>2</RiferimentoNumeroLinea></DatiDDT>
+  <DatiOrdineAcquisto><IdDocumento>CF-0029</IdDocumento><Data>2026-11-10</Data><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiOrdineAcquisto>
+ </DatiGenerali></FatturaElettronicaBody></p:FatturaElettronica>$xml$ where id='${f}';
+set local role authenticated;
+do $$declare c jsonb; o uuid:='00000008-0000-4000-a000-000000000001'; begin
+ c:=fattura_riconciliazione_contesto('${f}',jsonb_build_object('ddt',jsonb_build_array('${d}'),'oda',jsonb_build_array(o)))->'contesto';
+ assert c->'ddt_per_riga'->'1'=jsonb_build_array('${d}'), c::text;
+ assert c->'ddt_per_riga'->'2'='[]'::jsonb, c::text;
+ assert c->'oda_per_riga'->'1'=jsonb_build_array(o), c::text;
+ c:=fattura_riconciliazione_contesto('${f}',jsonb_build_object('ddt',jsonb_build_array('${d}'),'oda','[]'::jsonb))->'contesto';
+ assert c->'oda_per_riga'->'1'='[]'::jsonb, c::text;
+end $$;
+reset role;
+do $$begin assert not has_function_privilege('authenticated','private.fattura_documenti_per_riga(public.fatture_ricevute,uuid[],uuid[])','execute'); end $$;
 rollback;`;
 sql = sql.replace(/reset role;\s*rollback;\s*$/, () => "reset role;\n" + extra);
 writeFileSync("/tmp/eic-test-completa.sql", sql);

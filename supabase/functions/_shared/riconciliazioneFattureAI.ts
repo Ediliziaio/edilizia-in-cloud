@@ -38,6 +38,8 @@ export interface ContestoRiconciliazione {
   };
   ddt: Record<string, unknown>[];
   oda: Record<string, unknown>[];
+  ddt_per_riga?: Record<string, string[]>;
+  oda_per_riga?: Record<string, string[]>;
   valorizzazioni: Record<string, unknown>[];
   altre_fatture: Record<string, unknown>[];
   consumi?: Record<string, unknown>[];
@@ -46,6 +48,10 @@ export interface ContestoRiconciliazione {
   equivalenze?: Record<string, unknown>[];
   conversioni?: Record<string, unknown>[];
   revisioni_precedenti?: Record<string, unknown>[];
+}
+export function documentoAmmessoPerRiga(riferimenti: Record<string, string[]> | undefined, riga: string, documento: string) {
+  const ammessi = riferimenti?.[riga];
+  return ammessi === undefined || ammessi.includes(documento);
 }
 export function datiRiconciliazione(c: ContestoRiconciliazione) {
   const bolle: RigaBollaConfronto[] = c.ddt.flatMap((d) => {
@@ -84,13 +90,14 @@ export function datiRiconciliazione(c: ContestoRiconciliazione) {
         ),
     }));
   });
-  const ordini: RigaConfronto[] = c.oda.flatMap((d) =>
+  const ordini: (RigaConfronto & { documentoId: string })[] = c.oda.flatMap((d) =>
     (d.righe as Record<string, unknown>[]).map((r) => {
       const q = numeroDocumento(r.quantity),
         p = numeroDocumento(r.unit_price),
         totale = numeroDocumento(r.line_total);
       return {
         id: String(r.id),
+        documentoId: String(d.id),
         descrizione: String(r.description ?? ""),
         codice: r.sku ? String(r.sku) : null,
         um: r.unit_of_measure ? String(r.unit_of_measure) : null,
@@ -124,7 +131,13 @@ export function preparaRichiestaRiconciliazione(c: ContestoRiconciliazione) {
     um: r.um,
   });
   const dati = JSON.stringify({
-    fattura: d.fattura.map(identita),
+    fattura: d.fattura.map(f => ({
+      ...identita(f),
+      ddt_ammessi: c.ddt_per_riga?.[f.id] && d.bolle
+        .filter(b => documentoAmmessoPerRiga(c.ddt_per_riga, f.id, b.documentoId)).map(b => b.id),
+      oda_ammessi: c.oda_per_riga?.[f.id] && d.ordini
+        .filter(o => documentoAmmessoPerRiga(c.oda_per_riga, f.id, o.documentoId)).map(o => o.id),
+    })),
     bolle: d.bolle.map(identita),
     ordini: d.ordini.map(identita),
     equivalenze_confermate: (c.equivalenze ?? [])
@@ -152,6 +165,7 @@ export function preparaRichiestaRiconciliazione(c: ContestoRiconciliazione) {
       content:
         conRegoleDocumento(`Sei un assistente per il confronto di fatture, DDT e ordini edili.
 Proponi SOLO corrispondenze tra le righe fornite. I calcoli e le verifiche sono eseguiti separatamente dal software.
+Se una riga contiene ddt_ammessi oppure oda_ammessi, usa solo quegli ID per quel tipo di documento. Un elenco ammesso vuoto richiede verifica del riferimento.
 Restituisci JSON {"righe":[{"fattura":"id","ddt":["id"],"oda":["id"],"affidabilita":"alta|media|bassa","motivo":"breve spiegazione con dettagli riconoscibili"}],"avvisi":["..."]}.
 Una proposta per OGNI riga della fattura, nello stesso ordine. Usa solo ID presenti nei dati, senza modificarli.
 Usa le equivalenze_confermate: sono corrispondenze già approvate dal personale per questo fornitore. Verifica comunque gli altri articoli presenti nel lotto.
@@ -212,8 +226,8 @@ export function validaPropostaRiconciliazione(
     ids.add(a.fattura);
     return {
       fattura: a.fattura,
-      ddt: riferimenti(a.ddt, d.bolle),
-      oda: riferimenti(a.oda, d.ordini),
+      ddt: riferimenti(a.ddt, d.bolle.filter(b => documentoAmmessoPerRiga(c.ddt_per_riga, String(a.fattura), b.documentoId))),
+      oda: riferimenti(a.oda, d.ordini.filter(o => documentoAmmessoPerRiga(c.oda_per_riga, String(a.fattura), o.documentoId))),
       affidabilita: a.affidabilita as PropostaRigaAI["affidabilita"],
       motivo: a.motivo.slice(0, 700),
     };

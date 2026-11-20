@@ -103,6 +103,27 @@ describe("regole prima dell'AI nel confronto righe", () => {
     expect(propostaDaRegole(c).proposta).toBeNull();
   });
 
+  it("lo stesso articolo in due consegne segue il DDT indicato su ciascuna riga", () => {
+    const c = contesto({
+      fattura: { id: "f", company_id: "a", fornitore_id: "s", tipo_documento: "TD01", righe: [rigaF(1, "Sabbia lavata", 3, "MC"), rigaF(2, "Sabbia lavata", 3, "MC")] },
+      ddt: [
+        { id: "d1", righe: [rigaD("r1", "Sabbia lavata", 3, "MC")] },
+        { id: "d2", righe: [rigaD("r2", "Sabbia lavata", 3, "MC")] },
+      ],
+      ddt_per_riga: { "1": ["d2"], "2": ["d1"] },
+    });
+    const p = propostaDaRegole(c).proposta!;
+    expect(p.righe.map(r => r.ddt)).toEqual([["r2"], ["r1"]]);
+    expect(() => validaPropostaRiconciliazione(p, c)).not.toThrow();
+    expect(() => validaPropostaRiconciliazione({
+      ...p, righe: p.righe.map((r, i) => ({ ...r, ddt: [i === 0 ? "r1" : "r2"] })),
+    }, c)).toThrow();
+
+    const mancante: ContestoRiconciliazione = { ...c, ddt_per_riga: { "1": [], "2": ["d1"] } };
+    expect(propostaDaRegole(mancante).chiuseRighe.map(r => [r.fattura, r.ddt])).toEqual([["2", ["r1"]]]);
+    expect(() => validaPropostaRiconciliazione(p, mancante)).toThrow();
+  });
+
   it("una riga in dubbio su due: all'AI va solo quella, senza la riga di bolla già usata; poi l'unione le rimette insieme", () => {
     const c = contesto({ ddt: [{ id: "d1", righe: [rigaD("r1", "x", 10, "SAC", "CEM325"), rigaD("r2", "Sabbia lavata", 2, "MC")] }] });
     const r = propostaDaRegole(c);

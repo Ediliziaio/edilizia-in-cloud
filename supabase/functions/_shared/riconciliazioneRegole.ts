@@ -22,7 +22,7 @@ import { abbinaRigheFattura, confrontaRiga, type EquivalenzaCodice, type RigaDoc
 import type { ConversioneAutorizzata } from "../../../shared/acquisti/normalizza.ts";
 import { unitaCanonica } from "../../../shared/acquisti/normalizza.ts";
 import type { RigaFatturaLetta } from "../../../shared/acquisti/riferimentiFattura.ts";
-import { datiRiconciliazione, type ContestoRiconciliazione, type PropostaRiconciliazione } from "./riconciliazioneFattureAI.ts";
+import { datiRiconciliazione, documentoAmmessoPerRiga, type ContestoRiconciliazione, type PropostaRiconciliazione } from "./riconciliazioneFattureAI.ts";
 
 export const MODELLO_REGOLE = "regole";
 
@@ -93,7 +93,7 @@ export function propostaDaRegole(c: ContestoRiconciliazione, impostazioni: { tol
     .map((b) => ({ id: b.id, documentoId: b.documentoId, codice: b.codice, descrizione: b.descrizione, quantita: b.quantita, unita: b.um, prezzoUnitario: b.prezzo }));
   const ordini: RigaDocumento[] = d.ordini.map((o) => ({
     id: o.id,
-    documentoId: "",
+    documentoId: o.documentoId,
     codice: o.codice,
     descrizione: o.descrizione,
     quantita: o.quantita,
@@ -103,8 +103,10 @@ export function propostaDaRegole(c: ContestoRiconciliazione, impostazioni: { tol
 
   const conDdt = d.bolle.length > 0;
   const conOda = d.ordini.length > 0;
-  const perDdt = conDdt ? abbinaRigheFattura(righe, () => bolle, opz) : [];
-  const perOda = conOda ? abbinaRigheFattura(righe, () => ordini, opz) : [];
+  const perDdt = conDdt ? abbinaRigheFattura(righe, r => bolle
+    .filter(b => documentoAmmessoPerRiga(c.ddt_per_riga, d.fattura[r.numeroLinea - 1].id, b.documentoId)), opz) : [];
+  const perOda = conOda ? abbinaRigheFattura(righe, r => ordini
+    .filter(o => documentoAmmessoPerRiga(c.oda_per_riga, d.fattura[r.numeroLinea - 1].id, o.documentoId)), opz) : [];
 
   const out: PropostaRiconciliazione["righe"] = [];
   let chiuse = 0;
@@ -113,8 +115,8 @@ export function propostaDaRegole(c: ContestoRiconciliazione, impostazioni: { tol
     const n = i + 1;
     const dd = perDdt.find((x) => x.numeroLinea === n)?.decisione;
     const od = perOda.find((x) => x.numeroLinea === n)?.decisione;
-    const okDdt = !conDdt || (dd?.esito === "automatico" && !!dd.sceltoId);
-    const okOda = !conOda || (od?.esito === "automatico" && !!od.sceltoId);
+    const okDdt = (!conDdt && c.ddt_per_riga?.[f.id] === undefined) || (dd?.esito === "automatico" && !!dd.sceltoId);
+    const okOda = (!conOda && c.oda_per_riga?.[f.id] === undefined) || (od?.esito === "automatico" && !!od.sceltoId);
     if (okDdt && okOda) {
       chiuse++;
       // Il prezzo non decide l'abbinamento, ma uno scarto oltre la tolleranza si scrive nel motivo.

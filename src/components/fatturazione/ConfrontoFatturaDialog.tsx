@@ -42,6 +42,7 @@ import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
 import {
   useConfrontoFattura,
   useOriginaliConfronto,
+  type DocumentoConfronto,
 } from "@/hooks/useConfrontoFattura";
 import { OriginaliConfronto } from "./OriginaliConfronto";
 import { OriginaliOrdineConfronto } from "@/components/acquisti/OriginaliOrdineConfronto";
@@ -56,8 +57,11 @@ import { RevisioneRiconciliazioneAI } from "./RevisioneRiconciliazioneAI";
 import {
   scelteAbbinamenti,
   datiRiconciliazione,
+  documentoAmmessoPerRiga,
   esitiRiconciliazione,
+  type PropostaRigaAI,
 } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
+import { propostaDaRegole } from "../../../supabase/functions/_shared/riconciliazioneRegole.ts";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
 import { salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
 import {
@@ -347,7 +351,12 @@ export function ConfrontoFatturaDialog({
         : undefined,
     [analisiAI, datiAllineatiAI],
   );
-  const voceAssociata = (f: RigaConfronto, r: RigaConfronto) => {
+  const contestoRegole = datiAllineatiAI ? ai.dati.data?.contesto : undefined;
+  const regole = useMemo(() => {
+    if (!contestoRegole) return new Map<string, PropostaRigaAI>();
+    return new Map(propostaDaRegole(contestoRegole).chiuseRighe.map(riga => [riga.fattura, riga]));
+  }, [contestoRegole]);
+  const voceAssociata = (f: RigaConfronto, r: RigaConfronto, d?: DocumentoConfronto) => {
     const proposta =
       datiAllineatiAI &&
       analisiAI?.proposta.righe.find((p) => p.fattura === f.id);
@@ -356,6 +365,12 @@ export function ConfrontoFatturaDialog({
         analisiAI?.decisioni[f.id] !== "rifiutata" &&
         [...proposta.ddt, ...proposta.oda].includes(r.id)
       );
+    const certa = regole.get(f.id);
+    if (certa) return [...certa.ddt, ...certa.oda].includes(r.id);
+    if (d && !documentoAmmessoPerRiga(
+      d.tipo === "ddt" ? contestoRegole?.ddt_per_riga : contestoRegole?.oda_per_riga,
+      f.id, d.id,
+    )) return false;
     return stessaVoce(f, r);
   };
   const esiti = useMemo<EsitoRigaConfronto[]>(() => {
@@ -384,10 +399,12 @@ export function ConfrontoFatturaDialog({
             })),
           }
         : {
-            righe: d.fattura.map((f) => ({
+            righe: d.fattura.map((f) => regole.get(f.id) ?? ({
               fattura: f.id,
-              ddt: d.bolle.filter((r) => stessaVoce(f, r)).map((r) => r.id),
-              oda: d.ordini.filter((r) => stessaVoce(f, r)).map((r) => r.id),
+              ddt: d.bolle.filter(r => documentoAmmessoPerRiga(c.ddt_per_riga, f.id, r.documentoId)
+                && stessaVoce(f, r)).map(r => r.id),
+              oda: d.ordini.filter(r => documentoAmmessoPerRiga(c.oda_per_riga, f.id, r.documentoId)
+                && stessaVoce(f, r)).map(r => r.id),
               affidabilita: "alta" as const,
               motivo: "Codice o descrizione uguale",
             })),
@@ -426,11 +443,12 @@ export function ConfrontoFatturaDialog({
     analisiAI,
     residuiNonDisponibili,
     ai.dati.isError,
+    regole,
   ]);
   const riferimenti = new Map(
     (doc?.righe ?? []).map((r) => [
       r.id,
-      righe.flatMap((f, i) => (voceAssociata(f, r) ? [i] : [])),
+      righe.flatMap((f, i) => (voceAssociata(f, r, doc) ? [i] : [])),
     ]),
   );
   const evidenziate = new Set(
@@ -451,9 +469,9 @@ export function ConfrontoFatturaDialog({
     setPannelloMobile("sinistra");
     setRigaAttiva(indice);
     setVistaFattura("righe");
-    if (!doc?.righe.some((r) => voceAssociata(righe[indice], r))) {
+    if (!doc?.righe.some((r) => voceAssociata(righe[indice], r, doc))) {
       const corrispondente = documenti.find((d) =>
-        d.righe.some((r) => voceAssociata(righe[indice], r)),
+        d.righe.some((r) => voceAssociata(righe[indice], r, d)),
       );
       if (corrispondente) setAttivo(corrispondente.id);
     }
