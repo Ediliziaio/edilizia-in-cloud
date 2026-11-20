@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   classificaErroreMapsGoogle,
+  diagnosticaMapsGoogle,
   messaggioMapsGoogle,
   scaricaMappaStatica,
   testaGoogleMaps,
@@ -67,8 +68,9 @@ describe("diagnosi Google Maps senza esposizione delle credenziali", () => {
       `https://maps.googleapis.com/maps/api/staticmap?key=${key}`,
       fetcher,
     );
-    expect(r).toEqual({ dataUrl: null, codice: "fatturazione", status: 403 });
+    expect(r).toMatchObject({ dataUrl: null, codice: "fatturazione", status: 403 });
     expect(JSON.stringify(r)).not.toContain(key);
+    expect(JSON.stringify(r)).not.toContain("https://");
     expect(messaggioMapsGoogle(r.codice!)).toContain("fatturazione");
   });
 
@@ -130,11 +132,26 @@ describe("diagnosi Google Maps senza esposizione delle credenziali", () => {
       "/maps/api/staticmap",
     ]);
     expect(urls.every((u) => u.searchParams.get("key") === key)).toBe(true);
-    expect(r).toEqual({
+    expect(r).toMatchObject({
       ok: true,
       message: "Google Maps: geocoding e vista satellitare funzionanti.",
     });
     expect(JSON.stringify(r)).not.toContain(key);
+    expect(JSON.stringify(r)).not.toContain("https://");
+  });
+
+  it("rimuove dai dettagli server chiave, URL e riferimenti di posizione", () => {
+    const key = "chiave-demo-da-non-registrare";
+    const r = diagnosticaMapsGoogle(
+      `<html>Errore ${key} da 12.34.56.78, 2001:db8::1 e 45.46378. Vedi https://example.invalid/?key=${key}</html>`,
+      `https://maps.googleapis.com/maps/api/staticmap?key=${key}`,
+    );
+    expect(r).not.toContain(key);
+    expect(r).not.toContain("https://");
+    expect(r).not.toContain("12.34.56.78");
+    expect(r).not.toContain("2001:db8::1");
+    expect(r).not.toContain("45.46378");
+    expect(r).not.toContain("<html>");
   });
 
   it("segnala fatturazione anche quando il geocoding riesce", async () => {

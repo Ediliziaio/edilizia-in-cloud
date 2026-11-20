@@ -57,9 +57,29 @@ export function classificaErroreMapsGoogle(
 
 type EsitoMappa =
   | { dataUrl: string; codice?: never; status: number }
-  | { dataUrl: null; codice: ErroreMapsGoogle; status: number };
+  | {
+    dataUrl: null;
+    codice: ErroreMapsGoogle;
+    status: number;
+    diagnostica?: string;
+  };
 
-/** Non restituisce URL, chiavi, corpi di errore o eccezioni del trasporto. */
+/** Solo per log server: nessuna chiave, URL, IP o coordinata del richiedente. */
+export function diagnosticaMapsGoogle(testo: string, url: string): string {
+  let t = testo.slice(0, 4000);
+  const chiave = new URL(url).searchParams.get("key");
+  if (chiave) t = t.replaceAll(chiave, "[chiave]");
+  return t.replace(/AIza[\w-]+/g, "[chiave]")
+    .replace(/https?:\/\/[^\s"<>]+/gi, "[url]")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[ip]")
+    .replace(/\b[0-9a-f]*:[0-9a-f:]+\b/gi, "[ip]")
+    .replace(/[-+]?\d{1,3}\.\d{3,}/g, "[coordinate]")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+/g, " ").trim().slice(0, 320);
+}
+
+/** Non restituisce URL, chiavi o eccezioni; diagnostica redatta solo per log server. */
 export async function scaricaMappaStatica(
   url: string,
   fetcher: typeof fetch = fetch,
@@ -77,6 +97,9 @@ export async function scaricaMappaStatica(
         dataUrl: null,
         codice: classificaErroreMapsGoogle(res.status, testo),
         status: res.status,
+        ...(new URL(url).hostname === "maps.googleapis.com"
+          ? { diagnostica: `${mime}: ${diagnosticaMapsGoogle(testo, url)}` }
+          : {}),
       };
     }
     const bytes = await res.arrayBuffer();

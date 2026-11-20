@@ -81,7 +81,7 @@ serveConMetriche("maps-proxy", async (req) => {
         if (risultato.dataUrl !== null) { dataUrl = risultato.dataUrl; provider = "google"; }
         else {
           erroreGoogle = risultato.codice;
-          console.warn("maps-proxy: vista Google non disponibile", { status: risultato.status, codice: erroreGoogle });
+          console.warn("maps-proxy: vista Google non disponibile", { status: risultato.status, codice: erroreGoogle, diagnostica: risultato.diagnostica });
         }
       }
       if (!dataUrl && HERE_API_KEY && body.solo_google !== true) {
