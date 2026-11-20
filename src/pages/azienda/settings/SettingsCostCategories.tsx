@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import {
   Plus, Pencil, Trash2, Download, FolderOpen, Search, X, AlertTriangle, FileDown, ShieldCheck,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RegoleContoFornitore } from "@/components/costi/RegoleContoFornitore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -94,6 +96,7 @@ export default function SettingsCostCategories() {
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("name");
   const [importOpen, setImportOpen] = useState(false);
+  const [regoleAperte, setRegoleAperte] = useState(false);
 
   const {
     data: categories = [],
@@ -122,22 +125,23 @@ export default function SettingsCostCategories() {
     isError: usageIsError,
     error: usageError,
     refetch: refetchUsage,
-  } = useQuery<Record<string, number>>({
+  } = useQuery<Record<string, { name: string; count: number }>>({
     queryKey: queryKeys.costCategories.usage(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      const data = await tutteLePagine((from, to) => supabase
         .from("company_costs")
         .select("category")
         .eq("company_id", companyId!)
-        .not("category", "is", null);
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      (data ?? []).forEach((c) => {
-        const cat = (c as { category: string | null }).category;
-        const normalized = cat ? normalizeCategoryName(cat) : "";
-        if (normalized) counts[normalized] = (counts[normalized] ?? 0) + 1;
-      });
-      return counts;
+        .not("category", "is", null).order("id").range(from, to));
+      const counts = new Map<string, { name: string; count: number }>();
+      for (const { category } of data) {
+        if (!category?.trim()) continue;
+        const key = categoryKey(category);
+        const known = counts.get(key);
+        if (known) known.count += 1;
+        else counts.set(key, { name: normalizeCategoryName(category), count: 1 });
+      }
+      return Object.fromEntries(counts);
     },
     enabled: !!companyId,
   });
@@ -149,7 +153,8 @@ export default function SettingsCostCategories() {
 
   const historicalMissingCategories = useMemo(() => {
     return Object.entries(usageCounts)
-      .filter(([name]) => !configuredCategoryKeys.has(categoryKey(name)))
+      .filter(([key]) => !configuredCategoryKeys.has(key))
+      .map(([, uso]) => [uso.name, uso.count] as const)
       .sort(([a], [b]) => a.localeCompare(b, "it"));
   }, [configuredCategoryKeys, usageCounts]);
 
@@ -161,13 +166,13 @@ export default function SettingsCostCategories() {
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
     if (usageKnown && usageFilter === "used") {
-      list = list.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) > 0);
+      list = list.filter((c) => (usageCounts[categoryKey(c.name)]?.count ?? 0) > 0);
     } else if (usageKnown && usageFilter === "unused") {
-      list = list.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) === 0);
+      list = list.filter((c) => (usageCounts[categoryKey(c.name)]?.count ?? 0) === 0);
     }
     return [...list].sort((a, b) => {
-      const usageA = usageCounts[normalizeCategoryName(a.name)] ?? 0;
-      const usageB = usageCounts[normalizeCategoryName(b.name)] ?? 0;
+      const usageA = usageCounts[categoryKey(a.name)]?.count ?? 0;
+      const usageB = usageCounts[categoryKey(b.name)]?.count ?? 0;
       if (usageKnown && sortMode === "usage_desc") return usageB - usageA || a.name.localeCompare(b.name, "it");
       if (usageKnown && sortMode === "usage_asc") return usageA - usageB || a.name.localeCompare(b.name, "it");
       return a.name.localeCompare(b.name, "it");
@@ -179,7 +184,7 @@ export default function SettingsCostCategories() {
     if (isLoading || categoriesIsError || categories.length === 0) return null;
     const quante = categories.length === 1 ? "1 categoria" : `${categories.length} categorie`;
     if (!usageKnown) return quante;
-    const usate = categories.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) > 0).length;
+    const usate = categories.filter((c) => (usageCounts[categoryKey(c.name)]?.count ?? 0) > 0).length;
     return `${quante} · ${usate} ${usate === 1 ? "usata" : "usate"} nei costi`;
   }, [categories, usageCounts, usageKnown, isLoading, categoriesIsError]);
 
@@ -223,7 +228,7 @@ export default function SettingsCostCategories() {
       if (!safeName) throw new ErroreCategoria("Inserisci il nome categoria");
       if (!current) throw new ErroreCategoria("Categoria non trovata: ricarica i dati");
       if (!usageKnown && categoryKey(current.name) !== categoryKey(safeName)) throw new ErroreCategoria("Utilizzi non disponibili: non puoi ancora rinominare la categoria");
-      if (current && categoryKey(current.name) !== categoryKey(safeName) && (usageCounts[normalizeCategoryName(current.name)] ?? 0) > 0) {
+      if (current && categoryKey(current.name) !== categoryKey(safeName) && (usageCounts[categoryKey(current.name)]?.count ?? 0) > 0) {
         throw new ErroreCategoria("Categoria già usata nei costi: il nome non si può cambiare.");
       }
       const { error } = await supabase
@@ -251,7 +256,7 @@ export default function SettingsCostCategories() {
       if (!companyId) throw new ErroreCategoria("Azienda non selezionata");
       const category = categories.find((cat) => cat.id === id);
       if (!category) throw new ErroreCategoria("Categoria non trovata: ricarica i dati");
-      const usage = category ? usageCounts[normalizeCategoryName(category.name)] ?? 0 : 0;
+      const usage = usageCounts[categoryKey(category.name)]?.count ?? 0;
       if (usage > 0) {
         throw new ErroreCategoria("Categoria già usata: eliminazione bloccata per proteggere costi storici, marginalità e report.");
       }
@@ -260,6 +265,9 @@ export default function SettingsCostCategories() {
         .delete()
         .eq("id", id)
         .eq("company_id", companyId).select("id").single();
+      if (error?.code === "23503" && error.message.includes("fornitori_conti_costo_categoria_id_fkey")) {
+        throw new ErroreCategoria("La categoria è usata da una regola fornitore. Sposta o rimuovi la regola prima di eliminarla.");
+      }
       if (error) throw error;
     },
     onSuccess: () => {
@@ -276,31 +284,18 @@ export default function SettingsCostCategories() {
       if (!canWrite) throw new ErroreCategoria("Importazione non disponibile");
       if (!companyId) throw new ErroreCategoria("Azienda non selezionata");
 
-      const { data: costs, error: costsError } = await supabase
-        .from("company_costs")
-        .select("category")
-        .eq("company_id", companyId!)
-        .not("category", "is", null);
-      if (costsError) throw costsError;
-
-      const { data: supplierData, error: suppliersError } = await supabase
-        .from("suppliers")
-        .select("product_category")
-        .eq("company_id", companyId!)
-        .not("product_category", "is", null);
-      if (suppliersError) throw suppliersError;
-
-      const cats = new Set<string>();
-      (costs ?? []).forEach((c) => {
-        const cat = (c as { category: string | null }).category;
-        const normalized = cat ? normalizeCategoryName(cat) : "";
-        if (normalized) cats.add(normalized);
-      });
-      (supplierData ?? []).forEach((s) => {
-        const cat = (s as { product_category: string | null }).product_category;
-        const normalized = cat ? normalizeCategoryName(cat) : "";
-        if (normalized) cats.add(normalized);
-      });
+      const [costs, suppliers] = await Promise.all([
+        tutteLePagine((from, to) => supabase.from("company_costs").select("category")
+          .eq("company_id", companyId).not("category", "is", null).order("id").range(from, to)),
+        tutteLePagine((from, to) => supabase.from("suppliers").select("product_category")
+          .eq("company_id", companyId).not("product_category", "is", null).order("id").range(from, to)),
+      ]);
+      const cats = new Map<string, string>();
+      for (const name of [...costs.map(c => c.category), ...suppliers.map(s => s.product_category)]) {
+        if (!name?.trim()) continue;
+        const key = categoryKey(name);
+        if (!cats.has(key)) cats.set(key, normalizeCategoryName(name));
+      }
 
       if (cats.size === 0) {
         throw new ErroreCategoria("Nessuna categoria trovata nei costi o fornitori");
@@ -309,8 +304,8 @@ export default function SettingsCostCategories() {
       const existing = new Set(categories.map((c) => categoryKey(c.name)));
       // Solo azienda e nome, come l'aggiunta a mano: niente colore a caso.
       const toInsert = Array.from(cats)
-        .filter((name) => !existing.has(categoryKey(name)))
-        .map((name) => ({
+        .filter(([key]) => !existing.has(key))
+        .map(([, name]) => ({
           company_id: companyId!,
           name,
         }));
@@ -379,11 +374,11 @@ export default function SettingsCostCategories() {
     const rows = [
       ["Nome", "Utilizzi", "Protezione", "Configurata"],
       ...categories.map((category) => {
-        const usage = usageCounts[normalizeCategoryName(category.name)] ?? 0;
+        const usage = usageCounts[categoryKey(category.name)]?.count ?? 0;
         return [
           category.name,
           String(usage),
-          usage > 0 ? "Protetta: in uso" : "Eliminabile: inutilizzata",
+          usage > 0 ? "Protetta: in uso" : "Nessun costo registrato",
           "SI",
         ];
       }),
@@ -411,7 +406,7 @@ export default function SettingsCostCategories() {
 
   // ─── Render ───────────────────────────────────────────
   const categoryToDelete = deleteId ? categories.find((c) => c.id === deleteId) : null;
-  const deleteUsage = categoryToDelete ? usageCounts[normalizeCategoryName(categoryToDelete.name)] ?? 0 : 0;
+  const deleteUsage = categoryToDelete ? usageCounts[categoryKey(categoryToDelete.name)]?.count ?? 0 : 0;
   // Del motivo tecnico si mostra solo la frase italiana (rete, permessi…): il testo del database non si vede mai.
   const dettaglioErrore = categoriesIsError || usageIsError ? userErrorMessage(categoriesError ?? usageError, "") : "";
 
@@ -427,6 +422,7 @@ export default function SettingsCostCategories() {
           {riepilogo && <p className="text-sm font-medium">{riepilogo}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {companyId && <Button variant="outline" size="sm" disabled={isLoading || categoriesIsError} onClick={() => setRegoleAperte(true)}>Regole fornitori</Button>}
           {puoModificare && (
             <Button
               variant="outline"
@@ -623,7 +619,7 @@ export default function SettingsCostCategories() {
               <TableBody className="block space-y-2 md:table-row-group md:space-y-0">
                 {filtered.map((cat) => {
                   const isEditing = editingId === cat.id;
-                  const usage = usageCounts[normalizeCategoryName(cat.name)] ?? 0;
+                  const usage = usageCounts[categoryKey(cat.name)]?.count ?? 0;
                   return (
                     <TableRow key={cat.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center rounded-lg border max-md:!border p-2 md:table-row md:border-x-0 md:border-t-0 md:p-0">
                       <TableCell className="min-w-0 p-1 md:p-4">
@@ -717,6 +713,8 @@ export default function SettingsCostCategories() {
       </Card>
 
       {/* Delete confirmation — fix: passa `open` a onOpenChange per chiusura corretta */}
+      {regoleAperte && companyId && <RegoleContoFornitore key={companyId} companyId={companyId} categorie={categories}
+        modifica={canWrite} onClose={() => setRegoleAperte(false)} />}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>

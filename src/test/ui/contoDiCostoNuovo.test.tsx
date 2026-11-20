@@ -53,7 +53,7 @@ describe("Un conto di costo nuovo dalla fattura", () => {
     expect(righe.map((r) => r.name)).toContain("materiali");
     expect(righe[righe.length - 1].name).toBe("Leasing auto");
     // Appena creato, il conto si mette sulla fattura: nessun secondo passaggio.
-    await waitFor(() => expect(m.update).toHaveBeenCalledWith({ categoria_ai: "Leasing auto" }));
+    await waitFor(() => expect(m.update).toHaveBeenCalledWith({ categoria_ai: "Leasing auto", conto_costo_origine: "manuale" }));
   });
 
   it("un conto che c'è già non si duplica: si usa quello", async () => {
@@ -62,7 +62,7 @@ describe("Un conto di costo nuovo dalla fattura", () => {
     fireEvent.click(await screen.findByRole("option", { name: "+ Nuovo conto di costo…" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Nome del conto di costo nuovo" }), { target: { value: " Leasing " } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    await waitFor(() => expect(m.update).toHaveBeenCalledWith({ categoria_ai: "leasing" }));
+    await waitFor(() => expect(m.update).toHaveBeenCalledWith({ categoria_ai: "leasing", conto_costo_origine: "manuale" }));
     const righe = m.insert.mock.calls[0][0] as Array<{ name: string }>;
     expect(righe.map((r) => r.name)).toEqual(CATEGORIE_DI_BASE);
   });

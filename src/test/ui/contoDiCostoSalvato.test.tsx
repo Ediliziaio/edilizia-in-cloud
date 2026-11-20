@@ -34,7 +34,7 @@ describe("Conto di costo", () => {
     const menu = screen.getByRole("combobox", { name: "Conto di costo" });
     fireEvent.keyDown(menu, { key: "ArrowDown" });
     fireEvent.click(await screen.findByRole("option", { name: "consulenze_professionali" }));
-    await waitFor(() => expect(m.update).toHaveBeenCalledWith({ categoria_ai: "consulenze_professionali" }));
+    await waitFor(() => expect(m.update).toHaveBeenCalledWith({ categoria_ai: "consulenze_professionali", conto_costo_origine: "manuale" }));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Conto di costo" })).toHaveTextContent("consulenze_professionali"));
     expect(m.ok.mock.calls[0][0]).toMatch(/«consulenze_professionali»/);
     expect(m.avviso.mock.calls[0][0]).toBe("Conto salvato · contabilità generale da aggiornare");

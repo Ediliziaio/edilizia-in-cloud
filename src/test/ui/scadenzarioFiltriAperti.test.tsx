@@ -40,7 +40,8 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       in: (k, v) => { rows = rows.filter(r => (v as unknown[]).includes(r[k as keyof typeof r])); },
       is: (k, v) => { rows = rows.filter(r => r[k as keyof typeof r] === v); },
       or: () => {},
-      gte: () => {}, lte: () => {}, lt: () => {}, ilike: () => {},
+      gte: () => {}, lte: () => {}, lt: () => {},
+      ilike: (_, v) => { rows = rows.filter(r => r.description.toLowerCase().includes(String(v).slice(1, -1).toLowerCase())); },
       order: () => {}, select: () => {}, range: (a, b) => { from = Number(a); to = Number(b); }, limit: () => {},
     };
     for (const [name, fn] of Object.entries(methods)) q[name] = (a: unknown, b: unknown) => { fn(a, b); return q; };
@@ -88,6 +89,29 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
     await waitFor(() => expect(state.exportCsv).toHaveBeenCalledTimes(1));
     expect(state.exportCsv.mock.calls[0][0]).toHaveLength(1003);
     expect(state.writes).not.toHaveBeenCalled();
+  });
+  it("aspetta che la ricerca sia applicata e scarica lo stesso risultato visibile", async () => {
+    setup();
+    await screen.findByText("Incasso aperto");
+    const esporta = screen.getByRole("button", { name: "Esporta CSV" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca nello scadenzario" }), { target: { value: "  Incasso parziale  " } });
+    expect(esporta).toBeDisabled();
+    fireEvent.click(esporta);
+    expect(state.exportCsv).not.toHaveBeenCalled();
+    await waitFor(() => expect(esporta).toBeEnabled());
+    expect(screen.queryByText("Incasso aperto")).toBeNull();
+    expect(screen.getByText("Incasso parziale")).toBeInTheDocument();
+    fireEvent.click(esporta);
+    await waitFor(() => expect(state.exportCsv.mock.calls[0][0]).toEqual([expect.objectContaining({ descrizione: "Incasso parziale" })]));
+  });
+  it("segnala l’intervallo invertito prima dell’esportazione", async () => {
+    setup();
+    await screen.findByText("Incasso aperto");
+    fireEvent.click(screen.getByRole("button", { name: "Filtri avanzati scadenzario" }));
+    fireEvent.change(screen.getByLabelText("Da", { exact: true }), { target: { value: "2026-11-30" } });
+    fireEvent.change(screen.getByLabelText("A", { exact: true }), { target: { value: "2026-11-01" } });
+    expect(screen.getByRole("alert")).toHaveTextContent(/data finale/);
+    expect(screen.getByRole("button", { name: "Esporta CSV" })).toBeDisabled();
   });
   it("un errore di lettura non appare come elenco vuoto e Riprova recupera i dati", async () => {
     state.fail = true; setup();
