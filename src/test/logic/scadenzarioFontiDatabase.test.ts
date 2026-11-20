@@ -4,6 +4,10 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 
 const nome = "20290421110000_scadenzario_fonti_commesse_costi.sql";
 const sql = readFileSync(existsSync(`supabase/migrations/${nome}`) ? `supabase/migrations/${nome}` : `docs/migrazioni-pronte/${nome}`, "utf8");
+const ottimizzazione = readFileSync("supabase/migrations/20290423107000_ottimizza_scadenzario_fonti.sql", "utf8");
+const precedente = readFileSync("supabase/migrations/20290423106000_compensazioni_anticipi_fornitori.sql", "utf8")
+  .match(/CREATE OR REPLACE FUNCTION public\.scadenzario_fonti\(p_company_id uuid\)[\s\S]*?\$function\$;/)![0]
+  .replace("public.scadenzario_fonti(", "public.scadenzario_fonti_prima(");
 const a = "a0000000-0000-4000-a000-000000000001";
 const b = "b0000000-0000-4000-a000-000000000001";
 const costo = "c0000000-0000-4000-a000-000000000001";
@@ -36,7 +40,20 @@ beforeAll(async () => {
     create table order_installments(id uuid primary key,order_id uuid,label text,invoice_id uuid,documento_fiscale_id uuid);
     create table test_residui(id text,order_id uuid,amount numeric,expected_date date);
     create function cruscotto_rate_da_incassare(uuid) returns setof test_residui language sql as $$select * from test_residui$$;
-    create function costo_stornato_da_note(uuid) returns numeric language sql as $$select 0::numeric$$;
+    alter table fatture_ricevute add column id uuid default gen_random_uuid();
+    create table note_credito_storni(company_cost_id uuid,nota_id uuid,importo numeric);
+    create function costo_stornato_da_note(uuid) returns numeric language sql as $$
+      select coalesce(sum(s.importo),0) from note_credito_storni s
+      join fatture_ricevute n on n.id=s.nota_id where s.company_cost_id=$1 and n.company_cost_id is null
+    $$;
+    create table test_compensazioni(company_id uuid,cost_id uuid,entry_date date,amount numeric,stornata boolean default false);
+    create function previsionale_compensazioni_anticipi(uuid,date)
+      returns table(cost_id uuid,amount numeric) language sql as $$
+        select cost_id,amount from test_compensazioni where company_id=$1 and entry_date<=$2 and not stornata
+    $$;
+    create function anticipi_compensati_costo(uuid,uuid,date) returns numeric language sql as $$
+      select coalesce(sum(amount),0) from previsionale_compensazioni_anticipi($1,$3) where cost_id=$2
+    $$;
     insert into orders(id,company_id,order_code,client_name) values('${ordine}','${a}','O-DEMO','Cliente demo');
     insert into test_residui values('non-pianificato-${ordine}','${ordine}',500,null);
     insert into company_costs(id,company_id,name,amount,vat_rate,due_date,is_paid)
@@ -45,6 +62,8 @@ beforeAll(async () => {
     insert into prima_nota_entries values('${costo}','${a}','uscita',50),('${costo}','${a}','entrata',10);
   `);
   await db.exec(sql);
+  await db.exec(precedente);
+  await db.exec(ottimizzazione);
 }, 20000);
 afterAll(async () => { await db?.close(); });
 const righe = () => db.query<{ id: string; cost_id: string; amount: number; paid_amount: number; due_date: string | null; status: string; auto_source: string }>(`select * from scadenzario_fonti('${a}') order by auto_source,id`);
@@ -95,10 +114,44 @@ it("nega altre aziende e utenti senza il permesso scadenzario", async () => {
   await db.exec("set test.permesso='si'");
 });
 it("è idempotente, invoker e non eseguibile da anon", async () => {
-  await db.exec(sql);
+  await db.exec(ottimizzazione);
   const r = await db.query<{ ok: boolean }>(`select not prosecdef and not has_function_privilege('anon',oid,'EXECUTE') ok from pg_proc where proname='scadenzario_fonti'`);
   expect(r.rows[0].ok).toBe(true); expect((await righe()).rows).toHaveLength(2);
 });
+it("mantiene il saldo con note di credito, anticipi efficaci e compensazioni stornate o future", async () => {
+  await db.exec(`begin;
+    insert into fatture_ricevute(company_id,tipo_documento,totale_documento,stato,id)
+      values('${a}','TD04',10,'registrata','f0000000-0000-4000-a000-000000000002');
+    insert into note_credito_storni values('${costo}','f0000000-0000-4000-a000-000000000002',10);
+    insert into test_compensazioni values('${a}','${costo}',current_date,25,false),
+      ('${a}','${costo}',current_date,200,true),('${a}','${costo}',current_date+1,300,false),
+      ('${b}','${costo}',current_date,999,false);`);
+  const dopo = (await righe()).rows.find(x => x.cost_id === costo)!;
+  expect(Number(dopo.amount)).toBe(112);
+  expect(Number(dopo.paid_amount)).toBe(65);
+  expect(dopo.status).toBe('parziale');
+  const prima = await db.query(`select * from scadenzario_fonti_prima('${a}') order by auto_source,id`);
+  expect((await righe()).rows).toEqual(prima.rows);
+  await db.exec('rollback');
+});
+it("restituisce le stesse righe della versione precedente con costi, rate e pagamenti parziali", async () => {
+  await db.exec(`begin;
+    insert into company_costs(id,company_id,name,amount,vat_rate,due_date,is_paid)
+      select md5('costo:'||n)::uuid,'${a}','Costo '||n,n,22,current_date+(n%30),n%3=0
+      from generate_series(1,80) n;
+    insert into prima_nota_entries select id,company_id,'uscita',amount/2 from company_costs where name like 'Costo %';
+    insert into rate_fornitori select md5('rata:'||id)::uuid,id,company_id,1,amount*1.22,due_date,'MP12','da_pagare'
+      from company_costs where name like 'Costo %' and amount%2=0;`);
+  const confronto = await db.query<{ differenze: number }>(`with
+    prima as materialized (select * from scadenzario_fonti_prima('${a}')),
+    dopo as materialized (select * from scadenzario_fonti('${a}'))
+    select count(*)::int as differenze from (
+      (select * from prima except all select * from dopo)
+      union all (select * from dopo except all select * from prima)
+    ) d`);
+  expect(confronto.rows[0].differenze).toBe(0);
+  await db.exec('rollback');
+}, 30000);
 it("rispetta le policy delle fonti anche quando il permesso scadenzario è presente", async () => {
   await db.exec(`alter table company_costs enable row level security;
     create policy lettura on company_costs for select to authenticated using(company_id='${a}' and coalesce(current_setting('test.nascondi_costi',true),'no')<>'si');
