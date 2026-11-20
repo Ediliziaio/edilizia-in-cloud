@@ -50,11 +50,14 @@ describe("Rate Ri.Ba. da esportare", () => {
   });
 
   it("espone le rate dall’XML anche prima di registrare il costo, conservandone la posizione", () => {
-    const fattura = { ...fatture_ricevute, tipo_documento: "TD01", pagata_il: null, piano_pagamento: [
+    const piano: Array<{ modalita: string; scadenza: string; importo: number | null; pagata_il?: string }> = [
       { modalita: "MP05", scadenza: "2026-10-30", importo: 100 },
       { modalita: "MP12", scadenza: "2026-11-30", importo: 120 },
       { modalita: "MP12", scadenza: "2026-12-30", importo: null, pagata_il: "2026-12-30" },
-    ] };
+    ];
+    const fattura: Parameters<typeof ribaDaContabilizzare>[0] = {
+      ...fatture_ricevute, tipo_documento: "TD01", pagata_il: null, piano_pagamento: piano,
+    };
     expect(ribaDaContabilizzare(fattura)).toMatchObject([
       { numero: 2, stato: "da_contabilizzare", importo: 120, scadenza: "2026-11-30" },
       { numero: 3, stato: "pagata", importo: null, scadenza: "2026-12-30" },

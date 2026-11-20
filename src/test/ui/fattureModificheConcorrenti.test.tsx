@@ -22,7 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         eq: (campo: string, valore: string) => { filtri.set(campo, valore); return q; },
         is: (campo: string, valore: null) => { filtri.set(campo, valore); return q; },
         select: () => q,
-        maybeSingle: async () => {
+        maybeSingle: async (): Promise<{ data: { id: string | null | undefined } | null; error: null }> => {
           if (filtri.get("company_id") !== "a1") return { data: null, error: null };
           if (tabella === "rate_fornitori") {
             if (filtri.get("updated_at") !== db.versioneRata) return { data: null, error: null };

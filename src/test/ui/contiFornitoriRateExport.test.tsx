@@ -28,12 +28,12 @@ vi.mock("@/integrations/supabase/client", () => {
         select: () => q,
         eq: (campo: string, valore: string) => { filtri.set(campo, valore); return q; },
         neq: () => q, is: () => q, not: () => q, contains: () => q, order: () => q,
-        range: async () => {
+        range: async (): Promise<{ data: unknown[] | null; error: Error | null }> => {
           if (tabella === "fatture_ricevute" && stato.errorePiano) {
             return { data: null, error: new Error("Piano non disponibile") };
           }
           const fattura = { id: "f1", numero_fattura: "F-1", cedente_ragione_sociale: "Fornitore demo" };
-          const rata = { metodo: "riba", stato: "da_pagare", pagata_il: null, fattura_id: fattura.id,
+          const rata = { metodo: "riba", stato: "da_pagare", pagata_il: null as string | null, fattura_id: fattura.id,
             numero_fattura: fattura.numero_fattura, fornitore: fattura.cedente_ragione_sociale };
           const righe: Record<string, unknown[]> = {
             scadenzario_rate_fornitori: [
@@ -66,7 +66,7 @@ vi.mock("@/integrations/supabase/client", () => {
         },
         update: (regola: { categoria_id: string }) => { nuovaCategoria = regola.categoria_id; return q; },
         delete: () => q,
-        maybeSingle: async () => {
+        maybeSingle: async (): Promise<{ data: typeof stato.regola; error: null }> => {
           const attesa = filtri.get("categoria_id");
           stato.aggiorna(attesa, nuovaCategoria);
           if (!stato.regola || stato.regola.categoria_id !== attesa) return { data: null, error: null };

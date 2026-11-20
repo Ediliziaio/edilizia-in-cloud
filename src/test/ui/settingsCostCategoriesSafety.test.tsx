@@ -143,7 +143,7 @@ describe("Categorie costi: storico protetto e layout", () => {
     const elimina = await screen.findByRole("button", { name: "Elimina Materiali" });
     await waitFor(() => expect(elimina).toBeEnabled());
     fireEvent.click(elimina);
-    fireEvent.click(await screen.findByRole("button", { name: "Elimina", exact: true }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Elimina$/ }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("La categoria è usata da una regola fornitore. Sposta o rimuovi la regola prima di eliminarla."));
     expect(state.categorie).toHaveLength(1);
   });
