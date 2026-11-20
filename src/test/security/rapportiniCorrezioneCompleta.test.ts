@@ -6,20 +6,24 @@ const pg = new PGlite();
 const c='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', o='bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 const r='cccccccc-cccc-4ccc-cccc-cccccccccccc', u='dddddddd-dddd-4ddd-dddd-dddddddddddd', other='eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', v='ffffffff-ffff-4fff-ffff-ffffffffffff';
 const migration='supabase/migrations/20290422150000_rapportini_modifica_e_fasi_idempotenti.sql';
+const flowFix='supabase/migrations/20290422150100_rapportini_annullo_proprio_ufficio.sql';
+const legacyFlow='src/test/fixtures/rapportino-flusso-prima-annullo.sql';
 const file=(p:string)=>readFile(p,'utf8');
 function fn(sql:string,name:string,end='$$;') { const start=sql.indexOf(`create or replace function public.${name}(`); if(start<0) throw new Error(name); return sql.slice(start,sql.indexOf(end,start)+end.length); }
 beforeAll(async()=>{
  await pg.exec(`create schema auth; create role anon; create role authenticated; create role service_role;
- create table ctx(company uuid, uid uuid, admin boolean, edit boolean, cost boolean, sale boolean, visible boolean, blocked boolean);
- insert into ctx values('${c}','${u}',false,true,true,true,true,false);
+ create table ctx(company uuid, uid uuid, admin boolean, edit boolean, cost boolean, sale boolean, visible boolean, blocked boolean, office boolean default true);
+ insert into ctx(company,uid,admin,edit,cost,sale,visible,blocked) values('${c}','${u}',false,true,true,true,true,false);
  create function auth.uid() returns uuid language sql stable as $$select uid from ctx$$;
+ create function auth.role() returns text language sql stable as $$select 'authenticated'::text$$;
+ create function puo_vedere_commessa(uuid) returns boolean language sql stable as $$select visible from ctx$$;
  create function utente_bloccato() returns boolean language sql stable as $$select blocked from ctx$$;
  create function utente_e_cliente_esterno() returns boolean language sql stable as $$select false$$;
  create function has_permission_for_company(uuid,text,uuid) returns boolean language sql stable as $$select company=$3 and case $2 when 'can_edit_orders' then edit when 'can_view_costs' then cost when 'can_view_order_amounts' then sale else true end from ctx$$;
  create function assert_company_access(uuid) returns void language plpgsql as $$begin if $1 is distinct from (select company from ctx) then raise exception 'Azienda estranea' using errcode='42501'; end if; end$$;
  create function get_effective_company_id() returns uuid language sql stable as $$select company from ctx$$;
  create function check_staff_visibility(uuid,uuid) returns boolean language sql stable as $$select visible from ctx$$;
- create function campo_e_ufficio(uuid) returns boolean language sql stable as $$select edit from ctx$$;
+ create function campo_e_ufficio(uuid) returns boolean language sql stable as $$select edit and office from ctx$$;
  create function e_amministratore_di(uuid) returns boolean language sql stable as $$select admin from ctx$$;
  create table profiles(id uuid,first_name text,last_name text);
  insert into profiles values('${u}','Ufficio','SIM');
@@ -41,12 +45,15 @@ beforeAll(async()=>{
  const start=original.indexOf('create or replace function public.rapportino_voci_trg(');
  await pg.exec(original.slice(start,original.indexOf('-- Il quadro economico',start)));
  await pg.exec(await file('supabase/migrations/20290112110000_annullare_rapportini_conflitto_409.sql'));
+ await pg.exec(await file(legacyFlow));
+ await pg.exec('create trigger report_flow before insert or update on campo_rapportini for each row execute function campo_rapportino_verifica_flusso()');
+ const guard=await file(flowFix); await pg.exec(guard); await pg.exec(guard);
  const sql=await file(migration); await pg.exec(sql); await pg.exec(sql); // migrazione rilanciabile
 },30000);
 afterAll(()=>pg.close());
 beforeEach(async()=>{
  await pg.exec(`truncate rapportino_voci_libere,company_costs,appalto_rendiconto_righe,campo_rapportini,orders,giornale_lavori,rapportino_modifiche,order_work_subphases,order_work_phases,employees,mezzi;
- update ctx set company='${c}',uid='${u}',admin=false,edit=true,cost=true,sale=true,visible=true,blocked=false;
+ update ctx set company='${c}',uid='${u}',admin=false,edit=true,cost=true,sale=true,visible=true,blocked=false,office=true;
  insert into orders values('${o}','${c}',null,null,'appaltatore_lavoro');
  insert into campo_rapportini(id,company_id,order_id,user_id,approvato,stato,approvato_da,approvato_at,descrizione_lavori,presenze,mezzi_usati,fasi_lavorate,materiali_usati,pdf_url,data_lavoro) values('${r}','${c}','${o}','${other}',true,'approvato','${other}',now(),'Lavori SIM','[]','[]','[]','[]','vecchio.pdf',current_date);
  insert into rapportino_voci_libere(id,rapportino_id,descrizione,quantita,unita,costo_unitario,vendita_unitaria) values('${v}','${r}','Nolo SIM',2,'h',10,20);`);
@@ -160,3 +167,45 @@ it('le ore già annullate dall’ufficio non si riattivano passando dalla correz
 
 it('un autore legacy nullo non fa perdere l’approvazione durante una correzione dell’ufficio',async()=>{await pg.exec('update campo_rapportini set user_id=null');await edit({note:'Nota corretta'});expect((await report()).approvato).toBe(true);});
 it('una pagina firmata protegge il rapporto anche se il suo stato è incoerente',async()=>{await pg.exec(`update campo_rapportini set approvato=false,stato='inviato';insert into giornale_lavori values('${o}','firmata',array['${r}']::uuid[])`);await expect(edit({note:'No'})).rejects.toMatchObject({code:'23514'});});
+
+async function ownPending(){await pg.exec(`update campo_rapportini set user_id='${u}',approvato=false,stato='inviato'`);}
+it('riproduce il blocco reale dello staff sul proprio inviato e lo risolve come annullamento definitivo',async()=>{
+ await ownPending();await pg.exec(await file(legacyFlow));
+ await expect(cancel()).rejects.toMatchObject({code:'42501'});
+ await pg.exec(await file(flowFix));await cancel();
+ expect(await report()).toMatchObject({stato:'rifiutato',approvato:false,annullato_da:u});expect((await report()).annullato_at).not.toBeNull();
+});
+it('lo staff continua a non poter autoapprovare o auto-rifiutare il proprio inviato',async()=>{
+ await ownPending();
+ await expect(pg.exec("update campo_rapportini set stato='approvato',approvato=true")).rejects.toMatchObject({code:'42501'});
+ await expect(pg.exec("update campo_rapportini set stato='rifiutato'")).rejects.toMatchObject({code:'42501'});
+ expect((await report()).stato).toBe('inviato');
+});
+it('la marcatura annullato non può mascherare un’autoapprovazione',async()=>{
+ await ownPending();await expect(pg.exec(`update campo_rapportini set stato='approvato',approvato=true,annullato_at=now(),annullato_da='${u}',motivo_rifiuto='Prova'`)).rejects.toMatchObject({code:'42501'});
+});
+it('un annullamento senza attore corretto o senza motivo non aggira l’auto-rifiuto',async()=>{
+ await ownPending();
+ await expect(pg.exec(`update campo_rapportini set stato='rifiutato',annullato_at=now(),annullato_da='${other}',motivo_rifiuto='Prova'`)).rejects.toMatchObject({code:'42501'});
+ await expect(pg.exec(`update campo_rapportini set stato='rifiutato',annullato_at=now(),annullato_da='${u}',motivo_rifiuto=''`)).rejects.toMatchObject({code:'42501'});
+});
+it('anche con il permesso commesse un ruolo che non è ufficio resta escluso',async()=>{
+ await ownPending();await pg.exec('update ctx set office=false');
+ await expect(pg.exec(`update campo_rapportini set stato='rifiutato',annullato_at=now(),annullato_da='${u}',motivo_rifiuto='Prova'`)).rejects.toMatchObject({code:'42501'});
+});
+it('non consente di annullare direttamente il proprio inviato collegato al giornale firmato',async()=>{
+ await ownPending();await pg.exec(`insert into giornale_lavori values('${o}','firmata',array['${r}']::uuid[])`);
+ await expect(pg.exec(`update campo_rapportini set stato='rifiutato',annullato_at=now(),annullato_da='${u}',motivo_rifiuto='Prova'`)).rejects.toMatchObject({code:'42501'});
+});
+it('non consente l’annullamento diretto del proprio inviato già in un rendiconto confermato',async()=>{
+ await ownPending();await pg.exec(`insert into appalto_rendiconto_righe(rapportino_id,stato) values('${r}','confermato')`);
+ await expect(pg.exec(`update campo_rapportini set stato='rifiutato',annullato_at=now(),annullato_da='${u}',motivo_rifiuto='Prova'`)).rejects.toMatchObject({code:'42501'});
+});
+it('non consente l’annullamento diretto quando manca la visibilità sulla commessa',async()=>{
+ await ownPending();await pg.exec('update ctx set visible=false');
+ await expect(pg.exec(`update campo_rapportini set stato='rifiutato',annullato_at=now(),annullato_da='${u}',motivo_rifiuto='Prova'`)).rejects.toMatchObject({code:'42501'});
+});
+it('il titolare mantiene la possibilità di approvare il proprio rapporto',async()=>{
+ await ownPending();await pg.exec('update ctx set admin=true');await pg.exec("update campo_rapportini set stato='approvato',approvato=true");
+ expect((await report()).approvato).toBe(true);
+});
