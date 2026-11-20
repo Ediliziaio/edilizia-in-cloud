@@ -51,6 +51,8 @@ export function instrada(file: Pick<File, "name" | "type" | "size">): Instradame
 // ── Le voci da rivedere ──────────────────────────────────────────────────────
 
 export interface VoceImportata extends VoceEditor {
+  /** Numeri stampati, validi finché quantità, prezzo e unità non vengono revisionati. */
+  valoriDocumento?: { quantita: number | null; prezzo: number | null; unita: string; importo: number | null };
   /** Cosa controllare prima di aggiungerla. Vuoto: la voce è completa. */
   avvisi: string[];
   /** Il file da cui viene. */
@@ -101,7 +103,10 @@ export const conAvvisi = (v: VoceEditor, origine: string, extra: string[] = []):
 export function daComputoStrutturato(c: ComputoStrutturato, origine: string): { esito: EsitoImportComputo; voci: VoceImportata[] } {
   const esito = bozzaDaComputoStrutturato(c);
   const diverse = new Set(esito.scostamenti.map(s => s.voce - 1));
-  const voci = esito.voci.map((v, i) => conAvvisi(v, origine, diverse.has(i) ? ["Quantità diversa da quella scritta nel documento"] : []));
+  const voci = esito.voci.map((v, i) => ({ ...conAvvisi(v, origine, [
+    ...(diverse.has(i) ? ["Quantità diversa da quella scritta nel documento"] : []), ...(c.voci[i]?.avvisi ?? []),
+  ]), valoriDocumento: { quantita: c.voci[i]?.quantita ?? null, prezzo: c.voci[i]?.prezzo_unitario ?? null,
+    unita: c.voci[i]?.unita_misura ?? "", importo: c.voci[i]?.importo ?? null } }));
   return { esito, voci };
 }
 

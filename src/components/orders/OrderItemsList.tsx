@@ -71,6 +71,8 @@ export const PAYMENT_METHODS = [
 ] as const;
 
 export interface OrderItem {
+  chiave_materiale?: string | null;
+  origini?: import("@/lib/distinta/generaDistinta").OrigineRiga[];
   id?: string;
   name: string;
   description?: string;

@@ -28,7 +28,7 @@ const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", curre
 const num = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 
 function filtraMateriali(m: MaterialeCollegato, f: FiltroMateriali, avvisi?: Map<string, string>): boolean {
-  if (f === "da_controllare") return m.affidabilita < 0.65 || !!avvisi?.has(m.chiave);
+  if (f === "da_controllare") return m.verifica_acquisto?.stato === "da_verificare" || m.affidabilita < 0.65 || !!avvisi?.has(m.chiave);
   if (f === "senza_articolo") return !m.collegamento;
   if (f === "senza_prezzo") return !prezzoRiga(m);
   if (f === "in_magazzino") return !!m.magazzino;
@@ -40,6 +40,8 @@ const ETICHETTE_FILTRO: Record<FiltroMateriali, string> = {
 };
 
 function Sicurezza({ m }: { m: MaterialeCollegato }) {
+  if (m.verifica_acquisto?.stato === "da_verificare") return <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800"
+    title={m.verifica_acquisto.motivi.join("\n")}><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />Da verificare</span>;
   const v = m.affidabilita;
   const [testo, colore] = v >= 0.85 ? ["Sicuro", "bg-emerald-500"] : v >= 0.65 ? ["Probabile", "bg-sky-500"] : ["Da controllare", "bg-amber-500"];
   const dettagli = [`${testo} ${Math.round(v * 100)}%`, ETICHETTA_FONTE_MATERIALE[m.fonte], ...m.note].join("\n");
@@ -53,7 +55,7 @@ function Sicurezza({ m }: { m: MaterialeCollegato }) {
 function provenienza(origini: OrigineRiga[]): { breve: string; tutte: string } {
   const etichetta = (o: OrigineRiga) => o.tipo === "computo"
     ? `${o.codice ? `${o.codice} · ` : ""}${o.descrizione} (${o.quantita_voce.toLocaleString("it-IT")} ${o.unita_voce ?? ""})`.replace(/ \)$/, ")")
-    : `Tavola ${o.documento ?? ""} · ${o.simbolo}${o.locale ? ` · ${o.locale}` : ""}`;
+    : o.tipo === "contratto" ? `Documento · ${o.descrizione}` : `Tavola ${o.documento ?? ""} · ${o.simbolo}${o.locale ? ` · ${o.locale}` : ""}`;
   const prima = origini[0];
   if (!prima) return { breve: "", tutte: "" };
   return { breve: `da ${etichetta(prima)}${origini.length > 1 ? ` e altre ${origini.length - 1}` : ""}`, tutte: origini.map(etichetta).join("\n") };
@@ -247,6 +249,7 @@ export function MaterialiProposti({
                         </p>
                         <p className="truncate text-[11px] text-slate-500" title={p.tutte}>{p.breve}</p>
                         {m.note.map((n) => <p key={n} className="truncate text-[11px] text-slate-500" title={n}>{n}</p>)}
+                        {m.verifica_acquisto?.stato === "da_verificare" && <p className="text-[11px] font-medium text-amber-800">Dati da completare prima dell'acquisto</p>}
                         {avvisiCosto?.get(m.chiave) && (
                           <p className="flex items-center gap-1 text-[11px] font-medium text-amber-800" title={avvisiCosto.get(m.chiave)}>
                             <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden /><span className="truncate">{avvisiCosto.get(m.chiave)}</span>

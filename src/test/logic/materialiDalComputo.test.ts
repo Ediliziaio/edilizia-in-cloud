@@ -458,3 +458,29 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
     });
   });
 });
+
+describe("prodotti diversi con lo stesso legante", () => {
+  it("non associa il cemento all'adesivo cementizio, nemmeno se ricordato con un alias", () => {
+    const r = generaDistinta({voci:[voce({id:"cem",descrizione_breve:"Fornitura di cemento CEM II 32,5 R",unita_misura:"kg",quantita:10518.64})],scomposizioni:[]}).righe[0];
+    const catalogo = {articoli:[{id:"colla",name:"Adesivo cementizio per piastrelle C2TE sacco 25 kg",unit_of_measure:"sacco"}],listini:[],giaUsati:[],alias:[{alias_text:r.descrizione,article_template_id:"colla"}]};
+    expect(collegaMateriali([r],catalogo)[0].collegamento).toBeNull();
+    expect(nomiInConflitto("Cemento", "Adesivo cementizio per piastrelle")).toBe(true);
+    expect(nomiInConflitto("Fissativo acrilico", "Idropittura acrilica")).toBe(true);
+    expect(nomiInConflitto("Malta cementizia", "Cemento CEM II")).toBe(true);
+    expect(nomiInConflitto("Colla H40", "Adesivo cementizio C2TE")).toBe(false);
+    const [corretto] = collegaMateriali([r],{...catalogo,alias:[],articoli:[{id:"cemento",name:"Cemento CEM II 32,5 R sacco 25 kg",unit_of_measure:"sacco"}]});
+    expect(corretto.collegamento?.id).toBe("cemento");expect(corretto.conversione?.quantita).toBe(421);
+  });
+});
+
+it('i 45 sistemi avvolgibili restano 45 kit, senza inventare metri di cavo o accessori separati',()=>{
+ const r=generaDistinta({voci:[voce({id:'sistema',descrizione_breve:'Sistema per apertura e chiusura di avvolgibili composto da rotore con puleggia in opera comprese le opere murarie e collegamenti elettrici, scatole, cavi, pulsanti e morsetti',unita_misura:'cad',quantita:45})],scomposizioni:[],riserva:catalogoComeScomposizioni()});
+ expect(r.senzaScomposizione).toEqual([]);expect(r.righe).toHaveLength(1);expect(r.righe[0]).toMatchObject({quantita_calcolata:45,unita_misura:'cad',fonte:'fornitura'});expect(r.righe[0].note.join(' ')).toMatch(/kit/);
+});
+
+it('le rese AI restano riconoscibili come stime anche nelle proposte salvate della commessa',()=>{
+ const originale=proposta().materiali[0];
+ const riga=rigaDaSalvare({...originale,fonte:'proposta_ai',proposta_ai:true});
+ expect(riga.specifiche).toMatch(/Proposta AI: quantità e rese stimate/);
+ expect(riga.origini.every(o=>o.fonte==='proposta_ai')).toBe(true);
+});

@@ -1,0 +1,30 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { CalcoloQuantitaAssistito } from "@/components/orders/materiali/CalcoloQuantitaAssistito";
+import { DataPianoAcquisti } from "@/components/orders/materiali/DataPianoAcquisti";
+const mock = vi.hoisted(() => ({ imposta: vi.fn() }));
+vi.mock("@/hooks/useFabbisognoMateriali", () => ({ useImpostaDataFabbisogno: () => ({ mutateAsync: mock.imposta, isPending: false }) }));
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+it("usa la resa dichiarata e le confezioni senza confermare automaticamente il materiale", () => {
+  const applica = vi.fn(); render(<CalcoloQuantitaAssistito baseIniziale={120} onApplica={applica} />);
+  fireEvent.click(screen.getByRole("button", { name: "Calcola da resa e confezione" }));
+  fireEvent.change(screen.getByLabelText("Tipo di resa"), { target: { value: "copertura" } });
+  for (const [label, value] of [["Copertura per unità", "10"], ["Mani o strati", "2"], ["Sfrido %", "10"], ["Unità del prodotto", "l"], ["Contenuto confezione", "10"]]) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  fireEvent.change(screen.getByLabelText("Unità della confezione"), { target: { value: "latta" } });
+  expect(screen.getByRole("button", { name: "Usa il calcolo nella proposta" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Fonte della resa"), { target: { value: "Scheda Pittura A" } });
+  fireEvent.click(screen.getByRole("button", { name: "Usa il calcolo nella proposta" }));
+  expect(applica).toHaveBeenCalledWith(expect.objectContaining({ quantita: 3, unita: "latta", nota: expect.stringContaining("Scheda Pittura A. Calcolo: 120 ÷ 10 × 2") }));
+});
+it("imposta la data soltanto al salvataggio esplicito e conserva il modulo se la scrittura non riesce", async () => {
+  const chiudi = vi.fn(); mock.imposta.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+  render(<DataPianoAcquisti id="m1" nome="Materiale" dataFase="2027-03-20" onChiudi={chiudi} />);
+  expect(mock.imposta).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Serve in cantiere il"), { target: { value: "2027-03-15" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salva data" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Data non aggiornata");
+  expect(chiudi).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Salva data" }));
+  await waitFor(() => expect(chiudi).toHaveBeenCalled());
+  expect(mock.imposta).toHaveBeenLastCalledWith({ ids: ["m1"], data: "2027-03-15" });
+});

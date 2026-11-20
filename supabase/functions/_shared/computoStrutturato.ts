@@ -21,6 +21,8 @@ export interface ComputoMisura {
 export interface ComputoLivello { numero: number | null; nome: string }
 
 export interface ComputoVoceStrutturata {
+  /** Una fase ricostruita non è un'intestazione stampata nel PDF. */
+  origine_fase?: "riepilogo" | "descrizione";
   numero_ordine: string;
   /** Codici tariffa come stampati (PriMus ne mette 2-3: articolo, prezzario, codice breve). */
   codici: string[];
@@ -55,7 +57,7 @@ export interface ComputoRigaRiepilogo {
 }
 
 export interface ComputoStrutturato {
-  formato: "primus_pdf" | "xpwe" | "excel";
+  formato: "primus_pdf" | "tabellare_pdf" | "xpwe" | "excel";
   metadata: { oggetto_lavori?: string | null; committente?: string | null; data_computo?: string | null; impresa?: string | null };
   voci: ComputoVoceStrutturata[];
   totale_dichiarato: number | null;

@@ -30,7 +30,7 @@ function CampoNumero({ valore, onValore, etichetta, className }: { valore: numbe
 
 export function ModificaFasi({ extract, onModifica }: Props) {
   const fasi = extract.fasi_lavoro ?? [];
-  const metti = (nuove: typeof fasi) => onModifica({ ...extract, fasi_lavoro: nuove });
+  const metti = (nuove: typeof fasi) => onModifica({ ...extract, fasi_lavoro: nuove, lavorazioni_escluse: nuove.length === 0 });
   const [nuova, setNuova] = useState<Record<number, string>>({});
   return (
     <div className="space-y-2">
@@ -52,7 +52,7 @@ export function ModificaFasi({ extract, onModifica }: Props) {
               <span key={k} className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[11px]">
                 {x}
                 <button type="button" aria-label={`Togli la lavorazione ${x}`} className="text-muted-foreground hover:text-foreground"
-                  onClick={() => metti(fasi.map((y, j) => (j === i ? { ...y, sottofasi: y.sottofasi.filter((_, z) => z !== k) } : y)))}>
+                  onClick={() => metti(fasi.map((y, j) => (j === i ? { ...y, sottofasi: y.sottofasi.filter((_, z) => z !== k), ...(y.lavorazioni ? { lavorazioni: y.lavorazioni.filter((_, z) => z !== k) } : {}) } : y)))}>
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -61,7 +61,7 @@ export function ModificaFasi({ extract, onModifica }: Props) {
               e.preventDefault();
               const t = (nuova[i] ?? "").trim();
               if (!t) return;
-              metti(fasi.map((y, j) => (j === i ? { ...y, sottofasi: [...y.sottofasi, t] } : y)));
+              metti(fasi.map((y, j) => (j === i ? { ...y, sottofasi: [...y.sottofasi, t], ...(y.lavorazioni ? { lavorazioni: [...y.lavorazioni, { riferimento: `manuale:${crypto.randomUUID()}`, descrizione: t, quantita: null, unita: null, articolo_riferimenti: [] }] } : {}) } : y)));
               setNuova((p) => ({ ...p, [i]: "" }));
             }}>
               <Input value={nuova[i] ?? ""} placeholder="+ lavorazione" aria-label={`Aggiungi una lavorazione a ${f.nome}`} className="h-6 w-36 text-[11px]"
@@ -79,6 +79,17 @@ export function ModificaFasi({ extract, onModifica }: Props) {
 
 export function ModificaArticoli({ extract, onModifica }: Props) {
   const metti = (voci: ContractExtract["voci"]) => onModifica({ ...extract, voci });
+  if (extract.posizioni_allegato?.length) return <div className="space-y-2">
+    <p className="text-xs text-muted-foreground">Correggi le posizioni del documento: le quantità aggiornano sia il lavoro previsto sia gli articoli necessari.</p>
+    {extract.posizioni_allegato.map((p, i) => <div key={i} className="grid grid-cols-[minmax(0,1fr)_5rem_8rem] gap-2 text-xs">
+      <span className="self-center">{p.codice} · {p.descrizione}</span>
+      <CampoNumero valore={p.quantita} etichetta={`Quantità della posizione ${p.codice}`} onValore={n => {
+        if (n != null && n > 0) onModifica({ ...extract, posizioni_allegato: extract.posizioni_allegato!.map((x, k) => k === i ? { ...x, quantita: n } : x) });
+      }} />
+      <Input className="h-7 text-xs" aria-label={`Misure della posizione ${p.codice}`} placeholder="L×H mm" value={p.dimensioni ?? ""}
+        onChange={e => onModifica({ ...extract, posizioni_allegato: extract.posizioni_allegato!.map((x, k) => k === i ? { ...x, dimensioni: e.target.value || null } : x) })} />
+    </div>)}
+  </div>;
   return (
     <div className="space-y-2">
       <div className="max-h-80 space-y-1 overflow-y-auto">
@@ -87,7 +98,7 @@ export function ModificaArticoli({ extract, onModifica }: Props) {
             <Input value={v.descrizione} aria-label={`Descrizione dell'articolo ${i + 1}`} className="h-7 text-xs"
               onChange={(e) => metti(extract.voci.map((x, k) => (k === i ? { ...x, descrizione: e.target.value } : x)))} />
             <CampoNumero valore={v.quantita} etichetta={`Quantità dell'articolo ${i + 1}`}
-              onValore={(n) => metti(extract.voci.map((x, k) => (k === i ? { ...x, quantita: n ?? 1 } : x)))} />
+              onValore={(n) => metti(extract.voci.map((x, k) => (k === i ? { ...x, quantita: n ?? 1, quantita_da_confermare: n == null } : x)))} />
             <CampoNumero valore={v.prezzo_unitario_eur} etichetta={`Prezzo dell'articolo ${i + 1}`}
               onValore={(n) => metti(extract.voci.map((x, k) => (k === i ? { ...x, prezzo_unitario_eur: n ?? 0 } : x)))} />
             <Button type="button" size="icon" variant="ghost" className="h-7 w-7" aria-label={`Togli l'articolo ${v.descrizione}`} onClick={() => metti(extract.voci.filter((_, k) => k !== i))}>

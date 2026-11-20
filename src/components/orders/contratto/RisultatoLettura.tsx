@@ -16,6 +16,8 @@ import { ETICHETTA_NATURA, siCompra } from "@/lib/orders/naturaVoce";
 import type { VerificaNelTesto } from "@/lib/orders/contrattoNelTesto";
 import { avvisiDaControllare } from "@/lib/orders/avvisiContratto";
 import { cn } from "@/lib/utils";
+import { FasiDelDocumento } from "./FasiDelDocumento";
+import { pianoOperativoContratto } from "@/lib/orders/pianoOperativoContratto";
 
 const NATURA: Record<string, string> = {
   contratto_cliente: "Contratto", offerta_fornitore: "Offerta del fornitore", copia_commissione: "Copia commissione",
@@ -38,7 +40,8 @@ const SPIEGA: Record<ParteContratto, string> = {
   pagamento: "diventano le rate", date: "inizio e fine dei lavori", note: "nelle note interne", cliente: "anagrafica e indirizzo del cantiere",
 };
 
-export function RisultatoLettura({ extract, verifica, testoDocumento, daConfermare = [], dopoDati, extraAvvisi = [], scelte, onScelta, onModifica }: {
+export function RisultatoLettura({ extract, verifica, testoDocumento, daConfermare = [], dopoDati, extraAvvisi = [], scelte, onScelta, onModifica, pianoCollegato }: {
+  pianoCollegato?: ReactNode;
   extract: ContractExtract;
   verifica: VerificaNelTesto | null;
   /** Il testo del PDF (null per le scansioni o le foto). */
@@ -69,12 +72,13 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
   const [scheda, setScheda] = useState<ParteContratto | null>(null);
   const attiva = scheda && parti.includes(scheda) ? scheda : parti[0];
   const [inModifica, setInModifica] = useState(false);
-  const capitoli = fasiDaCapitoli(extract.voci);
+  const capitoli = fasiDaCapitoli(extract.voci, extract.origine_lettura === "computo" ? 80 : 15, extract.origine_lettura === "computo" ? 1000 : 30);
+  const etichetta = (k: ParteContratto) => k === "articoli" && extract.origine_lettura === "computo" ? "Voci di lavoro" : ETICHETTA_PARTE[k];
   const modificabile = !!onModifica && (["importo", "lavorazioni", "articoli", "pagamento", "date"] as ParteContratto[]).includes(attiva);
   const conteggi: Partial<Record<ParteContratto, string>> = {
     lavorazioni: fasi.length ? String(fasi.length) : undefined,
     // Si contano gli articoli che nascerebbero: i materiali, non lavori, servizi e sconti.
-    articoli: String((() => { const a = articoliDalContratto(extract); return a.posizioni.length + a.voci.length; })()),
+    articoli: extract.origine_lettura === "computo" ? String(extract.voci.length) : pianoCollegato ? String(pianoOperativoContratto(extract).materiali.length) : String((() => { const a = articoliDalContratto(extract); return a.posizioni.length + a.voci.length; })()),
     pagamento: extract.fasi_pagamento.length ? String(extract.fasi_pagamento.length) : undefined,
     note: note.length ? String(note.length) : undefined,
   };
@@ -129,20 +133,20 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
                 <button key={k} type="button" role="tab" aria-selected={sel} onClick={() => { setScheda(k); setInModifica(false); }}
                   className={cn("flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors", sel ? "border-primary/40 bg-primary/10 font-medium text-primary" : "hover:bg-muted", !applicata && "text-muted-foreground line-through decoration-muted-foreground/60")}>
                   {scelte && <span className={cn("h-1.5 w-1.5 rounded-full", applicata ? "bg-emerald-500" : "bg-muted-foreground/40")} aria-hidden />}
-                  {ETICHETTA_PARTE[k]}{conteggi[k] ? <span className="font-normal text-muted-foreground">{conteggi[k]}</span> : null}
+                  {etichetta(k)}{conteggi[k] ? <span className="font-normal text-muted-foreground">{conteggi[k]}</span> : null}
                 </button>
               );
             })}
           </div>
 
-          <div role="tabpanel" aria-label={ETICHETTA_PARTE[attiva]} className="space-y-2">
+          <div role="tabpanel" aria-label={etichetta(attiva)} className="space-y-2">
             {(scelte && onScelta) || modificabile ? (
               <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1.5 text-xs">
                 {scelte && onScelta && (
                   <label className="flex flex-wrap items-center gap-2">
-                    <Checkbox checked={scelte.has(attiva)} onCheckedChange={(v) => onScelta(attiva, v === true)} aria-label={`Applica alla commessa: ${ETICHETTA_PARTE[attiva]}`} />
+                    <Checkbox checked={scelte.has(attiva)} onCheckedChange={(v) => onScelta(attiva, v === true)} aria-label={`Applica alla commessa: ${etichetta(attiva)}`} />
                     <span className="font-medium">Applica alla commessa</span>
-                    <span className="text-muted-foreground">{SPIEGA[attiva]}</span>
+                    <span className="text-muted-foreground">{attiva === "articoli" && extract.origine_lettura === "computo" ? "le voci si scompongono nei materiali dopo la creazione" : SPIEGA[attiva]}</span>
                   </label>
                 )}
                 {modificabile && (
@@ -176,22 +180,14 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
                 {extract.altri_costi.map((c, i) => <div key={i} className="contents"><dt className="text-muted-foreground">{c.descrizione}</dt><dd className="tabular-nums">{formatCurrency(c.importo_eur)}</dd></div>)}
               </dl>
             )}
-            {attiva === "lavorazioni" && fasi.length === 0 && <p className="text-xs text-muted-foreground">Il documento non elenca fasi di lavoro: creale dai capitoli o con «Modifica».</p>}
-            {attiva === "lavorazioni" && fasi.length > 0 && (
-              <ol className="space-y-1.5">
-                {fasi.map((f, i) => (
-                  <li key={i} className="text-xs">
-                    <p className="font-medium"><span className="mr-1 text-muted-foreground tabular-nums">{i + 1}.</span>{f.nome}{f.giorni ? <span className="font-normal text-muted-foreground"> · {f.giorni} gg</span> : null}</p>
-                    {f.sottofasi.length > 0 && (
-                      <ul className="mt-0.5 flex flex-wrap gap-1 pl-4">
-                        {f.sottofasi.map((x, k) => <li key={k} className="rounded bg-muted px-1.5 py-0.5 text-[11px]">{x}</li>)}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ol>
+            {attiva === "lavorazioni" && pianoCollegato}
+            {attiva === "lavorazioni" && !pianoCollegato && fasi.length === 0 && <p className="text-xs text-muted-foreground">Il documento non elenca fasi di lavoro: creale dai capitoli o con «Modifica».</p>}
+            {attiva === "lavorazioni" && !pianoCollegato && fasi.length > 0 && (
+              <FasiDelDocumento fasi={fasi} />
             )}
-            {attiva === "articoli" && (<>
+            {attiva === "articoli" && extract.origine_lettura === "computo" && <p className="rounded-md border bg-muted/40 p-3 text-xs">{extract.voci.length} voci di lavoro lette. I materiali da acquistare si ricavano da «Genera dal computo», dopo la creazione della commessa: le lavorazioni non sono una lista della spesa.</p>}
+            {attiva === "articoli" && pianoCollegato}
+            {attiva === "articoli" && !pianoCollegato && extract.origine_lettura !== "computo" && (<>
               {extract.voci.length > 0 && (() => {
                 const daComprare = vociDaComprare(extract.voci).length;
                 const altre = extract.voci.length - daComprare;

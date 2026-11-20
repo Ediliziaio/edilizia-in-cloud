@@ -18,6 +18,7 @@ function dbFinto(registrati: string[] = []) {
     from: (t: string) => ({
       select: () => {
         const q = { filtri: {} as Record<string, string>, eq(c: string, v: string) { q.filtri[c] = v; return q; },
+          maybeSingle: async () => ({data:t === "orders" ? {id:ORDINE} : null,error:null}),
           limit: async () => ({ data: registrati.filter((p) => p === q.filtri.file_url && t === "order_attachments").map((id) => ({ id })), error: null as null }) };
         return q;
       },

@@ -36,6 +36,9 @@ REGOLE
 - Capitoli di sicurezza, oneri o spese generali: "phase_id" null e "nuova_fase" null.
 - "motivo": una frase semplice in italiano (massimo 20 parole) che spiega la scelta.
 - "confidenza" da 0 a 1: bassa se il capitolo è generico o ambiguo.
+- Un capitolo generico non si assegna dal solo mestiere della prima voce: se gli esempi coprono mestieri diversi, non forzare un abbinamento e spiega cosa verificare.
+- Non confondere il supporto con l'intervento: consolidamento e antisfondellamento non sono costruzione di solai nuovi. Rate, acconti e SAL di pagamento non sono fasi di lavoro.
+- Non inventare disponibilità di magazzino, quantità o date: questa richiesta riguarda soltanto le fasi.
 
 Rispondi SOLO con JSON: {"proposte":[{"capitolo":"<nome esatto del capitolo>","phase_id":"<id o null>","nuova_fase":"<nome o null>","motivo":"…","confidenza":0.8}]}`;
 

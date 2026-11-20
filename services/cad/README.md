@@ -48,7 +48,45 @@ docker compose -f services/cad/compose.yaml build
 
 Senza attivazione esplicita, il client di produzione non carica il file e conserva la bozza. In sviluppo su loopback rimane il percorso locale, con lo stesso motore di conversione e senza chiamate remote di ammissione.
 
-## Limiti della lettura
+## Lettura DWG nelle tavole della commessa, in locale
+
+Dal 20 novembre 2026 il pannello **Materiali → Tavole → Disegno CAD** accetta
+direttamente il DWG. In produzione la funzione autenticata `cad-leggi-commessa`
+usa un motore WebAssembly sul backend (massimo 4 MB di ingresso e 24 MB di DXF).
+Sul Mac di sviluppo usa il motore nativo locale. È un percorso distinto dal
+riepilogo per i preventivi: `POST /__commessa-cad/dxf` restituisce un DXF ASCII
+al worker del browser. Non usa il gate o i permessi dei preventivi, non salva
+documenti o conteggi e non chiama OpenRouter. Il servizio online è attivo e viene collegato al frontend con questo rilascio; non richiede crediti OpenRouter.
+
+Il plugin Vite accetta solo richieste dalla stessa origine locale, con azienda,
+identificativo della richiesta e dimensione. Il client verifica questi dati e
+l’hash SHA-256 dell’originale nella risposta. Una sola conversione alla volta,
+condivisa con il percorso locale dei preventivi; massimo 64 MB in ingresso,
+128 MB di DXF prodotto e 180 secondi per il motore (240 per la richiesta).
+Annullare o chiudere il pannello interrompe la lettura e scarta risposte tardive.
+
+Il motore `dwg2dxf` è cercato nell’ordine: configurazione server
+`EIC_CAD_DWG2DXF`, installazione utente
+`~/.local/share/ediliziaincloud/cad/libredwg-0.14/bin/dwg2dxf`, `PATH`.
+Su questo Mac è installata LibreDWG 0.14, con licenza e provenienza accanto al
+binario; il binario non è incluso nel repository o nel frontend. Il processo
+riceve solo PATH e LANG, usa percorsi temporanei generati dal server e li elimina
+dopo la conclusione o l’annullamento. L’assenza del motore dà un errore operativo,
+senza simulare una conversione riuscita.
+
+L’eventuale salvataggio fra i documenti conserva **il DWG originale**, con il suo
+formato. I conteggi di bozza registrano nome originale, hash, motore, presenza di
+segnalazioni e stato della calibrazione. I blocchi grafici richiedono una
+classificazione; le lunghezze del DWG restano da verificare finché l’utente non
+conferma unità e scala su una quota nota. Le segnalazioni del motore vengono
+mostrate e non equivalgono a una conversione completa di ogni oggetto CAD.
+
+Collaudo: `vivienda multifamiliar.dwg`, 877.504 byte, AutoCAD 2007; DXF prodotto
+di 6.111.865 byte, 190 inserimenti, 1.322 testi e 15 layer. Questi sono elementi
+grafici, non quantità di materiali certificate. Evidenze nel
+[rapporto locale](/Users/andriciuc/reports/eic-dwg-automatico-2026-11-20/VERIFICA.md).
+
+## Limiti del riepilogo per i preventivi
 
 Il riepilogo conserva al massimo 300 testi distinti e 80 nomi di layer, entro un limite di byte; indica le occorrenze non riportate e le letture parziali. Gli estratti inviati all’AI sono ulteriormente limitati e scelti in funzione della domanda. Grafica importata da PDF, simboli, legende, unità dichiarate e scale di stampa non diventano misure verificate. Quote geometriche, selezione della tavola e confronto automatico tra stato attuale e progetto richiedono un ulteriore percorso di calibrazione e verifica.
 

@@ -26,9 +26,11 @@ export interface ServizioComputo {
   /** Pezzi (o m²) noleggiati, quando la quantità è pezzi × mesi. */
   pezzi: number | null;
   nota: string;
+  periodi?: PeriodoNolo[];
 }
 
-type MisuraTesto = { descrizione?: string | null; parti_uguali?: number | null; quantita?: number | null };
+export interface PeriodoNolo { quantita: number; mesi: number; unita: string; nota: string }
+type MisuraTesto = { descrizione?: string | null; parti_uguali?: number | null; quantita?: number | null; formula?: string | null };
 export type VoceServizio = VoceComputo & { misure?: MisuraTesto[] | null; prezzo_unitario_computo?: number | null };
 
 const ORE = /^(h|ora|ore)$/i;
@@ -54,21 +56,58 @@ function fattori(t: string): number[] {
   return m ? m[1].split("*").map((x) => numero(x.trim().replace(/\.(?=\d{3}\b)/g, ""))).filter((x) => x > 0) : [];
 }
 
+export function periodiNolo(v: VoceServizio): PeriodoNolo[] {
+  const t = testoVoce(v);
+  const unita = /^(mq|m2|m²)$/i.test(v.unita_misura ?? "") ? "m²" : "pz";
+  return (v.misure ?? []).flatMap(m => {
+    const descrizione = `${m.descrizione ?? ""} ${m.formula ?? ""}`;
+    const f = fattori(descrizione);
+    let mesi = mesiDaTesto(descrizione);
+    if (/primi 30 giorni/.test(t)) mesi = 1;
+    else if (f.length === 2 && mesi && f.includes(mesi - 1) && !f.includes(mesi)) mesi -= 1;
+    else if (/successiv/.test(t) && f.length === 2 && Math.min(...f) <= 36) mesi = Math.min(...f);
+    else if (!mesi && f.length === 2 && Math.min(...f) <= 4 && Math.max(...f) <= 36) mesi = Math.max(...f);
+    const q = Number(m.quantita);
+    if (!mesi || !(q > 0)) return [];
+    const quantita = q / mesi;
+    if (!(quantita > 0) || (unita === "pz" && Math.abs(quantita - Math.round(quantita)) > 0.0001)) return [];
+    return [{ quantita: Math.round(quantita * 10000) / 10000, mesi, unita, nota: m.descrizione ?? "" }];
+  });
+}
+
 export function classificaServizio(v: VoceServizio): ServizioComputo | null {
   const t = testoVoce(v);
   const unita = (v.unita_misura ?? "").trim();
   const q = Number(v.quantita ?? 0);
   const misure = (v.misure ?? []).map((m) => m.descrizione ?? "").join(" ; ");
   const base = { voce_id: v.id, numero: v.numero_ordine ?? null, descrizione: v.descrizione_breve.split("\n")[0].slice(0, 160), quantita: q, unita };
+  if (/^casseforme\b/.test(t)) return { ...base, tipo: "prestazione", mesi: null, pezzi: null, nota: "Opera provvisionale: definire il sistema di casseforme e scegliere nolo o acquisto, senza assumere una nuova fornitura di legname per ogni m²." };
+  if (/^zincatura\b|^preparazione (?:di superficie murarie|del terreno alla semina)|^stesa e modellazione/.test(t)
+    && !/fornitura (?:di|del)|con applicazione/.test(t)) {
+    return { ...base, tipo: "prestazione", mesi: null, pezzi: null, nota: "Prestazione sul materiale o terreno esistente: non aggiunge una fornitura di prodotto." };
+  }
 
-  if (v.is_detrazione || (v.prezzo_unitario_computo != null && Math.abs(Math.abs(v.prezzo_unitario_computo) - 1) < 0.0001)) {
+  if (v.is_detrazione || (/^(?:euro|€|%)$/.test(unita) && /incidenza|rettifica|scorporo|quota|a detrarre/.test(t))) {
     return { ...base, tipo: "trasferimento", mesi: null, pezzi: null, nota: "Sposta un importo fra categorie: non è un costo da sostenere." };
   }
 
   // Le ore: manodopera, o nolo di un mezzo con operatore.
   if (ORE.test(unita)) {
     if (NOLO_A_ORE.test(t)) return { ...base, tipo: "nolo", mesi: null, pezzi: null, nota: `${q.toLocaleString("it-IT")} ore di nolo con operatore: non aggiungere le ore dello stesso operatore.` };
+    if (/ricerca sottoservizi|collaudo|verifica/.test(t)) return { ...base, tipo: "prestazione", mesi: null, pezzi: null, nota: `${q} ore di prestazione tecnica da affidare, con strumentazione e inclusioni da confermare.` };
     if (MANODOPERA.test(t) || v.is_sicurezza) return { ...base, tipo: "manodopera", mesi: null, pezzi: null, nota: `${q.toLocaleString("it-IT")} ore: confrontale con le voci «fornitura e posa» per non pagarle due volte.` };
+  }
+
+  // Il volume trasportato misura la prestazione, non materiali nuovi. Si riconosce
+  // l'oggetto della voce: un tiro compreso nella fornitura non esclude il prodotto.
+  if (/^(?:tiro in alto|calo in basso|carico trasporto e scarico a mano)\b/.test(t)) {
+    return { ...base, tipo: "prestazione", mesi: null, pezzi: null,
+      nota: "Movimentazione di materiali già presenti: prestazione di sollevamento, senza una nuova fornitura da acquistare." };
+  }
+  if (/^(?:(?:fornitura|formazione) di )?(?:incastri?|bisellatura|gocciolatoio)\b/.test(t)
+    && /a macchina|su lastre/.test(t)) {
+    return { ...base, tipo: "prestazione", mesi: null, pezzi: null,
+      nota: "Lavorazione delle lastre già fornite: affidamento al marmista, senza nuovi pezzi o materiali da comprare." };
   }
 
   // Da qui solo le voci della sicurezza e delle opere provvisionali: fuori, «trasporto» o «smontaggio»
@@ -78,6 +117,15 @@ export function classificaServizio(v: VoceServizio): ServizioComputo | null {
   if (IMPIANTO_CANTIERE.test(t)) return { ...base, tipo: "impianto_cantiere", mesi: mesiDaTesto(misure), pezzi: null, nota: "Impianto di cantiere a corpo per tutta la durata: un contratto con l'elettricista." };
 
   if (MENSILE.test(t) || /mes/i.test(misure)) {
+    const periodi = periodiNolo(v);
+    if (periodi.length && periodi.length === (v.misure ?? []).filter(m => Number(m.quantita) > 0).length) {
+      const tuttiUguali = periodi.every(p => p.mesi === periodi[0].mesi);
+      const gruppi = new Map<number, number>();
+      periodi.forEach(p => gruppi.set(p.mesi, (gruppi.get(p.mesi) ?? 0) + p.quantita));
+      const riepilogo = [...gruppi].map(([mesi, pezzi]) => `${pezzi.toLocaleString("it-IT")} ${periodi[0].unita} per ${mesi} mesi`).join(" + ");
+      return { ...base, tipo: "nolo", periodi, mesi: tuttiUguali ? periodi[0].mesi : null,
+        pezzi: periodi.reduce((n, p) => n + p.quantita, 0), nota: `${riepilogo}: un nolo, non ${q.toLocaleString("it-IT")} pezzi da comprare.` };
+    }
     const mesi = mesiDaTesto(misure) ?? mesiDaTesto(t);
     // I pezzi: la quantità divisa per i mesi, o il fattore che non è il numero di mesi.
     const f = fattori(misure);

@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import type { StoredContractFile } from "./contractPreparation";
+import { collegaAnalisiAllaCommessa } from "./lettureContrattoSalvate";
 
 /**
  * Dove sta l'originale letto dall'AI prima che la commessa esista (14/11/2026).
@@ -48,6 +49,7 @@ export async function collegaOriginaleAi(db: typeof supabase, orderId: string, c
     // Originali caricati prima del 14/11 sotto l'azienda, o già nella cartella della commessa.
     : source.bucket === "order-attachments" && (source.path.startsWith(`${companyId}/`) || source.path.startsWith(`${orderId}/`)));
   if (!valido) throw new Error("Originale non valido per questa azienda.");
+  await collegaAnalisiAllaCommessa(companyId, orderId, source, db);
   const path = daCopiare ? `${orderId}/ai-contratti/${nome}` : source.path;
   const nellaCommessa: StoredContractFile = { ...source, bucket: "order-attachments", path };
   const { data, error } = await db.from("order_attachments").select("id").eq("order_id", orderId).eq("file_url", path).limit(1);

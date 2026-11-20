@@ -24,8 +24,11 @@ import { calendarioCantiere } from "@/lib/orders/sottofasi";
 import { fasiColPiano, pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
 import { salvaFasiDiPartenza } from "@/lib/orders/pianificazioneAvvio";
 import { formatCurrency } from "@/lib/formatters";
-import type { ContractExtract } from "@/lib/orders/contractExtract";
+import { contractNeedsAllocation, type ContractExtract } from "@/lib/orders/contractExtract";
 import type { StoredContractFile } from "@/lib/orders/contractPreparation";
+import { pianoOperativoContratto, modelliDalPiano } from "@/lib/orders/pianoOperativoContratto";
+import { salvaPianoOperativoContratto } from "@/lib/orders/salvaPianoOperativoContratto";
+import { collegaAnalisiAllaCommessa } from "@/lib/orders/lettureContrattoSalvate";
 import {
   descrizioneVoceContratto, pianoContrattoSuCommessa, rateDaSalvare, type CommessaPerContratto, type PianoContrattoSuCommessa, type RataEsistente,
 } from "@/lib/orders/contrattoSuCommessa";
@@ -42,6 +45,7 @@ import {
 const ContractImportDialog = lazy(() => import("@/components/orders/ContractImportDialog").then((m) => ({ default: m.ContractImportDialog })));
 
 interface Lettura {
+  origine: StoredContractFile | null;
   ex: ContractExtract;
   file: File | null;
   piano: PianoContrattoSuCommessa;
@@ -99,7 +103,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         note: righeDocumentoFirmato(ex).length > 0,
       });
       const giaNeiDocumenti = !!origine?.path?.startsWith(`${orderId}/`);
-      setLettura({ ex, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti, noteInterne: (o.data as { internal_notes?: string | null }).internal_notes ?? null });
+      setLettura({ ex, origine: origine ?? null, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti, noteInterne: (o.data as { internal_notes?: string | null }).internal_notes ?? null });
     } catch (e) {
       toast.error("Non riesco a leggere la commessa", { description: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -113,6 +117,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
     setSalvo(true);
     const fatti: string[] = [];
     try {
+      if (lettura.origine) await collegaAnalisiAllaCommessa(companyId, orderId, lettura.origine);
+      const usaPianoOperativo = !perCommittente && !contractNeedsAllocation(lettura.ex) && lettura.ex.origine_lettura !== "computo" && lettura.ex.natura_documento !== "offerta_fornitore";
       const campiAltri = Object.fromEntries(Object.entries(piano.campi).filter(([k]) => !["total_amount", "vat_rate"].includes(k)));
       const campi: Record<string, unknown> = { ...(scelte.importi ? piano.campi : campiAltri) };
       // Firma, note a mano e allegato del documento firmato: in fondo alle note interne, una volta sola (17/11/2026).
@@ -136,7 +142,16 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         if (campi.internal_notes) fatti.push("note dal contratto");
         if (rate) fatti.push(`${piano.rateNuove?.length ?? 0} rate`);
       }
-      if (scelte.fasi && piano.fasi.length > 0) {
+      if (usaPianoOperativo && (scelte.fasi || scelte.voci)) {
+        const operativo = pianoOperativoContratto(lettura.ex);
+        const inizio = commessa.work_start_date ?? (typeof campi.work_start_date === "string" ? campi.work_start_date : null);
+        const fine = commessa.work_end_date ?? (typeof campi.work_end_date === "string" ? campi.work_end_date : null);
+        const fasi = scelte.fasi ? modelliDalPiano(operativo) : [];
+        const date = pianificaFasi(fasi, { inizio, fine, lavorativo: calendarioCantiere({ sabato: false, chiusure }) });
+        await salvaPianoOperativoContratto({ companyId, orderId, piano: operativo, fasi: fasiColPiano(fasi, date), aggiungiArticoli: scelte.voci, vatRate: piano.iva ?? commessa.vat_rate });
+        fatti.push("piano di lavoro e articoli collegati");
+      }
+      if (!usaPianoOperativo && scelte.fasi && piano.fasi.length > 0) {
         // Le date: quelle della commessa, o quelle del contratto se si sono appena salvate.
         const inizio = commessa.work_start_date ?? (typeof campi.work_start_date === "string" ? campi.work_start_date : null);
         const fine = commessa.work_end_date ?? (typeof campi.work_end_date === "string" ? campi.work_end_date : null);
@@ -146,7 +161,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         if (errFasi) throw new Error(`${fatti.length ? `${fatti.join(", ")} salvati, ma le fasi no` : "Fasi non create"}: ${errFasi}`);
         fatti.push(`${piano.fasi.length} fasi`);
       }
-      if (scelte.voci && piano.voci.length > 0) {
+      if (!usaPianoOperativo && scelte.voci && piano.voci.length > 0) {
         // Come le altre pagine: la funzione controlla permesso e visibilità della commessa (un utente d'ufficio senza
         // i costi non può scrivere order_items direttamente). Il prezzo di vendita non sta sulla voce, che è un
         // acquisto: quello del contratto resta scritto nella descrizione.
@@ -188,6 +203,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
     } finally {
       setSalvo(false);
       queryClient.invalidateQueries({ predicate: (q) => q.queryKey.includes(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["letture-contratto-salvate"] });
     }
   };
 

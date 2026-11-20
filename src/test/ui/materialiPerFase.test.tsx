@@ -9,6 +9,8 @@ const stato = vi.hoisted(() => ({
   cambia: vi.fn(),
   quantita: vi.fn(),
   creaOrdini: vi.fn(),
+  modificaMultipla: vi.fn(),
+  richiediOfferta: vi.fn(),
   tabelle: {} as Record<string, unknown[]>,
   richieste: [] as unknown[],
   proposte: new Map<string, unknown>(),
@@ -38,7 +40,7 @@ vi.mock("@/components/orders/OrderItemsList", async (importOriginal) => {
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" }, user: { id: "utente" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
-vi.mock("@/hooks/useOperationalSuppliers", () => ({ useOperationalSuppliers: () => ({ suppliers: [{ id: "f1", name: "Elettroforniture Srl", is_active: true }] }) }));
+vi.mock("@/hooks/useOperationalSuppliers", () => ({ useOperationalSuppliers: () => ({ suppliers: [{ id: "f1", name: "Elettroforniture Srl", is_active: true }, { id: "f2", name: "Fornitore Alternativo", is_active: true }] }) }));
 
 vi.mock("@/hooks/useMaterialiPerFase", () => {
   const muta = (fn = vi.fn()) => ({ mutate: fn, isPending: false });
@@ -46,7 +48,7 @@ vi.mock("@/hooks/useMaterialiPerFase", () => {
     useMaterialiPerFase: () => ({ fasi: stato.fasi, isLoading: false, isError: false, refetch: vi.fn() }),
     useAzioniMateriali: () => ({
       cambiaStato: muta(stato.cambia), validaFasi: muta(), aggiornaMateriale: muta(stato.quantita), spostaInFase: muta(), assegnaFornitore: muta(),
-      richiediOfferta: muta(), creaOrdini: muta(stato.creaOrdini), elimina: muta(), allineaUnita: muta(stato.allinea),
+      richiediOfferta: muta(stato.richiediOfferta), creaOrdini: muta(stato.creaOrdini), elimina: muta(), allineaUnita: muta(stato.allinea), modificaMultipla: muta(stato.modificaMultipla),
     }),
     chiaviMateriali: { commessa: (id: string) => ["materiali-per-fase", id] },
   };
@@ -67,6 +69,8 @@ describe("Materiali per fase nella commessa", () => {
     stato.cambia.mockReset();
     stato.quantita.mockReset();
     stato.creaOrdini.mockReset();
+    stato.modificaMultipla.mockReset();
+    stato.richiediOfferta.mockReset();
     stato.permessi = { canEditOrders: true, canValidateBom: false, canManagePurchasing: false, canViewCosts: true, isAdmin: false };
   });
 
@@ -150,7 +154,7 @@ describe("Materiali per fase nella commessa", () => {
     await disegna();
     fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona Materiale a" }));
     expect(screen.getByText("1 selezionati")).toBeInTheDocument();
-    expect(screen.getByText(/di fasi non validate/)).toBeInTheDocument();
+    expect(screen.getByText(/fase da validare/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Crea ordine/ })).toBeDisabled();
   });
 
@@ -386,6 +390,88 @@ describe("Un solo elenco: tutti gli articoli per fase", () => {
     stato.consumi = { rapportini: [], rientrati: new Map() };
   });
 
+  it("modifica in blocco la data dei soli articoli selezionati e liberi", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
+      materiali: [materiale("a"), materiale("b"), materiale("c", { stock_item_id: "stock" })] }];
+    await disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Seleziona da ordinare/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Modifica in blocco" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Imposta quando servono" }));
+    fireEvent.change(screen.getByLabelText("Data di fabbisogno comune"), { target: { value: "2026-12-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Applica a 2 articoli" }));
+    expect(stato.modificaMultipla).toHaveBeenCalledWith({ ids: ["a", "b"], modifica: { data_fabbisogno: "2026-12-01" } }, expect.anything());
+  });
+  it("richiede offerte sugli stessi articoli a più fornitori senza dividere le quantità", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "validata" },
+      materiali: [materiale("a"), materiale("b")] }];
+    await disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Seleziona da ordinare/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confronta offerte" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Elettroforniture Srl" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Fornitore Alternativo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crea richiesta d'offerta" }));
+    expect(stato.richiediOfferta).toHaveBeenCalledWith(expect.objectContaining({ ids: ["a", "b"], fornitori: ["f1", "f2"] }), expect.anything());
+    expect(stato.creaOrdini).not.toHaveBeenCalled();
+  });
+  it("un cambio di filtro annulla la selezione che potrebbe diventare nascosta", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" }, materiali: [materiale("a")] }];
+    await disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Seleziona da ordinare/ }));
+    expect(screen.getByRole("button", { name: "Modifica in blocco" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fornitori", exact: true }));
+    expect(screen.queryByRole("button", { name: "Modifica in blocco" })).toBeNull();
+  });
+  it("il filtro dei dati mancanti limita la revisione e annulla le selezioni nascoste", async () => {
+    const pendente = { tipo: "computo", voce_id: "v1", descrizione: "Serramento", quantita: 13, quantita_voce: 13, unita_voce: "pz",
+      verifica_acquisto: { stato: "da_verificare", motivi: ["Modello da confermare"], campi_mancanti: ["modello"] } };
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
+      materiali: [materiale("a", { origini: [pendente] }), materiale("b")] }];
+    await disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Seleziona da ordinare/ }));
+    expect(screen.getByRole("button", { name: "Modifica in blocco" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solo da completare (1)" }));
+    expect(screen.getByRole("button", { name: "Solo da completare (1)" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByLabelText("Seleziona Materiale b")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Seleziona Materiale a")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Modifica in blocco" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Revisione dei dati mancanti" })).toHaveTextContent("1 articolo da completare");
+    fireEvent.change(screen.getByLabelText("Cerca negli articoli della commessa"), { target: { value: "Materiale b" } });
+    expect(screen.queryByRole("button", { name: "Inizia revisione" })).not.toBeInTheDocument();
+  });
+  it("spiega se l'acquisto attende i dati tecnici e porta al relativo filtro", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "validata" },
+      materiali: [materiale("a", { origini: [{ tipo: "computo", voce_id: "v1", descrizione: "Materiale", quantita: 1, quantita_voce: 1, unita_voce: "pz",
+        verifica_acquisto: { stato: "da_verificare", motivi: ["Modello mancante"], campi_mancanti: ["modello"] } }] })] }];
+    await disegna();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona Materiale a" }));
+    expect(screen.getByText("1 con dati da completare")).toBeInTheDocument();
+    expect(screen.queryByText(/con fase da validare/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Crea ordine/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra da completare" }));
+    expect(screen.getByRole("button", { name: "Solo da completare (1)" })).toHaveAttribute("aria-pressed", "true");
+    expect(stato.creaOrdini).not.toHaveBeenCalled();
+  });
+  it("la ricerca per codice trova le righe del computo e le apre senza selezionarle", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
+      materiali: [materiale("a"), materiale("b", { origini: [] })] }];
+    await disegna();
+    fireEvent.change(screen.getByLabelText("Cerca negli articoli della commessa"), { target: { value: "EL.05" } });
+    expect(screen.getByLabelText("Seleziona Materiale a")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Seleziona Materiale b")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Seleziona Materiale a")).not.toBeChecked();
+  });
+  it("azzera la ricerca e i filtri senza abbandonare la vista per fornitore", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" }, materiali: [materiale("a", { supplier_id: "f1" })] }];
+    await disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Fornitori", exact: true }));
+    fireEvent.change(screen.getByLabelText("Cerca negli articoli della commessa"), { target: { value: "inesistente" } });
+    expect(screen.getByText("Nessuna riga con questo filtro.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
+    expect(screen.getByLabelText("Cerca negli articoli della commessa")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Fornitori", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("rowgroup", { name: "Fornitore Elettroforniture Srl" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Azzera filtri" })).not.toBeInTheDocument();
+  });
   it("senza permesso di modifica né costi: niente aggiunta, niente prezzi", () => {
     stato.permessi = { ...stato.permessi, canEditOrders: false, canViewCosts: false };
     stato.proposte = new Map([["s", { prezzo: 1.5, fonte: "ultimo_acquisto", dettaglio: null }]]);

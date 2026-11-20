@@ -150,7 +150,9 @@ function radici(s: string): string[] {
 
 
 /** Peso o volume di una confezione scritto nel nome dell'articolo («sacco 25 kg», «secchio 14 l»). */
-export function contenutoConfezione(nome: string): { quantita: number; unita: "kg" | "l" } | null {
+export function contenutoConfezione(nome: string): { quantita: number; unita: "kg" | "l" | "m" } | null {
+  const barra = /\bbarre?\s+(?:da\s+)?(\d+(?:[.,]\d+)?)\s*m\b/i.exec(nome);
+  if (barra && Number(barra[1].replace(",", ".")) > 0) return { quantita: Number(barra[1].replace(",", ".")), unita: "m" };
   const m = normalizzaTesto(nome).match(/\b(\d+(?:\.\d+)?)\s?(kg|lt|l)\b/);
   if (!m) return null;
   const q = Number(m[1]);
@@ -163,7 +165,7 @@ function unitaCompatibili(materiale: string, articolo: string | null | undefined
   if (!articolo?.trim() || a === m) return true;
   if (["cad", "pz"].includes(a) && ["cad", "pz"].includes(m)) return true;
   // kg o litri contro un articolo a confezione con il contenuto scritto nel nome.
-  if ((m === "kg" || m === "l") && (CONFEZIONI.test(a) || ["cad", "pz"].includes(a))) {
+  if (["kg", "l", "m"].includes(m) && (CONFEZIONI.test(a) || /^(?:cad|pz|barra|barre)$/.test(a))) {
     return contenutoConfezione(nomeArticolo)?.unita === m;
   }
   return false;
@@ -207,9 +209,22 @@ function classi(s: string): Set<string> {
   return new Set([...normalizzaTesto(s).matchAll(/\bc(\d{2,3})\/(\d{2,3})\b/g)].map((m) => `${m[1]}/${m[2]}`));
 }
 
-/** Materiale e articolo dicono cose diverse: fatti di altro, di altre misure o di un'altra classe. */
+/** Il legante di una miscela non identifica il prodotto: cemento e adesivo cementizio sono acquisti diversi. */
+function famigliaProdotto(s: string): string | null {
+  const n = normalizzaTesto(s).replace(/^(?:sola )?fornitura (?:e posa (?:in opera )?)?(?:di |del |della )?/, "");
+  const famiglie: Array<[RegExp, string]> = [
+    [/^(?:adesiv|colla\b|collant)/, "collante"], [/^(?:cemento\b|cementi\b|legante idraulic)/, "cemento"],
+    [/^(?:calcestruzz|conglomerato cementizio)/, "calcestruzzo"], [/^malta\b/, "malta"],
+    [/^intonac/, "intonaco"], [/^rasant/, "rasante"], [/^stucco\b/, "stucco"],
+    [/^(?:fissativ|primer\b|aggrappant)/, "fissativo"], [/^(?:idropittur|pittura\b|vernice\b)/, "pittura"],
+  ];
+  return famiglie.find(([re]) => re.test(n))?.[1] ?? null;
+}
+
+/** Materiale e articolo dicono cose diverse: prodotto, materia, misure o classe. */
 export function nomiInConflitto(materiale: string, articolo: string): boolean {
-  return disgiunti(materie(materiale), materie(articolo)) || disgiunti(misure(materiale), misure(articolo)) || disgiunti(classi(materiale), classi(articolo));
+  const a = famigliaProdotto(materiale), b = famigliaProdotto(articolo);
+  return !!a && !!b && a !== b || disgiunti(materie(materiale), materie(articolo)) || disgiunti(misure(materiale), misure(articolo)) || disgiunti(classi(materiale), classi(articolo));
 }
 
 /** Quanto il nome di un articolo assomiglia al materiale: radici in comune sul totale del materiale. */
@@ -260,6 +275,7 @@ const testoArticolo = (a: ArticoloCatalogo) => [a.name, a.marca, a.modello].filt
 export function candidatiArticolo(r: RigaDistintaCalcolata, dati: DatiCatalogo, quanti = 5): Candidato[] {
   const out = new Map<string, Candidato>();
   const metti = (c: Collegamento, punteggio: number, motivo: string, automatico: boolean) => {
+    if (nomiInConflitto(`${r.descrizione} ${r.specifiche ?? ""}`, c.nome) || !unitaCompatibili(r.unita_misura, c.unita, c.nome)) return;
     const k = `${c.tipo}:${c.id}`;
     const prima = out.get(k);
     if (!prima || prima.punteggio < punteggio) out.set(k, { collegamento: c, punteggio, motivo, automatico: automatico || !!prima?.automatico });
@@ -326,20 +342,25 @@ const formato = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits
 /** Da kg o litri alle confezioni dell'articolo, quando il nome dice quanto ne contiene. */
 export function convertiInConfezioni(quantita: number, unitaMateriale: string, c: Collegamento | null, descrizione?: string): Conversione | null {
   const m = normalizzaUnita(unitaMateriale);
-  if (m !== "kg" && m !== "l") return null;
+  if (m !== "kg" && m !== "l" && m !== "m") return null;
   // Un articolo o un listino venduto a kg o litri: si ordina così, niente confezioni.
   if (c && normalizzaUnita(c.unita) === m) return null;
   const contenuto = c ? contenutoConfezione(c.nome) : null;
   if (!contenuto || contenuto.unita !== m) {
     // Senza una confezione scritta nell'articolo: quella d'uso comune, se il materiale ne ha una.
-    const comune = !c && descrizione ? confezioneComune(descrizione, m) : null;
+    const barra = !c && m === "m" && descrizione ? contenutoConfezione(descrizione) : null;
+    if (barra?.unita === "m") {
+      const n = Math.ceil(quantita / barra.quantita - 1e-9);
+      return { quantita: n, unita: "barra", contenuto: barra.quantita, testo: `${formato(quantita)} m = ${n} barre da ${formato(barra.quantita)} m (${formato(n * barra.quantita)} m acquistati)` };
+    }
+    const comune = !c && descrizione && m !== "m" ? confezioneComune(descrizione, m) : null;
     if (!comune) return null;
     const n = Math.ceil(quantita / comune.quantita - 1e-9);
     return { quantita: n, unita: comune.nome, contenuto: comune.quantita, comune: true, testo: `${formato(quantita)} ${m} = ${n} ${comune.nome} da ${formato(comune.quantita)} ${m}` };
   }
   const unitaArticolo = (c!.unita ?? "").trim();
   const n = Math.ceil(quantita / contenuto.quantita - 1e-9);
-  const nomeConfezione = CONFEZIONI.test(normalizzaTesto(unitaArticolo)) ? unitaArticolo : "conf";
+  const nomeConfezione = CONFEZIONI.test(normalizzaTesto(unitaArticolo)) || /^barr/.test(unitaArticolo) ? unitaArticolo : "conf";
   return { quantita: n, unita: nomeConfezione, contenuto: contenuto.quantita, testo: `${formato(quantita)} ${m} = ${n} ${nomeConfezione} da ${formato(contenuto.quantita)} ${m}` };
 }
 
@@ -431,7 +452,11 @@ export function aliasDaRicordare(materiali: MaterialeCollegato[], scelte: Record
  */
 export function rigaDaSalvare(m: MaterialeCollegato) {
   const { collegamento, conversione, note, fonte, affidabilita, proposta_ai: _ai, candidati: _c, magazzino: _m, ...riga } = m;
-  const extra = [conversione?.testo, collegamento?.tipo === "listino" ? `Listino ${collegamento.listino ?? ""}: ${collegamento.nome}`.replace(/ {2,}/g, " ") : null]
+  const extra = [
+    _ai ? "Proposta AI: quantità e rese stimate, da validare con le misure e le specifiche del prodotto." : null,
+    conversione?.comune ? `Ipotesi di confezione da confermare: ${conversione.testo}` : conversione?.testo,
+    collegamento?.tipo === "listino" ? `Listino ${collegamento.listino ?? ""}: ${collegamento.nome}`.replace(/ {2,}/g, " ") : null,
+  ]
     .filter(Boolean).join(" · ");
   return {
     ...riga,
@@ -439,7 +464,7 @@ export function rigaDaSalvare(m: MaterialeCollegato) {
     unita_misura: conversione ? conversione.unita : riga.unita_misura,
     quantita_calcolata: conversione ? conversione.quantita : riga.quantita_calcolata,
     quantita_netta: conversione ? Math.round((riga.quantita_netta / conversione.contenuto) * 10000) / 10000 : riga.quantita_netta,
-    origini: riga.origini.map((o) => ({ ...o, fonte, affidabilita, note })),
+    origini: riga.origini.map((o) => ({ ...o, fonte, affidabilita, note, ...(riga.verifica_acquisto ? { verifica_acquisto: riga.verifica_acquisto } : {}) })),
     // Il prezzo del listino del fornitore (netto, per l'unità d'acquisto): l'articolo
     // dell'azienda, se c'è, vince nel database (materiali_salva_generazione).
     purchase_price: collegamento?.tipo === "listino" && collegamento.prezzo ? collegamento.prezzo : null,

@@ -42,6 +42,10 @@ import {
   type AliasMateriale, type ArticoloCatalogo, type DatiCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type SceltaArticolo, type VoceMagazzino,
 } from "@/lib/distinta/collegaArticoli";
 import { MaterialiProposti } from "./MaterialiProposti";
+import { VociComputoEditor } from "./VociComputoEditor";
+import { PianoAcquistiComputo } from "./PianoAcquistiComputo";
+import { pianoAcquisti } from "@/lib/distinta/pianoAcquisti";
+import { usePianoAcquistiComputo } from "@/hooks/usePianoAcquistiComputo";
 import { computoDelPreventivo } from "@/lib/distinta/computoDelPreventivo";
 import { controllaComputo, importoInGioco, voceDaCommessa } from "@/lib/computo/controlloComputo";
 import { ETICHETTA_SERVIZIO, serviziDelComputo } from "@/lib/distinta/serviziComputo";
@@ -166,7 +170,7 @@ async function caricaCatalogo(companyId: string, orderId: string): Promise<Catal
 
 const RISERVA = catalogoComeScomposizioni();
 
-type Passo = "controllo" | "fasi" | "noli" | "materiali";
+type Passo = "voci" | "controllo" | "fasi" | "noli" | "materiali" | "acquisti";
 const euro = (n: number) => formatCurrency(n);
 
 /** «ECO · ISOLAMENTO TERMICO SU STRUTTURE OPACHE» → etichetta «ECO» e «Isolamento termico su strutture opache». */
@@ -211,7 +215,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
       const [scomposizioni, fasi, conteggi, catalogo, previste] = await Promise.all([
         caricaScomposizioni(companyId),
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
-        supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita")
+        supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita, metodo, pagina, updated_at")
           .eq("order_id", orderId).eq("confermato", true),
         caricaCatalogo(companyId, orderId).catch((): Catalogo => ({ articoli: [], listini: [], giaUsati: [], fornitori: new Map() })),
         // Le lavorazioni previste della commessa: senza, dal computo si creano anche quelle.
@@ -359,7 +363,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   );
   // Righe spente: le proposte dell'AI da approvare partono spente, le altre si spengono a mano.
   const [accese, setAccese] = useState<Record<string, boolean>>({});
-  const accesa = (m: MaterialeCollegato) => accese[m.chiave] ?? !m.proposta_ai;
+  const accesa = (m: MaterialeCollegato) => accese[m.chiave] ?? (!m.proposta_ai && m.verifica_acquisto?.stato !== "da_verificare");
   // Materiali che costano più della loro voce nel computo: quantità o resa da controllare.
   const avvisiCosto = useMemo(() => calcolaAvvisiCosto(materiali, vociComputo as unknown as VoceConImporto[]), [materiali, vociComputo]);
   const daSalvare = materiali.filter(accesa);
@@ -380,6 +384,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const [ricorda, setRicorda] = useState(true);
   const [conLavorazioni, setConLavorazioni] = useState(true);
   const [passo, setPasso] = useState<Passo | null>(null);
+  const [voceInRevisione, setVoceInRevisione] = useState<string | null>(null);
+  const [bozzaVoce, setBozzaVoce] = useState(false);
+  const disponibilita = usePianoAcquistiComputo(companyId, orderId, open && passo === "acquisti");
+  const piano = useMemo(() => disponibilita.data ? pianoAcquisti(daSalvare, {
+    ...disponibilita.data,
+    codiciArticoli: Object.fromEntries((dati.data?.catalogo.articoli ?? []).map(a => [a.id, a.sku])),
+  }) : [], [disponibilita.data, daSalvare, dati.data]);
   const [vediSenza, setVediSenza] = useState(false);
 
   const nomeFase = (id: string | null) => {
@@ -402,11 +413,14 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const mostraPrezzi = !!(permessi.canViewCosts || permessi.canViewOrderAmounts);
 
   const [proponendo, setProponendo] = useState(false);
+  const [datiDaChiedere, setDatiDaChiedere] = useState<Array<{ voce_id: string; dati_mancanti: string[] }>>([]);
   const proponiAI = async () => {
     if (!risultato?.senzaScomposizione.length) return;
     setProponendo(true);
+    setDatiDaChiedere([]);
     try {
-      let create = 0, soloLavoro = 0;
+      let create = 0, soloLavoro = 0, daVerificare = 0;
+      const mancanti: Array<{ voce_id: string; dati_mancanti: string[] }> = [];
       const voci = risultato.senzaScomposizione;
       for (let i = 0; i < voci.length; i += 12) {
         const { data, error } = await supabase.functions.invoke("distinta-proponi-scomposizioni", {
@@ -418,11 +432,16 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         if (error) throw error;
         create += Number((data as { create?: number })?.create ?? 0);
         soloLavoro += ((data as { senza_materiali?: unknown[] })?.senza_materiali ?? []).length;
+        daVerificare += ((data as { da_verificare?: unknown[] })?.da_verificare ?? []).length;
+        const richiesti = (data as { da_verificare?: Array<{ voce_id: string; dati_mancanti: string[] }> })?.da_verificare;
+        if (Array.isArray(richiesti)) mancanti.push(...richiesti);
       }
       // L'AI può dire che una voce è solo lavoro (nolo, manodopera, oneri): va detto, non «0 proposte».
       const lavoro = soloLavoro ? `${soloLavoro} ${soloLavoro === 1 ? "voce è" : "voci sono"} solo lavoro, senza materiali da comprare.` : "";
       if (create) toast.success(`L'AI ha proposto i materiali di ${create} ${create === 1 ? "voce" : "voci"}`, { description: `Compaiono qui sotto spenti, «Da controllare»: accendili per salvarli. ${lavoro}`.trim() });
       else toast.info(soloLavoro ? "Nessun materiale da comprare" : "L'AI non ha proposto materiali", { description: lavoro || "Riprova, o aggiungi i materiali a mano." });
+      if (daVerificare) toast.warning(`${daVerificare} voci richiedono altri dati`, { description: "Non sono voci senza materiali: completa specifiche e misure prima di calcolare gli acquisti." });
+      setDatiDaChiedere(mancanti);
       qc.invalidateQueries({ queryKey: ["scomposizioni"] });
       qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
     } catch (e) {
@@ -448,7 +467,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   };
   const [salvando, setSalvando] = useState(false);
   const salva = async () => {
-    if (!risultato || !materiali.length) return;
+    if (!risultato || !materiali.length || bozzaVoce) return;
     setSalvando(true);
     try {
       // Le fasi nuove si creano prima, in fondo all'elenco, nell'ordine del computo.
@@ -541,10 +560,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const avvisiAltri = (risultato?.avvisi ?? []).filter((a) => a.tipo !== "senza_scomposizione");
   const totaleComputo = vociComputo.reduce((t, v) => t + (Number((v as { importo_computo?: number | null }).importo_computo) || 0) * ((v as { is_detrazione?: boolean | null }).is_detrazione ? -1 : 1), 0);
   const passiVisibili: { id: Passo; etichetta: string; conteggio: number | null; tono: "attenzione" | "ok" | null }[] = [
+    ...(scelto ? [{ id: "voci" as const, etichetta: "Voci", conteggio: voci.data?.length ?? 0, tono: null }] : []),
     { id: "controllo" as const, etichetta: "Controllo", conteggio: daVerificare.length, tono: daVerificare.length ? "attenzione" as const : "ok" as const },
     ...(capitoli.length ? [{ id: "fasi" as const, etichetta: "Fasi", conteggio: capitoli.length, tono: null }] : []),
     ...(servizi.length ? [{ id: "noli" as const, etichetta: "Noli e servizi", conteggio: servizi.length, tono: null }] : []),
     { id: "materiali" as const, etichetta: "Materiali", conteggio: daSalvare.length, tono: risultato?.senzaScomposizione.length ? "attenzione" as const : null },
+    { id: "acquisti" as const, etichetta: "Piano acquisti", conteggio: null, tono: null },
   ];
   // Si apre sul primo passo che chiede attenzione: il controllo se qualcosa non torna, se no i materiali.
   const passoAttivo: Passo = passo && passiVisibili.some((p) => p.id === passo) ? passo : daVerificare.length ? "controllo" : "materiali";
@@ -585,7 +606,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => {
+      if (!o && bozzaVoce) { setPasso("voci"); toast.info("Salva o annulla la modifica della voce prima di chiudere."); return; }
+      onOpenChange(o);
+    }}>
       <DialogContent className="flex max-h-[92vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
         {/* Testata in una riga: titolo, il computo e le sue azioni. La spiegazione è nel suggerimento. */}
         <DialogHeader className="space-y-1 border-b px-5 pb-3 pt-4 text-left">
@@ -601,13 +625,14 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
                 {letti.length > 1 ? (
                   <Select value={scelto.id} onValueChange={(id) => { setComputoId(id); setScelte({}); setAccese({}); setSceltaArticolo({}); }}>
-                    <SelectTrigger className="h-7 w-auto max-w-xs gap-1 border-slate-200 px-2 text-xs" aria-label="Computo"><SelectValue /></SelectTrigger>
+                    <SelectTrigger disabled={bozzaVoce} className="h-7 w-auto max-w-xs gap-1 border-slate-200 px-2 text-xs" aria-label="Computo"><SelectValue /></SelectTrigger>
                     <SelectContent>{letti.map((c) => <SelectItem key={c.id} value={c.id}>{c.titolo || c.file_name} · {c.stato}</SelectItem>)}</SelectContent>
                   </Select>
                 ) : <span className="min-w-0 truncate font-medium text-slate-800">{scelto.titolo || scelto.file_name}</span>}
                 <span className="text-slate-500">{scelto.stato}{voci.data ? ` · ${voci.data.length} voci` : ""}</span>
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setApriComputo(true)}>Apri il computo</Button>
-                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setVoceInRevisione(null); setPasso("voci"); }}>Modifica voci</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setApriComputo(true)}>Documento e misure</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={bozzaVoce} onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
               </div>
             ) : !computi.isLoading && companyId ? (
               <div className="flex flex-1 items-center gap-2 text-xs text-slate-600">
@@ -617,7 +642,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             ) : null}
           </div>
           <DialogDescription className="text-xs">
-            Salvando, il computo crea le lavorazioni e propone i materiali: li confermi tu nella scheda Articoli, spuntando quelli da comprare.
+            Rivedi le voci, collega le fasi e prepara i materiali. Le quantità stimate restano da confermare prima dell'acquisto.
           </DialogDescription>
           {riprovaUltimo}
         </DialogHeader>
@@ -650,6 +675,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
 
           {!caricamento && risultato && !nienteDaLeggere && (
             <div className="space-y-3 pt-3 text-sm">
+              {scelto && <div hidden={passoAttivo !== "voci"}>
+                <VociComputoEditor key={scelto.id} voci={voci.data ?? []} computoId={scelto.id} companyId={companyId}
+                  puoModificare={!!permessi.canEditOrders && ["bozza", "verificato"].includes(scelto.stato)} mostraPrezzi={mostraPrezzi}
+                  selezionata={voceInRevisione} onMostraTutte={() => setVoceInRevisione(null)} onBozza={setBozzaVoce}
+                  onSalvata={() => { setAccese({}); setVoceInRevisione(null); }} />
+              </div>}
               {passoAttivo === "controllo" && (
                 <section aria-label="Controllo del computo" className="space-y-2">
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-slate-600">
@@ -662,7 +693,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                     <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                       <span className="font-semibold">{daVerificare.length} voci con quantità o unità che non tornano</span>
                       {mostraPrezzi && importoInGioco(incongruenze) > 0 && <> · {euro(importoInGioco(incongruenze))} in gioco</>}
-                      {" "}— controllale col progettista prima di chiedere offerte. I materiali si generano lo stesso.
+                      {" "}— apri la voce e correggila, oppure verifica il dato con il progettista. Le proposte incomplete restano da confermare.
                     </p>
                   ) : (
                     <p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
@@ -677,6 +708,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                           <span className="min-w-0">
                             <span className={cn("font-medium", x.gravita === "verifica" ? "text-amber-900" : "text-slate-700")}>{x.titolo}</span>
                             <span className="block text-slate-600">{x.messaggio}</span>
+                            {vociComputo.some(v => v.id === x.voce_id) && <button type="button" className="mt-1 font-medium text-primary underline underline-offset-2"
+                              onClick={() => { setVoceInRevisione(x.voce_id); setPasso("voci"); }}>Apri voce {x.numero}</button>}
                           </span>
                           <span className="tabular-nums text-slate-700">{mostraPrezzi && x.importo ? euro(x.importo) : ""}</span>
                         </li>
@@ -750,13 +783,21 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 </section>
               )}
 
+              {passoAttivo === "acquisti" && (
+                disponibilita.isError ? <div role="alert" className="rounded-md border border-amber-200 p-3 text-xs">
+                  <p>Non riesco a verificare magazzino e ordini. Il fabbisogno netto non è disponibile.</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => disponibilita.refetch()}>Riprova la verifica</Button>
+                </div> : !disponibilita.data ? <p role="status">Verifico giacenze disponibili, ordini e date delle fasi…</p> :
+                  <PianoAcquistiComputo righe={piano} nomeFase={nomeFase} vociDaScomporre={risultato.senzaScomposizione.length} />
+              )}
+
               {passoAttivo === "materiali" && (
                 <>
                   {risultato.senzaScomposizione.length > 0 && (
-                    <section aria-label="Voci senza materiali" className="rounded-md border border-violet-200 bg-violet-50/60 text-xs text-violet-950">
+                    <section aria-label="Voci da scomporre" className="rounded-md border border-violet-200 bg-violet-50/60 text-xs text-violet-950">
                       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                         <Sparkles className="h-3.5 w-3.5 text-violet-700" aria-hidden />
-                        <span className="font-semibold">{risultato.senzaScomposizione.length} {risultato.senzaScomposizione.length === 1 ? "voce" : "voci"} senza materiali</span>
+                        <span className="font-semibold">{risultato.senzaScomposizione.length} {risultato.senzaScomposizione.length === 1 ? "voce" : "voci"} da scomporre</span>
                         <span className="text-violet-900/80">le regole non le riconoscono: l'AI propone, tu accendi.</span>
                         <button type="button" className="text-violet-800 underline underline-offset-2" onClick={() => setVediSenza((v) => !v)}>{vediSenza ? "Nascondi" : "Quali"}</button>
                         <Button size="sm" className="ml-auto h-7 text-xs" disabled={proponendo} onClick={proponiAI}>
@@ -764,6 +805,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                           {proponendo ? "L'AI sta proponendo…" : "Proponi con l'AI"}
                         </Button>
                       </div>
+                      {datiDaChiedere.length > 0 && <ul aria-label="Dati necessari per i materiali" className="space-y-1 border-t border-amber-200 bg-amber-50 p-3 text-amber-900">
+                        {datiDaChiedere.map(d => <li key={d.voce_id}><strong>{vociComputo.find(v => v.id === d.voce_id)?.descrizione_breve.slice(0, 100) ?? d.voce_id}</strong>: {Array.isArray(d.dati_mancanti) ? d.dati_mancanti.join("; ") : "Completa le specifiche della voce"}</li>)}
+                      </ul>}
                       {vediSenza && (
                         <ul className="max-h-40 divide-y divide-violet-100 overflow-auto border-t border-violet-100 bg-white">
                           {risultato.senzaScomposizione.map((v) => (
@@ -828,7 +872,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
           {risultato && (
             <span className="text-xs tabular-nums text-slate-700">
-              <span className="font-semibold text-slate-900">{daSalvare.length} materiali da proporre</span>
+              <span className="font-semibold text-slate-900">{materiali.length} proposte · {daSalvare.length} preselezionate</span>
               {mostraPrezzi && stima.totale > 0 && <> · stima <span className="font-semibold text-slate-900">{stima.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span></>}
               {mostraPrezzi && stima.senzaPrezzo > 0 && <span className="text-slate-500"> ({stima.senzaPrezzo} senza prezzo)</span>}
             </span>
@@ -848,13 +892,14 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             </label>
           )}
           </div>
+          {bozzaVoce && <button type="button" className="text-xs font-medium text-amber-800 underline" onClick={() => setPasso("voci")}>Modifica della voce da salvare o annullare</button>}
           <div className="flex shrink-0 gap-2">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Chiudi</Button>
+            <Button variant="ghost" size="sm" onClick={() => { if (bozzaVoce) { setPasso("voci"); toast.info("Salva o annulla la modifica della voce."); } else onOpenChange(false); }}>Chiudi</Button>
             {passoDopo && (
               <Button size="sm" onClick={() => setPasso(passoDopo.id)}>Avanti: {passoDopo.etichetta}</Button>
             )}
-            <Button size="sm" variant={passoDopo ? "outline" : "default"} disabled={!materiali.length || salvando || salvaComputo.isPending} onClick={salva}>
-              {salvando ? "Salvo…" : `Salva e proponi i materiali (${daSalvare.length})`}
+            <Button size="sm" variant={passoDopo ? "outline" : "default"} disabled={!materiali.length || salvando || salvaComputo.isPending || bozzaVoce} onClick={salva}>
+              {salvando ? "Salvo…" : "Salva le proposte (" + materiali.length + ")"}
             </Button>
           </div>
         </DialogFooter>

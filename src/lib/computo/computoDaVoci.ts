@@ -74,7 +74,7 @@ const pulito = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 export function improntaVoci(voci: VoceImportata[]): string {
   const testo = voci.map(v => {
     const { quantita, prezzo } = calcolaVoce(v);
-    return [pulito(v.tariffa), pulito(v.descrizione), pulito(v.unita), quantita ?? "", prezzo ?? ""].join("¦");
+    return [pulito(v.tariffa), pulito(v.descrizione), pulito(v.unita), quantita ?? "", prezzo ?? "", v.valoriDocumento?.importo ?? ""].join("¦");
   }).join("\n");
   return `v1-${voci.length}-${fnv(testo, 0x811c9dc5)}${fnv(testo, 0x01234567)}`;
 }
@@ -122,6 +122,10 @@ export interface RigaMisura {
 /** Una voce dell'editor come riga del computo della commessa (senza id, computo e azienda). */
 export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misure: RigaMisura[] } {
   const { quantita, prezzo, importo } = calcolaVoce(v);
+  const originale = v.valoriDocumento;
+  const conservato = originale && quantita != null && originale.quantita != null && prezzo === originale.prezzo
+    && Math.abs(quantita) === Math.abs(originale.quantita) && v.unita.trim() === originale.unita.trim()
+    ? originale.importo : importo;
   const [breve, ...resto] = v.descrizione.split("\n");
   const codice = v.tariffa.trim() || null;
   const estesa = [resto.join("\n").trim(), v.descrizioneComune?.trim()].filter(Boolean).join("\n") || null;
@@ -137,7 +141,7 @@ export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misur
       unita_misura: v.unita.trim() || null,
       quantita: quantita === null ? null : Math.abs(quantita),
       prezzo_unitario_computo: prezzo,
-      importo_computo: importo === null ? null : Math.abs(importo),
+      importo_computo: conservato === null ? null : Math.abs(conservato),
       capitolo_nome: v.capitolo.trim() || null,
       super_categoria: v.capitolo.trim() || null,
       categoria: v.categoria.trim() || null,

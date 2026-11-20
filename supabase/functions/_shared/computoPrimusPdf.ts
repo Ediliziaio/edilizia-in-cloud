@@ -10,6 +10,7 @@
  * Niente AI: se il PDF non è un PriMus, `eComputoPrimus` dice di no e la edge
  * function passa al lettore AI.
  */
+import { completaFasiComputo } from "./computoFasiOperative.ts";
 import {
   arrotonda, controllaTotali, eSicurezza, estraiFormule, numeroComputo,
   type ComputoLivello, type ComputoMisura, type ComputoRigaRiepilogo, type ComputoStrutturato, type ComputoVoceStrutturata,
@@ -371,10 +372,10 @@ export function leggiComputoPrimus(pagine: PdfPaginaPosizionata[]): ComputoStrut
   }
   chiudiCorrente();
   if (oggetto.length) metadata.oggetto_lavori = oggetto.join(" ").replace(/\s+/g, " ").trim();
-  return {
+  return completaFasiComputo({
     formato: "primus_pdf", metadata, voci, totale_dichiarato: totaleDichiarato, riepiloghi, avvisi,
     prezzari: [],
-  };
+  });
 }
 
 type ComputoLivelloRiepilogoInterno = ComputoRigaRiepilogo["livello"] | "altro";

@@ -25,7 +25,7 @@ export interface GruppoOrdine {
 
 /** Si può ordinare da qui: manca qualcosa e il fornitore c'è. */
 export function ordinabile(r: RigaFabbisogno): boolean {
-  return r.residuo > 0 && !!r.supplier_id && ["da_ordinare", "in_offerta"].includes(r.stato);
+  return r.verifica_acquisto?.stato !== "da_verificare" && r.residuo > 0 && !!r.supplier_id && ["da_ordinare", "in_offerta"].includes(r.stato);
 }
 
 /** Le bozze da creare: una per commessa e fornitore, in ordine di commessa. */

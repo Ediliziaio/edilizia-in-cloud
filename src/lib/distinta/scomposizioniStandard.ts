@@ -725,6 +725,27 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
   },
 ];
 
+// Coefficienti geometrici espliciti. Consumi di adesivi e sfridi restano da scheda/progetto.
+SCOMPOSIZIONI_STANDARD.push(
+  { codice_standard: "ED-BARRIERA-VAPORE", ambito: "edile", nome: "Barriera al vapore", unita_misura: "mq",
+    parole_chiave: ["barriera", "vapore"], simboli: [], componenti: [ed("Membrana per barriera al vapore", "Tipo, spessore e sormonti da capitolato", "mq", 1)], note: "Superficie netta; confezioni e sormonti da completare." },
+  { codice_standard: "ED-MANTO-DOPPIO-STRATO", ambito: "edile", nome: "Manto impermeabile in doppio strato", unita_misura: "mq",
+    parole_chiave: ["manto impermeabile", "doppio strato"], simboli: [], componenti: [
+      ed("Membrana impermeabile, primo strato", "Spessore e armatura del primo strato da progetto", "mq", 1),
+      ed("Membrana impermeabile, secondo strato", "Spessore e armatura del secondo strato da progetto", "mq", 1),
+    ], note: "Due strati distinti; sormonti e confezioni da prodotto, senza uniformare gli spessori." },
+  { codice_standard: "ED-PAVIMENTO-LINOLEUM", ambito: "edile", nome: "Pavimento in linoleum", unita_misura: "mq",
+    parole_chiave: ["pavimento", "linoleum"], simboli: [], componenti: [ed("Linoleum per pavimento", "Spessore e formato da voce; sfrido e adesivo da completare", "mq", 1)], note: "Superficie netta; sistema di posa e consumabili da scheda." },
+  { codice_standard: "ED-BATTISCOPA-GOMMA", ambito: "edile", nome: "Battiscopa in gomma", unita_misura: "m",
+    parole_chiave: ["battiscopa", "gomma"], simboli: [], componenti: [ed("Battiscopa in gomma", "Altezza, sagoma, formato e adesivo da capitolato", "m", 1)], note: "Lunghezza netta; tagli e consumabili da definire." },
+  { codice_standard: "ED-RIVESTIMENTO-CERAMICA", ambito: "edile", nome: "Rivestimento in piastrelle di ceramica", unita_misura: "mq",
+    parole_chiave: ["rivestimento", "piastrelle", "ceramica"], simboli: [], componenti: [
+      ed("Piastrelle ceramiche per rivestimento", "Formato da capitolato; sfrido da confermare", "mq", 1),
+      ed("Adesivo cementizio per piastrelle", "Resa standard da validare sul prodotto scelto", "kg", 4),
+      ed("Stucco per fughe", "Resa standard da validare con formato e fuga", "kg", 0.5),
+    ], note: "Adesivo e stucco sono stime della libreria; superficie e consumi vanno confermati." }
+);
+
 /** La libreria come scomposizioni attive (per provare il riconoscimento). */
 export function catalogoComeScomposizioni(): Scomposizione[] {
   return SCOMPOSIZIONI_STANDARD.map((s): Scomposizione => ({

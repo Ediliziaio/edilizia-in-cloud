@@ -29,6 +29,9 @@
 
 import { applicaSovrapprezziSpessore } from "./sovrapprezziSpessore";
 import { classificaServizio, ETICHETTA_SERVIZIO } from "./serviziComputo";
+import { completaVerificheAcquisto, preparaQuantitaAcquisto, type VerificaAcquisto } from "./verificaAcquisto";
+import { completaMaterialiDaDocumenti, prodottoEsplicito, type DatiDocumentaliMateriale } from "./materialiDocumentali";
+import { prodottoDaVoceDocumentata } from "./prodottiDocumentati";
 
 /** Unità a pezzi, comunque scritte («cad», «cadauno», «pz», «n.»). */
 const aPezzi = (u: string | null | undefined) => ["pz", "cad", "n", "nr"].includes(normalizzaUnita(u));
@@ -51,6 +54,8 @@ export interface VoceComputo {
   is_detrazione?: boolean | null;
   a_corpo?: boolean | null;
   is_included?: boolean | null;
+  misure?: { id?: string; ordine?: number; descrizione?: string | null; parti_uguali?: number | null; lunghezza?: number | null; larghezza?: number | null; altezza_peso?: number | null; quantita?: number | null; formula?: string | null }[] | null;
+  avvisi_acquisto?: string[];
 }
 
 export interface ComponenteScomposizione {
@@ -79,6 +84,7 @@ export interface Scomposizione {
 }
 
 export interface ConteggioConfermato {
+  pagina?: number; metodo?: string; updated_at?: string;
   id: string;
   simbolo: string;
   descrizione_legenda?: string | null;
@@ -120,10 +126,13 @@ export const AFFIDABILITA_FONTE: Record<FonteMateriale, number> = {
 };
 
 export type OrigineRiga =
+  | { tipo: "contratto"; documento_ref: string; posizione_ref: string; descrizione: string; quantita: number; unita_materiale?: string; voce_id?: string | null; subphase_id?: string | null;
+      verifica_acquisto?: VerificaAcquisto; dati_documentali?: DatiDocumentaliMateriale }
   | { tipo: "computo"; voce_id: string; codice: string | null; descrizione: string; quantita_voce: number; unita_voce: string | null; quantita: number; fonte?: FonteMateriale; nota?: string | null;
       /** La scomposizione della libreria standard usata (il suo codice): per ricordare le scelte dell'utente. */
-      standard?: string | null }
-  | { tipo: "planimetria"; conteggio_id: string; documento_id: string | null; documento: string | null; locale: string | null; simbolo: string; quantita_simbolo: number; quantita: number };
+      standard?: string | null; note?: string[]; verifica_acquisto?: VerificaAcquisto; dati_documentali?: DatiDocumentaliMateriale }
+  | { tipo: "planimetria"; conteggio_id: string; documento_id: string | null; documento: string | null; locale: string | null; simbolo: string; quantita_simbolo: number; quantita: number;
+      ruolo?: "riscontro_quantita" | "riscontro_precedente"; conteggio_versione?: string; pagina?: number; verifica_acquisto?: VerificaAcquisto };
 
 export interface RigaDistintaCalcolata {
   chiave: string;
@@ -156,6 +165,8 @@ export interface RigaDistintaCalcolata {
   proposta_ai: boolean;
   /** Note sul calcolo («spessore 2 cm: quantità × 1,33», «posa esclusa»). */
   note: string[];
+  verifica_acquisto?: VerificaAcquisto;
+  dati_documentali?: DatiDocumentaliMateriale;
 }
 
 export interface VoceEsclusa {
@@ -202,7 +213,7 @@ const UNITA: Record<string, string> = {
   m: "m", ml: "m", "m.": "m", mt: "m", metri: "m", metro: "m",
   mq: "mq", m2: "mq", "m²": "mq",
   mc: "mc", m3: "mc", "m³": "mc",
-  kg: "kg", t: "t", q: "q", l: "l", lt: "l",
+  kg: "kg", t: "t", ton: "t", q: "q", "100 kg": "q", "100kg": "q", l: "l", lt: "l",
   h: "h", ore: "h", ora: "h",
   "a corpo": "a corpo", corpo: "a corpo",
 };
@@ -298,7 +309,7 @@ export function trovaScomposizione(
 
 const NON_MATERIALI: { re: RegExp; motivo: string }[] = [
   { re: /\boneri\b|\bsicurezza\b.*\b(psc|cantiere)\b|\bapprestament/, motivo: "Oneri o apprestamenti della sicurezza: non sono materiali da ordinare" },
-  { re: /\b(parcell|onorari|progettazion|direzione lavori|coordinamento|collaud|certificaz|asseveraz|relazione tecnica|pratic[ah]e?|spese tecniche|frazionamento|accatastament)/, motivo: "Prestazione tecnica o pratica: non è un materiale" },
+  { re: /\b(?:parcell\w*|onorar\w*|progettazion\w*|direzione lavori|coordinamento|collaud\w*|certificazion\w*|asseveraz\w*|relazione tecnica|pratica|pratiche|spese tecniche|frazionamento|accatastament\w*)\b/, motivo: "Prestazione tecnica o pratica: non è un materiale" },
   { re: /\b(nolo|noleggio|noli)\b/, motivo: "Nolo: si noleggia, non si acquista" },
   { re: /\b(mano d.?opera|manodopera|operaio (specializzato|qualificato|comune)|ora di (operaio|lavoro))\b/, motivo: "Manodopera" },
   { re: /\b(smaltiment|conferimento a discarica|oneri di discarica|trasporto a (discarica|rifiuto))/, motivo: "Smaltimento o trasporto a discarica" },
@@ -307,23 +318,24 @@ const NON_MATERIALI: { re: RegExp; motivo: string }[] = [
 ];
 
 /** Voci che descrivono una cosa da comprare, non una lavorazione. */
-const PREFISSO_FORNITURA = /^(fornitura|f\.?\s?e p\.?|f\.? e p\.? in opera)( e (posa|messa)( in opera)?)?( in opera)?( (di|del|della|dello|dei|degli|delle))?\s+/;
+const PREFISSO_FORNITURA = /^(fornitura|f\.?\s?e p\.?|f\.? e p\.? in opera)( e (posa|messa|collocazione|collocamento|installazione)( in opera)?)?( in opera)?( (di|del|della|dello|dei|degli|delle))?\s+/;
 /** Dopo «fornitura e posa di…»: un punto o un impianto è una lavorazione, non un materiale. */
 const LAVORAZIONE_DOPO_FORNITURA = /^(punt[oi]|impiant[oi]|realizzazion|esecuzion|opere|lavori|predisposizion|linea|linee|allacci|collegament)/;
-const FORNITURA_DIRETTA = /^(cavo|cavi|tubo|tubi|tubazion|corrugat|guaina|canal(a|ina|ette)|pompa di calore|pompe di calore|modul[oi] (fotovoltaic|fv)|pannell[oi] (fotovoltaic|solar)|inverter|batteri[ae] di accumulo|accumulo|plafonier|lampad|apparecchi[oa]? (illuminant|di illuminazione)|corpo illuminante|quadro elettrico|centrale|rilevator|rivelator|pulsante|segnalatore|interruttore|scatol|cassett|caldaia|radiatore|termosifon|collettore|boiler|scaldacqua|scaldabagno|serbatoio|split|unita (interna|esterna)|climatizzator|ventilconvettor|sanitari|vaso|lavabo|piatto doccia|rubinett|miscelator|serramento|infisso|porta|finestra|tegol|coppi|pannell[oi]|lastr[ae]|profilat|travi?|putrell|tondin|rete elettrosaldata|mattoni|blocchi|laterizi|cemento|calcestruzzo|malta|sabbia|ghiaia|piastrell|gres|parquet|battiscopa|vernice|pittura|idropittura|isolante|lana di (roccia|vetro)|polistirene|eps|xps|membrana|guaina)/;
+const FORNITURA_DIRETTA = /^(cavo|cavi|tubo|tubi|tubazion|corrugat|guaina|canal(a|ina|ette)|pompa di calore|pompe di calore|modul[oi] (fotovoltaic|fv)|pannell[oi] (fotovoltaic|solar)|inverter|batteri[ae] di accumulo|accumulo|plafonier|lampad|apparecchi[oa]? (illuminant|di illuminazione)|corpo illuminante|quadro elettrico|centrale|rilevator|rivelator|pulsante|segnalatore|interruttore|scatol|cassett|caldaia|radiatore|termosifon|collettore|valvol[ae]|boiler|scaldacqua|scaldabagno|serbatoio|split|unita (interna|esterna)|climatizzator|ventilconvettor|sanitari|vaso|lavabo|piatto doccia|rubinett|miscelator|serramento|infisso|porta|finestra|tegol|coppi|pannell[oi]|lastr[ae]|profilat|travi?|putrell|tondin|rete elettrosaldata|mattoni|blocchi|laterizi|cemento|calcestruzzo|malta|sabbia|ghiaia|piastrell|gres|parquet|battiscopa|vernice|pittura|idropittura|isolante|lana di (roccia|vetro)|polistirene|eps|xps|membrana|guaina)/;
 
 const UNITA_MATERIALE = new Set(["cad", "pz", "m", "mq", "mc", "kg", "t", "q", "l"]);
+const PRODOTTO_FV_CONTATO = /^(?:regolator[ei] di carica\b|concentrator[ei] per (?:\d+ )?batteri[ae]\b|batteri[ae] (?:piombo|litio|al piombo)\b|sistema di commutazione.*batteri)/;
 
 export type ClassificazioneVoce =
   | { tipo: "esclusa"; motivo: string }
   | { tipo: "scomposta"; scomposizione: Scomposizione; fonte: FonteMateriale; fattore?: number; nota?: string | null }
-  | { tipo: "fornitura"; nome: string; nota: string | null; compresi?: string[] }
+  | { tipo: "fornitura"; nome: string; nota: string | null; compresi?: string[]; unita?: string; specifiche?: string }
   | { tipo: "senza_scomposizione" };
 
 /** Voci che non comprano niente: sola posa, materiale del committente, demolizioni e scavi. */
 const SOLO_POSA = /^(?:sola |solo )?(?:posa|messa)(?: in opera)?\b/;
 const MATERIALE_DEL_COMMITTENTE = /\b(?:fornit[oaie] dal(?:la|l)? ?(?:committent|committenza|stazione appaltante|cliente|proprieta)|esclus[ao] (?:la )?fornitura|(?:materiale|materiali) (?:esclus|a carico del committent))/;
-const SENZA_MATERIALI = /^(?:demolizion|rimozion|smontaggi|scarific|scavo|scavi|rinterr|pulizi|sgombero|carico (?:e trasporto|su automezzo)|trasporto|movimentazion|taglio (?:di|del|della)|spicconatur|asportazion)/;
+const SENZA_MATERIALI = /^(?:demolizion|rimozion|smontaggi|scarific|scavo|scavi|rinterr|pulizi|sgombero|carico (?:e trasporto|su automezzo)|trasporto|movimentazion|taglio (?:di|del|della|a sezione)|spicconatur|asportazion)/;
 
 const RIFACIMENTO = /\b(?:e|con|compreso il|compreso|per)\s+(?:successiv[oa]\s+)?(?:rifaciment|ricostruzion|ripristin|nuov[oa] (?:posa|fornitura|realizzazion)|sostituzion)/;
 
@@ -353,7 +365,8 @@ function chiaveInTesta(s: Scomposizione, testa: string[]): boolean {
 
 /** Sovrapprezzi, maggiorazioni, accessori: i materiali stanno nella voce principale. */
 /** Prodotti fatti su misura per vano: serramenti, persiane, avvolgibili, oscuranti, cassonetti, zanzariere. */
-const SU_MISURA_A_SUPERFICIE = /^(serrament|finestr|portafinestr|porta finestr|infiss|persian|avvolgibil|tapparell|oscurant|scuri|cassonett|zanzarier|vetrat)/;
+const SU_MISURA_A_SUPERFICIE = /^(serrament|finestr|portafinestr|porta finestr|porton|infiss|persian|avvolgibil|tapparell|oscurant|scuri|scurett|contro\s?sportell|cassonett|zanzarier|vetrat)/;
+const APPARECCHIO_COMPLETO = /^(?:pompa di calore|pompe di calore|ventilconvettor|inverter)\b/;
 const SOVRAPPREZZO = /\b(sovrapprezz|maggiorazion|supplemento per|per ogni cm in piu|per ogni centimetro in piu)/;
 const ACCESSORI_DI = /^(accessori|accessorio|kit|pannello decorativo|ricambi)\b/;
 
@@ -363,7 +376,7 @@ const ACCESSORI_DI = /^(accessori|accessorio|kit|pannello decorativo|ricambi)\b/
  */
 export function nomeMateriale(descrizione: string): string {
   let t = descrizione.trim().replace(/\s+/g, " ");
-  t = t.replace(/^(?:fornitura|f\.? ?e ?p\.?(?: ?o\.?)?|f\.? ?p\.? ?o\.?)(?:\s+e\s+(?:posa|messa)(?:\s+in\s+opera)?)?(?:\s+in\s+opera)?(?:\s+(?:di|del|della|dello|dei|degli|delle|d'))?\s*/i, "");
+  t = t.replace(/^(?:fornitura|f\.? ?e ?p\.?(?: ?o\.?)?|f\.? ?p\.? ?o\.?)(?:\s+e\s+(?:posa|messa|collocazione|collocamento|installazione)(?:\s+in\s+opera)?)?(?:\s+in\s+opera)?(?:\s+(?:di|del|della|dello|dei|degli|delle|d'))?\s*/i, "");
   t = t.split(/\s*(?:[,;:(]\s*)?\b(?:compres[oaie]|inclus[oaie]|fornit[oaie] e post[oaie] in opera|fornit[oaie] in opera|dat[oaie] in opera|post[oaie] in opera|in opera|eseguit[oaie]|realizzat[oaie]|ogni onere|per dare|a regola d'arte|e quant'altro|nonch[eé])\b/i)[0];
   t = t.replace(/[\s,.;:–-]+$/, "").trim();
   if (!t) return descrizione.trim();
@@ -410,7 +423,7 @@ export function spessoreCm(testo: string): number | null {
 }
 
 /** Dopo «compreso…»: prestazioni, oneri e parole vaghe, non cose da comprare. */
-const COMPRESO_NON_MATERIALE = /^(?:posa|messa|post[oaie]|trasport|carico|scarico|allacci|collegament|assistenz|oner|ogni|quant|magister|pulizi|sfrid|tagl|sigillatur|fissaggi|montaggi|smontaggi|collaud|prov[ae]|certificaz|dichiaraz|opere|lavor|mano|ponteggi|nolo|noli|smaltim|accessori|minuteri|material|tracc|ripristin|assistenz|regolazion|messa in|avviament|stuccatur|fornitur|il tutto|tutto|e$|ed$|installazion|apposit|pezzi special|egli\b|di\b|\d|diam|nei seguenti|occorrent|necessari)/;
+const COMPRESO_NON_MATERIALE = /^(?:posa|messa|post[oaie]|trasport|carico|scarico|scav|allacci|collegament|assistenz|oner|ogni|quant|magister|pulizi|pulitur|sfrid|tagl|sigillatur|fissaggi|montaggi|smontaggi|collaud|prov[ae]|certificaz|dichiaraz|opere|lavor|mano|ponteggi|nolo|noli|smaltim|accessori|minuteri|material|tracc|ripristin|assistenz|regolazion|messa in|avviament|stuccatur|fornitur|il tutto|tutto|e$|ed$|installazion|apposit|pezzi special|egli\b|di\b|\d|diam|nei seguenti|occorrent|necessari)/;
 
 /**
  * I materiali che una voce di fornitura nomina dopo «compreso», «incluso» o
@@ -432,8 +445,14 @@ export function materialiCompresi(descrizione: string): string[] {
     .filter((x) => { const k = normalizzaTesto(x); if (visti.has(k)) return false; visti.add(k); return true; });
 }
 
+function compresiNellaStessaUnita(descrizione: string, um: string): string[] {
+  return materialiCompresi(descrizione).filter(nome => aPezzi(um)
+    || (um === "mq" && /^(materassin|membran|guain|rete\b|fogli|tel[oi])/i.test(nome))
+    || (um === "m" && /^(cav[oi]|tub[oi]|guain|nastr|profil)/i.test(nome)));
+}
+
 const ISOLANTI: [RegExp, string][] = [
-  [/\beps\b.*\bgrafit|\bgrafit/, "EPS con grafite"], [/\beps\b|polistirene espanso/, "EPS"], [/\bxps\b|polistirene estruso/, "XPS"],
+  [/\beps\b.*\bgrafit|\bgrafit/, "EPS con grafite"], [/\bxps\b|polistirene (?:espanso )?estru/, "XPS"], [/\beps\b|polistirene espanso/, "EPS"],
   [/lana di roccia/, "lana di roccia"], [/lana di vetro/, "lana di vetro"], [/lana minerale/, "lana minerale"],
   [/fibra di legno/, "fibra di legno"], [/sughero/, "sughero"],
 ];
@@ -449,15 +468,24 @@ export function specificheDallaVoce(specifiche: string | null, testoVoce: string
   const n = normalizzaTesto(testoVoce);
   const sp = spessoreCm(testoVoce);
   let out = specifiche;
+  if (/^inverter\b/.test(n) && /potenza da progetto/i.test(out)) {
+    out = "Configurazione di ingressi, tensioni, protezioni e accumulo da confermare con il progetto e il modello scelto.";
+  }
+  if (/^ventilconvettore\b/.test(n) && /a parete o a pavimento.*potenza da progetto/i.test(out)) {
+    out = "Prestazioni come da voce; condizioni di resa, attacchi e regolazione da confermare con il prodotto scelto.";
+  }
   if (sp) {
     const cm = sp.toLocaleString("it-IT");
     out = out.replace(/spessore da progetto/i, `spessore ${cm} cm`);
     out = out.replace(/Lunghezza = spessore pannello \+ 40 mm di ancoraggio/i, `Lunghezza almeno ${Math.round(sp * 10 + 40)} mm (pannello ${cm} cm + 40 mm di ancoraggio)`);
+    if (/isolamento termico|coibentazion/i.test(testoVoce) && /isolant|eps|xps|lana minerale/i.test(specifiche)) {
+      out = out.replace(/spessore\s+\d+(?:[.,]\d+)?\s*(?:cm|mm)\b/i, `spessore ${cm} cm`);
+    }
   }
   const isolante = ISOLANTI.find(([re]) => re.test(n))?.[1];
   if (isolante) out = out.replace(/EPS o lana minerale/i, isolante);
   // La potenza dei moduli scritta nella voce («510-580 Wp»), non quella di esempio della libreria.
-  const wp = n.match(/\b(\d{3})\s?-?\s?(\d{3})\s?wp\b/) ?? n.match(/\b(\d{3})\s?wp\b/);
+  const wp = n.match(/potenza modulo\s+(\d{3})\s?wp\b/) ?? n.match(/\b(\d{3})\s?-?\s?(\d{3})\s?wp\b/) ?? n.match(/\b(\d{3})\s?wp\b/);
   if (wp) out = out.replace(/Potenza da progetto \([^)]*Wp\)/i, wp[2] ? `Potenza ${wp[1]}-${wp[2]} Wp` : `Potenza ${wp[1]} Wp`);
   const formato = n.match(/\b(\d+(?:\.\d+)?)\s?x\s?(\d+(?:\.\d+)?)\b/);
   if (formato) out = out.replace(/Formato da progetto/i, `Formato ${formato[1].replace(".", ",")}x${formato[2].replace(".", ",")}`);
@@ -491,6 +519,17 @@ export function classeCalcestruzzo(testo: string): string | null {
  * listino (Rck 35 / C28/35) e non a una qualsiasi.
  */
 export function nomeDallaVoce(nome: string, testoVoce: string): string {
+  if (/^(?:ventilconvettore|inverter fotovoltaico)$/i.test(nome)) {
+    const installazione = /a cassetta/i.test(testoVoce) ? "a cassetta" : /parete alta/i.test(testoVoce) ? "a parete alta" : /da incasso|ad incasso/i.test(testoVoce) ? "da incasso" : "";
+    const nominale = /potenza nominale inverter per l.impianto\s*(\d+(?:[.,]\d+)?)\s*kw/i.exec(testoVoce)
+      ?? (/^inverter/i.test(nome) ? /potenza nominale\s*(\d+(?:[.,]\d+)?)\s*kw/i.exec(testoVoce) : null);
+    const prestazioni = /^ventilconvettore/i.test(nome) ? [...testoVoce.matchAll(/\b(PT|PF)\s*(?:\(kW\))?\s*=\s*(\d+(?:[.,]\d+)?)/gi)] : [];
+    const potenze = nominale ? [`${nominale[1]} kW`] : prestazioni.length
+      ? prestazioni.map(m => `${m[1].toUpperCase()} ${m[2]} kW`)
+      : [...testoVoce.matchAll(/(\d+(?:[.,]\d+)?)\s*kW\b/gi)].map(m => `${m[1]} kW`);
+    const dettagli = [...new Set([installazione, ...potenze, /\bibrido\b/i.test(testoVoce) ? "ibrido" : ""].filter(Boolean))];
+    if (dettagli.length) return `${nome} · ${dettagli.join(" · ")}`;
+  }
   if (/^calcestruzzo\b/i.test(nome)) {
     const classe = classeCalcestruzzo(testoVoce);
     return classe && !/\bC\d{2,3}\/\d{2,3}\b/.test(nome) ? `${nome} ${classe}` : nome;
@@ -509,12 +548,31 @@ export interface OpzioniRiconoscimento {
   proposteAI?: Scomposizione[];
 }
 
+function ricettaAdattaAllIntervento(codice: string | null | undefined, breve: string): boolean {
+  if (codice === "FV-INVERTER" && !/^inverter\b/.test(breve.replace(PREFISSO_FORNITURA, ""))) return false;
+  if (codice === "ED-MASSETTO-SABBIA-CEMENTO" && /ritiro controllato|asciugamento veloce|presa rapida|autolivellante/.test(breve)) return false;
+  if (codice?.includes("IMPERMEAB") && /^(preparazion|regolarizz)/.test(breve)) return false;
+  if (codice === "ED-MURATURA-FORATI" && /^(sbruffatur|intonac|pulitur|rasatur|consolid|rinforz|ripristin|regolarizz)/.test(breve)) return false;
+  if (codice === "ST-SOLAIO-LATEROCEMENTO" && /^(consolid|rinforz|ripristin|antisfondell|sistema antisfondell)/.test(breve)) return false;
+  return true;
+}
+
 export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], opzioni: OpzioniRiconoscimento = {}): ClassificazioneVoce {
+  // L'abbreviazione cambia solo il riconoscimento: la provenienza conserva il testo del PDF.
+  if (/^f\.?\s*p\.?\s*o\.?(?:\s|$)/i.test(v.descrizione_breve)) {
+    v = { ...v, descrizione_breve: v.descrizione_breve.replace(/^f\.?\s*p\.?\s*o\.?\s*(?:di\s+)?/i, "Fornitura e posa di ") };
+  }
   if (v.is_included === false) return { tipo: "esclusa", motivo: "Voce tolta dal computo" };
   if (v.is_sicurezza) return { tipo: "esclusa", motivo: "Oneri della sicurezza: non sono materiali da ordinare" };
   if (v.is_detrazione) return { tipo: "esclusa", motivo: "Voce in detrazione" };
   const q = Number(v.quantita ?? 0);
   if (!(q > 0)) return { tipo: "esclusa", motivo: "Quantità zero o mancante" };
+
+  const esplicito = prodottoEsplicito(v);
+  if (esplicito && !SOLO_POSA.test(normalizzaTesto(v.descrizione_breve))
+    && !MATERIALE_DEL_COMMITTENTE.test(normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`))) {
+    return { tipo: "fornitura", ...esplicito, compresi: [] };
+  }
 
   const testo = testoVoce(v);
   const datiVoce = { codice: v.codice_prezzario, codiceTariffa: v.codice_tariffa, codiceVoce: v.codice_voce, testo, unita: v.unita_misura };
@@ -526,7 +584,7 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   // parola sta nell'oggetto della voce (vedi testaVoce). Le ricette scritte dall'azienda no.
   // Con una breve corta («Muri in c.a.») l'opera la dice l'estesa: lì la regola non vale.
   const breveCompleta = breveN.length >= 25;
-  if (s && !perCodiceAzienda && s.codice_standard && breveCompleta && !chiaveInTesta(s, testa)) s = null;
+  if (s && !perCodiceAzienda && s.codice_standard && (!ricettaAdattaAllIntervento(s.codice_standard, breveN) || (breveCompleta && !chiaveInTesta(s, testa)))) s = null;
   // Un sovrapprezzo («…: sovrapprezzo per ogni cm in più di spessore») non è un'altra
   // superficie: a Genzano 27.488 mq×cm diventavano 28.862 mq di pannelli e 169.877 tasselli.
   if (!perCodiceAzienda && SOVRAPPREZZO.test(breveN)) {
@@ -562,7 +620,11 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
     nota: conPosa ? "Posa e manodopera della voce escluse: si compra solo il materiale" : null,
     // Un prodotto su misura (serramento, avvolgibile…) arriva con i suoi accessori: «compresa maniglia»
     // non è un acquisto a parte, e «uno per m²» di maniglie non ha senso (17/11/2026).
-    compresi: SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(nomeMateriale(v.descrizione_breve))) || SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(testaVoce(v.descrizione_breve, 1).join(" "))) ? [] : materialiCompresi(v.descrizione_breve),
+    // Un accessorio citato senza una quantità propria non pesa quanto la fornitura:
+    // 3.420 kg di rete non sono anche 3.420 kg di distanziatori e di legature.
+    compresi: SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(nomeMateriale(v.descrizione_breve)))
+      || SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(testaVoce(v.descrizione_breve, 1).join(" ")))
+      || APPARECCHIO_COMPLETO.test(resto) ? [] : compresiNellaStessaUnita(v.descrizione_breve, um),
   });
   const fornituraPossibile = UNITA_MATERIALE.has(um) && !v.a_corpo;
   // «Fornitura di…» senza posa: è il materiale, la libreria non aggiunge collanti o accessori.
@@ -574,7 +636,13 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   // Se la breve non basta («Muri in c.a.», «Platea di fondazione»), si guarda anche
   // l'estesa: «compreso calcestruzzo, ferro, casseformi» dice di che opera si tratta.
   // Solo ricette con la parola chiave nell'oggetto della voce, e niente per gli accessori.
-  const riserva = ACCESSORI_DI.test(testa.join(" ")) ? [] : (opzioni.riserva ?? []).filter((r) => !breveCompleta || chiaveInTesta(r, testa));
+  const ricettaPertinente = (r: Scomposizione) => {
+    const codice = r.codice_standard ?? r.id;
+    // Il supporto nominato non è un'opera da costruire: consolidare un solaio non lo rifà.
+    if (!ricettaAdattaAllIntervento(codice, breve)) return false;
+    return !breveCompleta || chiaveInTesta(r, testa);
+  };
+  const riserva = ACCESSORI_DI.test(testa.join(" ")) ? [] : (opzioni.riserva ?? []).filter(ricettaPertinente);
   const standard = riserva.length
     ? trovaScomposizione(riserva, { testo: breveConsiderato, unita: v.unita_misura })
       ?? (v.descrizione_estesa && !prefisso
@@ -587,14 +655,31 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   }
 
   if (fornituraPossibile) {
+    const documentato = prodottoDaVoceDocumentata(v);
+    if (documentato) return { tipo: "fornitura", ...documentato, compresi: [] };
+    if (/^(?:isolamento termico|coibentazione)/.test(resto) && /pannell/.test(resto) && um === "mq") {
+      const materiale = ISOLANTI.find(([re]) => re.test(resto))?.[1];
+      return { tipo: "fornitura", nome: `Pannello isolante${materiale ? ` ${materiale}` : ""}`, compresi: [],
+        nota: "Superficie netta dal computo: confermare prodotto, spessore, formato e sfrido prima dell'acquisto." };
+    }
+    // Un sistema di motorizzazione contato a pezzi è acquistabile come kit completo.
+    // I cavi e gli accessori compresi non hanno quantità autonome nel documento.
+    if (aPezzi(um) && /^sistema (?:per|di) apertura e chiusura (?:di )?(?:avvolgibili|tapparelle)\b/.test(resto)
+      && /\b(?:rotore|motore|puleggia)\b/.test(resto)) {
+      return { tipo: "fornitura", nome: nomeMateriale(v.descrizione_breve), compresi: [],
+        nota: "Sistema completo contato a pezzi: posa esclusa dall'acquisto. Accessori e cablaggi compresi nel kit, senza quantità aggiuntive inventate." };
+    }
     if (prefisso && !LAVORAZIONE_DOPO_FORNITURA.test(resto)) return fornitura();
-    if (!prefisso && FORNITURA_DIRETTA.test(resto)) return fornitura();
+    if (!prefisso && (FORNITURA_DIRETTA.test(resto) || (aPezzi(um) && PRODOTTO_FV_CONTATO.test(resto)))) return fornitura();
   }
   const ai = opzioni.proposteAI?.length
     ? trovaScomposizione(opzioni.proposteAI.map((x) => ({ ...x, attiva: true })), datiVoce)
     : null;
   if (ai) return { tipo: "scomposta", scomposizione: ai, fonte: "proposta_ai" };
-  if (v.a_corpo || um === "a corpo") return { tipo: "esclusa", motivo: "A corpo senza scomposizione: va scomposta per sapere cosa comprare" };
+  if ((v.a_corpo || um === "a corpo") && /^(?:quadro elettrico|kit|accessori)/.test(resto)) {
+    return { tipo: "fornitura", nome: nomeMateriale(v.descrizione_breve), unita: "lotto", compresi: [],
+      nota: "Lotto a corpo da completare: verificare schema, componenti e inclusioni prima dell'acquisto." };
+  }
   return { tipo: "senza_scomposizione" };
 }
 
@@ -696,7 +781,7 @@ export function generaDistinta(input: {
   const senzaScomposizione: VoceComputo[] = [];
 
   // Lo spessore dei sovrapprezzi «per ogni cm in più» entra nella voce principale (17/11/2026).
-  const tutte = applicaSovrapprezziSpessore(input.voci);
+  const tutte = applicaSovrapprezziSpessore(input.voci).map(preparaQuantitaAcquisto);
   // La testa di ogni voce: per non ricomprare un componente che il computo ha già come voce sua.
   const teste = tutte.map((x) => testaVoce(x.descrizione_breve, 2));
   for (const [i, v] of tutte.entries()) {
@@ -717,7 +802,7 @@ export function generaDistinta(input: {
     // Noli, ore e prestazioni (17/11/2026): fuori dai materiali, col perché e la durata. Una ricetta
     // dell'azienda per quella voce vince sempre.
     const servizio = classificaServizio(v);
-    if (servizio && (c.tipo === "esclusa" || c.tipo === "senza_scomposizione" || (c.tipo === "scomposta" && c.fonte !== "scomposizione" && c.fonte !== "scomposizione_codice"))) {
+    if (servizio && (c.tipo !== "scomposta" || (c.fonte !== "scomposizione" && c.fonte !== "scomposizione_codice"))) {
       escluse.push({ voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita: v.quantita ?? null, unita_misura: v.unita_misura ?? null,
         motivo: `${c.tipo === "esclusa" ? `${c.motivo} — ` : ""}${ETICHETTA_SERVIZIO[servizio.tipo]}: ${servizio.nota}` });
     } else if (c.tipo === "esclusa") {
@@ -730,6 +815,20 @@ export function generaDistinta(input: {
       if (c.fonte === "libreria_standard" || c.fonte === "proposta_ai") {
         const vicine = [...tutte.keys()].filter((k) => k !== i && Math.abs(k - i) <= 3 && tutte[k].id !== v.id);
         const tenuti = c.scomposizione.componenti.filter((comp) => {
+          const componente = normalizzaTesto(comp.descrizione);
+          if (/fotovoltaic/.test(testoVoce(v))) {
+            const fase = input.faseVoce?.(v) ?? null;
+            const ambito = tutte.filter(w => w.id !== v.id && (!fase || input.faseVoce?.(w) === fase)
+              && (w.categoria ?? w.super_categoria ?? "") === (v.categoria ?? v.super_categoria ?? ""));
+            const fissaggi = ambito.filter(w => /sistema di montaggio|graffa|morsetto.*(?:centrale|terminale|intermedio)/.test(testoVoce(w)));
+            const giaPrevisto = /morsetto.*(?:terminale|intermedio|centrale)/.test(componente)
+              ? fissaggi.some(w => /graffa|morsetto/.test(testoVoce(w)))
+              : /struttura di fissaggio/.test(componente) && fissaggi.some(w => /profilo|staff/.test(testoVoce(w)));
+            if (giaPrevisto) {
+              avvisi.push({ tipo: "gia_nel_computo", voce_id: v.id, messaggio: `«${comp.descrizione}» è già nel sistema di montaggio FV del computo: non si aggiunge la quota generica per modulo.` });
+              return false;
+            }
+          }
           // Solo i componenti a pezzi (comandi, valvole, staffe) contro voci a pezzi: il cemento di un
           // massetto resta anche se accanto c'è una «fornitura di cemento».
           if (!aPezzi(comp.unita_misura)) return true;
@@ -745,13 +844,30 @@ export function generaDistinta(input: {
         });
         if (tenuti.length !== c.scomposizione.componenti.length) scomposizione = { ...c.scomposizione, componenti: tenuti };
       }
-      parti.push(...partiDaComponenti(scomposizione, q, base, (x) => origineComputo(x), categoriaVoce(v), c.fattore, `${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`));
+      parti.push(...partiDaComponenti(scomposizione, q, base, (x) => origineComputo(x), categoriaVoce(v), c.fattore, `${v.descrizione_breve} ${v.descrizione_estesa ?? ""} ${(v.misure ?? []).map(m => m.descrizione ?? "").join(" ")}`));
     } else if (c.tipo === "fornitura") {
+      const vmc = /\bN\.\s*(\d+)\s+Deumidificatore\b/i.exec(v.descrizione_breve);
+      if (vmc && /recupero del calore/i.test(v.descrizione_breve)) {
+        const zona = (v.misure ?? []).map(m => m.descrizione).filter(Boolean).join(" · ");
+        const specifiche = `Lotto voce ${v.numero_ordine ?? v.codice_voce ?? ""}${zona ? ` · ${zona}` : ""}; accessori inclusi nella fornitura: completa la distinta senza duplicarli.`;
+        parti.push({ ...base, descrizione: "Deumidificatore con rinnovo aria e recupero del calore", specifiche,
+          unita: "pz", netta: q * Number(vmc[1]), conSfrido: q * Number(vmc[1]), sfrido: 0,
+          provenienza: origineComputo(q * Number(vmc[1])), categoria: categoriaVoce(v),
+          article_template_id: null, supplier_id: null, scomposizione_id: null,
+          nota: "Lotto VMC da completare: verifica modello e accessori inclusi prima di acquistare i componenti separatamente." });
+        const tubi = /\bN\.\s*(\d+)\s+Tubi di distribuzione[^]*?Bobina\s+L\s*(\d+(?:[.,]\d+)?)\s*m/i.exec(v.descrizione_breve);
+        if (tubi) parti.push({ ...base, descrizione: "Tubo di distribuzione VMC", specifiche: `Bobina ${tubi[2]} m · lotto voce ${v.numero_ordine ?? ""}${zona ? ` · ${zona}` : ""} · diametri come da voce`,
+          unita: "bobina", netta: q * Number(tubi[1]), conSfrido: q * Number(tubi[1]), sfrido: 0,
+          provenienza: origineComputo(q * Number(tubi[1])), categoria: categoriaVoce(v),
+          article_template_id: null, supplier_id: null, scomposizione_id: null,
+          nota: "Lotto VMC: tubi già inclusi nella fornitura, da coordinare con l'affidamento per non comprarli due volte." });
+        continue;
+      }
       parti.push({
         ...base,
         descrizione: c.nome,
-        specifiche: null,
-        unita: normalizzaUnita(v.unita_misura),
+        specifiche: c.specifiche ?? (/^(?:isolamento termico|coibentazione)/i.test(v.descrizione_breve) ? v.descrizione_breve : null),
+        unita: c.unita ?? normalizzaUnita(v.unita_misura),
         netta: q, conSfrido: q, sfrido: 0,
         provenienza: origineComputo(q),
         categoria: categoriaVoce(v),
@@ -779,6 +895,9 @@ export function generaDistinta(input: {
   }
 
   for (const k of input.conteggi ?? []) {
+    if (/^(?:A\$C[\dA-F]+|\*U\d+)$/i.test((k.descrizione_legenda || k.simbolo).trim())) {
+      avvisi.push({ tipo: "conteggio_senza_scomposizione", conteggio_id: k.id, messaggio: `«${k.simbolo}»: classifica il blocco anonimo prima di proporre materiali.` }); continue;
+    }
     const q = Number(k.quantita);
     if (!(q > 0)) continue;
     const testo = normalizzaTesto(`${k.simbolo} ${k.descrizione_legenda ?? ""}`);
@@ -789,7 +908,7 @@ export function generaDistinta(input: {
       || trovaScomposizione(attive, { codice: k.simbolo, testo, unita: unita === "m" ? "m" : null });
     const provenienza = (quantita: number): OrigineRiga => ({
       tipo: "planimetria", conteggio_id: k.id, documento_id: k.documento_id ?? null, documento: k.documento_nome ?? null,
-      locale: k.locale ?? null, simbolo: k.simbolo, quantita_simbolo: q, quantita,
+      locale: k.locale ?? null, simbolo: k.simbolo, quantita_simbolo: q, quantita, ...(k.pagina ? { pagina: k.pagina } : {}),
     });
     const base = {
       origine: "planimetria" as const, computo_voce_id: null as string | null, documento_id: k.documento_id ?? null,
@@ -865,12 +984,28 @@ export function generaDistinta(input: {
     r.note = [...r.note, "Superficie contabile del computo (con i minimi per vano): ordina dall'abaco dei vani, non da questi m²."];
   }
 
+  // Più disegni o metodi possono rappresentare lo stesso impianto: nessuna somma presentata come acquisto certo.
+  for (const r of righe.filter(r => r.origine === "planimetria")) {
+    const gruppi = new Set(r.origini.flatMap(o => {
+      if (o.tipo !== "planimetria") return [];
+      const c = input.conteggi?.find(c => c.id === o.conteggio_id);
+      return [JSON.stringify([o.documento_id || o.documento, c?.pagina || 1, c?.metodo || ""])];
+    }));
+    if (gruppi.size > 1) {
+      const verifica: VerificaAcquisto = { stato: "da_verificare", motivi: ["Quantità da più tavole, pagine o metodi: verifica che siano ambiti distinti prima di sommare. Usa il confronto con gli acquisti per scegliere un riscontro."], campi_mancanti: ["ambito_tavole"] };
+      r.verifica_acquisto = verifica; r.origini = r.origini.map(o => ({ ...o, verifica_acquisto: verifica }));
+    }
+  }
+
   // Stesso materiale sia dal computo sia dalle planimetrie: possibile doppione.
   const senzaOrigine = (r: RigaDistintaCalcolata) => chiaveRiga(r.descrizione, r.unita_misura, r.specifiche, "", r.phase_id);
   const daComputo = new Map(righe.filter((r) => r.origine === "computo").map((r) => [senzaOrigine(r), r]));
   for (const r of righe.filter((x) => x.origine === "planimetria")) {
     const gemella = daComputo.get(senzaOrigine(r));
     if (gemella) {
+      const verifica: VerificaAcquisto = { stato: "da_verificare", motivi: ["Materiale presente anche nel computo: confronta le fonti e scegli una sola quantità prima di acquistare."], campi_mancanti: ["origine_quantita"] };
+      r.verifica_acquisto = verifica;
+      r.origini = r.origini.map(o => ({ ...o, verifica_acquisto: verifica }));
       avvisi.push({
         tipo: "possibile_doppione",
         messaggio: `«${r.descrizione}» viene sia dal computo (${gemella.quantita_calcolata} ${gemella.unita_misura}) sia dalle tavole (${r.quantita_calcolata} ${r.unita_misura}): tieni una sola delle due quantità`,
@@ -883,5 +1018,5 @@ export function generaDistinta(input: {
     || (a.categoria ?? "").localeCompare(b.categoria ?? "", "it")
     || a.descrizione.localeCompare(b.descrizione, "it"));
 
-  return { righe, escluse, avvisi, senzaScomposizione };
+  return { righe: completaVerificheAcquisto(completaMaterialiDaDocumenti(righe, input.voci, tutte), tutte), escluse, avvisi, senzaScomposizione };
 }

@@ -16,6 +16,8 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { conRegoleProposte, incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
+import { MODELLO_LETTURA_BREVE } from "../_shared/sceltaModelloLettura.ts";
 import { leggiJson } from "../_shared/distintaAI.ts";
 import {
   MAX_CAPITOLI, messaggioFasi, PROMPT_FASI, pulisciProposteFasi,
@@ -59,25 +61,27 @@ Deno.serve(async (req) => {
     const fasi: FaseEsistente[] = (righeFasi ?? []).map((f: { id: string; name: string }) => ({ id: f.id, nome: f.name }));
 
     const idempotencyKey = await buildStableAiIdempotencyKey("distinta_proponi_fasi", [
-      companyId, orderId, userId, ...fasi.map((f) => f.id).sort(), ...capitoli.map((c) => c.nome).sort(),
+      companyId, orderId, userId, PROMPT_FASI, messaggioFasi(capitoli, fasi),
     ]);
     const ai = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
       taskKey: "preventivo_genera",
+      forceModel: MODELLO_LETTURA_BREVE,
       messages: [
-        { role: "system", content: PROMPT_FASI },
-        { role: "user", content: messaggioFasi(capitoli, fasi) },
+        { role: "system", content: conRegoleProposte(PROMPT_FASI) },
+        { role: "user", content: incorniciaTestoDocumento(messaggioFasi(capitoli, fasi)) },
       ],
-      params: { temperature: 0.1, max_tokens: 3000 },
+      params: { temperature: 0.1, max_tokens: Math.min(8000, 1000 + capitoli.length * 160) },
       responseFormat: { type: "json_object" },
       companyId,
       userId,
       idempotencyKey,
     });
 
+    if (["length", "max_tokens"].includes(ai.rawResponse?.choices?.[0]?.finish_reason)) return errorResponse("Risposta AI interrotta: fasi non complete. Riprova con meno capitoli.", 502, cors);
     const proposte = pulisciProposteFasi(leggiJson(ai.content ?? ""), capitoli.map((c) => c.nome), fasi);
-    if (!proposte.length) return errorResponse("L'AI non ha restituito proposte leggibili: riprova", 502, cors);
+    if (proposte.length !== capitoli.length) return errorResponse("L'AI non ha risposto a tutti i capitoli: riprova.", 502, cors);
 
     return jsonResponse({
       success: true,

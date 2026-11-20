@@ -19,6 +19,8 @@ import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { nomeBreve } from "@/lib/acquisti/fabbisogno";
 import { quantitaLeggibile } from "@/lib/distinta/statoMateriale";
 import { cn } from "@/lib/utils";
+import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
+import { verificaDaOrigini } from "@/lib/distinta/verificaAcquisto";
 
 export type ChiFa = "interna" | "subappalto_fornitura_posa" | "subappalto_posa";
 const CHI_FA: ChiFa[] = ["interna", "subappalto_fornitura_posa", "subappalto_posa"];
@@ -47,6 +49,7 @@ export interface MaterialeProposto {
   fornitore: string | null;
   consigliata: boolean;
   origine: string;
+  origini?: OrigineRiga[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,7 +181,7 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
       toast.success(`${d.inserite} ${d.inserite === 1 ? "materiale inserito" : "materiali inseriti"} negli articoli`, {
         description: [d.fasiDitta ? `${d.fasiDitta} ${d.fasiDitta === 1 ? "fase va" : "fasi vanno"} alla ditta chiavi in mano, senza acquisti` : null,
           d.ditteAssegnate ? `${d.ditteAssegnate} ${d.ditteAssegnate === 1 ? "ditta assegnata" : "ditte assegnate"} col costo previsto` : null].filter(Boolean).join(" · ")
-          || "Li trovi nelle loro fasi, pronti da ordinare.",
+          || "Li trovi nelle loro fasi. Il piano acquisti mantiene in verifica le quantità e le specifiche incomplete.",
       });
       aggiorna();
       void qc.invalidateQueries({ queryKey: ["fasi-esecuzione", orderId] });
@@ -212,7 +215,7 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
       {/* Nella pagina: una riga sola. */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/40">
         <FileSearch className="h-4 w-4 text-amber-800 dark:text-amber-200" aria-hidden />
-        <span className="font-semibold text-amber-900 dark:text-amber-100">Dal computo: {righe.length} {righe.length === 1 ? "materiale" : "materiali"} da confermare</span>
+        <span className="font-semibold text-amber-900 dark:text-amber-100">Dal computo: {righe.length} {righe.length === 1 ? "proposta" : "proposte"} da inserire</span>
         <span className="text-xs text-amber-800 dark:text-amber-200">in {perFase.length} {perFase.length === 1 ? "fase" : "fasi"}</span>
         <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => onAperto(true)}>Scegli e inserisci</Button>
       </div>
@@ -225,6 +228,12 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
               Spunta, fase per fase, quelli da comprare: con «Inserisci» entrano negli articoli, nelle loro fasi.
             </DialogDescription>
           </DialogHeader>
+
+          {righe.some((m) => !m.consigliata) && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+              Le proposte AI contengono quantità e rese stimate; anche le altre righe da completare partono senza spunta. Inserirle negli articoli conserva i dati da verificare: restano escluse dagli acquisti finché quantità, rese e specifiche non sono verificate.
+            </p>
+          )}
 
           <div className="grid gap-3 rounded-lg border sm:grid-cols-[14rem_minmax(0,1fr)]">
             <nav aria-label="Fasi" className="flex gap-1 overflow-x-auto border-b p-2 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r">
@@ -302,11 +311,15 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
                           <Checkbox checked={spuntato(m)} onCheckedChange={(v) => setSpunte((s) => ({ ...s, [m.id]: v === true }))} aria-label={`Seleziona ${titolo}`} />
                           <span className="min-w-0">
                             <span className="block truncate font-medium" title={accorciato ? m.descrizione : undefined}>{titolo}</span>
+                            {m.specifiche && (
+                              <span className="block text-[11px] text-muted-foreground">{m.specifiche}</span>
+                            )}
                             {(m.fornitore || !m.consigliata) && (
                               <span className="block truncate text-[11px] text-muted-foreground">
-                                {[!m.consigliata ? "proposto dall'AI: da controllare" : null, m.fornitore].filter(Boolean).join(" · ")}
+                                {[!m.consigliata ? "proposta da controllare" : null, m.fornitore].filter(Boolean).join(" · ")}
                               </span>
                             )}
+                            {verificaDaOrigini(m.origini)?.stato === "da_verificare" && <span className="block text-[11px] text-amber-800">{verificaDaOrigini(m.origini)!.motivi.join(" ")}</span>}
                           </span>
                           <span className="whitespace-nowrap text-right text-xs tabular-nums">{q.numero} {q.unita}</span>
                         </label>

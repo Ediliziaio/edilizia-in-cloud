@@ -23,6 +23,9 @@ export interface ContractExtractPhase {
  * nell'ordine in cui si eseguono. Diventa una fase proposta della commessa, da confermare.
  */
 export interface ContractExtractWorkPhase {
+  riferimento?: string;
+  origine?: "documento" | "proposta_operativa";
+  lavorazioni?: import("./pianoOperativoContratto").LavorazioneContratto[];
   nome: string;
   /** Durata della lavorazione in giorni di lavoro, solo se il documento la dice. */
   giorni: number | null;
@@ -49,9 +52,16 @@ export interface ContractExtractFirma {
   pagine: number[];
 }
 export interface ContractExtractItem {
+  quantita_da_confermare?: boolean;
+  codice?: string | null;
+  unita?: string | null;
+  /** Fornitura del cliente: resta nel documento, ma non diventa un acquisto dell'impresa. */
+  a_carico_committente?: boolean;
   descrizione: string;
   quantita: number;
   prezzo_unitario_eur: number;
+  /** Importo riga stampato: si conserva anche quando quantità × prezzo non quadra. */
+  importo_eur?: number | null;
   /** Il capitolo sotto cui la voce è elencata nel documento (17/11/2026): diventa la fase. */
   capitolo?: string | null;
   /** Cos'è (17/11/2026): solo «fornitura» e «fornitura_e_posa» diventano articoli da ordinare. */
@@ -62,6 +72,8 @@ export interface ContractExtractAltroCosto {
   importo_eur: number;
 }
 export interface ContractExtract {
+  riferimento_piano?: string;
+  lavorazioni_escluse?: boolean;
   dati_appalto?: {
     valorizzazione: "a_corpo" | "a_misura" | null;
     stima_eur: number | null; tetto_eur: number | null;
@@ -170,8 +182,8 @@ export function senzaTappeDiPagamento(fasi: ContractExtractWorkPhase[], rate: st
  * (allestimenti, demolizioni, impianti…) e dentro ci sono le lavorazioni. Nell'ordine del documento.
  */
 /** Le voci che si comprano: materiali, con o senza posa. Lavori, servizi e sconti restano nelle fasi. */
-export function vociDaComprare<T extends Pick<ContractExtractItem, "natura">>(voci: readonly T[]): T[] {
-  return voci.filter((v) => siCompra(v.natura ?? "fornitura_e_posa"));
+export function vociDaComprare<T extends Pick<ContractExtractItem, "natura" | "a_carico_committente">>(voci: readonly T[]): T[] {
+  return voci.filter((v) => v.a_carico_committente !== true && siCompra(v.natura ?? "fornitura_e_posa"));
 }
 
 /** Una riga a corpo che rimanda all'allegato («come da disegno e scheda tecnica allegati»): è il prezzo, non la merce. */
@@ -213,7 +225,7 @@ export function articoliDalContratto(ex: Pick<ContractExtract, "voci" | "posizio
   };
 }
 
-export function fasiDaCapitoli(voci: ContractExtractItem[]): ContractExtractWorkPhase[] {
+export function fasiDaCapitoli(voci: ContractExtractItem[], limite = MAX_FASI_CONTRATTO, limiteSottofasi = 30): ContractExtractWorkPhase[] {
   const perCapitolo = new Map<string, string[]>();
   for (const v of voci) {
     const c = v.capitolo?.trim();
@@ -224,15 +236,15 @@ export function fasiDaCapitoli(voci: ContractExtractItem[]): ContractExtractWork
     if (breve && !lista.includes(breve)) lista.push(breve);
     perCapitolo.set(nome, lista);
   }
-  return [...perCapitolo.entries()].slice(0, MAX_FASI_CONTRATTO).map(([nome, sottofasi]): ContractExtractWorkPhase => ({ nome: nome.slice(0, 80), giorni: null, sottofasi: sottofasi.slice(0, 30) }));
+  return [...perCapitolo.entries()].slice(0, limite).map(([nome, sottofasi]): ContractExtractWorkPhase => ({ nome: nome.slice(0, 80), giorni: null, sottofasi: sottofasi.slice(0, limiteSottofasi) }));
 }
 
-export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
+export function fasiLavoroDalTesto(raw: unknown, limite = MAX_FASI_CONTRATTO, limiteSottofasi = MAX_SOTTOFASI_CONTRATTO): ContractExtractWorkPhase[] {
   if (!Array.isArray(raw)) return [];
   const viste = new Set<string>();
   const out: ContractExtractWorkPhase[] = [];
   for (const f of raw) {
-    if (out.length >= MAX_FASI_CONTRATTO) break;
+    if (out.length >= limite) break;
     const o = (f && typeof f === "object" ? f : { nome: f }) as Record<string, unknown>;
     const nome = (toStr(o.nome) ?? "").replace(/\s+/g, " ").slice(0, 80).trim();
     const chiave = nome.toLowerCase();
@@ -242,8 +254,13 @@ export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
     const sottofasi = (Array.isArray(o.sottofasi) ? o.sottofasi : [])
       .map((x) => (toStr(x) ?? "").replace(/\s+/g, " ").slice(0, 160).trim())
       .filter((x, i, a) => x && a.indexOf(x) === i)
-      .slice(0, MAX_SOTTOFASI_CONTRATTO);
-    out.push({ nome, giorni: g != null && g > 0 && g <= 365 ? Math.round(g) : null, sottofasi });
+      .slice(0, limiteSottofasi);
+    const lavorazioni = Array.isArray(o.lavorazioni) ? oggetti(o.lavorazioni).slice(0, 1000).flatMap(l => {
+      const riferimento = toStr(l.riferimento), descrizione = toStr(l.descrizione), q = toNum(l.quantita);
+      return riferimento && descrizione ? [{ riferimento, descrizione: descrizione.slice(0, 160), quantita: q != null && q > 0 ? q : null, unita: toStr(l.unita), articolo_riferimenti: Array.isArray(l.articolo_riferimenti) ? l.articolo_riferimenti.filter((v): v is string => typeof v === "string").slice(0, 1000) : [] }] : [];
+    }) : null;
+    out.push({ nome, giorni: g != null && g > 0 && g <= 365 ? Math.round(g) : null, sottofasi,
+      ...(toStr(o.riferimento) ? { riferimento: toStr(o.riferimento)! } : {}), ...(o.origine === "proposta_operativa" || o.origine === "documento" ? { origine: o.origine } : {}), ...(lavorazioni ? { lavorazioni } : {}) });
   }
   return out;
 }
@@ -286,6 +303,8 @@ export function parseContractExtract(raw: unknown): ContractExtract {
   const a = (r.appalto_pubblico && typeof r.appalto_pubblico === "object" ? r.appalto_pubblico : {}) as Record<string, unknown>;
   const d = (r.dati_appalto && typeof r.dati_appalto === "object" ? r.dati_appalto : {}) as Record<string, unknown>;
   return {
+    ...(r.lavorazioni_escluse === true ? { lavorazioni_escluse: true } : {}),
+    ...(typeof r.riferimento_piano === "string" && /^contratto:[a-f0-9]{16}$/.test(r.riferimento_piano) ? { riferimento_piano: r.riferimento_piano } : {}),
     dati_appalto: {
       valorizzazione: d.valorizzazione === "a_corpo" || d.valorizzazione === "a_misura" ? d.valorizzazione : null,
       stima_eur: toNum(d.stima_eur), tetto_eur: toNum(d.tetto_eur), riferimento: toStr(d.riferimento),
@@ -325,9 +344,14 @@ export function parseContractExtract(raw: unknown): ContractExtract {
     voci: voci
       .filter((v): v is Record<string, unknown> => !!v && typeof v === "object")
       .map((v) => ({
+        ...((toNum(v.quantita) == null || v.quantita_da_confermare === true) ? { quantita_da_confermare: true } : {}),
+        ...(toStr(v.codice) ? { codice: toStr(v.codice)!.slice(0, 80) } : {}),
+        ...(toStr(v.unita ?? v.unita_misura) ? { unita: toStr(v.unita ?? v.unita_misura)!.slice(0, 30) } : {}),
+        ...(v.a_carico_committente === true ? { a_carico_committente: true } : {}),
         descrizione: toStr(v.descrizione) ?? "",
         quantita: toNum(v.quantita) ?? 1,
         prezzo_unitario_eur: toNum(v.prezzo_unitario_eur) ?? 0,
+        ...(toNum(v.importo_eur) != null ? { importo_eur: toNum(v.importo_eur) } : {}),
         capitolo: toStr(v.capitolo)?.replace(/\s+/g, " ").slice(0, 80) ?? null,
         // Dichiarata da chi legge (il computo, l'AI col campo «tipo»), altrimenti dalle parole della voce.
         natura: eNatura(v.natura) ? v.natura : eNatura(v.tipo) ? v.tipo
@@ -371,7 +395,9 @@ export function parseContractExtract(raw: unknown): ContractExtract {
       })),
     data_inizio_lavori: toStr(r.data_inizio_lavori),
     data_fine_lavori: toStr(r.data_fine_lavori),
-    fasi_lavoro: senzaTappeDiPagamento(fasiLavoroDalTesto(r.fasi_lavoro), fasi.map((f) => (f && typeof f === "object" ? toStr((f as Record<string, unknown>).descrizione) : null) ?? "")),
+    fasi_lavoro: senzaTappeDiPagamento(fasiLavoroDalTesto(r.fasi_lavoro,
+      r.origine_lettura === "computo" || oggetti(r.fasi_lavoro).some(f => Array.isArray(f.lavorazioni)) ? 80 : MAX_FASI_CONTRATTO,
+      r.origine_lettura === "computo" || oggetti(r.fasi_lavoro).some(f => Array.isArray(f.lavorazioni)) ? 1000 : MAX_SOTTOFASI_CONTRATTO), fasi.map((f) => (f && typeof f === "object" ? toStr((f as Record<string, unknown>).descrizione) : null) ?? "")),
     note_a_mano: noteDalTesto(r.note_a_mano),
     posizioni_allegato: posizioniDalTesto(r.posizioni_allegato),
     firma: firmaDalTesto(r.firma),
@@ -486,6 +512,8 @@ export function togliRigaRiassuntiva(extract: ContractExtract, imp: number | nul
 }
 
 export function reconcileContractExtract(estratto: ContractExtract): ContractExtract {
+  // Il lettore tabellare ha già conservato numeri e importi del PDF: nessuna correzione per farli quadrare.
+  if (estratto.origine_lettura === "computo") return estratto;
   // Bersaglio = l'imponibile più affidabile (scorporo dall'ivato prima di
   // tutto): inseguire un subtotale parziale fa sovracorreggere il greedy.
   const imp = contractImponibile(estratto) ?? estratto.importo_totale_eur;
@@ -599,7 +627,9 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
     }
   }
   if (extract.voci.length === 0 && !extract.appalto_pubblico?.presente) {
-    out.push("Nessuna voce estratta: su un ordine con articoli è quasi certamente un'estrazione incompleta.");
+    out.push(extract.importo_totale_eur != null || extract.importo_totale_ivato_eur != null
+      ? "Nessuna lavorazione o fornitura elencata: verifica gli allegati prima di generare fasi e acquisti."
+      : "Il documento non quantifica lavorazioni o forniture: collega il preventivo o il capitolato compilato.");
   }
   if (extract.iva_pct == null && deriveIvaPct(extract) == null) {
     out.push("Aliquota IVA non dichiarata e non deducibile dai totali: verifica prima di salvare.");

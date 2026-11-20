@@ -55,6 +55,21 @@ export interface Riquadro {
   pieno: number;
 }
 
+/** Anteprima della sola pagina scelta, per leggere la legenda delle scansioni. */
+export async function immaginePaginaTavola(byte: Uint8Array, numero: number): Promise<string> {
+  const lib = await pdfjs();
+  const caricamento = lib.getDocument({ data: byte.slice() });
+  try {
+    const doc = await caricamento.promise;
+    const pagina = await doc.getPage(numero), base = pagina.getViewport({ scale: 1 });
+    const vista = pagina.getViewport({ scale: Math.min(2, 2400 / Math.max(base.width, base.height)) });
+    const tela = document.createElement("canvas"); tela.width = Math.ceil(vista.width); tela.height = Math.ceil(vista.height);
+    const ctx = tela.getContext("2d"); if (!ctx) throw new Error("Il browser non riesce ad aprire questa pagina.");
+    await pagina.render({ canvasContext: ctx, canvas: tela, viewport: vista, background: "white" }).promise;
+    return tela.toDataURL("image/jpeg", 0.85);
+  } finally { await caricamento.destroy(); }
+}
+
 /**
  * Disegna la pagina a riquadri di `lato` punti PDF, ognuno a `scala`
  * (1,3 → un riquadro di 1.300 punti diventa ~1.700 pixel). Chiama `suRiquadro`

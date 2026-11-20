@@ -77,7 +77,7 @@ export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange,
           )}
           {fase.sottofasi.length > 0 && <details className="ml-7 mt-1 text-xs text-slate-500">
             <summary className="cursor-pointer py-1">{fase.sottofasi.length} {fase.sottofasi.length === 1 ? "sottofase" : "sottofasi"}</summary>
-            <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">{fase.sottofasi.map((s, j) => <li key={j} className="break-words">{s.nome}</li>)}</ul>
+            <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">{fase.sottofasi.map((s, j) => <li key={j} className="break-words">{s.nome}{s.quantita != null && <span className="ml-2 tabular-nums">· {s.quantita.toLocaleString("it-IT")} {s.unita}</span>}</li>)}</ul>
           </details>}
         </li>)}
       </ol> : <p className="px-3 pb-3 text-xs text-slate-500">Nessuna fase.</p>}

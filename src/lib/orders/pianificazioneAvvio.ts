@@ -20,7 +20,7 @@ export function fasiDaBozza(valore: unknown): FaseModello[] | null {
   if (!Array.isArray(valore) || valore.length > 60) return null;
   const fasi: FaseModello[] = [];
   for (const fase of valore) {
-    if (!fase || typeof fase.nome !== "string" || !Array.isArray(fase.sottofasi) || fase.sottofasi.length > 40) return null;
+    if (!fase || typeof fase.nome !== "string" || !Array.isArray(fase.sottofasi) || fase.sottofasi.length > (fase.riferimento ? 1000 : 40)) return null;
     const sottofasi: FaseModello["sottofasi"] = [];
     for (const sotto of fase.sottofasi) {
       if (!sotto || typeof sotto.nome !== "string" || !Number.isFinite(sotto.peso)) return null;
@@ -28,11 +28,12 @@ export function fasiDaBozza(valore: unknown): FaseModello[] | null {
       const giorniSotto = Number.isInteger(sotto.giorni) && sotto.giorni >= 1 && sotto.giorni <= 3650 ? sotto.giorni : null;
       sottofasi.push({
         nome: sotto.nome.slice(0, 160), peso: Math.min(100, Math.max(1, Math.round(sotto.peso))),
+        ...(typeof sotto.riferimento === "string" ? { riferimento: sotto.riferimento.slice(0, 1000), quantita: typeof sotto.quantita === "number" && Number.isFinite(sotto.quantita) && sotto.quantita > 0 ? sotto.quantita : null, unita: typeof sotto.unita === "string" ? sotto.unita.slice(0, 30) : null } : {}),
         ...(giorniSotto ? { giorni: giorniSotto } : {}), ...(sotto.in_parallelo === true ? { in_parallelo: true } : {}),
       });
     }
     const giorni = Number.isInteger(fase.giorni) && fase.giorni >= 1 && fase.giorni <= 3650 ? fase.giorni : null;
-    fasi.push({ nome: fase.nome.slice(0, 160), sottofasi, ...(giorni ? { giorni } : {}) });
+    fasi.push({ nome: fase.nome.slice(0, 160), sottofasi, ...(giorni ? { giorni } : {}), ...(typeof fase.riferimento === "string" ? { riferimento: fase.riferimento.slice(0, 1000) } : {}) });
   }
   return fasi;
 }

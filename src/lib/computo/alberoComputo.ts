@@ -38,6 +38,7 @@ export interface VoceComputo {
   is_detrazione: boolean;
   a_corpo: boolean;
   warnings: string[] | null;
+  is_modified?: boolean | null;
   misure: MisuraComputo[];
   fonte_prezzo?: string | null;
   note_misure?: string | null;

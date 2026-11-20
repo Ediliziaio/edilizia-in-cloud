@@ -20,7 +20,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { isProviderCreditError } from "../_shared/aiRequestGuard.ts";
-import { contaPaginePdf, MODELLO_LETTURA_ACCURATA, primoModelloLettura, serveLetturaAccurata } from "../_shared/sceltaModelloLettura.ts";
+import { contaPaginePdfCompleto, MODELLO_LETTURA_ACCURATA, primoModelloLettura, serveLetturaAccurata } from "../_shared/sceltaModelloLettura.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
@@ -195,7 +195,7 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "importo_totale_eur": "numero: l'imponibile FINALE del documento (IVA esclusa) COMPRENSIVO di sconti gia' applicati e di imballaggio/trasporto — cioe' l'ultimo totale prima dell'IVA, non un subtotale intermedio",
   "iva_pct": numero (es. 22, 10, 4) o null,
   "importo_totale_ivato_eur": numero totale con IVA o null,
-  "voci": [{ "descrizione": "string", "quantita": numero, "prezzo_unitario_eur": numero, "capitolo": "string o null: l'intestazione del gruppo sotto cui la voce e' elencata nel documento, copiata com'e' scritta; null se il documento non divide le voci in gruppi" }],
+  "voci": [{ "codice": "codice della riga stampato o null", "descrizione": "string", "unita": "unita' di misura stampata o null, distinta dalla quantita'", "quantita": numero, "prezzo_unitario_eur": numero, "tipo": "lavorazione|fornitura|fornitura_e_posa|servizio", "a_carico_committente": "boolean: true solo se il documento dice che il cliente fornisce quel materiale", "capitolo": "string o null: l'intestazione del gruppo sotto cui la voce e' elencata nel documento, copiata com'e' scritta; null se il documento non divide le voci in gruppi" }],
   "_regole_voci": "ESAUSTIVITA' OBBLIGATORIA: estrai OGNI POSIZIONE del modulo d'ordine/abaco, anche su documenti lunghi — mai riassumere, mai accorpare posizioni diverse in una. Se il documento ha una riga a corpo col totale E sotto il dettaglio con codici, quantita' e prezzi (computo, preventivo analitico), le voci sono le righe del dettaglio, ognuna col suo capitolo, e la riga a corpo NON e' una voce; anche le righe del dettaglio a prezzo zero sono voci. Anche le righe con 'compreso', 'incluso', 'compresi' o 'inclusa' al posto del prezzo (es. 'Pose e materiali di consumo: compreso', 'Trasporti: compreso', 'Smaltimento: incluso') SONO voci, con prezzo_unitario_eur 0 e la quantita' scritta: dicono che quel lavoro o servizio fa parte del contratto, non vanno solo nei warning. La voce e' la POSIZIONE COMMERCIALE col SUO prezzo (es. 'Porta 1', 'Finestra 2', 'PF2A 1270x2520'): i COMPONENTI elencati dentro una posizione (vetri, pannelli, ferramenta, maniglie, rinforzi, profili della scheda tecnica) NON sono voci — non estrarli come righe. Mantieni nella descrizione modello e dimensioni LxH del SERRAMENTO se presenti (NON quelle dei singoli vetri). Usa il campo quantita invece di duplicare righe identiche (es. 'Finestra 8 x3' = quantita 3 col prezzo UNITARIO). NON creare righe di totale/subtotale. Accessori venduti a parte con prezzo proprio (coprifili, estensioni, kit) SONO voci. Se il prezzo di una posizione non e' leggibile metti 0 e aggiungi un warning. ATTENZIONE alle offerte con DUE colonne di prezzo ('Prezzo' e 'Totale'): prezzo_unitario_eur e' il prezzo di UN pezzo (colonna Prezzo), MAI il totale riga — controllo per OGNI voce: quantita × prezzo_unitario deve dare il totale riga stampato; se usassi il totale come unitario una voce con quantita 3 varrebbe il triplo. Alla fine verifica: somma(quantita*prezzo) deve avvicinarsi al subtotale merce del documento — se non torna, aggiungi warning con i due numeri",
   "sconto_globale_pct": "numero o null — sconto percentuale applicato sul totale (es. 'Sconto: 15,00 %')",
   "altri_costi": [{ "descrizione": "string (es. Imballaggio / Trasporto / Oneri)", "importo_eur": numero }],
@@ -244,6 +244,7 @@ REGOLE:
    - "summary": riassunto narrativo italiano max 280 char
    - "confidence": 0.0-1.0 sulla qualità complessiva dell'estrazione
    - "warnings": [] eventuali campi mancanti / dubbi
+6. Le chiavi che iniziano con _regole contengono istruzioni: applicale ma NON copiarle nella risposta. Le tariffe eventuali delle condizioni generali non sono lavorazioni ordinate e non diventano voci senza una quantita' o un affidamento esplicito. I campi lasciati in bianco di un facsimile restano null.
 
 SCHEMA STRUTTURA (rispetta nomi e tipi):
 ${schema}
@@ -335,7 +336,8 @@ Deno.serve(async (req) => {
     ];
     if ((mime_type ?? "").startsWith("text/")) {
       // Il testo incollato (una mail, un messaggio): si legge come testo, non come file (15/11/2026).
-      const scritto = new TextDecoder().decode(buffer).slice(0, 30000);
+      const scritto = new TextDecoder().decode(buffer);
+      if (scritto.length > 30000) return errorResponse("Testo troppo lungo per una lettura completa: dividilo in più documenti.", 413, cors);
       userContent.push({ type: "text", text: `TESTO DEL DOCUMENTO (incollato da chi carica):\n${scritto}` });
     } else if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
@@ -363,7 +365,7 @@ Deno.serve(async (req) => {
     // di documento restano sul modello del compito.
     const perContratto = doc_type === "contratto_commessa";
     const primoModello = perContratto
-      ? primoModelloLettura({ mime: mime_type ?? null, byte: buffer.byteLength, pagine: isImage || (mime_type ?? "").startsWith("text/") ? null : contaPaginePdf(new Uint8Array(buffer)) })
+      ? primoModelloLettura({ mime: mime_type ?? null, byte: buffer.byteLength, pagine: isImage || (mime_type ?? "").startsWith("text/") ? null : await contaPaginePdfCompleto(new Uint8Array(buffer)) })
       : null;
     const leggi = (modello: string | null, chiave: string) => aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -395,6 +397,7 @@ Deno.serve(async (req) => {
       // uno spreco e basta.
       cacheKey: chiave,
       cacheTtlDays: 90,
+      cacheSoloSeFinita: true,
     });
     // La chiave dice anche il modello: la lettura di Sonnet non deve tornare dalla cache di Haiku.
     const chiavePrima = primoModello ? `${idempotencyKey}:${primoModello}` : idempotencyKey;
@@ -410,12 +413,14 @@ Deno.serve(async (req) => {
     // Su risposte lunghe alcuni modelli aggiungono testo attorno al JSON: la lettura tollerante
     // (recinzione ```json, blocco { … } più esterno) è condivisa con le altre funzioni.
     let extracted = leggiJsonDalModello(aiResult.content);
-    if (primoModello && primoModello !== MODELLO_LETTURA_ACCURATA && serveLetturaAccurata(extracted)) {
+    const interrotta = (r: typeof aiResult) => ["length", "max_tokens"].includes(r.rawResponse?.choices?.[0]?.finish_reason);
+    if (primoModello && primoModello !== MODELLO_LETTURA_ACCURATA && (interrotta(aiResult) || serveLetturaAccurata(extracted))) {
       console.warn(`[generic-doc-ai-extract] ${primoModello} non basta (${extracted ? "solo il totale" : "risposta illeggibile"}): rilettura con ${MODELLO_LETTURA_ACCURATA}`);
       aiResult = await leggi(MODELLO_LETTURA_ACCURATA, `${idempotencyKey}:${MODELLO_LETTURA_ACCURATA}`);
       extracted = leggiJsonDalModello(aiResult.content);
     }
     const elapsedMs = Date.now() - t0;
+    if (interrotta(aiResult)) return errorResponse("La lettura AI si è interrotta prima della fine: i dati non sono completi. Dividi il documento e riprova.", 502, cors);
     if (!extracted) {
       console.error("[generic-doc-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
       const e = letturaNonRiuscita();

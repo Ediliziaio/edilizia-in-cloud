@@ -30,6 +30,31 @@ beforeEach(() => { state.rpc.mockReset().mockImplementation(async () => ({ data:
 const inserts = () => state.calls.filter(c => c.op === "insert");
 
 describe("OdA commessa: preflight reale e mutazioni simulate", () => {
+  it("blocca anche una vecchia proposta da ricetta priva del flag tecnico esplicito", async () => {
+    state.current = [{ ...item, origini: [{ tipo: "computo", fonte: "libreria_standard" }] }];
+    await expect(createMaterialPurchaseOrder(input())).rejects.toThrow(/dati tecnici/);
+    expect(state.rpc).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0);
+  });
+  it("rilegge il controllo tecnico dal database e blocca una selezione vecchia prima di qualsiasi scrittura", async () => {
+    state.current = [{ ...item, origini: [{ tipo: "computo", verifica_acquisto: { stato: "da_verificare", motivi: ["Resa da verificare"], campi_mancanti: ["resa"] } }] }];
+    await expect(createMaterialPurchaseOrder(input())).rejects.toThrow(/dati tecnici/);
+    expect(state.rpc).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0);
+  });
+  it("accetta la verifica tecnica esplicitamente confermata", async () => {
+    state.current = [{ ...item, origini: [{ tipo: "computo", dati_documentali: { dati_mancanti: ["Resa da confermare prima della revisione"] }, verifica_acquisto: { stato: "confermata", motivi: ["Resa verificata"], campi_mancanti: [] } }] }];
+    await expect(createMaterialPurchaseOrder(input())).resolves.toMatchObject({ poId: "po" });
+  });
+  it("blocca i dati documentali incompleti anche se il vecchio salvataggio non ha il flag di verifica", async () => {
+    state.current = [{ ...item, origini: [{ tipo: "computo", dati_documentali: { dati_mancanti: ["Scheda del rasante e resa non disponibili"] } }] }];
+    await expect(createMaterialPurchaseOrder(input())).rejects.toThrow(/dati tecnici/);
+    expect(state.rpc).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0);
+  });
+  it("la conferma di una provenienza non conferma automaticamente un'altra provenienza incompleta", async () => {
+    state.current = [{ ...item, origini: [{ tipo: "computo", verifica_acquisto: { stato: "confermata", motivi: [], campi_mancanti: [] } },
+      { tipo: "computo", dati_documentali: { dati_mancanti: ["Abaco mancante per la seconda fornitura"] } }] }];
+    await expect(createMaterialPurchaseOrder(input())).rejects.toThrow(/dati tecnici/);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
   it("crea una bozza collegata con IVA zero e non cambia lo stato dell’articolo", async () => {
     await expect(createMaterialPurchaseOrder(input())).resolves.toEqual({ poId: "po", n: 1 });
     expect(state.rpc).toHaveBeenCalledWith("crea_oda_materiali_atomica", expect.objectContaining({ p_company_id: "company", p_order_id: "order", p_righe: [expect.objectContaining({ quantity: 10, vat_rate: 0, order_item_id: "a" })] }));

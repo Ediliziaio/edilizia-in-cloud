@@ -8,7 +8,7 @@ import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
  */
 // (montaggio condizionale lato CreateOrder: nasce solo all'apertura)
 import { useState, useRef, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -24,6 +24,8 @@ import { parseContractExtract, reconcileContractExtract, contractImponibile, con
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { verificaContrattoNelTesto, type VerificaNelTesto } from "@/lib/orders/contrattoNelTesto";
 import { testoPaginePdf } from "@/lib/orders/testoPaginePdf";
+import { integraUnitaDalPdf } from "@/lib/orders/riscontriVociPdf";
+import { completaRiscontriLettura } from "@/lib/orders/completezzaLettura";
 import { prepareContract, readableContractWarning, dataFirmaVerificata, contractAnalysisHint, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "./ContractPreparationCard";
 import { confermeDelPiano, eLavoroSingolo } from "@/lib/orders/confermeContratto";
@@ -33,8 +35,11 @@ import { REGOLA_VOCI, RILEGGI_VOCI, soloIlTotale } from "@/lib/orders/avvisiCont
 import { useAuth } from "@/contexts/AuthContext";
 import { BUCKET_ORIGINALI_AI } from "@/lib/orders/documentImportAi";
 import { leggiComputoSenzaAi } from "@/lib/orders/contrattoDaComputo";
+import { PianoContrattoCollegato } from "./contratto/PianoContrattoCollegato";
+import { fasiOperativePerEstratto, pianoOperativoContratto } from "@/lib/orders/pianoOperativoContratto";
+import { AnalisiGiaCollegataError, commessaDellaLettura, cercaLetturaContratto, contestoLetturaContratto, elencaLettureContratto, improntaFileContratto, indicazioniLetturaContratto, salvaLetturaContratto, type LetturaContrattoSalvata } from "@/lib/orders/lettureContrattoSalvate";
 
-const ACCEPTED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
+const ACCEPTED = [".pdf", ".xpwe", ".xlsx", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
 const BUCKET = "order-attachments";
 
@@ -75,21 +80,24 @@ function fmtBytes(b: number): string {
 
 export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId, destinazione = "cliente", orderId = null }: Props) {
   const { effectiveCompany, user } = useAuth();
+  const queryClient = useQueryClient();
   const workflowProfilo = useContractWorkflowProfile();
   const { perContratto: modelliFasi } = useFasiDiPartenza();
   const [file, setFile] = useState<File | null>(null);
   // Il file dell'analisi Silvio (se si arriva da lì): riusato da storage.
-  const { data: remoteFile = null } = useQuery<RemoteFileRef | null>({
-    queryKey: ["contract-import-analysis-file", initialAnalysisId],
+  const { data: remoteFileDaSilvio = null } = useQuery<RemoteFileRef | null>({
+    queryKey: ["contract-import-analysis-file", companyId, orderId, initialAnalysisId],
     enabled: !!initialAnalysisId && !!companyId && open,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data } = await supabase
         .from("document_analysis_results")
-        .select("storage_bucket, storage_path, file_name, mime_type, company_id")
+        .select("storage_bucket, storage_path, file_name, mime_type, company_id, structured_fields")
         .eq("id", initialAnalysisId!)
         .maybeSingle();
       if (!data || data.company_id !== companyId) return null;
+      const collegata = commessaDellaLettura(data.structured_fields);
+      if (collegata && collegata !== orderId) throw new AnalisiGiaCollegataError(collegata);
       return {
         bucket: data.storage_bucket,
         path: data.storage_path,
@@ -102,9 +110,21 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   // fornitore, il cliente finale è Rossi"): chi carica conosce il documento
   // meglio del modello — le note entrano nel prompt con priorità.
   const [noteAi, setNoteAi] = useState("");
+  const [remoteFileSalvato, setRemoteFileSalvato] = useState<RemoteFileRef | null>(null);
+  const remoteFile = remoteFileSalvato ?? remoteFileDaSilvio;
+  const contesto = contestoLetturaContratto(destinazione, effectiveCompany?.name, noteAi);
+  const [analisiSalvata, setAnalisiSalvata] = useState<LetturaContrattoSalvata | null>(null);
+  const [erroreArchivio, setErroreArchivio] = useState(false);
+  const { data: analisiRecenti = [] } = useQuery({
+    queryKey: ["letture-contratto-salvate", companyId, contesto, orderId],
+    enabled: open && !!companyId,
+    queryFn: () => elencaLettureContratto(companyId!, contesto, orderId),
+    staleTime: 30_000,
+  });
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [commessaCollegata, setCommessaCollegata] = useState<string | null>(null);
   const [extract, setExtract] = useState<ContractExtract | null>(null);
   // Le parti che entrano nella commessa: ogni scheda ha la sua spunta (17/11/2026). Partono tutte spuntate.
   const [scelte, setScelte] = useState<Set<ParteContratto>>(new Set());
@@ -121,17 +141,47 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const [pathAnalizzato, setPathAnalizzato] = useState<string | null>(null);
 
   const reset = useCallback(() => {
-    setFile(null); setBusy(false); setError(null); setExtract(null);
+    setFile(null); setBusy(false); setError(null); setExtract(null); setCommessaCollegata(null);
     setPathAnalizzato(null); setFirmaVerificata(false); setDataFirma("");
+    setRemoteFileSalvato(null); setAnalisiSalvata(null); setErroreArchivio(false);
   }, []);
 
   const pick = (f: File) => {
     if (busy) return;
     const ext = "." + (f.name.split(".").pop()?.toLowerCase() ?? "");
-    if (!ACCEPTED.includes(ext)) { toast.error("Formato non supportato. Usa PDF o immagine."); return; }
+    if (!ACCEPTED.includes(ext)) { toast.error("Formato non supportato. Usa PDF, XPWE, Excel .xlsx o immagine."); return; }
     if (f.size === 0) { toast.error("Il file è vuoto. Carica un documento leggibile."); return; }
     if (f.size > MAX_SIZE) { toast.error(`File troppo grande (max ${fmtBytes(MAX_SIZE)}).`); return; }
-    setFile(f); setError(null); setExtract(null); setFirmaVerificata(false); setDataFirma("");
+    setFile(f); setError(null); setCommessaCollegata(null); setExtract(null); setPathAnalizzato(null); setFirmaVerificata(false); setDataFirma("");
+    setRemoteFileSalvato(null); setAnalisiSalvata(null); setErroreArchivio(false);
+  };
+
+  const riprendiAnalisi = (lettura: LetturaContrattoSalvata) => {
+    const indicazioni = indicazioniLetturaContratto(lettura.contesto);
+    if (indicazioni !== null) setNoteAi(indicazioni);
+    setExtract(lettura.estratto); setScelte(new Set(partiPresenti(lettura.estratto)));
+    setPathAnalizzato(`${lettura.originale.bucket}/${lettura.originale.path}`);
+    setRemoteFileSalvato(lettura.originale); setAnalisiSalvata(lettura); setErroreArchivio(false);
+    setVerifica(null); setTestoDocumento(null); setError(null);
+    setFirmaVerificata(false); setDataFirma("");
+  };
+
+  const archiviaAnalisi = async (estratto: ContractExtract, originale: StoredContractFile, locale: File | null) => {
+    try {
+      let documento = locale;
+      if (!documento) {
+        const { data, error } = await supabase.storage.from(originale.bucket).download(originale.path);
+        if (error || !data) throw new Error("Originale non recuperato per il salvataggio dell'analisi.");
+        documento = new File([data], originale.name, { type: originale.mime });
+      }
+      const salvata = await salvaLetturaContratto({ companyId: companyId!, hash: await improntaFileContratto(documento),
+        contesto, estratto, originale, uploadedBy: user?.id ?? null, orderId });
+      setAnalisiSalvata(salvata); setErroreArchivio(false);
+      void queryClient.invalidateQueries({ queryKey: ["letture-contratto-salvate", companyId] });
+    } catch {
+      setErroreArchivio(true);
+      toast.warning("Lettura disponibile, ma analisi non archiviata. Conserva la bozza e riprova il salvataggio prima di chiudere.");
+    }
   };
 
   const caricaOriginale = async (originale: File): Promise<StoredContractFile> => {
@@ -160,14 +210,31 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         if (eDoc) throw new Error(`Documenti della commessa: ${eDoc.message}`);
       }
     }
-    return {bucket,path,name:originale.name,mime:originale.type || "application/pdf",size:originale.size};
+    return {bucket,path,name:originale.name,mime:originale.type || "application/pdf",size:originale.size,sha256:sha};
   };
 
   const analyze = async (notaExtra = "") => {
     if ((!file && !remoteFile) || !companyId) return;
     const note = [noteAi, notaExtra].filter(Boolean).join(" ");
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setCommessaCollegata(null);
     try {
+      // La lettura strutturata avviene prima di qualsiasi upload: il computo resta sul dispositivo
+      // finché l'utente conferma «Applica». Anche una demo senza credito AI può leggerlo.
+      if (destinazione === "cliente" && file) {
+        const daComputo = await leggiComputoSenzaAi(file);
+        if (daComputo) {
+          setExtract({ ...daComputo, warnings: [...daComputo.warnings,
+            ...(/\bsal\b|finale|consuntiv/i.test(file.name) ? ["Il nome del file indica un SAL o un consuntivo: verifica quali lavori sono già eseguiti prima di pianificare nuovi acquisti."] : [])] });
+          setScelte(new Set(partiPresenti(daComputo)));
+          setVerifica(null); setTestoDocumento(null);
+          return;
+        }
+      }
+      // Stesso contenuto e stesse indicazioni, anche con un nome diverso: nessun nuovo invio al modello.
+      if (file && !notaExtra) {
+        const precedente = await cercaLetturaContratto(companyId, await improntaFileContratto(file), contesto, orderId);
+        if (precedente) { riprendiAnalisi(precedente); return; }
+      }
       let bucket: string, path: string, fileName: string, mime: string;
       if (file) {
         // Path = hash del contenuto (audit 2026-09, punto 2): lo stesso file
@@ -216,7 +283,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
             doc_type: "contratto_commessa",
             // La regola delle voci va sempre, dopo le note di chi carica (17/11/2026: con la regola 12 letture su 12
             // complete, senza 11 su 12 e una volta una riga sola su 56). Se la nota è lunga, si taglia la regola.
-            user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, [nota, REGOLA_VOCI].filter(Boolean).join(" ")) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${nota}`.slice(0,600),
+            user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, noteAi, notaExtra || (nota.includes(RILEGGI_VOCI) ? RILEGGI_VOCI : REGOLA_VOCI)) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${nota}`.slice(0,600),
           },
         });
         if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
@@ -246,12 +313,15 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         finally { setRileggo(false); }
       }
       setPathAnalizzato(`${bucket}/${path}`);
+      if (pagine) parsed = completaRiscontriLettura(integraUnitaDalPdf(parsed, pagine).estratto, pagine);
       setExtract(parsed);
       setScelte(new Set(partiPresenti(parsed)));
       setVerifica(pagine ? verificaContrattoNelTesto(parsed, pagine) : null);
       setTestoDocumento(testo);
+      await archiviaAnalisi(parsed, { bucket, path, name: fileName, mime, size: file?.size }, file);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof AnalisiGiaCollegataError) setCommessaCollegata(e.orderId);
     } finally {
       setBusy(false);
     }
@@ -615,11 +685,14 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     const slash = pathAnalizzato?.indexOf("/") ?? -1;
     let source: StoredContractFile | null = pathAnalizzato && slash > 0 ? { bucket: pathAnalizzato.slice(0,slash), path: pathAnalizzato.slice(slash+1), name: sorgente?.name ?? remoteFile?.name ?? "contratto.pdf", mime: sorgente?.type ?? remoteFile?.mime ?? "application/pdf" } : null;
     // Un file non caricato da questo lettore (es. quello di Silvio) si conserva tra gli originali del contratto.
-    if (source && sorgente && (source.bucket !== (orderId ? BUCKET : BUCKET_ORIGINALI_AI) || !source.path.startsWith(`${orderId ?? companyId}/ai-contratti/`))) {
+    if (sorgente && (!source || source.bucket !== (orderId ? BUCKET : BUCKET_ORIGINALI_AI) || !source.path.startsWith(`${orderId ?? companyId}/ai-contratti/`))) {
       try { source = await caricaOriginale(sorgente); }
       catch { toast.error("Non riesco a conservare l'originale nei documenti della commessa. Riprova prima di applicare i dati."); return; }
     }
     if (source && sorgente) source.size = sorgente.size;
+    if (source && analisiSalvata) source = { ...source, sha256: analisiSalvata.originale.sha256 ?? source.sha256, analysisId: analisiSalvata.analysisId };
+    // Il computo letto sul dispositivo si archivia con l'originale solo alla conferma.
+    if (source && extract.origine_lettura === "computo") await archiviaAnalisi(extract, source, sorgente);
     if (source && firmaVerificata) source.firmaConfermataIl = dataFirma;
     // Solo le parti spuntate: le altre arrivano vuote, come se il documento non le avesse.
     onApply(destinazione === "cliente" ? soloLeParti(extract, scelte) : extract, sorgente, source);
@@ -646,6 +719,13 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
 
         {!extract ? (
           <div className="space-y-4">
+            {!file && analisiRecenti.length > 0 && <div className="space-y-2 rounded-lg border p-3" aria-label="Analisi salvate">
+              <p className="text-sm font-medium">{orderId ? "Documenti di questa commessa" : "Documenti da completare"}</p>
+              <p className="text-xs text-muted-foreground">{orderId ? "Riapri le ultime tre letture senza consumare AI." : "Ultime tre letture ancora da collegare. Dopo la creazione restano nella loro commessa."}</p>
+              {analisiRecenti.map((lettura) => <Button key={`${lettura.originale.path}-${lettura.contesto}`} variant="outline" className="h-auto w-full justify-start whitespace-normal text-left" disabled={busy} onClick={() => riprendiAnalisi(lettura)}>
+                {lettura.originale.name} · {new Date(lettura.salvata_il).toLocaleString("it-IT")}
+              </Button>)}
+            </div>}
             <div
               className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${dragOver ? "border-orange-400 bg-orange-50" : "border-slate-200 hover:border-slate-300"}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -678,7 +758,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                   ) : (
                   <p className="text-sm font-medium">Trascina qui il contratto</p>
                   )}
-                  <p className="text-xs text-muted-foreground mt-1">PDF o immagine — max {fmtBytes(MAX_SIZE)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, XPWE, Excel .xlsx o immagine — max {fmtBytes(MAX_SIZE)}. I computi strutturati si leggono sul dispositivo.</p>
                 </>
               )}
             </div>
@@ -705,13 +785,18 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
             {error && (
               <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
+                <div><span>{error}</span>{commessaCollegata && <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={() => navigate(`/azienda/ordini/${commessaCollegata}`)}>Apri commessa collegata</Button>}</div>
               </div>
             )}
 
           </div>
         ) : (
           <div className="space-y-3">
+            {analisiSalvata && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
+              <span className="flex-1">Lettura recuperata · {new Date(analisiSalvata.salvata_il).toLocaleString("it-IT")}{orderId ? " · di questa commessa" : " · si collega quando crei la commessa"}</span>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void analyze(`${REGOLA_VOCI} Nuova lettura richiesta dall’utente: ${new Date().toISOString()}.`)}>{busy ? "Rilettura…" : "Aggiorna con l’AI"}</Button>
+            </div>}
+            {erroreArchivio && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">Questa analisi non è stata archiviata: i dati sono disponibili nell’anteprima, ma il recupero dopo la chiusura non è garantito.</p>}
             {destinazione === "cliente" && !workflowProfilo.data && <p role="status" className="text-sm text-muted-foreground">{workflowProfilo.isError ? "Configurazione aziendale non disponibile. Riprova prima di applicare il contratto." : "Caricamento configurazione aziendale…"}</p>}
             {destinazione === "cliente" && pianoContratto && !eLavoroSingolo(pianoContratto) && <ContractPreparationCard piano={pianoContratto} />}
             {soloIlTotale(extract, testoDocumento) && (
@@ -723,7 +808,8 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                 </Button>
               </div>
             )}
-            <RisultatoLettura extract={extract} verifica={verifica} testoDocumento={testoDocumento}
+            <RisultatoLettura extract={extract.origine_lettura === "computo" ? extract : { ...extract, fasi_lavoro: fasiOperativePerEstratto(pianoOperativoContratto(extract)) }} verifica={verifica} testoDocumento={testoDocumento}
+              pianoCollegato={companyId && destinazione === "cliente" && extract.origine_lettura !== "computo" ? <PianoContrattoCollegato extract={extract} companyId={companyId} orderId={orderId} /> : undefined}
               scelte={destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" ? scelte : undefined}
               onModifica={(e) => {
                 // Una parte che era vuota e ora ha qualcosa (fasi aggiunte a mano) si spunta da sola.
@@ -799,7 +885,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {rileggo ? "Rileggo le voci, la prima lettura era incompleta…" : "L'AI sta leggendo…"}</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
             </Button>
           ) : <>
-              <Button variant="outline" onClick={reset}>Ricarica un altro</Button>
+              <Button variant="outline" disabled={busy} onClick={reset}>Ricarica un altro</Button>
               {destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" && (
                 <span className="min-w-0 flex-1 self-center text-xs text-muted-foreground">
                   {scelte.size ? <>Entrano nella commessa: {[...scelte].map((p) => ETICHETTA_PARTE[p].toLowerCase()).join(", ")}</> : "Non hai scelto niente da applicare"}
@@ -812,7 +898,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                     Crea Ordine d'Acquisto
                   </Button>
                 )}
-                <Button onClick={apply} disabled={(destinazione === "cliente" && (!workflowProfilo.data || (extract.natura_documento !== "offerta_fornitore" && scelte.size === 0))) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
+                <Button onClick={apply} disabled={busy || (destinazione === "cliente" && (!workflowProfilo.data || (extract.natura_documento !== "offerta_fornitore" && scelte.size === 0))) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
               </div>
           </>}
         </DialogFooter>
