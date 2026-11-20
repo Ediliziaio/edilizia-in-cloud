@@ -29,7 +29,7 @@ vi.mock("@/hooks/usePermissions", () => ({
 }));
 
 const profilo = { id: "utente", first_name: "Marta", last_name: "Demo", email: "marta@example.com", company_id: "azienda" };
-const risposta = (tabella: string) => ({
+const risposta = (tabella: string): { data: typeof profilo | { role: string }[] | null; error: null } => ({
   data: tabella === "profiles" ? profilo : tabella === "user_roles" ? [{ role: "company_admin" }, { role: "salesperson" }] : null,
   error: null,
 });
