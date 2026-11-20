@@ -28,6 +28,10 @@ export function fvConfigurationPayload(
     p_project_id: identity.projectId,
     p_expected_updated_at: identity.updatedAt,
     p_project: {
+      analisi_consumi: data.analisi_consumi ?? null,
+      riferimento_tetto: data.riferimento_tetto ?? null,
+      consumo_annuo_kwh: data.consumo_annuo_kwh,
+      costo_kwh_attuale: data.costo_kwh_attuale,
       numero_pannelli_scelti: data.numero_pannelli_scelti,
       potenza_kwp: data.potenza_kwp,
       con_accumulo: data.con_accumulo,

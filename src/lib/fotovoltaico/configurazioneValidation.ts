@@ -1,3 +1,4 @@
+import {problemiConsumiFv} from "../../../supabase/functions/_shared/fvBollette";
 import type { ConfigurazioneComponentiFv, ListinoComponentiFv } from './componentiConfigurazione';
 import type { FvTipoServizio } from './tipi';
 import { leggiDisegnoCommerciale, pannelliDaRivedere } from '../../../supabase/functions/_shared/fvDisegnoCommerciale';
@@ -9,7 +10,7 @@ export function tipoServizioFv(raw: string): FvTipoServizio {
 }
 
 type Configurazione = ConfigurazioneComponentiFv & {
-  layout_overlay?: unknown;
+  layout_overlay?: unknown; analisi_consumi?:unknown; consumo_annuo_kwh?:number|null; costo_kwh_attuale?:number|null;
   iva_aliquota: number; prezzo_vendita_manuale: number | null;
   manodopera_righe: Array<{ descrizione: string; ore: number; tariffa_oraria_netta: number; tariffa_oraria_vendita: number }>;
   servizi_righe: Array<{ tipo?: string; descrizione: string; quantita: number; prezzo_netto: number; prezzo_vendita: number }>;
@@ -20,7 +21,7 @@ const nonnegative = (n: unknown): n is number => typeof n === 'number' && Number
 /** Validate the WHOLE configuration before the first native mutation. No missing
  * catalogue entry may disappear silently from the saved components or PDF. */
 export function problemiConfigurazioneFv(data: Configurazione, listino?: ListinoComponentiFv): string[] {
-  const issues: string[] = [];
+  const issues: string[] = problemiConsumiFv(data.analisi_consumi,data.consumo_annuo_kwh,data.costo_kwh_attuale);
   const disegno = leggiDisegnoCommerciale(data.layout_overlay);
   if (disegno && pannelliDaRivedere(disegno).length) issues.push("Riposiziona i pannelli fuori falda o sovrapposti prima di salvare la configurazione.");
   if (disegno && data.numero_pannelli_scelti !== disegno.pannelli.length) issues.push('La quantità del preventivo deve corrispondere ai pannelli disegnati.');

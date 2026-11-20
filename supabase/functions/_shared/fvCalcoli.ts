@@ -7,9 +7,14 @@
  * trasparenti quando i dati mancano (annotato con // ESTIMATE).
  */
 
+import { leggiAnalisiConsumi } from "./fvBollette.ts";
+import { simulaEnergiaFv } from "./fvSimulazioneEnergetica.ts";
+import { resaMappaFv } from "./fvMappa.ts";
 // ─── ENERGY FLOWS ──────────────────────────────────────────────────────────
 
 export interface FvFlowsInput {
+  analisi_consumi?: unknown;
+  layout_overlay?: unknown;
   potenza_kwp: number;
   has_accumulo: boolean;
   capacita_accumulo_kwh: number;
@@ -61,6 +66,9 @@ export function quotaAutoconsumo(profilo: FvProfiloAutoconsumo | null | undefine
 }
 
 export interface FvFlows {
+  perdite_accumulo_kwh?: number;
+  energia_accumulo_finale_kwh?: number;
+  consumo_simulato_kwh?: number;
   produzione_kwh: number;
   autoconsumo_kwh: number;
   ceduto_rete_kwh: number;
@@ -80,7 +88,8 @@ export interface FvFlows {
  *   prelievo_rete = consumo_annuo - autoconsumo_kwh (se autoconsumo < consumo)
  */
 export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
-  const oreSole = input.ore_sole_annue ?? 1700; // ESTIMATE: ore di picco LORDE, media Italia
+  const resa=resaMappaFv(input.layout_overlay);
+  const oreSole = resa?.ore ?? input.ore_sole_annue ?? 1700; // ESTIMATE: ore di picco LORDE, media Italia
   const pr = input.performance_ratio ?? 0.85;
   const effSistema = input.efficienza_sistema ?? 0.89;
   // ore_sole_annue è LORDO: applico PR × efficienza di sistema (≈0.7565) come il motore
@@ -90,6 +99,13 @@ export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
   const produzione_kwh = input.produzione_kwh != null && Number(input.produzione_kwh) > 0
     ? Math.round(Number(input.produzione_kwh))
     : Math.round(input.potenza_kwp * oreSole * pr * effSistema * (1 - perdita_ombra));
+  const analisi=leggiAnalisiConsumi(input.analisi_consumi);
+  if(input.analisi_consumi!=null&&!analisi)throw Error("Le ipotesi energetiche non sono valide: verifica i consumi.");
+  if(analisi){
+    const produzioneSimulata=input.produzione_kwh??input.potenza_kwp*oreSole*pr*effSistema*(1-perdita_ombra);
+    const f=simulaEnergiaFv({consumoAnnuo:input.consumo_annuo_kwh,produzioneAnnua:produzioneSimulata,batteriaKwh:input.has_accumulo?input.capacita_accumulo_kwh:0,costoEvitabileKwh:0,prezzoImmissione:0,profilo:analisi.profilo,pesiProduzioneMensili:resa?.pesiMensili});
+    return{produzione_kwh:f.produzione,autoconsumo_kwh:f.autoconsumo,ceduto_rete_kwh:f.immessa,prelievo_rete_kwh:f.acquistata,autoconsumo_pct:f.quotaProduzioneUsata,autosufficienza_pct:f.coperturaConsumi,consumo_da_rete_pct:1-f.coperturaConsumi,consumo_da_fv_pct:f.coperturaConsumi,perdite_accumulo_kwh:f.perditeAccumulo,energia_accumulo_finale_kwh:f.energiaFinaleBatteria,consumo_simulato_kwh:f.consumo};
+  }
 
   // Base autoconsumo per profilo (sengza accumulo)
   const baseProfilo: Record<string, number> = {
@@ -160,6 +176,7 @@ export function calcolaProducibilitaMensile(produzione_annua_kwh: number): numbe
 // ─── COSTI 20 ANNI (con/senza FV) ──────────────────────────────────────────
 
 export interface FvCosti20Input {
+  costi_fissi_annui_eur?: number;
   consumo_annuo_kwh: number;
   prelievo_rete_kwh: number; // dopo FV
   prezzo_kwh_attuale: number;
@@ -199,12 +216,13 @@ export function calcolaCosti20Anni(input: FvCosti20Input): FvCosti20Output {
     const prezzoKwhAnno = input.prezzo_kwh_attuale * fattoreInflazione;
 
     // Senza FV: paga tutto il consumo a prezzo crescente
-    const costoSenza = input.consumo_annuo_kwh * prezzoKwhAnno;
+    const fissi=input.costi_fissi_annui_eur??0;
+    const costoSenza = input.consumo_annuo_kwh * prezzoKwhAnno+fissi;
     // Con FV: paga solo il prelievo da rete (cresce nel tempo per degrado pannelli)
     const prelievoConDegrado =
       input.prelievo_rete_kwh +
       (input.consumo_annuo_kwh - input.prelievo_rete_kwh) * (1 - fattoreDegrado);
-    const costoCon = Math.max(0, prelievoConDegrado * prezzoKwhAnno - (input.ricavi_rid_anno_eur ?? 0) * fattoreInflazione);
+    const costoCon = fissi+Math.max(0, prelievoConDegrado * prezzoKwhAnno - (input.ricavi_rid_anno_eur ?? 0) * fattoreInflazione);
 
     totale_senza_fv += costoSenza;
     totale_con_fv += costoCon;

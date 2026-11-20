@@ -114,6 +114,8 @@ export type FvTipoServizio =
 // ─── Entità DB ──────────────────────────────────────────────────────────────
 
 export interface FvProgetto {
+  analisi_consumi?: import("../../../supabase/functions/_shared/fvBollette").AnalisiConsumiFv | null;
+  riferimento_tetto?: import("@/components/fotovoltaico/FvMappaTetto").RiferimentoTettoFv | null;
   /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
   modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<Record<string, unknown>> | null;
   id: string;

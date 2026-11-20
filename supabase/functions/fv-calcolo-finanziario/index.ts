@@ -18,7 +18,10 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
+import { calcolaEnergyFlows, quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
+import { problemiConsumiFv, leggiAnalisiConsumi } from "../_shared/fvBollette.ts";
+import { resaMappaFv } from "../_shared/fvMappa.ts";
+import { flussiAnnoOrarioFv, type BilancioOrarioFv } from "../_shared/fvSimulazioneEnergetica.ts";
 
 interface Payload {
   progetto_id: string;
@@ -218,7 +221,7 @@ Deno.serve(async (req: Request) => {
     // Clamp a [0, 0.6] per robustezza contro valori fuori scala.
     const perdita_ombra = Math.min(0.6, Math.max(0, prog.perdita_ombreggiamento_pct ?? 0));
     const produzione_anno_1 =
-      prog.potenza_kwp * prog.ore_sole_annue * PR * eff_netta * (1 - perdita_ombra);
+      prog.potenza_kwp * (resaMappaFv(prog.layout_overlay)?.ore??prog.ore_sole_annue) * PR * eff_netta * (1 - perdita_ombra);
 
     // ── 4. Autoconsumo % dal profilo ───────────────────────────────────────
     // Le fasce per batteria sono in quotaAutoconsumo, la stessa che usa il PDF.
@@ -231,14 +234,20 @@ Deno.serve(async (req: Request) => {
     }
 
     // Vincolo: produzione > consumo cap autoconsumo a consumo
-    const energia_autoconsumata_max = prog.consumo_annuo_kwh;
+    const analisiConsumi=leggiAnalisiConsumi(prog.analisi_consumi);
+    const problemiConsumi=problemiConsumiFv(prog.analisi_consumi,prog.consumo_annuo_kwh,prog.costo_kwh_attuale);if(problemiConsumi.length)return errorResponse(problemiConsumi[0],400,corsHeaders);
+    if(prog.analisi_consumi!=null&&!analisiConsumi)return errorResponse("Verifica i dati e il profilo dei consumi prima del calcolo.",400,corsHeaders);
+    const bilancioOrario:BilancioOrarioFv|undefined=analisiConsumi?{profilo:analisiConsumi.profilo,capacitaAccumulo:prog.con_accumulo?prog.capacita_accumulo_kwh??0:0,pesiProduzioneMensili:resaMappaFv(prog.layout_overlay)?.pesiMensili}:undefined;
+    const flussiOrari=analisiConsumi?calcolaEnergyFlows({analisi_consumi:analisiConsumi,layout_overlay:prog.layout_overlay,potenza_kwp:prog.potenza_kwp,produzione_kwh:produzione_anno_1,has_accumulo:prog.con_accumulo,capacita_accumulo_kwh:prog.capacita_accumulo_kwh??0,consumo_annuo_kwh:prog.consumo_annuo_kwh}):null;
+    if(flussiOrari)autoconsumo_pct=flussiOrari.autoconsumo_pct;
+    const energia_autoconsumata_max = flussiOrari?.consumo_simulato_kwh??prog.consumo_annuo_kwh;
     let energia_autoconsumata = produzione_anno_1 * autoconsumo_pct;
     if (energia_autoconsumata > energia_autoconsumata_max) {
       energia_autoconsumata = energia_autoconsumata_max;
     }
-    const energia_immessa = Math.max(0, produzione_anno_1 - energia_autoconsumata);
+    const energia_immessa = flussiOrari?.ceduto_rete_kwh??Math.max(0, produzione_anno_1 - energia_autoconsumata);
     const prezzo_kwh_attuale = prog.costo_kwh_attuale ?? par("costo_kwh_default_residenziale", 0.32);
-    const prezzo_rid = par("prezzo_rid_eur_kwh", 0.10);
+    const prezzo_rid = analisiConsumi?.prezzoImmissione??par("prezzo_rid_eur_kwh", 0.10);
     const risparmio_bolletta = energia_autoconsumata * prezzo_kwh_attuale;
     const ricavi_rid = energia_immessa * prezzo_rid;
 
@@ -276,6 +285,7 @@ Deno.serve(async (req: Request) => {
     const tassoNpv = par("tasso_sconto_npv", 0.04);
 
     const cassa = calcolaCassaCumulata({
+      bilancio_orario: bilancioOrario,
       investimento_iniziale: prezzo_vendita_iva_inclusa,
       produzione_anno_1_kwh: produzione_anno_1,
       autoconsumo_pct,
@@ -314,18 +324,18 @@ Deno.serve(async (req: Request) => {
     // ── 8. Sensitivity ±15% prezzo energia ────────────────────────────────
     const sens_minus15 = applicaSensitivity({
       base: cassa, delta: -0.15,
-      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh },
+      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh, bilancio_orario:bilancioOrario },
     });
     const sens_plus15 = applicaSensitivity({
       base: cassa, delta: +0.15,
-      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh },
+      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh, bilancio_orario:bilancioOrario },
     });
 
     // ── 9. What-if scenari ────────────────────────────────────────────────
     // consumo_extra_kwh: EV ≈ +3000 kWh/anno, PdC ≈ +4000 kWh/anno → alzano il
     // cap autoconsumo coerentemente col delta_autoconsumo (vedi simulaScenario).
-    const scenarioEv = simulaScenario({ delta_autoconsumo: 0.20, consumo_extra_kwh: 3000, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh } });
-    const scenarioPdC = simulaScenario({ delta_autoconsumo: 0.30, risparmio_extra_annuo: 800, consumo_extra_kwh: 4000, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh } });
+    const scenarioEv = simulaScenario({ delta_autoconsumo: 0.20, consumo_extra_kwh: 3000, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh, bilancio_orario:bilancioOrario } });
+    const scenarioPdC = simulaScenario({ delta_autoconsumo: 0.30, risparmio_extra_annuo: 800, consumo_extra_kwh: 4000, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh, bilancio_orario:bilancioOrario } });
 
     // ── 10. Confronti alternative ─────────────────────────────────────────
     const tassoBtp = par("tasso_btp_25anni", 0.038);
@@ -354,11 +364,12 @@ Deno.serve(async (req: Request) => {
     // F6: stesso cap autoconsumo della cassa annuale, ripartito sui mesi con la
     // stessa distribuzione (cap_mese = consumo_annuo × pct). Senza cap il mese
     // estivo di un impianto sovradimensionato sovrastimerebbe il risparmio.
+    const mesiOrari=bilancioOrario?flussiAnnoOrarioFv(produzione_anno_1,prog.consumo_annuo_kwh,bilancioOrario).mensili:null;
     const distMensile = mensileDistribution(prog.provincia ?? null);
     const cassa_mese = distMensile.map((pct, i) => {
-      const prod_mese = produzione_anno_1 * pct;
-      const auto_mese = Math.min(prod_mese * autoconsumo_pct, prog.consumo_annuo_kwh * pct);
-      const imm_mese = Math.max(0, prod_mese - auto_mese);
+      const prod_mese = mesiOrari?.[i].produzione??produzione_anno_1 * pct;
+      const auto_mese = mesiOrari?.[i].autoconsumo??Math.min(prod_mese * autoconsumo_pct, prog.consumo_annuo_kwh * pct);
+      const imm_mese = mesiOrari?.[i].immessa??Math.max(0, prod_mese - auto_mese);
       return {
         mese: i + 1,
         produzione_kwh: round2(prod_mese),
@@ -552,6 +563,7 @@ interface FlussoAnno {
 }
 
 function calcolaCassaCumulata(input: {
+  bilancio_orario?: BilancioOrarioFv;
   investimento_iniziale: number;
   produzione_anno_1_kwh: number;
   autoconsumo_pct: number;
@@ -581,10 +593,11 @@ function calcolaCassaCumulata(input: {
     const rid_n = input.prezzo_rid_kwh * Math.pow(1.02, anno - 1);
     // CAP autoconsumo (identico al client finanziaria.ts): non si può
     // auto-consumare più del consumo annuo. Se omesso → nessun cap (storico).
-    const auto = input.consumo_annuo_kwh != null
+    const orario=input.bilancio_orario&&input.consumo_annuo_kwh!=null?flussiAnnoOrarioFv(prod_n,input.consumo_annuo_kwh,input.bilancio_orario):null;
+    const auto = orario?.autoconsumo ?? (input.consumo_annuo_kwh != null
       ? Math.min(prod_n * input.autoconsumo_pct, input.consumo_annuo_kwh)
-      : prod_n * input.autoconsumo_pct;
-    const imm = prod_n - auto;
+      : prod_n * input.autoconsumo_pct);
+    const imm = orario?.immessa ?? prod_n - auto;
     const risp = auto * prezzo_n;
     const rid = imm * rid_n;
     const det = anno <= input.durata_detrazione_anni ? input.detrazione_annua_eur : 0;
@@ -659,6 +672,7 @@ function verificaCapienzaIrpef(input: { costo_lavoro_eur: number; aliquota_detra
 }
 
 interface ScenarioInput {
+  bilancio_orario?: BilancioOrarioFv;
   investimento: number;
   produzione_anno_1: number;
   prezzo_kwh_base: number;
@@ -675,6 +689,7 @@ interface ScenarioInput {
 
 function applicaSensitivity(args: { base: FlussoAnno[]; delta: number; input: ScenarioInput & { autoconsumo_pct: number; ricavi_rid_anno_1: number } }) {
   const cassa = calcolaCassaCumulata({
+    bilancio_orario:args.input.bilancio_orario,
     investimento_iniziale: args.input.investimento,
     produzione_anno_1_kwh: args.input.produzione_anno_1,
     autoconsumo_pct: args.input.autoconsumo_pct,
@@ -695,13 +710,15 @@ function applicaSensitivity(args: { base: FlussoAnno[]; delta: number; input: Sc
 }
 
 function simulaScenario(args: { delta_autoconsumo: number; risparmio_extra_annuo?: number; consumo_extra_kwh?: number; autoconsumo_base: number; base_input: ScenarioInput }) {
-  const newAuto = Math.min(1, args.autoconsumo_base + args.delta_autoconsumo);
+  let newAuto = Math.min(1, args.autoconsumo_base + args.delta_autoconsumo);
   // EV/PdC alzano i consumi: se la base ha un cap, alzalo della stessa quota,
   // così il maggior autoconsumo non viene tagliato dal min() (coerente col client).
   const consumoCap = args.base_input.consumo_annuo_kwh != null
     ? args.base_input.consumo_annuo_kwh + (args.consumo_extra_kwh ?? 0)
     : undefined;
+  if(args.base_input.bilancio_orario&&consumoCap!=null)newAuto=flussiAnnoOrarioFv(args.base_input.produzione_anno_1,consumoCap,args.base_input.bilancio_orario).quotaProduzioneUsata;
   const cassa = calcolaCassaCumulata({
+    bilancio_orario:args.base_input.bilancio_orario,
     investimento_iniziale: args.base_input.investimento,
     produzione_anno_1_kwh: args.base_input.produzione_anno_1,
     autoconsumo_pct: newAuto,

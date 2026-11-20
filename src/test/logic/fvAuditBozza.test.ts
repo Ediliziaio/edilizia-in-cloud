@@ -7,11 +7,14 @@
 import { isDeepStrictEqual } from "node:util";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadPersistedDraft, savePersistedDraft, validatePersistedDraft } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/helpers";
+import {analisiConsumiIniziale} from "../../../supabase/functions/_shared/fvBollette";
 import { INITIAL } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 import type { WizardData } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/types";
 
 /** Un progetto compilato fino in fondo: ogni campo ha un valore diverso da quello iniziale. */
 const COMPILATO: WizardData = {
+  analisi_consumi:{...analisiConsumiIniziale(true),correzioni:{consumoAnnuo:4200,costiEvitabiliAnnui:1134}},
+  riferimento_tetto:{posizione:{lat:40.851,lng:14.261},ricerca:{indirizzo:"Via Roma 1",posizione:{lat:40.85,lng:14.26}}},
   cliente_nome: "Ada", cliente_cognome: "Verdi", cliente_telefono: "333 1234567", cliente_email: "ada@example.com", cliente_id: "c-1",
   cointestatario_nome: "Bruno", cointestatario_cognome: "Verdi", cointestatario_codice_fiscale: "VRDBRN80A01F839X", cointestatario_email: "bruno@example.com", cointestatario_telefono: "333 7654321",
   cliente_tipo: "azienda", cliente_ragione_sociale: "Neri Impianti Srl", cliente_codice_fiscale: "01114601006", cliente_partita_iva: "01114601006", cliente_codice_univoco: "UF1234",

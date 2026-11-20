@@ -30,6 +30,7 @@ import {
 } from "./componentiConfigurazione";
 import { aliquotaIvaFv, percentualeIvaFv } from "./importoPreventivo";
 import { type PrezzoFv, calcolaPrezzoFv } from "./prezzoPreventivo";
+import { resaMappaFv } from "../../../supabase/functions/_shared/fvMappa";
 
 /** Il derate di sistema (PR 0,85 × 0,89 di efficienza ≈ 0,7565) che la Fase 5 applica alle ore di sole lorde. */
 export const DERATE_PRODUZIONE_FV = 0.7565;
@@ -43,15 +44,17 @@ export const DERATE_PRODUZIONE_FV_OTTIMIZZATORI = 0.7832;
  * una produzione diversa da quella del PDF.
  */
 export function stimaProduzioneFv(d: {
+  layout_overlay?: unknown;
   potenza_kwp: number | null;
   ore_sole_annue: number | null;
   con_ottimizzatori?: boolean | null;
   perdita_ombreggiamento_pct?: number | null;
 }): number {
-  if (!d.potenza_kwp || !d.ore_sole_annue) return 0;
+  const ore=resaMappaFv(d.layout_overlay)?.ore??d.ore_sole_annue;
+  if (!d.potenza_kwp || !ore) return 0;
   const derate = d.con_ottimizzatori ? DERATE_PRODUZIONE_FV_OTTIMIZZATORI : DERATE_PRODUZIONE_FV;
   const ombra = Math.min(0.6, Math.max(0, Number(d.perdita_ombreggiamento_pct) || 0));
-  return d.potenza_kwp * d.ore_sole_annue * derate * (1 - ombra);
+  return d.potenza_kwp * ore * derate * (1 - ombra);
 }
 
 /** I campi del wizard che servono all'anteprima (`WizardData` li ha tutti). */

@@ -117,6 +117,7 @@ function aliquotaIva(valore: unknown): number {
   return Math.round((n <= 1 ? n * 100 : n) * 100) / 100;
 }
 
+import { problemiConsumiFv, leggiAnalisiConsumi, riepilogoBollette } from "../_shared/fvBollette.ts";
 Deno.serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -150,7 +151,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_id, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, economia_azienda, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo, condizioni_origine, stato",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_id, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cliente_tipo, cliente_ragione_sociale, cliente_codice_fiscale, cliente_partita_iva, cliente_codice_univoco, cointestatario_nome, cointestatario_cognome, cointestatario_codice_fiscale, economia_azienda, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot, layout_overlay, condizioni_nel_pdf, condizioni_testo, condizioni_origine, stato, analisi_consumi, riferimento_tetto",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -525,7 +526,13 @@ Deno.serve(async (req: Request) => {
     const profilo = ((profiliRes.data ?? []) as FvProfiloAutoconsumo[])
       .find((x) => x.codice === (prog.profilo_consumo ?? "misto")) ?? null;
     const capacitaAccumulo = prog.con_accumulo === false ? 0 : Number(prog.capacita_accumulo_kwh) || 0;
+    const analisiConsumi=leggiAnalisiConsumi(prog.analisi_consumi);
+    const problemiConsumi=problemiConsumiFv(prog.analisi_consumi,prog.consumo_annuo_kwh,prog.costo_kwh_attuale);if(problemiConsumi.length)return errorResponse(problemiConsumi[0],400,corsHeaders);
+    if(prog.analisi_consumi!=null&&!analisiConsumi)return errorResponse("Verifica le ipotesi energetiche prima di generare il PDF.",400,corsHeaders);
+    const spesaBolletta=analisiConsumi?riepilogoBollette(analisiConsumi):null;
     const ingressiFlussi = {
+      analisi_consumi: analisiConsumi,
+      layout_overlay: prog.layout_overlay,
       potenza_kwp: Number(prog.potenza_kwp) || 0,
       has_accumulo: prog.con_accumulo ?? false,
       capacita_accumulo_kwh: Number(prog.capacita_accumulo_kwh) || 0,
@@ -803,8 +810,16 @@ Deno.serve(async (req: Request) => {
         layout_pannelli: p.layout_pannelli ?? null,
         has_accumulo: prog.con_accumulo ?? false,
         capacita_accumulo_kwh: Number(prog.capacita_accumulo_kwh) || 0,
-        consumo_annuo_kwh: Number(prog.consumo_annuo_kwh) || 0,
-        costo_kwh_attuale: Number(prog.costo_kwh_attuale) || 0.32,
+        consumo_annuo_kwh: flows.consumo_simulato_kwh ?? (Number(prog.consumo_annuo_kwh) || 0),
+        costo_kwh_attuale: prog.costo_kwh_attuale != null ? Number(prog.costo_kwh_attuale) : 0.32,
+        costi_fissi_annui_eur: spesaBolletta?.fissiAnnui ?? null,
+        ipotesi_energetiche: analisiConsumi ? [
+          `Consumo di partenza ${Number(prog.consumo_annuo_kwh).toLocaleString("it-IT")} kWh/anno; aumento futuro previsto ${analisiConsumi.profilo.aumentoConsumiPct}%.`,
+          spesaBolletta?.stimato ? `Proiezione su ${spesaBolletta.giorniCoperti} giorni disponibili, confermata dall’operatore.` : "Consumo annuo confermato dall’operatore.",
+          `Profilo orario indicativo: ${analisiConsumi.profilo.giorni.length} giorni/settimana, attività ${analisiConsumi.profilo.oraInizio}–${analisiConsumi.profilo.oraFine}; carico fuori orario ${Math.round(analisiConsumi.profilo.quotaFuoriOrario*100)}%.`,
+          "Accumulo: capacità utile 90%, rendimento di ciclo 90%. Ombre vicine inserite dall’operatore; nessuna garanzia di copertura delle ombre non rilevate.",
+          `Valorizzazione immissioni ${analisiConsumi.prezzoImmissione.toLocaleString("it-IT")} €/kWh, distinta dal minor costo degli acquisti.`
+        ] : undefined,
         profilo_consumo: prog.profilo_consumo,
         fonte_dati_tetto: prog.fonte_dati_tetto ?? null,
         layout_overlay: prog.layout_overlay,

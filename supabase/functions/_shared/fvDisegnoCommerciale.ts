@@ -1,3 +1,4 @@
+import { leggiMappaFv, type MappaFv } from "./fvMappa.ts";
 /** Geometria commerciale in metri, condivisa da editor, salvataggio e PDF.
  * Nessuna verifica elettrica o strutturale: la posa proposta è da confermare.
  */
@@ -13,12 +14,13 @@ export type DisegnoCommercialeFv = {
   industriale?: {versione:1;posa:"aderente"|"sud"|"est_ovest";inclinazione:number;interfila:number;costi?:{strutturaModulo:number;inverterAggiuntivi:number;prezzoInverter:number}};
   rilievo?: {versione:1;id:string;nome:string};
   schema3d?: {altezza:number;pendenza:number};
+  mappa?: MappaFv;
 };
 const EPS = 0.00001;
 const finito = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const idValido = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 80;
-const puntoValido = (v: unknown): v is PuntoFv & Record<string, unknown> => record(v) && finito(v.x) && finito(v.y) && Math.abs(v.x) <= 200 && Math.abs(v.y) <= 200;
+const puntoValido = (v: unknown): v is PuntoFv & Record<string, unknown> => record(v) && finito(v.x) && finito(v.y) && Math.abs(v.x) <= 2000 && Math.abs(v.y) <= 2000;
 export const arrotondaMetro = (v: number) => Math.round(v * 100) / 100;
 
 export function areaPoligono(punti: PuntoFv[]): number {
@@ -89,7 +91,7 @@ export function posizioneModuloValida(piano: DisegnoCommercialeFv, pannello: Mod
   const falda = piano.falde.find(f => f.id === pannello.faldaId);
   const r = ingombroModulo(pannello, piano.modulo);
   if (!falda || !rettangoloNellaFalda(r, falda, piano.distanzaBordo)) return false;
-  if (piano.ostacoli.some(o => rettangoliSovrapposti(r, o, piano.distanzaBordo))) return false;
+  if (piano.ostacoli.some(o => rettangoliSovrapposti(r, o, piano.mappa?.distanzaOstacoli ?? piano.distanzaBordo))) return false;
   return !piano.pannelli.some(p => p.id !== pannello.id && (rettangoliSovrapposti(r, ingombroModulo(p, piano.modulo), piano.spazioModuli)||interfilaViolata(piano,pannello,p)));
 }
 export function pannelliDaRivedere(piano: DisegnoCommercialeFv) {
@@ -211,7 +213,7 @@ export function disponiModuliOttimizzati(piano: DisegnoCommercialeFv, quantita: 
 }
 /** Inserimento/spostamento atomico: conserva le altre falde e ricalcola quelle coinvolte. */
 export function aggiornaOstacoloConPosa(piano: DisegnoCommercialeFv, o: OstacoloFv): DisegnoCommercialeFv | null {
-  if (![o.x, o.y, o.w, o.h].every(Number.isFinite) || o.w < .1 || o.h < .1 || o.w > (piano.industriale?200:20) || o.h > (piano.industriale?200:20) || Math.abs(o.x) > 200 || Math.abs(o.y) > 200 || !o.id || o.id.length > 80) return null;
+  if (![o.x, o.y, o.w, o.h].every(Number.isFinite) || o.w < .1 || o.h < .1 || o.w > (piano.industriale?200:20) || o.h > (piano.industriale?200:20) || Math.abs(o.x) > 2000 || Math.abs(o.y) > 2000 || !o.id || o.id.length > 80) return null;
   if (!piano.ostacoli.some(v => v.id === o.id) && piano.ostacoli.length >= 100) return null;
   const falda = piano.falde.find(f => rettangoloNellaFalda(o, f, 0));
   if (!falda || piano.ostacoli.some(v => v.id !== o.id && rettangoliSovrapposti(o, v))) return null;
@@ -257,7 +259,9 @@ export function leggiDisegnoCommerciale(raw: unknown): DisegnoCommercialeFv | nu
   }
   let schema3d:DisegnoCommercialeFv["schema3d"];
   if(raw.schema3d!==undefined){const a=raw.schema3d;if(!record(a)||!finito(a.altezza)||a.altezza<2||a.altezza>150||!finito(a.pendenza)||a.pendenza<0||a.pendenza>75)return null;schema3d={altezza:a.altezza,pendenza:a.pendenza};}
-  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),
+  const mappa=raw.mappa===undefined?undefined:leggiMappaFv(raw.mappa);
+  if(raw.mappa!==undefined&&(!mappa||mappa.falde.length!==falde.length||mappa.falde.some(f=>!falde.some(q=>q.id===f.id))))return null;
+  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),...(mappa?{mappa}:{}),
     modulo: { corto: m.corto, lungo: m.lungo, stimato: m.stimato !== false }, distanzaBordo: raw.distanzaBordo, spazioModuli: raw.spazioModuli };
 }
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

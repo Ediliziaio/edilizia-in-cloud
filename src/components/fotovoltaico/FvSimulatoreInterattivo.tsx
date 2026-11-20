@@ -27,10 +27,10 @@ const eur = (v: number) =>
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 // Range degli slider (devono restare allineati ai min/max degli <Slider/> sotto).
-const COSTO_KWH_MIN = 0.15,
+const COSTO_KWH_MIN = 0,
   COSTO_KWH_MAX = 0.5;
-const AUTOCONSUMO_MIN = 0.2,
-  AUTOCONSUMO_MAX = 0.95;
+const AUTOCONSUMO_MIN = 0,
+  AUTOCONSUMO_MAX = 1;
 const INFLAZIONE_MIN = 0,
   INFLAZIONE_MAX = 0.06;
 
@@ -114,7 +114,8 @@ export function FvSimulatoreInterattivo({
 }) {
   // Stato iniziale clampato nei range degli slider: un valore base fuori range
   // altrimenti renderebbe lo slider incoerente e "modificato" sempre true.
-  const initCostoKwh = clamp(base.costo_kwh_attuale, COSTO_KWH_MIN, COSTO_KWH_MAX);
+  const costoMassimo=Math.max(COSTO_KWH_MAX,base.costo_kwh_attuale);
+  const initCostoKwh = clamp(base.costo_kwh_attuale, COSTO_KWH_MIN, costoMassimo);
   const initAutoconsumo = clamp(base.autoconsumo_pct, AUTOCONSUMO_MIN, AUTOCONSUMO_MAX);
   const initInflazione = clamp(base.inflazione_energia_pct, INFLAZIONE_MIN, INFLAZIONE_MAX);
 
@@ -182,7 +183,7 @@ export function FvSimulatoreInterattivo({
           display={`${costoKwh.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/kWh`}
           value={costoKwh}
           min={COSTO_KWH_MIN}
-          max={COSTO_KWH_MAX}
+          max={costoMassimo}
           step={0.01}
           onChange={setCostoKwh}
         />

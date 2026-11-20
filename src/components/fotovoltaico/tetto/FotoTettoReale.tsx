@@ -25,7 +25,7 @@ type Drag = {
     start: PuntoFv;
     end: PuntoFv;
 };
-export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSelezione, onProvvisorio, inquadratura }: {
+export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSelezione, onProvvisorio, inquadratura, mostraImmagineIntera = false }: {
     piano: DisegnoCommercialeFv;
     onChange: (p: DisegnoCommercialeFv) => void;
     modificabile: boolean;
@@ -33,6 +33,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     onSelezione: (s: SelezioneReale) => void;
     onProvvisorio: (p: DisegnoCommercialeFv | null) => void;
     inquadratura: InquadraturaReale;
+    mostraImmagineIntera?: boolean;
 }) {
     const { edificio, orto } = useRilievo(), falde = facceConAreePosa(edificio, piano).filter(f => f.tipo === "RoofSurface");
     const puntoFoto = (p: {
@@ -67,6 +68,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     }
     if (manuale?.versione === inquadratura.versione)
         vista = manuale.vista;
+    if (mostraImmagineIntera && orto) vista = {x:0,y:0,w:orto.larghezza,h:orto.altezza};
     const zoom = (fattore: number) => { const lato = Math.max(20, Math.min(Math.max(orto?.larghezza ?? 800, orto?.altezza ?? 800) * 2, vista.w * fattore)); setManuale({ versione: inquadratura.versione, vista: { x: vista.x + (vista.w - lato) / 2, y: vista.y + (vista.h - lato) / 2, w: lato, h: lato } }); };
     const punto = (e: EventoPuntatore) => { const m = svg.current?.getScreenCTM(); if (!m)
         return null; const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); return orto ? pixelMondo(orto.affine, p) : null; };
@@ -100,7 +102,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     <button type="button" aria-pressed={tool === "seleziona"} onClick={() => { setTool("seleziona"); setNota(""); }}>Seleziona e trascina</button>
     <button type="button" disabled={!modificabile || (!!piano.industriale && piano.industriale.posa !== "aderente")} aria-pressed={tool === "pannello"} onClick={() => { setTool("pannello"); setNota(""); }}>Aggiungi pannello sulla foto</button>
     <button type="button" disabled={!modificabile} aria-pressed={tool === "ostacolo"} onClick={() => { setTool("ostacolo"); setNota(""); }}>Segna ostacolo sulla foto</button>
-    <button type="button" aria-label="Avvicina la foto" onClick={() => zoom(.8)}>+</button><button type="button" aria-label="Allontana la foto" onClick={() => zoom(1.25)}>−</button>
+    {!mostraImmagineIntera&&<><button type="button" aria-label="Avvicina la foto" onClick={() => zoom(.8)}>+</button><button type="button" aria-label="Allontana la foto" onClick={() => zoom(1.25)}>−</button></>}
   </div><svg ref={svg} viewBox={`${vista.x} ${vista.y} ${vista.w} ${vista.h}`} className="fv-roof-photo-canvas" role="group" aria-label="Foto del tetto con pannelli e ostacoli" style={{ cursor: tool === "seleziona" ? "default" : "crosshair" }} onPointerDown={e => {
             if (tool === "seleziona") {
                 onSelezione(null);

@@ -230,6 +230,7 @@ export interface ProfiloAutoconsumoLite {
 }
 
 export interface ContestoVariantiVicine {
+  bilancio_orario?: InputCassaCumulata["bilancio_orario"];
   potenza_kwp: number;
   /** Investimento (prezzo di vendita IVA inclusa) della config base. */
   investimento_eur: number;
@@ -280,6 +281,7 @@ function buildInput(
   // La detrazione scala con l'investimento (è una % del costo ammissibile).
   const ratio = ctx.investimento_eur > 0 ? investimento_eur / ctx.investimento_eur : 1;
   return {
+    bilancio_orario: ctx.bilancio_orario,
     investimento_iniziale: investimento_eur,
     produzione_anno_1_kwh,
     autoconsumo_pct,
@@ -435,6 +437,7 @@ export function applicaOverride(
 ): InputCassaCumulata {
   return {
     ...base,
+    bilancio_orario: o.autoconsumo_pct!=null&&Math.abs(o.autoconsumo_pct-base.autoconsumo_pct)>1e-9?undefined:base.bilancio_orario,
     costo_kwh_attuale:
       o.costo_kwh_attuale != null
         ? Math.max(0.01, o.costo_kwh_attuale)

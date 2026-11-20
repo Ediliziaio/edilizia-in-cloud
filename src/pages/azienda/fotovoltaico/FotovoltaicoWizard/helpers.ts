@@ -14,6 +14,8 @@ import {
 import type { PersistedDraft, WizardData } from "./types";
 import { cambiaModalitaProgettazione, preventivoSenzaMappa } from "../../../../../supabase/functions/_shared/fvModalitaProgettazione";
 import { leggiDisegnoCommerciale } from "../../../../../supabase/functions/_shared/fvDisegnoCommerciale";
+import { leggiAnalisiConsumi } from "../../../../../supabase/functions/_shared/fvBollette";
+import { posizioneMappaValida } from "../../../../../supabase/functions/_shared/fvMappa";
 
 export function isCoordinataItalia(lat: number | null, lng: number | null): boolean {
   if (lat == null || lng == null) return false;
@@ -255,6 +257,8 @@ function sanitizzaLayoutOverlay(value: unknown): WizardData["layout_overlay"] | 
 }
 
 const CAMPI_STRUTTURATI: Partial<Record<keyof WizardData, (candidate: unknown) => unknown>> = {
+  analisi_consumi: (v) => v === null ? null : leggiAnalisiConsumi(v),
+  riferimento_tetto: (v) => isRecord(v) && posizioneMappaValida(v.posizione) && isRecord(v.ricerca) && posizioneMappaValida(v.ricerca.posizione) && typeof v.ricerca.indirizzo === "string" && v.ricerca.indirizzo.length <= 500 ? {posizione:v.posizione,ricerca:{posizione:v.ricerca.posizione,indirizzo:v.ricerca.indirizzo}} : null,
   prodotti_extra: sanitizzaProdottiExtra,
   manodopera_righe: sanitizzaManodopera,
   servizi_righe: sanitizzaServizi,
