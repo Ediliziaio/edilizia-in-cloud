@@ -1,6 +1,6 @@
 # Rapportini, lavorazioni, mezzi e trasporti
 
-Le funzioni descritte sono incluse nella PR 186 e nella migrazione 20290422150000.
+Le funzioni descritte sono incluse nella PR 186 e nelle migrazioni 20290422150000 e 20290422150100.
 
 ## Correggere un rapportino
 
@@ -12,7 +12,7 @@ Se nel frattempo un altro utente ha modificato la stessa versione, il salvataggi
 
 ## Togliere i rapportini di prova
 
-Scegliere **Elimina rapportino** sui documenti non approvati oppure **Annulla rapportino** sugli approvati, quindi inserire un motivo e confermare. Il documento scompare dagli elenchi operativi e i suoi effetti vengono stornati. Lo storico resta consultabile e, nella commessa, il pulsante **Mostra annullati** consente di ritrovarlo. L'annullamento è definitivo; per reinserire le ore occorre un nuovo rapportino. Le ore già annullate dall'ufficio si reinseriscono da **Ore e persone**.
+Scegliere **Elimina rapportino** sui documenti non approvati oppure **Annulla rapportino** sugli approvati, quindi inserire un motivo e confermare. Il documento scompare dagli elenchi operativi e i suoi effetti vengono stornati. Anche lo staff può eliminare un proprio rapportino inviato e ancora da approvare; questo annullamento definitivo è distinto dal rifiuto e non permette di autoapprovarsi. Lo storico resta consultabile e, nella commessa, il pulsante **Mostra annullati** consente di ritrovarlo. L'annullamento è definitivo; per reinserire le ore occorre un nuovo rapportino. Le ore già annullate dall'ufficio si reinseriscono da **Ore e persone**.
 
 Questa revisione non rimuove automaticamente alcun dato di Vulcano: gli utenti possono scegliere quali prove eliminare.
 
