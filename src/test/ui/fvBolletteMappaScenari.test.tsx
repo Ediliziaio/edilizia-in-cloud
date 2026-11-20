@@ -333,7 +333,7 @@ describe("Tetto manuale e mappa indisponibile", () => {
       />,
     );
     await waitFor(() =>
-      expect(screen.getByText(/Vista Google non disponibile/)).toBeTruthy()
+      expect(screen.getByText(/Collegamento alla mappa non disponibile/)).toBeTruthy()
     );
     fireEvent.click(screen.getByText("Rettangolo rapido e misure precise"));
     changeFormControl(screen.getByLabelText("Rotazione rettangolo falda"), {
@@ -435,22 +435,12 @@ describe("Disegno diretto sulla mappa", () => {
         name: "Usa falde e prepara nuova disposizione",
       }),
     ).toBeEnabled();
+    const prima = el.querySelector("polygon")!.getAttribute("points");
     fireEvent.click(screen.getByRole("button", { name: "Sposta mappa" }));
     pointer(el, "pointerdown", 300, 200);
     pointer(el, "pointermove", 400, 200);
     pointer(el, "pointerup", 400, 200);
-    await waitFor(() =>
-      expect(mocks.invoke).toHaveBeenCalledWith(
-        "maps-proxy",
-        expect.objectContaining({
-          body: expect.objectContaining({ lng: expect.any(Number) }),
-        }),
-      )
-    );
-    const richieste = mocks.invoke.mock.calls.filter((c) =>
-      c[0] === "maps-proxy"
-    );
-    expect(richieste.at(-1)![1].body.lng).toBeLessThan(posizione.lng);
+    expect(el.querySelector("polygon")!.getAttribute("points")).not.toBe(prima);
     fireEvent.click(
       screen.getByRole("button", {
         name: "Usa falde e prepara nuova disposizione",

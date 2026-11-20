@@ -504,7 +504,7 @@ serveConMetriche("manage-super-admins", async (req) => {
         "meta_app_id", "meta_app_secret",
         "openwa_base_url", "openwa_api_key", "openwa_webhook_secret",
         "openwa_quiet_start", "openwa_quiet_end",
-        "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id",
+        "google_maps_api_key", "google_maps_browser_key", "whatsapp_verify_token", "whatsapp_config_id",
         "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret", "stripe_mode",
         "google_calendar_client_id", "google_calendar_client_secret",
         "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",
@@ -512,16 +512,17 @@ serveConMetriche("manage-super-admins", async (req) => {
 
       // I valori dei segreti dal 19/09/2026 stanno nel Vault: dalla tabella la
       // data di modifica, da leggiImpostazioniPiattaforma i valori.
-      const [{ data: righe }, valori] = await Promise.all([
+      const [{ data: righe, error: letturaSettingsError }, valori] = await Promise.all([
         supabaseAdmin.from("platform_settings").select("key, updated_at").in("key", allSettingsKeys),
         leggiImpostazioniPiattaforma(allSettingsKeys),
       ]);
+      if (letturaSettingsError) throw new Error("Impossibile leggere le impostazioni. Riprova.");
       const settings = ((righe ?? []) as Array<{ key: string; updated_at: string }>)
         .map((r) => ({ key: r.key, value: valori[r.key] ?? "", updated_at: r.updated_at }));
 
       const result: Record<string, { value: string; masked?: string; updated_at?: string }> = {};
       const secretKeys = [
-        "meta_app_secret", "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id",
+        "meta_app_secret", "google_maps_api_key", "google_maps_browser_key", "whatsapp_verify_token", "whatsapp_config_id",
         "openwa_api_key", "openwa_webhook_secret",
         "stripe_secret_key", "stripe_webhook_secret",
         "google_calendar_client_secret",
@@ -553,25 +554,32 @@ serveConMetriche("manage-super-admins", async (req) => {
         "meta_app_id", "meta_app_secret",
         "openwa_base_url", "openwa_api_key", "openwa_webhook_secret",
         "openwa_quiet_start", "openwa_quiet_end",
-        "google_maps_api_key", "whatsapp_verify_token", "whatsapp_config_id",
+        "google_maps_api_key", "google_maps_browser_key", "whatsapp_verify_token", "whatsapp_config_id",
         "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret", "stripe_mode",
         "google_calendar_client_id", "google_calendar_client_secret",
         "google_calendar_allow_two_way", "google_calendar_allow_guest_contact_create", "google_calendar_allow_google_to_crm_import",
       ];
       const updates: { key: string; oldValue?: string }[] = [];
+      const browserKey = newSettings.google_maps_browser_key;
+      if (typeof browserKey === "string" && browserKey.trim() && !/^AIza[\w-]{35}$/.test(browserKey.trim())) {
+        return new Response(JSON.stringify({error:"La chiave della mappa interattiva Google non ha un formato valido."}), {
+          status:400,headers:{...getCorsHeaders(req),"Content-Type":"application/json"},
+        });
+      }
 
       for (const [key, value] of Object.entries(newSettings)) {
         if (!allowedKeys.includes(key)) continue;
         if (!value || typeof value !== "string" || (value as string).trim() === "") continue;
 
         // Get old value for audit (solo se c'era: il valore di un segreto sta nel Vault)
-        const { data: existing } = await supabaseAdmin
+        const { data: existing, error: existingError } = await supabaseAdmin
           .from("platform_settings")
           .select("key")
           .eq("key", key)
           .maybeSingle();
+        if (existingError) throw new Error("Impossibile verificare le impostazioni da aggiornare. Riprova.");
 
-        await supabaseAdmin
+        const { error: salvataggioSettingsError } = await supabaseAdmin
           .from("platform_settings")
           .upsert({
             key,
@@ -579,6 +587,7 @@ serveConMetriche("manage-super-admins", async (req) => {
             updated_at: new Date().toISOString(),
             updated_by: callerId,
           }, { onConflict: "key" });
+        if (salvataggioSettingsError) throw new Error("Impossibile salvare le impostazioni. Riprova.");
 
         updates.push({ key, oldValue: existing ? "***" : undefined });
       }

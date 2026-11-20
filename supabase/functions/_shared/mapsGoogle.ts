@@ -7,6 +7,7 @@ export type ErroreMapsGoogle =
   | "fatturazione"
   | "restrizioni"
   | "quota"
+  | "satellite_static_non_disponibile"
   | "timeout"
   | "non_disponibile";
 
@@ -23,6 +24,8 @@ const MESSAGGI: Record<ErroreMapsGoogle, string> = {
     "Google non consente a questo server di usare la mappa. Chiedi all’amministratore di verificare le restrizioni della credenziale.",
   quota:
     "Google Maps ha raggiunto il limite di utilizzo. Riprova più tardi o chiedi all’amministratore di verificare la quota.",
+  satellite_static_non_disponibile:
+    "La vista satellitare statica non è disponibile per questo account Google. Usa la mappa interattiva del configuratore.",
   timeout: "Google Maps non ha risposto in tempo. Riprova tra qualche secondo.",
   non_disponibile:
     "Vista Google non disponibile. Puoi inserire misure rilevate o riprovare.",
@@ -37,6 +40,7 @@ export function classificaErroreMapsGoogle(
   testo = "",
 ): ErroreMapsGoogle {
   const t = testo.slice(0, 4000).toLowerCase();
+  if (/satellite and hybrid map types are not available/.test(t)) return "satellite_static_non_disponibile";
   if (status === 429 || /quota|over_query_limit|resource_exhausted/.test(t)) {
     return "quota";
   }

@@ -1,5 +1,5 @@
 import { facceConAreePosa } from "./areaPosa";
-import { useRef, useState, type PointerEvent as EventoPuntatore } from "react";
+import { useRef, useState, type ReactNode, type PointerEvent as EventoPuntatore } from "react";
 import { pannelliDalDisegnoReale, dalDisegnoAlMondo, dallaFotoAlDisegno, cambiaModuloReale, type SelezioneReale, type InquadraturaReale } from "./tettoReale";
 import { limiteModuliDisegno, aggiornaOstacoloConPosa, arrotondaMetro, pannelliDaRivedere, posizioneModuloValida, puntoNelPoligono, type DisegnoCommercialeFv, type PuntoFv, type ModuloPosatoFv } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { useRilievo, proiettaFoto } from "./RilievoContext";
@@ -25,7 +25,7 @@ type Drag = {
     start: PuntoFv;
     end: PuntoFv;
 };
-export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSelezione, onProvvisorio, inquadratura, mostraImmagineIntera = false }: {
+export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSelezione, onProvvisorio, inquadratura, mostraImmagineIntera = false, sfondoMappa, navigazioneMappa = false, onScegliStrumento }: {
     piano: DisegnoCommercialeFv;
     onChange: (p: DisegnoCommercialeFv) => void;
     modificabile: boolean;
@@ -34,6 +34,9 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     onProvvisorio: (p: DisegnoCommercialeFv | null) => void;
     inquadratura: InquadraturaReale;
     mostraImmagineIntera?: boolean;
+    sfondoMappa?: ReactNode;
+    navigazioneMappa?: boolean;
+    onScegliStrumento?: () => void;
 }) {
     const { edificio, orto } = useRilievo(), falde = facceConAreePosa(edificio, piano).filter(f => f.tipo === "RoofSurface");
     const puntoFoto = (p: {
@@ -99,11 +102,13 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
     if (!orto)
         return <p className="fv-roof-photo-note">Questo rilievo non contiene un’ortofoto. Usa il modello 3D e la pianta delle falde per disporre i pannelli.</p>;
     return <><div className="fv-roof-photo-tools" role="group" aria-label="Comandi sulla foto">
-    <button type="button" aria-pressed={tool === "seleziona"} onClick={() => { setTool("seleziona"); setNota(""); }}>Seleziona e trascina</button>
-    <button type="button" disabled={!modificabile || (!!piano.industriale && piano.industriale.posa !== "aderente")} aria-pressed={tool === "pannello"} onClick={() => { setTool("pannello"); setNota(""); }}>Aggiungi pannello sulla foto</button>
-    <button type="button" disabled={!modificabile} aria-pressed={tool === "ostacolo"} onClick={() => { setTool("ostacolo"); setNota(""); }}>Segna ostacolo sulla foto</button>
+    <button type="button" aria-pressed={!navigazioneMappa && tool === "seleziona"} onClick={() => { onScegliStrumento?.(); setTool("seleziona"); setNota(""); }}>Seleziona e trascina</button>
+    <button type="button" disabled={!modificabile || (!!piano.industriale && piano.industriale.posa !== "aderente")} aria-pressed={!navigazioneMappa && tool === "pannello"} onClick={() => { onScegliStrumento?.(); setTool("pannello"); setNota(""); }}>Aggiungi pannello sulla foto</button>
+    <button type="button" disabled={!modificabile} aria-pressed={!navigazioneMappa && tool === "ostacolo"} onClick={() => { onScegliStrumento?.(); setTool("ostacolo"); setNota(""); }}>Segna ostacolo sulla foto</button>
     {!mostraImmagineIntera&&<><button type="button" aria-label="Avvicina la foto" onClick={() => zoom(.8)}>+</button><button type="button" aria-label="Allontana la foto" onClick={() => zoom(1.25)}>−</button></>}
-  </div><svg ref={svg} viewBox={`${vista.x} ${vista.y} ${vista.w} ${vista.h}`} className="fv-roof-photo-canvas" role="group" aria-label="Foto del tetto con pannelli e ostacoli" style={{ cursor: tool === "seleziona" ? "default" : "crosshair" }} onPointerDown={e => {
+  </div><div style={sfondoMappa ? {position:"relative",aspectRatio:"640/440",width:"100%",overflow:"hidden",borderRadius:12} : undefined}>
+  {sfondoMappa}
+  <svg ref={svg} viewBox={`${vista.x} ${vista.y} ${vista.w} ${vista.h}`} className="fv-roof-photo-canvas" role="group" aria-label="Foto del tetto con pannelli e ostacoli" style={{ cursor: tool === "seleziona" ? "default" : "crosshair", ...(sfondoMappa ? {position:"absolute",inset:0,width:"100%",height:"100%",background:"transparent",clipPath:"inset(0 0 28px 0)",pointerEvents:navigazioneMappa ? "none" : "auto"} : {}) }} onPointerDown={e => {
             if (tool === "seleziona") {
                 onSelezione(null);
                 return;
@@ -184,7 +189,7 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
             setTool("seleziona");
             setNota("");
         }}>
-    <image href={orto.url} width={orto.larghezza} height={orto.altezza}/>
+    {orto.url && <image href={orto.url} width={orto.larghezza} height={orto.altezza}/>}
     {falde.map(f => <polygon key={f.id} points={puntiFoto(f.anelli[0])} fill={f.id === inquadratura.faldaId ? "#38bdf815" : "#38bdf805"} stroke="#f8fafc" strokeWidth={1.2}/>)}
     {pannelli.map((p, i) => { const m = visibile.pannelli[i], scelto = selezione?.tipo === "pannello" && selezione.id === m.id; return <polygon key={m.id} role="button" tabIndex={0} aria-label={`Modulo foto ${i + 1}`} aria-pressed={scelto} points={puntiFoto(p.vertici)} fill={bad.has(m.id) ? "#b93e3e" : "#101b22"} stroke={scelto ? "#fb923c" : "#b6c6ce"} strokeWidth={scelto ? 2.4 : .8} style={{ cursor: tool === "seleziona" ? (modificabile ? "grab" : "pointer") : "inherit" }} onPointerDown={e => cominciaModulo(e, m)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -198,5 +203,5 @@ export function FotoTettoReale({ piano, onChange, modificabile, selezione, onSel
         return; e.stopPropagation(); onSelezione({ tipo: "ostacolo", id: o.id }); }} onKeyDown={e => { if (e.key === "Enter")
         onSelezione({ tipo: "ostacolo", id: o.id }); }}/>)}
     {disegno?.tipo === "ostacolo" && <polygon points={puntiFoto((() => { const r = rett(disegno); return [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }].map(p => dalDisegnoAlMondo(edificio, disegno.faldaId, p)); })())} fill="#fb923c66" stroke="#fb923c" strokeWidth={2} strokeDasharray="4 2"/>}
-  </svg>{nota && <p role="status" className="fv-roof-photo-note">{nota}</p>}<p className="fv-roof-photo-note">Seleziona un modulo qui o nel 3D. Trascinalo sulla foto: rosso indica una posizione non disponibile, rilasciando viene ripristinata la precedente.</p></>;
+  </svg></div>{nota && <p role="status" className="fv-roof-photo-note">{nota}</p>}<p className="fv-roof-photo-note">Seleziona un modulo qui o nel 3D. Trascinalo sulla foto: rosso indica una posizione non disponibile, rilasciando viene ripristinata la precedente.</p></>;
 }

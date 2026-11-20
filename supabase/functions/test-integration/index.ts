@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
-import { testaGoogleMaps } from "../_shared/mapsGoogle.ts";
+import { configurazioneMapsBrowser } from "../_shared/mapsBrowserConfig.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -36,9 +36,12 @@ Deno.serve(async (req) => {
 
     const { integration } = await req.json();
 
-    // Stessa credenziale Vault/env del proxy, non la riga vuota di platform_settings.
+    // Configurazione browser: Static satellite non è disponibile per gli account SEE.
     if (integration === "google_maps") {
-      const esito = await testaGoogleMaps(() => getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY"));
+      const configurazione = await configurazioneMapsBrowser(getPlatformSetting);
+      const esito = {ok:configurazione.configured,message:configurazione.configured
+        ? "Chiave della mappa interattiva configurata. Verifica immagini e domini aprendo il tetto nel configuratore."
+        : configurazione.message};
       return new Response(JSON.stringify(esito), {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });

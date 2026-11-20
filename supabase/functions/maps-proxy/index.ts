@@ -6,6 +6,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { percorsoHere } from "../_shared/tragitto.ts";
 import { messaggioMapsGoogle, scaricaMappaStatica, type ErroreMapsGoogle } from "../_shared/mapsGoogle.ts";
+import { configurazioneMapsBrowser } from "../_shared/mapsBrowserConfig.ts";
 serveConMetriche("maps-proxy", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -36,6 +37,14 @@ serveConMetriche("maps-proxy", async (req) => {
       });
     }
 
+    const body = await req.json();
+    const action = body.action as string;
+    if (action === "browserconfig") {
+      return new Response(JSON.stringify(await configurazioneMapsBrowser(getPlatformSetting)), {
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json", "Cache-Control": "private, no-store" },
+      });
+    }
+
     // 2026-06-11: autocomplete e place-details passano a HERE (free tier
     // 250k/mese) — la chiave Google Places non è mai stata configurata e
     // l'autocomplete indirizzi era rotto da sempre. Google resta come
@@ -43,9 +52,6 @@ serveConMetriche("maps-proxy", async (req) => {
     // Google (deprecato: i nuovi call site usano geo-router/getRoute).
     const HERE_API_KEY = Deno.env.get("HERE_API_KEY");
     const GOOGLE_MAPS_API_KEY = await getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY");
-
-    const body = await req.json();
-    const action = body.action as string;
 
     if (!HERE_API_KEY && !GOOGLE_MAPS_API_KEY) {
       return new Response(JSON.stringify({ error: "Maps API key not configured" }), {

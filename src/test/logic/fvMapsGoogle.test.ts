@@ -38,6 +38,7 @@ describe("diagnosi Google Maps senza esposizione delle credenziali", () => {
     [429, "", "quota"],
     [200, "OVER_QUERY_LIMIT", "quota"],
     [503, "provider unavailable", "non_disponibile"],
+    [403, "Your request cannot be served because satellite and hybrid map types are not available for your account and region.", "satellite_static_non_disponibile"],
   ])(
     "classifica %s senza rimandare il testo del provider",
     (status, testo, codice) => {

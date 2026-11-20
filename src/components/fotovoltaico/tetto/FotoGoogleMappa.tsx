@@ -1,61 +1,123 @@
-import { useMemo } from "react";
-import { useSatelliteFv } from "./useSatelliteFv";
-import {
-  coordinateDaPixel,
-  metriDaCoordinate,
-} from "../../../../supabase/functions/_shared/fvMappa";
+import { useMemo, useState } from "react";
 import { edificioDaMappaFv } from "./mappaGeometria";
 import { FotoTettoReale } from "./FotoTettoReale";
 import { RilievoContext } from "./RilievoContext";
+import {
+  type DimensioniMappaGoogleFv,
+  MappaGoogleFv,
+  type StatoMappaGoogleFv,
+} from "./MappaGoogleFv";
 import type { RilievoRuntime } from "./rilievoLocale";
+import { riferimentoMappaGoogleFv } from "./riferimentoMappaGoogle";
+
 export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
-  const mappa = props.piano.mappa!,
-    satellite = useSatelliteFv(mappa.origine, 20);
-  const runtime = useMemo<RilievoRuntime>(() => {
-    const a = metriDaCoordinate(
-        coordinateDaPixel({ x: 0, y: 0 }, mappa.origine, 20),
-        mappa.origine,
-      ),
-      b = metriDaCoordinate(
-        coordinateDaPixel({ x: 640, y: 440 }, mappa.origine, 20),
-        mappa.origine,
-      );
-    return {
-      edificio: edificioDaMappaFv(mappa),
-      orto: satellite.url
-        ? {
-          url: satellite.url,
-          larghezza: 640,
-          altezza: 440,
-          affine: [(b.x - a.x) / 640, 0, a.x, 0, (b.y - a.y) / 440, a.y],
-          nome: "Google Maps · vista satellitare",
-        }
-        : null,
-      modello: null,
-      fonte: null,
-    };
-  }, [mappa, satellite.url]);
+  const mappa = props.piano.mappa!;
+  const [centro, setCentro] = useState(mappa.origine),
+    [zoom, setZoom] = useState(20),
+    [naviga, setNaviga] = useState(false);
+  const [dimensioni, setDimensioni] = useState<DimensioniMappaGoogleFv>({
+    w: 640,
+    h: 440,
+  });
+  const [stato, setStato] = useState<StatoMappaGoogleFv>({
+    caricando: true,
+    pronto: false,
+    errore: "",
+  });
+  const [tentativo, setTentativo] = useState(0);
+  const runtime = useMemo<RilievoRuntime>(() => ({
+    edificio: edificioDaMappaFv(mappa),
+    orto: riferimentoMappaGoogleFv(mappa.origine, centro, zoom, dimensioni),
+    modello: null,
+    fonte: null,
+  }), [mappa, centro, zoom, dimensioni]);
   return (
     <>
       <p className="mb-2 text-xs text-slate-600">
         Posa sulla falda inclinata, proiettata sulla vista satellitare. Bordi,
         ostacoli e spazi fra i moduli seguono il disegno metrico.
       </p>
-      {satellite.caricando && <p role="status">Caricamento del tetto…</p>}
-      {satellite.errore && (
+      <div
+        className="fv-roof-photo-tools"
+        role="group"
+        aria-label="Navigazione della mappa del tetto"
+      >
+        <button
+          type="button"
+          aria-pressed={naviga}
+          onClick={() => setNaviga((v) => !v)}
+        >
+          Sposta mappa
+        </button>
+        <button
+          type="button"
+          aria-label="Avvicina la mappa del tetto"
+          disabled={zoom >= 21}
+          onClick={() => setZoom((z) => Math.min(21, z + 1))}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="Allontana la mappa del tetto"
+          disabled={zoom <= 17}
+          onClick={() => setZoom((z) => Math.max(17, z - 1))}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setCentro(mappa.origine);
+            setZoom(20);
+          }}
+        >
+          Torna al tetto
+        </button>
+      </div>
+      {stato.caricando && <p role="status">Caricamento del tetto…</p>}
+      {stato.errore && (
         <p role="status">
-          {satellite.errore}{" "}
+          {stato.errore}{" "}
           <button
             type="button"
             className="underline"
-            onClick={satellite.riprova}
+            onClick={() => setTentativo((t) => t + 1)}
           >
-            Riprova
-          </button>
+            Riprova mappa
+          </button>{" "}
+          Puoi continuare sulla pianta metrica.
         </p>
       )}
       <RilievoContext.Provider value={runtime}>
-        <FotoTettoReale {...props} mostraImmagineIntera />
+        <FotoTettoReale
+          {...props}
+          mostraImmagineIntera
+          navigazioneMappa={stato.pronto && naviga}
+          onScegliStrumento={() => setNaviga(false)}
+          sfondoMappa={
+            <MappaGoogleFv
+              key={tentativo}
+              centro={centro}
+              zoom={zoom}
+              navigabile={naviga}
+              onStato={setStato}
+              onDimensioni={(d) =>
+                setDimensioni((p) =>
+                  Math.abs(p.w - d.w) < .5 && Math.abs(p.h - d.h) < .5 ? p : d
+                )}
+              onVista={(c, z) => {
+                setCentro((p) =>
+                  Math.abs(p.lat - c.lat) < 1e-9 &&
+                    Math.abs(p.lng - c.lng) < 1e-9
+                    ? p
+                    : c
+                );
+                setZoom(z);
+              }}
+            />
+          }
+        />
       </RilievoContext.Provider>
     </>
   );
