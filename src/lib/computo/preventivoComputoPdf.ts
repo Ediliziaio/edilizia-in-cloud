@@ -10,7 +10,8 @@ import { testoPianoPagamenti } from "./pianoPagamentiPdf";
 import { disegnaCronoprogramma } from "./stampaCronoprogramma";
 import { segnaClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
 import { geometriaLogo, nomeFontModello } from "./assetModello";
-import { segnaVoceComputoPdf } from "./destinazioniPdf";
+import { segnaCopertinaComputoPdf, segnaVoceComputoPdf } from "./destinazioniPdf";
+import { haPaginaCopertina } from "./copertineComputo";
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
@@ -95,15 +96,17 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       y = base + h;
     }
   };
-  // La copertina (29/10/2026): con «piena» è una pagina intera, scura, con la trama di un foglio millimetrato, il
-  // logo, il titolo grande e i dati del lavoro in fondo; il documento comincia dalla pagina dopo. Le altre due
-  // («fascia», «sobria») restano una testata sulla prima pagina. Mai il prezzo in copertina.
+  // Una scelta esplicita usa una vera pagina di copertina. I modelli compatti precedenti mantengono la testata.
   const veste = i.veste;
-  const editoriale = veste?.copertina === "editoriale";
-  const coperta = ["piena", "editoriale"].includes(veste?.copertina ?? "piena") && i.sezioni?.copertina !== false;
+  const stileCopertina = veste?.copertina ?? "piena";
+  const editoriale = stileCopertina === "editoriale";
+  const coperta = haPaginaCopertina(veste, i.sezioni?.copertina !== false);
   const logo = veste?.mostraLogo !== false ? veste?.logo : null;
   if (coperta) {
-    const c = editoriale ? { fondo: "#FAF8F4", testo: t.inchiostro, evidenza: t.inchiostroMarca } : coloriCopertina(t, {});
+    segnaCopertinaComputoPdf(doc);
+    const cm = m + (stileCopertina === "colonna" ? W * .14 : 0), cw = right - cm;
+    const chiara = !["piena", "fotografica"].includes(stileCopertina);
+    const c = chiara ? { fondo: editoriale || stileCopertina === "cornice" ? "#FAF8F4" : "#FFFFFF", testo: t.inchiostro, evidenza: t.inchiostroMarca } : coloriCopertina(t, {});
     // Niente trasparenze (jsPDF non le rende ovunque): i toni tenui sono il testo già mescolato col fondo.
     const mescola = (a: string, b: string, k: number) => {
       const n = (h: string, i0: number) => parseInt(h.replace("#", "").slice(i0, i0 + 2), 16);
@@ -112,65 +115,82 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const trama = mescola(c.fondo, c.testo, 0.06), tenue = mescola(c.fondo, c.testo, 0.72), filo = mescola(c.fondo, c.testo, 0.3);
     // Con la foto del progetto la parte alta è la foto, a tutta pagina; sotto, il fondo scuro con titolo e dati.
     const foto = i.immagineCopertina;
-    const fotoH = foto ? Math.round(H * 0.44) : 0;
+    const fotoH = foto || stileCopertina === "fotografica" ? Math.round(H * 0.44) : 0;
     doc.setFillColor(c.fondo); doc.rect(0, 0, W, H, "F");
     // La trama di un foglio millimetrato, appena visibile: è un computo, un documento tecnico.
     doc.setDrawColor(trama); doc.setLineWidth(0.3);
     if (editoriale) {
       doc.setFillColor(t.fondo); doc.rect(W * .74, 0, W * .26, H * .28, "F");
-      doc.setDrawColor(filo); doc.setLineWidth(.7); doc.line(m, H * .30, right, H * .30);
-    } else {
+      doc.setDrawColor(filo); doc.setLineWidth(.7); doc.line(cm, H * .30, right, H * .30);
+    } else if (stileCopertina === "piena") {
       for (let x = 0; x <= W; x += 24) doc.line(x, 0, x, H);
       for (let r = 0; r <= H; r += 24) doc.line(0, r, W, r);
     }
     if (foto) { try { doc.addImage(foto.dati, "JPEG", 0, 0, W, fotoH); } catch { /* una foto illeggibile non ferma il preventivo */ } }
-    doc.setFillColor(c.evidenza); doc.rect(0, fotoH, 7, H - fotoH, "F");
+    else if (stileCopertina === "fotografica") {
+      doc.setFillColor(mescola(t.fondo, "#FFFFFF", .80)); doc.rect(0, 0, W, fotoH, "F");
+      doc.setFillColor(mescola(t.fondo, "#FFFFFF", .55)); doc.rect(W * .08, fotoH * .35, W * .33, fotoH * .65, "F");
+      doc.setFillColor(mescola(t.fondo, "#FFFFFF", .35)); doc.rect(W * .49, fotoH * .10, W * .42, fotoH * .90, "F");
+      doc.setDrawColor("#FFFFFF"); doc.setLineWidth(.8); doc.line(0, fotoH * .82, W, fotoH * .82);
+    }
+    if (["piena", "editoriale", "fotografica"].includes(stileCopertina)) { doc.setFillColor(c.evidenza); doc.rect(0, fotoH, 7, H - fotoH, "F"); }
+    if (stileCopertina === "fascia") { doc.setFillColor(t.fondo); doc.rect(0, 0, W, 22, "F"); }
+    if (stileCopertina === "sobria") { doc.setDrawColor(filo); doc.setLineWidth(.6); doc.line(cm, H * .25, right, H * .25); }
+    if (stileCopertina === "diagonale") {
+      doc.setFillColor(t.fondo); doc.triangle(W * .56, 0, W, 0, W, H * .34, "F");
+      doc.setFillColor(mescola(t.fondo, "#FFFFFF", .85)); doc.triangle(W * .78, H * .20, W, H * .34, W, H * .48, "F");
+    }
+    if (stileCopertina === "cornice") {
+      doc.setDrawColor(t.fondo); doc.setLineWidth(1); doc.rect(22, 22, W - 44, H - 44);
+      doc.setDrawColor(filo); doc.setLineWidth(.35); doc.rect(30, 30, W - 60, H - 60);
+    }
+    if (stileCopertina === "colonna") { doc.setFillColor(t.fondo); doc.rect(0, 0, W * .14, H, "F"); }
     let yc = 62;
     if (logo) {
-      const { x, w, h } = geometriaLogo(veste, logo, m, right);
+      const { x, w, h } = geometriaLogo(veste, logo, cm, right);
       if (veste?.logoFondoBianco !== false) { doc.setFillColor("#FFFFFF"); doc.roundedRect(x - 8, yc - 30, w + 16, h + 14, 5, 5, "F"); }
       try { doc.addImage(logo.dati, logo.formato, x, yc - 23, w, h); } catch { /* un logo illeggibile non ferma il preventivo */ }
       yc += h + 15;
     }
-    if (foto) yc = fotoH + 34;
+    if (fotoH) yc = fotoH + 34;
     if (intestazioneVisibile) {
-      font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", width), m, yc); yc += 15;
-      if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, width) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, m, yc + k * 11 * scalaTesto)); }
+      font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw), cm, yc); yc += 15;
+      if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, stileCopertina === "diagonale" && !fotoH ? cw * .60 : cw) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, cm, yc + k * 11 * scalaTesto)); }
     }
-    yc = foto ? yc + 44 : H * 0.36;
+    yc = fotoH ? yc + 44 : H * 0.36;
     const occhiello = (i.soloRiepilogo ? "Piano dei lavori · sintesi per capitoli" : i.senzaPrezzi ? "Computo metrico · lavorazioni e quantità" : veste?.sopratitolo?.trim() || "Preventivo · computo metrico estimativo").toUpperCase();
-    font(9, true, c.evidenza); for (const [n, r] of wrap(occhiello, width).entries()) { doc.text(r, m, yc + n * 13); }
-    doc.setFillColor(c.evidenza); doc.rect(m, yc + 9, 54, 2.5, "F"); yc += 46;
+    font(9, true, c.evidenza); for (const [n, r] of wrap(occhiello, cw).entries()) { doc.text(r, cm, yc + n * 13); }
+    doc.setFillColor(c.evidenza); doc.rect(cm, yc + 9, 54, 2.5, "F"); yc += 46;
     let sizeTitolo = veste?.dimensioneTitolo ?? 34;
     fontCopertina(sizeTitolo, c.testo);
-    let righeTitolo = wrap(i.titolo || "Preventivo", width - 10);
+    let righeTitolo = wrap(i.titolo || "Preventivo", cw - 10);
     const limiteTitolo = H - 70 - 2 * 46 - 24 - (i.oggetto?.trim() ? 44 : 0);
     while (sizeTitolo > 18 && yc + (righeTitolo.length - 1) * sizeTitolo * 1.15 > limiteTitolo) {
-      sizeTitolo--; fontCopertina(sizeTitolo, c.testo); righeTitolo = wrap(i.titolo || "Preventivo", width - 10);
+      sizeTitolo--; fontCopertina(sizeTitolo, c.testo); righeTitolo = wrap(i.titolo || "Preventivo", cw - 10);
     }
     for (const r of righeTitolo) {
       if (yc > limiteTitolo) break; // Il titolo completo è riportato nei dati del lavoro.
-      doc.text(r, m, yc); yc += sizeTitolo * 1.15;
+      doc.text(r, cm, yc); yc += sizeTitolo * 1.15;
     }
-    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of (wrap(i.oggetto.trim(), width - 40) as string[]).slice(0, foto ? 2 : 4)) { doc.text(r, m, yc); yc += 16; } }
+    if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of (wrap(i.oggetto.trim(), cw - 40) as string[]).slice(0, fotoH ? 2 : 4)) { doc.text(r, cm, yc); yc += 16; } }
     const campi = ([
       ["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""],
       ["Data", i.dataDocumento ?? ""], ["Preventivo n.", [i.numero, i.revisione && `rev. ${i.revisione}`].filter(Boolean).join(" · ")],
       ["Tecnico / referente", i.tecnico ?? ""],
     ] as [string, string][]).filter(([, v]) => v.trim());
     if (campi.length) {
-      const col = (width - 30) / 3, righe = Math.ceil(campi.length / 3);
+      const col = (cw - 30) / 3, righe = Math.ceil(campi.length / 3);
       let yb = H - 70 - righe * 46;
-      doc.setDrawColor(filo); doc.setLineWidth(0.6); doc.line(m, yb - 18, right, yb - 18);
+      doc.setDrawColor(filo); doc.setLineWidth(0.6); doc.line(cm, yb - 18, right, yb - 18);
       campi.forEach(([etichetta, valore], k) => {
-        const x = m + (k % 3) * (col + 15), yy = yb + Math.floor(k / 3) * 46;
+        const x = cm + (k % 3) * (col + 15), yy = yb + Math.floor(k / 3) * 46;
         font(6.8, true, c.evidenza); doc.text(etichetta.toUpperCase(), x, yy, { charSpace: 0.6 });
         font(10, true, c.testo); (wrap(valore, col) as string[]).slice(0, 2).forEach((r, n) => doc.text(r, x, yy + 14 + n * 12));
       });
       yb += righe * 46;
     }
-    if (stato) { font(7.5, false, tenue); doc.text(stato, m, H - 34); }
-    doc.addPage(); y = m; testataContinua(6);
+    if (stato) { font(7.5, false, tenue); doc.text(stato, cm, H - 34); }
+    doc.addPage(); y = cm; testataContinua(6);
     paragraph("Dati del lavoro", 16, t.inchiostro, true); y += 6;
   } else {
   // Prima pagina: identità e perimetro, senza ripetere il prezzo finale. La copertina la sceglie il modello

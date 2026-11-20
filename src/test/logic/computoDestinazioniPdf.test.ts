@@ -11,7 +11,9 @@ function destinazioni(doc: PDFDocument) {
   const result = new Map<string, { page: number; top: number }>();
   for (let k = 0; k < array.size(); k += 2) {
     const target = array.lookup(k + 1, PDFArray);
-    result.set(array.lookup(k, PDFString).decodeText(), {
+    const nome = array.lookup(k, PDFString).decodeText();
+    if (!nome.startsWith("computo.voce.")) continue;
+    result.set(nome, {
       page: doc.getPages().findIndex(p => p.ref.toString() === target.get(0).toString()) + 1,
       top: target.lookup(3, PDFNumber).asNumber(),
     });

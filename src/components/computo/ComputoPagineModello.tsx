@@ -38,7 +38,7 @@ export function ComputoPagineModello({ modello: m, onChange, contratto, onGestis
         const disabled = m.formatoPredefinito === "elenco-prezzi" || tecnico && !["lavorazioni", "riepilogo", "cronoprogramma", "pagamenti", "contrattuali", "firme"].includes(key);
         return <div key={key} className={`rounded-xl border px-3 pb-3 ${checked && !disabled ? "border-slate-200 bg-white" : "border-slate-200/70 bg-slate-50/70"}`}>
           <ComputoOpzione label={tecnico && key === "firme" ? "Firma del tecnico / referente" : titolo} checked={checked} disabled={disabled}
-            onChange={v => onChange({ sezioni: { ...m.sezioni, [key]: v }, ...(key === "firme" ? { mostraFirma: v } : {}) })} />
+            onChange={v => onChange({ sezioni: { ...m.sezioni, [key]: v }, ...(key === "firme" ? { mostraFirma: v } : {}), ...(key === "copertina" && v ? { copertinaSeparata: true } : {}) })} />
           <p className="text-[11px] leading-relaxed text-muted-foreground">{disabled ? "Non prevista nel formato selezionato." : tecnico && key === "firme" ? "Firma del tecnico in fondo al computo." : descrizione}</p>
         </div>;
       })}</div>

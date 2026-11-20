@@ -9,6 +9,7 @@ export function aspettoDaOfferta(template: QuoteTemplate): Partial<ModelloComput
     colorePrimario: /^#[\da-f]{6}$/i.test(template.primary_color ?? "") ? template.primary_color : "",
     fontFamiglia: ["helvetica", "times", "courier"].includes(template.font_family) ? template.font_family : "helvetica",
     copertina: template.layout === "minimal" ? "sobria" : template.layout === "classic" ? "fascia" : template.layout === "modern" ? "editoriale" : "piena",
+    copertinaSeparata: true,
     mostraLogo: template.show_logo !== false,
     mostraNumeriPagina: template.show_page_numbers !== false,
     piePagina: template.footer_text ?? "",
