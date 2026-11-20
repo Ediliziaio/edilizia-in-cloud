@@ -178,6 +178,27 @@ jobs:
       - name: Replay every migration with network and cron disabled
         run: python3 scripts/test-migration-history.py
 
+  integrations:
+    name: Bank pagination and calendar/email authorization regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/distyraHandlers.test.ts
+          src/test/logic/dominioEmailAccesso.test.ts
+          src/test/logic/dominioEmailAzienda.test.ts
+          src/test/ui/emailDominioSolaLettura.test.tsx
+          src/test/logic/providersAppuntamento.test.ts
+          src/test/logic/calendarBookingRetry.test.ts
+          src/test/logic/calendarioEsternoAssociazione.test.ts
+          src/test/logic/outlookBooking.test.ts
+
   frontend-build:
     name: Frontend production build
     # Official image matches the lockfile and already contains browser libraries.
@@ -951,7 +972,7 @@ jobs:
     runs-on: ubuntu-latest
     # Il contenitore CAD (Docker) non c'entra con le edge function: se la sua
     # prova si rompe, il deploy delle funzioni non deve fermarsi con lui.
-    needs: [typecheck, test, migration-history, chat-health]
+    needs: [typecheck, test, migration-history, chat-health, integrations]
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

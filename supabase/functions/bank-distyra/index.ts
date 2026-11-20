@@ -267,8 +267,10 @@ serveConMetricheRapida("bank-distyra", async (req) => {
         if (arricchisci) q.set("enrich", "true");
         let continuazione: string | null = null, n = 0, giri = 0;
         do {
-          if (continuazione) q.set("continuation", continuazione);
-          const r = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/transactions?${q}`, { headers: psuHeaders }) as
+          // Il token incorpora i parametri iniziali. Ripeterli nella pagina
+          // successiva fa rifiutare la ripresa con invalid_continuation.
+          const pagina = continuazione ? new URLSearchParams({ continuation: continuazione }) : q;
+          const r = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/transactions?${pagina}`, { headers: psuHeaders }) as
             { transactions?: Record<string, any>[]; complete?: boolean; continuation?: string | null };
           const righe = (r.transactions ?? [])
             .map((t) => {

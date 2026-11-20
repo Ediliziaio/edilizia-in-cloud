@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
       // Via dal Google/Apple Calendar del responsabile: prima l'evento restava
       // li', e il commerciale si presentava a un appuntamento disdetto.
-      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null });
+      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null }, admin);
 
       if (emailCliente) {
         try {
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
     if(!spostato)return json({error:"Questo orario è stato appena preso: scegline un altro."},409);
     // Lo spostamento arriva anche sul calendario esterno (se l'evento non c'era
     // ancora, update risponde 404 e il giro dei 15 minuti lo crea).
-    await sincronizzaCalendariEsterni({ azione: "update-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null });
+    await sincronizzaCalendariEsterni({ azione: "update-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null }, admin);
 
     const quandoNuovo = `${dataEstesa(data)} alle ${ora}`;
     const linkCall = app.meeting_url || cal.link_videochiamata || null;

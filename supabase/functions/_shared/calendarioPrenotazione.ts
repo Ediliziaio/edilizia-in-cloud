@@ -167,7 +167,7 @@ export async function prenotaSuCalendario(admin: any, a: {
 
   const {data:assegnato,error:assegnazioneError}=await admin.from("appointments").select("assigned_to").eq("id",creato.id).eq("company_id",cal.company_id).maybeSingle();
   if(assegnazioneError)console.warn("[calendarioPrenotazione] responsabile non letto",assegnazioneError.message);
-  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: assegnato?.assigned_to??cal.owner_id });
+  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: assegnato?.assigned_to??cal.owner_id }, admin);
   if (a.contactId) {
     const { error: attErr } = await admin.from("marketing_contact_activities").insert({
       company_id: cal.company_id,

@@ -369,7 +369,7 @@ export default function SettingsEmailDomain({
   const [aggiungeUnAltro, setAggiungeUnAltro] = useState(false);
 
   // Load current status — auto-refresh ogni 30s se dominio presente e non verificato
-  const { data: risposta, isLoading, refetch, dataUpdatedAt } = useQuery<DomainResponse>({
+  const { data: risposta, isLoading, isError, error: erroreLettura, refetch, dataUpdatedAt } = useQuery<DomainResponse>({
     queryKey: ["company-email-domain", companyId],
     enabled: !!companyId,
     refetchInterval: (query) => {
@@ -382,7 +382,7 @@ export default function SettingsEmailDomain({
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "get_status", company_id: companyId },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Impossibile caricare il dominio email"));
       return normalizeDomainResponse(resp);
     },
   });
@@ -541,6 +541,19 @@ export default function SettingsEmailDomain({
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (isError && !risposta) {
+    return (
+      <Alert variant="destructive" role="alert">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          <p>Dominio email non caricato</p>
+          <p>{erroreLettura instanceof Error ? erroreLettura.message : "Riprova fra poco."}</p>
+          <Button variant="outline" className="mt-3" onClick={() => void refetch()}>Riprova</Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 

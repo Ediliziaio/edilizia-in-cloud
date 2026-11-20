@@ -481,7 +481,7 @@ async function prenota(ctx: CtxAgente, p: {
     if (giaFissato) {
       const { data: calPrima } = await ctx.admin.from("marketing_calendars").select("owner_id").eq("id", giaFissato.calendar_id).maybeSingle();
       await ctx.admin.from("appointments").update({ status: "annullato" }).eq("id", giaFissato.id).eq("company_id", ctx.companyId);
-      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: giaFissato.id, companyId: ctx.companyId, userId: calPrima?.owner_id ?? null });
+      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: giaFissato.id, companyId: ctx.companyId, userId: calPrima?.owner_id ?? null }, ctx.admin);
     }
 
     fase = await spostaFase(ctx, p.faseId);

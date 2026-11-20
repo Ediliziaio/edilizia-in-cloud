@@ -138,7 +138,7 @@ export async function fissaChiamataConoscitiva(admin: any, opz: {
   }).select("id").single();
   if (error) throw error;
 
-  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id ?? null });
+  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id ?? null }, admin);
 
   const quando = `${dataEstesa(giorno)} alle ${hhmm(inizio)}`;
   await admin.from("marketing_contact_activities").insert({
