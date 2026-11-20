@@ -52,7 +52,7 @@ function database() {
         limit: (n: number) => { dati = dati.slice(0, n); return q; },
         delete: () => q,
         insert: (riga: Riga) => { salvata = riga; return q; },
-        single: async () => ({ data: salvata, error: null }),
+        single: async (): Promise<{ data: Riga | null; error: null }> => ({ data: salvata, error: null }),
         then: (fn: (v: { data: Riga[]; error: null }) => void) => fn({ data: dati, error: null }),
       };
       return q;
