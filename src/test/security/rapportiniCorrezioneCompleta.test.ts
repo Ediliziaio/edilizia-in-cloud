@@ -1,11 +1,11 @@
-// Esegue SQL proposto e trigger economici reali in Postgres isolato, senza dati cliente.
+// Esegue la migrazione e i trigger economici reali in Postgres isolato, senza dati cliente.
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 const pg = new PGlite();
 const c='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', o='bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 const r='cccccccc-cccc-4ccc-cccc-cccccccccccc', u='dddddddd-dddd-4ddd-dddd-dddddddddddd', other='eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', v='ffffffff-ffff-4fff-ffff-ffffffffffff';
-const proposal='docs/sql-proposte/20290422150000_rapportini_modifica_e_fasi_idempotenti.sql';
+const migration='supabase/migrations/20290422150000_rapportini_modifica_e_fasi_idempotenti.sql';
 const file=(p:string)=>readFile(p,'utf8');
 function fn(sql:string,name:string,end='$$;') { const start=sql.indexOf(`create or replace function public.${name}(`); if(start<0) throw new Error(name); return sql.slice(start,sql.indexOf(end,start)+end.length); }
 beforeAll(async()=>{
@@ -41,7 +41,7 @@ beforeAll(async()=>{
  const start=original.indexOf('create or replace function public.rapportino_voci_trg(');
  await pg.exec(original.slice(start,original.indexOf('-- Il quadro economico',start)));
  await pg.exec(await file('supabase/migrations/20290112110000_annullare_rapportini_conflitto_409.sql'));
- const sql=await file(proposal); await pg.exec(sql); await pg.exec(sql); // migrazione rilanciabile
+ const sql=await file(migration); await pg.exec(sql); await pg.exec(sql); // migrazione rilanciabile
 },30000);
 afterAll(()=>pg.close());
 beforeEach(async()=>{

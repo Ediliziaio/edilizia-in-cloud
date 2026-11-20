@@ -1,4 +1,4 @@
--- Proposta: eseguire soltanto dopo autorizzazione alla migrazione.
+-- PR 186: migrazione e rilascio autorizzati il 20 novembre 2026.
 -- Nessuna pulizia dei dati cliente; ABI esistenti conservate.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';

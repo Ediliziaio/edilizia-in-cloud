@@ -1,6 +1,6 @@
 # Rapportini, lavorazioni, mezzi e trasporti
 
-Le funzioni descritte in questa revisione richiedono il rilascio della PR e dell'aggiornamento delle funzioni del database associato.
+Le funzioni descritte sono incluse nella PR 186 e nella migrazione 20290422150000.
 
 ## Correggere un rapportino
 

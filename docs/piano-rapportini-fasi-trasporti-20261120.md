@@ -29,3 +29,9 @@ Test significativi su correzioni, permessi, concorrenza, costi/presenze/mezzi, v
 ## Chiarimento emerso dal collaudo PDF
 
 Il rapporto trasporti manuale è destinato al trasportatore che conferma i viaggi prima della fattura, come previsto dal modello esistente. Non va intestato automaticamente al cliente della commessa. Il rendiconto dei viaggi approvati resta invece intestato al committente. Etichette e guida riportano questa distinzione.
+
+## Autorizzazione al rilascio
+
+Il 20 novembre 2026 l’utente ha autorizzato migrazione, merge e rilascio della PR 186. La proposta SQL è trasferita in `supabase/migrations/20290422150000_rapportini_modifica_e_fasi_idempotenti.sql`, con aggiornamento del percorso nel test su Postgres isolato. Nessuna pulizia dei dati cliente prevista.
+
+Migrazione applicata via MCP e registro allineato alla versione `20290422150000`. Le impronte dei tre corpi funzione coincidono con il file SQL; accesso anonimo revocato e accesso autenticato esplicito. Health Supabase senza avvisi dopo l’applicazione. I 149 test mirati passano usando il file definitivo della migrazione.
