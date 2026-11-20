@@ -11,7 +11,7 @@ import {
 import { aggiungiPaginaBolla } from "../../../supabase/functions/whatsapp-ai-processor/pagineBolla";
 import { creaRapportino } from "../../../supabase/functions/whatsapp-ai-processor/tools/operaio/crea_rapportino";
 import {
-  giornoRapportinoWhatsapp, normalizzaPresenze,
+  giornoRapportinoWhatsapp, normalizzaPresenze, vocalePermetteBozza,
 } from "../../../supabase/functions/whatsapp-ai-processor/tools/operaio/rapportinoSquadra";
 import {
   downloadMetaMedia, LIMITE_MEDIA_WHATSAPP,
@@ -59,7 +59,7 @@ function ambiente(tabelle: Record<string, Row[]>) {
       let inserimento: Row | null = null;
       const risultati = (): Row[] => {
         if (inserimento) {
-          const riga = { ...inserimento, id: "nuovo-rapportino" };
+          const riga = { updated_at: new Date().toISOString(), ...inserimento, id: "nuovo-rapportino" };
           (tabelle[tabella] ??= []).push(riga);
           writes(tabella, riga);
           return [riga];
@@ -222,9 +222,47 @@ describe("DDT operativo", () => {
     expect(await trattaBollaInConversazione(ctx, { id: "foto-1", tipo: "image", testo: "Cantiere Rossi", riferimento: null, ddtLetto: true })).toContain("La bolla indica Bianchi");
     expect(writes).not.toHaveBeenCalled();
   });
+
+  it("salva dopo la prima foto quando l’indirizzo della bolla identifica il cantiere", async () => {
+    const bolla = { ...job, result: { ...job.result, luogo_destinazione: { indirizzo: "Via Manzoni, 9" } } };
+    const { ctx } = ambiente({ whatsapp_messages: [foto], ddt_document_jobs: [bolla] });
+    expect(await trattaBollaInConversazione(ctx, { id: foto.id, tipo: "image", testo: "", riferimento: null, ddtLetto: true }))
+      .toContain("Bolla n. 438 salvata sul cantiere Marco Rossi");
+    expect(bolla).toMatchObject({ order_id: "rossi", destinazione: "cantiere" });
+  });
+
+  it("conserva l’originale senza scegliere tra indirizzo e ordine in conflitto", async () => {
+    m.resolve.mockResolvedValue({ source: "oda", cantiere_id: "bianchi", cantiere_nome: "Bianchi" });
+    const bolla = { ...job, result: { luogo_destinazione: { indirizzo: "Via Manzoni, 9" }, riferimenti: { ordine_cliente: "ODA-222" } } };
+    const { ctx, writes } = ambiente({ whatsapp_messages: [foto], ddt_document_jobs: [bolla] });
+    expect(await trattaBollaInConversazione(ctx, { id: foto.id, tipo: "image", testo: "", riferimento: null, ddtLetto: true }))
+      .toContain("indicano cantieri diversi");
+    expect(writes).not.toHaveBeenCalled();
+  });
 });
 
 describe("rapportino operativo", () => {
+  it("dal primo vocale salva una bozza, riusa il record e conferma senza duplicare le attività", async () => {
+    const tabelle = { orders: [{ ...rossi, company_id: "azienda" }], campo_rapportini: [] as Row[] };
+    const { ctx } = ambiente(tabelle);
+    const adesso = new Date();
+    const tester = { ...ctx, sourceMessageId: "vocale-1", sentAt: adesso.toISOString(), transcript:
+      "Oggi al cantiere Rossi io e Marco abbiamo fatto otto ore di posa serramenti ciascuno. Luca ha fatto quattro ore di sigillatura. Abbiamo montato cinque finestre e due portefinestre." };
+    const proposta = { order_id: rossi.id, data_lavoro: giornoRapportinoWhatsapp("oggi", adesso), cantiere_hint: "Rossi",
+      persone: [{ nome: "io", ore: 8 }, { nome: "Marco", ore: 8 }, { nome: "Luca", ore: 4 }],
+      attivita: ["Montate cinque finestre e due portefinestre"], note: "Manca il controtelaio" };
+    const cantieri = [{ id: rossi.id, titolo: rossi.client_name, dettaglio: rossi.indirizzo_lavori }];
+    expect(vocalePermetteBozza(tester, proposta, proposta, cantieri)).toBe(true);
+    expect(vocalePermetteBozza({ ...tester, transcript: "Oggi al cantiere Rossi io Marco e Luca abbiamo fatto otto ore complessive" }, proposta, proposta, cantieri)).toBe(false);
+    expect(vocalePermetteBozza(tester, proposta, proposta, [...cantieri, { id: "altro", titolo: "Luca Rossi", dettaglio: "Via Verdi" }])).toBe(false);
+    expect(await creaRapportino(tester, proposta, "bozza")).toMatchObject({ ok: true, user_message: expect.stringContaining("20 ore totali per 3 persone") });
+    expect(await creaRapportino(tester, proposta, "bozza")).toMatchObject({ ok: true, data: { is_new: false } });
+    expect(tabelle.campo_rapportini).toHaveLength(1);
+    expect(tabelle.campo_rapportini[0]).toMatchObject({ stato: "bozza", whatsapp_message_id: "vocale-1" });
+    expect(await creaRapportino(tester, proposta)).toMatchObject({ ok: true, data: { is_new: false } });
+    expect(tabelle.campo_rapportini[0]).toMatchObject({ stato: "inviato", note: proposta.note, descrizione_lavori: proposta.attivita[0] });
+  });
+
   it("registra 20 ore con tre presenze e separa lavori eseguiti e impedimenti", async () => {
     const { ctx, writes } = ambiente({ orders: [{ ...rossi, company_id: "azienda" }], campo_rapportini: [] });
     const esito = await creaRapportino({ ...ctx, sourceMessageId: "vocale-1" }, {

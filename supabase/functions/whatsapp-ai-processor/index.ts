@@ -85,6 +85,8 @@ import { whatsappPromptContext, whatsappAiSessionKey } from "../_shared/whatsapp
 import { handoffAccepted } from "../_shared/silvioHandoff.ts";
 import { deliverWhatsAppReply, WhatsAppDeliveryError } from "./delivery.ts";
 import type { ToolCtx } from "./tools/shared/types.ts";
+import { creaRapportino } from "./tools/operaio/crea_rapportino.ts";
+import { vocalePermetteBozza } from "./tools/operaio/rapportinoSquadra.ts";
 import {
   buildOperationalSystemPrompt,
   filterOperationalTools,
@@ -682,6 +684,22 @@ Deno.serve(async (req) => {
       mediaCorrente,
     };
 
+    const preparaConferma = async (azione: string, input: Record<string, unknown>) => {
+      const frozen = await freezeConfirmation(toolCtx, azione, input, msg.id);
+      const parametri = frozen.pending.parametri;
+      if (azione !== "crea_rapportino" || !parametri || statoSessione.conferma || !mediaCorrente ||
+        operationalTriage.intent !== "rapportino" || sbloccatiOra.includes(azione) ||
+        !vocalePermetteBozza(toolCtx, input, parametri, frozen.pending.cantieri ?? [])) return frozen;
+
+      const bozza = await runWhatsAppTool(supabase, msg.company_id, `bozza-rapportino:${msg.id}`, azione, parametri,
+        () => creaRapportino(toolCtx, parametri, "bozza"));
+      if (!bozza.ok) return frozen;
+      return { ...frozen, interactive: buildInteractivePayload(`Bozza salvata in Campo.\n\n${frozen.interactive.body.text}`, [
+        { id: `approve:${frozen.pending.id}`, title: "Invia all’ufficio" },
+        { id: `reject:${frozen.pending.id}`, title: "Rivedo in Campo" },
+      ]) };
+    };
+
     const isDdtLetto = tipoDocumentoLetto === "bolla ddt";
     const relazione = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
     if (paginaAggiuntiva && acquisizioneConsentita && nomiBot.has("carica_ddt")) {
@@ -934,7 +952,7 @@ Deno.serve(async (req) => {
               if (!target || action === "chiedi_conferma") throw new Error("Azione non disponibile per questa persona.");
               const input = blockedCandidates.get(action) ?? args.parametri;
               validateToolArguments(target.parameters, input);
-              const frozen = await freezeConfirmation(toolCtx, action, input as Record<string, unknown>, msg.id);
+              const frozen = await preparaConferma(action, input as Record<string, unknown>);
               result = { ok: true, data: { __interactive: frozen.interactive, __pending: frozen.pending, __preambolo: frozen.preambolo ?? [] }, user_message: "" };
             } else {
               const mutates = tool.requires_grants.some(g => g.endsWith(".write")) || tool.name === "imposta_cantiere_corrente";
@@ -1049,7 +1067,7 @@ Deno.serve(async (req) => {
       try {
         if (!strumento) throw new Error("tool_not_found");
         validateToolArguments(strumento.parameters, argomenti);
-        const frozen = await freezeConfirmation(toolCtx, nome, argomenti, msg.id);
+        const frozen = await preparaConferma(nome, argomenti);
         await sessionState.save({ conferma: frozen.pending, domini: ponte ? [...ponte.domini] : undefined });
         await inviaPreambolo(msg, frozen.preambolo);
         await sendInteractiveReply(msg, frozen.interactive as unknown as Record<string, unknown>);

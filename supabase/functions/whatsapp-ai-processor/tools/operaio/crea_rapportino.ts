@@ -77,6 +77,7 @@ interface Args {
 export async function creaRapportino(
   ctx: ToolCtx,
   args: Args,
+  stato: "inviato" | "bozza" = "inviato",
 ): Promise<ToolResult<{ id: string; is_new: boolean; cantiere_nome: string }>> {
   // Anche chi non ha l'account nell'app (18/10/2026): è in anagrafica dipendenti
   // e il rapportino va a suo nome, con lui nelle presenze come la squadra nell'app.
@@ -168,7 +169,7 @@ export async function creaRapportino(
 
   // Cerca esistente: nello stesso giorno può esserci anche il collaudo col
   // cliente, che non va toccato da qui. Si lavora solo sul giornaliero.
-  const colonne = "id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario, lavoro_completato, firma_cliente_url, presenze";
+  const colonne = "id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario, lavoro_completato, firma_cliente_url, presenze, whatsapp_message_id";
   const nonVerificabile = errResult("rapportino_lookup_failed", "Non posso verificare il rapportino esistente. Nessun nuovo rapportino creato: verifica prima di riprovare.");
   let existing: Record<string, unknown> | null = null;
   if (ctx.user_id) {
@@ -199,6 +200,11 @@ export async function creaRapportino(
     : [{ employee_id: ctx.employee_id, nome: nomeDipendente ?? "Operaio", ore: oreTotali(ordinarie, straordinario) }];
 
   if (existing) {
+    const stessoVocale = !!ctx.sourceMessageId && existing.whatsapp_message_id === ctx.sourceMessageId;
+    if (stato === "bozza") {
+      if (stessoVocale && existing.stato === "bozza") return okResult({ id: String(existing.id), is_new: false, cantiere_nome: cantiereNome });
+      return errResult("rapportino_esistente", "Esiste già un rapportino per questa commessa e data. Controlla i dati prima di aggiornare.");
+    }
     // Inviato o approvato: lo corregge l'ufficio. Una bozza dell'app o un
     // rapportino respinto si completano e si (ri)mandano, come dall'app.
     if (existing.stato !== "bozza" && existing.stato !== "rifiutato") {
@@ -232,13 +238,15 @@ export async function creaRapportino(
     let update = ctx.supabase
       .from("campo_rapportini")
       .update({
-        ore_lavorate: ore,
-        ore_straordinario: straordinario,
-        descrizione_lavori: mergedDescrizione || existing.descrizione_lavori,
-        materiali_usati: mergedMateriali,
-        ...(meteo ? { meteo } : {}),
-        ...(pres ? { presenze: pres } : {}),
-        note: mergedNote,
+        ...(!stessoVocale ? {
+          ore_lavorate: ore,
+          ore_straordinario: straordinario,
+          descrizione_lavori: mergedDescrizione || existing.descrizione_lavori,
+          materiali_usati: mergedMateriali,
+          ...(meteo ? { meteo } : {}),
+          ...(pres ? { presenze: pres } : {}),
+          note: mergedNote,
+        } : {}),
         source: "whatsapp",
         ...(ctx.sourceMessageId ? { whatsapp_message_id: ctx.sourceMessageId } : {}),
         stato: "inviato",
@@ -281,7 +289,7 @@ export async function creaRapportino(
       // (com'era fino al 25/09/2026) ogni rapportino nuovo da WhatsApp falliva.
       role_type: "employee",
       // Come dall'app Campo: dopo il Sì dell'operaio il rapportino è all'ufficio.
-      stato: "inviato",
+      stato,
       ...(pres ? { presenze: pres } : {}),
     })
     .select("id")
@@ -304,7 +312,7 @@ export async function creaRapportino(
   const conMateriali = Array.isArray(args.materiali_usati) && args.materiali_usati.length > 0;
   return okResult(
     { id: inserted.id, is_new: true, cantiere_nome: cantiereNome },
-    `✅ Rapportino inviato all'ufficio per ${cantiereNome}: lo approva l'ufficio.` +
+    (stato === "bozza" ? `Bozza del rapportino salvata per ${cantiereNome}.` : `✅ Rapportino inviato all'ufficio per ${cantiereNome}: lo approva l'ufficio.`) +
       (totaleSquadra !== undefined ? ` ${totaleSquadra.toLocaleString("it-IT")} ore totali per ${contesto.presenze!.length} persone.` : "") +
       (conMateriali ? " I materiali sono solo annotati: nessuno scarico di magazzino." : ""),
   );

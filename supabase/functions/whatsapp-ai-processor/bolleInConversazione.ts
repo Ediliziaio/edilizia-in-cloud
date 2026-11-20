@@ -135,52 +135,65 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
     if (indicazioni.length === 1) destinazione = leggiDestinazioneBolla(indicazioni[0]!);
     if (indicazioni.length > 1) return `${etichetta} conservata. Ho ricevuto più destinazioni: rispondi alla bolla con quella corretta.`;
   }
-  if (!destinazione) return `${etichetta} conservata in «DDT → Documenti in ingresso». Dove va la merce? Scrivi il cantiere o il magazzino.`;
-
+  const daOda = d.riferimento && !destinazione?.conferma
+    ? await resolveCantiere(ctx, undefined, { riferimento_ordine: d.riferimento }) : null;
+  const commessaOda = daOda?.source === "oda" ? daOda.cantiere_id : null;
+  const indirizzoLetto = normalizza(d.indirizzo ?? "");
+  const indirizzi = !destinazione?.conferma && /\b\d+[a-z]?\b/.test(indirizzoLetto)
+    ? (await commesseAperte(ctx)).filter(c => normalizza(c.indirizzo_lavori ?? "") === indirizzoLetto) : [];
+  const commessaIndirizzo = indirizzi.length === 1 ? indirizzi[0] : null;
+  if (!destinazione && commessaOda && commessaIndirizzo && commessaOda !== commessaIndirizzo.id) {
+    return `${etichetta} conservata. Il numero d’ordine e l’indirizzo indicano cantieri diversi. Rispondi alla bolla con «Confermo Cantiere» e il codice corretto.`;
+  }
   let orderId: string | null = null;
   let warehouseId: string | null = null;
   let descrizione: string;
-  const candidati = destinazione.tipo === "magazzino" ? [] : await cercaDestinazione(ctx, destinazione.nome);
-  let dep = ctx.supabase.from("warehouses").select("id, name")
-    .eq("company_id", ctx.company_id).eq("is_active", true).order("name").limit(51);
-  const cercaDepositi = destinazione.tipo !== "cantiere";
-  if (cercaDepositi && ctx.soloMieiMagazzini) {
-    const assegnati = await ctx.supabase.from("warehouse_assignments").select("warehouse_id")
-      .eq("user_id", ctx.user_id!).eq("active", true);
-    if (assegnati.error) throw new Error("assegnazioni_magazzino_non_reperibili");
-    if (!assegnati.data?.length) return `${etichetta} conservata. Nessun deposito è assegnato al tuo profilo.`;
-    dep = dep.in("id", assegnati.data.map(r => r.warehouse_id));
-  }
-  const depositi = cercaDepositi ? await dep : { data: [], error: null };
-  if (depositi.error) throw new Error("magazzini_non_reperibili");
-  const scelti = (depositi.data ?? []).filter(d => !destinazione!.nome || conParole(destinazione!.nome, d.name));
-  if (destinazione.tipo === "luogo" && candidati.length + scelti.length !== 1) {
-    return `${etichetta} conservata. Scrivi «Cantiere» o «Magazzino» seguito dal codice o dal nome.`;
-  }
-  if (destinazione.tipo === "cantiere" || candidati.length === 1) {
-    if (candidati.length !== 1) return candidati.length > 1
-      ? `Quale cantiere?${candidati.slice(0, 5).map(c => `\n• ${descriviCommessa(c)}`).join("")}\nScrivi «Cantiere» seguito dal codice o dall’indirizzo.`
-      : `${etichetta} conservata. Indica il codice di una commessa a cui hai accesso.`;
-    const cantiere = candidati[0];
-    await requireSiteAccess(ctx, cantiere.id);
-    orderId = cantiere.id;
-    descrizione = `sul cantiere ${descriviCommessa(cantiere)}`;
+  if (!destinazione) {
+    orderId = d.indirizzo ? commessaIndirizzo?.id ?? null : commessaOda;
+    if (!orderId) return `${etichetta} conservata in «DDT → Documenti in ingresso». Dove va la merce? Scrivi il cantiere o il magazzino.`;
+    await requireSiteAccess(ctx, orderId);
+    const nome = commessaIndirizzo ? descriviCommessa(commessaIndirizzo) : daOda?.cantiere_nome;
+    descrizione = `sul cantiere ${nome ?? "indicato nel documento"}`;
   } else {
-    if (scelti.length !== 1 || depositi.data?.length === 51) return `${etichetta} conservata. Quale magazzino? Scrivi «Magazzino» seguito dal nome del deposito.`;
-    warehouseId = scelti[0].id;
-    descrizione = `nel magazzino ${scelti[0].name}`;
-  }
-  const tipo = orderId ? "cantiere" : "magazzino";
-
-  if ((d.riferimento || d.indirizzo) && !destinazione.conferma) {
-    const letto = await resolveCantiere(ctx, undefined, { riferimento_ordine: d.riferimento, indirizzo: d.indirizzo });
-    if (letto.cantiere_id && ["oda", "address"].includes(letto.source) && letto.cantiere_id !== orderId) {
-      return `La bolla indica ${letto.cantiere_nome}, ma hai indicato ${descrizione}. Se è corretto, scrivi «Confermo ${tipo} ${destinazione.nome}» rispondendo alla bolla.`;
+    const candidati = destinazione.tipo === "magazzino" ? [] : await cercaDestinazione(ctx, destinazione.nome);
+    let dep = ctx.supabase.from("warehouses").select("id, name")
+      .eq("company_id", ctx.company_id).eq("is_active", true).order("name").limit(51);
+    const cercaDepositi = destinazione.tipo !== "cantiere";
+    if (cercaDepositi && ctx.soloMieiMagazzini) {
+      const assegnati = await ctx.supabase.from("warehouse_assignments").select("warehouse_id")
+        .eq("user_id", ctx.user_id!).eq("active", true);
+      if (assegnati.error) throw new Error("assegnazioni_magazzino_non_reperibili");
+      if (!assegnati.data?.length) return `${etichetta} conservata. Nessun deposito è assegnato al tuo profilo.`;
+      dep = dep.in("id", assegnati.data.map(r => r.warehouse_id));
+    }
+    const depositi = cercaDepositi ? await dep : { data: [], error: null };
+    if (depositi.error) throw new Error("magazzini_non_reperibili");
+    const scelti = (depositi.data ?? []).filter(d => !destinazione!.nome || conParole(destinazione!.nome, d.name));
+    if (destinazione.tipo === "luogo" && candidati.length + scelti.length !== 1) {
+      return `${etichetta} conservata. Scrivi «Cantiere» o «Magazzino» seguito dal codice o dal nome.`;
+    }
+    if (destinazione.tipo === "cantiere" || candidati.length === 1) {
+      if (candidati.length !== 1) return candidati.length > 1
+        ? `Quale cantiere?${candidati.slice(0, 5).map(c => `\n• ${descriviCommessa(c)}`).join("")}\nScrivi «Cantiere» seguito dal codice o dall’indirizzo.`
+        : `${etichetta} conservata. Indica il codice di una commessa a cui hai accesso.`;
+      const cantiere = candidati[0];
+      await requireSiteAccess(ctx, cantiere.id);
+      orderId = cantiere.id;
+      descrizione = `sul cantiere ${descriviCommessa(cantiere)}`;
+    } else {
+      if (scelti.length !== 1 || depositi.data?.length === 51) return `${etichetta} conservata. Quale magazzino? Scrivi «Magazzino» seguito dal nome del deposito.`;
+      warehouseId = scelti[0].id;
+      descrizione = `nel magazzino ${scelti[0].name}`;
+    }
+    const altro = commessaIndirizzo && commessaIndirizzo.id !== orderId
+      ? descriviCommessa(commessaIndirizzo) : commessaOda && commessaOda !== orderId ? daOda?.cantiere_nome : null;
+    if (altro) {
+      return `La bolla indica ${altro}, ma hai indicato ${descrizione}. Se è corretto, scrivi «Confermo ${orderId ? "cantiere" : "magazzino"} ${destinazione.nome}» rispondendo alla bolla.`;
     }
   }
 
   let update = ctx.supabase.from("ddt_document_jobs").update({
-    order_id: orderId, warehouse_id: warehouseId, destinazione: tipo, updated_at: new Date().toISOString(),
+    order_id: orderId, warehouse_id: warehouseId, destinazione: orderId ? "cantiere" : "magazzino", updated_at: new Date().toISOString(),
   }).eq("id", bolla.id).eq("company_id", ctx.company_id).eq("source_key", bolla.source_key)
     .in("status", IN_LAVORAZIONE).is("order_id", null).is("warehouse_id", null).is("destinazione", null);
   update = ctx.user_id ? update.eq("created_by", ctx.user_id) : update.is("created_by", null).eq("employee_id", ctx.employee_id!);

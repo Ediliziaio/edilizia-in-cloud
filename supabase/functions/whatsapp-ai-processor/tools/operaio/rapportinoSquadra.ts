@@ -55,6 +55,29 @@ export function giornoRapportinoWhatsapp(data: string | undefined, istante: Date
   return dataRelativa.toISOString().slice(0, 10);
 }
 
+const NUMERI_ORE = ["zero", "una", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci",
+  "undici", "dodici", "tredici", "quattordici", "quindici", "sedici", "diciassette", "diciotto", "diciannove", "venti",
+  "ventuno", "ventidue", "ventitre", "ventiquattro"];
+
+export function vocalePermetteBozza(ctx: ToolCtx, input: Record<string, unknown>, proposto: Record<string, unknown>,
+  cantieri: { id: string; titolo: string; dettaglio: string }[]) {
+  if (!ctx.user_id || !ctx.sentAt || !ctx.transcript || typeof input.cantiere_hint !== "string" || !proposto.order_id ||
+    !Array.isArray(input.persone) || input.persone.length < 2 || !Array.isArray(input.attivita) || !input.attivita.length) return false;
+  const testo = ` ${normalizza(ctx.transcript)} `;
+  const hint = normalizza(input.cantiere_hint);
+  const giorni = new Set([...testo.matchAll(/\b(oggi|ieri)\b/g)].map(m => m[1]));
+  const [giorno] = giorni;
+  const posti = cantieri.filter(c => ` ${normalizza(`${c.titolo} ${c.dettaglio}`)} `.includes(` ${hint} `));
+  if (giorni.size !== 1 || !/\bore\b/.test(testo) || /\b(?:complessive|complessivi|in totale|in tre|in due|non ricordo|forse|poi al cantiere|ripartire)\b/.test(testo) ||
+    hint.length < 3 || !testo.includes(` ${hint} `) || posti.length !== 1 || posti[0].id !== proposto.order_id ||
+    giornoRapportinoWhatsapp(giorno, new Date(ctx.sentAt)) !== proposto.data_lavoro) return false;
+  return (input.persone as OrePersona[]).every(p => {
+    const nome = normalizza(p.nome);
+    return (testo.includes(` ${nome} `) || testo.includes(` ${nome.split(" ")[0]} `)) && Number.isInteger(p.ore) &&
+      (testo.includes(` ${p.ore} `) || testo.includes(` ${NUMERI_ORE[p.ore]} `));
+  });
+}
+
 export async function verificaContestoRapportino(ctx: ToolCtx, orderId: string, giorno: string, persone?: OrePersona[]) {
   if (!ctx.user_id) {
     if (persone?.length) throw new Error("Per registrare la squadra serve un account abilitato e collegato a questo numero.");

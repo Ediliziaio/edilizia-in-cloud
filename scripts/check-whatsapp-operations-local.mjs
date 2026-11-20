@@ -14,8 +14,11 @@ try {
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql as $$select null::uuid$$;
-    create function public.puo_gestire_whatsapp(uuid) returns boolean language sql as $$select false$$;
     create function public.utente_bloccato() returns boolean language sql as $$select false$$;
+    create type public.app_role as enum ('super_admin', 'company_admin');
+    create function public.has_role(uuid, public.app_role) returns boolean language sql as $$select false$$;
+    create table public.profiles(id uuid primary key, company_id uuid);
+    create table public.multi_company_access(user_id uuid, company_id uuid, status text, expires_at timestamptz, access_role public.app_role);
     create table companies(id uuid primary key); create table ai_whatsapp_numbers(id uuid primary key);
     create table whatsapp_messages(id uuid primary key,company_id uuid,wa_number_id uuid,from_phone text,direction text,processing_status text,created_at timestamptz,metadata jsonb default '{}');
     create table whatsapp_credits(company_id uuid primary key,balance_eur numeric,sends_blocked boolean);
@@ -87,13 +90,13 @@ try {
   await check("manual review keeps the failed outcome and cannot finish a live worker", async () => {
     await db.exec(`insert into auth.users values('${owner}');
       create or replace function auth.uid() returns uuid language sql as $$select '${owner}'::uuid$$;
-      create or replace function public.puo_gestire_whatsapp(uuid) returns boolean language sql as $$select true$$;`);
+      insert into multi_company_access(user_id,company_id,status,access_role) values('${owner}','${company}','active','company_admin');`);
     await db.query("update whatsapp_messages set processing_status='failed' where id=$1",[first]);
     assert.equal(await rpc("select whatsapp_message_review($1,$2) as result",[company,first]),true);
     const reviewed=(await db.query("select processing_status,metadata from whatsapp_messages where id=$1",[first])).rows[0];
     assert.equal(reviewed.processing_status,'failed'); assert.equal(reviewed.metadata.manually_reviewed_by,owner);
     assert.equal(await rpc("select whatsapp_message_review($1,$2) as result",[company,second]),false);
-    assert.equal(await rpc("select whatsapp_message_review($1,$2) as result",[other,first]),false);
+    await assert.rejects(rpc("select whatsapp_message_review($1,$2) as result",[other,first]),/forbidden/);
   });
   console.log(`${passed} isolated SQL checks passed; not a multi-connection load test.`);
 } finally { await db.close(); }

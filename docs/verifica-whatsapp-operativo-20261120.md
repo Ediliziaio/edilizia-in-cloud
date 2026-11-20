@@ -10,9 +10,9 @@ Il webhook verifica la firma Meta e identifica l’azienda dal numero aziendale 
 | P0 · Alta | Le scritture dirette dei messaggi non erano riservate al servizio. Le regole di squadra andavano applicate anche a WhatsApp. | Migrazione `20290422230000_whatsapp_rapportini_squadra.sql`, scritture dei messaggi riservate al servizio, controllo del contesto Campo e provenienza del vocale vincolata all’azienda. Test SQL locale su ruoli, azienda, avvio ripetuto e doppio inserimento. |
 | P0 · Alta | Una richiesta scaduta o un allegato fuori limite potevano fallire senza una spiegazione. | Download associato al numero Meta, verifica dell’URL, delle dimensioni e dell’impronta quando disponibile. Una rilettura del riferimento in caso di URL scaduto. I vocali riusano la trascrizione già salvata e la chiave di contabilizzazione associata al messaggio. |
 | P1 · Alta | La destinazione inviata con un vocale non chiudeva l’acquisizione partita con una foto. Più bolle recenti potevano provocare associazioni errate. | La coda DDT conserva l’originale. Foto, PDF, testo e vocale possono determinare cantiere o deposito. Provati il vocale dopo l’allegato, il riferimento esplicito arrivato prima dell’allegato, due bolle aperte, una destinazione in conflitto e l’aggiunta di una pagina citando il primo invio. |
-| P1 · Alta | Il vocale di squadra registrava le ore del mittente. | Il rapportino conserva le presenze individuali verificate sulle anagrafiche di Campo. Il caso di prova registra 8 + 8 + 4 ore, cinque finestre e due portefinestre nella descrizione e il controtelaio mancante nelle note. Dopo la conferma, l’ufficio lo vede come inviato. |
+| P1 · Alta | Il vocale di squadra registrava le ore del mittente. | Il rapportino conserva le presenze individuali verificate sulle anagrafiche di Campo. Il caso di prova registra 8 + 8 + 4 ore, cinque finestre e due portefinestre nella descrizione e il controtelaio mancante nelle note. Nei casi con commessa, giorno, persone e ore espliciti si salva subito una bozza. La conferma invia lo stesso record all’ufficio. |
 
-Il PDF o la foto poco leggibile restano nella coda, quando la didascalia identifica il file come DDT. Il gestionale conserva l’originale e i dati estratti per la revisione. Il riferimento all’ODA viene confrontato esattamente e serve anche a segnalare una destinazione in conflitto. L’effettiva registrazione delle quantità e dei movimenti resta nella procedura DDT. Il rapporto conserva il riferimento al messaggio sorgente, dove si trovano audio e trascrizione.
+Il PDF o la foto poco leggibile restano nella coda, quando la didascalia identifica il file come DDT. Il gestionale conserva l’originale e i dati estratti per la revisione. Il riferimento esatto all’ODA o un indirizzo univoco con civico possono bastare già con la prima foto. Se l’ordine e l’indirizzo indicano cantieri diversi, il bot chiede la destinazione. L’effettiva registrazione delle quantità e dei movimenti resta nella procedura DDT. Il rapporto conserva il riferimento al messaggio sorgente, dove si trovano audio e trascrizione.
 
 ## Limiti del canale e misure
 
@@ -25,6 +25,9 @@ Il PDF o la foto poco leggibile restano nella coda, quando la didascalia identif
 ```sh
 node_modules/.bin/vitest run src/test/logic/whatsapp*.test.ts src/test/logic/ddtWhatsappPersistente.test.ts src/test/logic/bollaWhatsAppPagineCliente.test.ts src/test/security/whatsapp*.test.ts --maxWorkers=2
 node scripts/check-whatsapp-rapportini-local.mjs
+PGLITE_ENTRY=$(node -p "require.resolve('@electric-sql/pglite')")
+node scripts/check-whatsapp-operations-local.mjs "$PGLITE_ENTRY"
+node scripts/check-whatsapp-sessions-local.mjs "$PGLITE_ENTRY"
 ```
 
 La prova DDT simula un payload Meta e usa il codice del webhook, l’acquisizione nel bucket DDT e il salvataggio della destinazione dopo la trascrizione simulata. La prova rapportino riproduce la trascrizione d’esempio e passa dal tool del gestionale. Il test SQL usa un database isolato con fixture. Il collaudo su una linea Meta dedicata deve ancora verificare webhook firmato, download effettivo dei media, OCR e trascrizione sul contenuto reale, visualizzazione nelle due schermate del gestionale e ricezione degli esiti sul telefono.
@@ -32,5 +35,5 @@ La prova DDT simula un payload Meta e usa il codice del webhook, l’acquisizion
 ## Interventi successivi per impatto
 
 1. Associare le singole righe DDT a uno o più ODA con quantità residue e verificare i carichi parziali attraverso il flusso esistente del Magazzino.
-2. Salvare la bozza del nuovo rapportino al primo vocale quando dati e permessi sono inequivocabili, con collegamenti a fasi, mezzi e listini deterministici già in uso. Verificare ripartizione su più cantieri, correzioni di rapportini inviati e rettifiche dopo approvazione. Oggi la conferma precede l’invio e le rettifiche di rapportini chiusi passano dall’ufficio.
+2. Estendere la bozza da vocale alle ore individuali frazionarie e alla ripartizione su più cantieri. Collegare le attività a fasi, mezzi e listini deterministici già in uso. Le rettifiche di rapportini chiusi passano dall’ufficio.
 3. Rendere riproducibile il vocale direttamente dal rapportino per i ruoli autorizzati e misurare il costo completo di ciascuna pratica. Le pagine aggiuntive di un DDT si collegano citando l’invio iniziale. L’abbinamento automatico di pagine inviate senza riferimenti e la scelta tra pratiche parallele restano da completare.
