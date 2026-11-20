@@ -67,6 +67,7 @@ import { MediaWhatsAppNonDisponibile } from "./metaMedia.ts";
 import { resolveIdentity } from "./identity.ts";
 import { aggiungiPaginaBolla, paginaDiBolla } from "./pagineBolla.ts";
 import { leggiDestinazioneBolla, trattaBollaInConversazione } from "./bolleInConversazione.ts";
+import { avviaProssimoMessaggio, posticipaDomandaBolla } from "./codaConversazione.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio, CreditoTrascrizioneEsaurito } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
@@ -232,11 +233,16 @@ Deno.serve(async (req) => {
     .update({ processing_status: "processing", last_processing_attempt_at: new Date().toISOString() })
     .eq("id", body.message_id)
     .eq("processing_status", "received")
-    .select("id");
+    .select("id, ai_extracted_data");
   if (claimError) return json({ error: "message_claim_unavailable" }, 503);
   if (!claimed || claimed.length === 0) {
     return json({ skip: "already_claimed" }, 200);
   }
+  msg.ai_extracted_data = claimed[0].ai_extracted_data;
+  const datiCoda = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data.ddt_domanda_posticipata : null;
+  const domandaInAttesa = isPlainRecord(datiCoda) && typeof datiCoda.foto_id === "string" && typeof datiCoda.testo === "string"
+    ? { fotoId: datiCoda.foto_id, testo: datiCoda.testo } : null;
+  const conDomandaBolla = (testo: string) => domandaInAttesa ? `${testo}\n\n${domandaInAttesa.testo}` : testo;
   if (isPlainRecord(impostazioniNumero) && impostazioniNumero.bot_enabled === false) {
     return markDone(supabase, body.message_id, "processed", "bot_spento");
   }
@@ -307,7 +313,7 @@ Deno.serve(async (req) => {
     // Budget
     const budget = await checkBudget(supabase, msg.company_id);
     if (!budget.ok) {
-      await sendReply(msg, budget.user_message);
+      await sendReply(msg, conDomandaBolla(budget.user_message));
       return markDone(supabase, body.message_id, "failed", "budget_exceeded");
     }
 
@@ -346,8 +352,8 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         if (e instanceof MediaWhatsAppNonDisponibile) {
-          await sendReply(msg, e.codice === "file_grande" ? "Il file supera il limite di questo canale del gestionale. Invia un file più piccolo."
-            : "Il file WhatsApp non è più disponibile. Invia di nuovo l’allegato originale.");
+          await sendReply(msg, conDomandaBolla(e.codice === "file_grande" ? "Il file supera il limite di questo canale del gestionale. Invia un file più piccolo."
+            : "Il file WhatsApp non è più disponibile. Invia di nuovo l’allegato originale."));
           return markDone(supabase, msg.id, "failed", e.codice);
         }
         console.error(JSON.stringify({ level: "error", fn: "scarica_media", error: String(e) }));
@@ -391,7 +397,7 @@ Deno.serve(async (req) => {
     if (msg.message_type === "audio" && !msg.media_storage_path) {
       await sendReply(
         msg,
-        "🎙️ Non sono riuscito a scaricare il vocale. Riprova tra poco oppure scrivimi il messaggio.",
+        conDomandaBolla("🎙️ Non sono riuscito a scaricare il vocale. Riprova tra poco oppure scrivimi il messaggio."),
       );
       return markDone(supabase, body.message_id, "failed", "media_download_error");
     }
@@ -414,7 +420,7 @@ Deno.serve(async (req) => {
         if (transcript.length < 2) {
           await sendReply(
             msg,
-            "🎙️ Non sono riuscito a capire il vocale. Puoi ripeterlo parlando più vicino al telefono, oppure scrivermi il messaggio?",
+            conDomandaBolla("🎙️ Non sono riuscito a capire il vocale. Puoi ripeterlo parlando più vicino al telefono, oppure scrivermi il messaggio?"),
           );
           return markDone(supabase, body.message_id, "processed");
         }
@@ -423,14 +429,14 @@ Deno.serve(async (req) => {
         if (e instanceof CreditoTrascrizioneEsaurito) {
           await sendReply(
             msg,
-            "🎙️ Non posso ascoltare il vocale: i crediti AI dell'azienda sono finiti. Scrivimi il messaggio, oppure chiedi al titolare di ricaricarli.",
+            conDomandaBolla("🎙️ Non posso ascoltare il vocale: i crediti AI dell'azienda sono finiti. Scrivimi il messaggio, oppure chiedi al titolare di ricaricarli."),
           );
           return markDone(supabase, body.message_id, "failed", "credito_ai_esaurito");
         }
         console.error(JSON.stringify({ level: "error", fn: "transcribe", error: String(e) }));
         await sendReply(
           msg,
-          "🎙️ Non sono riuscito ad ascoltare il vocale (problema tecnico). Riprova tra poco oppure scrivimi il messaggio.",
+          conDomandaBolla("🎙️ Non sono riuscito ad ascoltare il vocale (problema tecnico). Riprova tra poco oppure scrivimi il messaggio."),
         );
         return markDone(supabase, body.message_id, "failed", "transcribe_error");
       }
@@ -714,11 +720,20 @@ Deno.serve(async (req) => {
       const inputBolla = { id: msg.id, tipo: msg.message_type, testo: testoBolla, riferimento: relazione, ddtLetto: isDdtLetto, ...(msg.wa_message_id ? { providerId: msg.wa_message_id } : {}) };
       const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-destinazione:${msg.id}`, "destina_bolla",
         inputBolla, async () => ({ ok: true, data: await trattaBollaInConversazione(toolCtx, inputBolla) }));
-      if (esito.data) {
+      if (typeof esito.data === "string") {
         await sendReply(msg, esito.data);
         return markDone(supabase, msg.id, "processed");
       }
+      if (esito.data) {
+        const { domandaDestinazione } = esito.data;
+        const posticipata = await posticipaDomandaBolla(supabase, msg, domandaDestinazione).catch(() => false);
+        if (!posticipata) await sendReply(msg, domandaDestinazione);
+        return markDone(supabase, msg.id, "processed");
+      }
     }
+    // Il seguito può essere un altro lavoro. In quel caso resta da chiedere la
+    // destinazione della bolla, usando la chiave d'invio della foto originale.
+    if (acquisizioneConsentita && domandaInAttesa) await sendReply({ ...msg, id: domandaInAttesa.fotoId }, domandaInAttesa.testo);
 
     // Scelta del cantiere (18/10/2026): «Altro cantiere» mostra l'elenco;
     // toccare un cantiere dell'elenco conferma l'azione su quel cantiere.
@@ -1250,10 +1265,28 @@ async function markDone(
     })
     .eq("id", id)
     .in("processing_status", ["received", "processing"])
-    .select("id");
+    .select("id, company_id, wa_number_id, from_phone");
   if (saveError || data?.length !== 1) return json({ ok: false, error: "processing_result_not_saved" }, 503);
   const { error: releaseError } = await supabase.rpc("whatsapp_conversation_release", { p_message: id });
   if (releaseError) console.error("conversation_release_failed", { message_id: id });
+  else {
+    const seguito = avviaProssimoMessaggio(supabase, data[0], async (messageId) => {
+      const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-ai-processor`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "x-internal-worker-key": Deno.env.get("INTERNAL_WORKER_KEY")!,
+        },
+        body: JSON.stringify({ message_id: messageId }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      await response.body?.cancel();
+      if (!response.ok) throw new Error(`processor_http_${response.status}`);
+    }).catch(() => console.warn("avvio_coda_whatsapp_non_riuscito", { message_id: id }));
+    const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+    runtime?.waitUntil(seguito);
+  }
   return json({ ok: status === "processed", status }, 200);
 }
 

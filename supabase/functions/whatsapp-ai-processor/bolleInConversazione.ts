@@ -72,15 +72,15 @@ async function cercaDestinazione(ctx: ToolCtx, hint: string) {
   const commesse = await commesseAperte(ctx);
   const trova = (c: CommessaAperta) => conParole(hint, [c.client_name, c.description, c.indirizzo_lavori, c.order_code].join(" "));
   const trovate = commesse.filter(trova);
-  if (trovate.length || ctx.kind === "operaio") return trovate;
-  return (await cercaCommesseUfficio(ctx, hint)).filter(trova);
+  const candidati = trovate.length || ctx.kind === "operaio" ? trovate : (await cercaCommesseUfficio(ctx, hint)).filter(trova);
+  return { candidati, disponibili: commesse };
 }
 
 /** La stessa acquisizione resta nella coda DDT. Mai un movimento implicito. */
 export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
   id: string; tipo: string; testo: string; riferimento: string | null; ddtLetto: boolean;
   providerId?: string;
-}): Promise<string | null> {
+}): Promise<string | { domandaDestinazione: string } | null> {
   const allegato = ["image", "document"].includes(input.tipo);
   if (allegato ? !input.ddtLetto : !["text", "audio"].includes(input.tipo)) return null;
   let destinazione = leggiDestinazioneBolla(input.testo, allegato);
@@ -150,12 +150,13 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
   let descrizione: string;
   if (!destinazione) {
     orderId = d.indirizzo ? commessaIndirizzo?.id ?? null : commessaOda;
-    if (!orderId) return `${etichetta} conservata in «DDT → Documenti in ingresso». Dove va la merce? Scrivi il cantiere o il magazzino.`;
+    if (!orderId) return { domandaDestinazione: `${etichetta} conservata in «DDT → Documenti in ingresso». Dove va la merce? Scrivi il cantiere o il magazzino.` };
     await requireSiteAccess(ctx, orderId);
     const nome = commessaIndirizzo ? descriviCommessa(commessaIndirizzo) : daOda?.cantiere_nome;
     descrizione = `sul cantiere ${nome ?? "indicato nel documento"}`;
   } else {
-    const candidati = destinazione.tipo === "magazzino" ? [] : await cercaDestinazione(ctx, destinazione.nome);
+    const opzioni = destinazione.tipo === "magazzino" ? null : await cercaDestinazione(ctx, destinazione.nome);
+    const candidati = opzioni?.candidati ?? [];
     let dep = ctx.supabase.from("warehouses").select("id, name")
       .eq("company_id", ctx.company_id).eq("is_active", true).order("name").limit(51);
     const cercaDepositi = destinazione.tipo !== "cantiere";
@@ -174,9 +175,13 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
       return `${etichetta} conservata. Scrivi «Cantiere» o «Magazzino» seguito dal codice o dal nome.`;
     }
     if (destinazione.tipo === "cantiere" || candidati.length === 1) {
-      if (candidati.length !== 1) return candidati.length > 1
-        ? `Quale cantiere?${candidati.slice(0, 5).map(c => `\n• ${descriviCommessa(c)}`).join("")}\nScrivi «Cantiere» seguito dal codice o dall’indirizzo.`
-        : `${etichetta} conservata. Indica il codice di una commessa a cui hai accesso.`;
+      if (candidati.length > 1) return `Quale cantiere?${candidati.slice(0, 5).map(c => `\n• ${descriviCommessa(c)}`).join("")}\nScrivi «Cantiere» seguito dal codice o dall’indirizzo.`;
+      if (!candidati.length) {
+        const codici = opzioni?.disponibili.flatMap(c => c.order_code ? [`Cantiere ${c.order_code}`] : []).slice(0, 4) ?? [];
+        return codici.length
+          ? `${etichetta} conservata. Per scegliere la destinazione, rispondi con uno di questi codici disponibili:\n${codici.map(codice => `• ${codice}`).join("\n")}`
+          : `${etichetta} conservata. Chiedi all’ufficio di indicare la commessa in «DDT → Documenti in ingresso».`;
+      }
       const cantiere = candidati[0];
       await requireSiteAccess(ctx, cantiere.id);
       orderId = cantiere.id;

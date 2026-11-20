@@ -9,6 +9,7 @@ import {
   leggiDestinazioneBolla, trattaBollaInConversazione,
 } from "../../../supabase/functions/whatsapp-ai-processor/bolleInConversazione";
 import { aggiungiPaginaBolla } from "../../../supabase/functions/whatsapp-ai-processor/pagineBolla";
+import { avviaProssimoMessaggio, posticipaDomandaBolla } from "../../../supabase/functions/whatsapp-ai-processor/codaConversazione";
 import { creaRapportino } from "../../../supabase/functions/whatsapp-ai-processor/tools/operaio/crea_rapportino";
 import { confirmationPreview } from "../../../supabase/functions/whatsapp-ai-processor/frozenConfirmation";
 import {
@@ -110,6 +111,37 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("DDT operativo", () => {
+  it("posticipa la domanda della foto e avvia subito il vocale già in coda sulla stessa linea", async () => {
+    const primaFoto = { ...foto, created_at: "2026-11-20T19:58:13Z", processing_status: "processing" };
+    const vocale = { ...primaFoto, id: "vocale-destinazione", message_type: "audio", created_at: "2026-11-20T19:58:31Z",
+      processing_status: "received", metadata: { reply_to: primaFoto.wa_message_id }, ai_extracted_data: { gia_letto: true } };
+    const estraneo = { ...vocale, id: "altro-dipendente", from_phone: "393331234568" };
+    const bolla = { ...job };
+    const { ctx, writes } = ambiente({ whatsapp_messages: [primaFoto, estraneo, vocale], ddt_document_jobs: [bolla] });
+
+    const esito = await trattaBollaInConversazione(ctx, { id: primaFoto.id, tipo: "image", testo: "DDT di prova", riferimento: null, ddtLetto: true });
+    expect(esito).toMatchObject({ domandaDestinazione: expect.stringContaining("Dove va la merce?") });
+    expect(await posticipaDomandaBolla(ctx.supabase, primaFoto, "Dove va la merce?")).toBe(true);
+    expect(writes).toHaveBeenCalledWith("whatsapp_messages", expect.objectContaining({ id: vocale.id, ai_extracted_data: {
+      gia_letto: true, ddt_domanda_posticipata: { foto_id: primaFoto.id, testo: "Dove va la merce?" },
+    } }));
+
+    const invoca = vi.fn(async (_id: string): Promise<void> => {});
+    await avviaProssimoMessaggio(ctx.supabase, primaFoto, invoca);
+    expect(invoca).toHaveBeenCalledExactlyOnceWith(vocale.id);
+  });
+
+  it("chiede la destinazione quando il seguito riguarda un’altra bolla o un testo senza indirizzo", async () => {
+    const primaFoto = { ...foto, created_at: "2026-11-20T19:58:13Z" };
+    const dopo = { ...primaFoto, id: "seguito", message_type: "audio", created_at: "2026-11-20T19:58:31Z",
+      processing_status: "received", metadata: { reply_to: "wamid.altra-foto" } };
+    const { ctx, writes } = ambiente({ whatsapp_messages: [dopo] });
+    expect(await posticipaDomandaBolla(ctx.supabase, primaFoto, "Dove va la merce?")).toBe(false);
+    Object.assign(dopo, { message_type: "text", content_text: "Oggi ho montato cinque finestre", metadata: {} });
+    expect(await posticipaDomandaBolla(ctx.supabase, primaFoto, "Dove va la merce?")).toBe(false);
+    expect(writes).not.toHaveBeenCalled();
+  });
+
   it("collega al cantiere il DDT già acquisito quando arriva il vocale con la destinazione", async () => {
     const riga = { ...job };
     const { ctx, writes } = ambiente({ whatsapp_messages: [foto], ddt_document_jobs: [riga] });
@@ -118,6 +150,13 @@ describe("DDT operativo", () => {
     expect(riga).toMatchObject({ order_id: "rossi", destinazione: "cantiere" });
     expect(writes).toHaveBeenCalledTimes(1);
     expect(writes).toHaveBeenCalledWith("ddt_document_jobs", expect.any(Object));
+  });
+
+  it("offre il codice di un cantiere accessibile dopo un refuso senza collegare la bolla", async () => {
+    const { ctx, writes } = ambiente({ whatsapp_messages: [foto], ddt_document_jobs: [{ ...job }] });
+    expect(await trattaBollaInConversazione(ctx, { id: "destinazione", tipo: "text", testo: "Cantiere Rosssi", riferimento: "wamid.foto", ddtLetto: false }))
+      .toContain("Cantiere ORD-042");
+    expect(writes).not.toHaveBeenCalled();
   });
 
   it("dal payload Meta alla coda DDT con l’originale e la destinazione del vocale", async () => {
