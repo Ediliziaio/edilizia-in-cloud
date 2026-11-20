@@ -32,6 +32,7 @@ import { ModificaGeneraleDialog } from "@/components/orders/generali/ModificaGen
 import { BottoneRendiconto } from "@/components/orders/generali/rendiconto/RendicontoGenerale";
 import { PerPartire } from "@/components/orders/generali/PerPartire";
 import { PerLavorare } from "@/components/orders/generali/PerLavorare";
+import { DocumentoContrattoAppalto } from "@/components/orders/generali/contratto/DocumentoContrattoAppalto";
 import { riquadriDelModello, schedeDelModello } from "@/components/orders/generali/schede";
 import { SpostaFigliaDialog, type AzioneFiglia } from "@/components/orders/generali/SpostaFigliaDialog";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
@@ -130,51 +131,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
     setParametri(dopo, { replace: true });
   };
 
-  const panoramica = (
-    <>
-      <QuadroGenerale r={r} t={totali} quote={quote} puoModificare={puoModificare} />
-
-      {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il
-          resto». «Completa l'operazione» sta attaccato ai numeri perché spiega proprio perché
-          sono incompleti (margine finale e fabbisogno di capitale sospesi): prima stava sotto
-          due blocchi di avvisi e si leggeva dopo. */}
-      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
-
-      <div className="generale-attention" aria-label="Da seguire"><AvvisiPiano riepilogo={r} dalPiano={dalPiano} puoModificare={puoModificare} />{riquadri.filter(x => x.id === "documenti").map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}</div>
-
-      {avvisi.length > 0 && (
-        <section aria-label="Cosa richiede attenzione" className="space-y-1.5">
-          {avvisi.slice(0,3).map((a) => (
-            <div
-              key={a.id}
-              className={cn(
-                "flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
-                a.tono === "attenzione" ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200" : "bg-muted/40",
-              )}
-            >
-              {a.tono === "attenzione" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-              <span>{a.testo}</span>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {puoModificare && <PerLavorare riepilogo={r} />}
-
-      {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
-      {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
-
-      {/* Le fatture dei fornitori dell'operazione, e quelle che non hanno ancora una commessa
-          (16/11/2026): una fattura importata senza commessa non entra nello speso di nessuno. */}
-      <FattureOperazione riepilogo={r} />
-
-      {(r.permessi.costi || r.permessi.importi) && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
-
-      {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
-        {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}
-        {grafici.map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
-      </div>}
-
+  const elencoCommesse = (
       <section aria-labelledby="figlie-titolo" className="generale-panel generale-children">
         <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
           <h2 id="figlie-titolo" className="flex items-center gap-2.5 text-base font-semibold"><span className="generale-section-icon">{immobiliare ? <Building2 aria-hidden="true" /> : <HardHat aria-hidden="true" />}</span>{r.figlie.length ? def.figlia.tante : immobiliare ? "Gestione dell'operazione" : "Lavori sulla commessa generale"}{r.figlie.length > 0 && <span className="generale-count">{quanteVive}</span>}</h2>
@@ -224,6 +181,58 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
           <TabellaFiglie r={r} t={totali} puoModificare={puoModificare} quote={quote} analisi={!immobiliare || analisiUnita} />
         )}
       </section>
+  );
+
+  const panoramica = (
+    <>
+      {!immobiliare && <>
+        <DocumentoContrattoAppalto riepilogo={r} puoModificare={puoModificare} />
+        {elencoCommesse}
+      </>}
+      <QuadroGenerale r={r} t={totali} quote={quote} puoModificare={puoModificare} />
+
+      {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il
+          resto». «Completa l'operazione» sta attaccato ai numeri perché spiega proprio perché
+          sono incompleti (margine finale e fabbisogno di capitale sospesi): prima stava sotto
+          due blocchi di avvisi e si leggeva dopo. */}
+      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
+
+      <div className="generale-attention" aria-label="Da seguire"><AvvisiPiano riepilogo={r} dalPiano={dalPiano} puoModificare={puoModificare} />{riquadri.filter(x => x.id === "documenti").map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}</div>
+
+      {avvisi.length > 0 && (
+        <section aria-label="Cosa richiede attenzione" className="space-y-1.5">
+          {avvisi.slice(0,3).map((a) => (
+            <div
+              key={a.id}
+              className={cn(
+                "flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
+                a.tono === "attenzione" ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200" : "bg-muted/40",
+              )}
+            >
+              {a.tono === "attenzione" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+              <span>{a.testo}</span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {puoModificare && <PerLavorare riepilogo={r} />}
+
+      {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
+      {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
+
+      {/* Le fatture dei fornitori dell'operazione, e quelle che non hanno ancora una commessa
+          (16/11/2026): una fattura importata senza commessa non entra nello speso di nessuno. */}
+      <FattureOperazione riepilogo={r} />
+
+      {(r.permessi.costi || r.permessi.importi) && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
+
+      {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
+        {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}
+        {grafici.map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
+      </div>}
+
+      {immobiliare && elencoCommesse}
 
       {/* Dopo le commesse, i dettagli dei moduli: affiancati, non uno sopra l'altro a tutta larghezza. */}
       {riquadri.length > 0 && (
@@ -420,14 +429,16 @@ function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; 
   const quantiNumeri = costruzione
     ? 1 + (speso !== null ? 1 : 0) + (conCapitale ? 1 : 0) + (conMargine ? 1 : 0)
     : 4 + (appalto && (fineContratto || ultimati) ? 1 : 0);
+  const nomeValore = appalto && r.generale.valore === null ? "Importo dei lavori collegati" : def.valore.etichetta;
+  const notaValore = r.generale.valore === null ? (appalto ? "Valore del contratto principale non indicato" : `somma delle ${def.figlia.tante.toLowerCase()}`) : undefined;
 
   return (
-    <section aria-label={r.permessi.importi ? `${def.valore.etichetta}: ${euro(r.generale.valore ?? t.assegnato)}` : undefined} className="generale-hero">
+    <section aria-label={r.permessi.importi ? `${nomeValore}: ${euro(r.generale.valore ?? t.assegnato)}` : undefined} className="generale-hero">
       <header className="generale-hero-heading"><div><span className="generale-hero-icon"><LayoutDashboard aria-hidden="true" /></span><h2>La commessa in numeri</h2></div><span className="generale-hero-caption">{appalto ? "Il quadro dell'intero appalto" : costruzione ? "L'operazione in costruzione" : "Il quadro dell'intera operazione"}</span></header>
       <div className="generale-kpi-grid" style={{ "--kpi-colonne": Math.max(2, quantiNumeri) } as React.CSSProperties}>
         {costruzione && r.permessi.importi ? (
           <>
-            <Numero etichetta={def.valore.etichetta} valore={euro(r.generale.valore ?? t.assegnato)} nota={r.generale.valore === null ? `somma delle ${def.figlia.tante.toLowerCase()}` : undefined} />
+            <Numero etichetta={nomeValore} valore={euro(r.generale.valore ?? t.assegnato)} nota={notaValore} />
             {speso !== null && (
               <Numero
                 tipo="capitale"
@@ -440,7 +451,7 @@ function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; 
           </>
         ) : r.permessi.importi ? (
           <>
-            <Numero etichetta={def.valore.etichetta} valore={euro(r.generale.valore ?? t.assegnato)} nota={r.generale.valore === null ? `somma delle ${def.figlia.tante.toLowerCase()}` : undefined} />
+            <Numero etichetta={nomeValore} valore={euro(r.generale.valore ?? t.assegnato)} nota={notaValore} />
             <Numero tipo="incasso" etichetta="Da incassare" valore={euro(t.daIncassare)} nota={appalto ? "fatturato e non ancora pagato" : "venduto o fatturato, non ancora pagato"} />
             {numeri.some((x) => x.id === "residuo") && <Numero etichetta="Residuo del contratto" valore={euro(di("residuo"))} nota="non ancora a SAL" />}
             {appalto && ultimati && <Numero etichetta="Fine lavori" valore="Ultimati" nota={`il ${dataIt(ultimati)}${penale ? ` · penale ${euro(penale.importo)}` : ""}`} tono={penale ? "rosso" : undefined} />}
@@ -491,6 +502,7 @@ function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; 
           incassato={t.incassato}
           budgetParziale={!budgetCompleto}
           notaCostiPrevisti={r.permessi.costi ? "il piano non ha ancora un budget" : "costi non visibili"}
+          appalto={appalto}
           superficieAMano={puoModificare ? { generaleId: r.generale.id, area: r.generale.dati?.area } : undefined}
         />
       )}

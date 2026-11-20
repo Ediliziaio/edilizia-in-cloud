@@ -8,6 +8,9 @@ import { useCreaGenerale, type NuovaGenerale } from "@/hooks/useCommesseGenerali
 import { annotaStimeDiPartenza, vocePerDb } from "@/hooks/useGeneralePiano";
 import type { VoceNuova } from "@/lib/orders/generali/pianoCategorie";
 import type { UnitaDaCreare } from "@/lib/orders/generali/unitaSerie";
+import { useAuth } from "@/contexts/AuthContext";
+import { archiviaContrattoAppalto } from "@/lib/orders/generali/contrattoOriginale";
+import { problemaFile } from "@/lib/commesse/documentiCommessa";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -19,15 +22,26 @@ export interface AvvioGenerale {
   voci: VoceNuova[] | null;
   /** Dati della scheda «Dati» chiesti alla creazione (indirizzo, date, sezioni della tipologia). */
   dati?: Record<string, unknown> | null;
+  contratto?: File | null;
 }
 
 export function useAvviaGenerale() {
   const crea = useCreaGenerale();
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ nuova, unita, voci, dati }: AvvioGenerale): Promise<{ id: string; rimasti: ("unita" | "piano" | "dati")[] }> => {
+    mutationFn: async ({ nuova, unita, voci, dati, contratto }: AvvioGenerale): Promise<{ id: string; rimasti: ("unita" | "piano" | "dati" | "contratto")[] }> => {
+      if (contratto && nuova.modello === "appalto") {
+        if (!user?.id) throw new Error("Accedi di nuovo prima di caricare il contratto.");
+        const problema = problemaFile(contratto);
+        if (problema) throw new Error(problema);
+      }
       const id = await crea.mutateAsync(nuova);
-      const rimasti: ("unita" | "piano" | "dati")[] = [];
+      const rimasti: ("unita" | "piano" | "dati" | "contratto")[] = [];
+      if (contratto && nuova.modello === "appalto") {
+        try { await archiviaContrattoAppalto(supabase, { orderId: id, userId: user!.id, file: contratto }); }
+        catch { rimasti.push("contratto"); }
+      }
       if (dati && Object.keys(dati).length > 0) {
         const { error } = await db.rpc("commessa_generale_dati_salva", { p_generale_id: id, p_dati: dati });
         if (error) rimasti.push("dati");

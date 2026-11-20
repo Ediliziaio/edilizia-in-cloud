@@ -17,6 +17,7 @@ import {
   type AllegatoCommessa, type AmbitoVoce, type ChecklistDocumenti, type RigaVoceAzienda, type SegnoDocumento, type VoceDocumento,
 } from "@/lib/orders/generali/documenti";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { archiviaContrattoAppalto } from "@/lib/orders/generali/contrattoOriginale";
 
 // Le tabelle del modulo non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -234,6 +235,7 @@ export function useCaricaDocumentoVoce(generaleId: string) {
       if (!user?.id || !companyId) throw new Error("Sessione scaduta: entra di nuovo per caricare.");
       const problema = problemaFile(p.file);
       if (problema) throw new Error(problema);
+      if (p.voce.id === "contratto_firmato") return archiviaContrattoAppalto(supabase, { orderId: p.orderId, userId: user.id, file: p.file });
       const { data: cartelle } = await (supabase
         .from("order_document_folders" as never)
         .select("id, company_id, nome, posizione, visibile_cliente, obbligatoria, archiviata_at")

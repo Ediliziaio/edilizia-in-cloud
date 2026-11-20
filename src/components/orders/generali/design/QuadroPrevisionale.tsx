@@ -45,9 +45,10 @@ interface Props {
   notaCostiPrevisti?: string | null;
   /** Con questo la superficie si scrive da qui, senza passare dalla scheda Dati. */
   superficieAMano?: { generaleId: string; area: Record<string, string | number | boolean | null> | undefined };
+  appalto?: boolean;
 }
 
-export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, notaCostiPrevisti, superficieAMano }: Props) {
+export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, notaCostiPrevisti, superficieAMano, appalto = false }: Props) {
   const { previsionale: p, reale: r } = n;
   const mq = n.superficie;
   const tonoMargine = (m: number | null) => (m === null ? undefined : m < 0 ? "rosso" : "verde");
@@ -66,7 +67,7 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
               <SuperficieAMano {...superficieAMano} etichetta="correggi" />
             )}
           </span>
-        ) : (
+        ) : !appalto && (
           <span className="quadro-prev-mq-fonte">
             Per i €/m² serve la superficie vendibile:{" "}
             {superficieAMano
@@ -103,7 +104,7 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
           <Cella
             valore={r.vendita === null ? "—" : euro(r.vendita)}
             nota={r.vendita === null
-              ? "niente venduto finora"
+              ? (appalto ? "nessuna fattura emessa finora" : "niente venduto finora")
               : [euroMq(r.venditaMq), incassato !== null ? `incassato ${euro(incassato)}` : null].filter(Boolean).join(" · ")}
           />
           <Cella
@@ -112,7 +113,7 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
           />
           <Cella
             valore={r.margine === null ? "—" : euro(r.margine)}
-            nota={r.margine === null ? "si calcola quando si vende" : pct(r.marginePct)}
+            nota={r.margine === null ? (appalto ? "si calcola con ricavi e costi registrati" : "si calcola quando si vende") : pct(r.marginePct)}
             tono={tonoMargine(r.margine)}
           />
         </div>

@@ -231,4 +231,37 @@ describe("impostazione delle commesse generali", () => {
     expect(screen.getByLabelText("Nome")).toHaveAttribute("placeholder", "Appalto manutenzione scuole 2027");
     expect(screen.getByRole("dialog")).toHaveTextContent("Ordini di lavoro e commesse da collegare si aggiungono anche dopo");
   });
+
+  it("crea l'appalto con l'originale da 26 MB senza passare dall'AI e apre il contratto", () => {
+    m.modelli = ["appalto"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Accordo quadro" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cliente", exact: true }));
+    const file = new File(["originale"], "Contratto registrato.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "size", { value: 26_056_111 });
+    fireEvent.change(screen.getByLabelText(/Contratto d’appalto originale/), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    expect(m.avvia).toHaveBeenCalledTimes(1);
+    const [p, callback] = m.avvia.mock.calls[0];
+    expect(p.contratto).toBe(file);
+    callback.onSuccess({ id: "appalto", rimasti: [] });
+    expect(m.navigate).toHaveBeenCalledWith("/azienda/ordini/appalto?scheda=contratto");
+  });
+
+  it("se il file supera 50 MB ferma la creazione prima di salvare e si può rimuoverlo", () => {
+    m.modelli = ["appalto"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Accordo quadro" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cliente", exact: true }));
+    const file = new File(["x"], "Contratto.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "size", { value: 50_000_001 });
+    fireEvent.change(screen.getByLabelText(/Contratto d’appalto originale/), { target: { files: [file] } });
+    expect(screen.getByRole("alert")).toHaveTextContent("supera 50 MB");
+    expect(screen.getByRole("button", { name: "Crea commessa generale" })).toBeDisabled();
+    expect(m.avvia).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi file selezionato" }));
+    expect(screen.getByRole("button", { name: "Crea commessa generale" })).toBeEnabled();
+  });
 });
