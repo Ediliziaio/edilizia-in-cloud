@@ -1026,7 +1026,7 @@ describe("precedenza delle fatture citate nel movimento", () => {
       begin
         select po.oda_number into v_oda_numero from public.purchase_orders po
      where po.id = v_c.purchase_order_id and po.company_id = v_c.company_id;
-    if v_oda_numero is null then
+    if not found then
       return jsonb_build_object('ok', false, 'errore', 'Ordine collegato non trovato in questa azienda.');
         end if;
         return '{"ok":true}';

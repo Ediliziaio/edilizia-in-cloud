@@ -175,11 +175,11 @@ begin
   if position('Verifica il fornitore e rigenera la bozza del carico' in d)>0 then return; end if;
   d := pg_temp.tes_inserisci_riferimenti(d,
     $old$     where po.id = v_c.purchase_order_id and po.company_id = v_c.company_id;
-    if v_oda_numero is null then
+    if not found then
       return jsonb_build_object('ok', false, 'errore', 'Ordine collegato non trovato in questa azienda.');$old$,
     $new$     where po.id = v_c.purchase_order_id and po.company_id = v_c.company_id
-       and po.supplier_id = v_c.fornitore_match_id and po.status in ('inviato','confermato','parziale');
-    if v_oda_numero is null then
+       and po.supplier_id = v_c.fornitore_match_id and po.status in ('inviato','confermato','parziale','ricevuto');
+    if not found then
       return jsonb_build_object('ok', false, 'errore', 'Ordine non compatibile con il carico. Verifica il fornitore e rigenera la bozza del carico.');$new$);
   execute d;
 end $patch$;
