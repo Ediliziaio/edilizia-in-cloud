@@ -472,6 +472,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const setShowCompleted = (toggle: (value: boolean) => boolean) => setCompletedVisibility({orderId, value: toggle(showCompleted)});
   const groupCompleted = filter === "all" && !search.trim();
   // Filtri e ricerca servono con tante fasi, o se sono già in uso.
+  const conteggiNomi = new Map<string, number>();
+  for (const fase of phases) { const nome = fase.name.trim().replace(/\s+/g, " ").toLocaleLowerCase("it"); conteggiNomi.set(nome, (conteggiNomi.get(nome) ?? 0) + 1); }
+  const nomiRipetuti = [...conteggiNomi.values()].filter((n) => n > 1).length;
   const mostraFiltri = phases.length > 6 || filter !== "all" || !!search.trim();
   const visiblePhases = phases.filter(p => matchesFilter(p, filter) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")) && (!view || !groupCompleted || showCompleted || p.status !== "completata"));
   const [newPhaseName, setNewPhaseName] = useState("");
@@ -572,8 +575,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                     inCorso={applyTemplate.isPending}
                     onApplica={(fasi) =>
                       applyTemplate.mutate(fasi, {
-                        onSuccess: () => {
-                          toast.success(`${fasi.length} fasi aggiunte`);
+                        onSuccess: (aggiunte) => {
+                          toast.success(aggiunte ? `${aggiunte} fasi aggiunte; le fasi già presenti sono state mantenute` : "Le fasi del modello sono già presenti. Eventuali sottofasi mancanti sono state aggiunte.");
                           closePhaseDialog();
                         },
                       })
@@ -1161,6 +1164,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             {andamentoTelefono && <div className="rounded-lg border bg-card px-3 py-2"><BarraAndamento a={andamentoTelefono} /></div>}
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
+            {canEditOrders && nomiRipetuti > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">{nomiRipetuti} nomi di fase compaiono più volte. Controlla le copie e usa «Altre azioni» (⋯) → «Elimina fase» sulla riga da rimuovere. Le lavorazioni già registrate vanno verificate prima della rimozione.</p>}
             {telefono ? mostraFiltri && (
               <CercaConFiltri
                 valore={search}
@@ -1171,6 +1175,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               />
             ) : <div className="flex flex-wrap items-center gap-2">
               <h3 className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fasi di lavoro</h3>
+              {canEditOrders && phases.length > 0 && <p className="basis-full text-xs font-normal normal-case tracking-normal text-muted-foreground">Per rimuovere una fase, apri «Altre azioni» (⋯) sulla sua riga e scegli «Elimina fase». Le fasi collegate a documenti richiedono prima la gestione dei collegamenti.</p>}
               {mostraFiltri && <div className="flex flex-wrap gap-1" aria-label="Filtra lavorazioni">
                 {([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const).map(([value, label]) =>
                   <Button key={value} size="sm" className="h-8" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}

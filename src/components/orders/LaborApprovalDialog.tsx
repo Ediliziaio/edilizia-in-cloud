@@ -34,7 +34,7 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, onReje
         <DialogTitle className="max-md:text-base">Controlla e approva il rapportino</DialogTitle>
         <DialogDescription className="max-md:hidden">Verifica persone, ore e possibili sovrapposizioni prima di registrare il consuntivo.</DialogDescription>
       </DialogHeader>
-      <DettagliRapportino companyId={request.companyId} orderId={request.orderId} reportId={request.reportId} />
+      <DettagliRapportino companyId={request.companyId} orderId={request.orderId} reportId={request.reportId} onRimosso={onClose} />
       {request.showCosts && <QuadroEconomicoRapportino rapportinoId={request.reportId} puoModificare />}
       {query.isPending && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin"/>Controllo della giornata…</p>}
       {query.isError && <p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm">

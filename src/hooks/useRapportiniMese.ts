@@ -15,7 +15,7 @@ const CAMPI = [
   "foto_urls, fasi_lavorate, materiali_usati, mezzi_usati, campi_extra, motivo_rifiuto, lavoro_completato",
   "firma_cliente_url, firma_cliente_nome, source, created_at, ufficio_created_by, pdf_url",
   // Per approvare e rifiutare dal popup: chi l'ha scritto e la versione letta.
-  "user_id, updated_at",
+  "user_id, updated_at, ufficio_employee_id",
   // Più relazioni verso profiles: la chiave va detta.
   "order:orders!campo_rapportini_order_id_fkey(order_code, client_name, client_email, client_address, description, work_address, deleted_at)",
   "operaio:profiles!campo_rapportini_user_id_fkey(first_name, last_name)",
@@ -24,6 +24,7 @@ const CAMPI = [
 
 export interface RapportinoCompleto extends RapportinoRiga {
   user_id?: string | null;
+  ufficio_employee_id?: string | null;
   updated_at?: string | null;
   note?: string | null;
   meteo?: string | null;

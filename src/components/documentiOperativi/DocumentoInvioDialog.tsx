@@ -333,7 +333,7 @@ function DocumentoInvioContent({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="doc-nome">{d.rendicontoTrasporti ? "Cliente" : "Destinatario"}</Label>
+                <Label htmlFor="doc-nome">{d.rendicontoTrasporti ? "Cliente" : d.tipo === "trasporti" ? "Trasportatore" : "Destinatario"}</Label>
                 <Input
                   id="doc-nome"
                   value={d.destinatario.nome}

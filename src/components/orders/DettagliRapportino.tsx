@@ -1,3 +1,4 @@
+import { AzioniRapportino } from "./AzioniRapportino";
 /**
  * Tutto quello che l'operaio ha scritto nel rapportino, dentro il popup di
  * approvazione: si decide leggendo, senza aprire altre pagine.
@@ -11,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
-import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/CorreggiRapportino";
+import { StoricoRapportino } from "@/components/orders/CorreggiRapportino";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useNomiFasiCommessa } from "@/hooks/useRapportiniMese";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
@@ -20,7 +21,7 @@ import { compilatoDa } from "../../../supabase/functions/genera-pdf-rapportino/m
 
 const ETICHETTA = "text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 
-export function DettagliRapportino({ companyId, orderId, reportId }: { companyId: string; orderId: string; reportId: string }) {
+export function DettagliRapportino({ companyId, orderId, reportId, onRimosso }: { companyId: string; orderId: string; reportId: string; onRimosso?: () => void }) {
   const { data: nomiFasi } = useNomiFasiCommessa(orderId);
   const [foto, setFoto] = useState<string | null>(null);
   const { data: r } = useQuery({
@@ -43,13 +44,13 @@ export function DettagliRapportino({ companyId, orderId, reportId }: { companyId
   const autore = compilatoDa(r as unknown as Record<string, unknown>);
   return (
     <div className="space-y-2.5 text-[13px] leading-snug">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           {r.data_lavoro && <p className="font-semibold capitalize text-slate-900">{format(parseISO(r.data_lavoro), "EEEE d MMMM yyyy", { locale: it })}</p>}
           {autore && <p className="text-xs text-muted-foreground">{autore}</p>}
         </div>
-        <div className="flex shrink-0 gap-1.5">
-          <CorreggiRapportino rapportinoId={reportId} orderId={orderId} />
+        <div className="flex flex-wrap gap-1.5">
+          <AzioniRapportino report={r} orderId={orderId} onFatto={onRimosso} />
           <PulsantePdfRapportino report={r} orderId={orderId} />
         </div>
       </div>

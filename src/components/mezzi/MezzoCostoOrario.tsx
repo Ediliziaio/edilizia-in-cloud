@@ -1,6 +1,6 @@
 // Quanto costa un'ora di questo mezzo: le spese degli ultimi 12 mesi divise per le ore.
 // Non è una spesa: serve a dare a ogni cantiere la sua quota. Solo chi ha il permesso costi.
-import { useEffect, useState, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +25,7 @@ const numero = (v: string): number | null => { const t = v.trim().replace(",", "
 export function MezzoCostoOrario({ mezzoId, puoModificare }: { mezzoId: string; puoModificare: boolean }): ReactElement | null {
   const qc = useQueryClient();
   const chiave = ["mezzo-costo-orario", mezzoId];
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: chiave,
     retry: false,
     queryFn: async (): Promise<Dettaglio> => {
@@ -34,12 +34,11 @@ export function MezzoCostoOrario({ mezzoId, puoModificare }: { mezzoId: string; 
       return d as Dettaglio;
     },
   });
-  const [manuale, setManuale] = useState("");
-  const [previste, setPreviste] = useState("");
-  useEffect(() => {
-    setManuale(data?.manuale != null ? String(data.manuale).replace(".", ",") : "");
-    setPreviste(data?.ore_previste != null ? String(data.ore_previste) : "");
-  }, [data?.manuale, data?.ore_previste]);
+  const [bozza, setBozza] = useState<{ mezzoId: string; manuale?: string; previste?: string }>({ mezzoId });
+  const manuale = (bozza.mezzoId === mezzoId ? bozza.manuale : undefined) ?? (data?.manuale != null ? String(data.manuale).replace(".", ",") : "");
+  const previste = (bozza.mezzoId === mezzoId ? bozza.previste : undefined) ?? (data?.ore_previste != null ? String(data.ore_previste) : "");
+  const setManuale = (valore: string) => setBozza({ mezzoId, manuale: valore, previste });
+  const setPreviste = (valore: string) => setBozza({ mezzoId, manuale, previste: valore });
   const salva = useMutation({
     mutationFn: async () => {
       const { error } = await db.rpc("mezzo_costo_orario_salva", { p_mezzo: mezzoId, p_manuale: numero(manuale), p_ore_previste: numero(previste) });
@@ -48,7 +47,8 @@ export function MezzoCostoOrario({ mezzoId, puoModificare }: { mezzoId: string; 
     onSuccess: () => { toast.success("Costo orario salvato"); void qc.invalidateQueries({ queryKey: chiave }); },
     onError: (e: Error) => toast.error(e.message),
   });
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <p role="status" className="text-sm text-muted-foreground">Carico il costo orario…</p>;
+  if (isError || !data) return <p role="alert" className="mb-3 rounded border p-3 text-sm">Costo orario non disponibile. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></p>;
   if (data.noleggio) {
     return <p className="mb-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">Mezzo a noleggio: il costo arriva dalla fattura, non ha un costo orario interno.</p>;
   }
@@ -59,6 +59,7 @@ export function MezzoCostoOrario({ mezzoId, puoModificare }: { mezzoId: string; 
         <h3 className="font-semibold">Costo orario</h3>
         <p className="text-lg font-bold tabular-nums">{data.effettivo != null ? `${formatCurrency(Number(data.effettivo))}/h` : "Da completare"}</p>
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">Questo è il costo interno ripartito sulle ore dei rapportini approvati. Il prezzo addebitato al cliente si collega invece alla voce di nolo del listino, nel quadro economico del rapportino.</p>
       <ul className="mt-2 divide-y">
         {VOCI.filter(([k]) => Number(data[k] ?? 0) !== 0).map(([k, nome]) => (
           <li key={k} className="flex justify-between py-1"><span className="text-muted-foreground">{nome}</span><span className="tabular-nums">{formatCurrency(Number(data[k]))}</span></li>

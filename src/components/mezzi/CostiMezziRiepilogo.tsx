@@ -27,7 +27,7 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
     piani.isLoading ||
     (piani.data?.length && (prezzi.isPending || fonti.isPending));
   const error = piani.isError || prezzi.isError || fonti.isError;
-  if (!loading && !error && !piani.data?.length) return null;
+
   const e = economiaPianiMezzi(
     piani.data ?? [],
     prezzi.data ?? {},
@@ -47,6 +47,7 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
           Gestisci risorse e spese
         </Button>
       </div>
+      {!loading && !error && !piani.data?.length && <p className="text-xs text-muted-foreground">Nessun mezzo pianificato. Da «Gestisci risorse e spese» assegna un mezzo o un nolo e indica tariffa, periodo e fornitore. Le fatture confermate alimentano i costi effettivi; il listino definisce il prezzo al cliente.</p>}
       {error ? (
         <p role="alert" className="text-xs text-destructive">
           Dati mezzi non disponibili.{" "}

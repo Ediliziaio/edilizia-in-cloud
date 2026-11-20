@@ -129,26 +129,26 @@ export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?:
 }
 
 /** Annullare è definitivo: il motivo è obbligatorio e resta sul rapportino. */
-export function AnnullaRapportinoDialog({ motivo, onMotivo, busy, onClose, onConferma }: {
-  motivo: string; onMotivo: (v: string) => void; busy: boolean; onClose: () => void; onConferma: () => void;
+export function AnnullaRapportinoDialog({ motivo, onMotivo, busy, onClose, onConferma, elimina = false }: {
+  motivo: string; onMotivo: (v: string) => void; busy: boolean; onClose: () => void; onConferma: () => void; elimina?: boolean;
 }) {
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Annulla rapportino</DialogTitle>
+          <DialogTitle>{elimina ? "Elimina rapportino" : "Annulla rapportino"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <p className="text-sm text-muted-foreground">
             Ore, costo e avanzamento tornano indietro e il rapportino sparisce dagli elenchi. Resta consultabile con «Mostra annullati», ma non si può riaprire. Non si può annullare se è già in una pagina di giornale firmata o in un rendiconto non più in bozza.
           </p>
-          <Textarea placeholder="Perché lo annulli? Es: inserito sulla commessa sbagliata" value={motivo} onChange={(e) => onMotivo(e.target.value)} rows={3} />
+          <Textarea aria-label="Motivo della rimozione" placeholder="Perché lo rimuovi? Es: rapportino di prova" value={motivo} onChange={(e) => onMotivo(e.target.value)} rows={3} />
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>Non annullare</Button>
+          <Button variant="outline" disabled={busy} onClick={onClose}>Torna indietro</Button>
           <Button variant="destructive" onClick={onConferma} disabled={busy || !motivo.trim()}>
             {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
-            Annulla rapportino
+            {elimina ? "Elimina rapportino" : "Annulla rapportino"}
           </Button>
         </DialogFooter>
       </DialogContent>
