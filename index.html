@@ -420,7 +420,7 @@
           'ediliziaincloud.com': true,
           'www.ediliziaincloud.com': true
         };
-        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|produttore|tecnico|campo|entra|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|commercialista-login|produttore-login|referral-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
+        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|produttore|tecnico|campo|entra|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|commercialista-login|produttore-login|referral-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|documenti-cantiere|nps|feedback|ref|talent-profile)(\/|$)/;
         var isPublicMarketingPage = !!MARKETING_HOSTS[window.location.hostname] && !PRIVATE_PREFIXES.test(window.location.pathname || '/');
 
         // Flag letto da src/lib/meta/fbcTracker.ts (trackPixel) per non sparare
@@ -562,7 +562,7 @@
     </style>
     <!-- Clientium: pixel visite SOLO sul sito marketing (mai app/admin/localhost).
          Stessa index per sito e app: la guardia sull'hostname fa da confine. -->
-    <script>(function(){var h=location.hostname;if(h!=="ediliziaincloud.com"&&h!=="www.ediliziaincloud.com")return;window.eicConsensoCookie.quando('analitici',function(){var i=new Image();i.src="https://clientium.it/api/v/?k=rk_631f93ec037ef301&u="+encodeURIComponent(location.href)+"&t="+Date.now();});})();</script>
+    <script>(function(){var h=location.hostname;if((h!=="ediliziaincloud.com"&&h!=="www.ediliziaincloud.com")||/^\/documenti-cantiere\/?$/.test(location.pathname))return;window.eicConsensoCookie.quando('analitici',function(){var i=new Image();i.src="https://clientium.it/api/v/?k=rk_631f93ec037ef301&u="+encodeURIComponent(location.href)+"&t="+Date.now();});})();</script>
   </head>
 
   <body>

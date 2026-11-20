@@ -184,6 +184,7 @@ const WhatsAppFab = lazy(() => import("@/components/landing/WhatsAppFab"));
 const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
 // Etichette QR di attrezzi e mezzi (05/10/2026): /q/<codice>?c=<azienda>.
 const QrMezzo = lazy(() => import("@/pages/QrMezzo"));
+const DocumentiCantiere = lazy(() => import("@/pages/public/DocumentiCantiere"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
@@ -562,7 +563,7 @@ function SessionTimeoutGuard(): null {
 const PERSIST_BUSTER = `${(import.meta as { env: Record<string, string> }).env.VITE_APP_VERSION ?? "v1"}:identity-v2`;
 const LocalRouteBoundary = import.meta.env.DEV ? LocalWarehouseRouteBoundary : Fragment;
 
-const App = () => (
+const Gestionale = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">
   <PersistQueryClientProvider
     client={queryClient}
@@ -919,5 +920,13 @@ const App = () => (
   </PersistQueryClientProvider>
   </ErrorBoundary>
 );
+
+// La pagina aperta dal QR non usa login, tracciamento o persistenza del gestionale.
+function App() {
+  if (typeof window !== "undefined" && /^\/documenti-cantiere\/?$/.test(window.location.pathname)) {
+    return <Suspense fallback={<p className="p-5 text-sm" role="status">Caricamento documenti…</p>}><DocumentiCantiere /></Suspense>;
+  }
+  return <Gestionale />;
+}
 
 export default App;

@@ -72,6 +72,7 @@ interface Props {
   storageBucket?: string;
   /** File pre-selezionato (es. da drag&drop esterno). Verrà caricato automaticamente sullo step 1. */
   initialFile?: File | null;
+  onAnalysisReady?: (file: File) => void;
 }
 
 const ACCEPTED_EXT = [...SMART_ACCEPTED_EXT];
@@ -253,6 +254,7 @@ export function SmartDocumentImportModal({
   onComputoReady,
   storageBucket = "documenti-smart",
   initialFile,
+  onAnalysisReady,
 }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
@@ -433,6 +435,7 @@ export function SmartDocumentImportModal({
       await new Promise((r) => setTimeout(r, 400));
       setClassifyStatus("review");
       setResult(normalized);
+      if (normalized.analysis_id && normalized.status !== "failed") onAnalysisReady?.(file);
       setSelectedDocType(normalized.doc_type);
       setStep(3);
     } catch (e) {

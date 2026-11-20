@@ -1221,3 +1221,7 @@ verify_jwt = false
 # Lettura DWG protetta per le tavole della commessa; nessuna chiamata AI.
 [functions.cad-leggi-commessa]
 verify_jwt = true
+
+# Accesso in sola lettura con il token stampato sul cartello di cantiere.
+[functions.documenti-cantiere]
+verify_jwt = false

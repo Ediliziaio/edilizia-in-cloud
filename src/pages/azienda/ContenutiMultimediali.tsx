@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 
 const PdfToolkitDialog = lazy(() =>
   import("@/components/documenti/PdfToolkitDialog").then((m) => ({ default: m.PdfToolkitDialog })),
 );
 import { Link, useNavigate } from "react-router-dom";
 import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertTriangle,
@@ -31,6 +31,9 @@ import {
   Loader2,
   Lock,
   MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  SlidersHorizontal,
   Package,
   RefreshCw,
   Search,
@@ -63,11 +66,17 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
+import { CaricaFileDriveDialog } from "@/components/documenti/CaricaFileDriveDialog";
+import { attachmentStorage } from "@/components/orders/filePreviewUtils";
+import { problemaFile } from "@/lib/commesse/documentiCommessa";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import type { DriveFileRow, DriveFolderMode } from "@/integrations/supabase/appDatabase";
+import { leggiPagineDrive } from "@/lib/leggiPagineDrive";
 import type { Database } from "@/integrations/supabase/types";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -82,6 +91,7 @@ import {
   mediaLibraryItemMatchesSearch,
   mediaLibraryItemMatchesTab,
   pickMediaLibraryDetailItem,
+  raggruppaFileDrive,
   resolveMediaLibraryOpenTarget,
   summarizeMediaLibraryItems,
   type MediaLibraryCustomFolderRule,
@@ -171,7 +181,9 @@ type MediaLibraryFolderRow = Pick<
   | "sort_order"
   | "created_at"
   | "created_by"
->;
+  | "updated_at"
+  | "archived_at"
+> & { mode: DriveFolderMode };
 
 type EmailAttachmentRow = Pick<
   Database["public"]["Tables"]["email_attachments"]["Row"],
@@ -274,7 +286,11 @@ type DocumentoOperaioRow = Pick<
 
 interface MediaLibraryLoadOptions {
   userId?: string | null;
+  completa?: boolean;
+  signal: AbortSignal;
 }
+
+interface RisultatoDrive extends MediaLibraryLoadResult { altre: boolean }
 
 type DriveTab = MediaLibraryView;
 
@@ -350,7 +366,11 @@ const TAB_ICONS: Record<DriveTab, LucideIcon> = {
   altro: Folder,
 };
 
-const EMPTY_MEDIA_LOAD_RESULT: MediaLibraryLoadResult = { items: [], warnings: [] };
+const CARTELLE_PRINCIPALI: DriveTab[] = ["tutti", "cantieri", "foto_media", "da_classificare"];
+const CARTELLE_VUOTE: MediaLibraryFolderRow[] = [];
+const CAMPI_CARTELLA = "id,name,slug,description,match_query,icon,color,sort_order,created_at,created_by,mode,updated_at,archived_at";
+
+const EMPTY_MEDIA_LOAD_RESULT: RisultatoDrive = { items: [], warnings: [], altre: false };
 
 function createEmptyTabCounts(): Record<DriveTab, number> {
   return {
@@ -553,6 +573,7 @@ function computoActionLabel(row: ComputoUploadRow): string {
 }
 
 function statusLabel(item: MediaLibraryItem): string {
+  if (item.source === "drive_archive") return "Archiviato";
   if (item.statusTone === "error") return "Errore";
   if (item.statusTone === "warning") return "Da verificare";
   if (item.statusTone === "processing") return "In analisi";
@@ -560,36 +581,38 @@ function statusLabel(item: MediaLibraryItem): string {
   return "Pronto";
 }
 
-function statusIcon(tone: MediaLibraryStatusTone) {
-  if (tone === "error") return AlertTriangle;
-  if (tone === "warning") return AlertTriangle;
-  if (tone === "processing") return Clock3;
-  if (tone === "success") return CheckCircle2;
-  return FileText;
+function IconaStatoDrive({ tono }: { tono: MediaLibraryStatusTone }) {
+  const className = "mr-1 h-3.5 w-3.5";
+  if (tono === "error" || tono === "warning") return <AlertTriangle className={className} aria-hidden="true" />;
+  if (tono === "processing") return <Clock3 className={className} aria-hidden="true" />;
+  if (tono === "success") return <CheckCircle2 className={className} aria-hidden="true" />;
+  return <FileText className={className} aria-hidden="true" />;
 }
 
-function iconForItem(item: MediaLibraryItem) {
-  if (item.category === "foto_media") return ImageIcon;
-  if (item.category === "riservati") return Lock;
-  if (item.source === "ai_analysis") return Brain;
-  if (item.source === "attachment") return Link2;
-  return FileText;
+function IconaFileDrive({ item, className }: { item: MediaLibraryItem; className?: string }) {
+  if (item.category === "foto_media") return <ImageIcon className={className} aria-hidden="true" />;
+  if (item.category === "riservati") return <Lock className={className} aria-hidden="true" />;
+  if (item.source === "ai_analysis") return <Brain className={className} aria-hidden="true" />;
+  if (item.source === "attachment") return <Link2 className={className} aria-hidden="true" />;
+  return <FileText className={className} aria-hidden="true" />;
 }
 
-const EMPTY_QUERY_RESULT = { data: [], error: null as null } as const;
+const EMPTY_QUERY_RESULT = { data: [], error: null as null, altre: false } as const;
 
-async function loadMediaItems(companyId: string, options: MediaLibraryLoadOptions = {}): Promise<MediaLibraryLoadResult> {
+async function loadMediaItems(companyId: string, options: MediaLibraryLoadOptions): Promise<RisultatoDrive> {
+  const fonte = <T extends { id: string }>(pagina: (da: number, a: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>, limite: number) =>
+    leggiPagineDrive(pagina, limite, options.completa, options.signal);
   // Se non abbiamo userId (utente non loggato), evitiamo del tutto la query e
   // ritorniamo un risultato vuoto tipizzato. Niente race condition fittizia
   // con Promise.resolve "valido": il flusso è esplicitamente skip.
   const emailQuery = options.userId
-    ? supabase
+    ? fonte((da, a) => supabase
         .from("email_attachments")
         .select("id,filename,size_bytes,mime_type,storage_path,user_id,created_at,inbox_id,outbox_id")
         .eq("company_id", companyId)
         .eq("user_id", options.userId)
         .order("created_at", { ascending: false })
-        .limit(80)
+        .order("id").range(da, a).abortSignal(options.signal), 80)
     : Promise.resolve(EMPTY_QUERY_RESULT);
 
   const [
@@ -607,24 +630,26 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     employeeDocumentResult,
     subcontractorDocumentResult,
     workerDocumentResult,
+    archivedResult,
+    orderFilesResult,
   ] = await Promise.all([
-    supabase
+    fonte((da, a) => supabase
       .from("document_analysis_results")
       .select(
         "id,doc_type,doc_subtype,status,file_name,file_size_bytes,mime_type,storage_bucket,storage_path,classification_confidence,created_at,updated_at,uploaded_by,parser_used,processing_time_ms,pages_count,cost_eur,error_message",
       )
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("computo_uploads")
       .select(
         "id,file_name,file_size,file_type,storage_path,extraction_status,extraction_confidence,created_at,updated_at,extraction_completed_at,extraction_method,extraction_error,quote_id,oggetto_lavori,committente,progettista,data_computo,uploaded_by",
       )
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("entity_attachments")
       .select(
         "id,entity_table,entity_id,file_name,file_size,mime_type,storage_bucket,storage_path,doc_type,doc_subtype,attached_at,attached_by,ai_suggested,user_confirmed,link_confidence,link_reasoning",
@@ -632,75 +657,82 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .order("attached_at", { ascending: false })
-      .limit(120),
+      .order("id").range(da, a).abortSignal(options.signal), 120),
     emailQuery,
-    supabase
+    fonte((da, a) => supabase
       .from("marketing_documents")
       .select("id,contact_id,opportunity_id,file_name,file_size,file_type,file_url,created_at,uploaded_by")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("foto_cantiere")
       .select("id,order_id,storage_path,thumbnail_path,descrizione,tags,created_at,taken_at,uploaded_by,ai_qualita_score,ai_riassunto")
       .eq("company_id", companyId)
       .order("taken_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("company_photo_library")
       .select("id,nome,descrizione,image_url,storage_path,tags,vertical_slug,categoria_slug,tipologia,created_at,updated_at,created_by")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .order("updated_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("quotes")
       .select("id,quote_number,title,client_name,status,total,pdf_storage_path,pdf_generated_at,created_at,updated_at,created_by,opportunity_id,contact_id,signed_at")
       .eq("company_id", companyId)
       .not("pdf_storage_path", "is", null)
       .order("pdf_generated_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("quote_pdf_materials")
       .select("id,name,category,storage_path,file_size_bytes,created_at,updated_at,created_by")
       .eq("company_id", companyId)
       .order("updated_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("render_sessions")
       .select("id,vertical,status,original_photo_url,result_urls,created_at,processing_completed_at,created_by,contact_id,opportunity_id,error_message")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(60),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 60),
+    fonte((da, a) => supabase
       .from("sr_progetti_media")
       .select("id,kind,caption,storage_path,url,created_at,progetto_id,serramento_id")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("documenti_dipendenti")
       .select("id,user_id,tipo,nome_file,url,data_scadenza,created_at,note")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(80),
-    supabase
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase
       .from("documenti_subappaltatore")
       .select("id,subappaltatore_id,tipo,nome_file,url,data_scadenza,created_at,note")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(80),
+      .order("id").range(da, a).abortSignal(options.signal), 80),
     // Il fascicolo del personale vive in hr_documenti (bucket hr-documenti):
     // `documenti_operai` puntava a un bucket mai creato ed è rimasta vuota
     // ovunque, quindi il Drive non ha mai mostrato un solo documento di
     // dipendente.
-    supabase
+    fonte((da, a) => supabase
       .from("hr_documenti")
       .select("id,hr_profilo_id,titolo,file_name,file_path,data_scadenza,alert_giorni_prima,categoria,created_at,created_by,note")
       .eq("company_id", companyId)
       .not("file_path", "is", null)
       .order("created_at", { ascending: false })
-      .limit(80),
+      .order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase.from("media_library_files")
+      .select("id,company_id,folder_id,name,mime_type,size_bytes,storage_path,shared,created_by,created_at")
+      .eq("company_id", companyId).order("created_at", { ascending: false }).order("id").range(da, a).abortSignal(options.signal), 80),
+    fonte((da, a) => supabase.from("order_attachments")
+      .select("id,order_id,file_name,file_type,file_size,file_url,created_at,uploaded_by,access_scope,orders!inner(company_id,order_code)")
+      .eq("orders.company_id", companyId).is("orders.deleted_at", null)
+      .order("created_at", { ascending: false }).order("id").range(da, a).abortSignal(options.signal), 80),
   ]);
 
   // FIX P1: log errori di ogni fonte invece di silenziarli — utile in produzione
@@ -720,6 +752,8 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     { name: "employeeDocumentResult", error: employeeDocumentResult.error },
     { name: "subcontractorDocumentResult", error: subcontractorDocumentResult.error },
     { name: "workerDocumentResult", error: workerDocumentResult.error },
+    { name: "archivedResult", error: archivedResult.error },
+    { name: "orderFilesResult", error: orderFilesResult.error },
   ];
   for (const { name, error } of sourceResults) {
     if (error) {
@@ -727,20 +761,20 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     }
   }
 
-  const analysisRows = analysisResult.error ? [] : ((analysisResult.data ?? []) as DocumentAnalysisRow[]);
-  const computoRows = computoResult.error ? [] : ((computoResult.data ?? []) as ComputoUploadRow[]);
-  const attachmentRows = attachmentResult.error ? [] : ((attachmentResult.data ?? []) as EntityAttachmentRow[]);
-  const emailRows = emailResult.error ? [] : ((emailResult.data ?? []) as EmailAttachmentRow[]);
-  const marketingDocumentRows = marketingDocumentResult.error ? [] : ((marketingDocumentResult.data ?? []) as MarketingDocumentRow[]);
-  const sitePhotoRows = sitePhotoResult.error ? [] : ((sitePhotoResult.data ?? []) as FotoCantiereRow[]);
-  const companyPhotoRows = companyPhotoResult.error ? [] : ((companyPhotoResult.data ?? []) as CompanyPhotoRow[]);
-  const quotePdfRows = quotePdfResult.error ? [] : ((quotePdfResult.data ?? []) as QuotePdfRow[]);
-  const quoteMaterialRows = quoteMaterialResult.error ? [] : ((quoteMaterialResult.data ?? []) as QuoteMaterialRow[]);
-  const renderSessionRows = renderSessionResult.error ? [] : ((renderSessionResult.data ?? []) as RenderSessionRow[]);
-  const serramentiMediaRows = serramentiMediaResult.error ? [] : ((serramentiMediaResult.data ?? []) as SerramentiMediaRow[]);
-  const employeeDocumentRows = employeeDocumentResult.error ? [] : ((employeeDocumentResult.data ?? []) as DocumentoDipendenteRow[]);
-  const subcontractorDocumentRows = subcontractorDocumentResult.error ? [] : ((subcontractorDocumentResult.data ?? []) as DocumentoSubappaltatoreRow[]);
-  const workerDocumentRows = workerDocumentResult.error ? [] : ((workerDocumentResult.data ?? []) as DocumentoOperaioRow[]);
+  const analysisRows = (analysisResult.data ?? []) as DocumentAnalysisRow[];
+  const computoRows = (computoResult.data ?? []) as ComputoUploadRow[];
+  const attachmentRows = (attachmentResult.data ?? []) as EntityAttachmentRow[];
+  const emailRows = (emailResult.data ?? []) as EmailAttachmentRow[];
+  const marketingDocumentRows = (marketingDocumentResult.data ?? []) as MarketingDocumentRow[];
+  const sitePhotoRows = (sitePhotoResult.data ?? []) as FotoCantiereRow[];
+  const companyPhotoRows = (companyPhotoResult.data ?? []) as CompanyPhotoRow[];
+  const quotePdfRows = (quotePdfResult.data ?? []) as QuotePdfRow[];
+  const quoteMaterialRows = (quoteMaterialResult.data ?? []) as QuoteMaterialRow[];
+  const renderSessionRows = (renderSessionResult.data ?? []) as RenderSessionRow[];
+  const serramentiMediaRows = (serramentiMediaResult.data ?? []) as SerramentiMediaRow[];
+  const employeeDocumentRows = (employeeDocumentResult.data ?? []) as DocumentoDipendenteRow[];
+  const subcontractorDocumentRows = (subcontractorDocumentResult.data ?? []) as DocumentoSubappaltatoreRow[];
+  const workerDocumentRows = (workerDocumentResult.data ?? []) as DocumentoOperaioRow[];
   const actorIds = Array.from(
     new Set(
       [
@@ -756,6 +790,8 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         ...renderSessionRows.map((row) => row.created_by),
         ...employeeDocumentRows.map((row) => row.user_id),
         ...workerDocumentRows.map((row) => row.created_by),
+        ...archivedResult.data.map(row => row.created_by),
+        ...orderFilesResult.data.map(row => row.uploaded_by),
       ].filter((id): id is string => Boolean(id)),
     ),
   );
@@ -763,11 +799,11 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
   const actorLabels = new Map<string, string>();
   let profileWarning: string | null = null;
 
-  if (actorIds.length > 0) {
+  for (let i = 0; i < actorIds.length; i += 80) {
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("id,first_name,last_name,email")
-      .in("id", actorIds);
+      .in("id", actorIds.slice(i, i + 80)).abortSignal(options.signal);
 
     if (profileError) {
       profileWarning = profileError.message;
@@ -1153,6 +1189,26 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     }),
   );
 
+  const archivioItems = (archivedResult.data as DriveFileRow[]).map(row => buildMediaLibraryItem({
+    id: `drive:${row.id}`, source: "drive_archive", fileName: row.name, status: "ready",
+    mimeType: row.mime_type, fileSize: row.size_bytes, folderId: row.folder_id,
+    storageBucket: "eic-drive", storagePath: row.storage_path, createdAt: row.created_at,
+    actorId: row.created_by, actorLabel: actorLabel(actorLabels, row.created_by), integrationLabel: "Archivio EiC Drive",
+    metadataFacts: [row.shared ? "Condiviso con gli utenti del Drive aziendale" : "Visibile a te e agli amministratori"],
+  }));
+  const ordineItems = orderFilesResult.data.map(row => {
+    const { bucket, path } = attachmentStorage(row.file_url);
+    const codice = Array.isArray(row.orders) ? row.orders[0]?.order_code : row.orders?.order_code;
+    return buildMediaLibraryItem({
+      id: `order-file:${row.id}`, source: "attachment", fileName: row.file_name, status: "attached",
+      docType: row.access_scope === "riservato" || row.access_scope === "personale" ? "documento_riservato" : "documento_commessa",
+      mimeType: row.file_type, fileSize: row.file_size, storageBucket: bucket, storagePath: path,
+      createdAt: row.created_at, linkedEntityId: row.order_id, linkedEntityTable: "orders",
+      linkedEntityLabel: codice ? `Commessa ${codice}` : "Commessa", integrationLabel: "Documenti commessa",
+      actorId: row.uploaded_by, actorLabel: actorLabel(actorLabels, row.uploaded_by),
+    });
+  });
+
   const combined = combineMediaLibrarySourceBatches([
     { label: "Analisi AI", items: analysisItems, errorMessage: analysisResult.error?.message },
     { label: "Computi", items: computoItems, errorMessage: computoResult.error?.message },
@@ -1168,20 +1224,27 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     { label: "Documenti dipendenti", items: employeeDocumentItems, errorMessage: employeeDocumentResult.error?.message },
     { label: "Documenti subappaltatori", items: subcontractorDocumentItems, errorMessage: subcontractorDocumentResult.error?.message },
     { label: "Documenti operai", items: workerDocumentItems, errorMessage: workerDocumentResult.error?.message },
+    { label: "Archivio EiC Drive", items: archivioItems, errorMessage: archivedResult.error?.message },
+    { label: "Documenti commessa", items: ordineItems, errorMessage: orderFilesResult.error?.message },
   ]);
 
   return {
     items: combined.items,
+    altre: [analysisResult, computoResult, attachmentResult, emailResult, marketingDocumentResult, sitePhotoResult,
+      companyPhotoResult, quotePdfResult, quoteMaterialResult, renderSessionResult, serramentiMediaResult,
+      employeeDocumentResult, subcontractorDocumentResult, workerDocumentResult, archivedResult, orderFilesResult].some(result => result.altre),
     warnings: profileWarning ? [...combined.warnings, `Profili utenti: ${profileWarning}`] : combined.warnings,
   };
 }
 
 export default function ContenutiMultimediali() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id ?? null;
   const hasAccess = canAccessMediaLibrary(permissions);
+  const puoScrivere = hasAccess && !!companyId && !!user && !permissions.solaLettura;
   const [activeTab, setActiveTab] = useState<DriveTab>("tutti");
   const [activeCustomFolderId, setActiveCustomFolderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -1190,22 +1253,32 @@ export default function ContenutiMultimediali() {
   const [showPdfTools, setShowPdfTools] = useState(false);
   const [showSmartInbox, setShowSmartInbox] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [cartellaInModifica, setCartellaInModifica] = useState<MediaLibraryFolderRow | null>(null);
+  const [modalitaCartella, setModalitaCartella] = useState<DriveFolderMode>("manual");
+  const [cercaCartella, setCercaCartella] = useState("");
+  const [nuovaCartellaDaArchiviare, setNuovaCartellaDaArchiviare] = useState<MediaLibraryFolderRow | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderMatchQuery, setNewFolderMatchQuery] = useState("");
   const [newFolderDescription, setNewFolderDescription] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [spostamento, setSpostamento] = useState<{ item: MediaLibraryItem; cartella: string } | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [authExpired, setAuthExpired] = useState(false);
+  const [caricamento, setCaricamento] = useState<{ file: File[]; cartellaId: string | null } | null>(null);
+  const [analizzati, setAnalizzati] = useState<ReadonlySet<File>>(() => new Set());
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   // Mobile: cartella nel pannello filtri, 25 documenti per pagina, dettaglio dal basso.
   const [filtriMobiliAperti, setFiltriMobiliAperti] = useState(false);
   const [paginaMobile, setPaginaMobile] = useState(1);
+  const [origineFiltro, setOrigineFiltro] = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState("");
+  const [dal, setDal] = useState("");
+  const [al, setAl] = useState("");
   const [dettaglioMobile, setDettaglioMobile] = useState<MediaLibraryItem | null>(null);
   const schermoStretto = useSchermoStretto();
 
   const {
-    data: mediaLoadResult = EMPTY_MEDIA_LOAD_RESULT,
+    data: anteprimaArchivio = EMPTY_MEDIA_LOAD_RESULT,
     error,
     isLoading,
     isFetching,
@@ -1214,37 +1287,37 @@ export default function ContenutiMultimediali() {
     queryKey: ["contenuti-multimediali", companyId, user?.id ?? null],
     enabled: !!companyId && hasAccess && !permissions.isLoading,
     staleTime: 20_000,
-    queryFn: () => loadMediaItems(companyId!, { userId: user?.id ?? null }),
+    queryFn: ({ signal }) => loadMediaItems(companyId!, { userId: user?.id ?? null, signal }),
   });
 
-  // Detect auth errors (401/403) e segna la sessione come scaduta.
-  // Mostriamo un banner con CTA al login invece di fare redirect automatico,
-  // così l'utente non perde il contesto e capisce cosa è successo.
-  useEffect(() => {
-    if (!error) return;
-    const msg = error instanceof Error ? error.message.toLowerCase() : "";
-    const status = (error as { status?: number; statusCode?: number }).status
-      ?? (error as { status?: number; statusCode?: number }).statusCode;
-    if (status === 401 || status === 403 || msg.includes("jwt") || msg.includes("unauthorized") || msg.includes("not authenticated")) {
-      setAuthExpired(true);
-    }
-  }, [error]);
+  const archivioCompleto = useQuery({
+    queryKey: ["contenuti-multimediali", companyId, user?.id ?? null, "completo"],
+    enabled: !!companyId && hasAccess && !permissions.isLoading && anteprimaArchivio.altre,
+    staleTime: 30_000,
+    queryFn: ({ signal }) => loadMediaItems(companyId!, { userId: user?.id ?? null, completa: true, signal }),
+  });
+  const mediaLoadResult = anteprimaArchivio.altre ? archivioCompleto.data ?? anteprimaArchivio : anteprimaArchivio;
+  const sincronizzaArchivio = () => qc.invalidateQueries({ queryKey: ["contenuti-multimediali", companyId, user?.id ?? null] });
+  const estensioneArchivio = anteprimaArchivio.altre && archivioCompleto.isFetching;
+
+  const messaggioErrore = error?.message.toLowerCase() ?? "";
+  const statusErrore = (error as { status?: number; statusCode?: number } | null)?.status ?? (error as { statusCode?: number } | null)?.statusCode;
+  const authExpired = statusErrore === 401 || statusErrore === 403 || /jwt|unauthorized|not authenticated/.test(messaggioErrore);
 
   const {
-    data: customFolders = [],
+    data: tutteCartelle = CARTELLE_VUOTE,
     error: foldersError,
     isFetching: isFetchingFolders,
     refetch: refetchFolders,
   } = useQuery({
-    queryKey: ["media-library-folders", companyId],
+    queryKey: ["media-library-folders", companyId, user?.id ?? null],
     enabled: !!companyId && hasAccess && !permissions.isLoading,
     staleTime: 20_000,
     queryFn: async () => {
       const { data, error: queryError } = await supabase
         .from("media_library_folders")
-        .select("id,name,slug,description,match_query,icon,color,sort_order,created_at,created_by")
+        .select(CAMPI_CARTELLA)
         .eq("company_id", companyId!)
-        .is("archived_at", null)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true });
 
@@ -1253,36 +1326,46 @@ export default function ContenutiMultimediali() {
     },
   });
 
+  const customFolders = useMemo(() => tutteCartelle.filter(folder => !folder.archived_at), [tutteCartelle]);
+  const cartelleArchiviate = tutteCartelle.filter(folder => folder.archived_at);
+  const cartelleManuali = customFolders.filter(folder => folder.mode === "manual");
   const rawItems = mediaLoadResult.items;
   const isInitialMediaLoading = isLoading && rawItems.length === 0;
-  const sourceWarnings = foldersError
-    ? [...mediaLoadResult.warnings, `Cartelle personalizzate: ${foldersError.message}`]
-    : mediaLoadResult.warnings;
+  const sourceWarnings = [
+    ...mediaLoadResult.warnings,
+    ...(foldersError ? [`Cartelle personalizzate: ${foldersError.message}`] : []),
+    ...(archivioCompleto.isError && anteprimaArchivio.altre ? ["Pagine precedenti dell’archivio"] : []),
+  ];
 
   const visibleItems = useMemo(
     () => filterMediaLibraryItemsForPermissions(rawItems, permissions),
     [rawItems, permissions],
   );
 
-  const summary = useMemo(() => summarizeMediaLibraryItems(visibleItems), [visibleItems]);
+  const summary = useMemo(() => ({ ...summarizeMediaLibraryItems(visibleItems), total: raggruppaFileDrive(visibleItems).length }), [visibleItems]);
   const integrationCoverage = useMemo(() => buildMediaLibraryIntegrationCoverage(visibleItems), [visibleItems]);
   const activeCustomFolder = useMemo(
     () => customFolders.find((folder) => folder.id === activeCustomFolderId) ?? null,
     [activeCustomFolderId, customFolders],
   );
 
-  const filteredItems = useMemo(() => {
-    const folderRule: MediaLibraryCustomFolderRule | null = activeCustomFolder
-      ? { name: activeCustomFolder.name, matchQuery: activeCustomFolder.match_query }
-      : null;
-
-    return visibleItems.filter((item) => {
-      const matchesFolder = folderRule
-        ? mediaLibraryItemMatchesCustomFolder(item, folderRule)
+  const esitiPerCartella = useMemo(() => {
+    const conCartella = (item: MediaLibraryItem) => activeCustomFolder?.mode === "manual"
+      ? item.folderId === activeCustomFolder.id
+      : activeCustomFolder ? mediaLibraryItemMatchesCustomFolder(item, { name: activeCustomFolder.name, matchQuery: activeCustomFolder.match_query })
         : mediaLibraryItemMatchesTab(item, activeTab);
-      return matchesFolder && mediaLibraryItemMatchesSearch(item, query);
+    return visibleItems.filter(conCartella);
+  }, [activeCustomFolder, activeTab, visibleItems]);
+  const origini = useMemo(() => [...new Set(esitiPerCartella.map(item => item.integrationLabel))].sort((a, b) => a.localeCompare(b, "it")), [esitiPerCartella]);
+  const tipi = useMemo(() => [...new Set(esitiPerCartella.map(item => item.docType))].sort((a, b) => a.localeCompare(b, "it")), [esitiPerCartella]);
+  const filteredItems = useMemo(() => {
+    const coerenti = esitiPerCartella.filter(item => {
+      const data = item.lastActivityAt?.slice(0, 10);
+      return (!origineFiltro || item.integrationLabel === origineFiltro) && (!tipoFiltro || item.docType === tipoFiltro)
+        && (!dal || (data && data >= dal)) && (!al || (data && data <= al));
     });
-  }, [activeCustomFolder, activeTab, query, visibleItems]);
+    return raggruppaFileDrive(coerenti, item => mediaLibraryItemMatchesSearch(item, query));
+  }, [esitiPerCartella, query, tipoFiltro, origineFiltro, dal, al]);
 
   const selectedItem = useMemo(
     () => pickMediaLibraryDetailItem(filteredItems, selectedId),
@@ -1292,7 +1375,7 @@ export default function ContenutiMultimediali() {
   const countsByTab = useMemo(() => {
     const counts = createEmptyTabCounts();
     for (const tab of TABS) {
-      counts[tab] = visibleItems.filter((item) => mediaLibraryItemMatchesTab(item, tab)).length;
+      counts[tab] = raggruppaFileDrive(visibleItems.filter((item) => mediaLibraryItemMatchesTab(item, tab))).length;
     }
     return counts;
   }, [visibleItems]);
@@ -1301,24 +1384,49 @@ export default function ContenutiMultimediali() {
     const counts = new Map<string, number>();
     for (const folder of customFolders) {
       const rule: MediaLibraryCustomFolderRule = { name: folder.name, matchQuery: folder.match_query };
-      counts.set(folder.id, visibleItems.filter((item) => mediaLibraryItemMatchesCustomFolder(item, rule)).length);
+      counts.set(folder.id, raggruppaFileDrive(visibleItems.filter(item => folder.mode === "manual" ? item.folderId === folder.id : mediaLibraryItemMatchesCustomFolder(item, rule))).length);
     }
     return counts;
   }, [customFolders, visibleItems]);
 
   const activeFolderTitle = activeCustomFolder?.name ?? TAB_LABELS[activeTab];
-  const activeFolderDescription = activeCustomFolder?.description || activeCustomFolder?.match_query || TAB_DESCRIPTIONS[activeTab];
+  const activeFolderDescription = activeCustomFolder
+    ? activeCustomFolder.description || (activeCustomFolder.mode === "manual" ? "File aggiunti a questa cartella" : activeCustomFolder.match_query || "Raccolta per parole chiave")
+    : TAB_DESCRIPTIONS[activeTab];
+  const azzeraFiltriAggiuntivi = () => { setOrigineFiltro(""); setTipoFiltro(""); setDal(""); setAl(""); setPaginaMobile(1); };
+  const filtriAggiuntivi = Number(!!origineFiltro) + Number(!!tipoFiltro) + Number(!!(dal || al));
+  const [filtriDesktopAperti, setFiltriDesktopAperti] = useState(false);
 
   const selectSystemFolder = (tab: DriveTab) => {
     setActiveTab(tab);
+    azzeraFiltriAggiuntivi();
     setActiveCustomFolderId(null);
     setSelectedId(null);
   };
 
   const selectCustomFolder = (folderId: string) => {
     setActiveCustomFolderId(folderId);
+    azzeraFiltriAggiuntivi();
     setSelectedId(null);
   };
+
+  const mostraTutti = () => { setQuery(""); selectSystemFolder("tutti"); };
+  const impostazioniFiltro = { origini, tipi, origine: origineFiltro, tipo: tipoFiltro, dal, al,
+    onOrigine: (v: string) => { setOrigineFiltro(v); setPaginaMobile(1); },
+    onTipo: (v: string) => { setTipoFiltro(v); setPaginaMobile(1); },
+    onDal: (v: string) => { setDal(v); setPaginaMobile(1); },
+    onAl: (v: string) => { setAl(v); setPaginaMobile(1); },
+  };
+  const chiudiCaricamento = () => { setCaricamento(null); setAnalizzati(new Set()); };
+  const apriCaricamento = useCallback((file: File[] = []) => {
+    if (!puoScrivere) return;
+    for (const f of file) {
+      const errore = problemaFile(f);
+      if (errore) toast.error(errore);
+    }
+    setAnalizzati(new Set());
+    setCaricamento({ file, cartellaId: activeCustomFolder?.mode === "manual" ? activeCustomFolder.id : null });
+  }, [activeCustomFolder, puoScrivere]);
 
   // Mobile: pagine da 25 righe (niente elenco con lo scorrimento interno) e
   // cartelle come pillole nel pannello filtri, solo quelle con dei documenti.
@@ -1355,56 +1463,85 @@ export default function ContenutiMultimediali() {
   };
 
   const resetNewFolderForm = () => {
+    setCartellaInModifica(null);
+    setModalitaCartella("manual");
     setNewFolderName("");
     setNewFolderMatchQuery("");
     setNewFolderDescription("");
   };
 
+  const apriCartella = (folder?: MediaLibraryFolderRow) => {
+    if (!puoScrivere) return;
+    if (folder) {
+      setCartellaInModifica(folder);
+      setModalitaCartella(folder.mode);
+      setNewFolderName(folder.name);
+      setNewFolderDescription(folder.description ?? "");
+      setNewFolderMatchQuery(folder.match_query ?? "");
+    } else resetNewFolderForm();
+    setShowFolderDialog(true);
+  };
+
   const handleCreateFolder = async () => {
     const name = newFolderName.trim();
-    if (!companyId) return;
-    if (name.length < 2) {
-      toast.error("Nome cartella troppo corto", { description: "Inserisci almeno 2 caratteri." });
-      return;
-    }
-
-    const matchQuery = (newFolderMatchQuery.trim() || buildDefaultFolderMatchQuery(name)).trim();
+    if (!puoScrivere || !companyId || name.length < 2 || isCreatingFolder) return;
+    const match_query = modalitaCartella === "automatic" ? newFolderMatchQuery.trim() || buildDefaultFolderMatchQuery(name) || name : null;
     setIsCreatingFolder(true);
-
     try {
-      const payload: Database["public"]["Tables"]["media_library_folders"]["Insert"] = {
-        company_id: companyId,
-        name,
-        slug: createMediaLibraryFolderSlug(name),
-        description: newFolderDescription.trim() || null,
-        match_query: matchQuery || null,
-        icon: "folder",
-        color: "orange",
-        created_by: user?.id ?? null,
-      };
-
-      const { data, error: insertError } = await supabase
-        .from("media_library_folders")
-        .insert(payload)
-        .select("id,name,slug,description,match_query,icon,color,sort_order,created_at,created_by")
-        .single();
-
-      if (insertError) throw insertError;
-
-      toast.success("Cartella creata", {
-        description: matchQuery ? "La cartella raccogliera automaticamente i documenti coerenti." : "Puoi usarla come contenitore operativo.",
-      });
+      const values = { name, description: newFolderDescription.trim() || null, match_query };
+      const tabella = supabase.from("media_library_folders");
+      const query = cartellaInModifica
+        ? tabella.update(values).eq("id", cartellaInModifica.id).eq("company_id", companyId).eq("updated_at", cartellaInModifica.updated_at).is("archived_at", null)
+        : tabella.insert({ ...values, mode: modalitaCartella, slug: createMediaLibraryFolderSlug(name), company_id: companyId, created_by: user?.id ?? null });
+      const { data, error } = await query.select(CAMPI_CARTELLA).maybeSingle();
+      if (error || !data) throw error ?? new Error("La cartella è stata modificata nel frattempo.");
+      toast.success(cartellaInModifica ? "Cartella aggiornata" : "Cartella creata");
       resetNewFolderForm();
       setShowFolderDialog(false);
       await refetchFolders();
-      if (data?.id) setActiveCustomFolderId(data.id);
+      selectCustomFolder(data.id);
+      setQuery("");
     } catch (err) {
-      toast.error("Non riesco a creare la cartella", {
-        description: err instanceof Error ? err.message : "Verifica permessi e connessione.",
-      });
+      const error = err as { code?: string; message?: string } | undefined;
+      toast.error("Cartella non salvata", { description: error?.code === "23505" ? "Esiste già una cartella con questo nome." : error?.message });
+      void refetchFolders();
+    } finally { setIsCreatingFolder(false); }
+  };
+
+  const cambiaArchivioCartella = async (folder: MediaLibraryFolderRow, archivia: boolean) => {
+    if (!puoScrivere || !companyId || isCreatingFolder) return;
+    setIsCreatingFolder(true);
+    try {
+      const { data, error } = await supabase.from("media_library_folders")
+        .update({ archived_at: archivia ? new Date().toISOString() : null, archived_by: archivia ? user?.id : null })
+        .eq("company_id", companyId).eq("id", folder.id).eq("updated_at", folder.updated_at).select("id").maybeSingle();
+      if (error || !data) throw error ?? new Error("La cartella è stata modificata nel frattempo.");
+      if (archivia && activeCustomFolderId === folder.id) mostraTutti();
+      toast.success(archivia ? "Cartella archiviata" : "Cartella ripristinata");
+      setNuovaCartellaDaArchiviare(null);
+    } catch (err) {
+      toast.error("Stato della cartella non aggiornato", { description: (err as { message?: string })?.message });
+      setNuovaCartellaDaArchiviare(null);
     } finally {
+      void refetchFolders();
       setIsCreatingFolder(false);
     }
+  };
+
+  const puoSpostareFile = (item: MediaLibraryItem) => puoScrivere && item.source === "drive_archive" && (permissions.isAdmin || item.actorId === user?.id);
+  const spostaFile = async () => {
+    if (!spostamento || !puoSpostareFile(spostamento.item) || !companyId || isCreatingFolder) return;
+    setIsCreatingFolder(true);
+    try {
+      const precedente = spostamento.item.folderId;
+      const comando = supabase.from("media_library_files").update({ folder_id: spostamento.cartella || null })
+        .eq("company_id", companyId).eq("id", spostamento.item.id.slice("drive:".length));
+      const { data, error } = await (precedente ? comando.eq("folder_id", precedente) : comando.is("folder_id", null)).select("id").maybeSingle();
+      if (error || !data) throw error ?? new Error("Il file è già stato spostato da un altro utente.");
+      setSpostamento(null);
+      toast.success("File spostato");
+    } catch (err) { toast.error("File non spostato", { description: (err as { message?: string })?.message }); }
+    finally { setIsCreatingFolder(false); void sincronizzaArchivio(); }
   };
 
   const openSignedDocument = async (item: MediaLibraryItem) => {
@@ -1454,6 +1591,24 @@ export default function ContenutiMultimediali() {
     } finally {
       setOpeningId(null);
     }
+  };
+
+  const scaricaFileDrive = async (item: MediaLibraryItem) => {
+    const target = resolveMediaLibraryOpenTarget(item);
+    if (target.kind !== "storage" || openingId) return;
+    setOpeningId(item.id);
+    try {
+      const { data, error } = await supabase.storage.from(target.storageBucket)
+        .createSignedUrl(target.storagePath, 60, { download: item.fileName });
+      if (error || !data) throw error ?? new Error("File non disponibile");
+      const link = document.createElement("a");
+      link.href = data.signedUrl;
+      link.rel = "noreferrer";
+      document.body.append(link);
+      link.click();
+      link.remove();
+    } catch { toast.error("Impossibile scaricare il file"); }
+    finally { setOpeningId(null); }
   };
 
   const handleComputoReady = (computoId: string) => {
@@ -1509,16 +1664,16 @@ export default function ContenutiMultimediali() {
               <DropdownMenuItem className="gap-2" onSelect={() => setShowPdfTools(true)}>
                 <FileText className="h-4 w-4" /> Strumenti PDF
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2" onSelect={() => setShowFolderDialog(true)}>
+              {puoScrivere && <DropdownMenuItem className="gap-2" onSelect={() => apriCartella()}>
                 <FolderPlus className="h-4 w-4" /> Nuova cartella
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setShowSmartImport(true)} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+          {puoScrivere && <Button onClick={() => apriCaricamento()} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <UploadCloud className="mr-2 h-4 w-4 max-sm:mr-1.5" />
-            <span className="max-sm:hidden">Carica documento</span>
+            <span className="max-sm:hidden">Carica file</span>
             <span className="sm:hidden">Carica</span>
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -1546,8 +1701,6 @@ export default function ContenutiMultimediali() {
         ]}
       />
 
-      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} className="max-sm:hidden" />
-
       {sourceWarnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <div className="flex items-start gap-2">
@@ -1567,57 +1720,41 @@ export default function ContenutiMultimediali() {
           il dettaglio va sotto finché non c'è posto per la terza colonna. */}
       <div className="grid gap-4 md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px] max-sm:hidden">
         <Card className="h-fit">
-          <CardHeader className="pb-3">
+          <CardHeader className="px-3 pb-2 pt-4">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm">Cartelle</CardTitle>
-              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setShowFolderDialog(true)}>
-                <FolderPlus className="h-4 w-4" />
-                <span className="sr-only">Nuova cartella</span>
-              </Button>
+              {puoScrivere && <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2" onClick={() => apriCartella()} aria-label="Nuova cartella">
+                <FolderPlus className="h-4 w-4" /> Nuova
+              </Button>}
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <div className="px-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Sistema</div>
-              {TABS.map((tab) => (
-                <FolderNavButton
-                  key={tab}
-                  icon={TAB_ICONS[tab]}
-                  label={TAB_LABELS[tab]}
-                  description={TAB_DESCRIPTIONS[tab]}
-                  count={countsByTab[tab] ?? 0}
-                  active={!activeCustomFolder && activeTab === tab}
-                  onClick={() => selectSystemFolder(tab)}
-                />
-              ))}
+          <CardContent className="space-y-3 px-2 pb-3">
+            <div className="space-y-0.5">
+              {CARTELLE_PRINCIPALI.map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={TAB_LABELS[tab]}
+                description={TAB_DESCRIPTIONS[tab]} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
             </div>
-
-            <div className="space-y-1 border-t pt-3">
-              <div className="flex items-center justify-between px-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Personalizzate</div>
-                {isFetchingFolders ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+            <details className="rounded-md border px-1" open={!activeCustomFolder && !CARTELLE_PRINCIPALI.includes(activeTab) ? true : undefined}>
+              <summary className="cursor-pointer px-2 py-2 text-xs font-medium text-muted-foreground">Altre categorie</summary>
+              {TABS.filter(tab => !CARTELLE_PRINCIPALI.includes(tab)).map(tab => <FolderNavButton key={tab} icon={TAB_ICONS[tab]} label={TAB_LABELS[tab]}
+                description={TAB_DESCRIPTIONS[tab]} count={countsByTab[tab] ?? 0} active={!activeCustomFolder && activeTab === tab} onClick={() => selectSystemFolder(tab)} />)}
+            </details>
+            <div className="space-y-1.5 border-t pt-3">
+              <div className="flex items-center justify-between px-2">
+                <p className="text-xs font-medium text-muted-foreground">Cartelle personalizzate</p>
+                {isFetchingFolders && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </div>
-              {customFolders.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowFolderDialog(true)}
-                  className="w-full rounded-md border border-dashed px-3 py-3 text-left text-xs text-muted-foreground transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
-                >
-                  Crea una cartella per raggruppare documenti per parola chiave, reparto o progetto.
-                </button>
-              ) : (
-                customFolders.map((folder) => (
-                  <FolderNavButton
-                    key={folder.id}
-                    icon={Folder}
-                    label={folder.name}
-                    description={folder.match_query || folder.description || "Cartella personalizzata"}
-                    count={countsByCustomFolder.get(folder.id) ?? 0}
-                    active={activeCustomFolder?.id === folder.id}
-                    onClick={() => selectCustomFolder(folder.id)}
-                  />
-                ))
-              )}
+              {customFolders.length > 5 && <Input aria-label="Cerca cartella" placeholder="Cerca cartella…" value={cercaCartella} onChange={e => setCercaCartella(e.target.value)} className="h-8 text-xs" />}
+              {customFolders.length === 0 && puoScrivere && <Button type="button" variant="ghost" size="sm" onClick={() => apriCartella()} className="w-full justify-start text-xs">Crea la prima cartella</Button>}
+              {customFolders.filter(folder => folder.name.toLowerCase().includes(cercaCartella.trim().toLowerCase())).map(folder => (
+                <FolderNavButton key={folder.id} icon={folder.mode === "automatic" ? Sparkles : Folder} label={folder.name}
+                  description={folder.description || (folder.mode === "automatic" ? "Automatica" : "Manuale")}
+                  count={countsByCustomFolder.get(folder.id) ?? 0} active={activeCustomFolder?.id === folder.id} onClick={() => selectCustomFolder(folder.id)} />
+              ))}
+              {puoScrivere && cartelleArchiviate.length > 0 && <details className="rounded-md border px-2">
+                <summary className="cursor-pointer py-2 text-xs text-muted-foreground">Archiviate ({cartelleArchiviate.length})</summary>
+                {cartelleArchiviate.map(folder => <div key={folder.id} className="flex items-center gap-1 text-xs"><span className="flex-1 truncate">{folder.name}</span>
+                  <Button variant="ghost" size="icon" aria-label={`Ripristina ${folder.name}`} disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(folder, false)}><RotateCcw className="h-3.5 w-3.5" /></Button></div>)}
+              </details>}
             </div>
           </CardContent>
         </Card>
@@ -1629,20 +1766,22 @@ export default function ContenutiMultimediali() {
                 <CardTitle className="text-base">{activeFolderTitle}</CardTitle>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{activeFolderDescription}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void refetch();
-                  void refetchFolders();
-                }}
-                disabled={isFetching || isFetchingFolders}
-              >
-                {isFetching || isFetchingFolders ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                Aggiorna
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {activeCustomFolder && puoScrivere && <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Gestisci cartella"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => apriCartella(activeCustomFolder)}><Pencil className="mr-2 h-4 w-4" /> Modifica cartella</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setNuovaCartellaDaArchiviare(activeCustomFolder)}><Archive className="mr-2 h-4 w-4" /> Archivia cartella</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>}
+                <Button variant="outline" size="icon" onClick={() => { void sincronizzaArchivio(); void refetchFolders(); }}
+                  aria-label="Aggiorna" disabled={isFetching || estensioneArchivio || isFetchingFolders}>
+                  {isFetching || estensioneArchivio || isFetchingFolders ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
-            <div className="relative">
+            <div className="flex items-center gap-2">
+            <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
@@ -1661,6 +1800,14 @@ export default function ContenutiMultimediali() {
                 </button>
               ) : null}
             </div>
+              <Button variant="outline" onClick={() => setFiltriDesktopAperti(!filtriDesktopAperti)} aria-expanded={filtriDesktopAperti}>
+                <SlidersHorizontal className="mr-2 h-4 w-4" /> Filtri{filtriAggiuntivi ? ` (${filtriAggiuntivi})` : ""}
+              </Button>
+            </div>
+            {filtriDesktopAperti && <div className="space-y-2 rounded-lg border bg-muted/25 p-3"><FiltriDrive {...impostazioniFiltro} />
+              {filtriAggiuntivi > 0 && <Button size="sm" variant="ghost" onClick={azzeraFiltriAggiuntivi}>Azzera filtri</Button>}
+            </div>}
+            <p role="status" className="text-xs text-muted-foreground">{estensioneArchivio ? "Caricamento delle pagine precedenti…" : `${filteredItems.length} ${filteredItems.length === 1 ? "risultato" : "risultati"}`}</p>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -1698,6 +1845,8 @@ export default function ContenutiMultimediali() {
                 description={`Non riesco a leggere una o più fonti documentali. ${error instanceof Error ? error.message : ""}`.trim()}
                 action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
               />
+            ) : filteredItems.length === 0 && estensioneArchivio ? (
+              <p role="status" className="p-4 text-sm text-muted-foreground">Cerco anche nelle pagine precedenti…</p>
             ) : filteredItems.length === 0 ? (
               rawItems.length === 0 ? (
                 // Azienda nuova senza alcun documento: onboarding ricco con 3 azioni
@@ -1707,17 +1856,18 @@ export default function ContenutiMultimediali() {
                       <FileText className="h-8 w-8" />
                     </div>
                     <h3 className="mt-4 text-xl font-bold tracking-tight text-slate-950">Il Drive è vuoto, iniziamo</h3>
-                    <p className="mt-1 text-sm text-slate-600">3 modi per popolare l'archivio. Tutti sicuri e tracciati.</p>
+                    <p className="mt-1 text-sm text-slate-600">Carica documenti, crea una cartella o apri l’Inbox AI.</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <button
                       type="button"
-                      onClick={() => setShowSmartImport(true)}
+                      onClick={() => apriCaricamento()}
+                      disabled={!puoScrivere}
                       className="flex flex-col items-start gap-2 rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white p-4 text-left transition hover:border-orange-400 hover:shadow-md"
                     >
                       <UploadCloud className="h-6 w-6 text-orange-600" />
                       <p className="text-sm font-bold text-slate-900">Carica un documento</p>
-                      <p className="text-xs text-slate-600">DDT, fatture, computi, foto, contratti. L'AI riconosce il tipo automaticamente.</p>
+                      <p className="text-xs text-slate-600">DDT, fatture, computi, foto, contratti. Archivia i file oppure analizzali con Silvio.</p>
                       <span className="mt-auto text-xs font-semibold text-orange-700">Inizia →</span>
                     </button>
                     <button
@@ -1732,12 +1882,12 @@ export default function ContenutiMultimediali() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowFolderDialog(true)}
+                      onClick={() => apriCartella()}
                       className="flex flex-col items-start gap-2 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left transition hover:border-emerald-400 hover:shadow-md"
                     >
                       <FolderPlus className="h-6 w-6 text-emerald-600" />
                       <p className="text-sm font-bold text-slate-900">Crea una cartella</p>
-                      <p className="text-xs text-slate-600">Organizza per progetto, cliente o tipo. Le regole automatiche fanno il resto.</p>
+                      <p className="text-xs text-slate-600">Raggruppa i file per progetto, cliente o tipo.</p>
                       <span className="mt-auto text-xs font-semibold text-emerald-700">Crea →</span>
                     </button>
                   </div>
@@ -1748,7 +1898,8 @@ export default function ContenutiMultimediali() {
                   icon={FileText}
                   title="Nessun contenuto in questa vista"
                   description="Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio."
-                  action={{ label: "Mostra tutti", onClick: () => setActiveTab("tutti"), variant: "outline" }}
+                  action={{ label: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? "Carica in questa cartella" : "Mostra tutti",
+                    onClick: activeCustomFolder?.mode === "manual" && !query && !filtriAggiuntivi && puoScrivere ? () => apriCaricamento() : mostraTutti, variant: "outline" }}
                 />
               )
             ) : (
@@ -1769,11 +1920,15 @@ export default function ContenutiMultimediali() {
             item={selectedItem}
             opening={selectedItem ? openingId === selectedItem.id : false}
             onOpen={selectedItem ? () => openSignedDocument(selectedItem) : undefined}
-            onImport={() => setShowSmartImport(true)}
+            onImport={puoScrivere ? () => apriCaricamento() : undefined}
             onInbox={() => setShowSmartInbox(true)}
+            onSposta={selectedItem && puoSpostareFile(selectedItem) ? () => setSpostamento({ item: selectedItem, cartella: selectedItem.folderId ?? "" }) : undefined}
+            onDownload={selectedItem && resolveMediaLibraryOpenTarget(selectedItem).kind === "storage" ? () => void scaricaFileDrive(selectedItem) : undefined}
           />
         </div>
       </div>
+
+      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} className="max-sm:hidden" />
 
       {/* Mobile: ricerca con la cartella nel pannello filtri, documenti a righe
           da ~52px (nome; area e data; stato solo se c'è da fare), dettaglio in
@@ -1783,7 +1938,7 @@ export default function ContenutiMultimediali() {
           valore={query}
           onCambia={(v) => { setQuery(v); setPaginaMobile(1); }}
           segnaposto={activeCustomFolder || activeTab !== "tutti" ? `Cerca in ${activeFolderTitle}` : "Cerca documento"}
-          filtriAttivi={activeCustomFolder || activeTab !== "tutti" ? 1 : 0}
+          filtriAttivi={Number(Boolean(activeCustomFolder || activeTab !== "tutti")) + filtriAggiuntivi}
           onApriFiltri={() => setFiltriMobiliAperti(true)}
         />
         {isLoading ? (
@@ -1810,9 +1965,10 @@ export default function ContenutiMultimediali() {
             action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
           />
         ) : filteredItems.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
-            {rawItems.length === 0 ? "Il Drive è vuoto" : query ? "Nessun documento trovato" : "Nessun documento in questa cartella"}
-          </p>
+          <div className="space-y-1 py-3 text-center text-xs text-muted-foreground">
+            <p role="status">{estensioneArchivio ? "Cerco anche nelle pagine precedenti…" : rawItems.length === 0 ? "Il Drive è vuoto" : query ? "Nessun documento trovato" : "Nessun documento in questa cartella"}</p>
+            {!estensioneArchivio && (query || activeCustomFolder || activeTab !== "tutti" || filtriAggiuntivi > 0) && <Button size="sm" variant="ghost" onClick={mostraTutti}>Mostra tutti</Button>}
+          </div>
         ) : (
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
             {righeMobili.map((item) => (
@@ -1867,11 +2023,22 @@ export default function ContenutiMultimediali() {
       <PannelloFiltri
         aperto={filtriMobiliAperti}
         onAperto={setFiltriMobiliAperti}
-        attivi={activeCustomFolder || activeTab !== "tutti" ? 1 : 0}
-        onAzzera={() => scegliCartellaMobile("tutti")}
+        attivi={Number(Boolean(activeCustomFolder || activeTab !== "tutti")) + filtriAggiuntivi}
+        onAzzera={mostraTutti}
         risultati={filteredItems.length}
       >
         <PilloleFiltro titolo="Cartella" valore={cartellaMobile} onScegli={scegliCartellaMobile} scelte={scelteCartelleMobili} />
+        <FiltriDrive {...impostazioniFiltro} />
+        {puoScrivere && <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(); }}>Nuova cartella</Button>
+          {activeCustomFolder && <>
+            <Button size="sm" variant="outline" onClick={() => { setFiltriMobiliAperti(false); apriCartella(activeCustomFolder); }}>Modifica cartella</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setFiltriMobiliAperti(false); setNuovaCartellaDaArchiviare(activeCustomFolder); }}>Archivia cartella</Button>
+          </>}
+          {cartelleArchiviate.length > 0 && <details className="w-full rounded-md border px-2 py-1"><summary className="text-sm">Cartelle archiviate</summary>
+            {cartelleArchiviate.map(folder => <Button key={folder.id} size="sm" variant="ghost" onClick={() => void cambiaArchivioCartella(folder, false)} disabled={isCreatingFolder}>Ripristina {folder.name}</Button>)}
+          </details>}
+        </div>}
       </PannelloFiltri>
 
       {/* Mobile: il documento dal basso con i dati che servono e «Apri file». */}
@@ -1921,8 +2088,12 @@ export default function ContenutiMultimediali() {
                 disabled={openingId === dettaglioMobile.id || resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "missing"}
               >
                 {openingId === dettaglioMobile.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
-                Apri file
+                Anteprima
               </Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "storage" && <Button variant="outline" size="sm" disabled={!!openingId} onClick={() => void scaricaFileDrive(dettaglioMobile)}><Download className="mr-2 h-4 w-4" /> Scarica</Button>}
+                {puoSpostareFile(dettaglioMobile) && <Button variant="outline" size="sm" onClick={() => { setSpostamento({ item: dettaglioMobile, cartella: dettaglioMobile.folderId ?? "" }); setDettaglioMobile(null); }}><Folder className="mr-2 h-4 w-4" /> Sposta file</Button>}
+              </div>
             </>
           )}
         </SheetContent>
@@ -1931,26 +2102,32 @@ export default function ContenutiMultimediali() {
       <SmartDocumentInboxDialog
         open={showSmartInbox}
         onOpenChange={setShowSmartInbox}
-        onImportNew={() => setShowSmartImport(true)}
+        onImportNew={() => { if (puoScrivere) setShowSmartImport(true); }}
         onComputoReady={handleComputoReady}
       />
 
       <Dialog
         open={showFolderDialog}
         onOpenChange={(open) => {
+          if (isCreatingFolder) return;
           setShowFolderDialog(open);
           if (!open) resetNewFolderForm();
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuova cartella</DialogTitle>
-            <DialogDescription>
-              Crea una cartella intelligente: resta filtrata dai permessi utente e raccoglie automaticamente i file che combaciano con le parole chiave.
-            </DialogDescription>
+            <DialogTitle>{cartellaInModifica ? "Modifica cartella" : "Nuova cartella"}</DialogTitle>
+            <DialogDescription>Le cartelle rispettano la visibilità dei singoli documenti.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            {!cartellaInModifica && <div className="space-y-1.5">
+              <Label htmlFor="media-folder-mode">Tipo di cartella</Label>
+              <UniformSelect id="media-folder-mode" className="block w-full rounded-md border bg-background p-2 text-sm" value={modalitaCartella} onChange={e => setModalitaCartella(e.target.value as DriveFolderMode)}>
+                <option value="manual">Manuale</option><option value="automatic">Automatica per parole chiave</option>
+              </UniformSelect>
+              <p className="text-xs text-muted-foreground">{modalitaCartella === "manual" ? "Scegli la cartella quando archivi o sposti un file." : "Raccoglie i documenti che corrispondono alle parole chiave impostate."}</p>
+            </div>}
             <div className="space-y-2">
               <Label htmlFor="media-folder-name">Nome cartella</Label>
               <Input
@@ -1960,7 +2137,7 @@ export default function ContenutiMultimediali() {
                 placeholder="Es. Prodotti premium, Finanziarie, Render cliente Rossi"
               />
             </div>
-            <div className="space-y-2">
+            {modalitaCartella === "automatic" && <div className="space-y-2">
               <Label htmlFor="media-folder-query">Regole di raccolta</Label>
               <Textarea
                 id="media-folder-query"
@@ -1971,7 +2148,7 @@ export default function ContenutiMultimediali() {
               <p className="text-xs text-muted-foreground">
                 Il sistema cerca in nome file, tipo documento, area, record collegato, autore e metadati AI.
               </p>
-            </div>
+            </div>}
             <div className="space-y-2">
               <Label htmlFor="media-folder-description">Nota interna</Label>
               <Textarea
@@ -1989,11 +2166,27 @@ export default function ContenutiMultimediali() {
             </Button>
             <Button onClick={handleCreateFolder} disabled={isCreatingFolder || newFolderName.trim().length < 2}>
               {isCreatingFolder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderPlus className="mr-2 h-4 w-4" />}
-              Crea cartella
+              {cartellaInModifica ? "Salva modifiche" : "Crea cartella"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {nuovaCartellaDaArchiviare && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setNuovaCartellaDaArchiviare(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Archivia «{nuovaCartellaDaArchiviare.name}»?</DialogTitle><DialogDescription>I file restano in Tutti. Puoi ripristinare la cartella da Archiviate.</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setNuovaCartellaDaArchiviare(null)}>Annulla</Button>
+            <Button disabled={isCreatingFolder} onClick={() => void cambiaArchivioCartella(nuovaCartellaDaArchiviare, true)}>Archivia cartella</Button></DialogFooter></DialogContent>
+      </Dialog>}
+
+      {spostamento && <Dialog open onOpenChange={open => { if (!open && !isCreatingFolder) setSpostamento(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Sposta file</DialogTitle><DialogDescription>{spostamento.item.fileName}</DialogDescription></DialogHeader>
+          <UniformSelect aria-label="Cartella di destinazione" value={spostamento.cartella} className="w-full rounded-md border bg-background p-2" disabled={isCreatingFolder}
+            onChange={e => setSpostamento({ ...spostamento, cartella: e.target.value })}>
+            <option value="">Archivio generale</option>{cartelleManuali.map(cartella => <option key={cartella.id} value={cartella.id}>{cartella.name}</option>)}
+          </UniformSelect>
+          <DialogFooter><Button variant="outline" disabled={isCreatingFolder} onClick={() => setSpostamento(null)}>Annulla</Button>
+            <Button disabled={isCreatingFolder || spostamento.cartella === (spostamento.item.folderId ?? "")} onClick={() => void spostaFile()}>Sposta file</Button></DialogFooter></DialogContent>
+      </Dialog>}
 
       {showPdfTools && (
         <Suspense fallback={null}>
@@ -2001,47 +2194,64 @@ export default function ContenutiMultimediali() {
         </Suspense>
       )}
 
-      <SmartDocumentImportModal
-        open={showSmartImport}
-        onOpenChange={(open) => {
-          setShowSmartImport(open);
-          // FIX P2: refetch sincronizzato + feedback all'utente che la lista
-          // si sta aggiornando, così non sembra "sparito" il file appena uploadato.
-          if (!open) {
-            setDroppedFile(null);
-            const toastId = toast.loading("Aggiorno la lista documenti...");
-            refetch()
-              .then(() => toast.success("Lista aggiornata", { id: toastId }))
-              .catch(() => toast.error("Aggiornamento fallito, ricarica la pagina", { id: toastId }));
-          }
+      {caricamento && companyId && user && puoScrivere && <CaricaFileDriveDialog key={`${companyId}:${user.id}`}
+        open={!showSmartImport} companyId={companyId} userId={user.id} iniziali={caricamento.file} cartellaIniziale={caricamento.cartellaId}
+        cartelle={cartelleManuali} analizzati={analizzati} onClose={chiudiCaricamento}
+        onArchiviati={folderId => {
+          void sincronizzaArchivio();
+          setQuery("");
+          if (folderId) selectCustomFolder(folderId);
+          else selectSystemFolder("tutti");
         }}
-        onComputoReady={handleComputoReady}
-        initialFile={droppedFile}
-      />
+        onAnalizza={file => { setDroppedFile(file); setShowSmartImport(true); }}
+      />}
+      {showSmartImport && puoScrivere && <SmartDocumentImportModal open onOpenChange={open => {
+        setShowSmartImport(open);
+        if (!open) setDroppedFile(null);
+      }} onComputoReady={handleComputoReady} initialFile={droppedFile}
+        onAnalysisReady={file => { setAnalizzati(prev => new Set([...prev, file])); void sincronizzaArchivio(); }}
+      />}
 
-      {/* Drag & drop overlay globale: quando l'utente trascina un file da Finder
-          sopra qualunque punto del Drive, mostra un overlay invitante; al drop apre
-          il SmartDocumentImportModal con il file già selezionato. */}
-      <PageDropOverlay
-        active={isDraggingFile}
-        onFileDropped={(droppedFile) => {
-          setDroppedFile(droppedFile);
-          setShowSmartImport(true);
-          setIsDraggingFile(false);
-        }}
-        onDragStateChange={setIsDraggingFile}
-      />
+      {puoScrivere && !caricamento && !showSmartImport && !showFolderDialog && !showSmartInbox && !showPdfTools
+        && !nuovaCartellaDaArchiviare && !spostamento && <PageDropOverlay
+        active={isDraggingFile} onFilesDropped={apriCaricamento} onDragStateChange={setIsDraggingFile}
+      />}
     </div>
   );
 }
 
+function FiltriDrive({ origini, tipi, origine, tipo, dal, al, onOrigine, onTipo, onDal, onAl }: {
+  origini: string[]; tipi: string[]; origine: string; tipo: string; dal: string; al: string;
+  onOrigine: (v: string) => void; onTipo: (v: string) => void; onDal: (v: string) => void; onAl: (v: string) => void;
+}) {
+  const id = useId();
+  const input = "mt-1 block h-9 w-full min-w-0 rounded-md border bg-background px-2 text-sm";
+  return <div className="grid gap-2 sm:grid-cols-2">
+    <label className="text-xs font-medium" htmlFor={`${id}-origine`}>Origine
+      <UniformSelect id={`${id}-origine`} className={input} value={origine} onChange={e => onOrigine(e.target.value)}>
+        <option value="">Tutte le origini</option>
+        {origini.map(valore => <option key={valore} value={valore}>{valore}</option>)}
+      </UniformSelect>
+    </label>
+    <label className="text-xs font-medium" htmlFor={`${id}-tipo`}>Tipo di documento
+      <UniformSelect id={`${id}-tipo`} className={input} value={tipo} onChange={e => onTipo(e.target.value)}>
+        <option value="">Tutti i tipi</option>
+        {tipi.map(valore => <option key={valore} value={valore}>{valore.replaceAll("_", " ")}</option>)}
+      </UniformSelect>
+    </label>
+    <label className="text-xs font-medium" htmlFor={`${id}-dal`}>Attività dal<Input id={`${id}-dal`} className={input} type="date" value={dal} max={al || undefined} onChange={e => onDal(e.target.value)} /></label>
+    <label className="text-xs font-medium" htmlFor={`${id}-al`}>Attività al<Input id={`${id}-al`} className={input} type="date" value={al} min={dal || undefined} onChange={e => onAl(e.target.value)} /></label>
+    {dal && al && dal > al && <p className="text-xs text-destructive sm:col-span-2" role="alert">La data finale precede quella iniziale.</p>}
+  </div>;
+}
+
 function PageDropOverlay({
   active,
-  onFileDropped,
+  onFilesDropped,
   onDragStateChange,
 }: {
   active: boolean;
-  onFileDropped: (file: File) => void;
+  onFilesDropped: (files: File[]) => void;
   onDragStateChange: (dragging: boolean) => void;
 }) {
   useEffect(() => {
@@ -2065,8 +2275,8 @@ function PageDropOverlay({
       if (!e.dataTransfer?.files?.length) return;
       e.preventDefault();
       dragCounter = 0;
-      const f = e.dataTransfer.files[0];
-      if (f) onFileDropped(f);
+      onDragStateChange(false);
+      onFilesDropped(Array.from(e.dataTransfer.files));
     };
     window.addEventListener("dragenter", onDragEnter);
     window.addEventListener("dragleave", onDragLeave);
@@ -2079,7 +2289,7 @@ function PageDropOverlay({
       window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("drop", onDrop);
     };
-  }, [onFileDropped, onDragStateChange]);
+  }, [onFilesDropped, onDragStateChange]);
 
   if (!active) return null;
   return (
@@ -2114,6 +2324,7 @@ function FolderNavButton({
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? "true" : undefined}
       className={cn(
         "flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
         active ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -2290,7 +2501,7 @@ function VirtualizedMediaList({
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 76, // ~ altezza di una MediaRow con icona + 3 righe testo + 2 azioni
+    estimateSize: () => 58,
     overscan: 6,
   });
 
@@ -2343,60 +2554,26 @@ function MediaRow({
   onSelect: () => void;
   onOpen: () => void;
 }) {
-  const StatusIcon = statusIcon(item.statusTone);
-  const activityLabel = item.actorLabel ? `${item.actionLabel} da ${item.actorLabel}` : item.actionLabel;
   const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.currentTarget !== event.target) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      className={cn(
-        "flex w-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 md:flex-row md:items-center md:justify-between",
-        selected && "bg-orange-50/70",
-      )}
-    >
-      <div className="flex min-w-0 items-start gap-3">
-        <MiniaturaDocumento key={item.id} item={item} className="mt-0.5 h-10 w-10" iconaClassName="h-5 w-5" />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-medium">{item.fileName}</p>
-            <Badge variant="outline" className={cn("h-6", STATUS_TONE_CLASS[item.statusTone])}>
-              <StatusIcon className="mr-1 h-3.5 w-3.5" />
-              {statusLabel(item)}
-            </Badge>
-          </div>
-          {/* Niente doppioni: il tipo solo se diverso dall'area («Render · render»),
-              la dimensione solo se c'è (non «n.d.»). */}
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>{item.areaLabel}</span>
-            {tipoSeDiversoDallArea(item) ? <span>{tipoSeDiversoDallArea(item)}</span> : null}
-            <span>{item.integrationLabel}</span>
-            {item.fileSize ? <span>{formatFileSize(item.fileSize)}</span> : null}
-            <span>{formatDate(item.lastActivityAt)}</span>
-            <span>{activityLabel}</span>
-            {item.linkedEntityLabel ? <span>Collegato a {item.linkedEntityLabel}</span> : null}
-          </div>
-        </div>
-      </div>
-      <div className="flex shrink-0 gap-2 md:justify-end" onClick={(event) => event.stopPropagation()}>
-        <Button type="button" variant="outline" size="sm" onClick={onSelect}>
-          <Eye className="mr-2 h-4 w-4" />
-          Dettagli
-        </Button>
-        <Button type="button" size="sm" onClick={onOpen} disabled={opening || !canOpen}>
-          {opening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          Apri
-        </Button>
-      </div>
+    <div className={cn("flex items-center gap-2 p-2.5 transition-colors hover:bg-muted/40", selected && "bg-primary/5")}>
+      <button type="button" onClick={onSelect} aria-pressed={selected}
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <MiniaturaDocumento key={item.id} item={item} className="h-9 w-9" iconaClassName="h-4 w-4" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium" title={item.fileName}>{item.fileName}</span>
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {[item.linkedEntityLabel ?? item.areaLabel, item.fileSize ? formatFileSize(item.fileSize) : null, formatDate(item.lastActivityAt)].filter(Boolean).join(" · ")}
+          </span>
+        </span>
+      </button>
+      {(item.statusTone === "warning" || item.statusTone === "error" || item.statusTone === "processing") &&
+        <Badge variant="outline" className={cn("hidden shrink-0 lg:inline-flex", STATUS_TONE_CLASS[item.statusTone])}><IconaStatoDrive tono={item.statusTone} />{statusLabel(item)}</Badge>}
+      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label={`Apri ${item.fileName}`} title="Anteprima"
+        onClick={onOpen} disabled={opening || !canOpen}>
+        {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+      </Button>
     </div>
   );
 }
@@ -2407,13 +2584,17 @@ function MediaDetailPanel({
   onOpen,
   onImport,
   onInbox,
+  onSposta,
+  onDownload,
   anteprima = true,
 }: {
   item: MediaLibraryItem | null;
   opening: boolean;
   onOpen?: () => void;
-  onImport: () => void;
+  onImport?: () => void;
   onInbox: () => void;
+  onSposta?: () => void;
+  onDownload?: () => void;
   /** Falso sul telefono, dove il pannello è nascosto: l'immagine non si scarica. */
   anteprima?: boolean;
 }) {
@@ -2426,14 +2607,13 @@ function MediaDetailPanel({
             icon={FolderOpen}
             title="Seleziona un contenuto"
             description="Qui vedrai sicurezza, collegamenti, origine e azioni rapide sul file."
-            action={{ label: "Carica documento", onClick: onImport }}
+            action={onImport ? { label: "Carica file", onClick: onImport } : undefined}
           />
         </CardContent>
       </Card>
     );
   }
 
-  const Icon = iconForItem(item);
   const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
   const quickFacts =
     item.metadataFacts.length > 0
@@ -2450,7 +2630,7 @@ function MediaDetailPanel({
     <Card className="h-fit">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="h-5 w-5 text-orange-500" />
+          <IconaFileDrive item={item} className="h-5 w-5 text-orange-500" />
           Dettaglio contenuto
         </CardTitle>
       </CardHeader>
@@ -2471,7 +2651,7 @@ function MediaDetailPanel({
         <div className="grid grid-cols-2 gap-2 text-sm">
           <DetailStat label="Tipo" value={item.docType.replace(/_/g, " ")} />
           <DetailStat label="Dimensione" value={formatFileSize(item.fileSize)} />
-          <DetailStat label="Origine" value={item.integrationLabel} />
+          <DetailStat label="Origine" value={item.origins?.join(" · ") ?? item.integrationLabel} />
           <DetailStat label="Ultima attività" value={formatDate(item.lastActivityAt)} />
         </div>
 
@@ -2542,16 +2722,14 @@ function MediaDetailPanel({
         <div className="flex flex-col gap-2">
           <Button onClick={onOpen} disabled={opening || !canOpen}>
             {opening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Apri file
+            Anteprima
           </Button>
-          <Button variant="outline" onClick={onInbox}>
+          {onDownload && <Button variant="outline" disabled={opening} onClick={onDownload}><Download className="mr-2 h-4 w-4" /> Scarica</Button>}
+          {onSposta && <Button variant="outline" onClick={onSposta}><Folder className="mr-2 h-4 w-4" /> Sposta file</Button>}
+          {item.source === "ai_analysis" && <Button variant="outline" onClick={onInbox}>
             <Inbox className="mr-2 h-4 w-4" />
             Inbox documenti AI
-          </Button>
-          <Button variant="outline" onClick={onImport}>
-            <Sparkles className="mr-2 h-4 w-4" />
-            Nuovo import AI
-          </Button>
+          </Button>}
         </div>
       </CardContent>
     </Card>
@@ -2666,7 +2844,6 @@ function MiniaturaDocumento({
   className?: string;
   iconaClassName?: string;
 }) {
-  const Icona = iconForItem(item);
   const [ref, aSchermo] = useASchermo<HTMLSpanElement>();
   const indirizzo = useIndirizzoImmagine(item, MINIATURA, false, aSchermo);
   const [nonCaricata, setNonCaricata] = useState(false);
@@ -2679,7 +2856,7 @@ function MiniaturaDocumento({
       {indirizzo && !nonCaricata ? (
         <img src={indirizzo} alt="" decoding="async" onError={() => setNonCaricata(true)} className="h-full w-full object-cover" />
       ) : (
-        <Icona className={cn("text-muted-foreground", iconaClassName)} />
+        <IconaFileDrive item={item} className={cn("text-muted-foreground", iconaClassName)} />
       )}
     </span>
   );

@@ -51,9 +51,10 @@ export function problemaFile(file: { name: string; size: number }): string | nul
 }
 
 /** Percorso nel bucket: la RLS dello storage riconosce il prefisso orders/<commessa>/. */
-export function percorsoDocumento(orderId: string, nomeFile: string, ora = Date.now(), caso = Math.random()): string {
+export function percorsoDocumento(orderId: string, nomeFile: string, ora = Date.now(), caso: number | string = Math.random()): string {
   const pulito = nomeFile.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9.-]/g, "_");
-  return `orders/${orderId}/${ora}-${Math.floor(caso * 1e6)}-${pulito}`;
+  const identificativo = typeof caso === "number" ? Math.floor(caso * 1e6) : caso;
+  return `orders/${orderId}/${ora}-${identificativo}-${pulito}`;
 }
 
 const norm = (s: string) =>

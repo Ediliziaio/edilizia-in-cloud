@@ -5,7 +5,10 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * Se un file non sale gli altri proseguono, e quello si riprova.
  */
 import { usePermissions } from "@/hooks/usePermissions";
-import { useRef, useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
+import { Progress } from "@/components/ui/progress";
+import { caricaAllegatoConProgresso, oggettoGiaCaricato } from "@/lib/commesse/caricaAllegatoConProgresso";
+import { TIPI_DOCUMENTO_CANTIERE, tipoDocumentoCantiere, type TipoDocumentoCantiere } from "@/lib/commesse/documentiCantiere";
 import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { byteLiberi, chiaveSpazio, useSpazioArchiviazione } from "@/hooks/useSpazioArchiviazione";
@@ -17,9 +20,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle2, Loader2, Plus, RotateCcw, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import {
@@ -32,6 +35,8 @@ import {
 import { ATTACHMENTS_BUCKET, fmtBytes } from "./filePreviewUtils";
 
 const IN_PARALLELO = 3;
+const SENZA_CARTELLA = "senza";
+const PREFISSO_CANTIERE = "cantiere:";
 
 type Stato = "attesa" | "caricamento" | "fatto" | "errore";
 
@@ -39,28 +44,67 @@ interface Voce {
   chiave: string;
   file: File;
   cartellaId: string | null;
+  tipoCantiere: TipoDocumentoCantiere | null;
   stato: Stato;
+  progresso?: number;
   errore?: string;
+  registrazioneIncerta?: boolean;
   /** Peso originale se la foto è stata ridotta. */
   byteOriginali?: number;
   byteRidotti?: number;
 }
 
+interface Caricamento {
+  id: string;
+  file: File;
+  percorso: string;
+  miniatura: string | null;
+  inviato: boolean;
+  invioIncerto: boolean;
+}
+
 let contatore = 0;
 
 /** I file non ammessi si scartano qui; chi apre il dialog li ha già segnalati. */
-function vociDaFile(files: File[], cartelle: CartellaDocumenti[], predefinita: string | null): Voce[] {
+function vociDaFile(files: File[], cartelle: CartellaDocumenti[], predefinita: string | null, cantiere: TipoDocumentoCantiere | true | null): Voce[] {
   const voci: Voce[] = [];
   for (const file of files) {
     if (problemaFile(file)) continue;
+    const suggerito = tipoDocumentoCantiere(file.name);
+    const tipo = cantiere === true ? suggerito ?? "altro" : cantiere ?? (predefinita ? null : suggerito);
     voci.push({
       chiave: `${++contatore}-${file.name}`,
       file,
-      cartellaId: cartellaSuggerita(file.name, cartelle, predefinita),
+      tipoCantiere: tipo,
+      cartellaId: tipo ? null : cartellaSuggerita(file.name, cartelle, predefinita),
       stato: "attesa",
     });
   }
   return voci;
+}
+
+function destinazione(voce: Voce) {
+  return voce.tipoCantiere ? `${PREFISSO_CANTIERE}${voce.tipoCantiere}` : voce.cartellaId ?? SENZA_CARTELLA;
+}
+
+function cambiaDestinazione(valore: string): Pick<Voce, "tipoCantiere" | "cartellaId"> {
+  return valore.startsWith(PREFISSO_CANTIERE)
+    ? { tipoCantiere: valore.slice(PREFISSO_CANTIERE.length) as TipoDocumentoCantiere, cartellaId: null }
+    : { tipoCantiere: null, cartellaId: valore === SENZA_CARTELLA ? null : valore };
+}
+
+function Destinazioni({ cartelle }: { cartelle: CartellaDocumenti[] }) {
+  return <SelectContent>
+    <SelectGroup>
+      <SelectLabel>Documenti commessa</SelectLabel>
+      <SelectItem value={SENZA_CARTELLA}>Senza categoria</SelectItem>
+      {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+    </SelectGroup>
+    <SelectGroup>
+      <SelectLabel>Documenti di cantiere</SelectLabel>
+      {Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([tipo, nome]) => <SelectItem key={tipo} value={`${PREFISSO_CANTIERE}${tipo}`}>{nome}</SelectItem>)}
+    </SelectGroup>
+  </SelectContent>;
 }
 
 export function CaricaDocumentiDialog({
@@ -70,6 +114,8 @@ export function CaricaDocumentiDialog({
   filesIniziali,
   cartelle,
   cartellaPredefinita,
+  cantierePredefinito = null,
+  onMostraCantiere,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -79,14 +125,19 @@ export function CaricaDocumentiDialog({
   cartelle: CartellaDocumenti[];
   /** Cartella aperta quando si è premuto «Carica» (o su cui si è trascinato). */
   cartellaPredefinita: string | null;
+  cantierePredefinito?: TipoDocumentoCantiere | true | null;
+  onMostraCantiere?: () => void;
 }) {
   const { user, profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   // Il genitore monta il dialog con una key nuova a ogni apertura: si parte
   // sempre dai file che l'hanno aperto.
-  const [voci, setVoci] = useState<Voce[]>(() => vociDaFile(filesIniziali, cartelle, cartellaPredefinita));
+  const [voci, setVoci] = useState<Voce[]>(() => vociDaFile(filesIniziali, cartelle, cartellaPredefinita, cantierePredefinito));
   const [inCorso, setInCorso] = useState(false);
+  const avviato = useRef(false);
+  const daRegistrare = useRef(new Map<string, Caricamento>());
+  const [trascina, setTrascina] = useState(false);
   const permissions = usePermissions();
   const [accessScope,setAccessScope] = useState("operativo");
   const [riduci, setRiduci] = useState(true);
@@ -96,23 +147,54 @@ export function CaricaDocumentiDialog({
   const aggiorna = (chiave: string, patch: Partial<Voce>) =>
     setVoci((prev) => prev.map((v) => (v.chiave === chiave ? { ...v, ...patch } : v)));
 
+  const aggiungiFile = (file: File[]) => {
+    if (avviato.current) return;
+    for (const f of file) {
+      const problema = problemaFile(f);
+      if (problema) toast.error("File escluso", { description: problema });
+    }
+    const nuovi = vociDaFile(file, cartelle, cartellaPredefinita, cantierePredefinito);
+    setVoci((prev) => [...prev, ...nuovi]);
+  };
+  const fileTrascinati = (e: DragEvent) => e.dataTransfer.types.includes("Files");
   const cartellaDi = (id: string | null) => cartelle.find((c) => c.id === id) ?? null;
 
   const caricaUno = async (v: Voce): Promise<boolean> => {
-    if (!user) return false;
-    aggiorna(v.chiave, { stato: "caricamento", errore: undefined });
+    aggiorna(v.chiave, { stato: "caricamento", progresso: undefined, errore: undefined });
     try {
-      const { file, ridotta, byteOriginali } = riduci ? await riduciFile(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
-      if (ridotta) aggiorna(v.chiave, { byteOriginali, byteRidotti: file.size });
-      const percorso = percorsoDocumento(orderId, file.name);
-      const { error: errUpload } = await supabase.storage
-        .from(ATTACHMENTS_BUCKET)
-        .upload(percorso, file, { contentType: file.type || undefined });
-      if (errUpload) throw errUpload;
-      const miniatura = await caricaMiniatura(ATTACHMENTS_BUCKET, percorso, file);
+      if (!user) throw new Error("Accedi di nuovo per caricare i documenti");
+      let caricamento = daRegistrare.current.get(v.chiave);
+      if (!caricamento) {
+        const { file, ridotta, byteOriginali } = riduci ? await riduciFile(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
+        if (ridotta) aggiorna(v.chiave, { byteOriginali, byteRidotti: file.size });
+        const id = crypto.randomUUID();
+        const percorso = percorsoDocumento(orderId, file.name, undefined, id);
+        caricamento = { id, file, percorso, miniatura: null, inviato: false, invioIncerto: false };
+        daRegistrare.current.set(v.chiave, caricamento);
+      }
+      if (!caricamento.inviato) {
+        const { file, percorso } = caricamento;
+        aggiorna(v.chiave, { progresso: 0 });
+        try {
+          await caricaAllegatoConProgresso(ATTACHMENTS_BUCKET, percorso, file, (progresso) => aggiorna(v.chiave, { progresso }));
+        } catch (errore) {
+          if (!caricamento.invioIncerto || !oggettoGiaCaricato(errore)) {
+            const dettaglio = errore as { statusCode?: number; message?: string } | undefined;
+            if (/timeout|network/i.test(dettaglio?.message ?? "") || (dettaglio?.statusCode ?? 0) >= 500) caricamento.invioIncerto = true;
+            else if (!caricamento.invioIncerto) daRegistrare.current.delete(v.chiave);
+            throw errore;
+          }
+        }
+        caricamento.inviato = true;
+        aggiorna(v.chiave, { progresso: 100 });
+        caricamento.miniatura = await caricaMiniatura(ATTACHMENTS_BUCKET, percorso, file).catch((): null => null);
+      }
+      aggiorna(v.chiave, { progresso: 100 });
+      const { id, file, percorso, miniatura } = caricamento;
 
       const visibile = cartellaDi(v.cartellaId)?.visibile_cliente ?? false;
       const { error: errRiga } = await supabase.from("order_attachments").insert({
+        id,
         order_id: orderId,
         access_scope: accessScope,
         file_name: file.name,
@@ -123,18 +205,31 @@ export function CaricaDocumentiDialog({
         visible_to_customer: visibile,
         folder_id: v.cartellaId,
         thumb_path: miniatura,
+        ...(v.tipoCantiere ? { cantiere_tipo: v.tipoCantiere } : {}),
       } as never);
-      if (errRiga) {
-        // Il file senza riga sarebbe invisibile: lo si toglie dallo storage.
-        await supabase.storage.from(ATTACHMENTS_BUCKET).remove(miniatura ? [percorso, miniatura] : [percorso]);
+      let giaSalvato = false;
+      if (errRiga?.code === "23505") {
+        const { data } = await supabase.from("order_attachments").select("id")
+          .eq("id", id).eq("order_id", orderId).eq("file_url", percorso).maybeSingle();
+        giaSalvato = data?.id === id;
+      }
+      if (errRiga && !giaSalvato) {
+        // Un timeout lascia incerto l'esito. Al tentativo successivo si riusa
+        // lo stesso ID e lo stesso file, senza cancellare un allegato già salvato.
+        if (/^(22|23|42)/.test(errRiga.code) && errRiga.code !== "23505") {
+          const { error: errPulizia } = await supabase.storage.from(ATTACHMENTS_BUCKET).remove(miniatura ? [percorso, miniatura] : [percorso]);
+          if (errPulizia) logger.error("Pulizia allegato non registrato:", errPulizia);
+          else daRegistrare.current.delete(v.chiave);
+        }
         throw errRiga;
       }
+      daRegistrare.current.delete(v.chiave);
 
-      if (effectiveCompany?.id) {
+      if (!giaSalvato && effectiveCompany?.id) {
         const autore = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.email || user.email || "Utente";
         void supabase.from("order_events" as never).insert({
           order_id: orderId,
-        access_scope: accessScope,
+          access_scope: accessScope,
           company_id: effectiveCompany.id,
           event_type: "allegato_caricato",
           payload: {
@@ -142,41 +237,46 @@ export function CaricaDocumentiDialog({
             file_type: file.type,
             file_size: file.size,
             visible_to_customer: visibile,
-            cartella: cartellaDi(v.cartellaId)?.nome ?? null,
+            cartella: v.tipoCantiere ? TIPI_DOCUMENTO_CANTIERE[v.tipoCantiere] : cartellaDi(v.cartellaId)?.nome ?? null,
           },
           actor_id: user.id,
           actor_name: autore,
         } as never);
       }
-      aggiorna(v.chiave, { stato: "fatto", ...(ridotta ? { byteOriginali, byteRidotti: file.size } : {}) });
+      aggiorna(v.chiave, { stato: "fatto", registrazioneIncerta: false });
       return true;
     } catch (e) {
       logger.error("Caricamento documento commessa:", e);
       const err = e as { code?: string; message?: string; statusCode?: string };
       const msg =
-        err?.code === "42501" || /row-level security|violates/i.test(err?.message ?? "")
+        err?.code === "42501" || Number(err?.statusCode) === 403 || /row-level security|violates/i.test(err?.message ?? "")
           ? "Non hai il permesso di caricare documenti su questa commessa"
           : /too large|exceeded the maximum|413/i.test(`${err?.message} ${err?.statusCode}`)
             ? "File oltre i 50 MB: dividilo o riducilo e riprova"
             : /fetch|network|timeout/i.test(err?.message ?? "")
               ? "Connessione interrotta: premi Riprova"
               : err?.message || "Caricamento non riuscito";
-      aggiorna(v.chiave, { stato: "errore", errore: msg });
+      aggiorna(v.chiave, { stato: "errore", errore: msg, registrazioneIncerta: daRegistrare.current.get(v.chiave)?.inviato });
       return false;
     }
   };
 
-  const caricaTutti = async (soloErrori = false) => {
-    const daFare = voci.filter((v) => (soloErrori ? v.stato === "errore" : v.stato === "attesa" || v.stato === "errore"));
-    if (daFare.length === 0) return;
+  const caricaTutti = async () => {
+    const daFare = voci.filter((v) => v.stato === "attesa" || v.stato === "errore");
+    if (avviato.current || daFare.length === 0) return;
     // Stima prudente: le foto ridotte peseranno meno, qui si conta il peso pieno dei documenti.
-    const stima = daFare.reduce((t, v) => t + (riduci && fotoDaRidurre(v.file) ? v.file.size * 0.3 : v.file.size), 0);
-    if (liberi != null && stima > liberi) {
+    const stima = daFare.reduce((t, v) => {
+      const giaInviato = daRegistrare.current.get(v.chiave);
+      if (giaInviato?.inviato || giaInviato?.invioIncerto) return t;
+      return t + (riduci && fotoDaRidurre(v.file) ? v.file.size * 0.3 : v.file.size);
+    }, 0);
+    if (stima > 0 && liberi != null && stima > liberi) {
       toast.error("Spazio di archiviazione esaurito", {
         description: `Servono circa ${fmtBytes(stima)}, ne restano ${fmtBytes(liberi) || "0 MB"}. Libera spazio o passa a un piano superiore (Impostazioni → Piano abbonamento).`,
       });
       return;
     }
+    avviato.current = true;
     setInCorso(true);
     let ok = 0;
     const coda = [...daFare];
@@ -188,10 +288,13 @@ export function CaricaDocumentiDialog({
         }
       }),
     );
+    avviato.current = false;
     setInCorso(false);
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-documents-summary", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["customer-order-attachments", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["cartelle-documenti-uso"] });
     queryClient.invalidateQueries({ queryKey: ["order-events", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     queryClient.invalidateQueries({ queryKey: chiaveSpazio(effectiveCompany?.id) });
@@ -200,7 +303,6 @@ export function CaricaDocumentiDialog({
     const falliti = daFare.length - ok;
     if (falliti === 0) {
       toast.success(ok === 1 ? "Documento caricato" : `${ok} documenti caricati`);
-      onOpenChange(false);
     } else {
       toast.error(`${falliti} file non caricati`, {
         description: ok > 0 ? `${ok} caricati. Controlla quelli in rosso e riprova.` : "Controlla il motivo accanto al file e riprova.",
@@ -209,9 +311,11 @@ export function CaricaDocumentiDialog({
   };
 
   const daCaricare = voci.filter((v) => v.stato !== "fatto").length;
+  const completati = voci.length - daCaricare;
+  const registrazioneIncerta = voci.some(v => v.registrazioneIncerta);
   const errori = voci.filter((v) => v.stato === "errore").length;
   const valoreComune = (() => {
-    const set = new Set(voci.map((v) => v.cartellaId ?? ""));
+    const set = new Set(voci.filter((v) => v.stato !== "fatto").map(destinazione));
     return set.size === 1 ? [...set][0] : "";
   })();
 
@@ -221,7 +325,7 @@ export function CaricaDocumentiDialog({
         <DialogHeader>
           <DialogTitle>Carica documenti</DialogTitle>
           <DialogDescription>
-            Controlla la cartella di ogni file: è proposta dal nome del file. Massimo 50 MB per file.
+            Scegli dove archiviare i file. Puoi aggiungerne altri fino a 50 MB ciascuno.
           </DialogDescription>
         </DialogHeader>
 
@@ -233,33 +337,36 @@ export function CaricaDocumentiDialog({
           accept={ACCEPT_INPUT}
           className="hidden"
           onChange={(e) => {
-            const scelti = Array.from(e.target.files ?? []);
-            for (const f of scelti) {
-              const problema = problemaFile(f);
-              if (problema) toast.error("File escluso", { description: problema });
-            }
-            const nuovi = vociDaFile(scelti, cartelle, cartellaPredefinita);
-            setVoci((prev) => [...prev, ...nuovi]);
+            aggiungiFile(Array.from(e.target.files ?? []));
             e.target.value = "";
           }}
         />
+        <div
+          onDragEnter={(e) => { if (fileTrascinati(e)) { e.preventDefault(); e.stopPropagation(); setTrascina(!inCorso); } }}
+          onDragOver={(e) => { if (fileTrascinati(e)) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = inCorso ? "none" : "copy"; } }}
+          onDragLeave={(e) => { if (fileTrascinati(e)) { e.stopPropagation(); setTrascina(false); } }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setTrascina(false); aggiungiFile(Array.from(e.dataTransfer.files)); }}
+        >
+          <Button type="button" variant="outline" disabled={inCorso} onClick={() => inputRef.current?.click()}
+            className={`w-full justify-center gap-2 border-dashed ${trascina ? "border-primary bg-primary/10" : "bg-muted/30"}`}>
+            <Upload className="h-4 w-4" aria-hidden="true" /> Aggiungi file <span className="hidden font-normal text-muted-foreground sm:inline">o trascinali qui</span>
+          </Button>
+        </div>
 
-        {voci.length > 1 && cartelle.length > 0 && (
+        {daCaricare > 1 && (
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Metti tutti in</span>
             <Select
               value={valoreComune}
-              disabled={inCorso}
+              disabled={inCorso || registrazioneIncerta}
               onValueChange={(val) =>
-                setVoci((prev) => prev.map((v) => (v.stato === "fatto" ? v : { ...v, cartellaId: val })))
+                setVoci((prev) => prev.map((v) => (v.stato === "fatto" ? v : { ...v, ...cambiaDestinazione(val) })))
               }
             >
               <SelectTrigger className="h-8 w-auto min-w-[200px] max-w-full">
                 <SelectValue placeholder="Cartelle diverse" />
               </SelectTrigger>
-              <SelectContent>
-                {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-              </SelectContent>
+              <Destinazioni cartelle={cartelle} />
             </Select>
           </div>
         )}
@@ -276,7 +383,13 @@ export function CaricaDocumentiDialog({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto -mx-1 px-1 divide-y border rounded-md">
+        {voci.length > 0 && (inCorso || completati > 0 || errori > 0) && <div className="space-y-1.5 rounded-lg border bg-muted/30 p-3">
+          <p role="status" className="text-sm font-medium">{completati === voci.length ? "Caricamento completato" : `${completati} di ${voci.length} file caricati${errori ? ` · ${errori} da riprovare` : ""}`}</p>
+          <Progress className="h-2" value={completati / voci.length * 100} aria-label="Avanzamento complessivo" />
+          {!inCorso && completati === voci.length && onMostraCantiere && voci.some(v => v.tipoCantiere) &&
+            <Button type="button" variant="link" className="h-auto p-0" onClick={onMostraCantiere}>Vai ai documenti di cantiere</Button>}
+        </div>}
+        <div className="min-h-16 flex-1 overflow-y-auto -mx-1 px-1 divide-y border rounded-md">
           {voci.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nessun file da caricare.</p>
           ) : (
@@ -298,19 +411,21 @@ export function CaricaDocumentiDialog({
                           : fmtBytes(v.file.size)}
                     </p>
                   </div>
+                  {v.stato === "caricamento" && <div className="min-w-24 flex-1 pl-2">
+                    <p className="mb-1 text-xs text-muted-foreground">{v.progresso === undefined ? "Preparazione…" : v.progresso === 100 ? "Salvataggio…" : `${v.progresso}%`}</p>
+                    <Progress className="h-1.5" value={v.progresso == null ? null : Math.min(v.progresso, 99)} aria-label={`Caricamento ${v.file.name}`} />
+                  </div>}
                 </div>
                 <div className="flex items-center gap-1 pl-7 sm:pl-0">
                   <Select
-                    value={v.cartellaId ?? ""}
-                    disabled={inCorso || v.stato === "fatto"}
-                    onValueChange={(val) => aggiorna(v.chiave, { cartellaId: val })}
+                    value={destinazione(v)}
+                    disabled={inCorso || v.stato === "fatto" || v.registrazioneIncerta}
+                    onValueChange={(val) => aggiorna(v.chiave, cambiaDestinazione(val))}
                   >
-                    <SelectTrigger className={`h-8 w-full sm:w-[240px] text-xs ${v.cartellaId ? "" : "text-muted-foreground"}`}>
+                    <SelectTrigger className={`h-8 w-full sm:w-[240px] text-xs ${v.cartellaId || v.tipoCantiere ? "" : "text-muted-foreground"}`}>
                       <SelectValue placeholder="Scegli la cartella" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {cartelle.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                          </SelectContent>
+                    <Destinazioni cartelle={cartelle} />
                   </Select>
                   <Button
                     type="button"
@@ -329,18 +444,12 @@ export function CaricaDocumentiDialog({
           )}
         </div>
 
-        {/* Mobile: una riga sola — «+» per aggiungere file e «Carica» che la
-            riempie; Annulla/Chiudi c'è già (la X e il gesto verso il basso). */}
-        <div className="rounded-md border p-3"><label htmlFor="document-access" className="text-sm font-medium">Chi può leggere questi file</label><UniformSelect id="document-access" className="mt-2 block w-full rounded-md border p-2 text-sm" value={accessScope} disabled={inCorso} onChange={e=>setAccessScope(e.target.value)}><option value="operativo">Uffici con accesso alla commessa</option>{permissions.canViewOrderAmounts && <option value="vendita">Solo chi vede gli importi di vendita</option>}{permissions.canViewCosts && <option value="costi">Solo chi vede i costi</option>}{permissions.canViewCosts && (permissions.canViewEmployees || permissions.canViewPersone) && <option value="personale">Solo personale autorizzato ai dati HR</option>}{permissions.isAdmin && <option value="riservato">Solo amministratori</option>}</UniformSelect><p className="mt-1 text-xs text-muted-foreground">Contratti, fatture e documenti del personale devono avere il livello di riservatezza adatto al contenuto. La cartella non cambia i permessi.</p></div>
-      <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-between max-sm:flex-row max-sm:flex-nowrap max-sm:[&>*]:flex-none">
-          <Button type="button" variant="ghost" disabled={inCorso} onClick={() => inputRef.current?.click()} aria-label="Aggiungi file" className="max-sm:w-11 max-sm:px-0">
-            <Plus className="h-4 w-4 mr-1 max-sm:mr-0" /><span aria-hidden="true" className="max-sm:hidden">Aggiungi file</span>
-          </Button>
-          <div className="flex flex-col-reverse sm:flex-row gap-2 max-sm:flex-1 max-sm:flex-row">
-            <Button type="button" variant="outline" disabled={inCorso} onClick={() => onOpenChange(false)} className="max-sm:hidden">
-              {voci.some((v) => v.stato === "fatto") ? "Chiudi" : "Annulla"}
+        <div className="rounded-md border p-3"><label htmlFor="document-access" className="text-sm font-medium">Chi può leggere questi file</label><UniformSelect id="document-access" className="mt-2 block w-full rounded-md border p-2 text-sm" value={accessScope} disabled={inCorso || registrazioneIncerta} onChange={e=>setAccessScope(e.target.value)}><option value="operativo">Uffici con accesso alla commessa</option>{permissions.canViewOrderAmounts && <option value="vendita">Solo chi vede gli importi di vendita</option>}{permissions.canViewCosts && <option value="costi">Solo chi vede i costi</option>}{permissions.canViewCosts && (permissions.canViewEmployees || permissions.canViewPersone) && <option value="personale">Solo personale autorizzato ai dati HR</option>}{permissions.isAdmin && <option value="riservato">Solo amministratori</option>}</UniformSelect><p className="mt-1 text-xs text-muted-foreground">Contratti, fatture e documenti del personale devono avere il livello di riservatezza adatto al contenuto. La cartella non cambia i permessi.</p>{!inCorso && registrazioneIncerta && <p className="mt-1 text-xs text-muted-foreground">Riprova il salvataggio per confermare le impostazioni del primo invio.</p>}</div>
+        <DialogFooter>
+            <Button type="button" variant={daCaricare ? "outline" : "default"} disabled={inCorso} onClick={() => onOpenChange(false)}>
+              {completati === voci.length && completati > 0 ? "Fine" : completati ? "Chiudi" : "Annulla"}
             </Button>
-            <Button type="button" disabled={inCorso || daCaricare === 0} onClick={() => void caricaTutti()} className="max-sm:flex-1">
+            {daCaricare > 0 && <Button type="button" disabled={inCorso || daCaricare === 0} onClick={() => void caricaTutti()} className="max-sm:flex-1">
               {inCorso ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : errori > 0 ? (
@@ -351,8 +460,7 @@ export function CaricaDocumentiDialog({
                 : errori > 0 && errori === daCaricare
                   ? `Riprova ${errori} file`
                   : `Carica ${daCaricare} file`}
-            </Button>
-          </div>
+            </Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

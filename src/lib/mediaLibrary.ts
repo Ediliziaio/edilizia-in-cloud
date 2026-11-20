@@ -9,6 +9,7 @@ export type MediaLibrarySource =
   | "quote_pdf"
   | "quote_material"
   | "render"
+  | "drive_archive"
   | "personnel_document"
   | "chat";
 
@@ -87,6 +88,7 @@ export interface BuildMediaLibraryItemInput {
   completedAt?: string | null;
   metadataFacts?: string[];
   errorMessage?: string | null;
+  folderId?: string | null;
 }
 
 export interface MediaLibraryItem extends Required<Pick<BuildMediaLibraryItemInput, "id" | "source">> {
@@ -118,6 +120,8 @@ export interface MediaLibraryItem extends Required<Pick<BuildMediaLibraryItemInp
   metadataFacts: string[];
   timeline: MediaLibraryTimelineEvent[];
   errorMessage: string | null;
+  folderId?: string | null;
+  origins?: string[];
 }
 
 export interface MediaLibrarySummary {
@@ -170,6 +174,7 @@ const SENSITIVE_DOC_TYPES = new Set([
   "documento_operaio",
   "documento_subappaltatore",
   "documento_hr",
+  "documento_riservato",
   "polizza_assicurativa",
   "verbale_collaudo",
 ]);
@@ -537,6 +542,7 @@ export function buildMediaLibraryItem(input: BuildMediaLibraryItemInput): MediaL
     metadataFacts: input.metadataFacts?.filter(Boolean) ?? [],
     timeline: buildTimeline(input, statusTone, actionLabel, integrationLabel),
     errorMessage: input.errorMessage ?? null,
+    ...(input.folderId ? { folderId: input.folderId } : {}),
   };
 }
 
@@ -620,7 +626,9 @@ export function filterMediaLibraryItemsForPermissions(
 export function mediaLibraryItemMatchesTab(item: MediaLibraryItem, tab: MediaLibraryView): boolean {
   if (tab === "tutti") return true;
   if (tab === "inbox_ai") return item.source === "ai_analysis";
+  if (tab === "cantieri" && item.source === "site_photo") return true;
   if (tab === "da_classificare") {
+    if (item.source === "drive_archive") return false;
     return (
       item.statusTone === "warning" ||
       item.statusTone === "processing" ||
@@ -657,11 +665,36 @@ function buildSearchText(item: MediaLibraryItem): string {
     .toLowerCase();
 }
 
-export function mediaLibraryItemMatchesSearch(item: MediaLibraryItem, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return true;
+function normalizzaRicercaDrive(testo: string) {
+  return testo.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ");
+}
 
-  return buildSearchText(item).includes(normalizedQuery);
+export function raggruppaFileDrive(items: MediaLibraryItem[], corrisponde?: (item: MediaLibraryItem) => boolean): MediaLibraryItem[] {
+  const gruppi = new Map<string, MediaLibraryItem[]>();
+  for (const item of items) {
+    const chiave = item.storageBucket && item.storagePath ? JSON.stringify([item.storageBucket, item.storagePath]) : item.id;
+    const gruppo = gruppi.get(chiave);
+    if (gruppo) gruppo.push(item);
+    else gruppi.set(chiave, [item]);
+  }
+  return [...gruppi.values()].filter(gruppo => !corrisponde || gruppo.some(corrisponde)).map(gruppo => {
+    if (gruppo.length === 1) return gruppo[0];
+    const principale = gruppo.find(item => item.linkedEntityId) ?? gruppo.find(item => item.source !== "ai_analysis") ?? gruppo[0];
+    const eventi = new Map(gruppo.flatMap(item => item.timeline).map(e => [JSON.stringify(e), e]));
+    return {
+      ...principale,
+      lastActivityAt: gruppo[0].lastActivityAt,
+      origins: [...new Set(gruppo.map(item => item.integrationLabel))],
+      timeline: [...eventi.values()].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "")),
+    };
+  });
+}
+
+export function mediaLibraryItemMatchesSearch(item: MediaLibraryItem, query: string): boolean {
+  const tokens = normalizzaRicercaDrive(query).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const testo = normalizzaRicercaDrive(buildSearchText(item));
+  return tokens.every(token => testo.includes(token));
 }
 
 export function buildDefaultFolderMatchQuery(name: string): string {

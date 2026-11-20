@@ -52,11 +52,16 @@ import {
   List,
   X,
   FileCheck2,
+  HardHat,
+  QrCode,
 } from "lucide-react";
 import { FileThumb } from "./filePreview";
 import { useUrlMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
          scaricaAllegato, attachmentStorage, type PreviewableFile } from "./filePreviewUtils";
 import { CaricaDocumentiDialog } from "./CaricaDocumentiDialog";
+import { TIPI_DOCUMENTO_CANTIERE, documentoAdattoAlQr, type TipoDocumentoCantiere } from "@/lib/commesse/documentiCantiere";
+import { QrCantiereDialog } from "./QrCantiereDialog";
+import { OfficeSelect } from "./OfficeSelect";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { DocumentFoldersNavigation } from "./DocumentFoldersNavigation";
@@ -84,6 +89,7 @@ interface OrderAttachment {
   created_at: string;
   folder_id: string | null;
   access_scope?: string;
+  cantiere_tipo?: TipoDocumentoCantiere | null;
   /** Miniatura creata al caricamento e salvata accanto al file. */
   thumb_path?: string | null;
   /** Documento personale del cliente (carta d'identità, CF…): sta sul cliente, qui solo si consulta. */
@@ -97,6 +103,7 @@ interface OrderAttachment {
 
 interface OrderAttachmentsProps {
   orderId: string;
+  orderCode?: string;
   editable?: boolean;
   actions?: ReactNode;
   documentiCollegati?: ReactNode;
@@ -138,7 +145,7 @@ export function OrderAttachments(props: OrderAttachmentsProps) {
   return <OrderAttachmentsPanel key={props.orderId} {...props} />;
 }
 
-function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCollegati }: OrderAttachmentsProps) {
+function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, documentiCollegati }: OrderAttachmentsProps) {
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   const puoGestireCartelle = permissions.isAdmin || permissions.canEditSettingsOrders;
@@ -149,6 +156,9 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
   const [selezione, setSelezione] = useState<string>(TUTTI);
   const [ricerca, setRicerca] = useState("");
   const [visibilita, setVisibilita] = useState<"tutti" | "interni" | "condivisi">("tutti");
+  const [sezione, setSezione] = useState<"commessa" | "cantiere">("commessa");
+  const [tipoCantiere, setTipoCantiere] = useState(TUTTI);
+  const [qrAperto, setQrAperto] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [sopraCartella, setSopraCartella] = useState<string | null>(null);
 
@@ -206,7 +216,10 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
     })),
     [righeCliente, cartellaCliente, orderId],
   );
-  const tutti = useMemo(() => [...attachments, ...documentiCliente], [attachments, documentiCliente]);
+  const documentiCantiere = useMemo(() => attachments.filter(a => a.cantiere_tipo), [attachments]);
+  const documentiGenerali = useMemo(() => [...attachments.filter(a => !a.cantiere_tipo), ...documentiCliente], [attachments, documentiCliente]);
+  const inCantiere = sezione === "cantiere";
+  const tutti = inCantiere ? documentiCantiere : documentiGenerali;
 
   const invalida = () => {
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
@@ -238,29 +251,29 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
   });
 
   const spostaMutation = useMutation({
-    mutationFn: async ({ id, folderId }: { id: string; folderId: string | null }) => {
+    mutationFn: async ({ id, folderId, tipo }: { id: string; folderId: string | null; tipo?: TipoDocumentoCantiere | null }) => {
       if (!editable) throw new Error("Commessa in sola lettura");
       if (folderId && !cartelleAttive.some(c => c.id === folderId)) throw new Error("Cartella non disponibile per nuovi file");
       const { error } = await supabase
         .from("order_attachments")
-        .update({ folder_id: folderId } as never)
+        .update({ folder_id: folderId, cantiere_tipo: tipo ?? null })
         .eq("id", id)
         .eq("order_id", orderId)
         .select("id").single();
       if (error) throw error;
     },
-    onMutate: async ({ id, folderId }) => {
+    onMutate: async ({ id, folderId, tipo }) => {
       const key = ["order-attachments", orderId];
       const prima = queryClient.getQueryData<OrderAttachment[]>(key);
-      if (prima) queryClient.setQueryData(key, prima.map((a) => (a.id === id ? { ...a, folder_id: folderId } : a)));
+      if (prima) queryClient.setQueryData(key, prima.map((a) => (a.id === id ? { ...a, folder_id: folderId, cantiere_tipo: tipo ?? null } : a)));
       return { prima };
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prima) queryClient.setQueryData(["order-attachments", orderId], ctx.prima);
       toast.error("Documento non spostato");
     },
-    onSuccess: (_d, { folderId }) => {
-      const nome = cartelle.find((c) => c.id === folderId)?.nome ?? "Senza cartella";
+    onSuccess: (_d, { folderId, tipo }) => {
+      const nome = tipo ? TIPI_DOCUMENTO_CANTIERE[tipo] : cartelle.find((c) => c.id === folderId)?.nome ?? "Senza cartella";
       toast.success(`Spostato in «${nome}»`);
     },
     onSettled: invalida,
@@ -304,12 +317,13 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
   };
 
   /** Cartella «aperta»: è quella proposta ai file senza indizi nel nome. */
-  const cartellaAperta = selezione !== TUTTI && selezione !== SENZA ? selezione : null;
+  const cartellaAperta = !inCantiere && selezione !== TUTTI && selezione !== SENZA ? selezione : null;
 
   // Trascinamento sulla card (cartella aperta) o su una cartella precisa.
   const handleDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types?.includes("Files")) return;
     e.preventDefault(); e.stopPropagation();
-    if (e.dataTransfer.types?.includes("Files")) setIsDragging(true);
+    setIsDragging(true);
   };
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -317,7 +331,12 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
     const dentro = e.relatedTarget instanceof Node && (e.currentTarget as Node).contains(e.relatedTarget);
     if (!dentro) { setIsDragging(false); setSopraCartella(null); }
   };
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types?.includes("Files")) return;
+    e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+    setSopraCartella(null);
+  };
   const handleDrop = (e: React.DragEvent, cartellaId: string | null = cartellaAperta) => {
     e.preventDefault(); e.stopPropagation();
     setIsDragging(false); setSopraCartella(null);
@@ -348,23 +367,23 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
     const m = new Map(cartelle.map((c) => [c.id, c.nome]));
     return (id: string | null) => (id ? m.get(id) ?? (caricoCartelle ? "Caricamento categoria…" : erroreCartelle ? "Categoria non disponibile" : "Cartella non disponibile") : "Senza cartella");
   }, [cartelle, caricoCartelle, erroreCartelle]);
-  const mancanti = useMemo(() => cartelleMancanti(cartelle, tutti), [cartelle, tutti]);
+  const mancanti = useMemo(() => cartelleMancanti(cartelle, documentiGenerali), [cartelle, documentiGenerali]);
   const orfani = tutti.filter((a) => a.folder_id && !cartelle.some((c) => c.id === a.folder_id)).length;
   const senzaCartella = (conteggi[""] ?? 0) + orfani;
 
   const visibili = tutti.filter((a) => {
-    const inCartella =
+    const inCartella = inCantiere ? tipoCantiere === TUTTI || a.cantiere_tipo === tipoCantiere :
       selezione === TUTTI ||
       (selezione === SENZA
         ? !a.folder_id || !cartelle.some((c) => c.id === a.folder_id)
         : a.folder_id === selezione);
     const condiviso = !a.daCliente && a.visible_to_customer;
     return inCartella && (visibilita === "tutti" || (visibilita === "condivisi" ? condiviso : !condiviso))
-      && corrispondeRicerca(a.file_name, nomeCartella(a.folder_id), ricerca);
+      && corrispondeRicerca(a.file_name, a.cantiere_tipo ? TIPI_DOCUMENTO_CANTIERE[a.cantiere_tipo] : nomeCartella(a.folder_id), ricerca);
   });
-  const condivisi = attachments.filter(a => a.visible_to_customer).length;
-  const filtriAttivi = selezione !== TUTTI || !!ricerca || visibilita !== "tutti";
-  const azzeraFiltri = () => { setSelezione(TUTTI); setRicerca(""); setVisibilita("tutti"); };
+  const condivisi = tutti.filter(a => a.visible_to_customer).length;
+  const filtriAttivi = (inCantiere ? tipoCantiere !== TUTTI : selezione !== TUTTI) || !!ricerca || visibilita !== "tutti";
+  const azzeraFiltri = () => { setSelezione(TUTTI); setTipoCantiere(TUTTI); setRicerca(""); setVisibilita("tutti"); };
 
   if (isLoading) {
     return (
@@ -405,9 +424,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
         <CardTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
           <span className="truncate">Documenti commessa</span>
-          {tutti.length > 0 && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">{tutti.length}</span>
-          )}
+
         </CardTitle>
         {editable && (
           <div className="flex flex-wrap items-center gap-2">
@@ -434,9 +451,29 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
 
       <CardContent className="space-y-3">
         {documentiCollegati}
-        {erroreCliente && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"><span>Documenti del cliente non disponibili. L'elenco mostra solo gli allegati della commessa.</span><Button type="button" variant="outline" size="sm" onClick={() => { void rileggiCliente(); }}>Riprova documenti cliente</Button></div>}
-        {caricoCliente && <p role="status" className="text-xs text-muted-foreground">Verifica documenti del cliente…</p>}
-        {mancanti.length > 0 && (
+        <div role="group" aria-label="Sezioni documenti" className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
+          <Button type="button" size="sm" variant={!inCantiere ? "secondary" : "ghost"} aria-pressed={!inCantiere}
+            className="gap-2" onClick={() => { setSezione("commessa"); azzeraFiltri(); }}>
+            <Paperclip className="h-4 w-4" aria-hidden="true" /> Allegati commessa <span className="tabular-nums text-muted-foreground">{documentiGenerali.length}</span>
+          </Button>
+          <Button type="button" size="sm" variant={inCantiere ? "secondary" : "ghost"} aria-pressed={inCantiere}
+            className="gap-2" onClick={() => { setSezione("cantiere"); azzeraFiltri(); }}>
+            <HardHat className="h-4 w-4" aria-hidden="true" /> Documenti di cantiere <span className="tabular-nums text-muted-foreground">{documentiCantiere.length}</span>
+          </Button>
+        </div>
+        {inCantiere && editable && permissions.isAdmin && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-primary/5 px-4 py-3">
+          <div><p className="text-sm font-medium">QR documenti di cantiere</p><p className="text-xs text-muted-foreground">Scegli i documenti consultabili sul posto e stampa il QR della commessa.</p></div>
+          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setQrAperto(true)}><QrCode className="h-4 w-4" /> Gestisci QR</Button>
+        </div>}
+        {editable && <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}
+          className={`h-auto w-full justify-center gap-2 whitespace-normal border-dashed py-3 ${isDragging ? "border-primary bg-primary/10" : "bg-muted/20"}`}>
+          <Upload className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {isDragging ? (sopraCartella ? `Rilascia in «${sopraCartella === SENZA ? "Senza cartella" : nomeCartella(sopraCartella)}»` : "Rilascia i file qui")
+            : <><span className="hidden sm:inline">Trascina qui i file o selezionali</span><span className="sm:hidden">Seleziona i file</span><span className="text-xs font-normal text-muted-foreground">Fino a 50 MB per file</span></>}
+        </Button>}
+        {!inCantiere && erroreCliente && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"><span>Documenti del cliente non disponibili. L'elenco mostra solo gli allegati della commessa.</span><Button type="button" variant="outline" size="sm" onClick={() => { void rileggiCliente(); }}>Riprova documenti cliente</Button></div>}
+        {!inCantiere && caricoCliente && <p role="status" className="text-xs text-muted-foreground">Verifica documenti del cliente…</p>}
+        {!inCantiere && mancanti.length > 0 && (
           <div className="flex items-start gap-2 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <span>
@@ -473,7 +510,9 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
             </Button>}
           </div>}
           <div className="flex flex-col gap-2 xl:flex-row xl:items-start">
-          <DocumentFoldersNavigation
+          {inCantiere ? <OfficeSelect label="Tipo di documento di cantiere" value={tipoCantiere} onValueChange={setTipoCantiere} className="h-11 sm:w-72"
+            options={[{ value: TUTTI, label: "Tutti i tipi" }, ...Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([value, label]) => ({ value, label }))]} />
+          : <DocumentFoldersNavigation
             compact
             cartelle={cartelle} conteggi={conteggi} totale={tutti.length} senzaCartella={senzaCartella}
             mancanti={mancanti.map((c) => c.id)} loading={caricoCartelle}
@@ -481,7 +520,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
             sopraCartella={sopraCartella}
             onDragOverCartella={editable ? (_e, id) => setSopraCartella(id) : undefined}
             onDropCartella={editable ? handleDrop : undefined}
-          />
+          />}
 
             {tutti.length > 0 && (
               <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -492,7 +531,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
                       value={ricerca}
                       aria-label="Cerca documenti"
                       onChange={(e) => setRicerca(e.target.value)}
-                      placeholder={selezione === TUTTI ? "Cerca nei documenti…" : `Cerca in «${selezione === SENZA ? "Senza cartella" : nomeCartella(selezione)}»…`}
+                      placeholder={inCantiere || selezione === TUTTI ? "Cerca nei documenti…" : `Cerca in «${selezione === SENZA ? "Senza cartella" : nomeCartella(selezione)}»…`}
                       className="h-11 pl-8"
                     />
                   </div>
@@ -515,20 +554,13 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
           </div>
 
           <div className="min-w-0 space-y-2">
-            {editable && isDragging && (
-              <div className="flex items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary/50 bg-primary/5 py-4 text-sm text-primary">
-                <Upload className="h-4 w-4" />
-                {sopraCartella && sopraCartella !== TUTTI
-                  ? `Rilascia per caricare in «${sopraCartella === SENZA ? "Senza cartella" : nomeCartella(sopraCartella)}»`
-                  : "Rilascia qui i file, o su una cartella"}
-              </div>
-            )}
-
             {visibili.length === 0 ? (
               <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground max-sm:py-4 max-sm:text-xs">
                 {filtriAttivi
                   ? <><p>Nessun documento con questi filtri.</p><Button type="button" variant="link" onClick={azzeraFiltri}>Mostra tutti i documenti</Button></>
-                  : selezione === TUTTI
+                  : inCantiere
+                    ? "Nessun documento di cantiere. Qui puoi raccogliere POS, PSC, tavole e verbali."
+                    : selezione === TUTTI
                     ? (editable ? (
                         <>
                           {/* Dal telefono non si trascina: basta «Carica file». */}
@@ -556,13 +588,13 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
                     attachment={attachment}
                     editable={editable}
                     cartelle={cartelleAttive}
-                    nomeCartella={selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
+                    nomeCartella={attachment.cantiere_tipo ? TIPI_DOCUMENTO_CANTIERE[attachment.cantiere_tipo] : selezione === TUTTI || ricerca ? nomeCartella(attachment.folder_id) : null}
                     thumbUrl={miniaturaDi(attachment)}
                     vista={vista}
                     visibilityPending={toggleVisibilityMutation.isPending}
                     onPreview={() => scarica(attachment)}
                     onToggleVisibility={(visible) => toggleVisibilityMutation.mutate({ id: attachment.id, visible })}
-                    onMove={(folderId) => spostaMutation.mutate({ id: attachment.id, folderId })}
+                    onMove={(folderId, tipo) => spostaMutation.mutate({ id: attachment.id, folderId, tipo })}
                     onDelete={() => deleteAttachmentMutation.mutate(attachment)}
                   />
                 ))}
@@ -587,8 +619,11 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCol
           filesIniziali={fileDaCaricare}
           cartelle={cartelleAttive}
           cartellaPredefinita={cartellaDialog}
+          cantierePredefinito={inCantiere ? (tipoCantiere === TUTTI ? true : tipoCantiere as TipoDocumentoCantiere) : null}
+          onMostraCantiere={!inCantiere ? () => { setDialogAperto(false); setSezione("cantiere"); azzeraFiltri(); } : undefined}
         />
       )}
+      {qrAperto && <QrCantiereDialog orderId={orderId} codice={orderCode} documenti={documentiCantiere.filter(documentoAdattoAlQr)} onClose={() => setQrAperto(false)} />}
     </Card>
   );
 }
@@ -606,7 +641,7 @@ interface AttachmentItemProps {
   /** Clic sul file: lo scarica. */
   onPreview: () => void;
   onToggleVisibility: (visible: boolean) => void;
-  onMove: (folderId: string | null) => void;
+  onMove: (folderId: string | null, tipo?: TipoDocumentoCantiere) => void;
   onDelete: () => void;
 }
 
@@ -670,13 +705,18 @@ function AzioniDocumento({
               {cartelle.map((c) => (
                 <DropdownMenuItem
                   key={c.id}
-                  disabled={c.id === attachment.folder_id}
+                  disabled={!attachment.cantiere_tipo && c.id === attachment.folder_id}
                   onSelect={() => onMove(c.id)}
                   className="pl-7"
                 >
                   {c.nome}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={() => onMove(null)} disabled={!attachment.cantiere_tipo && !attachment.folder_id} className="pl-7">Senza categoria</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Documenti di cantiere</DropdownMenuLabel>
+              {Object.entries(TIPI_DOCUMENTO_CANTIERE).map(([tipo, nome]) => <DropdownMenuItem key={tipo} className="pl-7"
+                disabled={tipo === attachment.cantiere_tipo} onSelect={() => onMove(null, tipo as TipoDocumentoCantiere)}>{nome}</DropdownMenuItem>)}
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={attachment.file_url.startsWith("order-variation-documents/")} className="text-destructive focus:text-destructive" onSelect={() => setConfermaElimina(true)}>
                 <Trash2 className="h-4 w-4 mr-2" /> Elimina

@@ -1908,7 +1908,7 @@ function OrderDetailInner() {
             </div>
             {/* Da telefono i documenti si aprono dall'icona in testata: qui erano quasi mille pixel. */}
             {!isMobile && <div id="section-documenti" className="scroll-mt-24">
-              <OrderAttachments key={id} orderId={id!} editable={permissions.canEditOrders}
+              <OrderAttachments key={id} orderId={id!} orderCode={order.order_code} editable={permissions.canEditOrders}
                 documentiCollegati={<>
                   <PreventivoOrigineCommessa quoteId={order.quote_id} quoteNumber={order.quote_number} companyId={companyId} />
                   <PlanimetrieAssociate companyId={companyId} tipo="commessa" schedaId={id} nascondiSeVuoto />
@@ -2440,6 +2440,7 @@ function OrderDetailInner() {
         onOpenChange={setFilesOpen}
         fatture={fattureCollegate}
         documenti={documentiCommessa}
+        gestioneAllegati={isMobile ? { orderId: id!, orderCode: order.order_code, editable: permissions.canEditOrders } : undefined}
         items={displayItems}
         onOpenDocumento={handleOpenOrderDocument}
         formatDocType={formatAttachmentType}

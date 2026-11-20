@@ -11,9 +11,11 @@ import {
   mediaLibraryItemMatchesTab,
   mediaLibraryItemMatchesSearch,
   pickMediaLibraryDetailItem,
+  raggruppaFileDrive,
   resolveMediaLibraryOpenTarget,
   summarizeMediaLibraryItems,
 } from "@/lib/mediaLibrary";
+import { leggiPagineDrive } from "@/lib/leggiPagineDrive";
 
 const BASE_PERMISSIONS = {
   isAdmin: false,
@@ -561,5 +563,37 @@ describe("media library rules", () => {
       linked: 1,
       reserved: 0,
     });
+  });
+});
+
+
+describe("ricerca nell’archivio Drive", () => {
+  it("trova anche i riferimenti più vecchi oltre la prima pagina", async () => {
+    const files = ["Capitolato", "Verbale", "Révisione O-0043 di Rossi"].map((fileName, index) =>
+      buildMediaLibraryItem({ id: String(index), source: "attachment", fileName, docType: "documento_generico" }));
+    const pagina = async (da: number, a: number) => ({ data: files.slice(da, a + 1), error: null as null });
+    const prima = await leggiPagineDrive(pagina, 2);
+    expect(prima.altre).toBe(true);
+    const completa = await leggiPagineDrive(pagina, 2, true);
+    expect(completa.altre).toBe(false);
+    expect(completa.data.filter(file => mediaLibraryItemMatchesSearch(file, "rossi revisione O/0043"))).toEqual([files[2]]);
+  });
+
+  it("conserva le righe già disponibili se una fonte si interrompe", async () => {
+    const error = { message: "Timeout" };
+    const errore = await leggiPagineDrive(async da =>
+      da === 0 ? { data: [{ id: "primo" }], error: null } : { data: null, error }, 1, true);
+    expect(errore).toEqual({ data: [{ id: "primo" }], error, altre: false });
+  });
+
+  it("riunisce le origini dello stesso oggetto e conserva i file omonimi", () => {
+    const base = { fileName: "Verbale.pdf", docType: "documento_generico", storageBucket: "documenti-smart" };
+    const analisi = buildMediaLibraryItem({ ...base, id: "analisi", source: "ai_analysis", storagePath: "verbale-a", linkedEntityLabel: "Pratica 7" });
+    const commessa = buildMediaLibraryItem({ ...base, id: "commessa", source: "attachment", storagePath: "verbale-a", linkedEntityId: "commessa-1" });
+    const omonimo = buildMediaLibraryItem({ ...base, id: "omonimo", source: "attachment", storagePath: "verbale-b" });
+    expect(raggruppaFileDrive([analisi, commessa, omonimo]).map(file => file.id)).toEqual(["commessa", "omonimo"]);
+    const risultati = raggruppaFileDrive([analisi, commessa, omonimo], file => mediaLibraryItemMatchesSearch(file, "Pratica 7"));
+    expect(risultati).toHaveLength(1);
+    expect(risultati[0]).toMatchObject({ id: "commessa", origins: [analisi.integrationLabel, commessa.integrationLabel] });
   });
 });

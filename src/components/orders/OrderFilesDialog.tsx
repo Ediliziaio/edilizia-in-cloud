@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileText, Receipt, Paperclip, Package, Download, ExternalLink, Loader2, FolderOpen } from "lucide-react";
+import { OrderAttachments } from "./OrderAttachments";
 import { FileThumb } from "./filePreview";
 import {
   useUrlMiniature, fmtBytes, fileKind, scaricaAllegato, KIND_LABEL, KIND_TINT,
@@ -45,6 +46,7 @@ interface Props {
   onDownloadOrderPdf: () => void;
   pdfBusy?: boolean;
   documentiCollegati?: React.ReactNode;
+  gestioneAllegati?: { orderId: string; orderCode?: string; editable: boolean };
 }
 
 function fiscalTypeLabel(t?: string | null) {
@@ -73,7 +75,7 @@ function SectionTitle({ icon: Icon, children, count }: { icon: typeof FileText; 
 }
 
 export function OrderFilesDialog({
-  open, onOpenChange, fatture, documenti, items, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy, documentiCollegati,
+  open, onOpenChange, fatture, documenti, items, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy, documentiCollegati, gestioneAllegati,
 }: Props) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -82,15 +84,15 @@ export function OrderFilesDialog({
     [items],
   );
   const totalItemFiles = itemsWithFiles.reduce((s, i) => s + (i.attachments?.length ?? 0), 0);
-  const isEmpty = fatture.length === 0 && documenti.length === 0 && totalItemFiles === 0;
+  const isEmpty = !gestioneAllegati && fatture.length === 0 && documenti.length === 0 && totalItemFiles === 0;
 
   const [cerca, setCerca] = useState("");
   const documentiFiltrati = cerca.trim() ? documenti.filter((d) => d.file_name.toLowerCase().includes(cerca.trim().toLowerCase())) : documenti;
 
   /** Tutti gli allegati (commessa + articoli): servono per firmare gli URL in blocco. */
   const allAttachments = useMemo(
-    () => [...documenti, ...itemsWithFiles.flatMap((i) => i.attachments ?? [])],
-    [documenti, itemsWithFiles],
+    () => [...(gestioneAllegati ? [] : documenti), ...itemsWithFiles.flatMap((i) => i.attachments ?? [])],
+    [documenti, gestioneAllegati, itemsWithFiles],
   );
 
   const { data: miniature = {} } = useUrlMiniature(allAttachments.map((d) => d.thumb_path), open);
@@ -179,7 +181,8 @@ export function OrderFilesDialog({
           )}
 
           {/* Allegati commessa */}
-          {documenti.length > 0 && (
+          {open && gestioneAllegati && <OrderAttachments {...gestioneAllegati} />}
+          {!gestioneAllegati && documenti.length > 0 && (
             <section className="space-y-2">
               <SectionTitle icon={Paperclip} count={documenti.length}>Allegati commessa</SectionTitle>
               {documenti.length > 8 && (
