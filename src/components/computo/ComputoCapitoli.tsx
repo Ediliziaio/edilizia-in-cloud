@@ -12,6 +12,8 @@ import ComputoMisure from "./ComputoMisure";
 const capitoliFrequenti = ["Demolizioni e rimozioni", "Opere murarie", "Impianti elettrici", "Impianti idraulici", "Pavimenti e rivestimenti", "Serramenti", "Tinteggiature", "Sicurezza"];
 
 const quantitaTesto = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2, useGrouping: "always" });
+const ETICHETTA_CAMPO = "mb-1 block text-xs font-medium text-slate-600 md:hidden";
+const CAMPO_VOCE = "h-10 w-full min-w-0 bg-white px-2 text-base shadow-none focus:border-blue-400 md:h-7 md:border-transparent md:bg-transparent md:px-1.5 md:text-[13px] md:hover:border-slate-200 md:focus:bg-white";
 
 /**
  * Un'unica tabella a capitoli, con indice laterale e quantità, unità e prezzi
@@ -110,13 +112,15 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
         </button>)}</div>
       </nav>}
       <div className={`min-w-0 space-y-2 ${!capitoli.length ? "xl:col-span-2" : ""}`}>
-        {!indiceLaterale && !!capitoli.length && <Select value={selezionato ?? "__tutti__"} onValueChange={value => scegliCapitolo(value === "__tutti__" ? null : value)}>
-          <SelectTrigger aria-label="Capitolo da visualizzare" className="h-8 max-w-sm bg-white text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="__tutti__">Tutti i capitoli · {voci.length} voci</SelectItem>{capitoli.map((c, n) => <SelectItem key={c.nome} value={c.nome}>{String(n + 1).padStart(2, "0")} · {c.nome}</SelectItem>)}</SelectContent>
-        </Select>}
+        {!!capitoli.length && <div className={indiceLaterale ? "xl:hidden" : undefined}>
+          <Select value={selezionato ?? "__tutti__"} onValueChange={value => scegliCapitolo(value === "__tutti__" ? null : value)}>
+            <SelectTrigger aria-label="Capitolo da visualizzare" className="h-10 max-w-sm bg-white text-sm md:h-8 md:text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__tutti__">Tutti i capitoli · {voci.length} voci</SelectItem>{capitoli.map((c, n) => <SelectItem key={c.nome} value={c.nome}>{String(n + 1).padStart(2, "0")} · {c.nome}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="relative min-w-[160px] flex-1"><Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input aria-label="Cerca lavorazioni" placeholder="Cerca una voce, un capitolo o un codice…" className="h-8 bg-white pl-8 text-xs" value={ricerca} onChange={e => { setRicerca(e.target.value); setChiusi(new Set()); }} /></div>
-          <div role="group" aria-label="Filtra lavorazioni" className="flex items-center gap-0.5">
+          <div className="relative min-w-0 flex-1 max-md:basis-full"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input type="search" aria-label="Cerca lavorazioni" placeholder="Cerca una lavorazione" className="h-10 bg-white pl-8 text-base md:h-8 md:text-xs" value={ricerca} onChange={e => { setRicerca(e.target.value); setChiusi(new Set()); }} /></div>
+          <div role="group" aria-label="Filtra lavorazioni" className="flex flex-wrap items-center gap-0.5">
             {([["tutte", "Tutte", null], ["da-prezzare", "Da prezzare", voci.filter(daPrezzare).length], ["con-misure", "Con misure", voci.filter(v => v.misure.length).length]] as const).map(([id, label, count]) => <button key={id} type="button" aria-label={count == null ? label : `${label} ${count}`} aria-pressed={stato === id} onClick={() => { setStato(id); setChiusi(new Set()); }} className={`inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs ${stato === id ? "bg-slate-800 font-medium text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}{count != null && <span className={stato === id ? "text-slate-200" : "text-slate-400"}>{count}</span>}</button>)}
           </div>
           {!!capitoli.length && <Button variant="ghost" size="icon" className="h-8 w-8" title={chiusi.size ? "Espandi tutti i capitoli" : "Comprimi tutti i capitoli"} aria-label={chiusi.size ? "Espandi tutti i capitoli" : "Comprimi tutti i capitoli"} onClick={() => setChiusi(chiusi.size ? new Set() : new Set(capitoli.map(c => c.nome)))}>{chiusi.size ? <ChevronsDown className="h-3.5 w-3.5" /> : <ChevronsUp className="h-3.5 w-3.5" />}</Button>}
@@ -127,31 +131,32 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
           }}><SelectTrigger aria-label="Capitoli frequenti" className="h-8 w-32 bg-white text-xs"><SelectValue placeholder="Capitolo rapido" /></SelectTrigger><SelectContent>{capitoliFrequenti.map(n => <SelectItem key={n} value={n} disabled={capitoli.some(c => c.nome.toLocaleLowerCase("it") === n.toLocaleLowerCase("it"))}>{n}</SelectItem>)}</SelectContent></Select>
           {onListino && <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" onClick={() => onListino(selezionato ?? undefined)}><Search className="h-3.5 w-3.5" />Cerca nei listini</Button>}
         </div>
-        {!!selezionato && <button type="button" onClick={() => scegliCapitolo(null)} className="text-xs text-blue-700 xl:hidden">Tutti i capitoli · {selezionato} ×</button>}
         {!capitoli.length && <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-white p-5 text-center">
           <Calculator className="h-6 w-6 text-slate-400" /><h3 className="text-sm font-semibold">Costruisci il computo</h3>
           <div className="flex flex-wrap justify-center gap-2"><Button size="sm" onClick={() => apri()}><Plus className="mr-1 h-4 w-4" />Crea il primo capitolo</Button><Button size="sm" variant="outline" onClick={() => onListino ? onListino() : onAdd("Opere edili")}>Aggiungi lavorazione</Button></div>
           <p className="text-xs text-muted-foreground">Puoi preparare le voci anche senza prezzo e completarlo dopo.</p>
         </div>}
-        {!!capitoli.length && <div aria-label="Elenco dei capitoli" role="region" tabIndex={0} className="overflow-x-auto rounded-lg border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
-          <table className="w-full min-w-[650px] table-fixed border-collapse text-xs">
+        {!!capitoli.length && <div aria-label="Elenco dei capitoli" role="region" tabIndex={0} className="rounded-lg border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 md:overflow-x-auto">
+          <table role="table" className="w-full table-fixed border-collapse text-xs max-md:block md:min-w-[650px]">
             <caption className="sr-only">Lavorazioni del computo, raggruppate per capitolo. Quantità e prezzi si modificano nelle righe.</caption>
-            <colgroup><col /><col className="w-[76px]" /><col className="w-[58px]" /><col className="w-[96px]" /><col className="w-[110px]" /><col className="w-[34px]" /></colgroup>
-            <thead className="bg-slate-50 text-[11px] font-medium text-slate-500"><tr><th scope="col" className="px-3 py-2 text-left font-medium">Voce / lavorazione</th><th scope="col" className="px-2 py-2 text-right font-medium">Quantità</th><th scope="col" className="px-2 py-2 text-left font-medium">U.M.</th><th scope="col" className="px-2 py-2 text-right font-medium">Prezzo unit. €</th><th scope="col" className="px-2 py-2 text-right font-medium">Importo €</th><th scope="col"><span className="sr-only">Misure</span></th></tr></thead>
+            <colgroup className="max-md:hidden"><col /><col className="w-[76px]" /><col className="w-[58px]" /><col className="w-[96px]" /><col className="w-[110px]" /><col className="w-[34px]" /></colgroup>
+            <thead className="bg-slate-50 text-[11px] font-medium text-slate-500 max-md:hidden"><tr><th scope="col" className="px-3 py-2 text-left font-medium">Voce / lavorazione</th><th scope="col" className="px-2 py-2 text-right font-medium">Quantità</th><th scope="col" className="px-2 py-2 text-left font-medium">U.M.</th><th scope="col" className="px-2 py-2 text-right font-medium">Prezzo unit. €</th><th scope="col" className="px-2 py-2 text-right font-medium">Importo €</th><th scope="col"><span className="sr-only">Misure</span></th></tr></thead>
             {visibili.map(c => {
               const contieneAperta = c.righe.some(r => r.voce.id === aperta);
               const apertoCapitolo = contieneAperta || !chiusi.has(c.nome);
               const parziale = c.righe.some(r => r.calcolo.errori.length);
-              return <tbody key={c.nome} className="border-t border-slate-200">
-                <tr className="bg-slate-50/90"><th colSpan={6} scope="rowgroup" className="px-2 py-1 font-normal">
-                  <div className="flex min-h-7 items-center gap-1.5">
-                    <button type="button" className="flex h-7 w-6 shrink-0 items-center justify-center rounded hover:bg-slate-200" aria-label={`${apertoCapitolo ? "Chiudi" : "Apri"} capitolo ${c.nome}`} aria-expanded={apertoCapitolo} onClick={() => { if (contieneAperta) onApri(null); setChiusi(prev => { const next = new Set(prev); if (apertoCapitolo) next.add(c.nome); else next.delete(c.nome); return next; }); }}>{apertoCapitolo ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button>
-                    <span className="text-[10px] tabular-nums text-slate-400">{String(c.numero).padStart(2, "0")}</span><h4 className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold" title={c.nome}>{c.nome}</h4>
-                    <span className="shrink-0 text-[10px] font-normal text-slate-500">{c.righe.length} {c.righe.length === 1 ? "voce" : "voci"}</span>
-                    {parziale && <span className="text-[10px] text-amber-700">Parziale</span>}
-                    <strong className="min-w-[85px] pr-1 text-right text-xs tabular-nums">{formatEuro(totaleCapitolo(c))} €</strong>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500" title="Rinomina capitolo" aria-label={`Rinomina capitolo ${c.nome}`} onClick={() => apri(c.nome)}><Pencil className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 hover:text-red-700" title="Elimina capitolo" aria-label={`Elimina capitolo ${c.nome}`} onClick={() => elimina(c.nome, c.righe.length)}><Trash2 className="h-3 w-3" /></Button>
+              return <tbody key={c.nome} className="border-t border-slate-200 max-md:block">
+                <tr className="bg-slate-50/90 max-md:block"><th colSpan={6} scope="rowgroup" className="px-2 py-1 font-normal max-md:block">
+                  <div className="min-h-7 items-center gap-1.5 max-md:grid max-md:grid-cols-[2rem_minmax(0,1fr)_auto_auto] md:flex">
+                    <button type="button" className="flex h-7 w-6 shrink-0 items-center justify-center rounded hover:bg-slate-200 max-md:h-10 max-md:w-8" aria-label={`${apertoCapitolo ? "Chiudi" : "Apri"} capitolo ${c.nome}`} aria-expanded={apertoCapitolo} onClick={() => { if (contieneAperta) onApri(null); setChiusi(prev => { const next = new Set(prev); if (apertoCapitolo) next.add(c.nome); else next.delete(c.nome); return next; }); }}>{apertoCapitolo ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button>
+                    <span className="text-[10px] tabular-nums text-slate-400 max-md:hidden">{String(c.numero).padStart(2, "0")}</span>
+                    <h4 className="min-w-0 flex-1 break-words text-left text-sm font-semibold md:truncate md:text-[13px]" title={c.nome}>{c.nome}</h4>
+                    <span className="shrink-0 text-left text-xs font-normal text-slate-500 max-md:col-start-2 max-md:row-start-2">
+                      {c.righe.length} {c.righe.length === 1 ? "voce" : "voci"}{parziale && <span className="ml-1 text-amber-700">· Parziale</span>}
+                    </span>
+                    <strong className="pr-1 text-right text-xs tabular-nums max-md:col-span-2 max-md:col-start-3 max-md:row-start-2 md:min-w-[85px]">{formatEuro(totaleCapitolo(c))} €</strong>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 max-md:col-start-3 max-md:row-start-1 max-md:h-9 max-md:w-9" title="Rinomina capitolo" aria-label={`Rinomina capitolo ${c.nome}`} onClick={() => apri(c.nome)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-slate-500 hover:text-red-700 max-md:col-start-4 max-md:row-start-1 max-md:h-9 max-md:w-9" title="Elimina capitolo" aria-label={`Elimina capitolo ${c.nome}`} onClick={() => elimina(c.nome, c.righe.length)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </th></tr>
                 {apertoCapitolo && <>
@@ -162,37 +167,55 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                     const categoriaPrecedente = precedente ? [precedente.categoria?.trim(), precedente.sottocategoria?.trim()].filter(Boolean).join(" › ") : "";
                     const segni = [voce.corpo && "A corpo", voce.sicurezza && "Sicurezza", voce.detrazione && "Detrazione", voce.opzionale && "Opzionale · fuori dal totale", voce.fonte?.startsWith("Stima di mercato di Silvio") && "Prezzo stimato"].filter(Boolean) as string[];
                     return <Fragment key={voce.id}>
-                      {!!categoria && categoria !== categoriaPrecedente && <tr className="border-t border-slate-100"><td colSpan={6} className="bg-slate-50/40 py-1 pl-11 pr-2 text-[10px] font-medium text-slate-500">{categoria}</td></tr>}
-                      <tr onClickCapture={() => onAttiva?.(voce.id)} onFocusCapture={() => { setRigaAttiva(voce.id); onAttiva?.(voce.id); }} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRigaAttiva(id => id === voce.id ? null : id); }} className={`group border-t border-slate-100 ${eAperta || misureVisibili ? "bg-blue-50/40" : "hover:bg-slate-50/60"}`}>
-                        <td className="py-1 pl-3 pr-1 align-middle">
+                      {!!categoria && categoria !== categoriaPrecedente && <tr className="border-t border-slate-100 max-md:block"><td colSpan={6} className="bg-slate-50/40 py-1 pl-11 pr-2 text-[10px] font-medium text-slate-500 max-md:block max-md:px-3">{categoria}</td></tr>}
+                      <tr onClickCapture={() => onAttiva?.(voce.id)} onFocusCapture={() => { setRigaAttiva(voce.id); onAttiva?.(voce.id); }} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRigaAttiva(id => id === voce.id ? null : id); }} className={`group border-t border-slate-100 max-md:grid max-md:grid-cols-3 max-md:items-end max-md:gap-2 max-md:p-3 ${eAperta || misureVisibili ? "bg-blue-50/40" : "hover:bg-slate-50/60"}`}>
+                        <td className="align-middle max-md:col-span-full md:py-1 md:pl-3 md:pr-1">
                           <div className="flex min-w-0 items-start gap-2">
                             <span className="w-5 shrink-0 pt-1 text-right text-[10px] tabular-nums text-slate-400">{indice + 1}</span>
-                            <div className="min-w-0 flex-1"><button type="button" aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} aria-expanded={eAperta} onClick={() => { setMisureAperte(prev => { const next = new Set(prev); next.delete(voce.id); return next; }); onApri(eAperta ? null : voce.id); }} className="block w-full rounded py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><span title={voce.descrizione} className={`block truncate text-[13px] leading-5 ${voce.descrizione.trim() ? "text-slate-900" : "italic text-slate-400"}`}>{voce.descrizione.trim() || "Nuova lavorazione"}</span></button>
-                              {(voce.tariffa || segni.length > 0 || calcolo.errori.length > 0 || daMisure) && <div className="flex items-center gap-x-2 overflow-hidden whitespace-nowrap text-[10px] leading-4 text-slate-500">
+                            <div className="min-w-0 flex-1"><button type="button" aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} aria-expanded={eAperta} onClick={() => { setMisureAperte(prev => { const next = new Set(prev); next.delete(voce.id); return next; }); onApri(eAperta ? null : voce.id); }} className="flex w-full items-center justify-between gap-2 rounded py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 max-md:min-h-9"><span title={voce.descrizione} className={`block min-w-0 break-words text-sm leading-5 md:truncate md:text-[13px] ${voce.descrizione.trim() ? "text-slate-900" : "italic text-slate-400"}`}>{voce.descrizione.trim() || "Nuova lavorazione"}</span><ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 md:hidden ${eAperta ? "rotate-180" : ""}`} aria-hidden="true" /></button>
+                              {(voce.tariffa || segni.length > 0 || calcolo.errori.length > 0 || daMisure) && <div className="flex items-center gap-x-2 text-[10px] leading-4 text-slate-500 max-md:flex-wrap md:overflow-hidden md:whitespace-nowrap">
                                 {voce.tariffa && <span className="font-mono">{voce.tariffa}</span>}{daMisure && <span>{voce.misure.length} {voce.misure.length === 1 ? "riga" : "righe"} di misura</span>}{segni.map(s => <span key={s} className={s.startsWith("Opzionale") ? "text-blue-700" : ""}>{s}</span>)}
                                 {!!calcolo.errori.length && <span className="text-amber-700">{daPrezzare(voce) ? "Da prezzare" : "Da completare"}</span>}
                               </div>}
                             </div>
                           </div>
                         </td>
-                        <td className="px-1 py-1 align-middle">{daMisure ? <output className="block px-2 text-right text-[13px] tabular-nums" aria-label={`Quantità voce ${indice + 1} dalle misure`} title="Dalle righe di misura">{calcolo.quantita == null ? "—" : quantitaTesto(calcolo.quantita)}</output> : <Input aria-label={`Quantità voce ${indice + 1}`} inputMode="decimal" maxLength={40} className="h-7 w-full border-transparent bg-transparent px-1.5 text-right text-[13px] shadow-none md:text-[13px] hover:border-slate-200 focus:border-blue-400 focus:bg-white" placeholder="—" value={voce.quantita} onChange={e => onModifica(voce.id, { quantita: e.target.value })} />}</td>
-                        <td className="px-1 py-1 align-middle"><Input aria-label={`Unità voce ${indice + 1}`} maxLength={40} className="h-7 w-full border-transparent bg-transparent px-1 text-xs text-slate-500 shadow-none md:text-xs hover:border-slate-200 focus:border-blue-400 focus:bg-white" value={voce.unita} placeholder="U.M." onChange={e => onModifica(voce.id, { unita: e.target.value, corpo: ["corpo", "a corpo"].includes(e.target.value.trim().toLowerCase()) })} /></td>
-                        <td className="px-1 py-1 align-middle"><Input data-prezzo-voce aria-label={`Prezzo voce ${indice + 1}`} inputMode="decimal" maxLength={40} className="h-7 w-full border-transparent bg-transparent px-1.5 text-right text-[13px] tabular-nums shadow-none md:text-[13px] hover:border-slate-200 focus:border-blue-400 focus:bg-white" placeholder="Da definire" value={voce.prezzo} onKeyDown={prezzoSotto} onChange={e => onModifica(voce.id, { prezzo: e.target.value })} /></td>
-                        <td className="px-2 py-1 text-right align-middle tabular-nums"><strong className={`text-[13px] ${calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong></td>
-                        <td className="py-1 pr-1 align-middle"><Button variant="ghost" size="icon" className={`h-7 w-7 ${daMisure || misureVisibili ? "text-blue-700" : "text-slate-400"}`} aria-expanded={misureVisibili} aria-label={`${misureVisibili ? "Nascondi" : "Mostra"} misure voce ${indice + 1}`} title={misureVisibili ? "Chiudi le misure" : "Misure e formule nella riga"} onClick={() => cambiaMisure(voce.id)}><Ruler className="h-3.5 w-3.5" /></Button></td>
+                        <td className="min-w-0 align-middle md:p-1">
+                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>Quantità</span>
+                          {daMisure
+                            ? <output className="block px-2 text-right text-sm tabular-nums max-md:flex max-md:h-10 max-md:items-center max-md:justify-end max-md:rounded-md max-md:bg-slate-100 md:text-[13px]" aria-label={`Quantità voce ${indice + 1} dalle misure`} title="Dalle righe di misura">{calcolo.quantita == null ? "—" : quantitaTesto(calcolo.quantita)}</output>
+                            : <Input aria-label={`Quantità voce ${indice + 1}`} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right`} placeholder="—" value={voce.quantita} onChange={e => onModifica(voce.id, { quantita: e.target.value })} />}
+                        </td>
+                        <td className="min-w-0 align-middle md:p-1">
+                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>U.M.</span>
+                          <Input aria-label={`Unità voce ${indice + 1}`} maxLength={40} className={CAMPO_VOCE} value={voce.unita} placeholder="U.M." onChange={e => onModifica(voce.id, { unita: e.target.value, corpo: ["corpo", "a corpo"].includes(e.target.value.trim().toLowerCase()) })} />
+                        </td>
+                        <td className="min-w-0 align-middle md:p-1">
+                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>Prezzo €</span>
+                          <Input data-prezzo-voce aria-label={`Prezzo voce ${indice + 1}`} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right tabular-nums`} placeholder="—" value={voce.prezzo} onKeyDown={prezzoSotto} onChange={e => onModifica(voce.id, { prezzo: e.target.value })} />
+                        </td>
+                        <td className="text-right align-middle tabular-nums max-md:col-span-2 max-md:self-center md:px-2 md:py-1">
+                          <span aria-hidden="true" className="mr-2 text-xs text-slate-500 md:hidden">Importo</span>
+                          <strong className={`text-sm md:text-[13px] ${calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
+                        </td>
+                        <td className="align-middle max-md:justify-self-end md:py-1 md:pr-1">
+                          <Button variant="ghost" size="sm" className={`h-9 gap-1 px-1.5 md:h-7 md:w-7 md:p-0 ${daMisure || misureVisibili ? "text-blue-700" : "text-slate-600"}`} aria-expanded={misureVisibili} aria-label={`${misureVisibili ? "Nascondi" : "Mostra"} misure voce ${indice + 1}`} title={misureVisibili ? "Chiudi le misure" : "Misure e formule nella riga"} onClick={() => cambiaMisure(voce.id)}>
+                            <Ruler className="h-3.5 w-3.5" /><span className="text-xs md:hidden">Misure</span>
+                          </Button>
+                        </td>
                       </tr>
-                      {misureVisibili && !eAperta && <tr onFocusCapture={() => onAttiva?.(voce.id)} onClickCapture={() => onAttiva?.(voce.id)} className="border-t border-blue-100 bg-blue-50/30"><td colSpan={6} className="px-3 py-2"><div className="max-h-[420px] overflow-auto overscroll-contain"><ComputoMisure misure={voce.misure} unita={voce.unita} onChange={misure => onModifica(voce.id, { misure })} /></div></td></tr>}
-                      {eAperta && renderDettaglio && <tr id={`computo-dettaglio-${voce.id}`}><td colSpan={6} className="border-y border-blue-200 bg-blue-50/30 p-3">{renderDettaglio(voce, indice)}</td></tr>}
+                      {misureVisibili && !eAperta && <tr onFocusCapture={() => onAttiva?.(voce.id)} onClickCapture={() => onAttiva?.(voce.id)} className="border-t border-blue-100 bg-blue-50/30 max-md:block"><td colSpan={6} className="px-3 py-2 max-md:block"><div className="md:max-h-[420px] md:overflow-auto md:overscroll-contain"><ComputoMisure misure={voce.misure} unita={voce.unita} onChange={misure => onModifica(voce.id, { misure })} /></div></td></tr>}
+                      {eAperta && renderDettaglio && <tr id={`computo-dettaglio-${voce.id}`} className="max-md:block"><td colSpan={6} className="border-y border-blue-200 bg-blue-50/30 p-3 max-md:block">{renderDettaglio(voce, indice)}</td></tr>}
                     </Fragment>;
                   })}
-                  <tr className="border-t border-slate-100"><td colSpan={6} className="py-0.5 pl-9"><div className="flex items-center gap-1"><Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-[11px] font-normal text-slate-500" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome)}><Plus className="h-3 w-3" />Voce libera</Button>{onListino && <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-[11px] font-normal text-slate-500" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome, true)}><Search className="h-3 w-3" />Dal listino</Button>}</div></td></tr>
+                  <tr className="border-t border-slate-100 max-md:block"><td colSpan={6} className="py-0.5 max-md:block max-md:px-3 md:pl-9"><div className="flex flex-wrap items-center gap-1"><Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome)}><Plus className="h-3 w-3" />Voce libera</Button>{onListino && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome, true)}><Search className="h-3 w-3" />Dal listino</Button>}</div></td></tr>
                 </>}
               </tbody>;
             })}
           </table>
           {!visibili.length && <p className="p-4 text-xs text-slate-500">{stato === "da-prezzare" ? "Nessuna voce da prezzare nei capitoli selezionati." : "Nessuna lavorazione trovata."}</p>}
         </div>}
-        {!!capitoli.length && <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500"><span>{capitoli.length} capitoli · {voci.length} voci{selezionato || filtro || stato !== "tutte" ? ` · ${visibili.reduce((n, c) => n + c.righeVisibili.length, 0)} visibili` : ""}</span><span>Invio nel prezzo passa alla riga successiva.</span></div>}
+        {!!capitoli.length && <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500"><span>{capitoli.length} capitoli · {voci.length} voci{selezionato || filtro || stato !== "tutte" ? ` · ${visibili.reduce((n, c) => n + c.righeVisibili.length, 0)} visibili` : ""}</span><span className="max-md:hidden">Invio nel prezzo passa alla riga successiva.</span></div>}
       </div>
     </div>
     <Dialog open={!!dialog} onOpenChange={open => { if (!open) setDialog(null); }}><DialogContent className="max-w-md" aria-describedby={undefined}><DialogHeader><DialogTitle>{dialog?.originale ? "Rinomina capitolo" : "Nuovo capitolo"}</DialogTitle></DialogHeader>

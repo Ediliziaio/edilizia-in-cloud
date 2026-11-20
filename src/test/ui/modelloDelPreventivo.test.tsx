@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 const snapshot = (modelId: string) => ({ version: 1 as const, modelId, companyId: "az", capturedAt: "2026-10-22T16:21:00.000Z", template: {} });
 const progetto = { id: "p1", company_id: "az", stato: "bozza", tipo_intervento: "ristrutturazione_completa" };
+const apriModello = () => fireEvent.click(screen.getByRole("button", { name: "Modello PDF" }));
 beforeEach(() => { db.aggiornamenti = []; db.errore = null; db.trovato = true; vi.clearAllMocks(); });
 afterEach(cleanup);
 
@@ -31,6 +32,9 @@ describe("il modello del preventivo", () => {
     const costruisci = vi.fn(async (_c: string, m: { id: string }) => snapshot(m.id));
     const onAggiornato = vi.fn();
     render(<ModelloDelPreventivo modulo="ristrutturazione" progetto={progetto} snapshot={snapshot("computo")} costruisci={costruisci} onAggiornato={onAggiornato} />);
+    expect(screen.queryByText(/Il PDF usa il modello del/)).not.toBeInTheDocument();
+    apriModello();
+    expect(screen.getByRole("dialog", { name: "Modello PDF" })).toHaveTextContent("Il PDF usa il modello del");
     fireEvent.click(screen.getByRole("button", { name: "Aggiorna al modello attuale" }));
     await waitFor(() => expect(onAggiornato).toHaveBeenCalled());
     expect(costruisci).toHaveBeenCalledWith("az", { id: "computo" });
@@ -40,6 +44,8 @@ describe("il modello del preventivo", () => {
   it("un preventivo senza modello prende quello della libreria del suo tipo di intervento", async () => {
     const costruisci = vi.fn(async (_c: string, m: { id: string }) => snapshot(m.id));
     render(<ModelloDelPreventivo modulo="ristrutturazione" progetto={progetto} snapshot={null} costruisci={costruisci} onAggiornato={vi.fn()} />);
+    expect(screen.queryByText(/usa il modello base/)).not.toBeInTheDocument();
+    apriModello();
     expect(screen.getByText(/usa il modello base/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Usa questo modello" }));
     await waitFor(() => expect(costruisci).toHaveBeenCalledWith("az", { id: "completa" }));
@@ -54,6 +60,7 @@ describe("il modello del preventivo", () => {
     db.trovato = false;
     const onAggiornato = vi.fn();
     render(<ModelloDelPreventivo modulo="bagni" progetto={{ ...progetto, updated_at: "2026-10-24T10:00:00Z" }} snapshot={snapshot("completo")} costruisci={async () => snapshot("completo")} onAggiornato={onAggiornato} />);
+    apriModello();
     fireEvent.click(screen.getByRole("button", { name: "Aggiorna al modello attuale" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(toast.success).not.toHaveBeenCalled(); expect(onAggiornato).not.toHaveBeenCalled();
@@ -65,6 +72,7 @@ describe("il modello del preventivo", () => {
     const costruisci = vi.fn(() => new Promise(resolve => { finish = resolve; }));
     const onAggiornato = vi.fn();
     const view = render(<ModelloDelPreventivo modulo="bagni" progetto={progetto} snapshot={snapshot("completo")} costruisci={costruisci} onAggiornato={onAggiornato} />);
+    apriModello();
     const button = screen.getByRole("button", { name: "Aggiorna al modello attuale" });
     fireEvent.click(button); fireEvent.click(button);
     expect(costruisci).toHaveBeenCalledTimes(1);
@@ -77,6 +85,7 @@ describe("il modello del preventivo", () => {
   it("restituisce la versione del proprio aggiornamento per il successivo salvataggio atomico FV", async () => {
     const onVersion = vi.fn();
     render(<ModelloDelPreventivo tabella="fv_progetti" progetto={progetto} snapshot={snapshot("nuovo")} costruisci={async () => snapshot("nuovo")} onAggiornato={vi.fn()} onVersion={onVersion} />);
+    apriModello();
     fireEvent.click(screen.getByRole("button", { name: "Aggiorna al modello attuale" }));
     await waitFor(() => expect(onVersion).toHaveBeenCalledWith({ id: "p1", updated_at: "2026-10-24T12:00:00Z" }));
   });

@@ -346,7 +346,6 @@ export default function QuoteDetail() {
             >
               <ArrowLeft className="h-4 w-4 mr-2" /> Lista
             </Button>
-            {/* Telefono no: niente PDF da scaricare (dal «…» si invia al cliente). */}
             <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3 max-sm:hidden" aria-label="Genera PDF">
               {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
               <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
@@ -359,6 +358,9 @@ export default function QuoteDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem className="min-h-11 sm:hidden" disabled={generating} onSelect={() => void handleGeneratePdf()}>
+                  <FileDown className="mr-2 h-4 w-4" />Genera PDF
+                </DropdownMenuItem>
                 {!rigaDiModulo && (
                   <>
                     <DropdownMenuItem onClick={() => eseguiCopia(false)}>
@@ -558,20 +560,18 @@ export default function QuoteDetail() {
       <ContrattoFirmatoCard quote={quote as Parameters<typeof ContrattoFirmatoCard>[0]["quote"]} />
 
       <Tabs defaultValue="offerta">
-        {/* Telefono: tre schede a tutta larghezza (Offerta, Cliente, Attività);
-            documenti e versioni si guardano dal computer. */}
-        <TabsList className="bg-slate-100 max-w-full justify-start overflow-x-auto max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+        <TabsList className="max-w-full justify-start bg-slate-100 max-sm:grid max-sm:h-auto max-sm:w-full max-sm:grid-cols-3 max-sm:gap-1 max-sm:[&>button]:min-h-10 max-sm:[&>button]:px-1 max-sm:[&>button]:text-xs">
           <TabsTrigger value="offerta" className="tap-compact data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm gap-1.5">
             <Package className="h-3.5 w-3.5 max-sm:hidden" /> Offerta
           </TabsTrigger>
           <TabsTrigger value="cliente" className="tap-compact data-[state=active]:bg-white gap-1.5">
             <User className="h-3.5 w-3.5 max-sm:hidden" /> Cliente
           </TabsTrigger>
-          <TabsTrigger value="documenti" className="data-[state=active]:bg-white gap-1.5 max-sm:hidden">
-            <FileText className="h-3.5 w-3.5" /> Documenti ({attachments.length})
+          <TabsTrigger value="documenti" className="tap-compact data-[state=active]:bg-white gap-1.5">
+            <FileText className="h-3.5 w-3.5 max-sm:hidden" /> Documenti ({attachments.length})
           </TabsTrigger>
           <TabsTrigger value="attivita" className="tap-compact data-[state=active]:bg-white">Attività</TabsTrigger>
-          <TabsTrigger value="versioni" className="gap-1.5 data-[state=active]:bg-white max-sm:hidden">
+          <TabsTrigger value="versioni" className="tap-compact gap-1.5 data-[state=active]:bg-white">
             Versioni
             {versionCount > 0 && (
               <QuoteChip variant="orange" className="ml-0.5">{versionCount}</QuoteChip>

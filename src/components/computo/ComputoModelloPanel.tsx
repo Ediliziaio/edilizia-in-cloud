@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { AnteprimaPdfModelloMobile } from "@/components/preventivatore/AnteprimaPdfModelloMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { ComputoFormatoSchede, ComputoOpzione } from "./ComputoPdfControls";
@@ -45,6 +47,7 @@ function bozzaEsempio(m: ModelloComputo): BozzaComputo {
 }
 
 export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
+  const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const letto = useModelloComputo(companyId);
@@ -113,9 +116,10 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
         <div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-muted-foreground">Il documento della tua azienda</p><h2 className="mt-1 text-xl font-semibold tracking-tight">Un preventivo che ti rappresenta</h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">Scegli lo stile, decidi cosa mostrare e controlla il PDF mentre lo personalizzi.</p></div></div>
       <div className="flex flex-wrap items-center gap-2">
-        <span role="status" className={`mr-1 text-xs ${cambiato ? "text-amber-700" : "text-muted-foreground"}`}>{cambiato ? "Modifiche da salvare" : "Modello aziendale"}</span>
-        {canEdit && <><Button variant="outline" size="sm" disabled={!cambiato || salva.isPending || assetInCorso > 0} onClick={() => setModello(null)}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Annulla modifiche</Button>
-          <Button size="sm" disabled={(!cambiato && letto.data?.salvato) || salva.isPending || ivaInvalida || modelloInvalido || assetInCorso > 0 || (contrattoTroppoLungo || archivioInAttesa) && m.sezioni.contrattuali} onClick={() => {
+        <span role="status" className={`mr-1 text-xs max-sm:basis-full ${cambiato ? "text-amber-700" : "text-muted-foreground"}`}>{cambiato ? "Modifiche da salvare" : "Modello aziendale"}</span>
+        <AnteprimaPdfModelloMobile renderBlobUrl={anteprima} depsKey={depsKey} downloadFileName="modello-preventivo.pdf" />
+        {canEdit && <><Button variant="outline" size="sm" aria-label="Annulla modifiche" className="max-sm:h-11 max-sm:w-11 max-sm:p-0" disabled={!cambiato || salva.isPending || assetInCorso > 0} onClick={() => setModello(null)}><RotateCcw className="h-3.5 w-3.5 sm:mr-1.5" /><span className="max-sm:hidden">Annulla modifiche</span></Button>
+          <Button size="sm" className="max-sm:h-11" disabled={(!cambiato && letto.data?.salvato) || salva.isPending || ivaInvalida || modelloInvalido || assetInCorso > 0 || (contrattoTroppoLungo || archivioInAttesa) && m.sezioni.contrattuali} onClick={() => {
             const daSalvare = m;
             salva.mutate(daSalvare, { onSuccess: () => { setModello(prev => prev && JSON.stringify(prev) !== JSON.stringify(daSalvare) ? prev : null); toast.success("Modello salvato", { description: "Le impostazioni sono disponibili nei documenti che usano questo modello." }); }, onError: e => toast.error((e as Error).message) });
           }}>{salva.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}Salva modello</Button></>}
@@ -126,7 +130,7 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
 
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <Tabs value={scheda} onValueChange={setScheda} className="min-w-0 rounded-2xl border bg-white">
-        <TabsList aria-label="Personalizza il modello" className="grid h-auto w-full grid-cols-3 rounded-b-none rounded-t-2xl border-b bg-slate-50 p-2">
+        <TabsList aria-label="Personalizza il modello" className="grid h-auto w-full grid-cols-3 rounded-b-none rounded-t-2xl border-b bg-slate-50 p-2 max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal max-sm:[&>button]:px-1 max-sm:[&_svg]:hidden">
           <TabsTrigger value="aspetto" className="gap-1.5 py-2.5 text-xs"><Palette className="h-4 w-4" />Aspetto</TabsTrigger>
           <TabsTrigger value="pagine" className="gap-1.5 py-2.5 text-xs"><Layers3 className="h-4 w-4" />Pagine e contenuti</TabsTrigger>
           <TabsTrigger value="condizioni" className="gap-1.5 py-2.5 text-xs"><Settings2 className="h-4 w-4" />Condizioni</TabsTrigger>
@@ -222,12 +226,12 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
           </TabsContent>
         </fieldset>
       </Tabs>
-      <aside aria-label="Anteprima del modello" className="min-w-0 lg:sticky lg:top-4">
+      {!isMobile && <aside aria-label="Anteprima del modello" className="min-w-0 max-md:hidden lg:sticky lg:top-4">
         <div className="mb-3 flex items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">Il tuo documento, in anteprima</h3><p className="mt-0.5 text-xs text-muted-foreground">Dati dimostrativi · stesso PDF del download</p></div><span className="rounded-full border bg-white px-2.5 py-1 text-[10px] font-medium text-muted-foreground">A4</span></div>
         <div className="h-[76dvh] min-h-[520px] overflow-hidden rounded-2xl border bg-slate-100 shadow-sm"><PdfBlobLivePreviewPanel renderBlobUrl={anteprima} depsKey={depsKey} debounceMs={500} downloadFileName="modello-preventivo.pdf" headerLabel="Anteprima PDF" showDownloadOnMobile
           activeDestination={scheda === "aspetto" && richiestaCopertina > 0 && ["cliente", "riepilogo"].includes(m.formatoPredefinito) && haPaginaCopertina(m, m.sezioni.copertina) ? DESTINAZIONE_COPERTINA_COMPUTO : null}
           destinationRequest={richiestaCopertina} destinationLabel="Copertina" /></div>
-      </aside>
+      </aside>}
     </div>
   </section>;
 }

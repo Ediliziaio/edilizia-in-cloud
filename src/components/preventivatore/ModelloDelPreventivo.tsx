@@ -1,4 +1,3 @@
-import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il modello che il PDF del preventivo sta usando, e il modo di rinnovarlo.
  *
@@ -11,8 +10,11 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * (migrazione modello_preventivo_aggiornabile_in_bozza). Uscito dalla bozza non si mostra.
  */
 import { useEffect, useRef, useState } from "react";
+import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { supabase } from "@/integrations/supabase/client";
 import {
   TABELLA_PREVENTIVI, TIPO_INTERVENTO_DEL_MODELLO, interventiDelModulo,
@@ -47,7 +49,9 @@ export function interventiPerTipo(modulo: ModuloConModelli, tipo: string | null 
 export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, snapshot, costruisci, onAggiornato, onVersion }: Props) {
   const scelte: readonly InterventoScelto[] = interventi ?? (modulo ? interventiPerTipo(modulo, progetto?.tipo_intervento) : []);
   const tabellaPreventivi = tabella ?? (modulo ? TABELLA_PREVENTIVI[modulo] : null);
-  const [scelto, setScelto] = useState<string>(scelte[0]?.id ?? "");
+  const [scelta, setScelta] = useState("");
+  const scelto = scelte.find((i) => i.id === scelta) ?? scelte[0];
+  const modelId = snapshot?.modelId ?? scelto?.id;
   const [inCorso, setInCorso] = useState(false);
   const lock = useRef(false);
   const identity = JSON.stringify([progetto?.id, progetto?.company_id, progetto?.stato, progetto?.updated_at, snapshot]);
@@ -56,7 +60,7 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
     currentIdentity.current = identity;
     return () => { currentIdentity.current = null; };
   }, [identity]);
-  if (!progetto || progetto.stato !== "bozza" || !tabellaPreventivi) return null;
+  if (!progetto || progetto.stato !== "bozza" || !tabellaPreventivi || !modelId) return null;
 
   const applica = async (modelId: string) => {
     if (lock.current) return;
@@ -87,29 +91,47 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
     }
   };
 
-  if (snapshot) {
-    const del = new Date(snapshot.capturedAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
-    return (
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span>Il PDF usa il modello del {del}.</span>
-        <Button size="sm" variant="outline" disabled={inCorso} onClick={() => void applica(snapshot.modelId)}>
-          {inCorso ? "Aggiorno…" : "Aggiorna al modello attuale"}
-        </Button>
-      </div>
-    );
-  }
-  if (scelte.length === 0) return null;
+  const del = snapshot && new Date(snapshot.capturedAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+  const nomeModello = snapshot && scelte.find((i) => i.id === snapshot.modelId)?.title;
+  const etichetta = snapshot ? "Aggiorna al modello attuale" : "Usa questo modello";
+  const attesa = snapshot ? "Aggiorno…" : "Collego…";
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs">
-      <span title="Le modifiche ai modelli della libreria non entrano nel PDF di questo preventivo.">Il preventivo usa il modello base: i cambi alla libreria non arrivano nel PDF.</span>
-      {scelte.length > 1 && (
-        <UniformSelect aria-label="Modello della libreria" className="rounded border bg-background px-2 py-1" value={scelto} onChange={(e) => setScelto(e.target.value)}>
-          {scelte.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
-        </UniformSelect>
-      )}
-      <Button size="sm" variant="outline" disabled={inCorso || !scelto} onClick={() => void applica(scelto)}>
-        {inCorso ? "Collego…" : scelte.length === 1 ? `Usa il modello «${scelte[0].title}»` : "Usa questo modello"}
-      </Button>
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label="Modello PDF"
+          title="Modello PDF"
+          className="shrink-0 gap-1.5 max-lg:w-10 max-lg:px-0"
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden lg:inline">Modello PDF</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" aria-label="Modello PDF" className="w-80 max-w-[calc(100vw-1.5rem)] space-y-3">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">{nomeModello ?? "Modello PDF"}</p>
+          <p className="text-sm text-muted-foreground">
+            {snapshot ? `Il PDF usa il modello del ${del}.` : "Il preventivo usa il modello base. Puoi collegare un modello della libreria."}
+          </p>
+        </div>
+        {!snapshot && (scelte.length > 1 ? (
+          <UniformSelect
+            aria-label="Modello della libreria"
+            className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+            value={scelto?.id}
+            onChange={(e) => setScelta(e.target.value)}
+            disabled={inCorso}
+          >
+            {scelte.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+          </UniformSelect>
+        ) : <p className="text-sm font-medium">{scelto?.title}</p>)}
+        <Button type="button" size="sm" variant="outline" disabled={inCorso} onClick={() => void applica(modelId)}>
+          {inCorso ? attesa : etichetta}
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }

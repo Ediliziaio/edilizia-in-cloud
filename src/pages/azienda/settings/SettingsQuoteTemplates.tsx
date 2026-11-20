@@ -1010,7 +1010,7 @@ export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolea
       }}
       className="space-y-4"
     >
-      <TabsList className="h-auto max-w-full flex-wrap bg-slate-100">
+      <TabsList className={`h-auto max-w-full flex-wrap bg-slate-100 max-sm:grid max-sm:w-full max-sm:gap-1 max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs max-sm:[&_svg]:hidden ${unificato ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
         {!unificato && <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
           Libreria modelli
@@ -1021,7 +1021,6 @@ export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolea
         </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
           <ShoppingBag className="h-3.5 w-3.5" />
-          {/* Da telefono le due linguette non stanno in 375 px: resta «Moduli». */}
           Moduli<span className="max-sm:hidden"> (serramenti, fotovoltaico…)</span>
         </TabsTrigger>
         <TabsTrigger value="varianti" className="gap-1.5">Varianti e lavori extra</TabsTrigger>

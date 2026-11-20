@@ -95,6 +95,7 @@ export default function Preventivi() {
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [showAiQuote, setShowAiQuote] = useState(false);
   const localAiEnabled = consentiPreventivoConversazionale(companyId) && permissions.canEditPreventivi;
+  const puoCreare = permissions.canEditPreventivi || permissions.canEditMarketingOpportunities;
   // Old selector links now open the popup above the same unified list.
   const quoteDialogOpen = showNewQuote || searchParams.get("tab") === "moduli";
   const handleQuoteDialog = (open: boolean) => {
@@ -219,56 +220,43 @@ export default function Preventivi() {
   return (
     <div className="space-y-6 pb-20 md:pb-0 max-sm:space-y-3 max-sm:pb-0">
       {/* Telefono: con la sola lista la barra delle schede non serve. */}
-      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} className={hubTabs.length < 2 ? "max-sm:hidden" : undefined} />
+      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} className={hubTabs.length < 2 ? "max-md:hidden" : undefined} />
 
       {activeTab === "lista" && (
         <>
-          {/* Telefono: titolo e «Nuovo» su una riga; «Crea da» a icona con le due
-              strade che servono fuori ufficio (foto o vocale, documento). Il
-              popup del nuovo preventivo è lo stesso della testata del computer. */}
-          <div className="flex items-center justify-between gap-2 sm:hidden">
+          <div className="flex items-center justify-between gap-2 md:hidden">
             <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
-            <div className="flex items-center gap-1.5">
-              {listiniModuli.length > 0 && !isMobile && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              {(puoCreare || permissions.canViewSettingsPricing) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Listini lavorazioni">
-                      <Library className="h-4 w-4" />
+                    <Button variant="outline" size="sm" className="h-11 gap-1.5 px-2.5" aria-label="Azioni preventivi">
+                      {puoCreare ? <><FileUp className="h-4 w-4" />Importa</> : <><Library className="h-4 w-4" />Modelli</>}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60">
-                    <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {renderListiniItems()}
+                  <DropdownMenuContent align="end" className="w-64 [&_[role=menuitem]]:min-h-11">
+                    {localAiEnabled && (
+                      <DropdownMenuItem onSelect={() => setShowAiQuote(true)}>
+                        <Sparkles className="mr-2 h-4 w-4 text-orange-600" />Preventivo AI
+                      </DropdownMenuItem>
+                    )}
+                    {puoCreare && <>
+                      <DropdownMenuItem onSelect={() => setShowComputoModal(true)}><FileUp className="mr-2 h-4 w-4" />Computo metrico</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowSmartImportModal(true)}><FileUp className="mr-2 h-4 w-4" />Documento</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowFotoModal(true)}><Sparkles className="mr-2 h-4 w-4" />Foto, schizzi o audio</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowSmartInbox(true)}><Inbox className="mr-2 h-4 w-4" />Importazioni recenti</DropdownMenuItem>
+                    </>}
+                    {permissions.canViewSettingsPricing && <>
+                      {puoCreare && <DropdownMenuSeparator />}
+                      <DropdownMenuItem onSelect={() => navigate("/azienda/impostazioni/template-preventivi")}>
+                        <Library className="mr-2 h-4 w-4" />Modelli dei preventivi
+                      </DropdownMenuItem>
+                    </>}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Preventivo AI, o da foto, audio o documento">
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  {/* «Preventivo AI» qui dentro: come pulsante a sé usciva dallo schermo a destra. */}
-                  {localAiEnabled && (
-                    <DropdownMenuItem onClick={() => setShowAiQuote(true)} className="font-semibold">
-                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                      Preventivo AI
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
-                    <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                    Da foto, schizzi o audio
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowSmartImportModal(true)}>
-                    <FileUp className="h-4 w-4 mr-2" />
-                    Da un documento
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {(permissions.canEditPreventivi || permissions.canEditMarketingOpportunities) && (
-                <Button size="sm" className="tap-compact h-8 px-3 text-xs" onClick={() => setShowNewQuote(true)}>
+              {puoCreare && (
+                <Button size="sm" className="h-11 px-3" onClick={() => setShowNewQuote(true)}>
                   <Plus className="mr-1 h-4 w-4" />Nuovo
                 </Button>
               )}
@@ -279,7 +267,7 @@ export default function Preventivi() {
           {/* Senza sottotitolo: a 1024 si tagliava a metà («dal prim…») e diceva
               cosa sono i preventivi a chi è nella pagina dei preventivi. */}
           <QuotePageHeader
-            className="max-sm:hidden"
+            className="max-md:hidden"
             title="Preventivi"
             icon={<FileSignature className="h-5 w-5" />}
             actions={
@@ -336,7 +324,7 @@ export default function Preventivi() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-                {(permissions.canEditPreventivi || permissions.canEditMarketingOpportunities) && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
+                {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
                   trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />Nuovo preventivo</Button>} />}
               </>
             }

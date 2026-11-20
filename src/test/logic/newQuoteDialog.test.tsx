@@ -8,7 +8,7 @@ import type { ModuloVenditaView } from "@/lib/moduli-vendita/useModuliVendita";
 import Preventivi from "@/pages/azienda/marketing/Preventivi";
 import type { SalesArea } from "@/lib/moduli-vendita/areas";
 
-const state = vi.hoisted(() => ({ views: [] as ModuloVenditaView[], hidden: new Set<string>(), loading: false, error: false, visibleLoading: false,
+const state = vi.hoisted(() => ({ views: [] as ModuloVenditaView[], hidden: new Set<string>(), loading: false, error: false, visibleLoading: false, isMobile: false,
   company: "A", support: { supported: true, isLoading: false, isError: false }, permissions: { canEditPreventivi: true, canEditMarketingOpportunities: true } }));
 vi.mock("@/lib/moduli-vendita", () => ({ useModuliVendita: () => ({ moduli: state.views, isLoading: state.loading, isError: state.error }), useModuliVisibilita: () => ({ isAreaVisibile: (area: SalesArea) => !state.hidden.has(`area:${area.id}`) && !state.hidden.has(area.sourceModule), isLoading: state.visibleLoading }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
@@ -16,11 +16,11 @@ vi.mock("@/hooks/useSerramentiModelSupport", () => ({ useSerramentiModelSupport:
 vi.mock("@/hooks/useTettiModelSupport", () => ({ useTettiModelSupport: () => state.support }));
 vi.mock("@/hooks/useSupportoModelliPreventivo", () => ({ useSupportoModelliPreventivo: () => ({ supportato: () => state.support.supported, isLoading: state.support.isLoading, isError: state.support.isError }) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: state.company } }) }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => state.isMobile }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: 0 }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/components/marketing/preventivi/UnifiedPreventiviList", () => ({ UnifiedPreventiviList: () => <p data-testid="unified-list">Offerte di tutti i moduli</p> }));
-vi.mock("@/components/computo/ComputoUploadModal", () => ({ ComputoUploadModal: () : null => null }));
+vi.mock("@/components/computo/ComputoUploadModal", () => ({ ComputoUploadModal: ({ open }: { open: boolean }) => open ? <h2>Importa computo metrico</h2> : null }));
 vi.mock("@/components/quotes/QuoteFromCaptureDialog", () => ({ QuoteFromCaptureDialog: () : null => null }));
 vi.mock("@/components/documenti/SmartDocumentInboxDialog", () => ({ SmartDocumentInboxDialog: () : null => null }));
 vi.mock("@/components/documenti/SmartDocumentImportModal", () => ({ SmartDocumentImportModal: () : null => null }));
@@ -62,11 +62,19 @@ const mount = (initial = "") => { render(<MemoryRouter initialEntries={["/aziend
 beforeEach(() => {
   state.company = "A";
   state.views = MODULI_VENDITA.map(modulo => ({ modulo, stato: deriveModuloStato(modulo, true), isEnabled: true, isLoading: false, isError: false, errorMessage: null as null, source: "plan" }));
-  state.hidden.clear(); state.loading = false; state.visibleLoading = false; state.error = false;
+  state.hidden.clear(); state.loading = false; state.visibleLoading = false; state.error = false; state.isMobile = false;
   state.permissions = { canEditPreventivi: true, canEditMarketingOpportunities: true };
   state.support = { supported: true, isLoading: false, isError: false };
 });
 afterEach(cleanup);
+
+it("da telefono apre l'importazione del computo dalla lista dei preventivi", () => {
+  state.isMobile = true;
+  render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Preventivi /></MemoryRouter>);
+  fireEvent.keyDown(screen.getByRole("button", { name: "Azioni preventivi" }), { key: "Enter" });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Computo metrico" }));
+  expect(screen.getByRole("heading", { name: "Importa computo metrico" })).toBeInTheDocument();
+});
 
 describe("popup unico di creazione preventivi", () => {
   it('apre Serramenti con il modello scelto e il suo assistente AI, non un documento generico', () => {

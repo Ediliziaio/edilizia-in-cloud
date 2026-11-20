@@ -33,7 +33,6 @@ import {
   ArrowLeft, Loader2, Hammer,
   User, Home, ClipboardList, Image as ImageIcon, Euro, FileText,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import {
   useTermoidraulicoProgetto,
   useUpsertProgetto,
@@ -530,6 +529,13 @@ export default function TermoidraulicoWizard() {
           titolo: isNew ? model?.title ?? "Nuovo progetto" : detail?.progetto.code ?? "Progetto",
           cliente: isNew ? null : compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) || null,
           stato: !isNew && detail ? statoMeta : null,
+          intervento: isNew ? null : model?.title,
+          azioni: !isNew && detail && (
+            <>
+              <ModelloDelPreventivo modulo="termoidraulico" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
+              <CopiaConAltroModello modulo="termoidraulico" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} />
+            </>
+          ),
           onEsci: () => { void esci(); },
         }}
         passi={IDR_WIZARD_STEPS.map((s) => ({ key: s.key, label: s.label, breve: ETICHETTA_BREVE_PASSO[s.key] }))}
@@ -560,22 +566,10 @@ export default function TermoidraulicoWizard() {
           // Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia.
           nascostoSuTelefono: currentStep === "pdf" && Boolean(id && detail) && statoSalvataggio === "salvato",
         }}
-        sopra={(model || (!isNew && detail)) && (
-          // Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è.
-          <section className={cn("mx-auto max-w-6xl space-y-2 px-4 pb-2 pt-3 max-sm:space-y-0 max-sm:px-3 max-sm:py-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}>
-            {/* Una riga: modello e a cosa serve. I passi li dice già la barra qui sotto (07/11/2026). */}
-            <div className="flex min-w-0 items-baseline gap-2 max-sm:hidden">
-              <h1 className="shrink-0 text-base font-semibold">Preventivo{model ? ` · ${model.title}` : ""}</h1>
-              {model && <p className="truncate text-sm text-muted-foreground" title={model.summary}>{model.summary}</p>}
-            </div>
-            {!isNew && detail && (
-              <div className="flex flex-wrap items-center gap-2">
-                <ModelloDelPreventivo modulo="termoidraulico" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} onAggiornato={refetch} />
-                <CopiaConAltroModello modulo="termoidraulico" progetto={detail.progetto} snapshot={savedModel.snapshot} costruisci={modelloAttuale} />
-              </div>
-            )}
-            {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
-          </section>
+        sopra={isNew && model && !modelSupport.supported && (
+          <p role="alert" className="mx-3 my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:mx-6">
+            {modelSupport.isLoading ? "Verifica del salvataggio…" : "Attendi l’attivazione del database prima di compilare."}
+          </p>
         )}
       >
         {currentStep === "cliente" && (

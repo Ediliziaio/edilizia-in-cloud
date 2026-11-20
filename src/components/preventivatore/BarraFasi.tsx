@@ -11,7 +11,8 @@
  *   contenitore che scorre (vedi `CompanyLayout`).
  */
 import { useEffect, useRef, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, ChevronDown, Lock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { minutiRimasti } from "@/lib/preventivatore/fasi";
 import { TotaleBarra } from "./TotaleBarra";
@@ -65,7 +66,7 @@ export function BarraFasi({
         <nav
           ref={rigaRef}
           aria-label={ariaLabel}
-          className="fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-md:gap-1 max-md:py-1.5 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+          className="fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-md:gap-1 max-md:py-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
         >
           {passi.map((p, i) => {
             const attivo = p.key === corrente;
@@ -90,7 +91,7 @@ export function BarraFasi({
                   !attivo && !fatto && "text-slate-500",
                   !cliccabile && "cursor-not-allowed opacity-45 hover:bg-transparent",
                   // Telefono: pillola col nome corto — fatte in verde, l'attiva piena, le altre spente.
-                  "tap-compact max-md:gap-0 max-md:rounded-full max-md:border max-md:px-2.5 max-md:py-1 max-md:text-[11px]",
+                  "tap-compact max-md:min-h-8 max-md:gap-0 max-md:rounded-full max-md:border max-md:px-2.5 max-md:py-1 max-md:text-xs",
                   attivo && "max-md:border-orange-500 max-md:bg-orange-500 max-md:text-white",
                   fatto && !attivo && "max-md:border-emerald-200 max-md:bg-emerald-50 max-md:text-emerald-800",
                   !attivo && !fatto && "max-md:border-slate-200",
@@ -121,6 +122,42 @@ export function BarraFasi({
             );
           })}
         </nav>
+        {passi.length > 1 && (
+          <div className="ml-1.5 flex shrink-0 items-center border-l border-slate-200 pl-1.5 md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Scegli passo del preventivo, ${indice + 1} di ${passi.length}`}
+                  className="tap-compact inline-flex h-9 items-center gap-1 rounded-md px-1.5 text-xs font-semibold tabular-nums text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {indice + 1}/{passi.length}<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-1rem)]">
+                {passi.map((passo, i) => {
+                  const bloccato = bloccati?.has(passo.key);
+                  const attivo = passo.key === corrente;
+                  return (
+                    <DropdownMenuItem
+                      key={passo.key}
+                      disabled={bloccato}
+                      aria-current={attivo ? "step" : undefined}
+                      onSelect={() => onSelect(passo.key)}
+                      className={cn("min-h-11 gap-2", attivo && "bg-orange-50 font-semibold text-orange-800")}
+                    >
+                      <span className="w-5 shrink-0 text-center text-xs tabular-nums">{i + 1}</span>
+                      <span className="min-w-0 flex-1 whitespace-normal">{passo.label}</span>
+                      {bloccato && <Lock className="h-3.5 w-3.5" aria-label="Bloccato" />}
+                      {!bloccato && !attivo && completati?.has(passo.key) && <Check className="h-4 w-4 text-emerald-700" aria-label="Completato" />}
+                      {!bloccato && !attivo && conAvviso?.has(passo.key) && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" role="img" aria-label="Da completare" />}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
         {(totale || destra) && (
           <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-slate-200 pl-4 max-md:hidden">
             {totale && <TotaleBarra totale={totale} />}

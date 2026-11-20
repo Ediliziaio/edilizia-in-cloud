@@ -60,7 +60,7 @@ describe("computo compatto a righe", () => {
   });
   it("permette di richiudere i capitoli anche durante una ricerca", () => {
     render(<Vista />);
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca lavorazioni" }), { target: { value: "Intonaco" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Cerca lavorazioni" }), { target: { value: "Intonaco" } });
     fireEvent.click(screen.getByRole("button", { name: "Chiudi capitolo Finiture" }));
     expect(screen.queryByRole("button", { name: "Apri voce 2" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Apri capitolo Finiture" }));

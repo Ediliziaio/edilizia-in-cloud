@@ -1426,7 +1426,7 @@ export default function CompanyRoutesContainer() {
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
           <Route path="modelli-pdf" element={withCompanyPermission("canViewSettingsOrders", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsModelliPdf /></SoloTabletDesktop>)} />
-          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SoloTabletDesktop avviso="Listini e modelli si gestiscono da tablet o computer."><SettingsQuoteTemplates /></SoloTabletDesktop>)} />
+          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={withCompanyPermission("canViewMarketingAiAgent", <AITestLab />)} />
           <Route path="firma-elettronica" element={<Navigate to="/azienda/impostazioni/contratti-e-condizioni?scheda=firma-elettronica" replace />} />
