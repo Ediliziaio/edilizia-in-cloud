@@ -103,6 +103,7 @@ jobs:
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/scadenzarioFontiDatabase.test.ts
+          src/test/logic/commesseScadenza.test.ts
           src/test/logic/primaNotaEliminaCostoDatabase.test.ts
           src/test/logic/finanzaRevisioniDatabase.test.ts
           src/test/logic/financialLiveRefresh.test.ts
@@ -141,6 +142,8 @@ jobs:
           src/test/ui/expensePaymentDialog.test.tsx
           src/test/ui/riepilogoFatturaRicevuta.test.tsx
           src/test/ui/collegamentiFattura.test.tsx
+          src/test/ui/riepilogoDdtFattura.test.tsx
+          src/test/security/fatturaDdtCommesse.test.ts
           src/test/logic/financialPaymentPropagation.test.ts
           src/test/ui/collegaOrdiniFattura.test.tsx
           src/test/logic/fatturaQuoteOrdini.test.ts

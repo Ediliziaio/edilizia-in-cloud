@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { exportToCSV } from "@/lib/csvExport";
+import { commesseScadenza, completaCommesseScadenze, noteFattureScadenze } from "@/lib/finance/commesseScadenza";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
 import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEsterno";
 import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
@@ -254,15 +255,21 @@ export default function Scadenzario() {
     try {
       const data = await readAllPages(async (from, to) => {
       const q = filtraScadenzario(queryFontiScadenzario(companyId)
-        .select("id, due_date, direction, description, amount, paid_amount, payment_method, status, invoices(invoice_number), orders(order_code)"), serverFilters)
+        .select("id, due_date, direction, description, amount, paid_amount, payment_method, status, notes, order_id, cost_id, invoices(invoice_number), orders(order_code), company_costs(name, order_id, allocations, notes)"), serverFilters)
         .order("due_date", { ascending: true, nullsFirst: false }).order("id");
       return await q.range(from, to);
       });
-      const rows = data.map(r => ({
+      const [complete, note] = await Promise.all([
+        completaCommesseScadenze(companyId, data as unknown as Scadenza[]),
+        noteFattureScadenze(companyId, data as unknown as Scadenza[]),
+      ]);
+      const rows = complete.map(r => ({
           scadenza: r.due_date || "",
           tipo: r.direction === "entrata" ? "Incasso" : "Pagamento",
           descrizione: r.description || "",
           riferimento: r.invoices?.invoice_number ? `Fatt. ${r.invoices.invoice_number}` : r.orders?.order_code ? `Ord. ${r.orders.order_code}` : "",
+          commesse: commesseScadenza(r),
+          note: note.get(r.id) ?? "",
           metodo: etichettaMetodo(r.payment_method) ?? "",
           importo: String(r.amount ?? 0).replace(".", ","),
           residuo: String(Math.round((Number(r.amount || 0) - Number(r.paid_amount || 0)) * 100) / 100).replace(".", ","),
@@ -274,6 +281,8 @@ export default function Scadenzario() {
         { key: "tipo", label: "Tipo" },
         { key: "descrizione", label: "Descrizione" },
         { key: "riferimento", label: "Riferimento" },
+        { key: "commesse", label: "Commesse" },
+        { key: "note", label: "Note" },
         { key: "metodo", label: "Modalità" },
         { key: "importo", label: "Importo" },
         { key: "residuo", label: "Residuo" },

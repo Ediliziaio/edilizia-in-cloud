@@ -13,6 +13,8 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { ScegliMezzoFattura } from "./ScegliMezzoFattura";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
+import { RiepilogoDdtFattura } from "./RiepilogoDdtFattura";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { VerificaCollegamentiDialog } from "@/components/acquisti/VerificaCollegamentiDialog";
 import { EsitoControlloSubappalto, useControlloSubappalto } from "./ControlloSubappaltoFattura";
 import { BollettaFattura } from "./BollettaFattura";
@@ -124,6 +126,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     },
   });
   const aggiorna = () => {
+    refreshFinancialQueries(qc);
     void qc.invalidateQueries({ queryKey: chiave });
     void qc.invalidateQueries({ queryKey: ["mezzo-fatture"] });
     void qc.invalidateQueries({ queryKey: ["mezzo-costo-orario"] });
@@ -256,6 +259,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
         {/* Il perché di ogni aggancio, le proposte da confermare e l'annullamento (traccia dei collegamenti). */}
         {/* Sempre: anche senza DDT ci possono essere proposte d'ordine (aggancio per importo) da confermare. */}
         <VerificaCollegamentiDialog companyId={companyId} fatturaId={fatturaId} puoModificare={puoModificare} />
+        <RiepilogoDdtFattura companyId={companyId} fatturaId={fatturaId} puoModificare={puoModificare} />
       </dd>
 
       <BollettaFattura fatturaId={fatturaId} companyId={companyId} />

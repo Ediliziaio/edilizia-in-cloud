@@ -25,7 +25,9 @@ const purchasingPrefixes = new Set([
   'generale-controllo-forniture', 'generale-piano-reale', 'commessa-generale-riepilogo',
   'ddt-ricezione', 'ddt-consegne', 'ddt-controllo-ordini', 'ddt-righe-ordine',
   'ddt-fatture-collegate', 'ddt-fatture-fornitore', 'ddt-valorizzazioni', 'ddt-fattura-righe',
-  'fattura-collegamenti', 'fattura-confronto', 'purchase-orders', 'purchase-order-items',
+  'fattura-collegamenti', 'fattura-ddt-riepilogo', 'fattura-collega-commesse', 'fattura-confronto', 'purchase-orders', 'purchase-order-items',
+  // Una destinazione DDT può aggiornare anche la ripartizione del costo della fattura.
+  'company-costs', 'costs', 'scadenzario', 'fatture-ricevute', 'fattura-ricevuta-riepilogo',
   'order-items', 'order_items', 'materiali-per-fase', 'materiali', 'oda-contabilita',
   'oda-pagamenti-riepilogo', 'commessa-impegni-acquisti', 'order-economics-canonical', 'orders',
 ]);

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Scadenzario from "@/pages/azienda/billing/Scadenzario";
 
-const state = vi.hoisted(() => ({ fail: false, summaryFail: false, extraRows: false, senzaData: false, exportCsv: vi.fn(), writes: vi.fn(), projectionErrors: vi.fn() }));
+const state = vi.hoisted(() => ({ fail: false, summaryFail: false, extraRows: false, senzaData: false, exportCompleto: false, exportCsv: vi.fn(), writes: vi.fn(), projectionErrors: vi.fn() }));
 vi.mock("@/components/charts/grafici/GraficoEntrateUscite", () => ({ GraficoEntrateUscite: (): null => null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
@@ -30,7 +30,9 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       { id: "4", description: "Pagamento aperto", direction: "uscita", status: "da_pagare" },
       { id: "5", description: "Pagamento già saldato", direction: "uscita", status: "pagata" },
       { id: "6", description: "Incasso annullato", direction: "entrata", status: "annullata" },
-    ].map(r => ({ ...r, company_id: "demo", due_date: `${year}-01-01` as string | null, amount: 100, paid_amount: 0 }));
+    ].map(r => ({ ...r, company_id: "demo", due_date: `${year}-01-01` as string | null, amount: 100, paid_amount: 0,
+      order_id: state.exportCompleto ? "commessa-demo" : null, orders: state.exportCompleto ? { order_code: "C-DEMO" } : null,
+      notes: state.exportCompleto ? "Nota piano" : null }));
     if (state.extraRows) rows = [...rows, ...Array.from({ length: 1001 }, (_, i) => ({ ...rows[0], id: `extra-${i}`, description: `Scadenza demo ${i}` }))];
     if (state.senzaData) rows.push({ ...rows[0], id: "senza-data", description: "Commessa senza data", due_date: null });
     let from = 0, to = Infinity;
@@ -63,10 +65,18 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<MemoryRouter><QueryClientProvider client={client}><Scadenzario /></QueryClientProvider></MemoryRouter>);
 }
-beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.senzaData = false; state.exportCsv.mockClear(); state.writes.mockClear(); state.projectionErrors.mockClear(); });
+beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.senzaData = false; state.exportCompleto = false; state.exportCsv.mockClear(); state.writes.mockClear(); state.projectionErrors.mockClear(); });
 afterEach(cleanup);
 
 describe("Scadenzario: viste aperte e recupero errori", () => {
+  it("include commesse e note nelle colonne e nelle righe del CSV", async () => {
+    state.exportCompleto = true;
+    setup();await screen.findByText("Incasso aperto");
+    fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
+    await waitFor(() => expect(state.exportCsv).toHaveBeenCalled());
+    expect(state.exportCsv.mock.calls[0][0][0]).toEqual(expect.objectContaining({ commesse: "C-DEMO", note: "Nota piano" }));
+    expect(state.exportCsv.mock.calls[0][1]).toEqual(expect.arrayContaining([{ key: "commesse", label: "Commesse" }, { key: "note", label: "Note" }]));
+  });
   it("carica il grafico con l'identità necessaria all'ordinamento della RPC", async () => {
     setup();
     await screen.findByText("Incasso aperto");

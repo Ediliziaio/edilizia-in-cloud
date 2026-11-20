@@ -11,6 +11,7 @@ import { formatDateShort } from "@/lib/formatters";
 import { messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 
 export function CollegaDdtFattura({
   fatturaId,
@@ -42,7 +43,7 @@ export function CollegaDdtFattura({
       let query = db
         .from("ddt_ricezione")
         .select(
-          "id,numero_ddt,data_ricezione,supplier_id,suppliers(name),destinazione",
+          "id,numero_ddt,data_ricezione,supplier_id,suppliers(name),destinazione,orders(order_code)",
         )
         .eq("company_id", companyId)
         .order("data_ricezione", { ascending: false })
@@ -67,6 +68,7 @@ export function CollegaDdtFattura({
       }),
     onSuccess: async () => {
       toast.success("DDT collegato alla fattura");
+      refreshFinancialQueries(qc);
       await Promise.all(
         [
           "fattura-collegamenti",
@@ -181,7 +183,7 @@ export function CollegaDdtFattura({
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     {d.suppliers?.name || "Fornitore da associare"} ·{" "}
-                    {d.destinazione === "cantiere"
+                    {d.orders?.order_code ? `Commessa ${d.orders.order_code}` : d.destinazione === "cantiere"
                       ? "Consegna in cantiere"
                       : d.destinazione === "magazzino"
                         ? "Magazzino"
