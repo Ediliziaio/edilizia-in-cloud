@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, Download, Loader2 } from "lucide-react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -12,14 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { fiscalDate } from "@/lib/fatturazione/fiscalInsights";
 import { leggiImporto } from "@/lib/finance/reconciliationAnalysis";
-import { controlliLipe, nomeFileLipe, scadenzaLipe, xmlLipe, type ComunicazioneLipe, type ModuloLipe, type RighiLipe } from "@/lib/contabilita/lipeXml";
+import { stessiRighiLipe, type RighiLipe } from "@/lib/contabilita/lipeXml";
+import { ComunicazioniLipe } from "./ComunicazioniLipe";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-interface Calcolo {
+export interface CalcoloLiquidazioneIVA {
   calcolabile: boolean;
   motivo?: string;
   etichetta?: string;
@@ -29,16 +29,20 @@ interface Calcolo {
   trimestre?: number | null;
   trimestre_solare?: number;
   credito_anno_disponibile?: number;
+  debito_riportabile?: number;
+  credito_riportabile?: number;
+  richiede_registro?: boolean;
+  manuali?: Record<string, number | boolean>;
   avvisi?: string[];
   righi?: RighiLipe;
 }
-interface Confermata {
+export interface LiquidazioneIVAConfermata {
   id: string;
   dal: string;
   al: string;
   stato: "reviewed_commercialista" | "submitted" | "accepted_ade" | "rejected_ade";
   protocollo: string | null;
-  dati: Calcolo;
+  dati: CalcoloLiquidazioneIVA;
 }
 
 const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -53,12 +57,16 @@ const RIGHI: Array<{ k: keyof RighiLipe; rigo: string; nome: string }> = [
   { k: "vp7", rigo: "VP7", nome: "Debito periodo precedente (fino a 100 €)" },
   { k: "vp8", rigo: "VP8", nome: "Credito periodo precedente" },
   { k: "vp9", rigo: "VP9", nome: "Credito anno precedente" },
-  { k: "vp10", rigo: "VP10", nome: "Versamenti auto UE" },
+  { k: "vp10", rigo: "VP10", nome: "Versamenti auto F24 elementi identificativi" },
   { k: "vp11", rigo: "VP11", nome: "Crediti d'imposta" },
   { k: "vp12", rigo: "VP12", nome: "Interessi trimestrali" },
-  { k: "vp13", rigo: "VP13", nome: "Acconto versato" },
+  { k: "vp13", rigo: "VP13", nome: "Acconto dovuto" },
 ];
 const A_MANO = new Set<keyof RighiLipe>(["vp9", "vp10", "vp11", "vp13"]);
+const RIGHI_REGISTRO = RIGHI.slice(0, 4);
+
+const inviata = (c?: LiquidazioneIVAConfermata) => c?.stato === "submitted" || c?.stato === "accepted_ade";
+const statoLiquidazione = (c: LiquidazioneIVAConfermata) => c.stato === "rejected_ade" ? "Scartata" : inviata(c) ? "Inviata" : "Confermata";
 
 function periodiAnno(anno: number, mensile: boolean) {
   const n = mensile ? 12 : 4;
@@ -77,33 +85,39 @@ function esito(r?: RighiLipe) {
   return { testo: "Nessun importo", cls: "text-muted-foreground" };
 }
 
-function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, finito, onCambiato, onApriRegistro }: {
-  company: string; anno: number; periodo: number; confermata?: Confermata; puoScrivere: boolean; finito: boolean; onCambiato: () => void; onApriRegistro: () => void;
+function DettaglioPeriodo({ company, anno, periodo, mensile, confermata, puoScrivere, finito, onCambiato, onApriRegistro }: {
+  company: string; anno: number; periodo: number; mensile: boolean; confermata?: LiquidazioneIVAConfermata; puoScrivere: boolean; finito: boolean;
+  onCambiato: () => void; onApriRegistro: () => void;
 }) {
   const [manuali, setManuali] = useState<Record<string, string>>({});
+  const [usaRegistro, setUsaRegistro] = useState(false);
   const bloccata = !!confermata;
-  const inviati = confermata && confermata.stato !== "reviewed_commercialista";
+  const inviati = inviata(confermata);
 
-  const sbagliati = Object.entries(manuali).filter(([, v]) => v.trim() !== "" && leggiImporto(v) === null).map(([k]) => k);
-  const valori = useMemo(() => {
-    const out: Record<string, number> = {};
+  const { valori, sbagliati } = useMemo(() => {
+    const out: Record<string, number | boolean> = {};
+    const errori: string[] = [];
+    if (usaRegistro) out.totali_registro = true;
     for (const [k, v] of Object.entries(manuali)) {
+      if (!usaRegistro && RIGHI_REGISTRO.some((r) => r.k === k)) continue;
       if (v.trim() === "") continue;
       const n = leggiImporto(v);
       if (n !== null) out[k] = n;
+      else errori.push(k);
     }
-    return out;
-  }, [manuali]);
+    return { valori: out, sbagliati: errori };
+  }, [manuali, usaRegistro]);
 
   // Confermato: si ricalcola lo stesso, per accorgersi se i documenti sono cambiati.
-  const manualiUsati = bloccata ? (confermata.dati as Calcolo & { manuali?: Record<string, number> }).manuali ?? {} : valori;
+  const manualiUsati = confermata ? confermata.dati.manuali ?? {} : valori;
   const calcolo = useQuery({
     queryKey: ["liquidazione-righi", company, anno, periodo, manualiUsati],
     staleTime: 0,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data, error } = await db.rpc("liquidazione_iva_righi", { p_company: company, p_anno: anno, p_periodo: periodo, p_manuali: manualiUsati });
       if (error) throw error;
-      return data as Calcolo;
+      return data as CalcoloLiquidazioneIVA;
     },
   });
   const r = bloccata ? confermata.dati : calcolo.data;
@@ -136,51 +150,65 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
 
   if (!bloccata && calcolo.isPending) return <p className="p-3 text-sm text-muted-foreground">Calcolo…</p>;
   if (!bloccata && calcolo.isError) return <p role="alert" className="p-3 text-sm text-destructive">Calcolo non riuscito: {(calcolo.error as Error).message}</p>;
-  if (r && !r.calcolabile) return <p role="alert" className="p-3 text-sm text-amber-800">{r.motivo}</p>;
-  if (!r?.righi) return null;
-  const righi = r.righi;
-  const acconto = (r.mese === 12) || (r.trimestre === 4) || (r.trimestre === 5);
-  const ora = bloccata && calcolo.data?.calcolabile ? calcolo.data.righi : undefined;
-  const cambiati = !!ora && (["vp2", "vp3", "vp4", "vp5"] as const).some((k) => Math.abs(Number(ora[k]) - Number(righi[k])) >= 0.01);
-  const versabile = righi.vp14_debito > 100 && r.trimestre !== 5;
+  const righi = r?.righi;
+  const acconto = mensile ? periodo === 12 : periodo === 4;
+  const ora = bloccata ? calcolo.data : undefined;
+  const cambiati = !!righi && !!ora && (!ora.calcolabile || !ora.righi || !stessiRighiLipe(righi, ora.righi));
+  const versabile = !!righi && righi.vp14_debito > 100 && r?.trimestre !== 5;
+  const editabile = (k: keyof RighiLipe) => !bloccata && puoScrivere && (A_MANO.has(k)
+    || (k === "vp7" && ((r?.debito_riportabile ?? 0) > 0 || manuali[k] !== undefined))
+    || (k === "vp8" && ((r?.credito_riportabile ?? 0) > 0 || manuali[k] !== undefined))
+    || (usaRegistro && RIGHI_REGISTRO.some((x) => x.k === k)));
+  const righiVisibili = RIGHI.filter(({ k }) => (k !== "vp13" || acconto)
+    && (righi || (editabile(k) && (r?.debito_riportabile != null && (k === "vp7" || k === "vp8")
+      || manuali[k] !== undefined || (usaRegistro && RIGHI_REGISTRO.some((x) => x.k === k))))));
 
   return (
     <div className="space-y-3 border-t bg-muted/20 p-3">
-      <table className="w-full text-sm">
+      {r && !r.calcolabile && <p role="alert" className="text-sm text-amber-800">{r.motivo}</p>}
+      {!bloccata && puoScrivere && (usaRegistro || r?.richiede_registro || r?.calcolabile) && (
+        <div className="space-y-1">
+          <Button type="button" size="sm" variant="outline" onClick={() => setUsaRegistro((v) => !v)}>
+            {usaRegistro ? "Usa il calcolo dalle fatture" : "Inserisci i totali del registro IVA"}
+          </Button>
+          {usaRegistro && <p className="text-xs text-muted-foreground">Riporta tutti e quattro i righi VP2–VP5 verificati, compresi eventuali zeri. Il VP5 deve già includere il pro-rata.</p>}
+          {r?.richiede_registro && <button type="button" className="ml-2 text-xs text-primary underline" onClick={onApriRegistro}>Apri il registro</button>}
+        </div>
+      )}
+      {righiVisibili.length > 0 && <table className="w-full text-sm">
         <tbody className="divide-y">
-          {RIGHI.filter(({ k }) => k !== "vp13" || acconto).map(({ k, rigo, nome }) => {
-            const aMano = A_MANO.has(k) && !bloccata && puoScrivere;
+          {righiVisibili.map(({ k, rigo, nome }) => {
             return (
               <tr key={k}>
                 <td className="w-12 py-1.5 font-mono text-xs text-muted-foreground">{rigo}</td>
                 <td className="py-1.5">{nome}</td>
                 <td className="py-1 text-right tabular-nums">
-                  {aMano ? (
+                  {editabile(k) ? (
                     <Input
                       aria-label={nome}
                       inputMode="decimal"
                       aria-invalid={sbagliati.includes(k)}
                       className={cn("ml-auto h-7 w-28 text-right text-xs", sbagliati.includes(k) && "border-destructive")}
-                      placeholder={String(righi[k] ?? 0).replace(".", ",")}
+                      placeholder={righi?.[k] != null ? String(righi[k]).replace(".", ",") : undefined}
                       value={manuali[k] ?? ""}
                       onChange={(e) => setManuali((p) => ({ ...p, [k]: e.target.value }))}
                     />
-                  ) : formatCurrency(Number(righi[k] ?? 0))}
+                  ) : formatCurrency(Number(righi?.[k] ?? 0))}
                 </td>
               </tr>
             );
           })}
-          <tr className="font-semibold">
+          {righi && r?.trimestre !== 5 && <tr className="font-semibold">
             <td className="py-2 font-mono text-xs">VP14</td>
             <td className="py-2">{righi.vp14_credito > 0 ? "A credito" : "Da versare"}</td>
             <td className="py-2 text-right tabular-nums">{formatCurrency(righi.vp14_credito > 0 ? righi.vp14_credito : righi.vp14_debito)}</td>
-          </tr>
+          </tr>}
         </tbody>
-      </table>
-      {(r.credito_anno_disponibile ?? 0) > 0 && !bloccata && (
+      </table>}
+      {!!r?.credito_anno_disponibile && !bloccata && (
         <p className="text-xs text-muted-foreground">Credito dell'anno precedente ancora disponibile: {formatCurrency(r.credito_anno_disponibile!)}.</p>
       )}
-      {r.avvisi?.map((a) => (
+      {r?.avvisi?.map((a) => (
         <p key={a} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
           {a}{a.includes("Registro IVA") && (
             <button type="button" className="ml-1 font-medium underline" onClick={onApriRegistro}>Apri il registro</button>
@@ -189,19 +217,19 @@ function DettaglioPeriodo({ company, anno, periodo, confermata, puoScrivere, fin
       ))}
       {cambiati && (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">
-          I documenti sono cambiati dopo la conferma: ora l'IVA vendite è {formatCurrency(Number(ora!.vp4))} e quella acquisti {formatCurrency(Number(ora!.vp5))}.{" "}
-          {inviati ? "Questo periodo è già stato inviato: serve una comunicazione correttiva." : "Riapri e riconferma il periodo."}
+          I dati o le regole di calcolo sono cambiati dopo la conferma.{" "}
+          {inviati ? "Verifica con il consulente se occorre una comunicazione sostitutiva." : "Riapri e riconferma il periodo."}
         </p>
       )}
-      {bloccata && righi.vp14_debito > 0 && !versabile && r.trimestre !== 5 && (
-        <p className="text-xs text-muted-foreground">Fino a 100 € non si versa: l'importo passa al periodo successivo.</p>
+      {bloccata && !!righi?.vp14_debito && !versabile && r?.trimestre !== 5 && (
+        <p className="text-xs text-muted-foreground">Verifica la scadenza del versamento e l'eventuale rinvio dell'importo.</p>
       )}
       {!bloccata && !finito && <p className="text-xs text-muted-foreground">Periodo ancora in corso: si conferma quando è finito. Intanto vedi il calcolo a oggi.</p>}
       {sbagliati.length > 0 && <p role="alert" className="text-xs text-destructive">Scrivi un importo valido, per esempio 1.234,50.</p>}
       {puoScrivere && (
         <div className="flex justify-end gap-2">
-          {!bloccata && (
-            <Button size="sm" onClick={() => conferma.mutate()} disabled={conferma.isPending || calcolo.isFetching || !finito || sbagliati.length > 0}>
+          {!bloccata && righi && (
+            <Button size="sm" onClick={() => conferma.mutate()} disabled={!r?.calcolabile || conferma.isPending || calcolo.isFetching || !finito || sbagliati.length > 0}>
               {conferma.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Conferma liquidazione
             </Button>
           )}
@@ -222,12 +250,10 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
   const qc = useQueryClient();
   const { isAdmin, solaLettura } = usePermissions();
   const puoScrivere = isAdmin && !solaLettura;
-  const { impostazioni, isLoading } = useImpostazioniIVA(anno);
+  const { impostazioni, isLoading, isError, refetch } = useImpostazioniIVA(anno);
   const { data: azienda } = useAnagraficaAzienda();
   // undefined = segue il primo periodo da confermare; null = chiuso a mano.
   const [aperto, setAperto] = useState<number | null | undefined>(undefined);
-  const [segnando, setSegnando] = useState<number | null>(null);
-  const [protocollo, setProtocollo] = useState<Record<number, string>>({});
 
   const lista = useQuery({
     queryKey: ["liquidazioni-iva", company, anno],
@@ -235,7 +261,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
     queryFn: async () => {
       const { data, error } = await db.rpc("liquidazioni_iva_anno", { p_company: company, p_anno: anno });
       if (error) throw error;
-      return (data ?? []) as Confermata[];
+      return (data ?? []) as LiquidazioneIVAConfermata[];
     },
   });
   const aggiorna = () => {
@@ -244,18 +270,10 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
     void qc.invalidateQueries({ queryKey: ["liquidazione-righi"] });
   };
 
-  const segna = useMutation({
-    mutationFn: async ({ q }: { q: number }) => {
-      const dal = `${anno}-${String((q - 1) * 3 + 1).padStart(2, "0")}-01`;
-      const al = new Date(Date.UTC(anno, q * 3, 0)).toISOString().slice(0, 10);
-      const { error } = await db.rpc("liquidazione_iva_segna_inviata", { p_company: company, p_dal: dal, p_al: al, p_protocollo: protocollo[q] ?? "" });
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("Comunicazione segnata come inviata"); aggiorna(); },
-    onError: (e: Error) => toast.error("Non salvato", { description: e.message }),
-  });
-
   if (isLoading) return <p className="p-4 text-sm text-muted-foreground">Caricamento…</p>;
+  if (isError) return <p role="alert" className="p-4 text-sm text-destructive">
+    Impossibile leggere le impostazioni IVA. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+  </p>;
   if (!impostazioni) {
     return (
       <div className="rounded-xl border bg-white p-5">
@@ -269,7 +287,7 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
   const mensile = impostazioni.periodicita === "mensile";
   const periodi = periodiAnno(anno, mensile);
   const confermate = new Map((lista.data ?? []).map((c) => [c.dal, c]));
-  const oggi = new Date().toLocaleDateString("en-CA");
+  const oggi = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" });
   const fineDi = (dal: string) => {
     const [a, m] = dal.split("-").map(Number);
     return new Date(Date.UTC(a, m - 1 + (mensile ? 1 : 3), 0)).toISOString().slice(0, 10);
@@ -287,7 +305,9 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
       ["Periodo", "Operazioni attive", "Operazioni passive", "IVA vendite", "IVA acquisti", "Da versare", "A credito", "Stato"],
       ...periodi.map((p) => {
         const c = confermate.get(p.dal), x = c?.dati.righi;
-        return [p.nome, n(x?.vp2), n(x?.vp3), n(x?.vp4), n(x?.vp5), n(x?.vp14_debito), n(x?.vp14_credito), c ? (c.stato === "reviewed_commercialista" ? "Confermata" : "Inviata") : "Da confermare"];
+        const annuale = c?.dati.trimestre === 5;
+        return [p.nome, n(x?.vp2), n(x?.vp3), n(x?.vp4), n(x?.vp5), n(annuale ? undefined : x?.vp14_debito),
+          n(annuale ? undefined : x?.vp14_credito), c ? statoLiquidazione(c) : "Da confermare"];
       }),
     ];
     const url = URL.createObjectURL(new Blob(["\uFEFF" + righeCsv.map((r) => r.join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
@@ -296,40 +316,6 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
     a.download = `liquidazioni-iva-${anno}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const comunicazione = (q: number) => {
-    const inizio = (q - 1) * 3 + 1;
-    const servono = mensile ? [inizio, inizio + 1, inizio + 2] : [inizio];
-    const trovate = servono.map((m) => confermate.get(`${anno}-${String(m).padStart(2, "0")}-01`));
-    if (trovate.some((c) => !c)) return { pronto: false as const, mancano: trovate.filter((c) => !c).length };
-    const moduli: ModuloLipe[] = trovate.map((c) => ({
-      mese: c!.dati.mese ?? undefined, trimestre: c!.dati.trimestre ?? undefined, righi: c!.dati.righi!,
-    }));
-    const c: ComunicazioneLipe = {
-      anno,
-      codiceFiscale: (impostazioni.cf_contribuente ?? "").toUpperCase(),
-      partitaIva: String(azienda?.partita_iva ?? "").replace(/^IT/i, "").replace(/\s/g, ""),
-      cfDichiarante: impostazioni.cf_dichiarante?.toUpperCase() ?? null,
-      codiceCarica: impostazioni.codice_carica ?? null,
-      cfIntermediario: impostazioni.cf_intermediario?.toUpperCase() ?? null,
-      moduli,
-    };
-    return { pronto: true as const, c, errori: controlliLipe(c), inviata: trovate.some((x) => x!.stato !== "reviewed_commercialista"), protocollo: trovate[0]!.protocollo };
-  };
-
-  const scarica = (q: number, c: ComunicazioneLipe) => {
-    try {
-      const xml = xmlLipe(c);
-      const url = URL.createObjectURL(new Blob([xml], { type: "application/xml" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nomeFileLipe(c.partitaIva, anno, q);
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error("File non generato", { description: e instanceof Error ? e.message : String(e) });
-    }
   };
 
   return (
@@ -356,7 +342,9 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
         <div className="divide-y border-t">
           {periodi.map((p) => {
             const c = confermate.get(p.dal);
-            const es = esito(c?.dati.righi);
+            const es = c?.dati.trimestre === 5
+              ? { testo: "Saldo in dichiarazione annuale", cls: "text-muted-foreground" }
+              : esito(c?.dati.righi);
             const isAperto = apertoOra === p.periodo;
             return (
               <div key={p.periodo}>
@@ -370,12 +358,14 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
                   <span className={cn("hidden text-right text-xs tabular-nums md:block", es?.cls)}>{es?.testo ?? "—"}</span>
                   <span className="text-right">{c ? (
                     <Badge variant="outline" className="gap-1 border-emerald-300 font-normal text-emerald-700">
-                      <CheckCircle2 className="h-3 w-3" />{c.stato === "reviewed_commercialista" ? "Confermata" : "Inviata"}
+                      <CheckCircle2 className="h-3 w-3" />{statoLiquidazione(c)}
                     </Badge>
                   ) : <span className="text-xs text-muted-foreground">{finito(p.dal) ? "Da confermare" : "In corso"}</span>}</span>
                 </button>
                 {isAperto && company && (
-                  <DettaglioPeriodo company={company} anno={anno} periodo={p.periodo} confermata={c} puoScrivere={puoScrivere} finito={finito(p.dal)} onCambiato={aggiorna} onApriRegistro={onApriRegistro ?? (() => undefined)} />
+                  <DettaglioPeriodo key={`${company}:${anno}:${p.periodo}`} company={company} anno={anno} periodo={p.periodo}
+                    mensile={mensile} confermata={c} puoScrivere={puoScrivere} finito={finito(p.dal)} onCambiato={aggiorna}
+                    onApriRegistro={onApriRegistro ?? (() => undefined)} />
                 )}
               </div>
             );
@@ -390,49 +380,15 @@ export function LiquidazioniIVA({ anno, onApriImpostazioni, onApriRegistro }: { 
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border bg-white">
-        <div className="px-4 py-3">
-          <h3 className="font-semibold">File per l'Agenzia delle Entrate (LIPE)</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">Si scarica quando il trimestre è confermato. Poi va controllato, firmato e inviato con Entratel o Fatture e Corrispettivi.</p>
-        </div>
-        <div className="divide-y border-t">
-          {[1, 2, 3, 4].map((q) => {
-            const stato = comunicazione(q);
-            const scad = scadenzaLipe(anno, q);
-            return (
-              <div key={q} className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm">
-                <span className="w-24 font-medium">{q}° trimestre</span>
-                <span className={cn("w-36 text-xs", scad < oggi && !(stato.pronto && stato.inviata) ? "font-medium text-red-700" : "text-muted-foreground")}>Entro il {fiscalDate(scad)}</span>
-                <div className="min-w-40 flex-1 text-xs">
-                  {!stato.pronto && <span className="text-muted-foreground">{mensile ? `Mancano ${stato.mancano} mesi da confermare` : "Da confermare"}</span>}
-                  {stato.pronto && stato.errori.length > 0 && (
-                    <div className="text-destructive">
-                      <ul>{stato.errori.map((e) => <li key={e}>{e}</li>)}</ul>
-                      <button type="button" className="font-medium underline" onClick={onApriImpostazioni}>Completa le impostazioni</button>
-                    </div>
-                  )}
-                  {stato.pronto && stato.inviata && <span className="text-emerald-700">Inviata · protocollo {stato.protocollo}</span>}
-                </div>
-                {stato.pronto && stato.errori.length === 0 && (
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant={stato.inviata ? "outline" : "default"} onClick={() => scarica(q, stato.c)}><Download className="mr-1.5 h-3.5 w-3.5" />Scarica XML</Button>
-                    {!stato.inviata && puoScrivere && segnando !== q && (
-                      <Button size="sm" variant="ghost" onClick={() => setSegnando(q)}>Ho inviato</Button>
-                    )}
-                    {!stato.inviata && puoScrivere && segnando === q && (
-                      <>
-                        <Input aria-label={`Protocollo ricevuta ${q}° trimestre`} placeholder="Protocollo ricevuta" className="h-8 w-40 text-xs"
-                          value={protocollo[q] ?? ""} onChange={(e) => setProtocollo((p) => ({ ...p, [q]: e.target.value }))} />
-                        <Button size="sm" disabled={!protocollo[q]?.trim() || segna.isPending} onClick={() => segna.mutate({ q })}>Salva</Button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {company && (lista.isError ? (
+        <p role="alert" className="rounded-xl border p-4 text-sm text-destructive">
+          Impossibile leggere le liquidazioni confermate. <button type="button" className="underline" onClick={() => void lista.refetch()}>Riprova</button>
+        </p>
+      ) : lista.isSuccess && (
+        <ComunicazioniLipe key={`${company}:${anno}`} company={company} anno={anno} oggi={oggi} impostazioni={impostazioni}
+          partitaIva={String(azienda?.partita_iva ?? "").replace(/^IT/i, "").replace(/\s/g, "")}
+          confermate={confermate} puoScrivere={puoScrivere} onApriImpostazioni={onApriImpostazioni} onCambiato={aggiorna} />
+      ))}
     </div>
   );
 }

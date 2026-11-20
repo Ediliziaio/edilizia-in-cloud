@@ -32,8 +32,8 @@ export function impostazioniMancanti(i: ImpostazioniIVA | null | undefined): str
   if (!i) return ["Impostazioni IVA dell'anno non compilate"];
   const out: string[] = [];
   if (!i.cf_contribuente) out.push("Codice fiscale del contribuente (frontespizio LIPE)");
-  if (!i.cf_dichiarante) out.push("Codice fiscale di chi firma la comunicazione");
-  if (!i.codice_carica) out.push("Codice carica del dichiarante");
+  if (i.cf_contribuente?.length === 11 && !i.cf_dichiarante) out.push("Codice fiscale di chi firma la comunicazione");
+  if (i.cf_dichiarante && !i.codice_carica) out.push("Codice carica del dichiarante");
   return out;
 }
 
