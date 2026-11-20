@@ -55,8 +55,9 @@ export function righeVariante(
   return { righe, differenza, errori };
 }
 
-export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo, quote, voci, elencoContratto = [], onChiudi, onFatto }: {
+export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo, oneri = 0, quote, voci, elencoContratto = [], onChiudi, onFatto }: {
   companyId: string; contrattoId: string; nomeDitta: string; importo: number;
+  oneri?: number;
   /** L'elenco dei lavori del contratto firmato: se manca il quadro lavori (misure e SAL), si costruisce da qui. */
   elencoContratto?: unknown;
   /** Le quote della ditta: nel contratto (a_contratto) e in bozza. */
@@ -75,9 +76,9 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
   // rispondeva «prima imposta l'elenco lavori», da un'altra pagina. Qui si costruisce dall'elenco del contratto,
   // con l'unica scelta che il contratto non dice: quando matura il compenso.
   const quadro = useQuery({
-    queryKey: ["subappalto-quadro-c", contrattoId],
+    queryKey: ["subappalto-quadro-c", companyId, contrattoId],
     queryFn: async () => {
-      const { data, error } = await db.from("subappalto_quadri_lavori").select("id").eq("contratto_id", contrattoId).limit(1);
+      const { data, error } = await db.from("subappalto_quadri_lavori").select("id").eq("company_id", companyId).eq("contratto_id", contrattoId).limit(1);
       if (error) throw error;
       return (data ?? []).length > 0;
     },
@@ -87,6 +88,7 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
 
   const salva = useMutation({
     mutationFn: async () => {
+      if (quadro.isError || quadro.data === undefined) throw new Error("Verifica il quadro lavori prima di registrare la variante.");
       if (senzaQuadro) {
         const base = vociDaAllegato(elencoContratto, importo);
         if (!base) throw new Error("L'elenco lavori del contratto non si legge: imposta misure e SAL da «Condizioni e firma», poi la variante.");
@@ -101,14 +103,14 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
       if (error) throw new Error(error.message);
       return data as { importo: number; differenza: number; revisione: number };
     },
-    onSuccess: (r) => { toast.success(`Variante registrata: il contratto ora vale ${formatCurrency(Number(r.importo))} (revisione ${r.revisione} delle voci).`); onFatto(); },
+    onSuccess: (r) => { toast.success(`Variante registrata: lavori aggiornati a ${formatCurrency(Number(r.importo))} (revisione ${r.revisione} delle voci).`); onFatto(); },
     onError: (e: Error) => toast.error(e.message || "Variante non registrata."),
   });
 
-  const pronta = righe.length > 0 && !errori.length && motivo.trim().length >= 5 && !quadro.isLoading && (!senzaQuadro || !!maturazione);
+  const pronta = righe.length > 0 && !errori.length && motivo.trim().length >= 5 && !quadro.isFetching && !quadro.isError && quadro.data !== undefined && (!senzaQuadro || !!maturazione);
   return (
     <Dialog open onOpenChange={(o) => !o && !salva.isPending && onChiudi()}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl max-sm:[&_button]:min-h-11 max-sm:[&_input]:min-h-11">
         <DialogHeader>
           <DialogTitle>Variante sulle voci · {nomeDitta}</DialogTitle>
           <DialogDescription>
@@ -116,6 +118,9 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
             una voce non scende sotto quanto già misurato. Il contratto firmato resta com'è: la variante si aggiunge.
           </DialogDescription>
         </DialogHeader>
+        {quadro.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+          Non riesco a verificare il quadro lavori. <Button size="sm" variant="outline" onClick={() => void quadro.refetch()}>Riprova</Button>
+        </div>}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[600px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -167,10 +172,11 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
         )}
         <Textarea aria-label="Motivo della variante" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della variante (es. muri in più al piano terra)" rows={2} />
         <p className="text-sm" role="status">
-          Contratto {formatCurrency(importo)} → <strong>{formatCurrency(cent(importo + differenza))}</strong>
+          Lavori {formatCurrency(importo)} → <strong>{formatCurrency(cent(importo + differenza))}</strong>
           {righe.length > 0 && <span className={differenza >= 0 ? "text-emerald-700" : "text-amber-800"}> ({differenza >= 0 ? "+" : ""}{formatCurrency(differenza)}, {righe.length} {righe.length === 1 ? "voce" : "voci"})</span>}
           {errori.length > 0 && <span className="text-red-800"> · {errori.length === 1 ? "una riga ha" : `${errori.length} righe hanno`} un numero che non si legge</span>}
         </p>
+        {oneri > 0 && <p className="text-sm">Oneri sicurezza invariati {formatCurrency(oneri)} · <strong>Totale IVA esclusa {formatCurrency(cent(importo + differenza + oneri))}</strong></p>}
         <DialogFooter>
           <Button variant="ghost" disabled={salva.isPending} onClick={onChiudi}>Annulla</Button>
           <Button disabled={!pronta || salva.isPending} onClick={() => salva.mutate()}>

@@ -18,6 +18,7 @@ import type { ComposeContext } from "@/pages/azienda/email/components/EmailCompo
 import { AffidaContrattoDaCommessa, type ComputoDaLavorazioni } from "./AffidaContrattoDialog";
 import { useAffidamentiCommessa } from "./AffidaVociDialog";
 import { ComputoSubappaltoAnteprima } from "./ComputoSubappaltoAnteprima";
+import { ContrattiSubappaltoCommessa } from "./ContrattiSubappaltoCommessa";
 
 const EmailComposeDialog = lazy(() => import("@/pages/azienda/email/components/EmailComposeDialog")
   .then((modulo) => ({ default: modulo.EmailComposeDialog })));
@@ -195,6 +196,7 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, onOc
           {quotabili.length > 0 && <Button size="sm" onClick={() => prepara(true)}><Plus className="mr-1 h-4 w-4" />Prepara richiesta</Button>}
         </div>}
     </header>
+    {!apri && <p className="text-sm text-muted-foreground">Scegli le lavorazioni e la ditta. Puoi chiedere un’offerta oppure preparare il contratto usando il listino della ditta e confermare i costi prima della firma.</p>}
     {righe.length > 0 && <ul className="divide-y overflow-hidden rounded-lg border bg-background">{(apri ? righe.slice(0, 4) : righe).map((r) =>
       <li key={r.ambito.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
         <div className="min-w-0">
@@ -213,6 +215,7 @@ export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, onOc
       </li>)}
       {apri && righe.length > 4 && <li className="px-3 py-2 text-xs text-muted-foreground">Altre {righe.length - 4} lavorazioni in Subappalto</li>}
     </ul>}
+    {!apri && <ContrattiSubappaltoCommessa companyId={companyId} orderId={orderId} dati={datiContratti.data} voci={misurate.data} affidamenti={affidamenti.data} inRicarica={datiContratti.isFetching || affidamenti.isFetching} />}
     {!apri && disponibile && <div className="space-y-2">
       <h4 className="text-sm font-semibold">Richieste e offerte</h4>
       {!richieste.length && <p className="text-sm text-muted-foreground">Nessuna richiesta per queste lavorazioni.</p>}
