@@ -26,6 +26,9 @@ export function useSatelliteFv(centro: PosizioneMappaFv, zoom: number) {
           signal: controller.signal,
         });
         if (!attivo) return;
+        if (data?.error === "static_map_unavailable" && typeof data.message === "string") {
+          throw Error(data.message.slice(0, 300));
+        }
         if (
           error || data?.provider !== "google" ||
           typeof data?.dataUrl !== "string" ||

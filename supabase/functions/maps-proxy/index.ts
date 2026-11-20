@@ -5,6 +5,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { percorsoHere } from "../_shared/tragitto.ts";
+import { messaggioMapsGoogle, scaricaMappaStatica, type ErroreMapsGoogle } from "../_shared/mapsGoogle.ts";
 serveConMetriche("maps-proxy", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -70,44 +71,33 @@ serveConMetriche("maps-proxy", async (req) => {
       const w = Math.min(Number(body.w) || 700, 1280);
       const h = Math.min(Number(body.h) || 420, 1280);
 
-      const toDataUrl = async (url: string): Promise<string | null> => {
-        try {
-          const res = await fetch(url);
-          const ct = res.headers.get("content-type") || "";
-          if (!res.ok || !ct.startsWith("image/")) return null;
-          const bytes = new Uint8Array(await res.arrayBuffer());
-          let bin = "";
-          const CH = 0x8000;
-          for (let i = 0; i < bytes.length; i += CH) {
-            bin += String.fromCharCode(...bytes.subarray(i, i + CH));
-          }
-          return `data:${ct};base64,${btoa(bin)}`;
-        } catch {
-          return null;
-        }
-      };
-
       let dataUrl: string | null = null;
       let provider: string | null = null;
+      let erroreGoogle: ErroreMapsGoogle = GOOGLE_MAPS_API_KEY ? "non_disponibile" : "chiave_mancante";
       if (GOOGLE_MAPS_API_KEY) {
-        dataUrl = await toDataUrl(
+        const risultato = await scaricaMappaStatica(
           `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${w}x${h}&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`,
         );
-        if (dataUrl) provider = "google";
+        if (risultato.dataUrl !== null) { dataUrl = risultato.dataUrl; provider = "google"; }
+        else {
+          erroreGoogle = risultato.codice;
+          console.warn("maps-proxy: vista Google non disponibile", { status: risultato.status, codice: erroreGoogle });
+        }
       }
       if (!dataUrl && HERE_API_KEY && body.solo_google !== true) {
         // Request 2× pixel dimensions so the browser can downscale to display size,
         // compensating for HERE's lower tile resolution vs Google in rural areas.
         // Cap at 1280px to stay within HERE's max allowed dimension.
         const hw = Math.min(w * 2, 1280), hh = Math.min(h * 2, 1280);
-        dataUrl = await toDataUrl(
+        const risultato = await scaricaMappaStatica(
           `https://image.maps.hereapi.com/mia/v3/base/mc/center:${lat},${lng};zoom=${Math.min(zoom, 20)}/${hw}x${hh}/png?style=satellite.day&apiKey=${HERE_API_KEY}`,
         );
+        dataUrl = risultato.dataUrl;
         if (dataUrl) provider = "here";
       }
 
       return new Response(
-        JSON.stringify(dataUrl ? { dataUrl, provider } : { error: "static_map_unavailable" }),
+        JSON.stringify(dataUrl ? { dataUrl, provider } : { error: "static_map_unavailable", google_error: erroreGoogle, message: messaggioMapsGoogle(erroreGoogle) }),
         { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
       );
     }
