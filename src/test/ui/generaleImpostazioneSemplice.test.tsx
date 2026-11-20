@@ -237,7 +237,7 @@ describe("impostazione delle commesse generali", () => {
     disegna();
     fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
     fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Accordo quadro" } });
-    fireEvent.click(screen.getByRole("button", { name: "Cliente", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
     const file = new File(["originale"], "Contratto registrato.pdf", { type: "application/pdf" });
     Object.defineProperty(file, "size", { value: 26_056_111 });
     fireEvent.change(screen.getByLabelText(/Contratto d’appalto originale/), { target: { files: [file] } });
@@ -254,7 +254,7 @@ describe("impostazione delle commesse generali", () => {
     disegna();
     fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
     fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Accordo quadro" } });
-    fireEvent.click(screen.getByRole("button", { name: "Cliente", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
     const file = new File(["x"], "Contratto.pdf", { type: "application/pdf" });
     Object.defineProperty(file, "size", { value: 50_000_001 });
     fireEvent.change(screen.getByLabelText(/Contratto d’appalto originale/), { target: { files: [file] } });

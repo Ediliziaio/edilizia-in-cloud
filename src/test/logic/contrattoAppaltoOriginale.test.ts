@@ -21,7 +21,7 @@ function archivio() {
     from: (tabella: string) => {
       const filtri: Array<[string, unknown]> = [];
       let nuova: Riga | null = null;
-      const esegui = () => {
+      const esegui = (): { data: Riga | null; error: { code: string } | null } => {
         if (nuova) {
           if (tabella === "commesse_generali_documenti" && m.erroreSegno) return { data: null, error: { code: "NETWORK" } };
           const r = { ...nuova, id: `id-${righe[tabella].length}` }; righe[tabella].push(r); return { data: r, error: null };
