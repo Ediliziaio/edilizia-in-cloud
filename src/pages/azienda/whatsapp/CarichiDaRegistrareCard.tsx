@@ -55,7 +55,8 @@ function RigaRow({ riga }: { riga: DdtCaricoRiga }) {
         <p className="text-xs text-muted-foreground">
           {riga.codice ? `cod. ${riga.codice} · ` : ""}
           bolla {riga.qta_bolla}
-          {riga.qta_ordine != null ? ` · ordine ${riga.qta_ordine}` : ""}
+          {riga.qta_residua != null ? ` · da ricevere ${riga.qta_residua}`
+            : riga.qta_ordine != null ? ` · ordine ${riga.qta_ordine}` : ""}
         </p>
         {riga.note ? <p className="mt-0.5 text-[11px] text-muted-foreground">{riga.note}</p> : null}
       </div>
@@ -91,11 +92,12 @@ function CaricoRow({
               <Badge variant="default" className="bg-amber-500 hover:bg-amber-500">
                 {carico.scostamenti_totali} scostamenti
               </Badge>
-            ) : (
+            ) : !carico.senza_ordine ? (
               <Badge variant="outline" className="text-emerald-700">Quantità coerenti</Badge>
-            )}
+            ) : null}
             <span className="text-xs text-muted-foreground">{relativeDate(carico.created_at)}</span>
           </div>
+          {carico.avviso_ordine && <p className="mt-1 text-xs text-amber-800">{carico.avviso_ordine}</p>}
         </div>
         <div className="flex shrink-0 gap-2">
           <Button size="sm" variant="ghost" onClick={onScarta} disabled={busy}>

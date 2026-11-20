@@ -1007,3 +1007,116 @@ describe("Revisione finale", () => {
     await expect(rpc("tesoreria_classifica_movimenti", [company, 500, true])).rejects.toThrow(/permesso/);
   });
 });
+
+describe("precedenza delle fatture citate nel movimento", () => {
+  beforeAll(async () => {
+    await pg.exec("reset role");
+    await pg.exec(`
+      alter table companies add column if not exists name text;
+      alter table fatture_ricevute add column if not exists netto_a_pagare numeric,
+        add column if not exists piano_pagamento jsonb, add column if not exists pagata_il date;
+      alter table rate_fornitori add column if not exists fattura_ricevuta_id uuid, add column if not exists numero integer,
+        add column if not exists scadenza date, add column if not exists pagata_il date,
+        add column if not exists iban text, add column if not exists modalita text;
+      alter table bank_reconciliations add column if not exists fattura_ricevuta_id uuid,
+        add column if not exists rata_fornitore_id uuid;
+      create table email_ddt_carico (id uuid);
+      create function public.conferma_carico_ddt(uuid, uuid) returns jsonb language plpgsql as $$
+      declare v_c record; v_oda_numero text;
+      begin
+        select po.oda_number into v_oda_numero from public.purchase_orders po
+     where po.id = v_c.purchase_order_id and po.company_id = v_c.company_id;
+    if v_oda_numero is null then
+      return jsonb_build_object('ok', false, 'errore', 'Ordine collegato non trovato in questa azienda.');
+        end if;
+        return '{"ok":true}';
+      end $$;
+    `);
+    const soglie = await readFile("supabase/migrations/20290417100200_soglie_automazioni_per_azienda.sql", "utf8");
+    await pg.exec(soglie.slice(0, soglie.indexOf("-- Tutte le soglie")));
+    const numeri = await readFile("supabase/migrations/20290404210000_acquisti_collegamenti_traccia.sql", "utf8");
+    const inizioNumero = numeri.indexOf("create or replace function public.acquisti_numero_documento");
+    await pg.exec(numeri.slice(inizioNumero, numeri.indexOf("end $$;", inizioNumero) + "end $$;".length));
+    const firma = "CREATE OR REPLACE FUNCTION private.tes_classifica";
+    for (const file of ["20290419110000_tesoreria_incassi_date_e_nomi", "20290419130000_tesoreria_nomi_controparte"]) {
+      const migrazione = await readFile(`supabase/migrations/${file}.sql`, "utf8");
+      await pg.exec(migrazione.slice(0, migrazione.indexOf(firma)));
+    }
+    const riba = await readFile("supabase/migrations/20290419140000_tesoreria_distinte_riba.sql", "utf8");
+    const inizio = riba.indexOf(firma);
+    await pg.exec(riba.slice(inizio, riba.indexOf("$function$;", inizio) + "$function$;".length));
+    const lotti = await readFile("supabase/migrations/20290317090000_bank_riconciliazione_lotti.sql", "utf8");
+    const inizioProposte = lotti.indexOf("CREATE OR REPLACE FUNCTION public.bank_proposte_movimento");
+    await pg.exec(lotti.slice(inizioProposte, lotti.indexOf("END $$;", inizioProposte) + "END $$;".length));
+    const migrazione = await readFile("supabase/migrations/20290430141000_riferimenti_certi_ddt_tesoreria.sql", "utf8");
+    await pg.exec(migrazione);
+    await pg.exec(migrazione);
+  }, 60000);
+
+  const nome = "Costruzioni Demo Srl";
+  const piva = "01234567890";
+  const iban = "IT33O0000000000000000000033";
+  const emessa = (numero: string, totale: number, pagato?: number) =>
+    doc({ numero, totale, cliente: nome, piva, pagato });
+  async function accredito(causale: string, amount: number, fattura: string) {
+    const movimento = await tx({ amount, type: "credit", desc: causale, name: nome, iban });
+    await service(`insert into tesoreria_iban_verificati(company_id, chiave_fiscale, soggetto_nome, iban,
+      fonte_transaction_id, fonte_documento_id, confermato_da) values($1,$2,$3,$4,$5,$6,$7)`,
+      [company, piva, nome, iban, movimento, fattura, user]);
+    return { ...await classifica(movimento), movimento };
+  }
+
+  it("un acconto sulla fattura citata prevale sul saldo coincidente di un'altra", async () => {
+    const a = await emessa("FT-2026-0231", 1000);
+    await emessa("FT-2026-0232", 400);
+    const r = await accredito("Acconto fattura FT-2026-0231", 400, a);
+    expect(r).toMatchObject({ esito: "proposta", natura: "parziale" });
+    expect(r.candidati[0].righe).toMatchObject([{ id: a, quota: 400, residuo: 1000 }]);
+    expect(r.motivi).toContain("Pagamento parziale: resteranno 600.00 €");
+    const proposte = await rpc("bank_proposte_movimento", [company, r.movimento, ""]);
+    expect(proposte).toMatchObject([{ id: a, forte: false }]);
+  });
+
+  it("due fatture esplicite valgono insieme e il totale può coincidere con una terza", async () => {
+    const a = await emessa("FT-2026-0231", 400);
+    const b = await emessa("FT-2026-0232", 600);
+    await emessa("FT-2026-0233", 1000);
+    const r = await accredito("Saldo fatture FT-2026-0231 e FT-2026-0232", 1000, a);
+    expect(r).toMatchObject({ esito: "proposta", natura: "cumulativo" });
+    expect(r.candidati[0].righe.map((x: { id: string }) => x.id).sort()).toEqual([a, b].sort());
+  });
+
+  it("un riferimento mancante lascia il movimento aperto anche con un residuo identico", async () => {
+    const b = await emessa("FT-2026-0232", 400);
+    const r = await accredito("Fattura n. 0231", 400, b);
+    expect(r).toMatchObject({ esito: "da_gestire", regola: "R-RIFERIMENTO-FATTURA", candidati: [] });
+  });
+
+  it("il saldo esatto della fattura citata conserva l'esito automatico", async () => {
+    const a = await emessa("FT-2026-0231", 400);
+    await emessa("FT-2026-0232", 400);
+    const r = await accredito("Saldo FT-2026-0231", 400, a);
+    expect(r).toMatchObject({ esito: "automatico", natura: "documento" });
+    expect(r.candidati[0].righe[0].id).toBe(a);
+  });
+
+  it("un numero ripetuto senza anno resta da confermare anche se un importo coincide", async () => {
+    const a = await emessa("FT-2026-0231", 400);
+    await doc({ numero: "FT-2025-0231", anno: 2025, totale: 1000, cliente: nome, piva });
+    const r = await accredito("Saldo fattura 0231", 400, a);
+    expect(r.esito).toBe("proposta");
+  });
+
+  it("una causale senza riferimento può usare il candidato verificato esatto", async () => {
+    const a = await emessa("FT-2026-0231", 400);
+    const r = await accredito("Bonifico Costruzioni Demo Srl", 400, a);
+    expect(r).toMatchObject({ esito: "automatico", natura: "documento" });
+  });
+
+  it("una fattura già pagata cita la prova senza scegliere una partita ancora aperta", async () => {
+    const a = await emessa("FT-2026-0231", 400, 400);
+    await emessa("FT-2026-0232", 400);
+    const r = await accredito("Saldo fattura FT-2026-0231", 400, a);
+    expect(r).toMatchObject({ natura: "gia_incassata", documento_gia_pagato: { id: a } });
+  });
+});
