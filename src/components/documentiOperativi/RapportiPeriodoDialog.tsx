@@ -42,7 +42,7 @@ export function RapportiPeriodoDialog({
   mese: string;
   companyId?: string;
   conDatiEconomici?: boolean;
-  /** Accesso dalla commessa: il rapporto manuale parte già intestato. */
+  /** Accesso dalla commessa: il rapporto manuale parte con riferimento e indirizzo. */
   orderId?: string;
 }) {
   const [doc, setDoc] = useState<DocumentoOperativo | null>(null);
@@ -128,13 +128,10 @@ export function RapportiPeriodoDialog({
     const controller = new AbortController();
     operazione.current = controller; setPreparazione(scope);
     try {
-      const [ordine, destinatario] = await Promise.all([
-        supabase.from("orders").select("order_code, work_address").eq("id", orderId).eq("company_id", companyId).single(),
-        leggiDestinatarioRapporto(companyId, orderId),
-      ]);
+      const ordine = await supabase.from("orders").select("order_code, work_address").eq("id", orderId).eq("company_id", companyId).single();
       if (ordine.error) throw new Error(ordine.error.message);
       if (controller.signal.aborted) return;
-      setDoc({ ...documento, commessa: ordine.data.order_code, luogo: ordine.data.work_address, destinazioneTipo: "cantiere", indirizzoCantiere: ordine.data.work_address, destinatario });
+      setDoc({ ...documento, commessa: ordine.data.order_code, luogo: ordine.data.work_address, destinazioneTipo: "cantiere", indirizzoCantiere: ordine.data.work_address });
     } catch (e) {
       if (!controller.signal.aborted) toast.error(e instanceof Error ? e.message : "Rapporto trasporti non disponibile. Riprova.");
     } finally {
@@ -198,7 +195,7 @@ export function RapportiPeriodoDialog({
             >
               <span className="block font-medium">Rapporto trasporti</span>
               <span className="block text-xs text-muted-foreground">
-                Modello da compilare con viaggi e trasporti
+                Modello da compilare per il trasportatore
               </span>
             </DropdownMenuItem>
           </DropdownMenuContent>

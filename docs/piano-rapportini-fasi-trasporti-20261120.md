@@ -10,7 +10,7 @@ La richiesta riguarda i comandi che Federica deve usare nell'interfaccia. La suc
 4. Aggiungere la modifica delle voci economiche già salvate, con controllo della versione, permessi, storico privo di costi riservati e invalidazione del PDF nella stessa transazione.
 5. Rendere idempotente l'applicazione di un modello di fasi: serializzare per commessa, mantenere le fasi esistenti e aggiungere soltanto le fasi/sottofasi mancanti. Segnalare i nomi ripetuti e rendere evidente il comando Elimina fase esistente.
 6. Spiegare e collegare costo interno del mezzo, nolo del listino venduto al cliente e spesa/fattura del noleggio. Mostrare errori di caricamento e permettere di iniziare la pianificazione anche senza risorse già presenti.
-7. Portare Rapporto trasporti anche nei rapportini della commessa, precompilando commessa e destinatario. Riutilizzare l'editor PDF esistente e distinguere il documento manuale dal rendiconto dei viaggi approvati.
+7. Portare Rapporto trasporti anche nei rapportini della commessa, precompilando commessa e indirizzo, lasciando scegliere il trasportatore destinatario. Riutilizzare l'editor PDF esistente e distinguere il documento manuale dal rendiconto dei viaggi approvati.
 
 ## Riscontri iniziali
 
@@ -25,3 +25,7 @@ La richiesta riguarda i comandi che Federica deve usare nell'interfaccia. La suc
 ## Verifica e rilascio
 
 Test significativi su correzioni, permessi, concorrenza, costi/presenze/mezzi, voci economiche, annullamento, applicazione ripetuta dei modelli e documenti di trasporto. SQL proposto fuori da `supabase/migrations` finché non è pronto e autorizzato; collaudo su database isolato. PR concreta con controlli verdi prima di chiedere l'eventuale migrazione e rilascio. Nessun messaggio o documento inviato a persone durante le prove.
+
+## Chiarimento emerso dal collaudo PDF
+
+Il rapporto trasporti manuale è destinato al trasportatore che conferma i viaggi prima della fattura, come previsto dal modello esistente. Non va intestato automaticamente al cliente della commessa. Il rendiconto dei viaggi approvati resta invece intestato al committente. Etichette e guida riportano questa distinzione.

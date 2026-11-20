@@ -34,6 +34,6 @@ Le ore del mezzo vuote o pari a zero attivano la stima prevista dal sistema. Per
 
 ## Compilare il rapporto trasporti
 
-Dalla sezione rapportini della commessa scegliere **Crea documento PDF → Rapporto trasporti**. Cliente, commessa e indirizzo sono precompilati. Compilare viaggi, carico, scarico, mezzo, DDT e importi, quindi usare **Anteprima PDF**. Il documento manuale è disponibile anche senza rapportini approvati.
+Dalla sezione rapportini della commessa scegliere **Crea documento PDF → Rapporto trasporti**. Commessa e indirizzo sono precompilati. Indicare il **trasportatore** destinatario: è il documento con cui gli si chiede conferma dei viaggi effettuati. Compilare viaggi, carico, scarico, mezzo, DDT e importi, quindi usare **Anteprima PDF**. Il documento manuale è disponibile anche senza rapportini approvati.
 
-**Rendiconto trasporti al cliente** prepara invece il documento dai viaggi registrati nei rapportini approvati, usando i prezzi di vendita; richiede il permesso di accesso alle voci economiche. Entrambi i comandi restano disponibili anche nell'elenco generale dei rapportini.
+**Rendiconto trasporti al cliente** è invece intestato al committente e prepara il documento dai viaggi registrati nei rapportini approvati, usando i prezzi di vendita; richiede il permesso di accesso alle voci economiche. Entrambi i comandi restano disponibili anche nell'elenco generale dei rapportini.

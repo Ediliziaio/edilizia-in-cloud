@@ -223,14 +223,14 @@ describe("Riepilogo automatico dei rapportini approvati", () => {
 });
 
 
-it("dalla commessa apre il rapporto manuale intestato, anche senza rapportini approvati", async () => {
+it("dalla commessa apre il rapporto per il trasportatore, senza intestarlo al cliente", async () => {
   const ordine = { select: () => ordine, eq: vi.fn(() => ordine), single: async () => ({ data: { order_code: "SIM-1", work_address: "Via SIM 10" }, error: null }) };
   stato.from.mockReturnValue(ordine);
   apri([], false, "o1"); menu();
   fireEvent.click(screen.getByRole("menuitem", { name: /^Rapporto trasporti/ }));
   await screen.findByRole("dialog", { name: "Documento pronto" });
   const documento = JSON.parse(screen.getByTestId("documento").textContent!) as DocumentoOperativo;
-  expect(documento).toMatchObject({ tipo: "trasporti", commessa: "SIM-1", luogo: "Via SIM 10", destinatario: { nome: "Cliente SIM" } });
+  expect(documento).toMatchObject({ tipo: "trasporti", commessa: "SIM-1", luogo: "Via SIM 10", destinatario: { nome: "" } });
   expect(documento.righe).toHaveLength(1); expect(documento.rendicontoTrasporti).toBeUndefined();
   expect(ordine.eq).toHaveBeenCalledWith("company_id", "azienda-1");
   expect(stato.rpc).not.toHaveBeenCalled();
