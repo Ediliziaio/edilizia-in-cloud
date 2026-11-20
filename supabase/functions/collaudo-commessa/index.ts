@@ -8,12 +8,14 @@ import {
 import { leggiSchema } from "../_shared/moduliCantiere.ts";
 import { acceptanceDaModello, firmaInByte, validaFirma, validateAcceptance, verbaleDelCapo } from "./model.ts";
 import { renderAcceptance } from "./render.ts";
+import { reportAsset } from "../genera-pdf-rapportino/model.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 const bucket = "order-acceptance-reports";
 const uuid = (v: unknown) =>
   typeof v === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const sha = async (bytes: ArrayBuffer | Uint8Array) =>
-  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
+  Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes))))
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
 Deno.serve(async (req) => {
@@ -195,12 +197,37 @@ Deno.serve(async (req) => {
     const disegna = async (firma?: Parameters<typeof renderAcceptance>[2]) => {
       const { data: company, error: companyError } = await admin
         .from("companies")
-        .select("name")
+        .select("name, business_name, logo_url, legal_address, legal_city, legal_postal_code, legal_province, email, phone, vat_number")
         .eq("id", order.company_id)
         .single();
       if (companyError) throw companyError;
+      let logo: Uint8Array | undefined;
+      if (company.logo_url) {
+        try {
+          const baseUrl = Deno.env.get("SUPABASE_URL")!;
+          const asset = reportAsset(company.logo_url, order.company_id, baseUrl);
+          if (asset) {
+            const { data } = await admin.storage.from(asset.bucket).download(asset.path);
+            if (data && data.size <= 2 * 1024 * 1024) logo = new Uint8Array(await data.arrayBuffer());
+          } else {
+            const url = new URL(company.logo_url);
+            if (url.protocol === "https:" && [new URL(baseUrl).origin, "https://app.ediliziaincloud.com"].includes(url.origin)) {
+              const response = await fetchWithTimeout(url, { timeoutMs: 5000, redirect: "error" });
+              if (response.ok && Number(response.headers.get("content-length")) <= 2 * 1024 * 1024) {
+                const bytes = new Uint8Array(await response.arrayBuffer());
+                if (bytes.length <= 2 * 1024 * 1024) logo = bytes;
+              }
+            }
+          }
+        } catch { /* I dati del verbale restano disponibili anche se il logo non si carica. */ }
+      }
       return await renderAcceptance(report.content, {
-        company: company.name,
+        company: company.business_name || company.name,
+        logo,
+        companyAddress: [company.legal_address, [company.legal_postal_code, company.legal_city, company.legal_province].filter(Boolean).join(" ")].filter(Boolean).join(" · "),
+        companyVat: company.vat_number || "",
+        companyEmail: company.email || "",
+        companyPhone: company.phone || "",
         order: order.order_code ?? order.id,
         address: order.work_address ?? "",
         id: report.id,
