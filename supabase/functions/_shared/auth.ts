@@ -7,8 +7,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export interface AuthResult {
   userId: string;
-  // deno-lint-ignore no-explicit-any
-  supabaseUser: ReturnType<typeof createClient<any>>;
   // Edge functions use a service-role client with dynamic RPC/table shapes.
   // Keeping this permissive avoids false Deno type failures on generated DB-less clients.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,7 +75,7 @@ export async function requireAuth(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  return { userId, supabaseAdmin, supabaseUser: supabaseAnon };
+  return { userId, supabaseAdmin };
 }
 
 /**

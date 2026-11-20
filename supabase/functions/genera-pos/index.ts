@@ -250,7 +250,7 @@ Deno.serve(async (req: Request) => {
       pianificaGiroOcr(db, id, cors);
       return jsonResponse({ ok: true }, 202, cors);
     }
-    const { userId, supabaseAdmin: db, supabaseUser } = await requireAuth(req, cors);
+    const { userId, supabaseAdmin: db } = await requireAuth(req, cors);
     const { body, pdf } = await leggiRichiestaPos(req);
     // Compatibilità: chi chiamava senza azione con order_id voleva creare un POS.
     const azione: Azione = body.azione == null && body.order_id ? "crea" : body.azione;
@@ -261,6 +261,10 @@ Deno.serve(async (req: Request) => {
     await requireCompanyAccess(db, userId, companyId, cors);
     await verificaPermesso(db, userId, companyId, scriveAzionePos(azione), cors);
 
+    const supabaseUser = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: req.headers.get("Authorization")! } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
     const leggiConsegne = async (ordine: string, data: string) => {
       const { data: quadro, error } = await supabaseUser.rpc("sicurezza_dpi_commessa", { _company: companyId, _ordine: ordine, _data: data, _fase: null });
       if (error || !Array.isArray(quadro?.addetti) || quadro.data !== data) throw new Error("Registro DPI della commessa non disponibile");
