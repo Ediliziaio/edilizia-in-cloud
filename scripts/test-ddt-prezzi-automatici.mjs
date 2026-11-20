@@ -17,14 +17,15 @@ function estratto(nome, inizio, fine) {
 }
 const id = n => `pg_temp.id(${n})`;
 const data = "2026-11-20";
-const xml = (ddt, righe, { sconto = "" } = {}) => `$xml$<p:FatturaElettronica xmlns:p="urn:test">
+const xml = (ddt, righe, { sconto = "", corpoPrecedente = "" } = {}) => `$xml$<p:FatturaElettronica xmlns:p="urn:test">
+  ${corpoPrecedente}
   <FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><Divisa>EUR</Divisa>${sconto}</DatiGeneraliDocumento>
     ${ddt.map(([numero, n]) => `<DatiDDT><NumeroDDT>${numero}</NumeroDDT><DataDDT>${data}</DataDDT>${n ? `<RiferimentoNumeroLinea>${n}</RiferimentoNumeroLinea>` : ""}</DatiDDT>`).join("")}
   </DatiGenerali><DatiBeniServizi>
     ${righe.map(([n, codice, quantita, prezzo]) => `<DettaglioLinee><NumeroLinea>${n}</NumeroLinea><CodiceArticolo><CodiceTipo>SKU</CodiceTipo><CodiceValore>${codice}</CodiceValore></CodiceArticolo><Descrizione>Adesivo A81</Descrizione><Quantita>${quantita}</Quantita><UnitaMisura>KG</UnitaMisura><PrezzoTotale>${prezzo}</PrezzoTotale></DettaglioLinee>`).join("")}
   </DatiBeniServizi></FatturaElettronicaBody>
 </p:FatturaElettronica>$xml$`;
-const f = (n, documento, fornitore = 2) => `(${id(n)},${id(1)},${id(fornitore)},'IT01234567890',null,'TD24','non_letta',${documento},0)`;
+const f = (n, documento, fornitore = 2, { tipo = "TD24", corpo = 0 } = {}) => `(${id(n)},${id(1)},${id(fornitore)},'IT01234567890',null,'${tipo}','non_letta',${documento},${corpo})`;
 const bolla = (...numeri) => numeri.map(n => `(${id(n)},${id(1)},${id(2)},'${n}/A','${data}')`).join(",");
 const link = (fattura, ddt, numero = ddt) => `(${id(1)},${id(fattura)},${ddt == null ? "null" : id(ddt)},'${numero}/A','${data}','xml')`;
 const riga = (n, ddt, q, prezzo = "null", codice = "A81") => `(${id(n)},${id(1)},${id(ddt)},'${codice}','Adesivo A81','kg',${q},${prezzo},null)`;
@@ -89,13 +90,18 @@ insert into orders values(${id(10)},${id(1)},null),(${id(12)},${id(1)},null);
 insert into order_items(id,order_id,natura_riga,purchase_price,prezzo_da_definire,prezzo_fonte)
   values(${id(11)},${id(10)},'materiale',9,true,'listino'),(${id(13)},${id(12)},'materiale',12,true,'ordine'),
     (${id(14)},${id(12)},'materiale',15,true,'ordine'),(${id(15)},${id(10)},'materiale',20,true,'ordine');
-insert into ddt_ricezione values ${bolla(101,102,103,104,105,106,109,110,111,112,113,114)};
+insert into order_items(id,order_id,natura_riga,purchase_price,prezzo_da_definire,prezzo_fonte)
+  values(${id(16)},${id(10)},'materiale',18,true,'ordine');
+insert into ddt_ricezione values ${bolla(101,102,103,104,105,106,109,110,111,112,113,114,115,116)};
 insert into ddt_righe values ${[
   riga(201,101,2),riga(202,102,3),riga(203,103,1),riga(204,104,1),riga(205,105,1),riga(206,106,1),
   riga(207,106,1),riga(209,109,1),riga(210,110,1),riga(211,111,2),riga(212,112,2),riga(213,113,1),riga(214,114,1),
+  riga(215,115,2),riga(216,116,1),
 ].join(",")};
 insert into fatture_ricevute(id,company_id,fornitore_id,cedente_piva,cedente_cf,tipo_documento,stato,xml_raw,indice_corpo) values
-  ${f(21,xml([["101/A",5],["102/A",2]],[[5,"A81",2,64],[2,"A81",3,150]]))},
+  ${f(21,xml([["101/A",5],["102/A",2]],[[5,"A81",2,64],[2,"A81",3,150]], {
+    corpoPrecedente:"<FatturaElettronicaBody><DatiGenerali><DatiDDT><NumeroDDT>999/A</NumeroDDT></DatiDDT></DatiGenerali></FatturaElettronicaBody>",
+  }),2,{corpo:1})},
   ${f(22,xml([["103/A",null]],[[1,"A81",1,66]]))},
   ${f(23,xml([["109/A",1],["999/A",2]],[[1,"A81",1,33],[2,"A81",1,33]]))},
   ${f(24,xml([["104/A",null]],[[1,"A81",1,66]]),4)},
@@ -104,13 +110,16 @@ insert into fatture_ricevute(id,company_id,fornitore_id,cedente_piva,cedente_cf,
   ${f(27,xml([["111/A",null]],[[1,"A81",2,100]]))},
   ${f(28,xml([["112/A",null]],[[1,"A81",2,200]]))},
   ${f(29,xml([["105/A",null]],[[1,"A81",1,72]]))},
-  ${f(30,xml([["113/A",null],["114/A",null]],[[1,"A81",1,22],[2,"A81",1,23]]))};
+  ${f(30,xml([["113/A",null],["114/A",null]],[[1,"A81",1,22],[2,"A81",1,23]]))},
+  ${f(31,xml([["115/A",null]],[[1,"A81",2,44]]))},
+  ${f(32,xml([["103/A",null]],[[1,"A81",1,66]]),2,{tipo:"TD04"})};
 insert into fattura_ddt(company_id,fattura_ricevuta_id,ddt_ricezione_id,numero_ddt,data_ddt,origine) values
   ${[link(21,101),link(21,102),link(22,103),link(23,109),link(23,null,999),link(24,104),link(25,106),
-    link(26,110),link(27,111),link(28,112),link(29,105),link(30,113),link(30,114)].join(",")};
+    link(26,110),link(27,111),link(28,112),link(29,105),link(30,113),link(30,114),link(31,115),link(32,103)].join(",")};
 insert into ddt_consegne values
   ${[arrivo(301,101,201,2),arrivo(302,102,202,2),arrivo(303,102,202,1,13,12),
-    arrivo(311,111,211,2,15),arrivo(312,112,212,2,15)].join(",")};
+    arrivo(311,111,211,2,15),arrivo(312,112,212,2,15),arrivo(315,115,215,2,16)].join(",")};
+insert into ddt_consegne values (${id(316)},${id(1)},${id(116)},${id(216)},'reso',${id(315)},1,'kg','cantiere',${id(10)},${id(16)});
 
 create function pg_temp.svuota_coda() returns void language plpgsql as $$
 begin
@@ -129,6 +138,8 @@ do $$declare esito jsonb; begin
   assert private.ddt_piano_prezzi(${id(25)})->>'motivo'='articolo';
   assert private.ddt_piano_prezzi(${id(26)})->>'motivo'='sconto_documento';
   assert private.ddt_piano_prezzi(${id(30)})->>'motivo'='riferimento_riga';
+  assert private.ddt_piano_prezzi(${id(31)})->>'motivo'='consegna';
+  assert private.ddt_piano_prezzi(${id(32)}) is null, 'Una nota di credito richiede la rettifica, non una nuova valorizzazione';
 end $$;
 
 -- Un addetto conferma un prezzo diverso prima che arrivi la consegna.
@@ -174,7 +185,7 @@ select private.ddt_prezzi_accoda(${id(21)});
 select pg_temp.svuota_coda();
 do $$begin
   assert (select count(*)=6 from ddt_valorizzazioni), 'Il retry non duplica le valorizzazioni';
-  assert (select count(*)=7 from ddt_consegne);
+  assert (select count(*)=9 from ddt_consegne);
   assert (select purchase_price=68.5 and prezzo_fonte='fattura' from order_items where id=${id(14)});
 end $$;
 select set_config('test.prezzi_uid',${id(3)}::text,true);
