@@ -2,13 +2,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
 import { ConfrontoTavoleAcquisti } from "@/components/orders/materiali/ConfrontoTavoleAcquisti";
+import type { ContestoAcquisti } from "@/lib/distinta/pianoAcquisti";
+import type { ConteggioTavola } from "@/lib/distinta/confrontaTavole";
 const state = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc } }));
-vi.mock("@/hooks/usePianoAcquistiComputo", () => ({ caricaContestoPianoAcquisti: async () => ({ magazzino: [], coperture: [], fasi: [], fornitori: [], esistenti: [
-  { id: "articolo", updated_at: "r1", chiave_materiale: "serramento", name: "Serramento A", quantity: 10, quantita_calcolata: 10, unita_misura: "pz", phase_id: "f1", origini: [{ tipo: "computo", voce_id: "v1", quantita: 10 }], stock_item_id: null },
+vi.mock("@/hooks/usePianoAcquistiComputo", () => ({ caricaContestoPianoAcquisti: async (): Promise<ContestoAcquisti> => ({ magazzino: [], coperture: [], fasi: [], fornitori: [], esistenti: [
+  { id: "articolo", updated_at: "r1", chiave_materiale: "serramento", name: "Serramento A", quantity: 10, quantita_calcolata: 10, unita_misura: "pz", phase_id: "f1", origini: [{ tipo: "computo", voce_id: "v1", codice: null, descrizione: "Serramento A", quantita_voce: 10, unita_voce: "pz", quantita: 10 }], stock_item_id: null },
 ] }) }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
-const conteggi = [{ id: "c1", updated_at: "v1", documento_id: "d1", documento_nome: "Pianta.pdf", pagina: 1, simbolo: "S1", descrizione_legenda: "Serramento A", quantita: 13, unita: "pz", phase_id: "f1", locale: null, confermato: true }];
+const conteggi: ConteggioTavola[] = [{ id: "c1", updated_at: "v1", documento_id: "d1", documento_nome: "Pianta.pdf", pagina: 1, simbolo: "S1", descrizione_legenda: "Serramento A", quantita: 13, unita: "pz", phase_id: "f1", locale: null, confermato: true }];
 function mostra(puoScrivere = true) { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ConfrontoTavoleAcquisti companyId="azienda" orderId="ordine" conteggi={conteggi} puoScrivere={puoScrivere} onAggiornati={() => {}} /></QueryClientProvider>); }
 it("confronta e richiede identità e ambito prima di sostituire la quantità", async () => {
   state.rpc.mockResolvedValue({ error: null }); mostra();

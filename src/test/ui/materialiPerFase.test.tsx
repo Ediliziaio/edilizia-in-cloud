@@ -418,7 +418,7 @@ describe("Un solo elenco: tutti gli articoli per fase", () => {
     await disegna();
     fireEvent.click(screen.getByRole("button", { name: /Seleziona da ordinare/ }));
     expect(screen.getByRole("button", { name: "Modifica in blocco" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Fornitori", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Fornitori" }));
     expect(screen.queryByRole("button", { name: "Modifica in blocco" })).toBeNull();
   });
   it("il filtro dei dati mancanti limita la revisione e annulla le selezioni nascoste", async () => {
@@ -463,12 +463,12 @@ describe("Un solo elenco: tutti gli articoli per fase", () => {
   it("azzera la ricerca e i filtri senza abbandonare la vista per fornitore", async () => {
     stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" }, materiali: [materiale("a", { supplier_id: "f1" })] }];
     await disegna();
-    fireEvent.click(screen.getByRole("button", { name: "Fornitori", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Fornitori" }));
     fireEvent.change(screen.getByLabelText("Cerca negli articoli della commessa"), { target: { value: "inesistente" } });
     expect(screen.getByText("Nessuna riga con questo filtro.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(screen.getByLabelText("Cerca negli articoli della commessa")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Fornitori", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Fornitori" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("rowgroup", { name: "Fornitore Elettroforniture Srl" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Azzera filtri" })).not.toBeInTheDocument();
   });

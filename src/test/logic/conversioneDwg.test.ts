@@ -7,7 +7,7 @@ const file = () => new NodeFile(['AC1021example'], 'originale.dwg') as unknown a
 const dxf = '0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n';
 const call = vi.fn<typeof fetch>();
 const auth = vi.hoisted(() => ({ sessione: true }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: { getSession: async () => ({ data: { session: auth.sessione ? { access_token: "synthetic-session-token" } : null }, error: null }) } } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: { getSession: async () => ({ data: { session: auth.sessione ? { access_token: "synthetic-session-token" } : null }, error: null as null }) } } }));
 beforeEach(() => {
   vi.stubGlobal('location', { hostname: '127.0.0.1' });
   vi.stubGlobal('crypto', webcrypto); vi.stubGlobal('File', NodeFile); vi.stubGlobal('fetch', call); call.mockReset(); auth.sessione = true;

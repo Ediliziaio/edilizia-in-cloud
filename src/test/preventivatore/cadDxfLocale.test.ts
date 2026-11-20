@@ -29,7 +29,7 @@ function native(mode: 'ok' | 'fail' | 'wait' | 'oversize' = 'ok') {
   });
 }
 const input = () => Readable.from([Buffer.from('AC1021example')]);
-const opzioni = () => ({ temporaryRoot: root, binary: '/trusted/dwg2dxf', avviaProcesso: avvia });
+const opzioni = () => ({ temporaryRoot: root, binary: '/trusted/dwg2dxf', avviaProcesso: avvia as unknown as typeof spawn });
 describe('Motore DWG → DXF: limiti, processo e pulizia', () => {
   it('preserva la provenienza e non trasmette segreti al processo nativo', async () => {
     native(); vi.stubEnv('OPENROUTER_API_KEY', 'synthetic-test-secret');
@@ -56,7 +56,7 @@ describe('Motore DWG → DXF: limiti, processo e pulizia', () => {
   });
   it('attende l’arresto del processo dopo l’annullamento e poi cancella i temporanei', async () => {
     native('wait'); const ctrl = new AbortController(), pending = convertDwgToDxf(input(), ctrl.signal, opzioni());
-    const assertion = pending.then(() => null, e => e);
+    const assertion = pending.then((): null => null, e => e);
     await vi.waitFor(() => expect(avvia).toHaveBeenCalled()); ctrl.abort(); expect(await assertion).toBeInstanceOf(Error); expect(await readdir(root)).toEqual([]);
   });
 });

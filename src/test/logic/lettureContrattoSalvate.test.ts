@@ -13,9 +13,9 @@ function archivio(riga: Record<string, unknown> | null) {
   const chain = {
     select: (v: unknown) => { calls.push(["select", v]); return chain; },
     eq: (...v: unknown[]) => { calls.push(["eq", v]); return chain; },
-    maybeSingle: async () => ({ data: modifica ? { id: "doc" } : riga, error: null }),
+    maybeSingle: async () => ({ data: modifica ? { id: "doc" } : riga, error: null as null }),
     update: (v: unknown) => { modifica = true; calls.push(["update", v]); return chain; },
-    insert: async (v: unknown) => { calls.push(["insert", v]); return { error: null }; },
+    insert: async (v: unknown) => { calls.push(["insert", v]); return { error: null as null }; },
   };
   const db = { from: (name: string) => { calls.push(["from", name]); return chain; } } as unknown as Parameters<typeof cercaLetturaContratto>[4];
   return { db, calls };

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { REGOLA_VOCI } from "@/lib/orders/avvisiContratto";
+import type { ContestoAcquisti } from "@/lib/distinta/pianoAcquisti";
 
 const mocks=vi.hoisted(()=>({invoke:vi.fn(),upload:vi.fn(),download:vi.fn(),maybeSingle:vi.fn(),toastError:vi.fn(),leggiComputo:vi.fn(),cerca:vi.fn(),recenti:vi.fn(),salva:vi.fn()}));
 vi.mock("@/lib/orders/lettureContrattoSalvate",async(importOriginal)=>({
@@ -14,7 +15,7 @@ vi.mock("@/lib/orders/lettureContrattoSalvate",async(importOriginal)=>({
 vi.mock("@/lib/orders/contrattoDaComputo",()=>({leggiComputoSenzaAi:mocks.leggiComputo}));
 vi.mock("@/hooks/useContractWorkflowProfile",()=>({useContractWorkflowProfile:()=>({data:"standard"})}));
 vi.mock("@/hooks/useFasiDiPartenza",()=>({useFasiDiPartenza:()=>({perContratto:[] as unknown[]})}));
-vi.mock("@/hooks/usePianoAcquistiComputo",()=>({usePianoAcquistiComputo:()=>({data:{magazzino:[],esistenti:[],coperture:[],fasi:[],fornitori:[]},isPending:false,isError:false})}));
+vi.mock("@/hooks/usePianoAcquistiComputo",()=>({usePianoAcquistiComputo:(): {data: ContestoAcquisti; isPending: boolean; isError: boolean}=>({data:{magazzino:[],esistenti:[],coperture:[],fasi:[],fornitori:[]},isPending:false,isError:false})}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"demo",name:"Demo Azienda S.r.l."}})}));
 const testo=vi.hoisted(()=>({pagine:[] as string[]}));
 vi.mock("@/lib/orders/testoPaginePdf",()=>({testoPaginePdf:async()=>testo.pagine}));

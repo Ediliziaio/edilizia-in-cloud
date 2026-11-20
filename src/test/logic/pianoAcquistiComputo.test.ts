@@ -41,7 +41,7 @@ describe("piano acquisti: residuo, giacenze e tempi", () => {
     expect(r.daComprare).toBe(100);
   });
   it("il codice articolo esatto permette di usare più lotti e convertire sacchi da 25 kg", () => {
-    const m = { ...materiale("m1"), collegamento: { tipo: "articolo" as const, id: "a1", nome: "Cemento sacco 25 kg", fonte: "scelto" as const, prezzo: 5, unita: "sacco", supplier_id: null } };
+    const m: MaterialeCollegato = { ...materiale("m1"), collegamento: { tipo: "articolo" as const, id: "a1", nome: "Cemento sacco 25 kg", fonte: "scelto" as const, prezzo: 5, unita: "sacco", supplier_id: null } };
     const [r] = pianoAcquisti([m], contesto({ codiciArticoli: { a1: "CEM25" }, magazzino: [stock({ internal_code: "CEM25", name: "Cemento sacco 25 kg", unita_misura: "sacco", quantity_available: 2 }), stock({ id: "w2", internal_code: "CEM25", name: "Cemento sacco 25 kg", unita_misura: "sacco", quantity_available: 1 })] }));
     expect(r.daMagazzino).toBe(75); expect(r.daComprare).toBe(25); expect(r.acquisto?.quantita).toBe(1);
   });
@@ -76,7 +76,8 @@ describe('coperture già presenti nella commessa',()=>{
   expect(r).toMatchObject({necessario:100,daMagazzino:100,daComprare:0});
  });
  it('una riserva sconosciuta, un ordine non collegato o una quantità modificata richiedono riconciliazione',()=>{
-  for(const extra of [{esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:'w1'}]},{coperturaIncompleta:true},{esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:null,quantity:80}]},{esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:null,quantity:100,unita_misura:'mq'}]}])expect(pianoAcquisti([materiale('m1')],contesto(extra))[0].daComprare).toBeNull();
+  const casi: Partial<ContestoAcquisti>[] = [{esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:'w1'}]},{coperturaIncompleta:true},{esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:null,quantity:80}]},{esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:null,quantity:100,unita_misura:'mq'}]}];
+  for(const extra of casi)expect(pianoAcquisti([materiale('m1')],contesto(extra))[0].daComprare).toBeNull();
  });
  it('consegna dopo l’avvio è un avviso anche quando l’ordine copre il fabbisogno',()=>{
   const riga={...ordine('confermato',100),purchase_orders:{...ordine().purchase_orders,expected_delivery_date:'2027-03-12'}};
@@ -85,7 +86,7 @@ describe('coperture già presenti nella commessa',()=>{
 });
 
 it('riconosce le confezioni salvate e converte riserve e ordini nella stessa unità del fabbisogno',()=>{
- const m={...materiale('m1',61),collegamento:{tipo:'articolo' as const,id:'a1',nome:'Cemento sacco 25 kg',fonte:'scelto' as const,prezzo:5,unita:'sacco',supplier_id:null},conversione:{quantita:3,unita:'sacco',contenuto:25,testo:'61 kg = 3 sacchi'}};
+ const m: MaterialeCollegato={...materiale('m1',61),collegamento:{tipo:'articolo' as const,id:'a1',nome:'Cemento sacco 25 kg',fonte:'scelto' as const,prezzo:5,unita:'sacco',supplier_id:null},conversione:{quantita:3,unita:'sacco',contenuto:25,testo:'61 kg = 3 sacchi'}};
  const [r]=pianoAcquisti([m],contesto({esistenti:[{id:'oi1',chiave_materiale:'m1',stock_item_id:'w1',quantity:3,unita_misura:'sacco',quantity_reserved:1}],coperture:[{...ordine('confermato',1),unit_of_measure:'sacco'}]}));
  expect(r).toMatchObject({necessario:61,ordinato:25,daMagazzino:25,daComprare:11,acquisto:{quantita:1,unita:'sacco'}});expect(r.avvisi).toEqual([]);
 });

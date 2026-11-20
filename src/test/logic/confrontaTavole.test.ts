@@ -32,7 +32,7 @@ describe("Tavole come riscontro del fabbisogno", () => {
     expect(riscontriTavolaObsoleti([{ ...origine, ruolo: "riscontro_precedente" }], [])).toBe(false);
   });
   it("la conferma della quantità in tavola non approva le rese generiche già da verificare", () => {
-    const materiale = { name: "Malta premiscelata", origini: [
+    const materiale: Parameters<typeof verificaDelMateriale>[0] = { name: "Malta premiscelata", origini: [
       { tipo: "computo" as const, voce_id: "v1", codice: null, descrizione: "Intonaco", quantita_voce: 100, unita_voce: "mq", quantita: 20, fonte: "libreria_standard" as const },
       { tipo: "planimetria" as const, ruolo: "riscontro_quantita" as const, conteggio_id: "c1", documento_id: "d1", documento: "Pianta.pdf", locale: null, simbolo: "M", quantita_simbolo: 25, quantita: 25,
         verifica_acquisto: { stato: "confermata" as const, motivi: ["Quantità verificata"], campi_mancanti: [] } },

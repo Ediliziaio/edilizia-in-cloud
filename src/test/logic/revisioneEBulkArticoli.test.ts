@@ -69,7 +69,8 @@ describe("riconoscimento senza altre letture AI", () => {
     expect(r.senzaScomposizione).toHaveLength(0);
     expect(r.righe).toHaveLength(1);
     expect(r.righe[0].quantita_calcolata).toBe(3);
-    expect(r.righe[0].origini[0].descrizione).toBe("F.P.O. di bocchettone sifonato");
+    const origine = r.righe[0].origini[0];
+    expect(origine.tipo === "computo" && origine.descrizione).toBe("F.P.O. di bocchettone sifonato");
     expect(r.righe[0].verifica_acquisto?.stato).toBe("da_verificare");
   });
 });

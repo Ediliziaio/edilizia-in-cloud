@@ -8,10 +8,10 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({
     stato.patch = patch;
     const q = { eq: (k: string, v: unknown) => { stato.filtri.push([k, v]); return q; },
       is: (k: string, v: unknown) => { stato.filtri.push([k, v]); return q; },
-      select: async () => ({ data: stato.righe, error: null }) };
+      select: async () => ({ data: stato.righe, error: null as null }) };
     return q;
   },
-  insert: async (patch: unknown) => { stato.inserimenti.push(patch); return { error: null }; },
+  insert: async (patch: unknown) => { stato.inserimenti.push(patch); return { error: null as null }; },
 }) } }));
 import { VociComputoEditor } from "@/components/orders/materiali/VociComputoEditor";
 const v = { id: "v1", ordine: 1, numero_ordine: "1", descrizione_breve: "Cavo elettrico", quantita: 10, unita_misura: "m",

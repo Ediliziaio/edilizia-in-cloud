@@ -462,7 +462,7 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
 describe("prodotti diversi con lo stesso legante", () => {
   it("non associa il cemento all'adesivo cementizio, nemmeno se ricordato con un alias", () => {
     const r = generaDistinta({voci:[voce({id:"cem",descrizione_breve:"Fornitura di cemento CEM II 32,5 R",unita_misura:"kg",quantita:10518.64})],scomposizioni:[]}).righe[0];
-    const catalogo = {articoli:[{id:"colla",name:"Adesivo cementizio per piastrelle C2TE sacco 25 kg",unit_of_measure:"sacco"}],listini:[],giaUsati:[],alias:[{alias_text:r.descrizione,article_template_id:"colla"}]};
+    const catalogo: Parameters<typeof collegaMateriali>[1] = {articoli:[{id:"colla",name:"Adesivo cementizio per piastrelle C2TE sacco 25 kg",unit_of_measure:"sacco"}],listini:[],giaUsati:[],alias:[{alias_text:r.descrizione,article_template_id:"colla"}]};
     expect(collegaMateriali([r],catalogo)[0].collegamento).toBeNull();
     expect(nomiInConflitto("Cemento", "Adesivo cementizio per piastrelle")).toBe(true);
     expect(nomiInConflitto("Fissativo acrilico", "Idropittura acrilica")).toBe(true);

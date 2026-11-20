@@ -5,7 +5,7 @@ import { applicaSovrapprezziSpessore } from "@/lib/distinta/sovrapprezziSpessore
 import { serviziDelComputo } from "@/lib/distinta/serviziComputo";
 import { vociGenzano } from "../support/vociGenzano";
 
-const voci = vociGenzano();
+const voci: VoceComputo[] = vociGenzano();
 const genera = (scomposizioni: Scomposizione[] = []) => generaDistinta({ voci, scomposizioni, riserva: catalogoComeScomposizioni() });
 const perNumero = (r: ReturnType<typeof genera>, n: string) => r.righe.filter(m => m.origini.some(o => o.tipo === "computo" && o.voce_id === n));
 

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import PlanimetrieDialog from "@/components/orders/materiali/PlanimetrieDialog";
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" }, user: { id: "utente" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: true }) }));
-vi.mock("@/components/orders/materiali/DisegnoCadPannello", () => ({ default: () => null }));
+vi.mock("@/components/orders/materiali/DisegnoCadPannello", () => ({ default: (): null => null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: string) => {
   const q = { select: () => q, eq: () => q, ilike: () => q, or: () => q, order: () => q, then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve({ error: null,
     data: tabella === "order_attachments" ? [{ id: "preventivo", file_name: "Trovato Vincenzo.pdf", file_url: "preventivo.pdf" }] : [] })) }; return q;

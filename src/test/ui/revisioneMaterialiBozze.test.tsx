@@ -39,11 +39,11 @@ describe("bozze della revisione senza approvazione implicita", () => {
     const vista = render(<QueryClientProvider client={qc}><RevisioneMateriali materiali={[m]} /></QueryClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Inizia revisione" }));
     fireEvent.change(screen.getByLabelText("Quantità verificata"), { target: { value: "15" } });
-    fireEvent.click(screen.getByRole("button", { name: "Pausa", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Pausa" }));
     expect(screen.getByText(/1 bozza da riprendere/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Riprendi revisione" }));
     expect(screen.getByLabelText("Quantità verificata")).toHaveValue("15");
-    fireEvent.click(screen.getByRole("button", { name: "Pausa", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Pausa" }));
     vista.rerender(<QueryClientProvider client={qc}><RevisioneMateriali materiali={[materiale("a", 20)]} /></QueryClientProvider>);
     expect(screen.queryByText(/bozza da riprendere/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Riprendi revisione" }));
@@ -54,7 +54,7 @@ describe("bozze della revisione senza approvazione implicita", () => {
     render(<QueryClientProvider client={client()}><RevisioneMateriali materiali={[materiale("a"), materiale("b")]} /></QueryClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Inizia revisione" }));
     fireEvent.click(screen.getByRole("button", { name: "Salta per ora" }));
-    fireEvent.click(screen.getByRole("button", { name: "Pausa", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Pausa" }));
     fireEvent.click(screen.getByRole("button", { name: "Riprendi revisione" }));
     expect(screen.getByLabelText("Prodotto")).toHaveValue("Serramento b");
     expect(screen.getByRole("dialog")).toHaveTextContent("Articolo 2 di 2");

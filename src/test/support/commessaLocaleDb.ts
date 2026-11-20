@@ -16,7 +16,7 @@ export function commessaLocaleDb(iniziali: Record<string, Riga[]> = {}) {
         const tutte = tabelle[tabella] ??= [];
         let righe = tutte.filter(r => filtri.every(f => f(r)));
         if (operazione === 'aggiorna') {
-          if (conflitti > 0) { conflitti--; return { data: [], error: null }; }
+          if (conflitti > 0) { conflitti--; return { data: [], error: null as null }; }
           for (const r of righe) Object.assign(r, structuredClone(payload), { updated_at: `revisione-${++seriale}` });
         } else if (operazione === 'inserisci' || operazione === 'upsert') {
           righe = [];
@@ -29,7 +29,7 @@ export function commessaLocaleDb(iniziali: Record<string, Riga[]> = {}) {
         }
         for (const [k, asc] of ordini.slice().reverse()) righe.sort((a,b) => String(a[k]).localeCompare(String(b[k]),undefined,{numeric:true})*(asc?1:-1));
         if (intervallo) righe = righe.slice(intervallo[0], intervallo[1] + 1);
-        return { data: structuredClone(righe.slice(0, limite)), error: null };
+        return { data: structuredClone(righe.slice(0, limite)), error: null as null };
       };
       const q = {
         select() { return q; },
@@ -55,13 +55,13 @@ export function commessaLocaleDb(iniziali: Record<string, Riga[]> = {}) {
           (tabelle.order_work_phases ??= []).push({id,company_id:'azienda',order_id:args.p_order_id,name:f.nome,position:seriale,start_date:f.data_inizio});
           for (const [position,s] of f.sottofasi.entries()) (tabelle.order_work_subphases ??= []).push({id:`sotto-${++seriale}`,phase_id:id,name:s.nome,position,quantita_fatta:0});
         }
-        return {data:args.p_fasi.length,error:null};
+        return {data:args.p_fasi.length,error: null as null};
       }
       if (nome === 'commessa_aggiungi_voci') {
         const esistenti = tabelle.order_items ??= [];
         for (const a of args.p_voci) esistenti.push({id:`articolo-${++seriale}`,order_id:args.p_commessa,name:a.name,quantity:a.quantity,riferimento:a.riferimento,position:esistenti.length,unita_misura:a.unita_misura,phase_id:a.phase_id,purchase_price:0});
-        if (perdeRispostaArticoli) { perdeRispostaArticoli = false; return {data:null,error:new Error('Connessione interrotta dopo il salvataggio')}; }
-        return {data:{voci_inserite:args.p_voci.length},error:null};
+        if (perdeRispostaArticoli) { perdeRispostaArticoli = false; return {data:null as null,error:new Error('Connessione interrotta dopo il salvataggio')}; }
+        return {data:{voci_inserite:args.p_voci.length},error: null as null};
       }
       throw new Error(`RPC non prevista: ${nome}`);
     },

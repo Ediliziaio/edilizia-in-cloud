@@ -7,17 +7,17 @@ import PlanimetrieDialog from "@/components/orders/materiali/PlanimetrieDialog";
 const state = vi.hoisted(() => ({ estrai: vi.fn(), rpc: vi.fn(), invoke: vi.fn(), immagine: vi.fn() }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" }, user: { id: "utente" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: true }) }));
-vi.mock("@/components/orders/materiali/DisegnoCadPannello", () => ({ default: () => null }));
+vi.mock("@/components/orders/materiali/DisegnoCadPannello", () => ({ default: (): null => null }));
 vi.mock("@/lib/distinta/tavolePdf", () => ({ estraiTestoTavola: state.estrai, immaginePaginaTavola: state.immagine, disegnaRiquadri: vi.fn(), sommaRiquadri: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc, functions: { invoke: state.invoke }, storage: { from: () => ({ download: async () => ({ data: { arrayBuffer: async () => new TextEncoder().encode("PDF sintetico di test").buffer }, error: null }) }) }, from: (table: string) => {
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc, functions: { invoke: state.invoke }, storage: { from: () => ({ download: async () => ({ data: { arrayBuffer: async () => new TextEncoder().encode("PDF sintetico di test").buffer }, error: null as null }) }) }, from: (table: string) => {
   const q = { select: () => q, eq: () => q, ilike: () => q, or: () => q, order: () => q,
-    then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve({ error: null, data: table === "order_attachments" ? [{ id: "doc", file_name: "Pianta sintetica.pdf", file_url: "ordine/pianta.pdf" }] : [] })) }; return q;
+    then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve({ error: null as null, data: table === "order_attachments" ? [{ id: "doc", file_name: "Pianta sintetica.pdf", file_url: "ordine/pianta.pdf" }] : [] })) }; return q;
 } } }));
 const testo = JSON.parse(readFileSync("src/test/fixtures/tavole/tavola_sintetica_fm_testo.json", "utf8")) as { s: string; x: number; y: number; h: number; p: number }[];
 const testi = [1, 2].flatMap(pagina => testo.filter(t => t.s !== "__PAGE__").map(t => ({ ...t, pagina })));
 const pdf = { testi, pagine: [{ numero: 1, larghezza: 1000, altezza: 1000 }, { numero: 2, larghezza: 1000, altezza: 1000 }] };
 beforeEach(() => {
-  vi.clearAllMocks(); vi.stubGlobal("crypto", webcrypto); state.estrai.mockResolvedValue(pdf); state.rpc.mockResolvedValue({ error: null }); state.immagine.mockResolvedValue("data:image/jpeg;base64,dGVzdA==");
+  vi.clearAllMocks(); vi.stubGlobal("crypto", webcrypto); state.estrai.mockResolvedValue(pdf); state.rpc.mockResolvedValue({ error: null as null }); state.immagine.mockResolvedValue("data:image/jpeg;base64,dGVzdA==");
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const mostra = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PlanimetrieDialog orderId="ordine" open onOpenChange={() => {}} /></QueryClientProvider>);
@@ -43,7 +43,7 @@ it("annullare scarta i risultati tardivi senza salvare o avviare l’AI", async 
   expect(screen.queryByRole("checkbox", { name: "Salva PA" })).not.toBeInTheDocument(); expect(state.rpc).not.toHaveBeenCalled(); expect(state.invoke).not.toHaveBeenCalled();
 });
 it("la legenda delle scansioni viene proposta dall’AI e rimane modificabile prima del conteggio", async () => {
-  state.invoke.mockResolvedValue({ data: { legenda: ["PA — Punto alimentazione", "S1 — Serramento A"] }, error: null });
+  state.invoke.mockResolvedValue({ data: { legenda: ["PA — Punto alimentazione", "S1 — Serramento A"] }, error: null as null });
   mostra(); await waitFor(() => expect(screen.getByRole("button", { name: "Leggi legenda con AI" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Leggi legenda con AI" }));
   expect(await screen.findByRole("textbox", { name: "Legenda della tavola" })).toHaveValue("PA — Punto alimentazione\nS1 — Serramento A");

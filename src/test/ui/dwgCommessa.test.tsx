@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({ converti: vi.fn<(...args: [File, string, Abort
   leggi: vi.fn(), carica: vi.fn(), inserisci: vi.fn(), from: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: state.from, rpc: (_name: string, args: {p_righe: unknown[]}) => state.inserisci(args.p_righe) } }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'synthetic-user' } }) }));
-vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [], refetch: vi.fn() }) }));
+vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [] as unknown[], refetch: vi.fn() }) }));
 vi.mock('@/lib/commesse/caricaDocumentoCommessa', () => ({ AVVISO_MB_DOCUMENTO: 20, caricaDocumentoCommessa: state.carica }));
 vi.mock('@/lib/distinta/cad/convertiDwg', () => ({ conversioneDwgLocaleDisponibile: () => true, convertiDwgLocale: state.converti }));
 vi.mock('@/lib/distinta/cad/leggiDisegnoCad', () => ({ ISTRUZIONI_DWG: 'Esporta DXF', leggiDisegnoCad: state.leggi }));

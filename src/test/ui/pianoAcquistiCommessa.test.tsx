@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { PianoAcquistiCommessa } from '@/components/orders/materiali/PianoAcquistiCommessa';
+import type { ContestoAcquisti } from '@/lib/distinta/pianoAcquisti';
 const mock = vi.hoisted(()=>({query:vi.fn()}));
 vi.mock('@/hooks/usePianoAcquistiComputo',()=>({usePianoAcquistiComputo:mock.query}));
 afterEach(()=>{cleanup();vi.clearAllMocks();});
-const contesto=()=>({magazzino:[{id:'w',name:'Zanzariera 1000x1500',quantity_available:2,unita_misura:'pz'}],
+const contesto=(): ContestoAcquisti =>({magazzino:[{id:'w',name:'Zanzariera 1000x1500',quantity_available:2,unita_misura:'pz'}],
  esistenti:[{id:'a',chiave_materiale:'documento:zanzariera',name:'Zanzariera 1000x1500',stock_item_id:null,quantity:13,quantita_calcolata:13,unita_misura:'pz',phase_id:'posa',supplier_id:'s',origini:[{tipo:'contratto',documento_ref:'documento',posizione_ref:'zanzariera',descrizione:'Zanzariera',quantita:13}]}],
  coperture:[{id:'po-item',order_item_id:'a',quantity:3,quantity_received:0,unit_of_measure:'pz',purchase_orders:{id:'po',oda_number:'ODA-1',status:'confermato'}}],
  fasi:[{id:'posa',start_date:'2027-03-20'}],fornitori:[{id:'s',lead_time_days:10}]});
