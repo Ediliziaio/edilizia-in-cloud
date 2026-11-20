@@ -1,14 +1,14 @@
 import { useState } from "react";
+import { MetricheFunzioni } from "@/components/admin/MetricheFunzioni";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceStrict } from "date-fns";
 import { it } from "date-fns/locale";
-import { RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Loader2, CreditCard, Mail } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronRight, AlertTriangle, CreditCard, Mail } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -79,50 +79,6 @@ function SyncLogs() {
     },
     refetchInterval: 30000,
     staleTime: 30_000,
-  });
-
-  const { data: edgeData, isLoading: edgeLoading } = useQuery({
-    queryKey: ['admin-edge-perf'],
-    queryFn: async () => {
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data, error } = await supabase
-        .from('system_health_metrics')
-        .select('function_name, status_code, latency_ms, recorded_at, error_message')
-        .eq('metric_type', 'edge_function_call')
-        .gte('recorded_at', oneDayAgo)
-        .order('recorded_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      const metrics = data ?? [];
-      const fnMap = new Map<string, { calls: number; errors: number; latencies: number[] }>();
-      for (const m of metrics) {
-        const fn = (m.function_name as string | null) ?? 'unknown';
-        const entry = fnMap.get(fn) ?? { calls: 0, errors: 0, latencies: [] };
-        entry.calls++;
-        if (((m.status_code as number | null) ?? 0) >= 400) entry.errors++;
-        if (m.latency_ms) entry.latencies.push(m.latency_ms as number);
-        fnMap.set(fn, entry);
-      }
-      const byFunction = Array.from(fnMap.entries())
-        .map(([name, d]) => ({
-          name,
-          calls: d.calls,
-          errors: d.errors,
-          errorRate: d.calls > 0 ? Math.round((d.errors / d.calls) * 100) : 0,
-          avgLatency:
-            d.latencies.length > 0
-              ? Math.round(d.latencies.reduce((a, b) => a + b, 0) / d.latencies.length)
-              : 0,
-        }))
-        .sort((a, b) => b.avgLatency - a.avgLatency)
-        .slice(0, 15);
-      const totalCalls = metrics.length;
-      const totalErrors = metrics.filter((m) => ((m.status_code as number | null) ?? 0) >= 400).length;
-      const latArr = metrics.filter((m) => m.latency_ms).map((m) => m.latency_ms as number);
-      const avgLatency = latArr.length > 0 ? Math.round(latArr.reduce((a, b) => a + b, 0) / latArr.length) : 0;
-      return { byFunction, totalCalls, totalErrors, avgLatency };
-    },
-    staleTime: 2 * 60 * 1000,
   });
 
   const getDuration = (row: any) => {
@@ -350,76 +306,7 @@ function SyncLogs() {
         </TabsContent>
 
         <TabsContent value="edge" className="space-y-4 mt-4">
-          {isMounted("edge") && <>
-          {/* Stat cards: stack su mobile, 3 cols su sm+ */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Chiamate (24h)</p>
-                <p className="text-xl font-bold">{(edgeData?.totalCalls ?? 0).toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Errori</p>
-                <p className={`text-xl font-bold ${(edgeData?.totalErrors ?? 0) > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
-                  {edgeData?.totalErrors ?? 0}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Latenza media</p>
-                <p className="text-xl font-bold">{edgeData?.avgLatency ?? 0}ms</p>
-              </CardContent>
-            </Card>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Top Funzioni per Latenza</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {edgeLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Funzione</TableHead>
-                      <TableHead className="text-right">Chiamate</TableHead>
-                      <TableHead className="text-right">Errori</TableHead>
-                      <TableHead className="text-right">Latenza media</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(edgeData?.byFunction ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          Nessun dato nelle ultime 24h
-                        </TableCell>
-                      </TableRow>
-                    ) : (edgeData?.byFunction ?? []).map((f) => (
-                      <TableRow key={f.name}>
-                        <TableCell className="font-mono text-xs">{f.name}</TableCell>
-                        <TableCell className="text-right">{f.calls}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={f.errors > 0 ? 'text-destructive font-medium' : ''}>{f.errors}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={f.avgLatency > 2000 ? 'destructive' : f.avgLatency > 1000 ? 'secondary' : 'outline'}>
-                            {f.avgLatency}ms
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-          </>}
+          {isMounted("edge") && <MetricheFunzioni />}
         </TabsContent>
       </Tabs>
     </div>

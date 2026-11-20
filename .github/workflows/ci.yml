@@ -51,6 +51,10 @@ jobs:
           src/test/ui/internalChatUpdates.test.tsx
           src/test/ui/platformHealthErrors.test.tsx
           src/test/logic/emailOpportunitaRetry.test.ts
+          src/test/security/fasiMetricheEmailSblocco.test.ts
+          src/test/ui/metricheFunzioniComplete.test.tsx
+          src/test/ui/annullamentoRapportinoErrori.test.tsx
+          src/test/ui/riordinoFasiAtomico.test.tsx
           src/test/logic/channelMessagesCache.test.ts
           src/test/ui/chatUnreadSharedRealtime.test.tsx
           src/test/logic/internalChatSecurityContract.test.ts
