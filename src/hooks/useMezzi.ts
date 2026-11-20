@@ -228,7 +228,7 @@ function useInvalidaMezzi() {
 }
 
 // «classe» la calcola il database dal tipo (colonna generata): non si scrive.
-export type MezzoInput = Partial<Omit<Mezzo, "company_id" | "created_at" | "updated_at" | "created_by" | "deleted_at" | "classe">> & {
+export type MezzoInput = Partial<Omit<Mezzo, "company_id" | "created_at" | "updated_at" | "created_by" | "deleted_at" | "classe" | "noleggio_dedicato">> & {
   nome: string;
 };
 
@@ -245,6 +245,7 @@ export function useSalvaMezzo() {
       if (typeof resto.targa === "string") resto.targa = resto.targa.toUpperCase().replace(/\s+/g, "");
       // Se arriva un mezzo intero (con la classe, generata dal database), la classe non si scrive.
       delete (resto as Record<string, unknown>).classe;
+      delete (resto as Record<string, unknown>).noleggio_dedicato;
       if (id) {
         const { error } = await supabase.from("mezzi").update(resto).eq("id", id).eq("company_id", companyId);
         if (error) throw error;
@@ -789,6 +790,7 @@ export function useMezziDellaCommessa(orderId: string | undefined) {
 
 export interface MontaggioSullaCommessa {
   id: string;
+  piano_id?: string | null;
   mezzo_id: string;
   nome: string;
   unita_misura: string | null;
@@ -809,20 +811,20 @@ export function useMontaggiDellaCommessa(orderId: string | undefined) {
     queryFn: async (): Promise<MontaggioSullaCommessa[]> => {
       const { data, error } = await db
         .from("mezzi_allocazioni")
-        .select("id, mezzo_id, quantita, dal, al, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, unita_misura, quantita_totale, rata_mensile, deleted_at)")
+        .select("*, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, unita_misura, quantita_totale, rata_mensile, deleted_at)")
         .eq("order_id", orderId)
         .eq("company_id", companyId)
         .order("dal", { ascending: true });
       if (error) throw error;
       const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
       type Riga = {
-        id: string; mezzo_id: string; quantita: number; dal: string; al: string | null;
+        id: string; piano_id?: string | null; mezzo_id: string; quantita: number; dal: string; al: string | null;
         mezzo: { nome: string; unita_misura: string | null; quantita_totale: number | null; rata_mensile: number | null; deleted_at: string | null } | null;
       };
       return ((data ?? []) as Riga[])
         .filter((r) => r.mezzo && !r.mezzo.deleted_at)
         .map((r) => ({
-          id: r.id, mezzo_id: r.mezzo_id, nome: r.mezzo!.nome, unita_misura: r.mezzo!.unita_misura,
+          id: r.id, piano_id: r.piano_id, mezzo_id: r.mezzo_id, nome: r.mezzo!.nome, unita_misura: r.mezzo!.unita_misura,
           quantita_totale: Number(r.mezzo!.quantita_totale ?? 0), rata_mensile: r.mezzo!.rata_mensile,
           quantita: Number(r.quantita), dal: r.dal, al: r.al, adesso: !r.al || r.al > oggi,
         }))

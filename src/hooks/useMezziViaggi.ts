@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 import type {
   ContestoViaggi,
   Viaggio,
@@ -25,13 +26,49 @@ async function call<T>(
   if (error)
     throw new Error(
       error.code === "PGRST202"
-        ? "Registro viaggi non ancora attivato sul server. Nessun dato è stato inviato."
+        ? name === "mezzi_arrivi_da_rapportini"
+          ? "Gli arrivi dai rapportini saranno disponibili dopo l’aggiornamento del database."
+          : "Registro viaggi non ancora attivato sul server. Nessun dato è stato inviato."
         : error.message,
+      { cause: error.code },
     );
   return data as T;
 }
 export const viaggiKey = (companyId: string) =>
   ["mezzi-viaggi", companyId] as const;
+const arriviKey = (companyId: string, orderId?: string) =>
+  orderId ? ["mezzi-arrivi-rapportini", companyId, orderId] : ["mezzi-arrivi-rapportini", companyId];
+
+export function useArriviDaRapportini({ companyId, orderId, dal, al, offset, enabled }: {
+  companyId: string;
+  orderId?: string;
+  dal: string;
+  al: string;
+  offset: number;
+  enabled: boolean;
+}) {
+  const actor = useAuth().user?.id;
+  return useQuery({
+    queryKey: [...arriviKey(companyId, orderId), actor, dal, al, offset],
+    enabled: enabled && !!actor && !!orderId,
+    queryFn: () => call<{ items: ArrivoDaRapportino[]; has_more: boolean }>("mezzi_arrivi_da_rapportini", {
+      p_order: orderId, p_dal: dal, p_al: al, p_offset: offset,
+    }),
+    retry: false,
+    staleTime: 15000,
+  });
+}
+
+export function useCollegaArrivoRapportino(companyId: string, orderId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ arrivo, viaggioId }: { arrivo: ArrivoDaRapportino; viaggioId: string }) =>
+      call<void>("mezzi_collega_arrivo_rapportino", {
+        p_order: orderId, p_giorno: arrivo.giorno, p_arrivo: arrivo.id, p_viaggio: viaggioId,
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: arriviKey(companyId, orderId) }),
+  });
+}
 export function useViaggiContesto(
   companyId: string,
   mezzoId: string,
@@ -133,6 +170,7 @@ export function useSalvaViaggio(companyId: string) {
     onSuccess: () => {
       attempt.current = null;
       void qc.invalidateQueries({ queryKey: viaggiKey(companyId) });
+      void qc.invalidateQueries({ queryKey: arriviKey(companyId) });
     },
     onError: () => {
       void qc.invalidateQueries({ queryKey: viaggiKey(companyId) });

@@ -7,6 +7,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * costi e fasi vecchi e rimette i nuovi in un colpo solo.
  */
 import { COLONNE_RAPPORTINO } from "@/lib/campo/colonneRapportino";
+import { isClientReport } from "@/lib/campo/reportKind";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -20,11 +21,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useNomiFasiCommessa } from "@/hooks/useRapportiniMese";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { refreshRapportinoQueries } from "@/lib/orders/refreshRapportinoQueries";
+import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
+import { campoArrivo, leggiArrivo, mezzoStradale, type ArrivoRapportino as DatiArrivo } from "@/lib/campo/arrivoRapportino";
 
 type Voce = Record<string, unknown>;
 interface Bozza {
   updatedAt: unknown; descrizione: string; note: string; ore: string; straordinario: string; conPresenze: boolean;
   presenze: Voce[]; fasi: Voce[]; materiali: Voce[]; mezzi: Voce[]; motivo: string;
+  arrivo: DatiArrivo;
 }
 const lista = (v: unknown): Voce[] => (Array.isArray(v) ? (v as Voce[]) : []);
 
@@ -87,6 +92,7 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
       ore: String(r.ore_lavorate ?? 0), straordinario: String(r.ore_straordinario ?? 0),
       conPresenze: lista(r.presenze).length > 0,
       presenze: lista(r.presenze), fasi: lista(r.fasi_lavorate), materiali: lista(r.materiali_usati), mezzi: lista(r.mezzi_usati), motivo: "",
+      arrivo: leggiArrivo(r.campi_extra),
     }; });
   const [nuovo, setNuovo] = useState(NUOVO_MATERIALE);
   const { data: nomiFasi } = useNomiFasiCommessa(orderId);
@@ -101,7 +107,7 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
   const mezzi = useQuery({
     queryKey: ["rapportino-mezzi-correzione", companyId], enabled: aperto && !!companyId, retry: false,
     queryFn: async () => {
-      const { data, error } = await supabase.from("mezzi").select("id, nome").eq("company_id", companyId!).is("deleted_at", null).order("nome");
+      const { data, error } = await supabase.from("mezzi").select("id, nome, targa, tipo, contatore_unita").eq("company_id", companyId!).is("deleted_at", null).order("nome");
       if (error) throw new Error(error.message);
       return data ?? [];
     },
@@ -125,12 +131,17 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
       };
       if (b.conPresenze && !b.presenze.length) { campi.ore_lavorate = 0; campi.ore_straordinario = 0; }
       if (!b.conPresenze) { campi.ore_lavorate = misuraRapportino(b.ore, "Ore", 24); campi.ore_straordinario = misuraRapportino(b.straordinario, "Straordinario", 24); }
+      const prima = leggiArrivo(riga.data.campi_extra);
+      if (b.arrivo.mezzoId !== prima.mezzoId || b.arrivo.partenza !== prima.partenza || b.arrivo.km !== prima.km) {
+        campi.arrivo_cantiere = campoArrivo(b.arrivo)[0] ?? null;
+      }
       const { error } = await db.rpc("rapportino_correggi", { p_id: rapportinoId, p_updated_at: b.updatedAt, p_campi: campi, p_motivo: b.motivo });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       toast.success(richiedeApprovazione ? "Rapportino corretto: in attesa di una nuova approvazione" : "Rapportino corretto");
       refreshWorkQueries(qc, orderId);
+      refreshRapportinoQueries(qc, orderId, companyId);
       void qc.invalidateQueries({ predicate: ({ queryKey }) => typeof queryKey[0] === "string" && /rappor|appalto-rendiconto/.test(queryKey[0]) });
       setAperto(false);
       onCorretto?.();
@@ -218,6 +229,9 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
                   }}><option value="">Aggiungi mezzo…</option>{mezzi.data?.filter((x) => !b.mezzi.some((m) => m.mezzo_id === x.id)).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}</UniformSelect>}
                   <p className="text-xs text-muted-foreground">Per sostituire un mezzo, rimuovilo e aggiungi quello corretto. Ore vuote o pari a zero: si usa la stima prevista dal sistema. Togli i mezzi non utilizzati.</p>
                 </div>
+                {riga.data && !isClientReport(riga.data) && <ArrivoRapportino valore={b.arrivo} onChange={arrivo => setB({ ...b, arrivo })}
+                  mezzi={(mezzi.data ?? []).filter(mezzoStradale)} caricamento={mezzi.isLoading} errore={mezzi.isError}
+                  riprova={() => void mezzi.refetch()} />}
                 <div><p className={titolo}>Note</p><Textarea aria-label="Note del rapportino" rows={2} className="mt-1 text-[13px]" value={b.note} onChange={(e) => setB({ ...b, note: e.target.value })} /></div>
                 <div><p className={titolo}>Motivo della correzione{approvato ? " *" : ""}</p><Input aria-label="Motivo della correzione" className="mt-1 h-8 text-[13px]" value={b.motivo} onChange={(e) => setB({ ...b, motivo: e.target.value })} placeholder="Es. ore sbagliate" /></div>
               </fieldset>

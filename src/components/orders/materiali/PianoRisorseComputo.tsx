@@ -12,11 +12,16 @@ import { Input } from "@/components/ui/input";
 const TIPI: Record<TipoRisorsa, string> = { nolo: "Noleggio", servizio: "Servizio", manodopera: "Manodopera", lotto: "Distinta da completare" };
 const STATI: Record<StatoPropostaRisorsa, string> = { da_completare: "Da completare", da_quotare: "Da quotare", in_gestione: "In gestione", esclusa: "Esclusa" };
 const n = (q: number) => q.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+export interface AzioniNoleggiComputo {
+  collegato: (computoId: string, proposta: PropostaRisorsa) => boolean;
+  apri: (computoId: string, proposta: PropostaRisorsa) => void;
+}
 
-function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModificare, faseIniziale }: {
+function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModificare, faseIniziale, noleggi }: {
   companyId: string; orderId: string; computoId: string; userId: string; puoModificare: boolean;
   dati: NonNullable<ReturnType<typeof usePianoRisorseComputo>["data"]>;
   faseIniziale?: string;
+  noleggi?: AzioniNoleggiComputo;
 }) {
   const [proposte, setProposte] = useState(dati.proposte);
   const [fase, setFase] = useState(faseIniziale ?? "");
@@ -52,15 +57,15 @@ function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModific
       </Button>}
     </div>
     {dati.salvato && <p className="text-xs text-muted-foreground">Salvato il {new Date(dati.salvato.salvato_il).toLocaleString("it-IT")} · revisione {dati.salvato.revisione}{modificata ? " · modifiche da salvare" : ""}</p>}
-    <p className="text-xs text-muted-foreground">Completa fornitore e date, poi gestisci prenotazioni e affidamenti dai moduli della commessa. Le quantità del computo restano come riferimento.</p>
+    <p className="text-xs text-muted-foreground">{noleggi ? "Apri la voce da pianificare e controlla quantità, unità e periodo." : "Completa fornitore e date, poi gestisci prenotazioni e affidamenti dai moduli della commessa."}</p>
     <div className="flex flex-wrap gap-4 text-xs underline">
-      <a href={`?tab=cantiere&vista_cantiere=lavorazioni#section-mezzi`}>Apri Mezzi e noleggi</a>
+      {!noleggi && <a href={`?tab=cantiere&vista_cantiere=lavorazioni#section-mezzi`}>Apri Mezzi e noleggi</a>}
       <a href={`?tab=costi&section=section-subappaltatori#section-subappaltatori`}>Apri Ditte e contratti</a>
     </div>
     <div className="max-h-[38rem] space-y-2 overflow-y-auto">
       {visibili.map(p => <details key={p.id} className="rounded-md border p-2" data-risorsa={p.id}>
         <summary className="cursor-pointer text-sm"><span className="font-medium">{TIPI[p.tipo]} · voci {p.fonti.map(f => f.numero ?? "—").join(", ")} · {p.descrizione}</span>
-          <span className="ml-2 text-xs text-muted-foreground">{STATI[p.scelta.stato]}{p.da_rivedere ? " · fonte cambiata: ricontrolla" : ""}</span>
+          <span className="ml-2 text-xs text-muted-foreground">{noleggi?.collegato(computoId, p) ? "Prenotazione collegata" : STATI[p.scelta.stato]}{p.da_rivedere ? " · fonte cambiata: ricontrolla" : ""}</span>
         </summary>
         <p className="mt-2 text-xs">Fasi: {p.fase_ids.map(id => dati.fasi.find(f => f.id === id)?.name ?? "Fase").join(" · ") || "Da collegare"} · {p.sottofase_ids.length} sottofasi collegate</p>
         <p className="mt-1 text-xs font-medium">{p.periodi.length ? p.periodi.map(t => `${n(t.quantita)} ${t.unita} × ${n(t.mesi)} mesi`).join(" + ") : p.quantita != null ? `${n(p.quantita)} ${p.unita}` : "Quantità fisica da completare"}</p>
@@ -80,12 +85,16 @@ function EditorRisorse({ companyId, orderId, computoId, userId, dati, puoModific
           <label className="sm:col-span-2">Note e inclusioni<textarea className="mt-1 min-h-16 w-full rounded border bg-background p-2" value={p.scelta.note} onChange={e => cambia(p.id, { note: e.target.value })} /></label>
           {p.da_rivedere && <label className="sm:col-span-2"><input type="checkbox" onChange={e => { if (e.target.checked) { setProposte(rr => rr.map(r => r.id === p.id ? { ...r, da_rivedere: false } : r)); setModificata(true); } }} /> Ho ricontrollato la fonte e le mie scelte</label>}
         </fieldset>
+        {p.tipo === "nolo" && noleggi && (noleggi.collegato(computoId, p) || p.scelta.stato !== "esclusa") &&
+          <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => noleggi.apri(computoId, p)}>
+            {noleggi.collegato(computoId, p) ? "Apri prenotazione" : "Pianifica noleggio"}
+          </Button>}
       </details>)}
     </div>
   </div>;
 }
 
-function RisorseDelComputo({ companyId, orderId, computoId, faseId }: { companyId: string; orderId: string; computoId: string; faseId?: string }) {
+function RisorseDelComputo({ companyId, orderId, computoId, faseId, noleggi }: { companyId: string; orderId: string; computoId: string; faseId?: string; noleggi?: AzioniNoleggiComputo }) {
   const { user } = useAuth();
   const permessi = usePermissions();
   const voci = useVociComputo(computoId, true);
@@ -93,17 +102,17 @@ function RisorseDelComputo({ companyId, orderId, computoId, faseId }: { companyI
   if (voci.isError || query.isError) return <p role="alert" className="text-sm text-amber-800">Non riesco a leggere il piano risorse. <button className="underline" onClick={() => { void voci.refetch(); void query.refetch(); }}>Riprova</button></p>;
   if (!query.data) return <p role="status" className="text-xs">Preparo risorse e collegamenti alle fasi…</p>;
   return <EditorRisorse key={`${computoId}:${query.data.salvato?.revisione ?? 0}`} companyId={companyId} orderId={orderId} computoId={computoId}
-    userId={user?.id ?? ""} puoModificare={!!user && !!permessi.canEditOrders} dati={query.data} faseIniziale={faseId} />;
+    userId={user?.id ?? ""} puoModificare={!!user && !!permessi.canEditOrders} dati={query.data} faseIniziale={faseId} noleggi={noleggi} />;
 }
 
-export function PianoRisorseComputo({ companyId, orderId, integrato = false, faseId, computoId }: { companyId: string; orderId: string; integrato?: boolean; faseId?: string; computoId?: string }) {
+export function PianoRisorseComputo({ companyId, orderId, integrato = false, faseId, computoId, noleggi }: { companyId: string; orderId: string; integrato?: boolean; faseId?: string; computoId?: string; noleggi?: AzioniNoleggiComputo }) {
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState("");
   const computi = useComputiCommessa(orderId, companyId);
   const letti = (computi.data ?? []).filter(computoLetto).filter(c => c.stato !== "archiviato");
   const computo = letti.find(c => c.id === (computoId ?? scelto)) ?? letti.find(c => c.stato === "contrattuale") ?? letti[0];
   if (!computo) return null;
-  if (integrato) return <RisorseDelComputo key={computo.id + (faseId ?? "")} companyId={companyId} orderId={orderId} computoId={computo.id} faseId={faseId} />;
+  if (integrato) return <RisorseDelComputo key={computo.id + (faseId ?? "")} companyId={companyId} orderId={orderId} computoId={computo.id} faseId={faseId} noleggi={noleggi} />;
   return <section className="space-y-3 rounded-lg border bg-card p-3" aria-label="Piano noleggi e servizi dal computo">
     <Button type="button" size="sm" variant="outline" aria-expanded={aperto} onClick={() => setAperto(v => !v)}>{aperto ? "Chiudi piano noleggi e servizi" : "Noleggi e servizi dal computo"}</Button>
     {aperto && <>

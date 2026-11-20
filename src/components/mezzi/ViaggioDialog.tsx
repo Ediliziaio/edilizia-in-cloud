@@ -30,6 +30,8 @@ import {
   type ViaggioPayload,
 } from "@/lib/mezzi/viaggi";
 import { getRoute } from "@/lib/routing";
+import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
+import { formatData, giornoItaliano } from "@/types/mezzi";
 import { toast } from "sonner";
 
 type Riga = Omit<TrattaViaggio, "km" | "minuti"> & {
@@ -114,7 +116,7 @@ function TappaInput({
     </div>
   );
 }
-function initial(viaggio?: Viaggio): Draft {
+function initial(viaggio?: Viaggio, arrivo?: ArrivoDaRapportino): Draft {
   return viaggio
     ? {
         id: viaggio.id,
@@ -133,7 +135,7 @@ function initial(viaggio?: Viaggio): Draft {
         })),
       }
     : {
-        id: crypto.randomUUID(),
+        id: arrivo?.id ?? crypto.randomUUID(),
         versione: 0,
         da: "",
         a: "",
@@ -141,13 +143,17 @@ function initial(viaggio?: Viaggio): Draft {
         cf: "",
         note: "",
         tariffa: "",
-        tratte: [nuovaTratta("Sede")],
+        tratte: [{
+          ...nuovaTratta(arrivo ? arrivo.partenza ?? "" : "Sede"),
+          km: arrivo?.km?.toString() ?? "",
+        }],
       };
 }
 interface ViaggioDialogProps {
   companyId: string;
   mezzoId: string;
   viaggio?: Viaggio;
+  arrivoRapportino?: ArrivoDaRapportino;
   onClose: () => void;
   defaultOrderId?: string;
 }
@@ -156,7 +162,7 @@ export function ViaggioDialog(props: ViaggioDialogProps) {
   if (!user?.id) return null;
   return (
     <ViaggioForm
-      key={`${props.companyId}:${user.id}:${props.mezzoId}:${props.viaggio?.id ?? "nuovo"}`}
+      key={`${props.companyId}:${user.id}:${props.mezzoId}:${props.viaggio?.id ?? props.arrivoRapportino?.id ?? "nuovo"}`}
       {...props}
     />
   );
@@ -165,11 +171,13 @@ function ViaggioForm({
   companyId,
   mezzoId,
   viaggio,
+  arrivoRapportino,
   onClose,
   defaultOrderId,
 }: ViaggioDialogProps) {
   const { user } = useAuth();
-  const storageKey = draftViaggioKey(companyId, user?.id ?? "", mezzoId);
+  const storageKey = draftViaggioKey(companyId, user?.id ?? "", mezzoId) +
+    (arrivoRapportino ? `:arrivo:${arrivoRapportino.id}` : "");
   const [draft, setDraft] = useState<Draft>(() => {
     if (!viaggio && user?.id)
       try {
@@ -179,6 +187,7 @@ function ViaggioForm({
           if (
             d.versione === 0 &&
             typeof d.id === "string" &&
+            (!arrivoRapportino || d.id === arrivoRapportino.id) &&
             typeof d.da === "string" &&
             typeof d.a === "string" &&
             typeof d.ci === "string" &&
@@ -210,7 +219,7 @@ function ViaggioForm({
       } catch {
         /* Le bozze non valide non vengono inviate. */
       }
-    return initial(viaggio);
+    return initial(viaggio, arrivoRapportino);
   });
   const [storageError, setStorageError] = useState(false);
   const completed = useRef(false);
@@ -297,6 +306,10 @@ function ViaggioForm({
       : {}),
   };
   const errors = erroriViaggio(dati);
+  if (arrivoRapportino && dati.arrivo && giornoItaliano(dati.arrivo) !== arrivoRapportino.giorno)
+    errors.push(`Indica l’arrivo del ${formatData(arrivoRapportino.giorno)}.`);
+  if (arrivoRapportino && !dati.tratte.some(t => t.order_id === defaultOrderId && t.destinazione === "commessa"))
+    errors.push("Collega almeno una tratta a questa commessa.");
   const summary = riepilogoViaggio(dati);
   const locked =
     viaggio?.stato === "verificato" || viaggio?.stato === "annullato";
@@ -394,7 +407,7 @@ function ViaggioForm({
       >
         <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6">
           <DialogTitle>
-            {viaggio ? "Rivedi viaggio" : "Registra viaggio e tappe"}
+            {viaggio ? "Rivedi viaggio" : arrivoRapportino ? `Completa l’arrivo del ${formatData(arrivoRapportino.giorno)}` : "Registra viaggio e tappe"}
           </DialogTitle>
           <DialogDescription>
             {context.data?.mezzo.nome ?? "Mezzo"} ·{" "}
@@ -457,7 +470,7 @@ function ViaggioForm({
               <div className="space-y-1 text-sm">
                 <span className="flex items-center justify-between">
                   <Label htmlFor="viaggio-partenza">Partenza</Label>
-                  <Button
+                  {!arrivoRapportino && <Button
                     type="button"
                     variant="ghost"
                     size="sm"
@@ -466,7 +479,7 @@ function ViaggioForm({
                     }
                   >
                     Partenza ora
-                  </Button>
+                  </Button>}
                 </span>
                 <Input
                   aria-label="Data e ora partenza"
@@ -479,7 +492,7 @@ function ViaggioForm({
               <div className="space-y-1 text-sm">
                 <span className="flex items-center justify-between">
                   <Label htmlFor="viaggio-arrivo">Arrivo</Label>
-                  <Button
+                  {!arrivoRapportino && <Button
                     type="button"
                     variant="ghost"
                     size="sm"
@@ -488,7 +501,7 @@ function ViaggioForm({
                     }
                   >
                     Arrivo ora
-                  </Button>
+                  </Button>}
                 </span>
                 <Input
                   aria-label="Data e ora arrivo"

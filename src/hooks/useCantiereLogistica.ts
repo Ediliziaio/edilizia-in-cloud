@@ -10,6 +10,7 @@ export interface IndirizzoCantiere {
   indirizzo: string | null;
   lat: number | null;
   lng: number | null;
+  versione?: number | null;
 }
 
 export function useIndirizzoCantiere(orderId: string) {
@@ -20,14 +21,16 @@ export function useIndirizzoCantiere(orderId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("indirizzo_lavori, work_lat, work_lng")
+        .select("indirizzo_lavori, work_address, work_lat, work_lng, version")
         .eq("id", orderId)
+        .is("deleted_at", null)
         .maybeSingle();
       if (error) throw error;
       return {
-        indirizzo: data?.indirizzo_lavori?.trim() || null,
+        indirizzo: data?.work_address?.trim() || data?.indirizzo_lavori?.trim() || null,
         lat: data?.work_lat == null ? null : Number(data.work_lat),
         lng: data?.work_lng == null ? null : Number(data.work_lng),
+        versione: data?.version,
       };
     },
   });

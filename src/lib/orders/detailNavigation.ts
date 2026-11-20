@@ -76,7 +76,7 @@ export function resolveCostiView(search: string, section?: string): CostiView {
 const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
   "section-lavorazioni": "lavorazioni",
   "section-cronoprogramma": "cronoprogramma", "section-squadra": "lavorazioni", "section-statistiche": "squadra",
-  "section-mezzi": "lavorazioni", "section-rapportini": "diario",
+  "section-mezzi": "lavorazioni", "section-viaggi": "lavorazioni", "section-rapportini": "diario",
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
   "section-assistenza": "collaudo", "section-sopralluoghi": "sopralluoghi",
   "section-figure-responsabilita": "lavorazioni",
@@ -122,6 +122,7 @@ const SECTION_TABS = {
   "section-figure-responsabilita": "cantiere",
   "section-statistiche": "cantiere",
   "section-mezzi": "cantiere",
+  "section-viaggi": "cantiere",
   "section-diario": "cantiere",
   "section-sal": "finanza",
   "section-materiali": "articoli",

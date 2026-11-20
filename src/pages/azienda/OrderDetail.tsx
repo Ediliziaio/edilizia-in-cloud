@@ -81,6 +81,7 @@ const OrderErrors = lazy(() => import("@/components/orders/OrderErrors").then((m
 const RendicontoAppalto = lazy(() => import("@/components/orders/RendicontoAppalto").then((m) => ({ default: m.RendicontoAppalto })));
 const SicurezzaCommessa = lazy(() => import("@/components/sicurezza/SicurezzaCommessa").then((m) => ({ default: m.SicurezzaCommessa })));
 const PianoMezziCantiere = lazy(() => import("@/components/mezzi/PianoMezziCantiere").then((m) => ({ default: m.PianoMezziCantiere })));
+const CantiereLogistica = lazy(() => import("@/components/orders/CantiereLogistica").then((m) => ({ default: m.CantiereLogistica })));
 const OrderEconomicsSummary = lazy(() => import("@/components/orders/OrderEconomicsSummary").then((m) => ({ default: m.OrderEconomicsSummary })));
 const RapportiniUfficio = lazy(() => import("@/components/orders/RapportiniUfficio").then((m) => ({ default: m.RapportiniUfficio })));
 const OrderAcceptanceReports = lazy(() => import("@/components/orders/OrderAcceptanceReports").then((m) => ({ default: m.OrderAcceptanceReports })));
@@ -2309,10 +2310,13 @@ function OrderDetailInner() {
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
+                logisticaIntegrata
                 importoContratto={agreedAmount}
                 organizationContent={figureResponsabilita}
                 onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })}
-                lavoriExtra={permissions.canViewOrderAmounts && effectiveCompany?.id ? <LavoriExtraPopup orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} /> : undefined} />
+                lavoriExtra={permissions.canViewOrderAmounts && effectiveCompany?.id ? <LavoriExtraPopup orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti}
+                  className="h-9 border-transparent bg-transparent px-2.5 font-medium hover:bg-accent"
+                  onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} /> : undefined} />
               {/* «Supporto AI per le assegnazioni» è nel menu «Silvio AI» in testa alla commessa (31/10/2026). */}
             </div>
             </>}
@@ -2343,8 +2347,9 @@ function OrderDetailInner() {
                 <OrderResourceStatistics key={id} orderId={id!} onManage={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
               </OrderDisclosure>
             </div>}
-            {vistaCantiere === "lavorazioni" && !isMobile && <div id="section-mezzi" className="scroll-mt-24">
-              <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} /></ErrorBoundary>
+            {vistaCantiere === "lavorazioni" && <div id="section-mezzi" className="scroll-mt-36 space-y-3 md:scroll-mt-24">
+              <ErrorBoundary><CantiereLogistica key={id} orderId={id!} showSiteEquipment={false} /></ErrorBoundary>
+              <ErrorBoundary><PianoMezziCantiere key={id} orderId={id!} conViaggi /></ErrorBoundary>
             </div>}
             {vistaCantiere === "giornale" && <div id="section-giornale" className="scroll-mt-24"><GiornaleLavoriContenuto key={id} orderIdFisso={id!} /></div>}
             {vistaCantiere === "diario" && <>
