@@ -59,7 +59,17 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
   return (
     <Dialog open={aperto} onOpenChange={(o) => { if (!inCorso) setAperto(o); }}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="gap-1.5"><CopyPlus className="h-3.5 w-3.5" />Copia con un altro modello</Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label="Copia con un altro modello"
+          title="Copia con un altro modello"
+          className="shrink-0 gap-1.5 max-xl:w-10 max-xl:px-0"
+        >
+          <CopyPlus className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden xl:inline">Copia con modello</span>
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>

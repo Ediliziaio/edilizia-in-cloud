@@ -74,7 +74,7 @@ export default function ComputoPreventivo() {
       onApriCommessa: (quoteId: string) => { void navigate(`/azienda/ordini/nuovo?quote_id=${quoteId}`); } } : undefined,
     onFaseChange: (n: number) => { const next = new URLSearchParams(params); next.set("fase", String(n + 1)); setParams(next); },
     onBack: () => { void navigate("/azienda/marketing/preventivi"); } };
-  return <div className={`mx-auto w-full ${fase === 2 ? "max-w-none" : "max-w-[1440px]"} space-y-4 p-3 sm:p-6`}>
+  return <div className={`mx-auto w-full min-w-0 ${fase === 2 ? "max-w-none" : "max-w-[1440px]"} space-y-4 md:p-6`}>
     {prefill.error && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{prefill.error.message} Puoi selezionare il destinatario nel passo Dati.</p>}
     <CollegamentiComputoNativo companyId={effectiveCompany.id} draftId={id} />
     {computoCloudAttivo(effectiveCompany.id)

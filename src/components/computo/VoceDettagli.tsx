@@ -33,6 +33,8 @@ const num = (raw: string): number | null => {
   return Number.isFinite(v) ? v : null;
 };
 const it = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+const DIMENSIONI = [["parti", "Parti uguali"], ["lunghezza", "Lunghezza"], ["larghezza", "Larghezza"], ["altezza", "Altezza"]] as const;
+const GRIGLIA_MISURA = "md:grid-cols-[minmax(0,1fr)_4rem_4.5rem_4.5rem_4.5rem_4.5rem_1.75rem]";
 
 export function VoceDettagli({ voce, onChange, idBase }: Props) {
   const [aperto, setAperto] = useState(false);
@@ -56,7 +58,7 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
   return (
     <Collapsible open={aperto} onOpenChange={setAperto} className="w-full">
       <CollapsibleTrigger asChild>
-        <button type="button" className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+        <button type="button" className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring max-sm:min-h-9 max-sm:text-xs">
           <ChevronDown className={cn("h-3 w-3 shrink-0 transition-transform", aperto && "rotate-180")} aria-hidden />
           <span className="font-medium">Dettagli</span>
           {voce.opzionale === true && <span className="rounded bg-amber-100 px-1.5 py-px text-[10px] font-medium text-amber-900">Opzionale · non nel totale</span>}
@@ -90,34 +92,39 @@ export function VoceDettagli({ voce, onChange, idBase }: Props) {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-xs font-medium"><Ruler className="h-3.5 w-3.5" aria-hidden /> Misure (come si ricava la quantità)</p>
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={aggiungiMisura} disabled={misure.length >= MAX_MISURE_PER_VOCE}>
+              <Button type="button" variant="outline" size="sm" className="h-9 px-2 text-xs md:h-7 md:text-[11px]" onClick={aggiungiMisura} disabled={misure.length >= MAX_MISURE_PER_VOCE}>
                 <Plus className="mr-1 h-3 w-3" aria-hidden /> Aggiungi misura
               </Button>
             </div>
             {misure.length > 0 && (
               <div className="space-y-1.5">
-                <div className="overflow-x-auto"><div className="min-w-[34rem] space-y-1.5">
-                <div className="grid grid-cols-[1fr_4rem_4.5rem_4.5rem_4.5rem_4.5rem_1.75rem] gap-1.5 px-0.5 text-[10px] text-muted-foreground">
-                  <span>Descrizione</span><span>Parti</span><span>Lunghezza</span><span>Larghezza</span><span>Altezza</span><span className="text-right">Totale</span><span />
-                </div>
-                {misure.map((m, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_4rem_4.5rem_4.5rem_4.5rem_4.5rem_1.75rem] items-center gap-1.5">
-                    <Input aria-label={`Descrizione misura ${i + 1}`} value={m.descrizione} maxLength={120} placeholder="es. parete lunga" className="h-8 text-xs"
-                      onChange={(e) => setMisura(i, { descrizione: e.target.value })} />
-                    <Input aria-label={`Parti uguali, misura ${i + 1}`} inputMode="decimal" value={m.parti} className="h-8 text-xs tabular-nums"
-                      onChange={(e) => setMisura(i, { parti: num(e.target.value) ?? 0 })} />
-                    <Input aria-label={`Lunghezza, misura ${i + 1}`} inputMode="decimal" value={m.lunghezza ?? ""} className="h-8 text-xs tabular-nums"
-                      onChange={(e) => setMisura(i, { lunghezza: num(e.target.value) })} />
-                    <Input aria-label={`Larghezza, misura ${i + 1}`} inputMode="decimal" value={m.larghezza ?? ""} className="h-8 text-xs tabular-nums"
-                      onChange={(e) => setMisura(i, { larghezza: num(e.target.value) })} />
-                    <Input aria-label={`Altezza, misura ${i + 1}`} inputMode="decimal" value={m.altezza ?? ""} className="h-8 text-xs tabular-nums"
-                      onChange={(e) => setMisura(i, { altezza: num(e.target.value) })} />
-                    <span className="text-right text-xs tabular-nums">{it(quantitaRigaMisura(m))}</span>
-                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`Togli la misura ${i + 1}`}
-                      onClick={() => onChange({ misure: misure.filter((_, k) => k !== i) })}><Trash2 className="h-3.5 w-3.5" aria-hidden /></Button>
+                <div className="md:overflow-x-auto">
+                  <div className="space-y-2 md:min-w-[34rem] md:space-y-1.5">
+                    <div aria-hidden="true" className={cn("hidden gap-1.5 px-0.5 text-[10px] text-muted-foreground md:grid", GRIGLIA_MISURA)}>
+                      <span>Descrizione</span><span>Parti</span><span>Lunghezza</span><span>Larghezza</span><span>Altezza</span><span className="text-right">Totale</span><span />
+                    </div>
+                    {misure.map((m, i) => (
+                      <div key={i} role="group" aria-label={`Misura ${i + 1}`} className={cn("grid grid-cols-2 items-center gap-1.5 max-md:gap-y-2 max-md:rounded-lg max-md:border max-md:bg-background max-md:p-2.5", GRIGLIA_MISURA)}>
+                        <label className="min-w-0 max-md:col-span-full">
+                          <span className="mb-1 block text-xs font-medium md:hidden">Descrizione</span>
+                          <Input aria-label={`Descrizione misura ${i + 1}`} value={m.descrizione} maxLength={120} placeholder="es. parete lunga" className="h-10 text-base md:h-8 md:text-xs"
+                            onChange={(e) => setMisura(i, { descrizione: e.target.value })} />
+                        </label>
+                        {DIMENSIONI.map(([campo, label]) => (
+                          <label key={campo} className="min-w-0">
+                            <span className="mb-1 block text-xs font-medium md:hidden">{label}</span>
+                            <Input aria-label={`${label}, misura ${i + 1}`} inputMode="decimal" value={m[campo] ?? ""}
+                              className="h-10 text-base tabular-nums md:h-8 md:text-xs"
+                              onChange={e => setMisura(i, { [campo]: num(e.target.value) ?? (campo === "parti" ? 0 : null) })} />
+                          </label>
+                        ))}
+                        <span className="text-xs tabular-nums md:text-right"><span className="mr-1 text-muted-foreground md:hidden">Totale</span><strong>{it(quantitaRigaMisura(m))}</strong></span>
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 max-md:justify-self-end md:h-7 md:w-7" aria-label={`Togli la misura ${i + 1}`}
+                          onClick={() => onChange({ misure: misure.filter((_, k) => k !== i) })}><Trash2 className="h-3.5 w-3.5" aria-hidden /></Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                </div></div>
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
                   <span>Dalle misure: <strong className="tabular-nums">{daMisure === null ? "—" : `${it(daMisure)} ${voce.unita_misura}`}</strong>
                     {diversa && <span className="ml-2 text-amber-700">La quantità della voce è {it(Number(voce.quantita) || 0)}: diversa.</span>}

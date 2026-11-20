@@ -1239,13 +1239,19 @@ export function UnifiedPreventiviList() {
 
       {/* ─── Telefono: ricerca e bottone dei filtri ─── */}
       <CercaConFiltri
-        className="md:hidden"
+        className="md:hidden [&_input]:h-11 [&_input]:text-base [&_button]:h-11 [&_button]:w-11"
         valore={search}
         onCambia={setSearch}
         segnaposto="Cerca numero, cliente, commerciale"
         filtriAttivi={filtriMobileAttivi}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
+      {hasAnyFilter && (
+        <div className="flex min-h-8 items-center justify-between gap-2 text-xs text-muted-foreground md:hidden">
+          <span role="status">{filtered.length} {filtered.length === 1 ? "risultato" : "risultati"}</span>
+          <Button type="button" variant="ghost" size="sm" className="tap-compact h-8 px-2 text-xs" onClick={reset}>Azzera filtri</Button>
+        </div>
+      )}
       <PannelloFiltri
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
@@ -1643,8 +1649,8 @@ export function UnifiedPreventiviList() {
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
-                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, r.numero === tipoCfg.label ? null : tipoCfg.label, formatDateSafe(r.data),
-                        eInScadenza(r, adessoElenco) ? etichettaScadenza(r, adessoElenco) : null].filter(Boolean).join(" · ")}
+                      sottotitolo={[r.numero === tipoCfg.label ? null : tipoCfg.label, senzaCliente ? null : r.numero,
+                        eInScadenza(r, adessoElenco) ? etichettaScadenza(r, adessoElenco) : formatDateSafe(r.data), r.titolo].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     /></div>

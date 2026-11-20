@@ -1971,6 +1971,19 @@ function FotovoltaicoWizard() {
         lastModified={lastSaveText}
         actions={
           <>
+            {!readOnlyMode && progettoEsistente && (
+              <ModelloDelPreventivo
+                tabella="fv_progetti"
+                interventi={interventiDelModulo("fotovoltaico").map((i) => ({ id: i.id, title: i.title }))}
+                progetto={progettoEsistente}
+                snapshot={modelloSalvato.snapshot}
+                costruisci={(_companyId, m) => costruisciModelloFv(m)}
+                onVersion={(updated) => {
+                  if (updated.updated_at) configurationVersionRef.current = { projectId: updated.id, updatedAt: updated.updated_at };
+                }}
+                onAggiornato={rileggiProgetto}
+              />
+            )}
             <button
               type="button"
               onClick={() => {
@@ -2010,33 +2023,17 @@ function FotovoltaicoWizard() {
           <>
             <FvChip variant={readOnlyMode ? "yellow" : "green"}>
               {readOnlyMode ? "🔒" : <Sun className="h-3 w-3" />}
-              {readOnlyMode ? "Sola lettura" : "Fotovoltaico"}
+              {readOnlyMode ? "Sola lettura" : (progettoId && intervento?.title) || "Fotovoltaico"}
             </FvChip>
+            {readOnlyMode && intervento && <span>{intervento.title}</span>}
           </>
         }
       />
-      {progettoEsistente && progettoEsistente.stato === "bozza" && (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-3">
-          <ModelloDelPreventivo
-            tabella="fv_progetti"
-            interventi={interventiDelModulo("fotovoltaico").map((i) => ({ id: i.id, title: i.title }))}
-            progetto={progettoEsistente}
-            snapshot={modelloSalvato.snapshot}
-            costruisci={(_companyId, m) => costruisciModelloFv(m)}
-            onVersion={(updated) => {
-              if (updated?.updated_at) configurationVersionRef.current = { projectId: updated.id, updatedAt: updated.updated_at };
-            }}
-            onAggiornato={rileggiProgetto}
-          />
-        </div>
+      {intervento && !progettoId && !modelSupport.supported && (
+        <p role="alert" className="mx-3 my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:mx-6">
+          {modelSupport.isLoading ? "Verifica del salvataggio…" : "Attendi l’attivazione del database prima di compilare."}
+        </p>
       )}
-
-      {/* Telefono: niente testata dell'intervento; resta solo l'avviso, se c'è. */}
-      {intervento && <section className={`mx-auto w-full max-w-6xl space-y-1 px-4 pt-4 max-sm:space-y-0 max-sm:px-0 max-sm:pt-0 max-sm:pb-3${!progettoId && !modelSupport.supported ? "" : " max-sm:hidden"}`} aria-label={`Intervento ${intervento.title}`}>
-        <p className="font-semibold max-sm:hidden">Preventivo · {intervento.title}</p>
-        <p className="text-sm text-muted-foreground max-sm:hidden">{intervento.summary} Il PDF usa il modello dell'azienda per questo intervento{progettoId ? ", conservato nel preventivo" : ""}.</p>
-        {!progettoId && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
-      </section>}
 
       {/* ── Riprendi bozza: su /nuovo, se esiste una bozza DB dell'utente ── */}
       <AlertDialog open={Boolean(!id && !progettoId && !requestedModel && ultimaBozza && !resumeDismissed && !readOnlyMode)}>

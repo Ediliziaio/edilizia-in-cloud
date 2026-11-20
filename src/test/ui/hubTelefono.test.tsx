@@ -36,7 +36,8 @@ describe("hub da telefono: cosa si vede", () => {
     for (const si of ["Il mio profilo", "Profilo aziendale", "Utenti e permessi", "Notifiche", "Sicurezza & Privacy", "Esporta i dati"]) {
       expect(nomi.some((n) => n.includes(si)), si).toBe(true);
     }
-    for (const no of ["Listino", "Modelli preventivi e contratti", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Stati commessa", "Sedi", "Marchio e colori"]) {
+    expect(screen.getByRole("link", { name: /Modelli preventivi e contratti/ })).toHaveAttribute("href", "/azienda/impostazioni/template-preventivi");
+    for (const no of ["Listino", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Stati commessa", "Sedi", "Marchio e colori"]) {
       expect(nomi.some((n) => n.startsWith(no)), no).toBe(false);
     }
   });

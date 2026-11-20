@@ -114,16 +114,17 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
   // Una voce per argomento: dentro, le schede delle pagine (vedi SettingsLayout).
   const voceGruppo = (id: GruppoImpostazioni["id"], icon: React.ReactNode): SettingsNavItem => {
     const gruppo = GRUPPI_IMPOSTAZIONI.find((g) => g.id === id)!;
-    const schede = schedeVisibili(gruppo, isAdmin, permissions).filter((s) => impostazioneNelPiano(s.to, piano));
+    const soloModelli = isMobile && id === "modelli";
+    const schede = schedeVisibili(gruppo, isAdmin, permissions)
+      .filter((s) => impostazioneNelPiano(s.to, piano) && (!soloModelli || s.sezione === "template-preventivi"));
     return {
       to: schede[0]?.to ?? gruppo.schede[0].to,
       label: gruppo.titolo,
       icon,
       visible: schede.length > 0,
-      attivoSu: (pathname) => percorsoNelGruppo(gruppo, pathname),
-      indirizzi: gruppo.schede.map((s) => s.to),
-      // Listini e modelli si gestiscono da tablet o computer (richiesta 09/11/2026).
-      desktopOnly: id === "listino" || id === "modelli",
+      attivoSu: (pathname) => soloModelli ? sezioneDaPercorso(pathname) === "template-preventivi" : percorsoNelGruppo(gruppo, pathname),
+      indirizzi: (soloModelli ? schede : gruppo.schede).map((s) => s.to),
+      desktopOnly: id === "listino",
     };
   };
   const gruppi: SettingsNavGroup[] = [

@@ -783,17 +783,6 @@ export default function SerramentiWizard() {
     // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
     // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
     <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
-      {/* Una riga sola (07/11/2026): il modello, cosa vuol dire, e l'aggiornamento. I passi li dice la barra qui sotto. */}
-      {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-3"><div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm">
-        <p className="font-semibold">{modelDefinition.title}</p>
-        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo: finché è in bozza lo puoi aggiornare con quello di adesso."}>
-          {isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo: finché è in bozza lo puoi aggiornare con quello di adesso."}
-        </p>
-        {!isNew && detail && <div className="shrink-0">{modelloDelPreventivo}</div>}
-        {isNew && !modelSupport.supported && <p role="alert" className="w-full rounded border border-amber-300 bg-amber-50 p-3">Il salvataggio di questo intervento richiede l'attivazione del database. Non inserire dati finché il collegamento non è attivo.</p>}
-      </div></div>}
-      {!modelDefinition && !isNew && detail && <div className="mx-auto max-w-6xl px-4 pt-4">{modelloDelPreventivo}</div>}
-      {/* Sticky header */}
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
@@ -878,7 +867,7 @@ export default function SerramentiWizard() {
             <div className="flex items-center gap-2 flex-wrap max-md:gap-y-0.5">
               <RectangleVertical className="h-4 w-4 text-orange-600 max-md:hidden" />
               <span className="font-semibold text-sm max-md:order-1 max-md:text-[15px]">
-                {isNew ? "Nuovo preventivo" : detail?.progetto.code}
+                {isNew ? modelDefinition?.title ?? "Nuovo preventivo" : detail?.progetto.code}
               </span>
               {detail?.progetto.cliente_nome && (
                 <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground">
@@ -952,6 +941,11 @@ export default function SerramentiWizard() {
                   Rev. {detail.progetto.revision_number}
                 </Badge>
               )}
+              {!isNew && modelDefinition && (
+                <span className="w-0 flex-1 truncate text-xs text-muted-foreground max-lg:hidden" title={modelDefinition.title}>
+                  {modelDefinition.title}
+                </span>
+              )}
               {/* Telefono: codice e stato sulla prima riga, cliente e salvataggio sotto. */}
               <span aria-hidden className="hidden h-0 basis-full max-md:order-3 max-md:block" />
               {/* Da computer il salvataggio lo dice il piede: qui resta solo da telefono, dove il piede non ha lo stato. */}
@@ -966,6 +960,7 @@ export default function SerramentiWizard() {
               ) : null}
             </div>
           </div>
+          {modelloDelPreventivo}
           {/* Duplica come revisione: crea copia del preventivo come nuova
               revisione (parent_id linked). Utile per "Cliente vuole 3 offerte
               base/medio/premium" senza ri-creare tutto da zero. */}
@@ -1017,6 +1012,11 @@ export default function SerramentiWizard() {
           )}
         </div>
       </div>
+      {modelDefinition && isNew && !modelSupport.supported && (
+        <p role="alert" className="mx-3 my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:mx-6">
+          {modelSupport.isLoading ? "Verifica del salvataggio…" : "Attendi l’attivazione del database prima di compilare."}
+        </p>
+      )}
 
       {/* Fissa in alto, col totale sempre in vista. Da telefono: pillole col nome corto. */}
       <BarraFasi

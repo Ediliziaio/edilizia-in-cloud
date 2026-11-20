@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { QuotePageHeader, QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { CorpoPreventivatore } from "@/components/preventivatore/CorpoPreventivatore";
 import { BarraFasi } from "@/components/preventivatore/BarraFasi";
+import { STICKY_ALTO, STICKY_BASSO } from "@/components/preventivatore/posizione";
 import ComputoProgetto from "./ComputoProgetto";
 import ComputoDati, { indirizzoDaCantiere } from "./ComputoDati";
 import ComputoEconomia from "./ComputoEconomia";
@@ -444,7 +445,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
   };
 
   const dettaglioVoce = <fieldset disabled={conflitto || erroreLettura || esportando || caricando} aria-label="Modifica lavorazione nella riga" className="min-w-0" onFocusCapture={() => { if (v) puntaVocePdf(v.id); }}>{v && <div className="min-w-0 space-y-4">
-            <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Voce {v.numero || bozza.voci.indexOf(v) + 1}</h3><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={() => setScelta("")}><X className="h-3.5 w-3.5" />Chiudi dettagli</Button>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Voce {v.numero || bozza.voci.indexOf(v) + 1}</h3><div className="flex flex-wrap items-center gap-1"><Button type="button" variant="ghost" size="sm" aria-label="Chiudi dettagli" className="h-8 gap-1 max-md:h-10 max-md:w-10 max-md:p-0" onClick={() => setScelta("")}><X className="h-3.5 w-3.5" /><span className="max-md:hidden">Chiudi dettagli</span></Button>
               <Button variant="ghost" size="icon" aria-label="Sposta voce su" title="Sposta su" disabled={bozza.voci.indexOf(v) === 0} onClick={() => riordina(-1)}><ArrowUp className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" aria-label="Sposta voce giù" title="Sposta giù" disabled={bozza.voci.indexOf(v) === bozza.voci.length - 1} onClick={() => riordina(1)}><ArrowDown className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" aria-label="Duplica voce" title="Duplica voce" disabled={bozza.voci.length >= 5000} onClick={() => {
@@ -464,7 +465,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
               const r = calcolaVoce(v); const cu = numeroEditor(v.costo ?? "");
               const margine = cu != null && r.prezzo != null && r.prezzo > 0 ? (r.prezzo - cu) / r.prezzo * 100 : null;
               return <div className="flex flex-wrap items-end gap-3 rounded-md border border-dashed bg-white p-2">
-                <div className="w-44 space-y-1"><Label htmlFor="voce-costo" className="text-xs">Costo unitario stimato</Label>
+                <div className="w-44 max-w-full space-y-1"><Label htmlFor="voce-costo" className="text-xs">Costo unitario stimato</Label>
                   <Input id="voce-costo" className="h-9" inputMode="decimal" maxLength={40} placeholder="€ per unità" value={v.costo ?? ""} onChange={e => modificaVoce({ costo: e.target.value })} /></div>
                 <p className="pb-2 text-xs text-muted-foreground">{margine == null ? "Serve per margini e cassa nel passo Economia. Non va nel PDF." : <>Margine sulla voce <strong className={margine < 10 ? "text-red-700" : margine < 20 ? "text-amber-700" : "text-emerald-700"}>{margine.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</strong> · non va nel PDF</>}</p>
               </div>;
@@ -483,6 +484,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
           </div>}</fieldset>;
 
   const comandoPdf = <Button type="button" variant="outline" size="sm" aria-pressed={desktop && anteprimaVisibile}
+    disabled={caricando || esportando || (!desktop && (!bozza.voci.length || !bozza.titolo.trim()))}
     onClick={() => { if (desktop) setAnteprimePassi(v => ({ ...v, [step]: !anteprimaVisibile })); else void esporta(true); }}>
     <Eye className="mr-1 h-4 w-4" />{desktop && anteprimaVisibile ? "Nascondi PDF" : "Mostra PDF"}
   </Button>;
@@ -502,14 +504,14 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
             <DropdownMenuItem disabled={conflitto} onSelect={() => importInput.current?.click()}><Upload className="mr-2 h-4 w-4" />Riapri una copia salvata…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {step !== 2 && comandoPdf}
-        <Button variant="outline" size="sm" disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
+        {desktop && step !== 2 && comandoPdf}
+        <Button variant="outline" size="sm" className={step === 2 ? "max-md:hidden" : undefined} disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
         <QuotePrimaryButton aria-label="Scarica preventivo" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
           {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
         </QuotePrimaryButton>
       </>} />
       <p role="status" aria-label="Salvataggio bozza" className="text-xs text-muted-foreground">
-        {conflitto || erroreLettura ? "Salvataggio sospeso" : cloud ? cloud.status : salvato ? "Salvato su questo computer" : "Modifiche da salvare…"}
+        {conflitto || erroreLettura ? "Salvataggio sospeso" : cloud ? cloud.status : salvato ? "Salvato su questo dispositivo" : "Modifiche da salvare…"}
       </p>
     {avvisoXpwe && <div role="status" className="rounded-md border p-3 text-sm">
       Il file XPWE conserva quantità e prezzi, ma non tutte le formule originali o i costi interni.
@@ -519,7 +521,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     <div ref={testaFasi} aria-hidden="true" className="scroll-mt-4" />
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Economia" }, { key: "4", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, !!bozza.voci.length && !invalide && !erroreIva && !sconto.errore, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
-      onSelect={n => cambiaFase(Number(n))} ariaLabel="Fasi del preventivo / computo metrico" />
+      onSelect={n => cambiaFase(Number(n))} className={`max-md:sticky max-md:z-30 ${STICKY_ALTO}`} ariaLabel="Fasi del preventivo / computo metrico" />
     <input type="file" aria-label="File bozza computo" ref={importInput} accept=".json" hidden onChange={async e => {
       const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
       setCaricando(true);
@@ -547,10 +549,10 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
       {step === 1 && <ComputoProgetto scope={storageKey} allegati={bozza.allegati ?? []} onBusy={setCaricando} onChange={allegati => cambiaParte({ allegati })}
         fotoCopertina={idFoto} onFotoCopertina={id => cambiaParte({ fotoCopertina: id })} />}
       {step === 2 && <div className="space-y-2">
-      <div className="sticky top-16 z-10 flex flex-wrap items-center justify-between gap-2 bg-slate-50/95 py-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/95 py-1 md:sticky md:top-16 md:z-10">
         <div className="min-w-0"><h2 className="text-base font-semibold">Computo metrico</h2>
-          <p className="text-[11px] text-muted-foreground">Capitoli, lavorazioni e misure. Puoi completare i prezzi dopo.</p></div>
-        <div className="flex items-center gap-3"><div aria-label="Riepilogo del computo" className="flex items-center gap-2 text-right text-sm tabular-nums"><span className="text-xs text-muted-foreground">{bozza.voci.length} {bozza.voci.length === 1 ? "voce" : "voci"}{invalide ? ` · ${invalide} da completare` : ""}</span>
+          <p className="text-[11px] text-muted-foreground max-md:hidden">Capitoli, lavorazioni e misure. Puoi completare i prezzi dopo.</p></div>
+        <div className="flex min-w-0 flex-wrap items-center gap-3"><div aria-label="Riepilogo del computo" className="flex flex-wrap items-center gap-2 text-right text-sm tabular-nums"><span className="text-xs text-muted-foreground">{bozza.voci.length} {bozza.voci.length === 1 ? "voce" : "voci"}{invalide ? ` · ${invalide} da completare` : ""}</span>
           <strong className="text-base">{formatEuro(totale)} €</strong>{!!invalide && <span className="text-[11px] text-amber-700">parziale</span>}</div>
           {comandoPdf}</div>
       </div>
@@ -630,11 +632,11 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
       {daFirmare && <Suspense fallback={null}><FirmatoSuCartaDialog open onOpenChange={(o) => { if (!o) setDaFirmare(null); }} quote={daFirmare}
         onFirmato={() => { const id = daFirmare.id; setDaFirmare(null); firmaOnline?.onApriCommessa?.(id); }} /></Suspense>}
     </fieldset>
-    <nav aria-label="Navigazione fasi" className="flex items-center justify-between border-t pt-4">
+    <nav aria-label="Navigazione fasi" className={`flex items-center justify-between gap-2 border-t pt-4 max-md:sticky max-md:z-20 max-md:rounded-lg max-md:border max-md:bg-white max-md:p-2 max-md:shadow-md ${STICKY_BASSO}`}>
       <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)}><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>
       {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step + 1)}>Avanti</QuotePrimaryButton>}
       {step === 4 && <QuotePrimaryButton disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
-        {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica documento
+        {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
       </QuotePrimaryButton>}
     </nav>
     </CorpoPreventivatore>
@@ -652,7 +654,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     </Suspense>}
     {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} capitoliComputo={bozza.voci.map(v => v.capitolo)} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
-      <DialogContent className="flex h-[90dvh] max-w-5xl flex-col">
+      <DialogContent className="flex h-[90dvh] max-w-5xl flex-col max-sm:p-3">
         <DialogHeader><DialogTitle>{anteprimaParziale ? "Anteprima bozza parziale" : "Anteprima preventivo"}</DialogTitle><DialogDescription>{anteprimaParziale ? "Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione." : "PDF della bozza, non ancora inviata."}</DialogDescription></DialogHeader>
         {anteprima && <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderAnteprima} depsKey="computo" debounceMs={0} downloadFileName={anteprimaParziale ? "bozza-parziale-computo.pdf" : "preventivo-computo.pdf"} showDownloadOnMobile /></div>}
       </DialogContent>

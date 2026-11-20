@@ -36,6 +36,8 @@ export interface TestataGuscioEdile {
   titolo: string;
   cliente?: string | null;
   stato?: { label: string; className: string } | null;
+  intervento?: string | null;
+  azioni?: ReactNode;
   onEsci: () => void;
 }
 
@@ -67,7 +69,7 @@ interface Props {
   /** «Salvato 12s fa»: lo compone il modulo, che conosce l'ora. */
   testoSalvataggio?: string | null;
   piede: PiedeGuscioEdile;
-  /** Sopra la barra delle fasi: l'avviso del modello, per esempio. */
+  /** Eventuali avvisi che richiedono attenzione prima di compilare. */
   sopra?: ReactNode;
   ariaLabelFasi?: string;
   /**
@@ -131,16 +133,25 @@ export function GuscioEdile({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 max-md:gap-y-0.5">
               <Icona className="h-4 w-4 text-orange-600 max-md:hidden" />
-              <span className="text-sm font-semibold max-md:order-1 max-md:text-[15px]">{testata.titolo}</span>
+              <div className="flex min-w-0 max-w-full items-center gap-2 max-md:order-1 max-md:gap-1.5">
+                <span className="min-w-0 truncate text-sm font-semibold" title={testata.titolo}>
+                  {testata.titolo}
+                </span>
+                {testata.stato && (
+                  <Badge variant="outline" className={cn("shrink-0 whitespace-nowrap text-[10px] max-md:px-1.5 max-md:text-[11px]", testata.stato.className)}>
+                    {testata.stato.label}
+                  </Badge>
+                )}
+              </div>
               {testata.cliente && (
                 <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground">
                   {testata.cliente}
                 </Badge>
               )}
-              {testata.stato && (
-                <Badge variant="outline" className={cn("text-[10px] max-md:order-2 max-md:text-[11px]", testata.stato.className)}>
-                  {testata.stato.label}
-                </Badge>
+              {testata.intervento && (
+                <span className="w-0 flex-1 truncate text-xs text-muted-foreground max-lg:hidden" title={testata.intervento}>
+                  {testata.intervento}
+                </span>
               )}
               {/* Telefono: codice e stato sulla prima riga, cliente e salvataggio sotto. */}
               <span aria-hidden className="hidden h-0 basis-full max-md:order-3 max-md:block" />
@@ -161,6 +172,7 @@ export function GuscioEdile({
               ) : null}
             </div>
           </div>
+          {testata.azioni && <div className="flex shrink-0 items-center gap-1.5">{testata.azioni}</div>}
         </div>
       </div>
 

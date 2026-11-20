@@ -86,7 +86,7 @@ export function SettingsLayout() {
         {schede.length > 1 && (
           <nav
             aria-label={`Schede di ${title}`}
-            className="-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5 max-sm:mb-0 max-sm:mt-1 max-sm:border-b"
+            className={cn("-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5 max-sm:mb-0 max-sm:mt-1 max-sm:border-b", gruppo?.id === "modelli" && "max-md:hidden")}
           >
             {schede.map((scheda) => {
               const attiva = scheda === schedaAttiva;

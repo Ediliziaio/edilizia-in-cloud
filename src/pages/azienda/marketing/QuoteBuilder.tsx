@@ -3210,10 +3210,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     />
                                   )}
                                 </div>
-                                <div className="col-span-6 2xl:col-span-3 max-sm:col-span-3">
+                                <div className="col-span-6 2xl:col-span-3 max-sm:col-span-4">
                                   <Label className="text-xs"><span className="max-sm:hidden">Quantità</span><span className="sm:hidden">Q.tà</span></Label>
                                   <Input
                                     type="number"
+                                    inputMode="decimal"
                                     min={0}
                                     step={0.01}
                                     aria-label={`Quantità: ${item.name || "riga"}`}
@@ -3234,6 +3235,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                   <Label className="text-xs">{isSconto ? "Sconto €" : <><span className="max-sm:hidden">Prezzo unitario €</span><span className="sm:hidden">Prezzo €</span></>}</Label>
                                   <Input
                                     type="number"
+                                    inputMode="decimal"
                                     min={0}
                                     step={0.01}
                                     aria-label={`${isSconto ? "Importo sconto" : "Prezzo unitario"}: ${item.name || "riga"}`}
@@ -3245,12 +3247,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                {/* Telefono no: lo sconto di riga (c'è lo sconto del preventivo).
-                                    Sulla riga di sconto non c'è: uno sconto dello sconto non vuol dire niente. */}
-                                {!isSconto && <div className="col-span-4 2xl:col-span-2 max-sm:hidden">
+                                {!isSconto && <div className="col-span-4 2xl:col-span-2">
                                   <Label className="text-xs">Sconto %</Label>
                                   <Input
                                     type="number"
+                                    inputMode="decimal"
                                     min={0}
                                     max={100}
                                     aria-label={`Sconto riga: ${item.name || "riga"}`}
@@ -3264,10 +3265,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     }
                                   />
                                 </div>}
-                                <div className="col-span-4 2xl:col-span-2 max-sm:col-span-3">
+                                <div className="col-span-4 2xl:col-span-2">
                                   <Label className="text-xs">IVA%</Label>
                                   <Input
                                     type="number"
+                                    inputMode="decimal"
                                     aria-label={`IVA riga: ${item.name || "riga"}`}
                                     value={item.vat_rate ?? ''}
                                     onChange={(e) =>
@@ -3279,7 +3281,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 2xl:col-span-2 flex items-end justify-end gap-1 max-sm:col-span-2">
+                                <div className="col-span-4 2xl:col-span-2 flex items-end justify-end gap-1 max-sm:col-span-4 max-sm:col-start-9">
                                   <p
                                     className={`font-medium text-sm py-2 max-sm:hidden ${
                                       isSconto ? "text-red-600" : ""
@@ -3292,7 +3294,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8"
+                                        className="h-8 w-8 max-sm:h-10 max-sm:w-10"
                                         aria-label={`Azioni voce: ${item.name || 'riga'}`}
                                       >
                                         <MoreVertical className="h-4 w-4" />

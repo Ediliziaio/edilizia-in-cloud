@@ -326,18 +326,18 @@ export default function ModuleTemplateLibrary({
         key={`${a.id}/${m.id}`}
         className="flex flex-col overflow-hidden rounded-2xl border bg-white transition-shadow hover:shadow-md"
       >
-        {cover && <div className="relative h-36 overflow-hidden">
+        {cover && <div className="relative h-36 overflow-hidden max-sm:h-24">
           <img src={coverThumb(cover)} alt={`Copertina illustrativa — ${m.title}`} loading="lazy" className="h-full w-full object-cover object-center" />
-          <span className="absolute bottom-2 left-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">Immagine del modello · illustrativa</span>
+          <span className="absolute bottom-2 left-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white max-sm:hidden">Immagine del modello · illustrativa</span>
         </div>}
-        <div className="flex items-center gap-3 border-b bg-slate-50/60 px-5 py-4">
+        <div className="flex items-center gap-3 border-b bg-slate-50/60 px-5 py-4 max-sm:px-3 max-sm:py-2">
           <span
             style={{ color: AREA_DESIGN[a.id].color }}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-white text-sm font-semibold"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-white text-sm font-semibold max-sm:hidden"
           >
             {String(i + 1).padStart(2, "0")}
           </span>
-          <div>
+          <div className="max-sm:flex max-sm:w-full max-sm:flex-wrap max-sm:justify-between max-sm:gap-x-3">
             <p className="text-xs text-muted-foreground">{a.title}</p>
             <p
               className={`text-xs ${status === "Salvato" ? "text-emerald-700" : "text-muted-foreground"}`}
@@ -346,13 +346,13 @@ export default function ModuleTemplateLibrary({
             </p>
           </div>
         </div>
-        <div className="flex flex-1 flex-col p-5">
-          <span className={`mb-3 w-fit rounded-full px-2 py-1 text-xs ${cover ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{cover ? "PDF con pagine dedicate" : "Edizione essenziale · da completare"}</span>
-          <h3 className="text-lg font-semibold leading-snug">{m.title}</h3>
+        <div className="flex flex-1 flex-col p-5 max-sm:p-3">
+          <span className={`mb-3 w-fit rounded-full px-2 py-1 text-xs max-sm:hidden ${cover ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{cover ? "PDF con pagine dedicate" : "Edizione essenziale · da completare"}</span>
+          <h3 className="text-lg font-semibold leading-snug max-sm:text-base">{m.title}</h3>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {m.summary}
           </p>
-          <ul className="my-5 space-y-2">
+          <ul className="my-5 space-y-2 max-sm:hidden">
             {m.fields.map((f) => (
               <li key={f} className="flex gap-2 text-xs text-slate-600">
                 <Check className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
@@ -360,10 +360,10 @@ export default function ModuleTemplateLibrary({
               </li>
             ))}
           </ul>
-          <div className="mt-auto space-y-2">
+          <div className="mt-auto space-y-2 max-sm:pt-3">
             <Button
               variant="outline"
-              className="w-full justify-between"
+              className="w-full justify-between max-sm:min-h-11"
               onClick={() => navigate(a, m.id)}
               disabled={!canEdit || !companyId}
               aria-describedby={spiegaSolaLettura}
@@ -465,7 +465,7 @@ export default function ModuleTemplateLibrary({
       )}
       {area && (
         <div className="grid overflow-hidden rounded-2xl border bg-[#f8f6f2] md:grid-cols-[minmax(0,1fr)_minmax(240px,0.55fr)]">
-          <div className="p-5">
+          <div className="p-5 max-sm:p-3">
             <p
               style={{ color: AREA_DESIGN[area.id].color }}
               className="text-xs font-semibold uppercase tracking-widest"
@@ -476,14 +476,14 @@ export default function ModuleTemplateLibrary({
               {AREA_DESIGN[area.id].intro}
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">{area.summary}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground max-sm:hidden">
               Immagine illustrativa dell'area, generata con AI.
             </p>
           </div>
           <img
             src={documentImage(area.id, "")}
             alt={`Illustrazione dell'area ${area.title}`}
-            className="h-36 w-full object-cover md:h-full md:max-h-44"
+            className="hidden h-36 w-full object-cover sm:block md:h-full md:max-h-44"
           />
         </div>
       )}
@@ -494,7 +494,7 @@ export default function ModuleTemplateLibrary({
             aria-label="Cerca un modulo"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 max-sm:text-base"
             placeholder={
               area
                 ? "Cerca tra gli interventi dell’area…"

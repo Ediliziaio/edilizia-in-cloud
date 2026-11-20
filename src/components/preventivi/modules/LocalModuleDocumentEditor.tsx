@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { AnteprimaPdfModelloMobile } from "@/components/preventivatore/AnteprimaPdfModelloMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   createModuleDocument,
   documentTextVariants,
@@ -94,6 +96,7 @@ function Editor({
   savedAt,
   onBack,
 }: Props & { initial: ModuleDocument; savedAt: string | null }) {
+  const isMobile = useIsMobile();
   const [form, setForm] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [hasSaved, setHasSaved] = useState(Boolean(savedAt));
@@ -225,7 +228,7 @@ function Editor({
   return (
     <div data-local-document-editor className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <Button
             variant="ghost"
             size="sm"
@@ -240,12 +243,13 @@ function Editor({
             <ArrowLeft className="mr-2 h-4 w-4" />
             Moduli dell'area
           </Button>
-          <h2 className="mt-2 text-2xl font-semibold">{form.title}</h2>
+          <h2 className="mt-2 break-words text-2xl font-semibold max-sm:text-lg">{form.title}</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={exportCopy}>
-            <Download className="mr-2 h-4 w-4" />
-            Esporta copia
+        <div className="flex flex-wrap items-center gap-2">
+          <AnteprimaPdfModelloMobile renderBlobUrl={renderBlobUrl} depsKey={depsKey} downloadFileName="modello-preventivo.pdf" />
+          <Button variant="outline" onClick={exportCopy} aria-label="Esporta copia" className="max-sm:w-11 max-sm:p-0">
+            <Download className="h-4 w-4 sm:mr-2" />
+            <span className="max-sm:hidden">Esporta copia</span>
           </Button>
           <Button onClick={save} disabled={(!dirty && hasSaved) || uploading}>
             <Save className="mr-2 h-4 w-4" />
@@ -278,7 +282,7 @@ function Editor({
           aria-label="Pagine del modello"
           className="flex flex-wrap gap-2 rounded-xl border bg-white p-3 xl:col-span-2 2xl:col-span-1 2xl:block 2xl:sticky 2xl:top-4"
         >
-          <label className="flex w-full items-center gap-3 text-sm 2xl:hidden">
+          <label className="flex w-full items-center gap-3 text-sm max-sm:flex-col max-sm:items-stretch max-sm:gap-1.5 2xl:hidden">
             <span className="shrink-0 font-medium">Pagina da modificare</span>
             <UniformSelect
               aria-label="Pagina da modificare"
@@ -573,7 +577,7 @@ function Editor({
             </>
           )}
         </div>
-        <aside className="min-w-0 space-y-2 xl:sticky xl:top-4">
+        {!isMobile && <aside className="min-w-0 space-y-2 max-md:hidden xl:sticky xl:top-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Check className="h-4 w-4" />
             Anteprima reale del modello ·{" "}
@@ -583,7 +587,7 @@ function Editor({
             renderBlobUrl={renderBlobUrl}
             depsKey={depsKey}
           />
-        </aside>
+        </aside>}
       </div>
     </div>
   );
