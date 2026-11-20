@@ -154,6 +154,11 @@ jobs:
       - name: Complete received invoice representation and original attachments
         run: bunx vitest run src/test/logic/fatturaRicevutaCompleta.test.ts src/test/ui/fatturaRicevutaCompleta.test.tsx src/test/logic/downloadAllegatoXml.test.ts --maxWorkers=2
 
+      - name: Logo alignment, header collisions and saved PDF preferences
+        run: |
+          bunx vitest run --maxWorkers=2 src/test/logic/allineamentoLogoPdf.test.tsx src/test/logic/allineamentoLogoMigrazione.test.ts src/test/ui/allineamentoLogo.test.tsx src/test/ui/settingsModelliPdf.test.tsx
+          bunx vitest run --maxWorkers=2 src/test/ui/fatturazioneScheda.test.tsx -t 'allineamento|ogni campo che la pagina scrive'
+
       - name: Real SDI handler B2C B2B PA invoices and credit notes
         run: bunx vitest run src/test/logic/invioSdiFlussoCompleto.test.ts src/test/logic/italianFiscalValidation.test.ts --maxWorkers=2
 

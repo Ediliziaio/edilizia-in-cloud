@@ -18,6 +18,7 @@ export function aspettoDelModello(modello: ModelloPdf) {
     carattere: modello.carattere,
     mostraLogo: modello.mostraLogo,
     scalaLogo: modello.scalaLogo,
+    allineamentoLogo: modello.allineamentoLogo,
     margine: modello.margine,
     dimensioneTesto: modello.dimensioneTesto,
     coloreRiquadri: modello.coloreRiquadri,

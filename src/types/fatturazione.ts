@@ -529,6 +529,8 @@ export interface AnagraficaAzienda {
   logo_url?: string;
   /** Dimensione del logo nei PDF, dal 25% al 250%. Assente = 100%. */
   scala_logo?: number;
+  /** Posizione del logo nella testata. Assente = sinistra. */
+  allineamento_logo?: "left" | "center" | "right";
   colore_primario?: string;
   font_fattura?: string;
   telefono?: string;

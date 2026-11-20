@@ -1,5 +1,5 @@
 import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
-import { dimensioniLogo } from "../_shared/dimensioniLogo.ts";
+import { dimensioniLogo, disponiLogoTestata } from "../_shared/dimensioniLogo.ts";
 import { valoreInTesto, valoriDaStampare, type ValoreCampo } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, setCharacterSpacing, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
 // Il carattere del piè proprio (EB Garamond, Impresa Vulcano). Nel browser e nei test Vite usa il pacchetto locale
@@ -305,10 +305,12 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     { larghezza: CW, altezza: 140 },
   ) : null;
   const misuraLogo = misureLogoScalato ? { width: misureLogoScalato.larghezza, height: misureLogoScalato.altezza } : null;
+  const allineamento = logo ? modello.allineamentoLogo : "left";
   let fondoSinistra: number, larghezzaSinistra: number;
   if (logo && misuraLogo) {
     // Il nome è già nel logo, e i dati societari stanno nel piè: non si ripete.
-    page.drawImage(logo, { x: M, y: top - misuraLogo.height, ...misuraLogo });
+    const x = M + disponiLogoTestata(CW, misuraLogo.width, 150, allineamento, 24).logoX;
+    page.drawImage(logo, { x, y: top - misuraLogo.height, ...misuraLogo });
     fondoSinistra = top - misuraLogo.height;
     larghezzaSinistra = misuraLogo.width;
   } else {
@@ -318,31 +320,39 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     larghezzaSinistra = Math.max(...righeNome.map(l => larghezza(l, TS.ragioneSocialeCorpo, bold)));
   }
   const xDestra = W - M;
-  const titoloSotto = larghezzaSinistra > CW - 174;
-  const righeTitolo = wrap(title, bold, TS.titoloCorpo, titoloSotto ? CW : Math.max(150, CW - larghezzaSinistra - 24)).slice(0, 2);
+  const disposizione = disponiLogoTestata(CW, larghezzaSinistra, 150, allineamento, 24);
+  const { titoloSotto, larghezzaTesto } = disposizione;
+  const xTestata = (valore: string, size: number, font: PDFFont = regular) =>
+    M + disposizione.ancoraTestoX - larghezza(valore, size, font) * (disposizione.allineamentoTesto === "left" ? 0 : disposizione.allineamentoTesto === "center" ? 0.5 : 1);
+  const righeTitolo = wrap(title, bold, TS.titoloCorpo, larghezzaTesto);
   let yd = (titoloSotto ? fondoSinistra - 12 : top) - 11;
-  righeTitolo.forEach((l, i) => { T(l, xDestra - larghezza(l, TS.titoloCorpo, bold), yd, TS.titoloCorpo, bold, ink); if (i < righeTitolo.length - 1) yd -= 17; });
+  righeTitolo.forEach((l, i) => { T(l, xTestata(l, TS.titoloCorpo, bold), yd, TS.titoloCorpo, bold, ink); if (i < righeTitolo.length - 1) yd -= 17; });
   // Sotto il titolo: lo stato come etichetta, poi riferimento · data sulla stessa riga; sotto, il meteo.
   yd -= 15;
   const dataGrande = dayLabel(r.data_lavoro);
-  const wData = larghezza(dataGrande, TS.sottotitoloCorpo);
-  T(dataGrande, xDestra - wData, yd, TS.sottotitoloCorpo, regular, muted);
   const rifTesto = `Rif. ${shortId}  ·  `;
-  const xRif = xDestra - wData - larghezza(rifTesto, TS.sottotitoloCorpo);
+  const xRif = xTestata(rifTesto + dataGrande, TS.sottotitoloCorpo);
+  T(dataGrande, xRif + larghezza(rifTesto, TS.sottotitoloCorpo), yd, TS.sottotitoloCorpo, regular, muted);
   T(rifTesto, xRif, yd, TS.sottotitoloCorpo, regular, muted);
   const yRif = yd;
   if (r.meteo) {
-    yd -= 12;
     const meteo = `Meteo: ${text(r.meteo)}`;
-    T(meteo, xDestra - larghezza(meteo, TS.sottotitoloCorpo), yd, TS.sottotitoloCorpo, regular, muted);
+    for (const riga of wrap(meteo, regular, TS.sottotitoloCorpo, larghezzaTesto)) {
+      yd -= 12;
+      T(riga, xTestata(riga, TS.sottotitoloCorpo), yd, TS.sottotitoloCorpo, regular, muted);
+    }
   }
   let fondoDestra = yd - 3.5;
   // «Da approvare» è un fatto interno: il cliente non deve leggerlo. Accanto al riferimento se c'è posto (un logo
   // largo come quello di Vulcano non lo lascia), altrimenti sotto, sempre allineata a destra.
   if (documentoPer === "interno" || summary.status !== "inviato") {
     const wStato = larghezza(summary.statusLabel, 7, bold) + 12;
-    if (xRif - 8 - wStato >= M + larghezzaSinistra + 12) etichettaStato(summary.statusLabel, xRif - 8, yRif + 9.5, summary.status === "approvato");
-    else { etichettaStato(summary.statusLabel, xDestra, yd - 5, summary.status === "approvato"); fondoDestra = yd - 18; }
+    if (allineamento === "left" && xRif - 8 - wStato >= M + larghezzaSinistra + 12) etichettaStato(summary.statusLabel, xRif - 8, yRif + 9.5, summary.status === "approvato");
+    else {
+      const bordoStato = allineamento === "right" ? M + wStato : allineamento === "center" ? (W + wStato) / 2 : xDestra;
+      etichettaStato(summary.statusLabel, bordoStato, yd - 5, summary.status === "approvato");
+      fondoDestra = yd - 18;
+    }
   }
   const yFiletto = Math.min(fondoSinistra, fondoDestra) - TS.filettoDistanza;
   filetto(yFiletto, M, CW, TS.filettoSpessore, accent);

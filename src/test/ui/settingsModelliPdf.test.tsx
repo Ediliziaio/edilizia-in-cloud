@@ -262,12 +262,13 @@ it("i rapportini non hanno clausole, le richieste parlano di offerta", () => {
 it("copia solo l'impaginazione e consente di scartare la bozza dopo aver visto il PDF", () => {
   m.data = [{
     document_type: "richiesta", updated_at: "2026-11-06T12:00:00Z",
-    config: { scalaLogo: 175, margine: 18, titolo: "Titolo fornitore", introduzione: "Testo del modello sorgente" },
+    config: { scalaLogo: 175, allineamentoLogo: "right", margine: 18, titolo: "Titolo fornitore", introduzione: "Testo del modello sorgente" },
   }];
   open();
   changeFormControl(screen.getByLabelText("Titolo nel PDF"), { target: { value: "Titolo della bozza" } });
   changeFormControl(screen.getByLabelText("Copia l’impaginazione da"), { target: { value: "richiesta" } });
   expect(screen.getByLabelText("Dimensione del logo in percentuale")).toHaveValue(175);
+  expect(screen.getByRole("radio", { name: "Destra" })).toBeChecked();
   expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("Titolo della bozza");
   fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
   expect(screen.getByTestId("anteprima")).toHaveTextContent('"scalaLogo":175');
@@ -278,5 +279,14 @@ it("copia solo l'impaginazione e consente di scartare la bozza dopo aver visto i
   fireEvent.click(screen.getByRole("button", { name: "Scarta modifiche" }));
   expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("");
   expect(screen.getByLabelText("Dimensione del logo in percentuale")).toHaveValue(100);
+  expect(screen.getByRole("radio", { name: "Sinistra" })).toBeChecked();
   expect(m.save).not.toHaveBeenCalled();
+});
+
+it("salva l'allineamento scelto insieme al modello e lo mantiene nell'anteprima", async () => {
+  open();
+  fireEvent.click(screen.getByRole("radio", { name: "Centro" }));
+  expect(screen.getByTestId("anteprima")).toHaveTextContent('"allineamentoLogo":"center"');
+  fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+  await waitFor(() => expect(m.save).toHaveBeenCalledWith("materiali", expect.objectContaining({ allineamentoLogo: "center" }), null));
 });

@@ -38,6 +38,7 @@ import { anteprimaModello } from "@/lib/modelliPdf/anteprima";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
+import { LogoAlignmentControl } from "@/components/shared/LogoAlignmentControl";
 import { DocumentEditorWorkspace } from "@/components/shared/DocumentEditorWorkspace";
 import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -415,7 +416,10 @@ function EditorModello({
                 <Switch id="pdf-logo" checked={draft.mostraLogo}
                   onCheckedChange={(mostraLogo) => patch({ mostraLogo })} />
               </div>
-              {draft.mostraLogo && <LogoSizeControl value={draft.scalaLogo} onChange={(scalaLogo) => patch({ scalaLogo })} />}
+              {draft.mostraLogo && <>
+                <LogoSizeControl value={draft.scalaLogo} onChange={(scalaLogo) => patch({ scalaLogo })} />
+                <LogoAlignmentControl value={draft.allineamentoLogo} onChange={(allineamentoLogo) => patch({ allineamentoLogo })} />
+              </>}
             </div>
             {altriModelli.length > 0 && (
               <div className="space-y-2">

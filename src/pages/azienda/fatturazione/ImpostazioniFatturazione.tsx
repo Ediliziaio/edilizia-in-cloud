@@ -3,6 +3,7 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { ibanValido, pulisciIbanConto } from "@/lib/fatturazione/contiAzienda";
 import type { AnagraficaAzienda, ContoFatturazione } from "@/types/fatturazione";
 import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
+import { LogoAlignmentControl } from "@/components/shared/LogoAlignmentControl";
 import { FatturaTemplatePreview, type TipoAnteprimaFiscale } from "@/components/fatturazione/FatturaTemplatePreview";
 import { DocumentEditorWorkspace } from "@/components/shared/DocumentEditorWorkspace";
 import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
@@ -198,7 +199,7 @@ export default function ImpostazioniFatturazione() {
     proforma: "PF-ESEMPIO",
     ddt: "DDT-ESEMPIO",
   };
-  const aspettoModificato = "colore_primario" in form || "scala_logo" in form;
+  const aspettoModificato = "colore_primario" in form || "scala_logo" in form || "allineamento_logo" in form;
 
   const handleSave = async () => {
     if (isError) return;
@@ -639,14 +640,15 @@ export default function ImpostazioniFatturazione() {
                     </div>
                   </div>
                   <div className="space-y-2 border-t pt-4">
-                    {logoFattura && <LogoSizeControl value={current.scala_logo} onChange={valore => updateField("scala_logo", valore)} disabled={saving} />}
+                    <LogoSizeControl value={current.scala_logo} onChange={valore => updateField("scala_logo", valore)} disabled={saving} />
+                    <LogoAlignmentControl value={current.allineamento_logo} onChange={valore => updateField("allineamento_logo", valore)} disabled={saving} />
                     <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setActiveTab("azienda")}>
                       {logoFattura ? "Gestisci logo in Azienda" : "Aggiungi un logo in Azienda"}
                     </Button>
                   </div>
                   <DiscardDocumentDraft disabled={saving || !aspettoModificato} etichetta="Annulla modifiche all’aspetto"
-                    descrizione="Ripristina il colore e la dimensione del logo dell’ultimo salvataggio."
-                    onDiscard={() => setForm(({ colore_primario: _colore, scala_logo: _scala, ...resto }) => resto)} />
+                    descrizione="Ripristina colore, dimensione e allineamento del logo dell’ultimo salvataggio."
+                    onDiscard={() => setForm(({ colore_primario: _colore, scala_logo: _scala, allineamento_logo: _allineamento, ...resto }) => resto)} />
                 </fieldset>
               </CardContent>
             </Card>}

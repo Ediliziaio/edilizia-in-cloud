@@ -2,6 +2,25 @@
 export const SCALA_LOGO_MIN = 25;
 export const SCALA_LOGO_MAX = 250;
 
+export type AllineamentoLogo = "left" | "center" | "right";
+
+export function normalizzaAllineamentoLogo(valore: unknown): AllineamentoLogo {
+  return valore === "center" || valore === "right" ? valore : "left";
+}
+
+/** Coordinate relative alla testata; stessa logica in millimetri e in punti. */
+export function disponiLogoTestata(larghezza: number, larghezzaLogo: number, spazioTesto: number, valore: unknown, distanza: number) {
+  const allineamento = normalizzaAllineamentoLogo(valore);
+  const titoloSotto = allineamento === "center" || larghezzaLogo + spazioTesto + distanza > larghezza + 0.01;
+  return {
+    logoX: allineamento === "right" ? larghezza - larghezzaLogo : allineamento === "center" ? (larghezza - larghezzaLogo) / 2 : 0,
+    titoloSotto,
+    larghezzaTesto: titoloSotto ? larghezza : larghezza - larghezzaLogo - distanza,
+    allineamentoTesto: (allineamento === "right" ? "left" : allineamento === "center" ? "center" : "right") as AllineamentoLogo,
+    ancoraTestoX: allineamento === "right" ? 0 : allineamento === "center" ? larghezza / 2 : larghezza,
+  };
+}
+
 export function normalizzaScalaLogo(valore: unknown): number {
   return typeof valore === "number" && Number.isFinite(valore)
     ? Math.min(SCALA_LOGO_MAX, Math.max(SCALA_LOGO_MIN, Math.round(valore)))
