@@ -18,6 +18,7 @@
  */
 import type { FatturaRicevutaLetta } from "./fatturaRicevutaXml.ts";
 import { percorsoOriginale } from "./ricevuteOpenapi.ts";
+import { verificaRiferimentiRicevuta } from "./commessaFatturaRegole.ts";
 
 export interface FatturaDaSalvare {
   companyId: string;
@@ -54,6 +55,18 @@ export interface EsitoSalvataggio {
 
 // deno-lint-ignore no-explicit-any
 type Client = any;
+
+async function verificaNuovaFattura(supabase: Client, companyId: string, id: string) {
+  const rivalutaBanca = async () => {
+    try {
+      const { error } = await supabase.rpc("tesoreria_rivaluta_fattura_ricevuta", { p_fattura: id });
+      if (error) throw error;
+    } catch (error) {
+      console.warn("[riferimenti banca] rivalutazione da riprovare", id, error);
+    }
+  };
+  await Promise.all([verificaRiferimentiRicevuta(supabase, companyId, id), rivalutaBanca()]);
+}
 
 async function cercaDoppione(supabase: Client, f: FatturaDaSalvare, idSdi: string | null) {
   if (f.openapiId) {
@@ -110,7 +123,10 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       iva_totale: l.iva_totale, totale_documento: l.totale_documento, righe: l.righe, riepilogo_iva: l.riepilogo_iva,
       sdi_progressivo: l.sdi_progressivo || null, xml_raw: f.xml || null, note: null,
     }).eq("id", doppione.id);
-    if (!erroreCompleta) return { id: doppione.id, doppione: true, completata: true, percorso };
+    if (!erroreCompleta) {
+      if (f.xml.includes("FatturaElettronicaBody")) await verificaNuovaFattura(supabase, f.companyId, doppione.id);
+      return { id: doppione.id, doppione: true, completata: true, percorso };
+    }
     console.warn(`[salvaFatturaRicevuta] correzione ${doppione.id}: ${erroreCompleta.message}`);
   }
   if (doppione) {
@@ -140,7 +156,12 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       const campi: Record<string, unknown> = { ...(!doppione.xml_raw ? { xml_raw: f.xml } : {}), xml_url: erroreArchivio ? null : percorso };
       if (/^Dati caricati dallo zip/.test(doppione.note ?? "")) campi.note = null;
       const { error: erroreAggiornamento } = await supabase.from("fatture_ricevute").update(campi).eq("id", doppione.id);
-      if (!erroreAggiornamento) return { id: doppione.id, doppione: true, completata: true, percorso };
+      if (!erroreAggiornamento) {
+        if (!doppione.xml_raw && f.xml.includes("FatturaElettronicaBody")) {
+          await verificaNuovaFattura(supabase, f.companyId, doppione.id);
+        }
+        return { id: doppione.id, doppione: true, completata: true, percorso };
+      }
       console.warn(`[salvaFatturaRicevuta] completamento ${doppione.id}: ${erroreAggiornamento.message}`);
     }
     return { id: doppione.id, doppione: true };
@@ -196,6 +217,9 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
     // 23505: un altro giro (o un'altra strada) l'ha appena registrata.
     if ((error as { code?: string }).code === "23505") return { id: null, doppione: true };
     return { id: null, doppione: false, errore: error.message, percorso };
+  }
+  if (inserita?.id && f.xml.includes("FatturaElettronicaBody")) {
+    await verificaNuovaFattura(supabase, f.companyId, inserita.id);
   }
   return { id: inserita?.id ?? null, doppione: false, percorso };
 }

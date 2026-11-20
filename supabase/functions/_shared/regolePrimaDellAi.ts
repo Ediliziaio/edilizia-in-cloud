@@ -31,6 +31,12 @@ export function decidiRiferimentiCommessa(codici: CommessaDaRegole | null, caten
   const documenti = [...(catena.catena?.ddt ?? []), ...(catena.catena?.ordini ?? []), ...(catena.catena?.contratti ?? [])];
   const incerto = documenti.find(d => d.decisione.esito === "conflitto" || d.decisione.esito === "scelta");
   if (incerto) return fermati(`${incerto.riferimento.testo}: ${incerto.decisione.motivo}`, incerto.decisione.esito === "scelta");
+  const ddt = catena.catena?.ddt ?? [];
+  const aperti = ddt.filter(d => d.decisione.esito !== "automatico");
+  if (aperti.length) {
+    const dettagli = aperti.slice(0, 3).map(d => d.riferimento.testo).join(", ");
+    return fermati(`DDT verificati ${ddt.length - aperti.length}/${ddt.length}. Da verificare ${dettagli}.`, true);
+  }
   if (catena.saltata && catena.catena) return fermati(catena.saltata, true);
   const quote = catena.catena?.allocazioni ?? [];
   const destinazioni = new Set(quote.filter(a => a.destinazione.tipo !== "da_attribuire").map(a => `${a.destinazione.tipo}:${a.destinazione.id}`));

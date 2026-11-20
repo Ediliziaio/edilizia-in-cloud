@@ -25,6 +25,7 @@ export interface RigaOrdine {
   /** Una bolla può consegnare più ordini: ogni riga sa di quale è. */
   purchase_order_id?: string | null;
   oda_number?: string | null;
+  destinazioni_previste?: import("@/hooks/usePurchaseOrders").DestinazioneRigaOda[];
   /** Si spunta per posizione: non passa dalla registrazione della bolla. */
   su_misura?: boolean;
   riferimento?: string | null;

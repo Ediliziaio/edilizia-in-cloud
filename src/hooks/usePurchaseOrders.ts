@@ -48,6 +48,18 @@ export interface PurchaseOrder {
   last_verification?: { result: string | null } | null;
 }
 
+export interface DestinazioneRigaOda {
+  tipo: "commessa" | "magazzino";
+  id: string;
+  quantita: number;
+  nome?: string | null;
+  indirizzo?: string | null;
+}
+
+export type AggiornamentoRigaOda = TablesUpdate<"purchase_order_items"> & {
+  destinazioni_previste?: DestinazioneRigaOda[];
+};
+
 export interface PurchaseOrderItem {
   id: string;
   company_id: string;
@@ -72,6 +84,7 @@ export interface PurchaseOrderItem {
   line_total: number;
   vat_amount: number;
   quantity_received: number;
+  destinazioni_previste?: DestinazioneRigaOda[];
   received_date: string | null;
   article_template_id: string | null;
   order_item_id: string | null;
@@ -328,9 +341,11 @@ export function usePurchaseOrderDetail(poId: string | null) {
   });
 
   const updateItemMutation = useMutation({
-    mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_order_items"> }) => {
+    mutationFn: async (params: { id: string; updates: AggiornamentoRigaOda }) => {
       const updates = {...params.updates,...(params.updates.unit_price != null && params.updates.price_pending === undefined ? {price_pending:false} : {})};
-      const { error } = await supabase.from("purchase_order_items").update(updates).eq("id", params.id);
+      // La colonna delle destinazioni arriva dalla migrazione, prima dei tipi generati.
+      const { error } = await supabase.from("purchase_order_items")
+        .update(updates as TablesUpdate<"purchase_order_items">).eq("id", params.id);
       if (error) throw error;
     },
     onSuccess: async () => {

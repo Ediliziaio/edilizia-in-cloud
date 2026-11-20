@@ -1051,6 +1051,11 @@ describe("precedenza delle fatture citate nel movimento", () => {
     const migrazione = await readFile("supabase/migrations/20290430141000_riferimenti_certi_ddt_tesoreria.sql", "utf8");
     await pg.exec(migrazione);
     await pg.exec(migrazione);
+    await pg.exec(`create function public.e_nota_credito_ricevuta(text) returns boolean language sql as $$select $1='TD04'$$;
+      create function public.e_autofattura_ricevuta(text) returns boolean language sql as $$select $1='TD17'$$;`);
+    const rivaluta = await readFile("supabase/migrations/20290430144000_rivaluta_movimenti_quando_arriva_fattura.sql", "utf8");
+    await pg.exec(rivaluta);
+    await pg.exec(rivaluta);
   }, 60000);
 
   const nome = "Costruzioni Demo Srl";
@@ -1090,6 +1095,29 @@ describe("precedenza delle fatture citate nel movimento", () => {
     const b = await emessa("FT-2026-0232", 400);
     const r = await accredito("Fattura n. 0231", 400, b);
     expect(r).toMatchObject({ esito: "da_gestire", regola: "R-RIFERIMENTO-FATTURA", candidati: [] });
+  });
+
+  it("all'arrivo di una fattura riferita aggiorna soltanto i movimenti aperti di quella società", async () => {
+    const oggi = new Date().toISOString().slice(0, 10);
+    const fornitore = await supplier(nome, iban);
+    const f = nid();
+    const riferito = await tx({ amount: 400, type: "debit", desc: "Saldo fattura 5139", name: nome, iban, date: oggi });
+    const altro = await tx({ amount: 400, type: "debit", desc: "Saldo fattura 9217", name: nome, iban, date: oggi });
+    const altraAzienda = await tx({ amount: 400, type: "debit", desc: "Acconto fattura 5139", date: oggi, company: other, account: accOther });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    const prima = (await service("select impronta from tesoreria_esiti where transaction_id=$1", [altro])).rows[0].impronta;
+    await service(`insert into fatture_ricevute(id,company_id,fornitore_id,tipo_documento,numero_fattura,data_fattura,totale_documento,netto_a_pagare,stato,cedente_ragione_sociale)
+      values($1,$2,$3,'TD01','5139',$4,400,400,'non_letta',$5)`, [f, company, fornitore, oggi, nome]);
+    await expect(rpc("tesoreria_rivaluta_fattura_ricevuta", [f])).rejects.toThrow(/permission denied|riservata/);
+    const result = await service("select public.tesoreria_rivaluta_fattura_ricevuta($1) n", [f]);
+    expect(result.rows).toEqual([{ n: 1 }]);
+    const esiti = (await service("select transaction_id,impronta,risultato from tesoreria_esiti")).rows;
+    expect(esiti.find(e => e.transaction_id === riferito)?.risultato).toMatchObject({
+      candidati: [{ righe: [{ id: f, quota: 400, residuo: 400 }] }],
+    });
+    expect(esiti.find(e => e.transaction_id === altro)?.impronta).toBe(prima);
+    expect(esiti.some(e => e.transaction_id === altraAzienda)).toBe(false);
+    expect((await service("select count(*)::integer n from bank_reconciliations")).rows).toEqual([{ n: 0 }]);
   });
 
   it("il saldo esatto della fattura citata conserva l'esito automatico", async () => {

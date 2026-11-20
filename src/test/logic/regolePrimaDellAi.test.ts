@@ -29,8 +29,10 @@ describe("decidiClassificazione", () => {
 
 describe("ai-fattura-classify usa le regole prima del modello", () => {
   const src = readFileSync("supabase/functions/ai-fattura-classify/index.ts", "utf8");
+  const regole = readFileSync("supabase/functions/_shared/commessaFatturaRegole.ts", "utf8");
   it("chiede commessa_da_codici e passa il motivo al router", () => {
-    expect(src).toContain('rpc("commessa_da_codici"');
+    expect(regole).toContain('rpc("commessa_da_codici"');
+    expect(src).toContain("commessaDaRegole(supabase");
     expect(src.indexOf("commessaDaRegole(supabase")).toBeLessThan(src.indexOf("aiRouterComplete({"));
     expect(src).toContain("motivo: decisione.motivo");
   });

@@ -14,7 +14,13 @@ export function documentoDaOrdineAcquisto(order:PurchaseOrder,items:PurchaseOrde
   commessa:order.orders?.order_code,codiceCliente:supplier?.codice_cliente,luogo:order.delivery_address||order.orders?.work_address,
   indirizzoCantiere:order.orders?.work_address,magazzinoId:order.delivery_warehouse_id,destinazioneTipo:order.delivery_warehouse_id?'magazzino':order.order_id?'cantiere':order.delivery_address?'altro':'magazzino',riferimento:order.supplier_reference,
   consegna:order.expected_delivery_date,pagamento:order.payment_terms||recapiti.pagamento,note:order.notes,
-  righe:items.map(i=>({origineId:i.id,specifiche:{riferimento:i.riferimento,sku:i.sku,misure:i.misure,colore:i.colore,apertura:i.apertura,dettagli:i.misure_testo},descrizione:descrizioneConMisure(i.description,i.misure_testo),nota:i.notes,unita:i.unit_of_measure||'pz',quantita:Number(i.quantity),prezzo:i.price_pending?null:Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending?undefined:Number(i.line_total)})),
+  righe:items.map(i=>{
+   const unita = i.unit_of_measure || 'pz';
+   const consegne = (i.destinazioni_previste ?? []).map(d =>
+    `${d.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })} ${unita} · ${[d.nome, d.indirizzo].filter(Boolean).join(" · ")}`);
+   const nota = [i.notes, ...consegne].filter(Boolean).join("\n") || null;
+   return {origineId:i.id,specifiche:{riferimento:i.riferimento,sku:i.sku,misure:i.misure,colore:i.colore,apertura:i.apertura,dettagli:i.misure_testo},descrizione:descrizioneConMisure(i.description,i.misure_testo),nota,unita,quantita:Number(i.quantity),prezzo:i.price_pending?null:Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending?undefined:Number(i.line_total)};
+  }),
   totali:{imponibile:totali.imponibile,iva:totali.iva,totale:totali.totale},
  },order.document_details);
 }

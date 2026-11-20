@@ -34,8 +34,8 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { rimborsaAddebitoAi } from "../_shared/rimborsoAi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { commessaFinale, decidiClassificazione, decidiRiferimentiCommessa, type CommessaDaRegole, type ConflittoDaRegole } from "../_shared/regolePrimaDellAi.ts";
-import { catenaDellaFattura } from "../_shared/catenaFatturaServer.ts";
+import { commessaFinale, decidiClassificazione } from "../_shared/regolePrimaDellAi.ts";
+import { commessaDaRegole } from "../_shared/commessaFatturaRegole.ts";
 import { corpoXmlFattura, leggiRiferimentiFattura, testiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFattura.ts";
 import { esitoDaRisultatoRouter, registraEsitoLavoroAi } from "../_shared/esitoLavoroAi.ts";
 
@@ -117,74 +117,19 @@ interface ClassifiedFattura {
   order_motivo?: string | null;
 }
 
-/**
- * La commessa senza AI: prima i codici (CUP, CIG, codice commessa), poi la catena dei documenti
- * (DDT → ordine → commessa, ordine, indirizzo del cantiere). Un errore qui non ferma la classificazione.
- */
-async function commessaDaRegole(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any, fattura: AnyObj, companyId: string,
-): Promise<{ regola: CommessaDaRegole | null; proposta: CommessaDaRegole | null; conflitto: ConflittoDaRegole | null }> {
-  const daCodici = await commessaDaCodici(supabase, fattura, companyId);
-  try {
-    const esito = await catenaDellaFattura(supabase, {
-      id: fattura.id, company_id: companyId, fornitore_id: fattura.fornitore_id ?? null, data_fattura: fattura.data_fattura ?? null,
-      xml_raw: fattura.xml_raw ?? null, indice_corpo: fattura.indice_corpo ?? 0, note: fattura.note ?? null,
-    });
-    const scelta = decidiRiferimentiCommessa(daCodici, esito);
-    if (scelta.conflitto) return scelta;
-    // La catena c'è solo se è certa: «automatico», che il database fa valere solo con l'interruttore
-    // acceso e su una fattura già contabilizzata col costo libero; altrimenti diventa una proposta.
-    if (scelta.regola) await registraCommessa(supabase, fattura.id, scelta.regola, esito.commessa ? "catena_documenti" : "codici_commessa", esito.commessa ? "automatico" : "proposta");
-    if (scelta.proposta) await registraCommessa(supabase, fattura.id, scelta.proposta, "riferimenti_testuali", "proposta");
-    return scelta;
-  } catch (e) {
-    console.warn("[ai-fattura-classify] catena non disponibile:", e instanceof Error ? e.message : e);
-    return { regola: null, proposta: null, conflitto: null };
-  }
-}
-
-/**
- * La commessa trovata dalle regole entra nella traccia (`acquisti_commessa_della_fattura`, solo servizio):
- * col collegamento il costo segue la commessa. Un errore qui non ferma la classificazione.
- */
-async function registraCommessa(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any, fatturaId: string, commessa: CommessaDaRegole, regola: string, esito: "automatico" | "proposta",
-): Promise<void> {
-  try {
-    const { error } = await supabase.rpc("acquisti_commessa_della_fattura", {
-      p_fattura: fatturaId, p_order: commessa.order_id, p_regola: regola, p_esito: esito, p_motivo: commessa.motivo,
-    });
-    if (error) console.warn("[ai-fattura-classify] commessa non registrata:", error.message);
-  } catch (e) {
-    console.warn("[ai-fattura-classify] commessa non registrata:", e instanceof Error ? e.message : e);
-  }
-}
-
-async function commessaDaCodici(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any, fattura: AnyObj, companyId: string,
-): Promise<CommessaDaRegole | null> {
-  try {
-    const { data, error } = await supabase.rpc("commessa_da_codici", {
-      p_company_id: companyId, p_xml: fattura.xml_raw ? corpoXmlFattura(fattura.xml_raw, fattura.indice_corpo ?? 0) : null, p_righe: fattura.righe ?? null, p_escludi: fattura.id,
-    });
-    if (error) { console.warn("[ai-fattura-classify] regole non disponibili:", error.message); return null; }
-    const r = Array.isArray(data) ? data[0] : data;
-    return r?.order_id ? { order_id: String(r.order_id), motivo: String(r.motivo ?? "codice") } : null;
-  } catch (e) {
-    console.warn("[ai-fattura-classify] regole non disponibili:", e instanceof Error ? e.message : e);
-    return null;
-  }
-}
-
 async function classifyOne(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any, fattura: AnyObj, openOrders: AnyObj[],
   companyId: string, userId: string,
 ): Promise<{ result: ClassifiedFattura; modelUsed: string; tokens: number; cost: number }> {
-  const { regola, proposta, conflitto } = await commessaDaRegole(supabase, fattura, companyId);
+  const { regola, proposta, conflitto } = await commessaDaRegole(supabase, {
+    id: fattura.id, company_id: companyId, fornitore_id: fattura.fornitore_id ?? null,
+    data_fattura: fattura.data_fattura ?? null, xml_raw: fattura.xml_raw ?? null,
+    indice_corpo: fattura.indice_corpo ?? 0, note: fattura.note ?? null, righe: fattura.righe,
+  }).catch((error) => {
+    console.warn("[ai-fattura-classify] riferimenti non verificati", error);
+    return { regola: null, proposta: null, conflitto: { conflitto: "Verifica dei riferimenti da riprovare", richiedeScelta: true } };
+  });
   const decisione = decidiClassificazione(regola, fattura.categoria_ai);
   // Conflitto fra i documenti e categoria già nota: l'AI non servirebbe a niente (la sua commessa
   // verrebbe scartata). Si scrive il conflitto, senza proposta, e decide una persona.

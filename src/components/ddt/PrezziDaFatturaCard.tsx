@@ -13,7 +13,7 @@ import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDebounce } from "@/hooks/useDebounce";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
-import { proponiPrezziFattura, righeDocumentoFattura } from "@/lib/ddt/proponiPrezziFattura";
+import { proponiPrezziFattura, righeDocumentoFattura, righePrezzoDiQuestoDdt } from "@/lib/ddt/proponiPrezziFattura";
 
 interface Fattura {
   id: string;
@@ -140,14 +140,25 @@ function PrezziDaFatturaForm({
   const documentiCollegati = [...new Set((collegate.data ?? []).map(f => f.fatture_ricevute?.id).filter((id): id is string => !!id))];
   const fattura = sceltaFattura ?? (!ricerca.trim() && documentiCollegati.length === 1 ? documentiCollegati[0] : '');
   const documento = useQuery({
-    queryKey: ['ddt-fattura-righe', ddt.company_id, fattura],
+    queryKey: ['ddt-fattura-righe', ddt.company_id, ddt.id, fattura],
     enabled: modificabile && aperto && !!fattura,
     queryFn: async () => {
-      const { data, error } = await db.from('fatture_ricevute')
-        .select('id,numero_fattura,data_fattura,cedente_ragione_sociale,righe,xml_raw,indice_corpo').eq('company_id', ddt.company_id).eq('id', fattura).maybeSingle();
-      if (error) throw error;
+      const [originale, contesto, legami] = await Promise.all([
+        db.from('fatture_ricevute')
+          .select('id,numero_fattura,data_fattura,cedente_ragione_sociale,righe,xml_raw,indice_corpo').eq('company_id', ddt.company_id).eq('id', fattura).maybeSingle(),
+        db.rpc('fattura_riconciliazione_contesto', { p_fattura: fattura, p_documenti: { ddt: [ddt.id], oda: [] } }),
+        db.rpc('fattura_ddt_riepilogo', { p_fattura: fattura }),
+      ]);
+      for (const risposta of [originale, contesto, legami]) if (risposta.error) throw risposta.error;
+      const { data } = originale;
       if (!data || data.id !== fattura) throw new Error('Fattura non disponibile');
-      return { id: String(data.id), numero_fattura: String(data.numero_fattura ?? ''), data_fattura: String(data.data_fattura ?? ''), cedente_ragione_sociale: String(data.cedente_ragione_sociale ?? ''), righe: righeDocumentoFattura(data) };
+      const perRiga = (contesto.data as { contesto?: { ddt_per_numero_xml?: Record<string, string[]> } })?.contesto?.ddt_per_numero_xml;
+      const piuDdt = ((legami.data as { ddt?: unknown[] })?.ddt?.length ?? 0) > 1;
+      return {
+        id: String(data.id), numero_fattura: String(data.numero_fattura ?? ''), data_fattura: String(data.data_fattura ?? ''),
+        cedente_ragione_sociale: String(data.cedente_ragione_sociale ?? ''),
+        righe: righePrezzoDiQuestoDdt(righeDocumentoFattura(data), ddt.id, perRiga, piuDdt),
+      };
     },
   });
   const proposte = useMemo(() => documento.data?.id === fattura

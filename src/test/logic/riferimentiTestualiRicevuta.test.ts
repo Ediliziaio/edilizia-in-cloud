@@ -31,6 +31,18 @@ describe("riferimenti testuali di fatture ricevute",()=>{
   it("il DDT nella causale risale all’ordine e alla commessa",()=>{
     const c=catena(xml("Rif. DDT n. 1068 del 10/10/2026"));expect(c.esito).toBe("automatico");expect(c.allocazioni[0].destinazione.id).toBe("a");
   });
+  it("otto DDT confermati su dieci non attribuiscono il totale sulla base di un codice in testata", () => {
+    const riferimenti = Array.from({ length: 10 }, (_, i) =>
+      `<DatiDDT><NumeroDDT>${1068 + i}</NumeroDDT><DataDDT>2026-10-10</DataDDT></DatiDDT>`).join("");
+    const ddt = Array.from({ length: 8 }, (_, i) => ({ ...noti.ddt[0], id: `d-${i}`, numero: String(1068 + i) }));
+    const c = costruisciCatena(fattura(xml("Commessa CANT-2026-001", ["Materiali"], "", riferimenti)), { ...noti, ddt });
+    const decisione = decidiRiferimentiCommessa({ order_id: "a", motivo: "codice" }, {
+      catena: c, commessa: null, conflitto: null, saltata: null,
+    });
+    expect(decisione.regola).toBeNull();
+    expect(decisione.conflitto?.conflitto).toMatch(/DDT verificati 8\/10.*1076.*1077/);
+    expect(commessaFinale(decisione.regola, { orderId: "a", confidenza: 1 }, decisione.conflitto).orderId).toBeNull();
+  });
   it("due ordini nelle rispettive righe ripartiscono la fattura senza applicarli alla testata",()=>{
     const c=catena(xml("",["Materiali ordine ODA-2026-0039", "Materiali ordine ODA-2026-0040"]));
     expect(c.esito).toBe("automatico");expect(c.allocazioni.map(a=>[a.destinazione.id,a.importo,a.righe])).toEqual([["a",100,[1]],["b",100,[2]]]);

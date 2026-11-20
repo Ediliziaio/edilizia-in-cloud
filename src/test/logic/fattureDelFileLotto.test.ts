@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DbFinto } from "../helpers/dbFinto";
 import { salvaFattureDelFile } from "../../../supabase/functions/_shared/salvaFatturaRicevuta";
+import { leggiFatturaRicevuta } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
 
 // Una fattura letta, ridotta a quello che il salvataggio usa.
 const letta = (numero: string, nelFile: number) => ({
@@ -12,6 +13,18 @@ const letta = (numero: string, nelFile: number) => ({
 }) as never;
 
 describe("file SDI con più fatture (lotto), 01/11/2026", () => {
+  it("conserva codice articolo e unità dall'XML, anche se NumeroLinea salta dei numeri", () => {
+    const xml = `<FatturaElettronica>
+      <FatturaElettronicaHeader><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>01234567890</IdCodice></IdFiscaleIVA></DatiAnagrafici></CedentePrestatore></FatturaElettronicaHeader>
+      <FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><Numero>1</Numero><Data>2026-10-31</Data></DatiGeneraliDocumento></DatiGenerali>
+      <DatiBeniServizi><DettaglioLinee><NumeroLinea>5</NumeroLinea><CodiceArticolo><CodiceTipo>SKU</CodiceTipo><CodiceValore>MAT-A</CodiceValore></CodiceArticolo>
+      <Descrizione>Cemento</Descrizione><Quantita>4</Quantita><UnitaMisura>SAC</UnitaMisura><PrezzoTotale>80</PrezzoTotale></DettaglioLinee></DatiBeniServizi>
+      </FatturaElettronicaBody></FatturaElettronica>`;
+    expect(leggiFatturaRicevuta(xml, new DOMParser())?.righe).toMatchObject([
+      { numero_linea: 1, codice_articolo: "MAT-A", unita_misura: "SAC", quantita: 4 },
+    ]);
+  });
+
   it("salva tutte le fatture del file, ognuna col suo indice; l'id openapi resta alla prima", async () => {
     const db = new DbFinto({ fatture_ricevute: [] });
     const esito = await salvaFattureDelFile(db.client, { companyId: "c1", xml: "<x/>", openapiId: "oa-1" }, letta("A-1", 3),

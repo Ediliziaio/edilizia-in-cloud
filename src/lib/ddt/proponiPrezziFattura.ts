@@ -20,7 +20,8 @@ export function righeDocumentoFattura(f: { righe: unknown; xml_raw?: string | nu
       const nodes = Array.from(doc.getElementsByTagName('FatturaElettronicaBody')[f.indice_corpo ?? 0]?.getElementsByTagName('DettaglioLinee') ?? []);
       if (letta?.righe.length && nodes.length === letta.righe.length) {
         const fields = letta.righe.map((r, i) => ({
-          numero_linea: i + 1, descrizione: r.description, codice_articolo: r.product_code,
+          numero_linea: numeroDocumento(nodes[i].getElementsByTagName('NumeroLinea')[0]?.textContent) ?? i + 1,
+          descrizione: r.description, codice_articolo: r.product_code,
           quantita: numeroDocumento(nodes[i].getElementsByTagName('Quantita')[0]?.textContent),
           prezzo_unitario: numeroDocumento(nodes[i].getElementsByTagName('PrezzoUnitario')[0]?.textContent),
           imponibile: numeroDocumento(nodes[i].getElementsByTagName('PrezzoTotale')[0]?.textContent),
@@ -32,6 +33,19 @@ export function righeDocumentoFattura(f: { righe: unknown; xml_raw?: string | nu
     }
   }
   return righeFatturaConfronto(f.righe);
+}
+
+/** Una voce citata in più bolle richiede la ripartizione delle quantità. */
+export function righePrezzoDiQuestoDdt(
+  righe: RigaConfronto[],
+  ddtId: string,
+  ddtPerRiga: Record<string, string[]> | undefined,
+  piuDdt: boolean,
+): RigaConfronto[] {
+  return righe.filter(riga => {
+    const riferimenti = ddtPerRiga?.[riga.id];
+    return riferimenti ? riferimenti.length === 1 && riferimenti[0] === ddtId : !piuDdt;
+  });
 }
 
 /** Solo corrispondenze univoche con UM compatibili. I casi ambigui restano manuali. */

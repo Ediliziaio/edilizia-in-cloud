@@ -414,6 +414,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     const wid = s.warehouseId ?? ddt.warehouse_id;
                     const tipo = s.tipo ?? "ingresso";
                     const poiScelto = s.ordineAcquisto === "__fuori__" ? null : s.ordineAcquisto ?? r.purchase_order_item_id;
+                    const destinazioniPreviste = controlloOrdini.data?.righe.find((i) => i.id === poiScelto)?.destinazioni_previste ?? [];
                     const articoli =
                       (dest === "cantiere"
                         ? catalogo.data?.commessa.filter(
@@ -543,6 +544,25 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                 {controlloOrdini.data.righe.map((i) => <option key={i.id} value={i.id}>{i.oda_number} · {i.description} · residuo {numero(Math.max(0, Number(i.quantity) - Number(i.quantity_received ?? 0)))} {i.unit_of_measure}</option>)}
                               </UniformSelect><span className="block text-muted-foreground">Puoi confermare una parte su un ordine e attribuire il residuo a un altro, senza duplicare la bolla.</span>
                             </label>}
+                            {tipo === "ingresso" && destinazioniPreviste.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                                <span className="text-muted-foreground">Destinazioni previste</span>
+                                {destinazioniPreviste.map(d => (
+                                  <Button key={`${d.tipo}:${d.id}`} type="button" size="sm" variant="outline"
+                                    className="h-7 px-2 text-xs"
+                                    disabled={d.tipo === "magazzino" && !permessi.canEditWarehouse}
+                                    aria-pressed={d.tipo === "commessa" ? dest === "cantiere" && oid === d.id : dest === "magazzino" && wid === d.id}
+                                    onClick={() => cambia(r.id, {
+                                      destinazione: d.tipo === "commessa" ? "cantiere" : "magazzino",
+                                      orderId: d.tipo === "commessa" ? d.id : undefined,
+                                      warehouseId: d.tipo === "magazzino" ? d.id : undefined,
+                                      articolo: "",
+                                    })}>
+                                    {d.nome ?? (d.tipo === "commessa" ? "Cantiere" : "Magazzino")} · {numero(d.quantita)}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
                             {tipo === "ingresso" && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Inserisci solo la merce accettata: quantità mancanti o danneggiate restano da gestire. I servizi e i resi si registrano con l’operazione dedicata.</p>}
                             {dest === "cantiere" ? (
                               <OrderSelectCombobox
