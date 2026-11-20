@@ -6,6 +6,9 @@ import SettingsBanca from "@/pages/azienda/settings/SettingsBanca";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { useContiPrimaNota } from "@/hooks/useContiPrimaNota";
 
+type RisultatoLettura = { data: Array<Record<string, unknown>>; error: null };
+type RisultatoScrittura = { data: { id: unknown } | null; error: Error | null };
+
 const db = vi.hoisted(() => ({
   accounts: [] as Array<Record<string, unknown>>,
   inserts: [] as Array<Record<string, unknown>>,
@@ -21,12 +24,12 @@ vi.mock("@/components/integrations/BankConnectionsCard", () => ({
   default: () => <div>Connessioni Open Banking</div>,
 }));
 vi.mock("@/components/orders/CommessaCombobox", () => ({
-  CommessaCombobox: () => null,
+  CommessaCombobox: (): null => null,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: async () => ({ data: [], error: null }),
+    rpc: async (): Promise<RisultatoLettura> => ({ data: [], error: null }),
     from: (table: string) => {
       const filters: Array<[string, unknown]> = [];
       let insert: Record<string, unknown> | undefined;
@@ -41,7 +44,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         limit: () => query,
         insert: (data: Record<string, unknown>) => { insert = data; return query; },
         update: (data: Record<string, unknown>) => { update = data; return query; },
-        single: async () => {
+        single: async (): Promise<RisultatoScrittura> => {
           if (insert) {
             db.inserts.push(insert);
             const account = { ...insert, id: `manuale-${db.inserts.length}` };
@@ -54,7 +57,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           Object.assign(account, update);
           return { data: { id: account.id }, error: null };
         },
-        then: (resolve: (result: { data: unknown[]; error: null }) => unknown) => Promise.resolve({
+        then: (resolve: (result: RisultatoLettura) => unknown) => Promise.resolve<RisultatoLettura>({
           data: table === "bank_accounts_operativi" ? matching() : [], error: null,
         }).then(resolve),
       };
