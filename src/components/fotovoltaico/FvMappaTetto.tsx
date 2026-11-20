@@ -1,5 +1,9 @@
 import { type PointerEvent, useRef, useState } from "react";
-import { MappaGoogleFv, type DimensioniMappaGoogleFv, type StatoMappaGoogleFv } from "./tetto/MappaGoogleFv";
+import {
+  type DimensioniMappaGoogleFv,
+  MappaGoogleFv,
+  type StatoMappaGoogleFv,
+} from "./tetto/MappaGoogleFv";
 import {
   Hand,
   LocateFixed,
@@ -8,6 +12,7 @@ import {
   MousePointer2,
   PenTool,
   Plus,
+  RectangleHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +49,14 @@ type Props = {
 };
 const num = (x: number) =>
   x.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+type TrascinamentoFalda =
+  | { tipo: "vertice"; fid: string; i: number; punti: PuntoFv[] }
+  | { tipo: "falda"; fid: string; ancora: PuntoFv; punti: PuntoFv[] };
+const entroLimiti = (ps: PuntoFv[]) =>
+  ps.every((p) =>
+    Number.isFinite(p.x) && Number.isFinite(p.y) && Math.abs(p.x) <= 400 &&
+    Math.abs(p.y) <= 400
+  );
 export function FvMappaTetto(
   {
     ricerca,
@@ -55,18 +68,29 @@ export function FvMappaTetto(
     onChange,
   }: Props,
 ) {
-  const [centro, setCentro] = useState(
+  const [centro, aggiornaCentro] = useState(
       riferimento?.posizione ?? piano?.mappa?.origine ?? ricerca,
     ),
-    [zoom, setZoom] = useState(20),
+    [zoom, aggiornaZoom] = useState(20),
     [pin, setPin] = useState(
       riferimento?.posizione ?? piano?.mappa?.origine ?? ricerca,
     );
+  const [comandoVista, setComandoVista] = useState(0);
+  const setCentro: typeof aggiornaCentro = (v) => {
+    aggiornaCentro(v);
+    setComandoVista((n) => n + 1);
+  };
+  const setZoom: typeof aggiornaZoom = (v) => {
+    aggiornaZoom(v);
+    setComandoVista((n) => n + 1);
+  };
   const [falde, setFalde] = useState<MappaFv["falde"]>(
       piano?.mappa?.falde ?? [],
     ),
     [attiva, setAttiva] = useState(piano?.mappa?.falde[0]?.id ?? "");
-  const [tool, setTool] = useState<"pin" | "poligono" | "modifica" | "sposta">(
+  const [tool, setTool] = useState<
+      "pin" | "poligono" | "rettangolo" | "modifica" | "sposta"
+    >(
       riferimento || piano?.mappa ? "modifica" : "sposta",
     ),
     [punti, setPunti] = useState<PuntoFv[]>([]),
@@ -77,24 +101,49 @@ export function FvMappaTetto(
   const vistaDrag = useRef<
     { x: number; y: number; centro: PosizioneMappaFv } | null
   >(null);
-  const pinDrag = useRef(false);
+  const pinDrag = useRef<
+    {
+      iniziale: PosizioneMappaFv;
+      posizione: PosizioneMappaFv;
+      ancora: PosizioneMappaFv;
+    } | null
+  >(null);
   const [larghezza, setLarghezza] = useState(12),
     [altezza, setAltezza] = useState(8),
     [rotazione, setRotazione] = useState(0),
     [bordo, setBordo] = useState(piano?.distanzaBordo ?? .3),
     [ostacoli, setOstacoli] = useState(piano?.mappa?.distanzaOstacoli ?? .3);
   const svg = useRef<SVGSVGElement>(null),
-    drag = useRef<{ fid: string; i: number } | null>(null);
-  const [satellite, setSatellite] = useState<StatoMappaGoogleFv>({caricando:true,pronto:false,errore:""});
-  const [dimensioni, setDimensioni] = useState<DimensioniMappaGoogleFv>({w:640,h:440});
+    drag = useRef<TrascinamentoFalda | null>(null);
+  const [satellite, setSatellite] = useState<StatoMappaGoogleFv>({
+    caricando: true,
+    pronto: false,
+    errore: "",
+  });
+  const [dimensioni, setDimensioni] = useState<DimensioniMappaGoogleFv>({
+    w: 640,
+    h: 440,
+  });
   const [tentativoMappa, setTentativoMappa] = useState(0);
-  const origine = riferimento?.posizione ?? piano?.mappa?.origine ?? pin,
+  const origineConfermata = riferimento?.posizione ?? piano?.mappa?.origine ??
+      pin,
+    origine = pin,
     confermato = (!!riferimento || !!piano?.mappa) &&
-      Math.abs(pin.lat - origine.lat) < 1e-8 &&
-      Math.abs(pin.lng - origine.lng) < 1e-8;
+      Math.abs(pin.lat - origineConfermata.lat) < 1e-8 &&
+      Math.abs(pin.lng - origineConfermata.lng) < 1e-8;
   const selezionata = falde.find((f) => f.id === attiva);
+  const contorniInvariati = piano?.mappa &&
+    JSON.stringify(piano.mappa.falde) === JSON.stringify(falde) &&
+    piano.mappa.distanzaOstacoli === ostacoli && piano.distanzaBordo === bordo;
+  const mantieniPannelli = contorniInvariati && !!piano?.pannelli.length;
   const schermo = (p: PuntoFv) =>
-    pixelDaCoordinate(coordinateDaMetri(p, origine), centro, zoom, dimensioni.w, dimensioni.h);
+    pixelDaCoordinate(
+      coordinateDaMetri(p, origine),
+      centro,
+      zoom,
+      dimensioni.w,
+      dimensioni.h,
+    );
   const serializza = (ps: PuntoFv[]) =>
     ps.map((p) => {
       const q = schermo(p);
@@ -119,9 +168,9 @@ export function FvMappaTetto(
       setErrore("Puoi inserire fino a 12 falde.");
       return;
     }
-    if (!poligonoValido(ps)) {
+    if (!entroLimiti(ps) || !poligonoValido(ps)) {
       setErrore(
-        "Traccia almeno tre vertici, senza incroci e con superficie di almeno 0,5 m².",
+        "Traccia almeno tre vertici, senza incroci, entro 400 m dal pin e con superficie di almeno 0,5 m².",
       );
       return;
     }
@@ -144,6 +193,23 @@ export function FvMappaTetto(
       setFalde((v) => v.map((f) => f.id === attiva ? { ...f, ...patch } : f));
     }
   };
+  const aggiornaPunti = (fid: string, ps: PuntoFv[]) => {
+    if (!entroLimiti(ps)) {
+      setErrore("Mantieni la falda entro 400 m dal pin.");
+      return;
+    }
+    setErrore("");
+    setFalde((v) => v.map((f) => f.id === fid ? { ...f, punti: ps } : f));
+  };
+  const annullaTrascinamento = () => {
+    const d = drag.current;
+    if (d) {
+      setFalde((v) =>
+        v.map((f) => f.id === d.fid ? { ...f, punti: d.punti } : f)
+      );
+    }
+    drag.current = null;
+  };
   const finisciSpostamento = (e: PointerEvent) => {
     if (vistaDrag.current && svg.current) {
       const r = svg.current.getBoundingClientRect(), d = vistaDrag.current;
@@ -151,12 +217,18 @@ export function FvMappaTetto(
         dy = (e.clientY - d.y) * dimensioni.h / r.height;
       if (Math.hypot(dx, dy) > 2) {
         setCentro(
-          coordinateDaPixel({ x: dimensioni.w / 2 - dx, y: dimensioni.h / 2 - dy }, d.centro, zoom, dimensioni.w, dimensioni.h),
+          coordinateDaPixel(
+            { x: dimensioni.w / 2 - dx, y: dimensioni.h / 2 - dy },
+            d.centro,
+            zoom,
+            dimensioni.w,
+            dimensioni.h,
+          ),
         );
       }
     }
     vistaDrag.current = null;
-    pinDrag.current = false;
+    pinDrag.current = null;
     drag.current = null;
     setSpostamento({ x: 0, y: 0 });
   };
@@ -169,11 +241,13 @@ export function FvMappaTetto(
         falde,
         distanzaOstacoli: ostacoli,
       };
-      const next = pianoDaMappaFv(
-        mappa,
-        piano?.modulo ?? { corto: 1.134, lungo: 1.762, stimato: true },
-      );
-      // Modifica delle falde confermata esplicitamente: la disposizione sarà rigenerata sull'impianto.
+      const next = piano && piano.mappa && contorniInvariati
+        ? { ...piano, mappa: { ...piano.mappa, ...mappa } }
+        : pianoDaMappaFv(
+          mappa,
+          piano?.modulo ?? { corto: 1.134, lungo: 1.762, stimato: true },
+        );
+      // Solo nuovi contorni o margini richiedono una nuova disposizione dei pannelli.
       onChange({ ...next, distanzaBordo: bordo });
       setErrore("");
     } catch (e) {
@@ -252,12 +326,27 @@ export function FvMappaTetto(
         </Button>
         <Button
           type="button"
+          variant={tool === "rettangolo" ? "default" : "outline"}
+          aria-pressed={tool === "rettangolo"}
+          disabled={!modificabile || !confermato ||
+            !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
+              altezza <= 100 && Math.abs(rotazione) <= 180)}
+          onClick={() => {
+            setTool("rettangolo");
+            setPunti([]);
+            setCursore(null);
+          }}
+        >
+          <RectangleHorizontal className="mr-2 h-4 w-4" />Falda rettangolare
+        </Button>
+        <Button
+          type="button"
           variant={tool === "modifica" ? "default" : "outline"}
           aria-pressed={tool === "modifica"}
           disabled={!confermato}
           onClick={() => setTool("modifica")}
         >
-          <MousePointer2 className="mr-2 h-4 w-4" />Seleziona
+          <MousePointer2 className="mr-2 h-4 w-4" />Seleziona e sposta
         </Button>
         <div className="ml-auto flex gap-1">
           <Button
@@ -292,29 +381,45 @@ export function FvMappaTetto(
         <p role="status" className="text-sm text-slate-700">
           {tool === "poligono"
             ? `${punti.length} vertici · clicca gli angoli e torna sul primo punto per chiudere.`
+            : tool === "rettangolo"
+            ? "Tocca il centro della nuova falda: crea un rettangolo, poi trascinalo e adatta gli angoli."
             : tool === "pin"
-            ? "Clicca sul tetto o trascina il pin, poi conferma la posizione."
+            ? falde.length
+              ? "Trascina il pin: tutte le falde lo seguono mantenendo le misure. Poi conferma il tetto."
+              : "Clicca sul tetto o trascina il pin, poi conferma la posizione."
             : tool === "sposta"
             ? "Trascina la mappa per trovare l’edificio. Il pin indica il tetto scelto."
-            : "Seleziona una falda e trascina i vertici per correggerla."}
+            : "Trascina una falda per spostarla, oppure i punti bianchi per correggere gli angoli."}
         </p>
         {(!confermato || tool === "pin") && (
           <Button
             type="button"
             disabled={!modificabile}
             onClick={() => {
-              onPosizione({
-                posizione: pin,
-                ricerca: { indirizzo, posizione: ricerca },
-              });
-              setFalde([]);
-              setAttiva("");
+              if (!confermato) {
+                onPosizione({
+                  posizione: pin,
+                  ricerca: { indirizzo, posizione: ricerca },
+                });
+              }
               setTool("modifica");
             }}
           >
-            Conferma tetto{piano?.mappa
-              ? " e azzera il disegno precedente"
-              : ""}
+            Conferma tetto
+          </Button>
+        )}
+        {!confermato && (riferimento || piano?.mappa) && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!modificabile}
+            onClick={() => {
+              setPin(origineConfermata);
+              setTool("modifica");
+              setErrore("");
+            }}
+          >
+            Annulla spostamento del tetto
           </Button>
         )}
         {tool === "poligono" && (
@@ -348,243 +453,401 @@ export function FvMappaTetto(
               <button
                 type="button"
                 className="underline"
-                onClick={() => setTentativoMappa(t => t + 1)}
+                onClick={() =>
+                  setTentativoMappa((t) =>
+                    t + 1
+                  )}
               >
                 Riprova mappa
               </button>
             </p>
           )}
-          <div className="relative mx-auto w-full overflow-hidden rounded-xl border bg-slate-100" style={{aspectRatio:"640/440",maxWidth:900}}>
-          <MappaGoogleFv key={tentativoMappa} centro={centro} zoom={zoom} navigabile={tool === "sposta"}
-            onStato={setSatellite}
-            onDimensioni={d => setDimensioni(p => Math.abs(p.w-d.w)<.5&&Math.abs(p.h-d.h)<.5?p:d)}
-            onVista={(c,z) => {setCentro(p => Math.abs(p.lat-c.lat)<1e-9&&Math.abs(p.lng-c.lng)<1e-9?p:c);setZoom(z);}}
-          />
-          <svg
-            ref={svg}
-            viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
-            className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-            style={{
-              aspectRatio: "640/440",
-              maxWidth: 900,
-              marginInline: "auto",
-              display: "block",
-              background: "transparent",
-              clipPath: satellite.pronto ? "inset(0 0 28px 0)" : undefined,
-              pointerEvents: satellite.pronto && tool === "sposta" ? "none" : "auto",
-              touchAction: "none",
-              cursor: tool === "sposta"
-                ? "grab"
-                : tool === "pin" || tool === "poligono"
-                ? "crosshair"
-                : "default",
-            }}
-            tabIndex={0}
-            role="group"
-            aria-label="Mappa satellitare: scegli il tetto o disegna una falda"
-            onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === "Escape") {
-                setPunti([]);
-                setCursore(null);
-                setTool("modifica");
-              }
-              if (
-                modificabile && tool === "poligono" && e.key === "Enter" &&
-                punti.length >= 3
-              ) {
-                e.preventDefault();
-                aggiungi(punti);
-              }
-              if (
-                modificabile && tool === "poligono" &&
-                (e.key === "Backspace" || e.key === "Delete")
-              ) {
-                e.preventDefault();
-                setPunti((v) => v.slice(0, -1));
-              }
-            }}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              if (tool === "sposta") {
-                vistaDrag.current = { x: e.clientX, y: e.clientY, centro };
-                svg.current?.setPointerCapture(e.pointerId);
-                return;
-              }
-              if (!modificabile) return;
-              const p = posizione(e);
-              if (tool === "pin") {
-                setPin(p);
-                pinDrag.current = true;
-                svg.current?.setPointerCapture(e.pointerId);
-                return;
-              }
-              if (tool === "poligono" && punti.length < 64) {
-                const pixel = pixelDaCoordinate(p, centro, zoom, dimensioni.w, dimensioni.h),
-                  primo = punti.length ? schermo(punti[0]) : null;
+          <div
+            className="relative mx-auto w-full overflow-hidden rounded-xl border bg-slate-100"
+            style={{ aspectRatio: "640/440", maxWidth: 900 }}
+          >
+            <MappaGoogleFv
+              key={tentativoMappa}
+              centro={centro}
+              zoom={zoom}
+              comandoVista={comandoVista}
+              navigabile={tool === "sposta"}
+              onStato={setSatellite}
+              onDimensioni={(d) =>
+                setDimensioni((p) =>
+                  Math.abs(p.w - d.w) < .5 && Math.abs(p.h - d.h) < .5 ? p : d
+                )}
+              onVista={(c, z) => {
+                aggiornaCentro((p) =>
+                  Math.abs(p.lat - c.lat) < 1e-9 &&
+                    Math.abs(p.lng - c.lng) < 1e-9
+                    ? p
+                    : c
+                );
+                aggiornaZoom(z);
+              }}
+            />
+            <svg
+              ref={svg}
+              viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
+              className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+              style={{
+                aspectRatio: "640/440",
+                maxWidth: 900,
+                marginInline: "auto",
+                display: "block",
+                background: "transparent",
+                clipPath: satellite.pronto ? "inset(0 0 28px 0)" : undefined,
+                pointerEvents: satellite.pronto && tool === "sposta"
+                  ? "none"
+                  : "auto",
+                touchAction: "none",
+                cursor: tool === "sposta"
+                  ? "grab"
+                  : tool === "pin" || tool === "poligono" ||
+                      tool === "rettangolo"
+                  ? "crosshair"
+                  : "default",
+              }}
+              tabIndex={0}
+              role="group"
+              aria-label="Mappa satellitare: scegli il tetto o disegna una falda"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  annullaTrascinamento();
+                  vistaDrag.current = null;
+                  if (pinDrag.current) setPin(pinDrag.current.iniziale);
+                  pinDrag.current = null;
+                  setSpostamento({ x: 0, y: 0 });
+                  setPunti([]);
+                  setCursore(null);
+                  setTool("modifica");
+                }
+                if (e.target !== e.currentTarget) return;
                 if (
-                  punti.length >= 3 && primo &&
-                  Math.hypot(pixel.x - primo.x, pixel.y - primo.y) <= 12
+                  modificabile && tool === "poligono" && e.key === "Enter" &&
+                  punti.length >= 3
                 ) {
+                  e.preventDefault();
                   aggiungi(punti);
+                }
+                if (
+                  modificabile && tool === "poligono" &&
+                  (e.key === "Backspace" || e.key === "Delete")
+                ) {
+                  e.preventDefault();
+                  setPunti((v) => v.slice(0, -1));
+                }
+              }}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                if (tool === "sposta") {
+                  vistaDrag.current = { x: e.clientX, y: e.clientY, centro };
+                  svg.current?.setPointerCapture(e.pointerId);
                   return;
                 }
-                setPunti((v) => [...v, metriDaCoordinate(p, origine)]);
-              }
-            }}
-            onPointerMove={(e) => {
-              if (vistaDrag.current && svg.current) {
-                const r = svg.current.getBoundingClientRect(),
-                  d = vistaDrag.current;
-                setSpostamento({
-                  x: (e.clientX - d.x) * dimensioni.w / r.width,
-                  y: (e.clientY - d.y) * dimensioni.h / r.height,
-                });
-                return;
-              }
-              if (!modificabile) return;
-              if (pinDrag.current) {
-                setPin(posizione(e));
-                return;
-              }
-              if (tool === "poligono") {setCursore(
-                  metriDaCoordinate(posizione(e), origine),
-                );}
-              if (!drag.current) return;
-              const d = drag.current,
-                p = metriDaCoordinate(posizione(e), origine);
-              setFalde((v) =>
-                v.map((f) =>
-                  f.id === d.fid
-                    ? { ...f, punti: f.punti.map((q, i) => i === d.i ? p : q) }
-                    : f
-                )
-              );
-            }}
-            onPointerUp={finisciSpostamento}
-            onPointerCancel={() => {
-              vistaDrag.current = null;
-              pinDrag.current = false;
-              drag.current = null;
-              setSpostamento({ x: 0, y: 0 });
-            }}
-          >
-            <g transform={`translate(${spostamento.x} ${spostamento.y})`}>
-              {falde.map((f) => (
-                <g key={f.id}>
-                  <polygon
-                    points={serializza(f.punti)}
-                    fill={f.id === attiva ? "#f9731633" : "#10b98122"}
-                    stroke={f.id === attiva ? "#fb923c" : "#34d399"}
-                    strokeWidth={2}
-                    onPointerDown={(e) => {
-                      if (tool === "modifica") {
-                        e.stopPropagation();
-                        setAttiva(f.id);
-                      }
-                    }}
-                  />
-                  {f.punti.map((p, i) => {
-                    const q = schermo(p);
-                    return (
-                      <circle
-                        key={i}
-                        cx={q.x}
-                        cy={q.y}
-                        r={5}
-                        fill="white"
-                        stroke="#0f766e"
-                        tabIndex={0}
-                        role="button"
-                        aria-label={`${f.nome}, vertice ${i + 1}`}
-                        onPointerDown={(e) => {
-                          if (!modificabile || tool !== "modifica") return;
+                if (!modificabile) return;
+                const p = posizione(e);
+                if (tool === "pin") {
+                  setPin(p);
+                  pinDrag.current = { iniziale: pin, posizione: p, ancora: p };
+                  svg.current?.setPointerCapture(e.pointerId);
+                  return;
+                }
+                if (tool === "rettangolo" && confermato) {
+                  aggiungi(
+                    rettangoloRuotatoFv(
+                      metriDaCoordinate(p, origine),
+                      larghezza,
+                      altezza,
+                      rotazione,
+                    ),
+                  );
+                  return;
+                }
+                if (tool === "poligono" && punti.length < 64) {
+                  const pixel = pixelDaCoordinate(
+                      p,
+                      centro,
+                      zoom,
+                      dimensioni.w,
+                      dimensioni.h,
+                    ),
+                    primo = punti.length ? schermo(punti[0]) : null;
+                  if (
+                    punti.length >= 3 && primo &&
+                    Math.hypot(pixel.x - primo.x, pixel.y - primo.y) <= 12
+                  ) {
+                    aggiungi(punti);
+                    return;
+                  }
+                  setPunti((v) => [...v, metriDaCoordinate(p, origine)]);
+                }
+              }}
+              onPointerMove={(e) => {
+                if (vistaDrag.current && svg.current) {
+                  const r = svg.current.getBoundingClientRect(),
+                    d = vistaDrag.current;
+                  setSpostamento({
+                    x: (e.clientX - d.x) * dimensioni.w / r.width,
+                    y: (e.clientY - d.y) * dimensioni.h / r.height,
+                  });
+                  return;
+                }
+                if (!modificabile) return;
+                if (pinDrag.current) {
+                  const d = pinDrag.current;
+                  setPin(
+                    coordinateDaMetri(
+                      metriDaCoordinate(posizione(e), d.ancora),
+                      d.posizione,
+                    ),
+                  );
+                  return;
+                }
+                if (tool === "poligono") {
+                  setCursore(
+                    metriDaCoordinate(posizione(e), origine),
+                  );
+                }
+                if (!drag.current) return;
+                const d = drag.current,
+                  p = metriDaCoordinate(posizione(e), origine);
+                aggiornaPunti(
+                  d.fid,
+                  d.tipo === "vertice"
+                    ? d.punti.map((q, i) => i === d.i ? p : q)
+                    : d.punti.map((q) => ({
+                      x: q.x + p.x - d.ancora.x,
+                      y: q.y + p.y - d.ancora.y,
+                    })),
+                );
+              }}
+              onPointerUp={finisciSpostamento}
+              onPointerCancel={() => {
+                vistaDrag.current = null;
+                if (pinDrag.current) setPin(pinDrag.current.iniziale);
+                pinDrag.current = null;
+                annullaTrascinamento();
+                setSpostamento({ x: 0, y: 0 });
+              }}
+            >
+              <g transform={`translate(${spostamento.x} ${spostamento.y})`}>
+                {falde.map((f) => (
+                  <g key={f.id}>
+                    <polygon
+                      points={serializza(f.punti)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${f.nome}: trascina per spostare`}
+                      aria-pressed={f.id === attiva}
+                      style={{
+                        cursor:
+                          modificabile && tool === "modifica" && confermato
+                            ? "grab"
+                            : undefined,
+                      }}
+                      fill={f.id === attiva ? "#f9731633" : "#10b98122"}
+                      stroke={f.id === attiva ? "#fb923c" : "#34d399"}
+                      strokeWidth={2}
+                      onPointerDown={(e) => {
+                        if (
+                          e.button === 0 && tool === "modifica" && confermato
+                        ) {
                           e.stopPropagation();
                           setAttiva(f.id);
-                          drag.current = { fid: f.id, i };
-                          svg.current?.setPointerCapture(e.pointerId);
-                        }}
-                        onKeyDown={(e) => {
-                          if (!modificabile) return;
-                          const moves: Record<string, PuntoFv> = {
-                            ArrowLeft: { x: -.1, y: 0 },
-                            ArrowRight: { x: .1, y: 0 },
-                            ArrowUp: { x: 0, y: .1 },
-                            ArrowDown: { x: 0, y: -.1 },
-                          };
-                          if (moves[e.key]) {
-                            e.preventDefault();
-                            const d = moves[e.key];
-                            setFalde((v) =>
-                              v.map((g) =>
-                                g.id === f.id
-                                  ? {
-                                    ...g,
-                                    punti: g.punti.map((r, j) =>
-                                      j === i
-                                        ? { x: r.x + d.x, y: r.y + d.y }
-                                        : r
-                                    ),
-                                  }
-                                  : g
-                              )
-                            );
+                          if (modificabile) {
+                            drag.current = {
+                              tipo: "falda",
+                              fid: f.id,
+                              ancora: metriDaCoordinate(posizione(e), origine),
+                              punti: f.punti,
+                            };
+                            svg.current?.setPointerCapture(e.pointerId);
                           }
-                        }}
-                      />
-                    );
-                  })}
-                </g>
-              ))}
-              {punti.length > 0 && (
-                <polyline
-                  points={serializza(cursore ? [...punti, cursore] : punti)}
-                  fill="none"
-                  stroke="#f97316"
-                  strokeWidth={2}
-                />
-              )}
-              {tool === "poligono" && punti.map((p, i) => {
-                const q = schermo(p);
-                return (
-                  <circle
-                    key={i}
-                    cx={q.x}
-                    cy={q.y}
-                    r={i === 0 ? 7 : 4}
-                    fill={i === 0 ? "#f97316" : "white"}
-                    stroke="white"
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setAttiva(f.id);
+                        }
+                        if (
+                          !modificabile || tool !== "modifica" || !confermato
+                        ) return;
+                        const passo = e.shiftKey ? 1 : .1;
+                        const mosse: Record<string, PuntoFv> = {
+                          ArrowLeft: { x: -passo, y: 0 },
+                          ArrowRight: { x: passo, y: 0 },
+                          ArrowUp: { x: 0, y: passo },
+                          ArrowDown: { x: 0, y: -passo },
+                        };
+                        const d = mosse[e.key];
+                        if (d) {
+                          e.preventDefault();
+                          aggiornaPunti(
+                            f.id,
+                            f.punti.map((p) => ({
+                              x: p.x + d.x,
+                              y: p.y + d.y,
+                            })),
+                          );
+                        }
+                      }}
+                    />
+                    {f.id === attiva && tool === "modifica" && confermato &&
+                      f.punti.map((p, i) => {
+                        const q = schermo(p);
+                        return (
+                          <g
+                            key={i}
+                            tabIndex={0}
+                            role="button"
+                            aria-label={`${f.nome}, vertice ${i + 1}`}
+                            style={{
+                              cursor: modificabile && tool === "modifica" &&
+                                  confermato
+                                ? "move"
+                                : undefined,
+                            }}
+                            onPointerDown={(e) => {
+                              if (
+                                e.button !== 0 || !modificabile ||
+                                tool !== "modifica" || !confermato
+                              ) return;
+                              e.stopPropagation();
+                              setAttiva(f.id);
+                              drag.current = {
+                                tipo: "vertice",
+                                fid: f.id,
+                                i,
+                                punti: f.punti,
+                              };
+                              svg.current?.setPointerCapture(e.pointerId);
+                            }}
+                            onKeyDown={(e) => {
+                              if (
+                                !modificabile || tool !== "modifica" ||
+                                !confermato
+                              ) return;
+                              const moves: Record<string, PuntoFv> = {
+                                ArrowLeft: { x: -.1, y: 0 },
+                                ArrowRight: { x: .1, y: 0 },
+                                ArrowUp: { x: 0, y: .1 },
+                                ArrowDown: { x: 0, y: -.1 },
+                              };
+                              if (moves[e.key]) {
+                                e.preventDefault();
+                                const d = moves[e.key];
+                                aggiornaPunti(
+                                  f.id,
+                                  f.punti.map((r, j) =>
+                                    j === i ? { x: r.x + d.x, y: r.y + d.y } : r
+                                  ),
+                                );
+                              }
+                            }}
+                          >
+                            <circle
+                              cx={q.x}
+                              cy={q.y}
+                              r={22}
+                              fill="transparent"
+                            />
+                            <circle
+                              cx={q.x}
+                              cy={q.y}
+                              r={5}
+                              fill="white"
+                              stroke="#0f766e"
+                              pointerEvents="none"
+                            />
+                          </g>
+                        );
+                      })}
+                  </g>
+                ))}
+                {punti.length > 0 && (
+                  <polyline
+                    points={serializza(cursore ? [...punti, cursore] : punti)}
+                    fill="none"
+                    stroke="#f97316"
                     strokeWidth={2}
                   />
-                );
-              })}
-              {(() => {
-                const q = pixelDaCoordinate(pin, centro, zoom, dimensioni.w, dimensioni.h);
-                return (
-                  <g
-                    transform={`translate(${q.x} ${q.y})`}
-                    role="button"
-                    aria-label="Pin del tetto"
-                    onPointerDown={(e) => {
-                      if (!modificabile) return;
-                      e.stopPropagation();
-                      setTool("pin");
-                      pinDrag.current = true;
-                      svg.current?.setPointerCapture(e.pointerId);
-                    }}
-                  >
-                    <path
-                      d="M0 0C-4 -7 -12 -13 -12 -22A12 12 0 0 1 12 -22C12 -13 4 -7 0 0Z"
-                      fill="#ef4444"
+                )}
+                {tool === "poligono" && punti.map((p, i) => {
+                  const q = schermo(p);
+                  return (
+                    <circle
+                      key={i}
+                      cx={q.x}
+                      cy={q.y}
+                      r={i === 0 ? 7 : 4}
+                      fill={i === 0 ? "#f97316" : "white"}
                       stroke="white"
                       strokeWidth={2}
                     />
-                    <circle cy={-22} r={4} fill="white" />
-                  </g>
-                );
-              })()}
-            </g>
-          </svg>
+                  );
+                })}
+                {(() => {
+                  const q = pixelDaCoordinate(
+                    pin,
+                    centro,
+                    zoom,
+                    dimensioni.w,
+                    dimensioni.h,
+                  );
+                  return (
+                    <g
+                      transform={`translate(${q.x} ${q.y})`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Pin del tetto"
+                      style={{ cursor: modificabile ? "grab" : undefined }}
+                      onPointerDown={(e) => {
+                        if (
+                          e.button !== 0 || !modificabile ||
+                          (tool !== "pin" && tool !== "modifica")
+                        ) return;
+                        e.stopPropagation();
+                        setTool("pin");
+                        pinDrag.current = {
+                          iniziale: pin,
+                          posizione: pin,
+                          ancora: posizione(e),
+                        };
+                        svg.current?.setPointerCapture(e.pointerId);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!modificabile) return;
+                        const passo = e.shiftKey ? 1 : .1;
+                        const mosse: Record<string, PuntoFv> = {
+                          ArrowLeft: { x: -passo, y: 0 },
+                          ArrowRight: { x: passo, y: 0 },
+                          ArrowUp: { x: 0, y: passo },
+                          ArrowDown: { x: 0, y: -passo },
+                        };
+                        const d = mosse[e.key];
+                        if (d) {
+                          e.preventDefault();
+                          setTool("pin");
+                          setPin(coordinateDaMetri(d, pin));
+                        }
+                      }}
+                    >
+                      <circle cy={-16} r={22} fill="transparent" />
+                      <path
+                        d="M0 0C-4 -7 -12 -13 -12 -22A12 12 0 0 1 12 -22C12 -13 4 -7 0 0Z"
+                        fill="#ef4444"
+                        stroke="white"
+                        strokeWidth={2}
+                      />
+                      <circle cy={-22} r={4} fill="white" />
+                    </g>
+                  );
+                })()}
+              </g>
+            </svg>
           </div>
           <p className="mt-2 text-xs text-slate-500">
             Nord in alto · {satellite.pronto
@@ -600,7 +863,7 @@ export function FvMappaTetto(
           {!falde.length && (
             <p className="mb-3 text-sm text-slate-600">
               {confermato
-                ? "Scegli Disegna falda e segui gli angoli del tetto. Puoi aggiungere più falde."
+                ? "Scegli Falda rettangolare e tocca il tetto, oppure Disegna falda e segui gli angoli. Puoi aggiungere più falde."
                 : "Trova l’edificio e conferma il pin. Poi disegni le falde sulla mappa."}
             </p>
           )}
@@ -986,12 +1249,14 @@ export function FvMappaTetto(
                     disabled={!modificabile}
                     onClick={salva}
                   >
-                    Usa falde e prepara nuova disposizione
+                    {mantieniPannelli
+                      ? "Conferma falde e mantieni i pannelli"
+                      : "Usa falde e prepara nuova disposizione"}
                   </Button>
                   <p className="mt-2 text-xs text-slate-500">
-                    Confermando le falde la disposizione precedente viene
-                    azzerata: nella fase Impianto scegli il modulo e calcola la
-                    nuova posa.
+                    {mantieniPannelli
+                      ? "Misure e contorni sono invariati: i pannelli già disposti vengono mantenuti."
+                      : "Confermando nuovi contorni o margini prepari una nuova posa: nella fase Impianto scegli il modulo e calcola la disposizione."}
                   </p>
                 </>
               )}

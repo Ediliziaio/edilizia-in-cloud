@@ -12,9 +12,18 @@ import { riferimentoMappaGoogleFv } from "./riferimentoMappaGoogle";
 
 export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
   const mappa = props.piano.mappa!;
-  const [centro, setCentro] = useState(mappa.origine),
-    [zoom, setZoom] = useState(20),
+  const [centro, aggiornaCentro] = useState(mappa.origine),
+    [zoom, aggiornaZoom] = useState(20),
     [naviga, setNaviga] = useState(false);
+  const [comandoVista, setComandoVista] = useState(0);
+  const setCentro: typeof aggiornaCentro = (c) => {
+    aggiornaCentro(c);
+    setComandoVista((v) => v + 1);
+  };
+  const setZoom: typeof aggiornaZoom = (z) => {
+    aggiornaZoom(z);
+    setComandoVista((v) => v + 1);
+  };
   const [dimensioni, setDimensioni] = useState<DimensioniMappaGoogleFv>({
     w: 640,
     h: 440,
@@ -100,6 +109,7 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
               key={tentativo}
               centro={centro}
               zoom={zoom}
+              comandoVista={comandoVista}
               navigabile={naviga}
               onStato={setStato}
               onDimensioni={(d) =>
@@ -107,13 +117,13 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
                   Math.abs(p.w - d.w) < .5 && Math.abs(p.h - d.h) < .5 ? p : d
                 )}
               onVista={(c, z) => {
-                setCentro((p) =>
+                aggiornaCentro((p) =>
                   Math.abs(p.lat - c.lat) < 1e-9 &&
                     Math.abs(p.lng - c.lng) < 1e-9
                     ? p
                     : c
                 );
-                setZoom(z);
+                aggiornaZoom(z);
               }}
             />
           }
