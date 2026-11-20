@@ -11,19 +11,24 @@ vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string): any => {
     const c: any = {};
     for (const m of ["select", "eq", "is", "order", "in", "or", "limit"]) c[m] = () => c;
+    c.maybeSingle = async () => ({ data: finto.dati[tabella] ?? null, error: null as null });
     if (tabella === "rate_fornitori") {
       let id: string;
+      let versione: string;
       let modifica: Record<string, unknown>;
-      c.eq = (campo: string, valore: string) => { if (campo === "id") id = valore; return c; };
+      c.eq = (campo: string, valore: string) => {
+        if (campo === "id") id = valore;
+        if (campo === "updated_at") versione = valore;
+        return c;
+      };
       c.update = (valori: Record<string, unknown>) => { modifica = valori; return c; };
-      c.single = async () => {
-        const rata = (finto.dati["rate_fornitori[]"] as Array<{id:string}>).find(r => r.id === id);
-        if (!rata) return { error: "Rata assente" };
+      c.maybeSingle = async () => {
+        const rata = (finto.dati["rate_fornitori[]"] as Array<{id:string; updated_at: string}>).find(r => r.id === id && r.updated_at === versione);
+        if (!rata) return { data: null, error: null };
         Object.assign(rata, modifica);
         return { data: {id}, error: null as null };
       };
     }
-    c.maybeSingle = async () => ({ data: finto.dati[tabella] ?? null, error: null as null });
     c.then = (ok: (v: unknown) => unknown) => ok({ data: finto.dati[`${tabella}[]`] ?? [], error: null as null });
     return c;
   };
@@ -203,8 +208,8 @@ describe("riepilogo della fattura ricevuta", () => {
   });
   it("pagando una sola rata ricarica la scadenza successiva e il residuo", async () => {
     finto.dati["rate_fornitori[]"] = [
-      { id:"r1", numero:1, stato:"da_pagare", scadenza:"2025-10-10", importo:120, metodo:"MP12" },
-      { id:"r2", numero:2, stato:"da_pagare", scadenza:"2025-11-10", importo:80, metodo:"MP12" },
+      { id:"r1", numero:1, stato:"da_pagare", scadenza:"2025-10-10", importo:120, metodo:"MP12", updated_at:"2025-09-01T10:00:00Z" },
+      { id:"r2", numero:2, stato:"da_pagare", scadenza:"2025-11-10", importo:80, metodo:"MP12", updated_at:"2025-09-01T10:00:00Z" },
     ];
     apri();
     fireEvent.click(await screen.findByRole("button", {name:"Segna pagata la rata 1"}));
@@ -219,6 +224,16 @@ describe("riepilogo della fattura ricevuta", () => {
     finto.dati["rate_fornitori[]"] = [{ numero: 2, pagata_il: "2026-11-17" }];
     apri();
     expect(await screen.findByText(/Rata 2 · pagata il 17 nov 2026/)).toBeTruthy();
+  });
+  it("mostra una rata richiamata senza proporla come prossima da pagare", async () => {
+    finto.dati["rate_fornitori[]"] = [
+      { id: "r1", numero: 1, stato: "richiamata", scadenza: "2026-10-10", importo: 120, updated_at: "2026-09-01T10:00:00Z" },
+      { id: "r2", numero: 2, stato: "da_pagare", scadenza: "2026-12-10", importo: 80, updated_at: "2026-09-01T10:00:00Z" },
+    ];
+    apri();
+    expect(await screen.findByText("Richiamata")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Segna pagata la rata 1" })).toBeNull();
+    expect(screen.getByText("Scadenza pagamento").nextElementSibling).toHaveTextContent("10 dic 2026");
   });
 
   it("collega il fornitore della stessa partita IVA, con le altre fatture del cedente", async () => {

@@ -303,7 +303,7 @@ async function classifyOne(
   const orderMatch = commessa.orderId;
 
   // Persist. Se il salvataggio fallisce l'azienda non riceve niente: si rimborsa.
-  const { error: erroreSalvataggio } = await supabase
+  const { data: contoSalvato, error: erroreSalvataggio } = await supabase
     .from("fatture_ricevute")
     .update({
       categoria_ai: cat,
@@ -316,7 +316,9 @@ async function classifyOne(
       ai_classificata_at: new Date().toISOString(),
       ai_classify_model: aiResult.modelUsed,
     })
-    .eq("id", fattura.id);
+    .eq("id", fattura.id)
+    .select("categoria_ai,sottocategoria_ai,categoria_confidenza,conto_costo_origine")
+    .single();
   if (erroreSalvataggio) {
     await rimborsaAddebitoAi(supabase, { ledgerId: aiResult.ledgerId, motivo: "salvataggio fallito" });
     throw new Error(`Salvataggio della classificazione fallito: ${erroreSalvataggio.message}`);
@@ -328,7 +330,7 @@ async function classifyOne(
   // ripiego e il controllo di gestione non vede nulla di quanto appena capito.
   // Qui si allinea: la classificazione arriva fino al costo, non si ferma alla
   // fattura.
-  if (fattura.company_cost_id) {
+  if (fattura.company_cost_id && !contoSalvato.conto_costo_origine) {
     await supabase
       .from("company_costs")
       .update({ category: cat, updated_at: new Date().toISOString() })
@@ -338,9 +340,9 @@ async function classifyOne(
   return {
     result: {
       fattura_id: fattura.id,
-      categoria_ai: cat,
-      sottocategoria_ai: String(parsed.sottocategoria_ai ?? ""),
-      confidenza: confClamp,
+      categoria_ai: String(contoSalvato.categoria_ai ?? cat),
+      sottocategoria_ai: String(contoSalvato.sottocategoria_ai ?? ""),
+      confidenza: Number(contoSalvato.categoria_confidenza ?? 0),
       order_id_match: orderMatch,
       order_match_confidenza: commessa.confidenza,
       ai_riassunto: String(parsed.ai_riassunto ?? ""),

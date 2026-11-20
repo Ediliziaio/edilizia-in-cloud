@@ -88,6 +88,10 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: str
     eq: (colonna: string, valore: unknown) => { filtri.push([colonna, valore]); return builder; },
     not: () => builder,
     order: () => builder,
+    range: async (from: number, to: number) => {
+      const result = risposta();
+      return { ...result, data: Array.isArray(result.data) ? result.data.slice(from, to + 1) : result.data };
+    },
     single: async () => risposta(),
     insert: (dati: unknown) => { scrive("insert", dati); return builder; },
     update: (dati: unknown) => { scrive("update", dati); return builder; },
@@ -125,6 +129,23 @@ describe("Categorie costi: storico protetto e layout", () => {
     // Gli utilizzi non si conoscono: la riga di riepilogo non inventa quante categorie sono usate.
     expect(screen.getByText("1 categoria")).toBeInTheDocument();
     expect(screen.queryByText(/usate? nei costi/)).toBeNull();
+  });
+  it("protegge le categorie usate oltre le prime 1000 righe anche con un nome scritto diversamente", async () => {
+    state.costi = [...Array(1000).fill("Accessori"), "  mAteRiali  "];
+    open();
+    expect(await screen.findByRole("button", { name: "Materiali protetta: non eliminabile" })).toBeDisabled();
+  });
+  it("spiega perché una categoria usata da una regola fornitore resta attiva", async () => {
+    state.writeError = true;
+    state.writeCode = "23503";
+    state.writeMessage = 'violates foreign key constraint "fornitori_conti_costo_categoria_id_fkey"';
+    open();
+    const elimina = await screen.findByRole("button", { name: "Elimina Materiali" });
+    await waitFor(() => expect(elimina).toBeEnabled());
+    fireEvent.click(elimina);
+    fireEvent.click(await screen.findByRole("button", { name: /^Elimina$/ }));
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith("La categoria è usata da una regola fornitore. Sposta o rimuovi la regola prima di eliminarla."));
+    expect(state.categorie).toHaveLength(1);
   });
   it("con tante categorie e utilizzi illeggibili i filtri per uso sono spenti", async () => {
     state.categorie = molte(11); state.usageError = true; open();
@@ -240,7 +261,7 @@ describe("Categorie costi: niente colore", () => {
       const righe = (await blobs[0].text()).replace(/^\uFEFF/, "").split("\n");
       expect(righe[0]).toBe("Nome,Utilizzi,Protezione,Configurata");
       expect(righe).toContain("Materiali,2,Protetta: in uso,SI");
-      expect(righe).toContain("Affitto,0,Eliminabile: inutilizzata,SI");
+      expect(righe).toContain("Affitto,0,Nessun costo registrato,SI");
       expect(righe).toContain("Cantiere Rossi,1,Storica: manca in configurazione,NO");
       expect(righe.join("\n")).not.toMatch(/colore|#[0-9a-f]{6}/i);
     } finally {

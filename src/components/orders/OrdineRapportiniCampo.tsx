@@ -1,3 +1,5 @@
+import { RapportiPeriodoDialog } from "@/components/documentiOperativi/RapportiPeriodoDialog";
+import { AzioniRapportino } from "./AzioniRapportino";
 /**
  * Componente per la lista dei rapportini campo di un ordine.
  * Gestisce approvazione e rifiuto con motivo; ogni rapportino si apre in un popup.
@@ -33,12 +35,12 @@ import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
-import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/CorreggiRapportino";
+import { StoricoRapportino } from "@/components/orders/CorreggiRapportino";
 
 const StoricoSpazio = ({ rapportinoId }: { rapportinoId: string }) => <div className="w-full"><StoricoRapportino rapportinoId={rapportinoId} /></div>;
 import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 import { CostiDaCompletareCommessa } from "@/components/orders/CostiDaCompletareCommessa";
-import { AnnullaRapportinoDialog, RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
+import { RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
 
 interface Props { orderId: string; /** Bottoni Approva/Rifiuta/PDF direttamente sulla riga (per il popup di Attività). */ azioniInRiga?: boolean; soloDaApprovare?: boolean; }
@@ -151,8 +153,6 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
 
   // Gli annullati non contano e non si vedono, salvo chiederli.
   const [mostraAnnullati, setMostraAnnullati] = useState(false);
-  const [annulla, setAnnulla] = useState<{ id: string; updatedAt: string } | null>(null);
-  const [motivoAnnulla, setMotivoAnnulla] = useState("");
   const quantiAnnullati = useMemo(() => tuttiRapportini.filter((r) => r.annullato_at).length, [tuttiRapportini]);
   const rapportini = useMemo(() => (mostraAnnullati ? tuttiRapportini : tuttiRapportini.filter((r) => !r.annullato_at)), [mostraAnnullati, tuttiRapportini]);
 
@@ -170,10 +170,9 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
     staleTime: 60_000,
   });
 
-  const { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation, annullaMutation } = useDecisioneRapportino(orderId, {
+  const { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation } = useDecisioneRapportino(orderId, {
     onApprovato: () => setApprovalId(null),
     onRifiutato: () => { setRifiutaId(null); setMotivoRifiuto(""); },
-    onAnnullato: () => { setAnnulla(null); setMotivoAnnulla(""); setExpandedId(null); },
   });
 
   const handleRifiuta = () => {
@@ -225,6 +224,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <ClipboardList className="h-4 w-4" />
           {soloDaApprovare ? "Rapportini da approvare" : "Rapportini Campo"} ({isLoading ? "…" : isError ? "—" : rapportini.length})
         </CardTitle>
+        {!azioniInRiga && !isLoading && !isError && <RapportiPeriodoDialog companyId={companyId} orderId={orderId} mese="Rapportini della commessa" righe={rapportini.filter((r) => !r.annullato_at)} conDatiEconomici={canViewCosts} />}
         {/* Colpo d'occhio: quante ore, cosa aspetta l'ufficio, a che punto sono i lavori.
             Nel popup di Attività (azioniInRiga) si nasconde: lì serve solo approvare. */}
         {!azioniInRiga && quantiAnnullati > 0 && (
@@ -470,21 +470,10 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
 
                             {/* Azioni admin */}
                             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                              {canViewCosts && <div className="w-full"><QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={stato !== "rifiutato" && canEditOrders} /></div>}
+                              {canViewCosts && <div className="w-full"><QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={!r.annullato_at && canEditOrders} /></div>}
                               <StoricoSpazio rapportinoId={r.id} />
-                              {/* Anche sugli inviati (16/11/2026): l'ufficio che apre la commessa per
-                                  sistemare un rapportino appena arrivato qui non trovava niente, e la
-                                  stessa correzione era già possibile dalla pagina «Rapportini commesse».
-                                  I controlli in più (motivo, rendiconti, giornale firmato) il database
-                                  li fa solo sugli approvati. */}
-                              {puoDecidereSu(r.user_id) && stato !== "rifiutato" && <CorreggiRapportino rapportinoId={r.id} orderId={orderId} />}
+                              <AzioniRapportino report={r} orderId={orderId} onFatto={() => setExpandedId(null)} />
                               <PulsantePdfRapportino report={r} orderId={orderId} />
-                              {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
-                              {canApprove && !r.annullato_at && (
-                                <Button size="sm" variant="outline" className="text-red-700" onClick={() => setAnnulla({ id: r.id, updatedAt: r.updated_at })}>
-                                  Annulla rapportino
-                                </Button>
-                              )}
                               {puoDecidereSu(r.user_id) && stato === "rifiutato" && !r.annullato_at && !(r as { ufficio_employee_id?: string | null }).ufficio_employee_id && (
                                 <Button
                                   size="sm"
@@ -553,8 +542,6 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
         </DialogContent>
       </Dialog>
 
-      {annulla && <AnnullaRapportinoDialog motivo={motivoAnnulla} onMotivo={setMotivoAnnulla} busy={annullaMutation.isPending}
-        onClose={() => { setAnnulla(null); setMotivoAnnulla(""); }} onConferma={() => annullaMutation.mutate({ ...annulla, motivo: motivoAnnulla })} />}
       {rifiutaId && <RifiutaRapportinoDialog motivo={motivoRifiuto} onMotivo={setMotivoRifiuto} busy={rifiutaMutation.isPending}
         onClose={() => { setRifiutaId(null); setMotivoRifiuto(""); }} onConferma={handleRifiuta} />}
     </Card>
