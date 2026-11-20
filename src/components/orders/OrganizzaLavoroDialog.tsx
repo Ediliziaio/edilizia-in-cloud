@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { nomeBreve } from "@/lib/acquisti/fabbisogno";
 import { INTERA_COMMESSA, type AmbitoLavoro } from "@/lib/orders/previsionaleLavoro";
+import type { AperturaSubappalto } from "./SubappaltoLavorazioni";
 
 export type SezioneLavoro = "sottofasi" | "economia" | "chi" | "mezzi" | "materiali" | "note" | "subappalto" | "previsionale";
 export interface AperturaLavoro {
   attiva: string;
   ids: string[];
   sezione: SezioneLavoro;
+  subappalto?: AperturaSubappalto;
 }
 
 const titoloAmbito = (r: AmbitoLavoro) => r.faseId && r.id !== r.faseId && r.nome.length > 85 ? nomeBreve(r.nome).titolo : r.nome;

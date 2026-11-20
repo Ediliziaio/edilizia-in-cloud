@@ -10,11 +10,11 @@ import { AzioniLavorazioni } from "./AzioniLavorazioni";
  *   «Crea e manda in firma» porta al contratto con l'invio già aperto: chi firma e l'email si confermano lì.
  * Le funzioni di sempre (Chi fa cosa, Lavori e prezzi, Collega al listino) restano per i casi particolari.
  */
-import { lazy, Suspense, type ComponentProps, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, type ComponentProps, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, Loader2, Pencil, Plus, Search, Send, Sparkles, Trash2 } from "lucide-react";
+import { ChevronDown, Download, FileText, Loader2, Pencil, Plus, Search, Send, Sparkles, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" })
 type ProposteAi = Record<string, { tariffaId: string; certezza: "alta" | "media"; perche: string; confermata?: boolean }>;
 
 const ALTRI_LAVORI = "altri-lavori";
+const MAX_VOCI_RICHIESTA = 500;
 type DittaContratto = { id: string; nome: string; schedaId?: string; fasiIntere?: string[] };
 export interface ComputoDaLavorazioni {
   voci: string[];
@@ -91,6 +92,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
 }) {
   const qc = useQueryClient();
   const vai = useNavigate();
+  const idDitta = useId();
+  const idComprende = useId();
   const { effectiveCompany: azienda } = useAuth();
   const affidamenti = useAffidamentiCommessa(orderId);
   const ditte = useQuery({
@@ -112,11 +115,13 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
   const [comprendeScelto, setComprende] = useState<"posa" | "fornitura_e_posa" | null>(null);
   const comprende = comprendeScelto ?? righeOrigine[0]?.comprende ?? "posa";
   const [cerca, setCerca] = useState("");
+  const [mostraTutteVoci, setMostraTutteVoci] = useState(false);
   const [mostraListino, setMostraListino] = useState(false);
   const [scadenza, setScadenza] = useState("");
   const [istruzioni, setIstruzioni] = useState("");
   const [scelteManuali, setScelte] = useState<Set<string> | null>(null);
   const operazione = useRef(false);
+  const identitaRichiesta = useRef<{ firma: string; id: string } | null>(null);
   const [faseAttiva, setFaseAttiva] = useState("");
   const [dalPrevisto, setDalPrevisto] = useState(computoOrigine?.periodo.dal ?? (partenza?.ambiti.length === 1 && partenza.ambiti[0].al ? partenza.ambiti[0].dal ?? "" : ""));
   const [alPrevisto, setAlPrevisto] = useState(computoOrigine?.periodo.al ?? (partenza?.ambiti.length === 1 && partenza.ambiti[0].dal ? partenza.ambiti[0].al ?? "" : ""));
@@ -124,6 +129,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
   const periodoEsplicito = periodoModificato && !!dalPrevisto && !!alPrevisto;
   const periodoValido = !(dalPrevisto || alPrevisto) || (giorniPrevisti(dalPrevisto, alPrevisto, () => true) ?? 0) > 0;
   const soloRichiesta = !!partenza?.soloRichiesta;
+  const revisioneVociScelte = soloRichiesta || !!computoOrigine;
   const [extra, setExtra] = useState<LavoroACorpo[]>(() => computoOrigine
     ? righeOrigine.filter((r) => !r.ambito.startsWith("v:")).map((r) => ({
       id: r.id, faseId: r.faseId ?? ALTRI_LAVORI, sottofaseId: r.sottofaseId, descrizione: r.descrizione,
@@ -232,7 +238,11 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
     return () => clearTimeout(t);
   }, [sceltiOrdinati, orderId, soloRichiesta]);
 
-  const fasiVisibili = faseAttiva ? gruppi.filter(({ fase }) => fase.id === faseAttiva) : gruppi;
+  const gruppiVisibili = faseAttiva ? gruppi.filter(({ fase }) => fase.id === faseAttiva) : gruppi;
+  const fasiVisibili = revisioneVociScelte && !mostraTutteVoci
+    ? gruppiVisibili.map((gruppo) => ({ ...gruppo, voci: gruppo.voci.filter((voce) => scelte.has(voce.id)) }))
+      .filter((gruppo) => gruppo.voci.length > 0)
+    : gruppiVisibili;
   const prezzoACorpo = (voce: LavoroACorpo) => {
     if (voce.importo != null) return parseAssignmentAmount(voce.importo, 2);
     const r = offerta?.righe.find((riga) => riga.id === voce.id);
@@ -500,23 +510,31 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
 
   const nomeDitta = dittaFissa?.nome ?? ditte.data?.find((d) => d.id === ditta)?.ragione_sociale;
   const nomiSottofasi = new Map(sottofasi.map((sottofase) => [sottofase.id, sottofase.name]));
+  const sottotitoloVoce = (voce: VoceAffidabile) => {
+    const sottofase = nomiSottofasi.get(voce.subphase_id ?? "");
+    const descrizione = (testi[voce.id] ?? voce.descrizione).replace(/\s+/g, " ").trim();
+    return sottofase && sottofase.replace(/\s+/g, " ").trim() !== descrizione ? sottofase : undefined;
+  };
+  const troppeVoci = righe.length + extraElenco.length > MAX_VOCI_RICHIESTA;
   const richiestaValida = periodoValido && (!scadenza || scadenza >= oggi()) && !!nomeDitta && affidamenti.isSuccess && !!(righe.length || extraElenco.length)
     && conto.errori.every(({ motivo }) => motivo !== "Quantità mancante" && motivo !== "Oltre la quantità libera")
     && extraElenco.every((riga) => riga.descrizione);
   const datiComputo = useMutation({
-    mutationFn: async (azione: "richiesta" | "contratto" | "firma") => {
+    mutationFn: async (azione: "richiesta" | "salva-richiesta" | "contratto" | "firma") => {
+      const richiesta = azione === "richiesta" || azione === "salva-richiesta";
       if (!nomeDitta) throw new Error("Scegli la ditta.");
-      if (azione === "richiesta" && !richiestaValida) throw new Error("Controlla lavorazioni e quantità da quotare.");
+      if (richiesta && !richiestaValida) throw new Error("Controlla lavorazioni e quantità da quotare.");
+      if (azione === "salva-richiesta" && troppeVoci) throw new Error(`Una richiesta può contenere fino a ${MAX_VOCI_RICHIESTA} voci.`);
       const [{ data: ordine, error }, { data: contatti, error: erroreDitta }] = await Promise.all([
         db.from("orders").select("order_code, work_address").eq("id", orderId).eq("company_id", companyId).single(),
-        azione === "richiesta" ? db.from("subappaltatori").select("indirizzo,piva,email").eq("id", ditta).eq("company_id", companyId).single()
+        richiesta ? db.from("subappaltatori").select("indirizzo,piva,email").eq("id", ditta).eq("company_id", companyId).single()
           : { data: null, error: null },
       ]);
       if (error || erroreDitta) throw error ?? erroreDitta;
       const periodo = dalPrevisto && alPrevisto ? { dal: dalPrevisto, al: alPrevisto }
         : periodoFasi(fasi, [...new Set([...sceltiOrdinati.map((v) => v.phase_id), ...extra.map((r) => r.faseId)])]);
       const base = { commessa: ordine.order_code as string | null, ditta: nomeDitta, periodo };
-      if (azione !== "richiesta") {
+      if (!richiesta) {
         const nuove = righe.map((r, indice) => ({
           fase: fasi.find((f) => f.id === sceltiOrdinati[indice].phase_id)?.name ?? "Altri lavori",
           sottofase: nomiSottofasi.get(sceltiOrdinati[indice].subphase_id ?? ""),
@@ -531,27 +549,34 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
             contratto: { imponibile: computo.importo, oneri } } });
         return;
       }
+      const righeRichiesta: RichiestaDaLavorazioni["righe"] = [
+        ...sceltiOrdinati.map((voce, indice) => ({
+          id: voce.id, ambito: `v:${voce.id}`, faseId: voce.phase_id, sottofaseId: voce.subphase_id ?? undefined,
+          fase: fasi.find((fase) => fase.id === voce.phase_id)?.name ?? "Altri lavori",
+          sottofase: nomiSottofasi.get(voce.subphase_id ?? ""),
+          descrizione: testi[voce.id]?.trim() || voce.descrizione, quantita: righe[indice].quantita ?? 0,
+          unita: voce.unita, comprende: righe[indice].comprende,
+        })),
+        ...extraElenco.map(({ fase, sottofase, descrizione, quantita, unita, comprende }, indice) => {
+          const voce = extra[indice];
+          return { id: voce.id, ambito: voce.sottofaseId ? `s:${voce.sottofaseId}` : voce.faseId,
+            faseId: voce.faseId === ALTRI_LAVORI ? undefined : voce.faseId, sottofaseId: voce.sottofaseId,
+            fase, sottofase, descrizione, quantita, unita, comprende };
+        }),
+      ];
+      // Lo stesso identificativo permette di riprovare dopo un timeout senza duplicare la bozza.
+      const firmaRichiesta = JSON.stringify([ditta, periodo, scadenza, istruzioni.trim(), righeRichiesta]);
+      if (identitaRichiesta.current?.firma !== firmaRichiesta) {
+        identitaRichiesta.current = { firma: firmaRichiesta, id: crypto.randomUUID() };
+      }
       const dati: RichiestaDaLavorazioni = {
-        ...base, id: crypto.randomUUID(), dittaId: ditta, creataIl: new Date().toISOString(),
+        ...base, id: identitaRichiesta.current.id, dittaId: ditta, creataIl: new Date().toISOString(),
         luogo: ordine.work_address, scadenza: scadenza || null, istruzioni: istruzioni.trim() || null,
         destinatario: contatti ? { indirizzo: contatti.indirizzo, partitaIva: contatti.piva, email: contatti.email } : undefined,
-        righe: [
-          ...sceltiOrdinati.map((voce, indice) => ({
-            id: voce.id, ambito: `v:${voce.id}`, faseId: voce.phase_id, sottofaseId: voce.subphase_id ?? undefined,
-            fase: fasi.find((fase) => fase.id === voce.phase_id)?.name ?? "Altri lavori",
-            sottofase: nomiSottofasi.get(voce.subphase_id ?? ""),
-            descrizione: testi[voce.id]?.trim() || voce.descrizione, quantita: righe[indice].quantita ?? 0,
-            unita: voce.unita, comprende: righe[indice].comprende,
-          })),
-          ...extraElenco.map(({ fase, sottofase, descrizione, quantita, unita, comprende }, indice) => {
-            const voce = extra[indice];
-            return { id: voce.id, ambito: voce.sottofaseId ? `s:${voce.sottofaseId}` : voce.faseId,
-              faseId: voce.faseId === ALTRI_LAVORI ? undefined : voce.faseId, sottofaseId: voce.sottofaseId,
-              fase, sottofase, descrizione, quantita, unita, comprende };
-          }),
-        ],
+        righe: righeRichiesta,
       };
-      setAnteprima({ tipo: "richiesta", dati });
+      if (azione === "salva-richiesta" && suRichiesta) await suRichiesta(dati);
+      else setAnteprima({ tipo: "richiesta", dati });
     },
     onError: (e: Error) => toast.error(e.message || "Non riesco a preparare il computo. Riprova."),
   });
@@ -576,12 +601,13 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
     || sicurezza == null || conto.errori.length > 0 || !!contrattoAttuale?.firmato_il;
   const cambiaDitta = (id: string) => {
     setDitta(id);
+    if (soloRichiesta) return;
     setScelte(null);
     setPrezzi({});
     setQuantita({});
     setTesti({});
     setComprende(null);
-    if (!soloRichiesta && !partenza?.aCorpo?.length) setExtra([]);
+    if (!partenza?.aCorpo?.length) setExtra([]);
     setOneri("");
   };
   const aggiungiACorpo = () => {
@@ -604,6 +630,13 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
   };
 
   const NavigazioneComputo = incorporato ? SoloContenutoComputo : MacrofasiSubappalto;
+  const documentoVoce = soloRichiesta ? "nella richiesta" : "nel contratto";
+  const campiPeriodo = <>
+    <label className="space-y-1 text-sm">Inizio previsto<Input type="date" value={dalPrevisto} disabled={occupato}
+      onChange={(e) => { setPeriodoModificato(true); setDalPrevisto(e.target.value); }} /></label>
+    <label className="space-y-1 text-sm">Fine prevista<Input type="date" value={alPrevisto} min={dalPrevisto || undefined} disabled={occupato}
+      onChange={(e) => { setPeriodoModificato(true); setAlPrevisto(e.target.value); }} /></label>
+  </>;
   const contenuto = anteprima ? (
     <div className="min-h-0 space-y-3 overflow-y-auto">
       {!incorporato && <DialogHeader><DialogTitle>Anteprima computo</DialogTitle><DialogDescription>Controlla il documento destinato alla ditta.</DialogDescription></DialogHeader>}
@@ -614,8 +647,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
         <Button variant="outline" disabled={occupato} onClick={() => setAnteprima(undefined)}>Torna alle voci</Button>
         {anteprima.tipo === "richiesta" ? <>
           <Button variant="outline" disabled={occupato} onClick={() => avviaAzione(() => scarica.mutateAsync(anteprima.dati))}><Download className="mr-1 h-4 w-4" />Scarica PDF</Button>
-          {suRichiesta && <Button disabled={occupato} onClick={() => avviaAzione(() => salvaRichiesta.mutateAsync(anteprima.dati))}>
-            {salvaRichiesta.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva richiesta
+          {suRichiesta && <Button disabled={occupato || anteprima.dati.righe.length > MAX_VOCI_RICHIESTA} onClick={() => avviaAzione(() => salvaRichiesta.mutateAsync(anteprima.dati))}>
+            {salvaRichiesta.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva bozza
           </Button>}
         </> : <Button disabled={nonSalvabile || anteprima.firmaDati !== firmaDati()} onClick={() => avviaAzione(() => crea.mutateAsync(anteprima.firma))}>
           {crea.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
@@ -636,24 +669,29 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
           <DialogDescription>Scegli le voci da quotare. Confermando i prezzi aggiorni il costo previsto e prepari il computo del contratto.</DialogDescription>
         </DialogHeader>}
 
-        <div className="flex flex-wrap items-center gap-2">
-          {dittaFissa ? <p className="px-1 text-sm font-medium">{dittaFissa.nome}</p> : <OfficeSelect label="Ditta" className="h-9 min-w-[12rem] flex-1" value={ditta} onValueChange={cambiaDitta} placeholder="Scegli la ditta"
-            options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />}
-          <OfficeSelect label="Cosa comprende il prezzo" className="h-9 w-44" value={comprendeScelto ?? (partenza ? comprende : "")} placeholder="Cosa comprende" onValueChange={(c) => setComprende(c as typeof comprende)}
-            options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
-          <div className="relative min-w-[12rem] flex-1">
+        <div className={soloRichiesta ? "grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]" : "flex flex-wrap items-center gap-2"}>
+          {dittaFissa ? <p className="px-1 text-sm font-medium">{dittaFissa.nome}</p> : <div className="min-w-0 flex-1">
+            {soloRichiesta && <label htmlFor={idDitta} className="mb-1.5 block text-xs font-medium">Ditta destinataria</label>}
+            <OfficeSelect label="Ditta" id={soloRichiesta ? idDitta : undefined} className="h-9 min-w-[12rem]" value={ditta} onValueChange={cambiaDitta}
+              placeholder={ditte.isLoading ? "Carico le ditte…" : "Scegli la ditta"} options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />
+          </div>}
+          <div>
+            {soloRichiesta && <label htmlFor={idComprende} className="mb-1.5 block text-xs font-medium">Cosa deve quotare la ditta</label>}
+            <OfficeSelect label="Cosa comprende il prezzo" id={soloRichiesta ? idComprende : undefined} className={soloRichiesta ? "h-9" : "h-9 w-44"} value={comprendeScelto ?? (partenza ? comprende : "")} placeholder="Cosa comprende" onValueChange={(c) => setComprende(c as typeof comprende)}
+              options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
+          </div>
+          {!revisioneVociScelte && <div className="relative min-w-[12rem] flex-1">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca voce o fase" className="h-9 pl-8" aria-label="Cerca voce o fase" />
-          </div>
+          </div>}
+          {!dittaFissa && ditte.isError && <p role="alert" className="col-span-full basis-full text-sm text-destructive">Ditte non disponibili. <Button type="button" variant="link" onClick={() => void ditte.refetch()}>Riprova</Button></p>}
+          {!dittaFissa && ditte.isSuccess && !ditte.data.some((r) => r.is_active !== false) && <p className="col-span-full basis-full text-sm text-muted-foreground">Aggiungi una ditta da «Manodopera e Mezzi → Subappaltatori».</p>}
         </div>
-        {incorporato && <OfficeSelect label="Fase del computo" className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
+        {incorporato && !revisioneVociScelte && <OfficeSelect label="Fase del computo" className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
           options={[{ value: "", label: "Tutte le fasi del computo" }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />}
-        {partenza && <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
-          <label className="space-y-1 text-sm">Inizio previsto<Input type="date" value={dalPrevisto} disabled={occupato}
-            onChange={(e) => { setPeriodoModificato(true); setDalPrevisto(e.target.value); }} /></label>
-          <label className="space-y-1 text-sm">Fine prevista<Input type="date" value={alPrevisto} min={dalPrevisto || undefined} disabled={occupato}
-            onChange={(e) => { setPeriodoModificato(true); setAlPrevisto(e.target.value); }} /></label>
-          <p className="text-xs text-muted-foreground">{soloRichiesta ? "Il periodo compare nel computo per la ditta." : contrattoAttuale && periodoEsplicito ? "Salvando aggiorni anche il periodo della bozza." : "Il periodo indicato compare nella richiesta d’offerta e nella nuova bozza."}</p>
+        {partenza && !soloRichiesta && <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
+          {campiPeriodo}
+          <p className="text-xs text-muted-foreground">{contrattoAttuale && periodoEsplicito ? "Salvando aggiorni anche il periodo della bozza." : "Il periodo indicato compare nella richiesta d’offerta e nella nuova bozza."}</p>
           {!periodoValido && <p role="alert" className="text-sm text-destructive">Indica entrambe le date in ordine cronologico.</p>}
         </div>}
         {partenza && ditta && scelteManuali === null && scelte.size > sceltiOrdinati.length && affidamenti.isSuccess && (
@@ -677,11 +715,33 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
             </Button>)}
           </div>}
         </section>}
-        {soloRichiesta && <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-          <label className="space-y-1 text-sm">Risposta entro<Input type="date" value={scadenza} min={oggi()} onChange={(e) => setScadenza(e.target.value)} /></label>
-          <label className="min-w-[14rem] flex-1 space-y-1 text-sm">Istruzioni alla ditta<Textarea rows={2} maxLength={3000} value={istruzioni}
-            onChange={(e) => setIstruzioni(e.target.value)} placeholder="Es. accesso al cantiere, protezioni e smaltimento da includere" /></label>
-          {scadenza && scadenza < oggi() && <p role="alert" className="basis-full text-sm text-destructive">Indica una data di risposta da oggi in poi.</p>}
+        {soloRichiesta && <details className="group rounded-lg border">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />Date e istruzioni per la ditta
+            <span className="text-xs font-normal text-muted-foreground">Facoltative</span>
+          </summary>
+          <div className="space-y-3 border-t p-3">
+            <div className="flex flex-wrap gap-3">{campiPeriodo}
+              <label className="space-y-1 text-sm">Risposta entro<Input type="date" value={scadenza} min={oggi()} onChange={(e) => setScadenza(e.target.value)} /></label>
+            </div>
+            <label className="block space-y-1 text-sm">Istruzioni alla ditta<Textarea rows={2} maxLength={3000} value={istruzioni}
+              onChange={(e) => setIstruzioni(e.target.value)} placeholder="Es. accesso al cantiere, protezioni e smaltimento da includere" /></label>
+          </div>
+        </details>}
+        {soloRichiesta && !periodoValido && <p role="alert" className="text-sm text-destructive">Indica entrambe le date dei lavori in ordine cronologico.</p>}
+        {soloRichiesta && scadenza && scadenza < oggi() && <p role="alert" className="text-sm text-destructive">Indica una data di risposta da oggi in poi.</p>}
+        {revisioneVociScelte && <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">{soloRichiesta ? "Lavorazioni da quotare" : "Lavorazioni del contratto"}</h4>
+          {libere.length > 0 && <Button type="button" size="sm" variant="outline" aria-expanded={mostraTutteVoci} onClick={() => {
+            setMostraTutteVoci(!mostraTutteVoci);
+            setCerca("");
+            setFaseAttiva("");
+          }}>{mostraTutteVoci ? "Mostra solo voci scelte" : "Scegli altre voci dal computo"}</Button>}
+          {mostraTutteVoci && <div className="flex w-full flex-wrap gap-2">
+            <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca voce o fase" className="h-8 min-w-44 flex-1" aria-label="Cerca voce o fase" />
+            {incorporato && <OfficeSelect label="Fase del computo" className="h-8 max-w-xs" value={faseAttiva} onValueChange={setFaseAttiva}
+              options={[{ value: "", label: "Tutte le fasi del computo" }, ...fasi.map((f) => ({ value: f.id, label: f.name }))]} />}
+          </div>}
         </div>}
         {!soloRichiesta && ditta && sceltiOrdinati.length > 1 && (
           <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
@@ -705,7 +765,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
             ...fasi.map(fase => ({ id: fase.id, nome: fase.name, voci: (gruppi.find(g => g.fase.id === fase.id)?.voci.length ?? 0) + extra.filter(voce => voce.faseId === fase.id).length })),
             ...(extra.some(voce => voce.faseId === ALTRI_LAVORI) ? [{ id: ALTRI_LAVORI, nome: "Altri lavori", voci: extra.filter(voce => voce.faseId === ALTRI_LAVORI).length }] : []),
           ]}>
-          <div className="overflow-x-auto rounded-md border">
+          {(!soloRichiesta || fasiVisibili.length > 0 || !extra.length || mostraTutteVoci) && <div className="overflow-x-auto rounded-md border">
           {affidamenti.isLoading ? <p className="p-3 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : (
             telefono ? (
               // Sul telefono una voce è una scheda di due righe: cosa e quanto resta, poi quantità, prezzo e importo.
@@ -725,6 +785,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                       const grave = !!errore && errore !== "Prezzo mancante";
                       const q = quantitaDi(v) ?? 0;
                       const pr = prezzoDi(v.id) ?? 0;
+                      const sottofase = sottotitoloVoce(v);
                       return (
                         <li key={v.id} className={`space-y-1.5 px-2 py-2 ${grave ? "bg-red-50" : ""}`}>
                           <div className="flex items-start gap-2">
@@ -744,8 +805,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                               </>}
                             </div>
                           )}
-                          {si && !grave && q > 0 && <p className="pl-6 text-xs text-muted-foreground">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</p>}
-                          {v.subphase_id && nomiSottofasi.has(v.subphase_id) && <p className="text-xs text-muted-foreground">{nomiSottofasi.get(v.subphase_id)}</p>}
+                          {!soloRichiesta && si && !grave && q > 0 && <p className="pl-6 text-xs text-muted-foreground">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</p>}
+                          {sottofase && <p className="truncate pl-6 text-xs text-muted-foreground">{sottofase}</p>}
                           {si && (!soloRichiesta || errore || (!v.tariffa_id && a && !a.confermata)) && (
                             <div className="pl-6 text-[11px]">
                               {(errore || !soloRichiesta) && <span className={errore ? (grave ? "text-red-800" : "text-amber-800") : "text-muted-foreground"}>{grave ? errore : prezziPerVoce.get(v.id)?.fonte}</span>}
@@ -760,7 +821,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                     }),
                   ];
                 })}
-                {fasiVisibili.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">Nessuna voce libera.</li>}
+                {fasiVisibili.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">{soloRichiesta && !mostraTutteVoci ? "Scegli una voce dal computo o aggiungi un lavoro a corpo." : "Nessuna voce libera."}</li>}
               </ul>
             ) : (
             <table className={`w-full table-fixed text-sm ${soloRichiesta ? "min-w-[25rem]" : "min-w-[46rem]"}`}>
@@ -769,7 +830,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                   <th className="w-8 px-2 py-1.5" />
                   <th className="px-1 py-1.5 text-left font-medium">Voce</th>
                   <th className="w-24 px-1 py-1.5 text-right font-medium">Disponibile</th>
-                  <th className="w-28 px-1 py-1.5 text-right font-medium">Quantità</th>
+                  <th className="w-28 px-1 py-1.5 text-right font-medium">{soloRichiesta ? "Da quotare" : "Quantità"}</th>
                   {!soloRichiesta && <>
                   <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo concordato</th>
                   <th className="w-36 px-1 py-1.5 text-left font-medium">Da dove</th>
@@ -784,7 +845,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                   return [
                     <tr key={fase.id} className="border-t bg-muted/40">
                       <td className="px-2 py-1"><Checkbox checked={tutte} aria-label={`Scegli tutte le voci di ${fase.name}`} onCheckedChange={(c) => cambiaScelta(ids, c === true)} /></td>
-                      <td colSpan={soloRichiesta ? 3 : 6} className="px-1 py-1 text-xs font-medium">{fase.name} <span className="font-normal text-muted-foreground">· {vf.length} {vf.length === 1 ? "voce libera" : "voci libere"}</span></td>
+                      <td colSpan={soloRichiesta ? 3 : 6} className="px-1 py-1 text-xs font-medium">{fase.name} <span className="font-normal text-muted-foreground">· {vf.length} {vf.length === 1 ? "voce" : "voci"}</span></td>
                     </tr>,
                     ...vf.map((v) => {
                       const si = scelte.has(v.id);
@@ -795,26 +856,28 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                       const grave = !!errore && errore !== "Prezzo mancante";
                       const q = quantitaDi(v) ?? 0;
                       const pr = prezzoDi(v.id) ?? 0;
+                      const sottofase = sottotitoloVoce(v);
                       return (
                         <tr key={v.id} className={`border-t align-middle ${grave ? "bg-red-50" : ""}`}>
                           <td className="px-2 py-1"><Checkbox checked={si} aria-label={`Scegli ${v.descrizione}`} onCheckedChange={(c) => cambiaScelta([v.id], c === true)} /></td>
                           <td className="max-w-0 px-1 py-1">
                             {si && inScrittura === v.id ? (
-                              <Input autoFocus aria-label={`Testo nel contratto per ${v.descrizione}`} className="h-8" value={testi[v.id] ?? v.descrizione}
+                              <Input autoFocus aria-label={`Testo ${documentoVoce} per ${v.descrizione}`} className="h-8" value={testi[v.id] ?? v.descrizione}
                                 onChange={(e) => setTesti((t) => ({ ...t, [v.id]: e.target.value }))} onBlur={() => setInScrittura(null)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setInScrittura(null); }} />
                             ) : (
                               <div className="flex min-w-0 items-center gap-1">
-                                <p className={`truncate ${testi[v.id] ? "text-blue-900" : ""}`} title={testi[v.id] ? `Nel contratto: ${testi[v.id]}\nNella commessa: ${v.descrizione}` : v.descrizione}>{testi[v.id] ?? v.descrizione}</p>
-                                {si && <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Cambia il testo nel contratto di ${v.descrizione}`} title="Cambia il testo di questa riga nel contratto" onClick={() => setInScrittura(v.id)}><Pencil className="h-3 w-3" /></button>}
+                                <p className={`truncate ${testi[v.id] ? "text-blue-900" : ""}`} title={testi[v.id] ? `Testo per la ditta\n${testi[v.id]}\n\nTesto della commessa\n${v.descrizione}` : v.descrizione}>{testi[v.id] ?? v.descrizione}</p>
+                                {si && <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Modifica descrizione di ${v.descrizione}`} title="Modifica la descrizione da inviare alla ditta" onClick={() => setInScrittura(v.id)}><Pencil className="h-3 w-3" /></button>}
                               </div>
                             )}
-                            {v.subphase_id && nomiSottofasi.has(v.subphase_id) && <p className="truncate text-xs text-muted-foreground">{nomiSottofasi.get(v.subphase_id)}</p>}
+                            {sottofase && <p className="truncate text-xs text-muted-foreground">{sottofase}</p>}
                           </td>
-                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}{si && q > 0 && q <= residuaRiga(v.id) && <span className="block">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</span>}</td>
+                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}{!soloRichiesta && si && q > 0 && q <= residuaRiga(v.id) && <span className="block">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</span>}</td>
                           <td className="px-1 py-1">
                             {si && <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums"
-                              value={quantita[v.id] ?? casella(quantitaDi(v), 3)} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
+                              value={quantita[v.id] ?? casella(quantitaDi(v), 3)} aria-invalid={grave || undefined} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
+                            {soloRichiesta && grave && <span className="mt-1 block text-xs text-red-800">{errore}</span>}
                           </td>
                           {!soloRichiesta && <>
                           <td className="px-1 py-1">
@@ -839,15 +902,15 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
                     }),
                   ];
                 })}
-                {fasiVisibili.length === 0 && <tr><td colSpan={soloRichiesta ? 4 : 7} className="px-3 py-4 text-sm text-muted-foreground">{voci.length ? "Nessuna voce disponibile per la selezione corrente." : "La commessa non ha voci: si affidano le voci del computo o del preventivo."}</td></tr>}
+                {fasiVisibili.length === 0 && <tr><td colSpan={soloRichiesta ? 4 : 7} className="px-3 py-4 text-sm text-muted-foreground">{soloRichiesta && !mostraTutteVoci ? "Scegli una voce dal computo o aggiungi un lavoro a corpo." : voci.length ? "Nessuna voce disponibile per la selezione corrente." : "La commessa non ha voci: si affidano le voci del computo o del preventivo."}</td></tr>}
               </tbody>
             </table>
             )
           )}
-          </div>
+          </div>}
           <div className="mt-2 space-y-2">
             {extra.map((voce, indice) => (!faseAttiva || voce.faseId === faseAttiva) && (
-              <div key={voce.id} className="grid gap-2 rounded-lg border p-2 sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,2fr)_7rem_auto]">
+              <div key={voce.id} className={`grid gap-2 rounded-lg border p-2 ${soloRichiesta ? "sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,2fr)_auto]" : "sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,2fr)_7rem_auto]"}`}>
                 <div className="min-w-0 space-y-1.5">
                   <OfficeSelect label={`Macrofase lavoro a corpo ${indice + 1}`} value={voce.faseId} className="w-full"
                     options={[...fasi.map(fase => ({ value: fase.id, label: fase.name })), { value: ALTRI_LAVORI, label: "Senza macrofase" }]}
@@ -875,6 +938,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
           <span>{conteggio} {conteggio === 1 ? "voce" : "voci"}{nomeDitta ? ` a ${nomeDitta}` : ""}</span>
+          {soloRichiesta && suRichiesta && troppeVoci && <p role="alert" className="text-xs text-destructive">Ogni richiesta salvata può contenere fino a {MAX_VOCI_RICHIESTA} voci.</p>}
           {!soloRichiesta && <>
           {canViewOrderAmounts && conto.venduto > 0 && <span>Venduto al cliente <strong className="tabular-nums">{formatCurrency(conto.venduto)}</strong></span>}
           {stima != null && Math.abs(stima - conto.costo - importoACorpo) >= 0.01 && <span>Stima di partenza <strong className="tabular-nums">{formatCurrency(stima)}</strong></span>}
@@ -905,9 +969,12 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = []
           {(aiInCorso > 0 || proposti.isFetching) && <span className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" />{aiInCorso > 0 ? <><Sparkles className="mr-0.5 inline h-3 w-3" />cerco nel listino {aiInCorso} voci</> : "calcolo i prezzi"}</span>}
           </>}
           <AzioniLavorazioni><span className="flex w-full flex-wrap justify-end gap-2 sm:ml-auto sm:w-auto">
-            <Button variant={soloRichiesta ? "default" : "outline"} disabled={occupato || !richiestaValida} onClick={() => avviaAzione(() => datiComputo.mutateAsync("richiesta"))}>
-              {datiComputo.isPending && datiComputo.variables === "richiesta" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />} {soloRichiesta ? "Anteprima richiesta" : "Richiesta d’offerta"}
+            <Button variant={soloRichiesta && !suRichiesta ? "default" : "outline"} disabled={occupato || !richiestaValida} onClick={() => avviaAzione(() => datiComputo.mutateAsync("richiesta"))}>
+              {datiComputo.isPending && datiComputo.variables === "richiesta" ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" aria-hidden="true" />} {soloRichiesta ? "Anteprima PDF" : "Richiesta d’offerta"}
             </Button>
+            {soloRichiesta && suRichiesta && <Button disabled={occupato || !richiestaValida || troppeVoci} onClick={() => avviaAzione(() => datiComputo.mutateAsync("salva-richiesta"))}>
+              {datiComputo.isPending && datiComputo.variables === "salva-richiesta" && <Loader2 className="size-4 animate-spin" />}Salva bozza
+            </Button>}
             {!soloRichiesta && <>
             <Button variant="outline" className="max-sm:flex-1" disabled={nonSalvabile} onClick={() => avviaAzione(() => incorporato ? datiComputo.mutateAsync("contratto") : crea.mutateAsync(false))}>
               {crea.isPending && crea.variables === false && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{contrattoAttuale && !contrattoAttuale.firmato_il ? "Conferma e aggiungi" : "Conferma prezzi e crea bozza"}
