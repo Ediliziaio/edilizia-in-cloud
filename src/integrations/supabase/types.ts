@@ -22559,12 +22559,14 @@ export type Database = {
       }
       cassa_in_cloud_scontrini: {
         Row: {
+          cassa_id: string | null
           company_id: string
           con_fattura: boolean
           con_reso: boolean
           confermato: boolean | null
           data: string
           esterno_id: string
+          fatture: Json
           numero: string | null
           numero_z: string | null
           ora: string | null
@@ -22577,12 +22579,14 @@ export type Database = {
           valuta: string | null
         }
         Insert: {
+          cassa_id?: string | null
           company_id: string
           con_fattura: boolean
           con_reso: boolean
           confermato?: boolean | null
           data: string
           esterno_id: string
+          fatture?: Json
           numero?: string | null
           numero_z?: string | null
           ora?: string | null
@@ -22595,12 +22599,14 @@ export type Database = {
           valuta?: string | null
         }
         Update: {
+          cassa_id?: string | null
           company_id?: string
           con_fattura?: boolean
           con_reso?: boolean
           confermato?: boolean | null
           data?: string
           esterno_id?: string
+          fatture?: Json
           numero?: string | null
           numero_z?: string | null
           ora?: string | null

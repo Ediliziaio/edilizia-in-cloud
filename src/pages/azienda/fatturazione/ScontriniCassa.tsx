@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Download, ReceiptText, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { chiaveQueryCassa, IMPOSTAZIONI_CASSA, invocaCassa, useCollegamentiCassa } from "@/lib/cassaInCloud";
 import { formatCount, formatCurrency, formatDateShort } from "@/lib/formatters";
 import {
-  giornoCassa, GIORNI_IMPORT_CASSA, intervalliCassa, type EsitoImportCassa, type PagamentoCassa,
+  giornoCassa, GIORNI_IMPORT_CASSA, intervalliCassa, type EsitoImportCassa, type FatturaDaCassa, type PagamentoCassa,
 } from "../../../../shared/cassaInCloud";
+import ChiusureGiornaliereCassa from "./ChiusureGiornaliereCassa";
+import { FattureDaScontrinoCassa } from "./FattureDaScontrinoCassa";
 
 const PER_PAGINA = 50;
 const METODI: Record<string, string> = {
@@ -39,13 +41,17 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
   const puoImportare = !permessi.isLoading && permessi.canEditSettingsIntegrations && !permessi.solaLettura;
   const mobile = useIsMobile();
   const oggi = giornoCassa();
-  const [dal, setDal] = useState(`${oggi.slice(0, 7)}-01`);
-  const [al, setAl] = useState(oggi);
+  const [params, setParams] = useSearchParams();
+  const dalLink = params.get("dal") ?? "";
+  const alLink = params.get("al") ?? "";
+  const [dal, setDal] = useState(() => /^\d{4}-\d\d-\d\d$/.test(dalLink) ? dalLink : `${oggi.slice(0, 7)}-01`);
+  const [al, setAl] = useState(() => /^\d{4}-\d\d-\d\d$/.test(alLink) ? alLink : oggi);
   const [punto, setPunto] = useState("");
   const [pagina, setPagina] = useState(0);
   const [avanzamento, setAvanzamento] = useState<string | null>(null);
   const [esito, setEsito] = useState<string | null>(null);
   const [erroreImport, setErroreImport] = useState<string | null>(null);
+  const chiusure = params.get("tab") === "chiusure";
   const controller = useRef<AbortController | null>(null);
   const queryClient = useQueryClient();
   const collegamenti = useCollegamentiCassa(companyId);
@@ -59,10 +65,10 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
 
   const archivio = useQuery({
     queryKey: [...chiaveQueryCassa(companyId), "scontrini", dal, al, filtro, pagina],
-    enabled: dateValide,
+    enabled: dateValide && !chiusure,
     queryFn: async ({ signal }) => {
       let query = supabase.from("cassa_in_cloud_scontrini")
-        .select("esterno_id,punto_vendita_id,punto_vendita_nome,numero,numero_z,data,ora,totale,resto,pagamenti,valuta,confermato,con_reso,con_fattura,presente_in_cassa", { count: "exact" })
+        .select("esterno_id,punto_vendita_id,punto_vendita_nome,cassa_id,numero,numero_z,data,ora,totale,resto,pagamenti,valuta,confermato,con_reso,con_fattura,fatture,presente_in_cassa", { count: "exact" })
         .eq("company_id", companyId).gte("data", dal).lte("data", al);
       if (filtro) query = query.eq("punto_vendita_id", filtro);
       const { data, count, error } = await query
@@ -93,7 +99,7 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
     try {
       for (const intervallo of intervalli) {
         setAvanzamento(`Importazione ${completati + 1} di ${intervalli.length}…`);
-        const risultato = await invocaCassa<EsitoImportCassa>(companyId, "importa", {
+        const risultato = await invocaCassa<EsitoImportCassa>(companyId, chiusure ? "importa_chiusure" : "importa", {
           ...intervallo, punto_vendita_id: daImportare,
         }, inCorso.signal);
         if (inCorso.signal.aborted) return;
@@ -113,7 +119,7 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
       if (!inCorso.signal.aborted) {
         if (completati) {
           setPagina(0);
-          setEsito(`${formatCount(importati)} scontrini letti da Cassa in Cloud.${assenti ? ` ${formatCount(assenti)} scontrini assenti nell’ultima importazione.` : ""}`);
+          setEsito(`${formatCount(importati)} scontrini letti da Cassa in Cloud.${assenti ? ` ${formatCount(assenti)} scontrini assenti nell’ultima importazione.` : ""}${chiusure ? " Confronto chiusure aggiornato." : ""}`);
         }
         setAvanzamento(null);
       }
@@ -138,6 +144,18 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
             <Link to={IMPOSTAZIONI_CASSA}><Settings2 className="mr-2 h-4 w-4" />Collegamenti Cassa in Cloud</Link>
           </Button>
         )}
+      </div>
+      <div className="flex flex-wrap gap-2" aria-label="Viste Cassa in Cloud">
+        {["scontrini", "chiusure"].map((v) => (
+          <Button type="button" key={v} size="sm" variant={(v === "chiusure") === chiusure ? "secondary" : "ghost"}
+            aria-pressed={(v === "chiusure") === chiusure} disabled={!!avanzamento} onClick={() => {
+              const next = new URLSearchParams(params);
+              if (v === "chiusure") next.set("tab", "chiusure"); else next.delete("tab");
+              setEsito(null);
+              setErroreImport(null);
+              setParams(next, { replace: true });
+            }}>{v === "chiusure" ? "Chiusure giornaliere" : "Scontrini"}</Button>
+        ))}
       </div>
       <Card>
         <CardContent className="space-y-3 p-4">
@@ -165,7 +183,7 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
             )}
             {puoImportare && punti.length > 0 && (
               <Button type="button" disabled={!!avanzamento || !dateValide || !intervalli.length || !daImportare} onClick={() => void importa()}>
-                <Download className="mr-2 h-4 w-4" />Importa scontrini
+                <Download className="mr-2 h-4 w-4" />{chiusure ? "Importa chiusure e scontrini" : "Importa scontrini"}
               </Button>
             )}
           </div>
@@ -181,7 +199,8 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
         </CardContent>
       </Card>
 
-      {dateValide && (
+      {dateValide && chiusure && <ChiusureGiornaliereCassa companyId={companyId} dal={dal} al={al} punto={filtro} />}
+      {dateValide && !chiusure && (
         <Card>
           <Table>
             <TableHeader><TableRow>
@@ -212,8 +231,9 @@ function ArchivioCassa({ companyId }: { companyId: string }) {
                       {r.con_reso && <Badge variant="outline">Contiene resi</Badge>}
                       {r.con_fattura && <Badge variant="outline">Fattura collegata</Badge>}
                     </div>
+                    {Array.isArray(r.fatture) && <FattureDaScontrinoCassa companyId={companyId} fatture={r.fatture as unknown as FatturaDaCassa[]} />}
                   </TableCell>
-                  <TableCell>{r.punto_vendita_nome}</TableCell>
+                  <TableCell>{r.punto_vendita_nome}{r.cassa_id && <div className="text-xs text-muted-foreground">Cassa {r.cassa_id}</div>}</TableCell>
                   <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                     {importo(r.totale, r.valuta)}
                     {!!r.resto && <div className="text-xs font-normal text-muted-foreground">Resto {importo(r.resto, r.valuta)}</div>}
