@@ -7,8 +7,13 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Layers, MapPin, Navigation, Plus, Truck, X } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Layers, MapPin, Navigation, Pencil, Plus, Truck, X } from "lucide-react";
+import { toast } from "sonner";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { supabase } from "@/integrations/supabase/client";
+import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +27,7 @@ import { useAssegnaMezzoACommessa, useMezzi, useMezziDisponibilita, useMontaQuan
 import { formatQuantita, numeroLetto, unitaBreve } from "@/types/mezzi";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
-  durataViaggio, linkIndicazioni, mezziLavoroKey, useIndirizzoCantiere, useMezziLavoro,
+  durataViaggio, linkIndicazioni, mezziLavoroKey, useIndirizzoCantiere, useMezziLavoro, type IndirizzoCantiere,
 } from "@/hooks/useCantiereLogistica";
 import { AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { cn } from "@/lib/utils";
@@ -127,19 +132,74 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
   );
 }
 
+function ModificaIndirizzo({ orderId, indirizzo, onClose }: { orderId: string; indirizzo?: IndirizzoCantiere; onClose: () => void }) {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  const [testo, setTesto] = useState(indirizzo?.indirizzo ?? "");
+  const [punto, setPunto] = useState<{ testo: string; lat: number; lng: number } | null>(null);
+  const salva = useMutation({
+    mutationFn: async () => {
+      const valore = testo.trim();
+      const coord = punto?.testo === valore ? punto
+        : valore === indirizzo?.indirizzo && indirizzo.lat != null && indirizzo.lng != null ? { lat: indirizzo.lat, lng: indirizzo.lng }
+        : await geocodeBestEffort([valore]);
+      const percorsoCambiato = valore !== indirizzo?.indirizzo ||
+        (coord?.lat ?? null) !== indirizzo?.lat || (coord?.lng ?? null) !== indirizzo?.lng;
+      let query = supabase.from("orders").update({
+        work_address: valore, indirizzo_lavori: valore, work_lat: coord?.lat ?? null, work_lng: coord?.lng ?? null,
+        ...(percorsoCambiato ? { distanza_sede_km: null, distanza_sede_minuti: null, distanza_sede_il: null } : {}),
+      }).eq("company_id", companyId!).eq("id", orderId).is("deleted_at", null);
+      if (indirizzo?.versione != null) query = query.eq("version", indirizzo.versione);
+      const { data, error } = await query.select("id").maybeSingle();
+      if (error) throw Error(error.message);
+      if (!data) throw Error("I dati della commessa sono aggiornati da un’altra sessione. Chiudi e riapri l’indirizzo.");
+    },
+    onError: () => { void qc.invalidateQueries({ queryKey: ["cantiere-indirizzo", orderId] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["cantiere-indirizzo", orderId] });
+      void qc.invalidateQueries({ queryKey: ["distanza-cantieri"], predicate: q => String(q.queryKey[1]).split(",").includes(orderId) });
+      void qc.invalidateQueries({ queryKey: ["order", orderId] });
+      void qc.invalidateQueries({ queryKey: ["orders"] });
+      toast.success("Indirizzo del cantiere salvato");
+      onClose();
+    },
+  });
+  return <Dialog open onOpenChange={open => { if (!open && !salva.isPending) onClose(); }}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Indirizzo del cantiere</DialogTitle>
+        <DialogDescription>Scegli un risultato per impostare anche la posizione sulla mappa.</DialogDescription>
+      </DialogHeader>
+      <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (companyId && testo.trim() && !salva.isPending) salva.mutate(); }}>
+        <div className="space-y-1">
+          <Label htmlFor="logistica-indirizzo">Via, civico e comune</Label>
+          <CampoIndirizzo id="logistica-indirizzo" value={testo} onChange={setTesto}
+            onScegli={a => { setTesto(a.testo); setPunto(a.lat != null && a.lng != null ? { testo: a.testo, lat: a.lat, lng: a.lng } : null); }}
+            maxLength={250} />
+        </div>
+        {salva.isError && <p role="alert" className="text-sm text-destructive">{salva.error.message}</p>}
+        <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>Annulla</Button>
+          <Button type="submit" disabled={!companyId || !testo.trim() || salva.isPending}>{salva.isPending ? "Salvataggio…" : "Salva indirizzo"}</Button></DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>;
+}
+
 export function CantiereLogistica({ orderId, showSiteEquipment = true }: { orderId: string; showSiteEquipment?: boolean }) {
   const qc = useQueryClient();
   const perms = usePermissions();
   const puoMezzi = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
   const vedeMezzi = perms.canViewMezzi === true || perms.isAdmin;
   const sede = useCompanyBase();
-  const { data: cantiere } = useIndirizzoCantiere(orderId);
-  const { data: distanze } = useDistanzeCantieri([orderId]);
+  const indirizzo = useIndirizzoCantiere(orderId);
+  const cantiere = indirizzo.data;
+  const distanze = useDistanzeCantieri([orderId]);
   const { data: mezzi } = useMezziLavoro(orderId);
   const togli = useAssegnaMezzoACommessa();
   const [aperto, setAperto] = useState(false);
+  const [modificaIndirizzo, setModificaIndirizzo] = useState(false);
 
-  const strada = distanze?.[orderId];
+  const strada = distanze.data?.[orderId];
   const indicazioni = linkIndicazioni(sede, cantiere);
   const tempo = durataViaggio(strada?.minuti);
   const sulCantiere = mezzi?.sul_cantiere ?? [];
@@ -149,31 +209,36 @@ export function CantiereLogistica({ orderId, showSiteEquipment = true }: { order
   const conTutti = (mezzi?.con_le_persone ?? []).filter((m) => m.fasi === null);
 
   return (
-    <section aria-label="Il cantiere" className="space-y-2.5 rounded-xl border bg-slate-50/70 p-3 dark:bg-slate-900/40">
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-        <div className="flex min-w-0 flex-1 items-start gap-2">
+    <section aria-label="Indirizzo e indicazioni" className="space-y-2.5 rounded-xl border bg-background p-3 sm:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 grow basis-full items-start gap-2 sm:basis-56">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" aria-hidden="true" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold">{cantiere?.indirizzo ?? "Manca l'indirizzo del cantiere"}</p>
-            <p className="text-xs tabular-nums text-muted-foreground">
-              {strada
-                ? <>Dalla sede <b className="font-semibold text-foreground">{kmIt(strada.km)} km</b>{tempo && <> · <b className="font-semibold text-foreground">{tempo}</b></>} · andata e ritorno {kmIt(strada.km * 2)} km</>
-                : !sede
-                  ? "Per km e tempo dalla sede serve l'indirizzo della sede operativa nelle Impostazioni."
-                  : cantiere?.indirizzo
-                    ? "Km e tempo dalla sede arrivano appena il cantiere ha la posizione sulla mappa."
-                    : "Aggiungilo dalla commessa: servono l'indirizzo e la posizione."}
-            </p>
+            <h3 className="text-sm font-semibold">Indirizzo del cantiere</h3>
+            {indirizzo.isError ? <p role="alert" className="text-sm text-muted-foreground">Indirizzo non disponibile. <button type="button" onClick={() => void indirizzo.refetch()} className="underline">Riprova</button></p>
+              : <p className="mt-0.5 break-words text-sm">{indirizzo.isPending ? "Carico l’indirizzo…" : cantiere?.indirizzo ?? "Da inserire"}</p>}
+            {cantiere?.indirizzo && <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+              {strada ? <>Stima dalla sede · <b className="font-medium text-foreground">{kmIt(strada.km)} km{tempo && ` · ${tempo}`}</b> di sola andata</>
+                : !sede ? "Imposta la sede operativa per stimare la distanza."
+                  : cantiere.lat == null || cantiere.lng == null ? "Imposta la posizione sulla mappa per stimare la distanza."
+                    : distanze.isFetching ? "Calcolo il percorso dalla sede…" : "Stima del percorso non disponibile."}
+            </p>}
           </div>
         </div>
-        {indicazioni && (
-          <Button asChild size="sm" variant="outline" className={cn("h-8 max-sm:w-full", AZIONE_TENUE.fase)}>
+        <div className="flex flex-wrap gap-2">
+          {perms.canEditOrders && !perms.solaLettura && indirizzo.isSuccess && (
+            <Button size="sm" variant={cantiere?.indirizzo ? "outline" : "default"} onClick={() => setModificaIndirizzo(true)}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />{cantiere?.indirizzo ? "Modifica indirizzo" : "Inserisci indirizzo"}
+            </Button>
+          )}
+          {indicazioni && <Button asChild size="sm" variant="outline">
             <a href={indicazioni} target="_blank" rel="noopener noreferrer">
               <Navigation className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />Indicazioni
             </a>
-          </Button>
-        )}
+          </Button>}
+        </div>
       </div>
+      {modificaIndirizzo && <ModificaIndirizzo orderId={orderId} indirizzo={cantiere} onClose={() => setModificaIndirizzo(false)} />}
 
       {((showSiteEquipment && (sulCantiere.length > 0 || montati.length > 0 || puoMezzi)) || conTutti.length > 0) && (
         <div className="flex flex-wrap items-center gap-1.5 border-t pt-2.5">

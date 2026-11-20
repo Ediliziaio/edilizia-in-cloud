@@ -42,6 +42,7 @@ import {
   MoreHorizontal,
   UsersRound,
   FileUp,
+  ShieldCheck,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -190,9 +191,11 @@ interface OrderWorkPhasesProps {
   importoContratto?: number | null;
   /** Le figure della commessa condividono l'organizzazione, senza duplicare anagrafiche o permessi. */
   organizationContent?: ReactNode;
+  logisticaIntegrata?: boolean;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra, logisticaIntegrata }: OrderWorkPhasesProps) {
+  const paginaLavorazioni = view === "lavorazioni" && logisticaIntegrata;
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders, canViewSubappaltatoriAmministrazione, canViewEmployees, canViewMezzi, isAdmin, solaLettura } = usePermissions();
@@ -517,23 +520,22 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     return updateAssignment.mutateAsync({ id, source, patch });
   };
 
-  // Le azioni della scheda: in cima da sole fuori dalla commessa, sulla riga
-  // del riepilogo dentro la commessa (06/10/2026: prima una riga intera vuota
-  // col solo «Aggiungi fasi»).
+  const azioneImporta = canEditOrders && showWork && (
+    <Button size="sm" variant={paginaLavorazioni ? "ghost" : "outline"}
+      className={cn("font-medium", telefono || paginaLavorazioni ? "h-9 px-2.5" : "min-h-9")}
+      onClick={() => setImportaAperto(true)}>
+      <FileUp className="h-4 w-4" aria-hidden="true" />{paginaLavorazioni ? "Importa fasi" : "Importa"}
+    </Button>
+  );
+
   const azioniCommessa = (canEditOrders || puoSquadre) ? (
           <>
-            {/* Tre cose sole, sempre nello stesso ordine: le fasi, chi lavora,
-                e (a parte) persone e ditte con i costi. */}
             {canEditOrders && showWork && (
-              <Button size="sm" className={cn("border border-orange-700 bg-orange-700 px-4 font-semibold text-white shadow-sm hover:bg-orange-800 max-sm:flex-1", telefono ? "tap-compact h-9" : "max-sm:min-h-11")} onClick={() => setNewPhaseOpen(true)}>
-                <ListPlus className="mr-1 h-4 w-4" />Aggiungi fasi
+              <Button size="sm" className={cn("bg-orange-700 px-3 font-semibold text-white hover:bg-orange-800 max-sm:flex-1", paginaLavorazioni ? "min-h-10" : telefono ? "tap-compact h-9" : "max-sm:min-h-11")} onClick={() => setNewPhaseOpen(true)}>
+                <ListPlus className="h-4 w-4" aria-hidden="true" />Aggiungi fasi
               </Button>
             )}
-            {canEditOrders && showWork && (
-              <Button size="sm" variant="outline" className={cn("font-semibold", telefono ? "tap-compact h-9" : "min-h-9")} onClick={() => setImportaAperto(true)}>
-                <FileUp className="mr-1 h-4 w-4" />Importa
-              </Button>
-            )}
+            {!paginaLavorazioni && azioneImporta}
             {canEditOrders && showWork && effectiveCompany?.id && user?.id && importaAperto && (
               <ImportaVociDialog
                 open
@@ -558,9 +560,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               />
             )}
             {showTeam && (canEditOrders || puoSquadre) && <>
-              <Button size="sm" variant="outline" className="min-h-9 font-semibold" onClick={setAssegnaPersona}><UsersRound className="mr-1 h-4 w-4" />Assegna</Button>
+              <Button size="sm" variant="outline" className={cn("font-semibold", paginaLavorazioni ? "min-h-10" : "min-h-9")} onClick={setAssegnaPersona}><UsersRound className="h-4 w-4" aria-hidden="true" />Assegna</Button>
             </>}
-            {!telefono && lavoriExtra}
+            {!paginaLavorazioni && !telefono && lavoriExtra}
             {canEditOrders && <>
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -994,11 +996,65 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     />
   );
 
+  const aiutoFasi = !telefono && canEditOrders && (
+    <SilvioAiuto
+      titolo="Silvio · le fasi della commessa"
+      descrizione="Cosa manca perché le fasi siano pronte: date, chi le fa, costi. Ogni punto ha la sua azione."
+      punti={puntiFasi}
+      onAzione={azioneSilvio}
+      intestazioneChat={`Commessa ${orderCode ?? ""}: fasi ${phases.map((p) => `«${p.name}» (${p.start_date ?? "senza inizio"} → ${p.end_date ?? "senza fine"}, ${p.percentuale}%)`).join(", ")}.`}
+      domande={["Pianifica le date di fasi e sottofasi", "Dividi le fasi in sottofasi", "Chi fa ogni sottofase?", "Cosa manca per partire?"]}
+      conversazione={conversazioneFasi}
+    />
+  );
+  const ditteContratti = !telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />;
+  const azioneVerifica = !telefono && showWork && attentionCount > 0 && (
+    <Button variant="ghost" size="sm"
+      className={cn("h-8 text-amber-800", paginaLavorazioni && "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60")}
+      onClick={() => setFaseAperta(phases.find((p) => matchesFilter(p, "attention"))?.id ?? null)}>
+      <AlertTriangle className="h-4 w-4" aria-hidden="true" />Verifica {attentionCount} {attentionCount === 1 ? "lavorazione" : "lavorazioni"}
+    </Button>
+  );
+
   return (
     // Da telefono niente riquadro attorno: le fasi sono già righe-riquadro
     // (niente card dentro card), e la larghezza va alle fasi.
-    <Card className={cn("shadow-none", telefono && "border-0 bg-transparent")}>
+    <Card className={cn("shadow-none", paginaLavorazioni && "min-w-0 rounded-2xl", telefono && "border-0 bg-transparent")}>
       <CardHeader className={cn("gap-3", telefono ? "p-0 pb-2" : "p-3", view ? "sm:px-4 sm:pb-2 sm:pt-3" : "sm:p-6")}>
+        {paginaLavorazioni ? <>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3 max-sm:sr-only">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300">
+                <HardHat className="size-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold leading-tight tracking-tight">Lavorazioni</h2>
+                {!isLoading && !isError && phases.length > 0 && <p className="mt-0.5 text-xs tabular-nums text-muted-foreground sm:text-sm">
+                  {phases.length} {phases.length === 1 ? "fase" : "fasi"}
+                  {summary.active > 0 && ` · ${summary.active} in corso`}
+                  {completedCount > 0 && ` · ${completedCount} ${completedCount === 1 ? "completata" : "completate"}`}
+                </p>}
+              </div>
+            </div>
+            {(canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{azioniCommessa}</div>}
+          </div>
+          <div role="group" aria-label="Strumenti delle lavorazioni" className="flex flex-wrap items-center gap-1 border-t pt-2 text-muted-foreground">
+            {azioneImporta}
+            {ditteContratti}
+            {!telefono && lavoriExtra}
+            <Button type="button" variant="ghost" size="sm" aria-expanded={responsabiliAperti} aria-controls="section-squadra"
+              className={cn("h-9 px-2.5", responsabiliAperti && "bg-muted text-foreground")} onClick={() => setResponsabiliAperti(open => !open)}>
+              <ShieldCheck className="size-4" aria-hidden="true" />Squadra e sicurezza
+              <ChevronDown className={cn("size-3 transition-transform motion-reduce:transition-none", responsabiliAperti && "rotate-180")} aria-hidden="true" />
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="h-9 px-2.5">
+              <a href="#section-mezzi">
+                <Truck className="size-4" aria-hidden="true" />{canViewMezzi || isAdmin ? "Mezzi e viaggi" : "Indirizzo cantiere"}
+              </a>
+            </Button>
+            {(aiutoFasi || azioneVerifica) && <div className="flex flex-wrap items-center gap-1 sm:ml-auto">{azioneVerifica}{aiutoFasi}</div>}
+          </div>
+        </> : <>
         <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", view && "contents")}>
           {/* Dentro le schede della commessa il titolo ripeterebbe la scheda stessa
               e la sua descrizione: resta solo per chi usa uno screen reader. */}
@@ -1034,36 +1090,23 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
               {/* Mobile: due azioni compatte, le assegnazioni in un unico menu. */}
               {/* Rapportini e «Scrivi rapportini» stanno solo nella vista Rapportini (31/10/2026). */}
-              {!telefono && canEditOrders && (
-                <SilvioAiuto
-                  titolo="Silvio · le fasi della commessa"
-                  descrizione="Cosa manca perché le fasi siano pronte: date, chi le fa, costi. Ogni punto ha la sua azione."
-                  punti={puntiFasi}
-                  onAzione={azioneSilvio}
-                  intestazioneChat={`Commessa ${orderCode ?? ""}: fasi ${phases.map((p) => `«${p.name}» (${p.start_date ?? "senza inizio"} → ${p.end_date ?? "senza fine"}, ${p.percentuale}%)`).join(", ")}.`}
-                  domande={["Pianifica le date di fasi e sottofasi", "Dividi le fasi in sottofasi", "Chi fa ogni sottofase?", "Cosa manca per partire?"]}
-                  conversazione={conversazioneFasi}
-                />
-              )}
-              {!telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />}
-              {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
-                // Si comincia dalla prima da sistemare: chiuso il popup, il conteggio dice quante ne restano.
-                setFaseAperta(phases.find((p) => matchesFilter(p, "attention"))?.id ?? null);
-              }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}
+              {aiutoFasi}
+              {ditteContratti}
+              {azioneVerifica}
               {view && azioniCommessa}
             </span>
           </div>
         )}
+        </>}
 
-        {/* In tabella contano le righe: capocantiere, squadre e figure stanno dietro una riga, a un clic. */}
-        {showTeam && modoFasi === "tabella" && !telefono && (
+        {showTeam && !paginaLavorazioni && modoFasi === "tabella" && !telefono && (
           <button type="button" aria-expanded={responsabiliAperti} onClick={() => setResponsabiliAperti((v) => !v)}
             className="flex w-full items-center gap-1 rounded-lg border px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {responsabiliAperti ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
             Capocantiere, squadre e figure di sicurezza
           </button>
         )}
-        {showTeam && <section hidden={(telefono || modoFasi === "tabella") && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
+        {showTeam && <section hidden={(paginaLavorazioni || telefono || modoFasi === "tabella") && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className={cn("space-y-3 scroll-mt-24", paginaLavorazioni && "rounded-xl border bg-muted/25 p-2.5 sm:p-3")}>
           {!isLoading && !isError && <>
           <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione organizzazione={{
             aperta: organizzazioneAperta,
@@ -1113,7 +1156,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
       </CardHeader>
 
       <CardContent className={cn(telefono ? "space-y-2 px-0 pb-0" : "px-3 pb-3", !telefono && (view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6"))}>
-        {showWork && effectiveCompany?.id && <StrumentiComputo key={orderId} companyId={effectiveCompany.id} orderId={orderId}
+        {showWork && (!logisticaIntegrata || !(canViewMezzi || isAdmin)) && effectiveCompany?.id && <StrumentiComputo key={orderId} companyId={effectiveCompany.id} orderId={orderId}
           iniziale="servizi" etichetta="Noleggi e servizi" nomeFase={id => phases.find(p => p.id === id)?.name ?? "Senza fase"} />}
         {/* I tempi del cronoprogramma del preventivo firmato diventano le date delle fasi (31/10/2026). */}
         {canEditOrders && !isLoading && !isError && <PianoDalPreventivo orderId={orderId} fasi={phases} />}
@@ -1226,7 +1269,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           {effectiveCompany?.id && <PeriodiInCommessa companyId={effectiveCompany.id} orderId={orderId} />}
           <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Istruzioni per il cantiere{note.length > 0 ? ` (${note.length})` : ""}</summary><div className="mt-3"><NoteCantiere orderId={orderId} fasi={phaseOptions} modificabile={puoSquadre} /></div></details>
           <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded parte="ditte" compact />
-          <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Indirizzo e viaggio</summary><div className="mt-3"><CantiereLogistica orderId={orderId} showSiteEquipment={false} /></div></details>
+          {!logisticaIntegrata && <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Indirizzo e viaggio</summary><div className="mt-3"><CantiereLogistica orderId={orderId} showSiteEquipment={false} /></div></details>}
         </>}
       </CardContent>
     </Card>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Plus, Route } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { CalendarDays, CarFront, ChevronDown, Plus, Route } from "lucide-react";
+import { format, parseISO, subDays } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,11 @@ import {
   type Viaggio,
 } from "@/lib/mezzi/viaggi";
 import { formatCurrency } from "@/lib/formatters";
-import { oggiIso } from "@/types/mezzi";
+import { formatData, oggiIso } from "@/types/mezzi";
+import { cn } from "@/lib/utils";
 import { ViaggioDialog } from "./ViaggioDialog";
+import { ArriviDaRapportini } from "./ArriviDaRapportini";
+import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 
 const n = (v: number | null) =>
   v == null ? "—" : v.toLocaleString("it-IT", { maximumFractionDigits: 2 });
@@ -47,6 +50,7 @@ interface Props {
   autoOpen?: boolean;
   defaultOrderId?: string;
   initialDay?: string;
+  integrato?: boolean;
 }
 
 /** Lazy history; no route calculations, GPS or writes during reads. */
@@ -61,23 +65,29 @@ export function ViaggiMezzoWorkspace({
   autoOpen = false,
   defaultOrderId,
   initialDay,
+  integrato = false,
 }: Props) {
   const [expanded, setExpanded] = useState(!campo || autoOpen);
   const [dialog, setDialog] = useState<{
     mezzoId: string;
     viaggio?: Viaggio;
+    arrivo?: ArrivoDaRapportino;
   } | null>(autoOpen && mezzoId ? { mezzoId } : null);
   const [selected, setSelected] = useState(mezzoId ?? "");
+  const [registraManuale, setRegistraManuale] = useState(false);
   const validInitial =
     initialDay &&
     /^\d{4}-\d{2}-\d{2}$/.test(initialDay) &&
     Number.isFinite(Date.parse(initialDay))
       ? initialDay
       : null;
+  const oggi = oggiIso();
+  const inizioUltimi30 = format(subDays(parseISO(oggi), 29), "yyyy-MM-dd");
   const [dal, setDal] = useState(
-    validInitial ?? format(subDays(new Date(), 30), "yyyy-MM-dd"),
+    validInitial ?? (integrato ? inizioUltimi30 : format(subDays(new Date(), 30), "yyyy-MM-dd")),
   );
-  const [al, setAl] = useState(validInitial ?? oggiIso());
+  const [al, setAl] = useState(validInitial ?? oggi);
+  const [dateAperte, setDateAperte] = useState(!!validInitial);
   const [offset, setOffset] = useState(0);
   const rangeValid =
     !!dal &&
@@ -100,13 +110,31 @@ export function ViaggiMezzoWorkspace({
       ["autovettura", "furgone", "autocarro", "altro"].includes(m.tipo) &&
       (!m.contatore_unita || m.contatore_unita === "km"),
   );
+  const periodoRapido = (giorno: string) => {
+    setDal(giorno);
+    setAl(oggi);
+    setOffset(0);
+    setDateAperte(false);
+  };
   return (
     <section
-      aria-label="Viaggi e tratte del mezzo"
-      className="space-y-3 rounded-2xl border border-blue-100 bg-white p-3 sm:p-4"
+      aria-label={orderId ? "Viaggi e tratte della commessa" : "Viaggi e tratte del mezzo"}
+      className={orderId ? "space-y-3" : "space-y-3 rounded-2xl border border-blue-100 bg-white p-3 sm:p-4"}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        {integrato ? <div className="space-y-1.5">
+          <h3 className="sr-only">Registro viaggi</h3>
+          <div role="group" aria-label="Periodo del registro" className="flex flex-wrap gap-1">
+            {[{ testo: "Ultimi 30 giorni", dal: inizioUltimi30 }, { testo: "Oggi", dal: oggi }].map(p => (
+              <Button key={p.testo} type="button" size="sm" variant="ghost" aria-pressed={dal === p.dal && al === oggi}
+                className={cn("h-8 px-2.5", dal === p.dal && al === oggi ? "bg-primary/10 font-semibold text-primary hover:bg-primary/15" : "text-muted-foreground")}
+                onClick={() => periodoRapido(p.dal)}>{p.testo}</Button>
+            ))}
+            <Button type="button" size="sm" variant="outline" className="h-8 px-2.5" aria-expanded={dateAperte}
+              onClick={() => setDateAperte(v => !v)}><CalendarDays className="size-4" aria-hidden="true" />Periodo</Button>
+          </div>
+          {rangeValid && <p className="px-0.5 text-xs tabular-nums text-muted-foreground">{dal === al ? formatData(dal) : `${formatData(dal)} – ${formatData(al)}`}</p>}
+        </div> : <button
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
@@ -117,7 +145,7 @@ export function ViaggiMezzoWorkspace({
           <ChevronDown
             className={`h-4 w-4 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
           />
-        </button>
+        </button>}
         {!readOnly && mezzoId && (
           <Button
             className="min-h-11 rounded-xl"
@@ -127,16 +155,21 @@ export function ViaggiMezzoWorkspace({
             Registra viaggio
           </Button>
         )}
+        {integrato && !readOnly && !mezzoId && <Button size="sm" variant={registraManuale ? "secondary" : "default"}
+          aria-expanded={registraManuale} onClick={() => setRegistraManuale(v => !v)}>
+          <Plus className="size-4" aria-hidden="true" />Nuovo viaggio
+        </Button>}
       </div>
-      <p className="text-xs text-slate-600">
+      {!integrato && <p className="text-xs text-muted-foreground">
         {campo
           ? "Più cantieri nello stesso giro? Aggiungi una tratta per ogni tappa. Il viaggio si registra una sola volta, non per ogni passeggero."
-          : "Registro dei viaggi dichiarati, distinto dall’assegnazione del mezzo e dalla stima sede–cantiere. Nessun costo, rimborso o ora viene registrato automaticamente."}
-      </p>
+          : orderId ? "Dai rapportini arrivano i mezzi dichiarati per l’andata in cantiere. Qui puoi completare i dettagli o registrare altre tratte."
+            : "Viaggi dichiarati e tratte attribuite alle commesse."}
+      </p>}
       {expanded && (
         <>
-          {!mezzoId && !readOnly && (
-            <div className="flex flex-col gap-2 sm:flex-row">
+          {!mezzoId && !readOnly && (!integrato || registraManuale) && (
+            <div className={cn("flex flex-col gap-2 sm:flex-row", integrato && "rounded-xl border bg-muted/25 p-3 sm:items-center")}>
               <OfficeSelect
                 label="Mezzo per nuovo viaggio"
                 value={selected}
@@ -148,21 +181,23 @@ export function ViaggiMezzoWorkspace({
                 ]}
               />
               <Button
-                className="min-h-11 rounded-xl"
-                disabled={!selected}
-                onClick={() => setDialog({ mezzoId: selected })}
+                className={cn("min-h-11 rounded-xl", integrato && "shrink-0")}
+                disabled={!roadVehicles.some(m => m.id === selected)}
+                onClick={() => { setDialog({ mezzoId: selected }); setRegistraManuale(false); }}
               >
-                <Plus className="mr-1 h-4 w-4" />
-                Registra viaggio
+                <Plus className="size-4" aria-hidden="true" />
+                {integrato ? "Continua" : "Registra viaggio"}
               </Button>
+              {integrato && roadVehicles.length === 0 && <Link to="/azienda/manodopera?tab=mezzi" className="self-center text-xs font-medium text-muted-foreground underline underline-offset-2">Apri il parco mezzi</Link>}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-slate-600">
+          {(!integrato || dateAperte) && <div className={cn("grid grid-cols-2 gap-2", integrato && "rounded-lg border bg-muted/25 p-2.5 sm:max-w-md")}>
+            <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
               Dal
               <Input
                 aria-label="Viaggi dal"
                 type="date"
+                className="w-full min-w-0 bg-background"
                 value={dal}
                 onChange={(e) => {
                   setDal(e.target.value);
@@ -170,11 +205,12 @@ export function ViaggiMezzoWorkspace({
                 }}
               />
             </label>
-            <label className="text-xs text-slate-600">
+            <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
               Al
               <Input
                 aria-label="Viaggi al"
                 type="date"
+                className="w-full min-w-0 bg-background"
                 value={al}
                 onChange={(e) => {
                   setAl(e.target.value);
@@ -182,12 +218,15 @@ export function ViaggiMezzoWorkspace({
                 }}
               />
             </label>
-          </div>
+          </div>}
           {!rangeValid && (
             <p role="alert" className="text-sm text-amber-800">
               Scegli un periodo valido, al massimo 366 giorni.
             </p>
           )}
+          {orderId && rangeValid && <ArriviDaRapportini key={`${companyId}:${orderId}:${dal}:${al}`}
+            companyId={companyId} orderId={orderId} dal={dal} al={al} readOnly={readOnly}
+            onCompleta={arrivo => setDialog({ mezzoId: arrivo.mezzoId, arrivo })} />}
           {rangeValid && list.isPending && (
             <p role="status" className="text-sm">
               Carico il registro viaggi…
@@ -205,39 +244,47 @@ export function ViaggiMezzoWorkspace({
             </p>
           )}
           {!list.isError && !list.isPending && rangeValid && (
-            <>
+            <section aria-label="Viaggi registrati" className={integrato ? "rounded-xl border bg-background" : "space-y-3"}>
+              {integrato && <header className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b bg-muted/30 px-3 py-2.5">
+                <h4 className="flex items-center gap-2 text-sm font-semibold"><Route className="size-4 text-primary" aria-hidden="true" />Viaggi registrati</h4>
+                {rows.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">
+                  {rows.length} {rows.length === 1 ? "viaggio" : "viaggi"}{(offset > 0 || list.data?.has_more) && " in questa pagina"}
+                </span>}
+              </header>}
               {total && rows.length > 0 && (
-                <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-950">
-                  <p className="mb-1 text-xs font-semibold">
-                    {offset > 0 || list.data?.has_more
-                      ? "Riepilogo delle righe di questa pagina"
-                      : "Riepilogo del periodo"}{" "}
-                    · solo tratte di questa commessa, bozze e annullati esclusi
+                <div className={cn("space-y-2 p-3", integrato ? "border-b" : "rounded-xl border bg-muted/30")}>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {offset > 0 || list.data?.has_more ? "Tratte della commessa in questa pagina" : "Tratte della commessa nel periodo"}
+                    <span className="font-normal"> · viaggi inviati e verificati</span>
                   </p>
-                  <p>
-                    {n(total.verificati)} km verificati · {n(total.dichiarati)}{" "}
-                    dichiarati da verificare · {n(total.stimati)} stimati ·{" "}
-                    {total.mancanti} tratte senza km
-                  </p>
+                  <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      { label: "Km verificati", valore: n(total.verificati) },
+                      { label: "Km da verificare", valore: n(total.dichiarati) },
+                      { label: "Km stimati", valore: n(total.stimati) },
+                      { label: "Tratte senza km", valore: total.mancanti },
+                    ].map(x => <div key={x.label} className="rounded-lg bg-muted/55 px-2.5 py-1.5">
+                      <dt className="text-xs text-muted-foreground">{x.label}</dt>
+                      <dd className="text-base font-semibold tabular-nums">{x.valore}</dd>
+                    </div>)}
+                  </dl>
                   {vedeCosti && (
-                    <p className="mt-1 text-xs">
-                      Simulazione gestionale:{" "}
+                    <p className="text-xs text-muted-foreground">
+                      Stima dei viaggi{" "}
                       {total.costoStimato == null
-                        ? "— (tariffa da definire)"
+                        ? "· tariffa da definire"
                         : formatCurrency(total.costoStimato)}{" "}
-                      · {n(total.kmSenzaTariffa)} km senza tariffa. Non inclusa
-                      nel consuntivo contabile.
+                      · {n(total.kmSenzaTariffa)} km senza tariffa · fuori consuntivo
                     </p>
                   )}
                 </div>
               )}
               {rows.length === 0 && (
-                <p className="rounded-xl border border-dashed p-4 text-sm text-slate-600">
-                  Nessun viaggio registrato nel periodo. I km stimati dalle
-                  assegnazioni non sono viaggi confermati.
+                <p className={cn("px-3 py-3 text-sm text-muted-foreground", !integrato && "rounded-xl border border-dashed")}>
+                  {orderId ? "Nessun viaggio con tratte e orari nel periodo." : "Nessun viaggio registrato nel periodo."}
                 </p>
               )}
-              <ul className="space-y-2">
+              {rows.length > 0 && <ul className={cn("space-y-2", integrato && "p-3")}>
                 {rows.map((v) => (
                   <li key={v.id}>
                     <ViaggioRiga
@@ -255,8 +302,8 @@ export function ViaggiMezzoWorkspace({
                     />
                   </li>
                 ))}
-              </ul>
-              <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
+              </ul>}
+              {(!integrato || offset > 0 || list.data?.has_more) && <div className={cn("flex items-center justify-between gap-2 text-xs text-muted-foreground", integrato && "border-t p-2.5")}>
                 <Button
                   variant="outline"
                   size="sm"
@@ -277,17 +324,18 @@ export function ViaggiMezzoWorkspace({
                 >
                   Successivi
                 </Button>
-              </div>
-            </>
+              </div>}
+            </section>
           )}
         </>
       )}
       {dialog && (
         <ViaggioDialog
-          key={dialog.viaggio?.id ?? dialog.mezzoId}
+          key={dialog.viaggio?.id ?? dialog.arrivo?.id ?? dialog.mezzoId}
           companyId={companyId}
           mezzoId={dialog.mezzoId}
           viaggio={dialog.viaggio}
+          arrivoRapportino={dialog.arrivo}
           defaultOrderId={defaultOrderId ?? orderId}
           onClose={() => setDialog(null)}
         />
@@ -312,23 +360,25 @@ function ViaggioRiga({
   const [history, setHistory] = useState(false);
   const audit = useViaggioStorico(companyId, v.id, history && !campo);
   const summary = riepilogoViaggio(v);
+  const statoClasse = v.stato === "verificato" ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/45 dark:text-emerald-200"
+    : v.stato === "inviato" ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/45 dark:text-amber-200"
+      : "bg-muted text-muted-foreground";
   return (
-    <details className="rounded-xl border bg-white p-3">
-      <summary className="cursor-pointer text-sm">
-        <span className="font-semibold">{v.mezzo_nome}</span> ·{" "}
-        {dataOra(v.partenza)}
-        <span className="mt-1 flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{stati[v.stato]}</Badge>
-          <span>
-            {n(summary.km)} km
-            {summary.mancanti > 0
-              ? ` · ${summary.mancanti} tratte senza km`
-              : ""}
-          </span>
+    <details className="group/viaggio rounded-xl border bg-background">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-3 py-2.5 text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><CarFront className="size-4" aria-hidden="true" /></span>
+        <span className="min-w-0 flex-1 basis-32">
+          <span className="block break-words font-semibold">{v.mezzo_nome}</span>
+          <span className="block text-xs tabular-nums text-muted-foreground">{dataOra(v.partenza)} · {v.tratte.length} {v.tratte.length === 1 ? "tratta" : "tratte"}</span>
         </span>
+        <span className="flex flex-wrap items-center gap-2 pl-12 sm:pl-0">
+          <span className="text-xs font-medium tabular-nums">{summary.km == null ? "Km da completare" : `${n(summary.km)} km`}</span>
+          <Badge variant="outline" className={cn("rounded-md", statoClasse)}>{stati[v.stato]}</Badge>
+        </span>
+        <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground group-open/viaggio:rotate-180" aria-hidden="true" />
       </summary>
-      <div className="mt-3 space-y-3 text-sm">
-        <p className="text-xs text-slate-600">
+      <div className="space-y-3 border-t p-3 text-sm">
+        <p className="text-xs text-muted-foreground">
           Arrivo {dataOra(v.arrivo)}
           {v.conducente
             ? ` · In carico a ${v.conducente}`
@@ -339,11 +389,11 @@ function ViaggioRiga({
         </p>
         <ol className="space-y-2">
           {v.tratte.map((t, i) => (
-            <li key={t.id} className="rounded-lg bg-slate-50 p-2">
+            <li key={t.id} className="rounded-lg bg-muted/50 p-2">
               <strong>
                 {i + 1}. {t.da} → {t.a}
               </strong>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-muted-foreground">
                 {n(t.km)} km ·{" "}
                 {t.fonte === "stimati" ? "Stima, da verificare" : "Dichiarati"}
                 {t.minuti != null ? ` · ${n(t.minuti)} min` : ""} ·{" "}
@@ -365,7 +415,7 @@ function ViaggioRiga({
           </p>
         )}
         {v.note && (
-          <p className="whitespace-pre-wrap text-xs text-slate-600">{v.note}</p>
+          <p className="whitespace-pre-wrap text-xs text-muted-foreground">{v.note}</p>
         )}
         {editable && (
           <Button variant="outline" className="min-h-11" onClick={onEdit}>
@@ -420,14 +470,19 @@ export function ViaggiCommessa({
   mezzi,
   readOnly,
   vedeCosti,
+  integrato = false,
 }: {
   orderId: string;
   mezzi: MezzoOption[];
   readOnly: boolean;
   vedeCosti: boolean;
+  integrato?: boolean;
 }) {
   const companyId = useEffectiveCompanyId();
   const [open, setOpen] = useState(false);
+  if (integrato) return companyId ? <div className="p-3 sm:p-4">
+    <ViaggiMezzoWorkspace key={`${companyId}:${orderId}`} companyId={companyId} orderId={orderId} mezzi={mezzi} readOnly={readOnly} vedeCosti={vedeCosti} integrato />
+  </div> : null;
   return (
     <details
       className="rounded-xl border bg-white p-3"

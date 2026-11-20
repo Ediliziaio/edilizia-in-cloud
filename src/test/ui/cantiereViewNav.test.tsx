@@ -4,6 +4,9 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { CantiereViewNav } from "@/components/orders/CantiereViewNav";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CANTIERE_VIEWS } from "@/lib/orders/detailNavigation";
+import { apriMenu, scegliNelMenu, setupRadixMenus } from "@/test/helpers/radixMenus";
+
+setupRadixMenus();
 
 const device = vi.hoisted(() => ({mobile:false}));
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => device.mobile}));
@@ -39,17 +42,18 @@ describe("viste del cantiere", () => {
     render(<MemoryRouter><CantiereViewNav value="diario" onChange={() => undefined} nascoste={new Set(["giornale"])} /></MemoryRouter>);
     expect(screen.queryByRole("button", { name: /Giornale lavori/ })).not.toBeInTheDocument();
   });
-  it.each([false, true])("apre Rilievi e sopralluoghi nella posizione corretta, anche con link vecchi, mobile=%s", mobile => {
+  it.each([false, true])("apre Rilievi e sopralluoghi nella posizione corretta, anche con link vecchi, mobile=%s", async mobile => {
     device.mobile = mobile;
     mount("?tab=cantiere&vista_cantiere=ufficio#section-sopralluoghi");
     expect(screen.getByRole("heading")).toHaveTextContent("Contenuto sopralluoghi");
+    if (mobile) await apriMenu("Viste del cantiere");
     const controls = mobile ? screen.getAllByRole("option") : screen.getByRole("navigation",{name:"Viste del cantiere"}).querySelectorAll("button");
     const cron = CANTIERE_VIEWS.findIndex(view => view.value === "cronoprogramma");
     expect(controls[cron+1]).toHaveTextContent("Rilievi e sopralluoghi");
-    if(mobile) fireEvent.change(screen.getByRole("combobox",{name:"Viste del cantiere"}),{target:{value:"ufficio"}});
+    if (mobile) fireEvent.click(screen.getByRole("option", { name: "Ufficio" }));
     else fireEvent.click(screen.getByRole("button",{name:"Ufficio"}));
     expect(screen.getByLabelText("URL corrente").textContent).not.toContain("#");
-    if(mobile) fireEvent.change(screen.getByRole("combobox",{name:"Viste del cantiere"}),{target:{value:"sopralluoghi"}});
+    if (mobile) await scegliNelMenu("Viste del cantiere", "Rilievi e sopralluoghi");
     else fireEvent.click(screen.getByRole("button",{name:"Rilievi e sopralluoghi"}));
     expect(screen.getByRole("heading")).toHaveTextContent("Contenuto sopralluoghi");
     fireEvent.click(screen.getByRole("button", {name:"Indietro"}));

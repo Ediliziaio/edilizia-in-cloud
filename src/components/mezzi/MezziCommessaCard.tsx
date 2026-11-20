@@ -44,6 +44,7 @@ interface Props {
    * comandi stanno nell'elenco sopra.
    */
   storico?: boolean;
+  mostraViaggi?: boolean;
 }
 
 function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): string {
@@ -52,7 +53,7 @@ function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): st
     .join(", ");
 }
 
-export function MezziCommessaCard({ orderId, compact: compactProp = false, readOnly = false, storico = false }: Props) {
+export function MezziCommessaCard({ orderId, compact: compactProp = false, readOnly = false, storico = false, mostraViaggi = true }: Props) {
   const compact = compactProp || storico;
   const perms = usePermissions();
   const puoVedere = perms.canViewMezzi || perms.isAdmin;
@@ -265,7 +266,7 @@ export function MezziCommessaCard({ orderId, compact: compactProp = false, readO
             ))}
           </ul>
         )}
-        <ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!puoModificare} vedeCosti={vedeCosti} />
+        {mostraViaggi && <ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!puoModificare} vedeCosti={vedeCosti} />}
         {!error && !parcoError && !montaggiError && <details open={compact && !storico ? undefined : true} className={compact && !storico ? "rounded-lg border px-3 py-2" : ""}>
         {compact && !storico && <summary className="cursor-pointer text-sm font-medium">Storico utilizzo, viaggio{vedeCosti ? " e stime di costo" : ""}</summary>}
         <div className={compact && !storico ? "mt-3 space-y-3" : "space-y-3"}>

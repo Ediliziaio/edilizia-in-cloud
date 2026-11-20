@@ -9,7 +9,7 @@ const ORDER_FIRST = new Set([
 ]);
 const COMPANY_FIRST = new Set([
   "order-events", "costi-materiali-fasi", "campo-rapportino-gia-oggi",
-  "campo-materiali-consegnati-rapportino",
+  "campo-materiali-consegnati-rapportino", "mezzi-arrivi-rapportini",
 ]);
 const WITH_COMPANY_SUFFIX = new Set([
   "order-campo-rapportini", "order-diary-audit", "cronoprogramma-rapportini",

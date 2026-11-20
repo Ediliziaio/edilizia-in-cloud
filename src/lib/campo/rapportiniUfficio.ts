@@ -10,6 +10,7 @@
 import { componiValori, mancanti, type BloccoStandard, type CampoModulo, type FaseScelta } from "../../../supabase/functions/_shared/moduliCantiere";
 import { fasiLavorateDelRapportino, type Sottofase } from "@/lib/orders/sottofasi";
 import { dettagliViaggio, misureViaggioValide, unitaChilometro, voceTrasporto, type BozzaViaggio } from "./viaggiRapportino";
+import { campoArrivo, erroreArrivo, type ArrivoRapportino } from "./arrivoRapportino";
 
 export type StatoSottofaseGiorno = "lavorata" | "finita";
 
@@ -45,6 +46,7 @@ export interface GiornoUfficio {
   presenze?: Record<string, string>;
   /** Mezzo → ore d'uso scritte (vuoto = usato, ore non dette). */
   mezzi?: Record<string, string>;
+  arrivo?: ArrivoRapportino;
   /** Articolo della commessa → quantità scritta. */
   materiali?: Record<string, string>;
   foto?: string[];
@@ -82,7 +84,7 @@ export function applicaParti(g: GiornoUfficio, parti: Record<BloccoStandard, boo
   return {
     ...g,
     ...(parti.fasi ? {} : { fasi: [], sottofasi: {}, percentuali: {} }),
-    ...(parti.mezzi ? {} : { mezzi: {} }),
+    ...(parti.mezzi ? {} : { mezzi: {}, arrivo: undefined }),
     ...(parti.materiali ? {} : { materiali: {} }),
     ...(parti.foto ? {} : { foto: [] }),
   };
@@ -110,6 +112,8 @@ export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string,
       const n2 = oreLette(ore);
       if (ore.trim() && (n2 == null || n2 < 0 || n2 > 24)) { errori.push(`Ore dei mezzi da 0 a 24${n}.`); break; }
     }
+    const erroreViaggio = g.arrivo ? erroreArrivo(g.arrivo) : null;
+    if (erroreViaggio) errori.push(`Arrivo in cantiere${n}. ${erroreViaggio}`);
     for (const [, q] of Object.entries(g.materiali ?? {})) {
       const n2 = oreLette(q);
       if (n2 == null || n2 <= 0) { errori.push(`Quantità dei materiali maggiore di zero${n}.`); break; }
@@ -146,7 +150,10 @@ export function caricoRapportini(
     const dichiarate = Object.fromEntries(g.fasi.map((id) => [id, g.percentuali?.[id] ?? percentuale.get(id) ?? 0]));
     const finite = Object.entries(g.sottofasi).filter(([, s]) => s === "finita").map(([id]) => id);
     const lavorate = Object.entries(g.sottofasi).filter(([, s]) => s === "lavorata").map(([id]) => id);
-    const valori = componiValori(cataloghi.campi ?? [], g.campi ?? {}, [], fasiDelGiorno(g, cataloghi.nomiFasi ?? new Map()));
+    const valori = [
+      ...componiValori(cataloghi.campi ?? [], g.campi ?? {}, [], fasiDelGiorno(g, cataloghi.nomiFasi ?? new Map())),
+      ...(g.arrivo ? campoArrivo(g.arrivo) : []),
+    ];
     return {
       data_lavoro: g.data,
       autore: g.autore || null,
@@ -206,7 +213,7 @@ export function giorniDaPeriodo(
     out.push({
       ...base, chiave: `p-${d}`, data: d, sottofasi: {},
       presenze: { ...(base.presenze ?? {}) }, mezzi: { ...(base.mezzi ?? {}) }, percentuali: { ...(base.percentuali ?? {}) },
-      fasi: [...base.fasi], foto: [], materiali: {}, campi: {},
+      fasi: [...base.fasi], foto: [], materiali: {}, campi: {}, arrivo: undefined,
       voci: base.voci?.filter((v) => !v.viaggio && !voceTrasporto(v.descrizione, v.unita)),
     });
   }

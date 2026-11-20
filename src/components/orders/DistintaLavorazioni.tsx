@@ -3,7 +3,7 @@
 // e si cambia cliccando sul dato. Per i cantieri con centinaia di voci.
 import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, ChevronsUpDown, Circle, ExternalLink, Layers3, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -115,18 +115,20 @@ const dataBreve = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
  * La barra dello stato avanzamento lavori, nello spazio libero della striscia dei numeri:
  * quanto è fatto, e la tacca di oggi fra la prima data d'inizio e l'ultima di fine delle fasi.
  */
-export function BarraAndamento({ a }: { a: Andamento }) {
+export function BarraAndamento({ a, sintesi = false }: { a: Andamento; sintesi?: boolean }) {
   const ritardo = a.stato === "in_ritardo";
   const colore = a.fatto >= 100 ? "bg-emerald-500" : ritardo ? "bg-amber-500" : "bg-sky-600";
   const testo = a.stato === "in_ritardo" ? `in ritardo di ${a.punti} punti`
     : a.stato === "in_anticipo" ? `in anticipo di ${a.punti} punti`
     : a.fatto >= 100 ? "lavori finiti" : a.stato === "in_linea" ? "in linea coi tempi" : "senza date sulle fasi";
   return (
-    <div className="min-w-[14rem] flex-1 basis-56 self-center" data-testid="barra-andamento">
-      <div className="mb-1 flex items-baseline justify-between gap-2 text-[11px]">
-        <span className="text-muted-foreground">Stato avanzamento lavori</span>
-        <span className={cn("whitespace-nowrap font-medium", ritardo ? "text-amber-800" : "text-slate-600")}>
-          <span className="font-semibold tabular-nums text-foreground">{a.fatto}%</span> · {testo}
+    <div className={cn("min-w-0", !sintesi && "flex-1 basis-56 self-center")} data-testid="barra-andamento">
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
+        <span className={sintesi ? "text-2xl font-semibold leading-none tracking-tight tabular-nums" : "text-muted-foreground"}>
+          {sintesi ? `${a.fatto}%` : "Stato avanzamento lavori"}
+        </span>
+        <span className={cn("font-medium", ritardo ? "text-amber-800 dark:text-amber-200" : "text-muted-foreground")}>
+          {!sintesi && <><span className="font-semibold tabular-nums text-foreground">{a.fatto}%</span> · </>}{testo}
         </span>
       </div>
       <div className="relative h-2.5 rounded-full bg-muted" role="progressbar" aria-label="Stato avanzamento lavori" aria-valuenow={a.fatto} aria-valuemin={0} aria-valuemax={100}
@@ -150,10 +152,9 @@ export function BarraAndamento({ a }: { a: Andamento }) {
 
 function Stat({ etichetta, children, nota }: { etichetta: string; children: ReactNode; nota?: ReactNode }) {
   return (
-    // Da telefono i soldi stanno nella parte blu: qui resta la barra dei lavori.
-    <div className="shrink-0 max-md:hidden">
-      <dt className="whitespace-nowrap text-[11px] text-muted-foreground">{etichetta}</dt>
-      <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{children}{nota && <span className="block text-[11px] font-normal text-amber-700">{nota}</span>}</dd>
+    <div className="min-w-0 shrink-0 max-md:hidden">
+      <dt className="whitespace-nowrap text-xs text-muted-foreground">{etichetta}</dt>
+      <dd className="whitespace-nowrap text-sm font-semibold tabular-nums">{children}{nota && <span className="block text-[11px] font-normal text-amber-800 dark:text-amber-200">{nota}</span>}</dd>
     </div>
   );
 }
@@ -513,6 +514,7 @@ export function DistintaLavorazioni({
   const rigaVoce = (r: RigaDistinta) => {
     const ritardo = !r.fatta && !!r.fine && r.fine < oggi;
     const q = quantita(r.quantita, r.unita);
+    const unitaLunga = r.quantita !== null && (r.unita?.length ?? 0) > 7;
     const stato = statoVoce(r);
     return (
       <>
@@ -542,7 +544,9 @@ export function DistintaLavorazioni({
             </button>
           )}
         </div>
-        <div className="whitespace-nowrap text-right text-xs tabular-nums max-md:col-start-3 max-md:row-start-1">{q}</div>
+        <div className="min-w-0 text-right text-xs tabular-nums [overflow-wrap:anywhere] max-md:col-start-3 max-md:row-start-1 max-md:max-w-20" title={q || undefined}>
+          {unitaLunga ? <>{quantita(r.quantita, null)}<span className="block truncate text-[10px] text-muted-foreground">{r.unita}</span></> : q}
+        </div>
         {rapido && r.sottofaseId && !r.fatta && puoModificare
           ? <div className="max-md:hidden"><CampoRapido riga={r} onAvanza={onAvanza} /></div>
           : <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>}
@@ -569,10 +573,10 @@ export function DistintaLavorazioni({
     );
   };
 
-  const griglia = cn("group grid grid-cols-[1.25rem_minmax(0,1fr)_auto_1.75rem] items-center gap-x-2 border-b px-2", COLONNE);
+  const griglia = cn("group grid grid-cols-[1.25rem_minmax(0,1fr)_auto_1.75rem] items-center gap-x-2 border-b px-2.5", COLONNE);
   const mostra = (e: Elemento) => {
-    if (e.tipo === "fase") return <div className={cn(griglia, "bg-muted/50 py-1")}>{rigaFase(e.fase, e.righe)}</div>;
-    if (e.tipo === "riga") return <div className={cn(griglia, "py-0.5 hover:bg-muted/30")}>{rigaVoce(e.riga)}</div>;
+    if (e.tipo === "fase") return <div className={cn(griglia, "min-h-11 bg-muted/55 py-1.5")}>{rigaFase(e.fase, e.righe)}</div>;
+    if (e.tipo === "riga") return <div className={cn(griglia, "min-h-9 py-1 hover:bg-muted/35")}>{rigaVoce(e.riga)}</div>;
     if (e.tipo === "aggiungi") {
       return (
         <div className="border-b px-2 py-0.5 pl-9">
@@ -629,90 +633,102 @@ export function DistintaLavorazioni({
   };
 
   return (
-    <section aria-label="Lavorazioni della commessa" className={soloOrganizza ? undefined : "space-y-2"}>
+    <section aria-label="Lavorazioni della commessa" className={soloOrganizza ? undefined : "space-y-3"}>
       {!soloOrganizza && <>
-      {/* I numeri restano in vista mentre si scorre la pagina. */}
-      <div className="sticky top-0 z-20 bg-background max-md:static">
-      <dl className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5 rounded-lg border px-3 py-1.5">
-        {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
+      <dl className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border bg-card p-3">
+        {andamento && <div className="min-w-[min(100%,14rem)] flex-1 basis-[15rem] rounded-lg bg-muted/50 px-3 py-2 lg:max-w-[21rem]">
+          <dt className="mb-1.5 text-xs font-medium text-muted-foreground">Avanzamento</dt>
+          <dd><BarraAndamento a={andamento} sintesi /></dd>
+        </div>}
         {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
         {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
-        {vedeCosti && <Stat etichetta="Previsto" nota={economia.senzaCosto ? `parziale · ${economia.senzaCosto} voci senza costo` : undefined}>{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
+        {vedeCosti && <Stat etichetta="Previsto" nota={economia.senzaCosto ? `${economia.senzaCosto} ${economia.senzaCosto === 1 ? "voce senza costo" : "voci senza costo"}` : undefined}>{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
         {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? (onCostiSenzaFase
           ? <button type="button" onClick={onCostiSenzaFase} className="rounded font-medium text-amber-800 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">+ {formatCurrency(consuntivoSenzaFase)} senza fase</button>
           : `+ ${formatCurrency(consuntivoSenzaFase)} senza fase`) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
         {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
         {vedeVenduto && vedeCosti && iva && daVersare && (
           <div className="shrink-0 max-md:hidden" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
-            <dt className="whitespace-nowrap text-[11px] text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
-            <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
+            <dt className="whitespace-nowrap text-xs text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
+            <dd className="whitespace-nowrap text-sm font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
           </div>
         )}
-        {andamento && <BarraAndamento a={andamento} />}
       </dl>
-      </div>
 
-      <div className="grid gap-2 lg:grid-cols-[12rem_minmax(0,1fr)]">
+      <div className="grid gap-3 lg:grid-cols-[12.5rem_minmax(0,1fr)] 2xl:grid-cols-[14rem_minmax(0,1fr)]">
       <div className="lg:hidden">
         <Select value={faseId ?? "tutte"} onValueChange={(v) => { setFaseId(v === "tutte" ? null : v); azzeraScelte(); }}>
-          <SelectTrigger aria-label="Scegli la fase" className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Scegli la fase" className="h-10 min-w-0 bg-background text-sm [&>span]:truncate"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutte">Tutte le fasi ({fasi.length})</SelectItem>
             {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({Number(f.percentuale) || 0}%)</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
-      <nav aria-label="Fasi" className="hidden max-h-[78vh] space-y-0.5 self-start overflow-y-auto rounded-lg border p-1 lg:block">
-        <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => { setFaseId(null); azzeraScelte(); }}
-          className={cn("w-full rounded-md px-2 py-1 text-left text-xs font-medium hover:bg-muted", faseId === null && "bg-muted")}>
-          Tutte le fasi <span className="font-normal text-muted-foreground">{fasi.length} · {tutte.length} voci</span>
-        </button>
+      <nav aria-label="Fasi" className="hidden max-h-[78vh] self-start overflow-y-auto rounded-xl border bg-card lg:block">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-2.5 text-xs font-semibold">
+          <span className="flex items-center gap-2"><Layers3 className="size-4 text-muted-foreground" aria-hidden="true" />Fasi</span>
+          <span className="font-normal tabular-nums text-muted-foreground">{fasi.length}</span>
+        </div>
+        <div className="space-y-1 p-1.5">
+          <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => { setFaseId(null); azzeraScelte(); }}
+            className={cn("flex min-h-9 w-full items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", faseId === null && "bg-primary/10 text-primary hover:bg-primary/15")}>
+            Tutte le fasi <span className="shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground">{tutte.length} voci</span>
+          </button>
         {fasi.map((f) => {
           const pct = Number(f.percentuale) || 0;
           const chi = chiDi.get(f.id);
           const senzaNessuno = pct < 100 && f.status !== "completata" && !(chi && chi.squadre.length + chi.persone.length + chi.ditte.length > 0);
           const v = economiaDi?.get(f.id)?.venduto ?? 0;
           return (
-            <div key={f.id} className={cn("group flex items-start gap-1 rounded-md px-1.5 py-1 hover:bg-muted", faseId === f.id && "bg-muted")}>
+            <div key={f.id} className={cn("flex items-start gap-2 rounded-lg px-2.5 py-2 hover:bg-muted", faseId === f.id && "bg-primary/10 hover:bg-primary/15")}>
               {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className="mt-0.5" />}
               <button type="button" aria-current={faseId === f.id ? "true" : undefined} onClick={() => { setFaseId(f.id); setFiltro("tutte"); setScelteRighe(new Set()); }} className="min-w-0 flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <span className={cn("block truncate text-xs font-medium", senzaNessuno && "text-amber-700")} title={f.name}>{f.name}</span>
-                <span className="mt-0.5 flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground">
-                  <span className="h-1 w-6 shrink-0 overflow-hidden rounded-full bg-background"><span className={cn("block h-full", pct >= 100 ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
+                <span className={cn("line-clamp-2 text-[13px] font-medium leading-tight", faseId === f.id && "text-primary")} title={f.name}>{f.name}</span>
+                <span className="mt-1 flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground">
+                  <span className="h-1 w-6 shrink-0 overflow-hidden rounded-full bg-muted-foreground/15"><span className={cn("block h-full", pct >= 100 ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
                   {pct}%
+                  {senzaNessuno && <span title="Da assegnare" className="ml-0.5 size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}
                   {vedeVenduto && v > 0 && <span className="ml-auto truncate">{formatCurrency(conIva ? conAliquota(v, aliquota).totale : v)}</span>}
                 </span>
               </button>
             </div>
           );
         })}
-      </nav>
-      <div className="min-w-0 space-y-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className={cn("relative min-w-[11rem] flex-1", tutte.length <= 20 && "max-md:hidden")}>
-          <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca una voce o un codice…" aria-label="Cerca nella distinta" className="h-7 pl-7 text-xs" />
         </div>
-        <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-0.5">
+      </nav>
+      <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
+      <div className="flex flex-wrap items-center gap-2 border-b p-2.5">
+        <div className="relative min-w-[min(100%,12rem)] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca voce o codice…" aria-label="Cerca nella distinta" className="h-9 pl-8 pr-8" />
+          {testo && <button type="button" aria-label="Cancella ricerca" className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setTesto("")}>
+            <X className="size-3.5" aria-hidden="true" />
+          </button>}
+        </div>
+        <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-1">
           {FILTRI_DISTINTA.filter((f) => (!f.soloCosti || vedeCosti) && (f.value === "tutte" || conti[f.value] > 0 || filtro === f.value)).map((f) => (
-            <Button key={f.value} type="button" size="sm" variant={filtro === f.value ? "secondary" : "ghost"} className="h-7 px-2 text-xs" aria-pressed={filtro === f.value} onClick={() => setFiltro(f.value)}>
-              {f.label}{f.value !== "tutte" && <span className="ml-1 tabular-nums text-muted-foreground">{conti[f.value]}</span>}
+            <Button key={f.value} type="button" size="sm" variant="ghost" className={cn("h-8 gap-1 rounded-md px-2 text-xs", filtro === f.value ? "bg-primary/10 font-semibold text-primary hover:bg-primary/15" : "text-muted-foreground")} aria-pressed={filtro === f.value} onClick={() => setFiltro(f.value)}>
+              {f.label}{f.value !== "tutte" && <span className={cn("rounded px-1 text-[10px] tabular-nums", filtro === f.value ? "bg-primary/10" : "bg-muted")}>{conti[f.value]}</span>}
             </Button>
           ))}
         </div>
         {puoModificare && (
-          <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-7 px-2 text-xs max-md:hidden" aria-pressed={rapido}
+          <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-8 px-2 text-xs max-md:hidden" aria-pressed={rapido}
             onClick={() => { const si = !rapido; setRapido(si); if (si && filtro === "tutte") setFiltro(conti.settimana > 0 ? "settimana" : "da_fare"); }}>
+            <ListChecks className="size-3.5" aria-hidden="true" />
             {rapido ? "Fine aggiornamento" : "Aggiorna avanzamento"}
           </Button>
         )}
-        {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs max-md:hidden" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
+        {!faseId && <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs text-muted-foreground max-md:hidden" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>
+          <ChevronsUpDown className="size-3.5" aria-hidden="true" />{tutteAperte ? "Chiudi tutte" : "Apri tutte"}
+        </Button>}
       </div>
 
-      {rapido && <p role="status" className="rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-900">Scrivi nella colonna Stato quanto è fatto in totale (quantità o %), Invio passa alla riga dopo. Ogni riga si salva da sola.</p>}
-      <div ref={scrollRef} className={cn("max-h-[78vh] overflow-y-auto rounded-lg border", !virtuale && "max-md:max-h-none")}>
+      {rapido && <p role="status" className="border-b bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">Inserisci il totale fatto nella colonna Stato. Premi Invio per salvare e passare alla riga successiva.</p>}
+      <div ref={scrollRef} className={cn("max-h-[78vh] overflow-y-auto", !virtuale && "max-md:max-h-none")}>
         <div>
-        <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground md:grid", COLONNE)}>
+        <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-card px-2.5 py-2 text-[11px] font-semibold text-muted-foreground md:grid", COLONNE)}>
           <div /><div>Voce</div><div className="text-right">Quantità</div><div>Stato</div><div className="max-xl:hidden">Dal</div><div className="max-xl:hidden">Al</div>
           <div className="text-right">
             {vedeVenduto && (iva && aliquota > 0
@@ -723,7 +739,10 @@ export function DistintaLavorazioni({
           <div />
         </div>
         {elementi.length === 0 ? (
-          <p role="status" className="p-6 text-center text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>
+          <div className="space-y-1.5 p-6 text-center">
+            <p role="status" className="text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>
+            {filtrando && <Button type="button" size="sm" variant="ghost" onClick={() => { setTesto(""); setFiltro("tutte"); }}>Azzera filtri</Button>}
+          </div>
         ) : virtuale ? (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {virtualizer.getVirtualItems().map((vr) => {
