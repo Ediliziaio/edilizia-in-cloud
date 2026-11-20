@@ -14,6 +14,8 @@ import type {
 import type { LayoutPosaFv } from "../../../../../supabase/functions/_shared/fvModalitaProgettazione";
 
 export interface WizardData {
+  analisi_consumi?: import("../../../../../supabase/functions/_shared/fvBollette").AnalisiConsumiFv | null;
+  riferimento_tetto?: import("@/components/fotovoltaico/FvMappaTetto").RiferimentoTettoFv | null;
   // Step 1: Cliente
   cliente_nome: string;
   cliente_cognome: string;

@@ -12,12 +12,14 @@ import { aggiornaOstacoloConPosa, ingombroModulo, pannelliDaRivedere, rettangolo
 import { RUNTIME_VUOTO, RilievoContext, useRilievoArchiviato } from "./RilievoContext";
 import { CapannoneLocale } from "./CapannoneLocale";
 import { ImportaRilievoLocale } from "./ImportaRilievoLocale";
+import { edificioDaMappaFv } from "./mappaGeometria";
+import { FotoGoogleMappa } from "./FotoGoogleMappa";
 export default function EditorTetto(props: FvDisegnoPreventivoProps) {
     const [areaFalda, setAreaFalda] = useState("");
     const [alto, setAlto] = useState(false), [texture, setTexture] = useState(true), [selezione, setSelezione] = useState<SelezioneReale>(null), [provvisorio, setProvvisorio] = useState<DisegnoCommercialeFv | null>(null);
     const [inquadratura, setInquadratura] = useState<InquadraturaReale>({ faldaId: null, versione: 0 }), [nota, setNota] = useState("");
     const caricato = useRilievoArchiviato(props.value?.rilievo?.id), runtime = caricato.runtime;
-    const schema = useMemo(() => props.value && !props.value.rilievo ? schemaDalDisegno(props.value) : null, [props.value]);
+    const schema = useMemo(() => props.value?.mappa ? {piano:props.value,runtime:{edificio:edificioDaMappaFv(props.value.mappa),orto:null,modello:null,fonte:null}} : props.value && !props.value.rilievo ? schemaDalDisegno(props.value) : null, [props.value]);
     const edificio = runtime?.edificio ?? schema?.runtime.edificio ?? RUNTIME_VUOTO.edificio;
     const piano = props.value;
     if (!piano)
@@ -61,7 +63,8 @@ export default function EditorTetto(props: FvDisegnoPreventivoProps) {
       {modo === "confronto" ? <div className="fv-roof-split"><section aria-label="Foto interattiva"><h4>Foto · modifica la disposizione</h4>{foto}</section><section aria-label="3D sincronizzato"><h4>3D · stessa selezione e stessa posa</h4>{vista3d}</section></div> : modo === "foto" ? foto : vista3d}
     </>;
     };
-    return <RilievoContext.Provider value={visualRuntime ?? RUNTIME_VUOTO}><FvDisegnoPreventivo {...props} contorniBloccati={!!piano.rilievo} vistaIniziale={piano.rilievo ? (piano.industriale ? "3d" : "confronto") : undefined} visteAggiuntive={[
+    return <RilievoContext.Provider value={visualRuntime ?? RUNTIME_VUOTO}><FvDisegnoPreventivo {...props} contorniBloccati={!!piano.rilievo||!!piano.mappa} vistaIniziale={piano.mappa?"google":piano.rilievo ? (piano.industriale ? "3d" : "confronto") : undefined} visteAggiuntive={[
+            ...(piano.mappa?[{id:"google",nome:"Pannelli sulla mappa",contenuto:(salva:(p:DisegnoCommercialeFv)=>void)=><FotoGoogleMappa piano={piano} onChange={salva} modificabile={props.modificabile} selezione={selezione} onSelezione={setSelezione} onProvvisorio={setProvvisorio} inquadratura={inquadratura}/>}]:[]),
             ...(!piano.industriale ? [{ id: "area-posa", nome: "Perimetro sulla foto", contenuto: (salva: (p: DisegnoCommercialeFv) => void) => { const fid = piano.falde.some(f => f.id === areaFalda) ? areaFalda : piano.falde[0].id; return runtime ? <><label className="block mb-3 text-sm">Falda da delimitare <UniformSelect className="ml-2 rounded-lg border p-2" aria-label="Falda da delimitare sulla foto" value={fid} onChange={e => setAreaFalda(e.target.value)}>{piano.falde.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}</UniformSelect></label><TracciaAreaPosa key={`${piano.rilievo?.id ?? "campione"}-${fid}`} piano={piano} runtime={runtime} faldaId={fid} modificabile={props.modificabile} onChange={next => { setProvvisorio(null); setSelezione(null); salva(next); }}/></> : <p>Carica un rilievo per tracciare il perimetro.</p>; } }, { id: "scelta-posa", nome: "Confronta pose", contenuto: (salva: (p: DisegnoCommercialeFv) => void) => visualRuntime ? <SceltaPosaLocale piano={piano} runtime={visualRuntime} potenzaModuloW={props.potenzaModuloW} modificabile={props.modificabile} riepilogoProposta={props.riepilogoProposta} onChange={next => { setProvvisorio(null); setSelezione(null); inquadra(null); salva(next); }}/> : <p>Carica un rilievo per confrontare le pose.</p> }] : []),
             { id: "confronto", nome: "Foto + 3D", contenuto: salva => renderVista(salva, "confronto") },
             { id: "foto", nome: "Foto sul tetto", contenuto: salva => renderVista(salva, "foto") },

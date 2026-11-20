@@ -48,7 +48,6 @@ import {
   Sun,
   Sparkles,
   Loader2,
-  Compass,
   AlertTriangle,
   TrendingUp,
   TrendingDown,
@@ -153,6 +152,12 @@ import { leggiDisegnoCommerciale, pannelliDaRivedere, type DisegnoCommercialeFv 
 import { FvSceltaProgettazione } from "@/components/fotovoltaico/FvSceltaProgettazione";
 import { cambiaModalitaProgettazione, preventivoSenzaMappa, validaDatiTettoFv } from "../../../../supabase/functions/_shared/fvModalitaProgettazione";
 import { leggiPiano } from "../../../../supabase/functions/_shared/fvPianoTetto";
+import { aggiornaConsumiAggiuntiviFv } from "../../../../supabase/functions/_shared/fvBollette";
+import { FvBolletteConsumi } from "@/components/fotovoltaico/FvBolletteConsumi";
+import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
+import { FvProfiloEnergetico, FvScenariEnergia } from "@/components/fotovoltaico/FvScenariEnergia";
+import { leggiAnalisiConsumi, problemiConsumiFv } from "../../../../supabase/functions/_shared/fvBollette";
+import { resaMappaFv } from "../../../../supabase/functions/_shared/fvMappa";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
 // Bugfix: i range coordinate Italia (ITALIA_LAT/LNG_*) sono usati in
@@ -234,6 +239,7 @@ function finanziamentoSalvato(progetto: unknown): Partial<WizardData> {
 /** I dati del tetto come colonne di fv_progetti (l'ombreggiamento a parte). */
 function campiTetto(d: WizardData) {
   return {
+    riferimento_tetto: d.riferimento_tetto ?? null,
     layout_overlay: d.layout_overlay,
     fonte_dati_tetto: d.fonte_dati_tetto,
     qualita_dati_tetto: d.qualita_dati_tetto,
@@ -574,6 +580,8 @@ function FotovoltaicoWizard() {
       superficie_immobile_mq: progettoEsistente.superficie_immobile_mq,
       prima_casa: progettoEsistente.prima_casa ?? true,
       consumo_annuo_kwh: progettoEsistente.consumo_annuo_kwh,
+      analisi_consumi: leggiAnalisiConsumi(progettoEsistente.analisi_consumi),
+      riferimento_tetto: progettoEsistente.riferimento_tetto ?? null,
       costo_kwh_attuale: progettoEsistente.costo_kwh_attuale ?? 0.32,
       tariffa_tipo: progettoEsistente.tariffa_tipo ?? "monoraria",
       profilo_consumo: (progettoEsistente.profilo_consumo as FvProfiloAutoconsumoCodice) ?? "misto",
@@ -782,6 +790,9 @@ function FotovoltaicoWizard() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [readOnlyMode, autoSaveState, step]);
 
+  const datiCorrentiTetto = useRef(data);
+  useEffect(() => { datiCorrentiTetto.current = data; }, [data]);
+
   const update = <K extends keyof WizardData>(k: K, v: WizardData[K]) => {
     if (readOnlyMode) {
       // F14a: dedup del toast — un singolo gesto (es. slider) chiama update()
@@ -791,13 +802,17 @@ function FotovoltaicoWizard() {
       });
       return;
     }
-    if (k === "layout_overlay" || k === "numero_pannelli_scelti" || k === "pannello_id") setScenarioFin(null);
-    if ((k === "latitudine" || k === "longitudine") && data[k] !== v) {
+    if (["layout_overlay","numero_pannelli_scelti","pannello_id","analisi_consumi","riferimento_tetto","consumo_annuo_kwh","costo_kwh_attuale","profilo_consumo"].includes(k)) setScenarioFin(null);
+    const faldeCambiate = k === "layout_overlay" && JSON.stringify(leggiDisegnoCommerciale(v)?.mappa?.falde ?? null) !== JSON.stringify(leggiDisegnoCommerciale(data.layout_overlay)?.mappa?.falde ?? null);
+    if (k === "riferimento_tetto" || faldeCambiate || ((k === "latitudine" || k === "longitudine") && data[k] !== v)) {
       versioneAnalisiTetto.current += 1;
       setAnalizzandoTetto(false);
       setScenarioFin(null);
     }
     setData((d) => {
+      if (k === "riferimento_tetto") return {...d,[k]:v,ore_sole_annue:null,qualita_dati_tetto:null,layout_overlay:null,layout_tetto:null,numero_pannelli_scelti:0,potenza_kwp:0,superficie_tetto_disponibile_mq:null,numero_pannelli_max:null,potenza_max_kwp:null,imagery_date:null};
+      if(d.analisi_consumi&&k==="consumo_annuo_kwh"&&typeof v==="number"&&v>0){const a=d.analisi_consumi,evitabili=a.correzioni.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:aggiornaConsumiAggiuntiviFv({...a,correzioni:{...a.correzioni,consumoAnnuo:v}},v),...(evitabili!=null?{costo_kwh_attuale:evitabili/v}:{})};}
+      if(d.analisi_consumi&&k==="costo_kwh_attuale"){const c={...d.analisi_consumi.correzioni};if(typeof v==="number"&&v>=0&&d.consumo_annuo_kwh)c.costiEvitabiliAnnui=v*d.consumo_annuo_kwh;else delete c.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:{...d.analisi_consumi,correzioni:c}};}
       const localitaCambiata = (k === "latitudine" || k === "longitudine") && d[k] !== v;
       if (!localitaCambiata) {
         const disegno = leggiDisegnoCommerciale(d.layout_overlay);
@@ -805,9 +820,9 @@ function FotovoltaicoWizard() {
         if (k === "layout_overlay") {
           const ripreso = leggiDisegnoCommerciale(v);
           const watt = Number(pannelli.find(p => p.id === d.pannello_id)?.potenza_w);
-          if (ripreso && !d.kit_bundle_id && watt > 0) {
-            const piano = { ...ripreso, modulo: misureModulo(pannelli.find(p => p.id === d.pannello_id)) };
-            return { ...d, ...datiDalDisegno(piano, watt) };
+          if (ripreso && !d.kit_bundle_id) {
+            const piano = ripreso;
+            return { ...d,[k]:v, ...(watt>0?datiDalDisegno(piano,watt):{}),...(piano.mappa?{ore_sole_annue:resaMappaFv(piano)?.ore??null}:{}) };
           }
         }
         if (k === "pannello_id" && disegno) {
@@ -821,7 +836,7 @@ function FotovoltaicoWizard() {
       return { ...d, [k]: v, ore_sole_annue: null, superficie_tetto_disponibile_mq: null,
         numero_pannelli_max: null, potenza_max_kwp: null, qualita_dati_tetto: null,
         imagery_date: null, layout_tetto: null, azimut_tetto: null, inclinazione_tetto: null, tetto_mock: false,
-        layout_overlay: preventivoSenzaMappa(d.layout_overlay) ? { modalita: "senza_mappa" as const } : null };
+        riferimento_tetto: null, layout_overlay: preventivoSenzaMappa(d.layout_overlay) ? { modalita: "senza_mappa" as const } : null };
     });
   };
 
@@ -849,6 +864,8 @@ function FotovoltaicoWizard() {
         return { valido: true };
       }
       case 3: {
+        const problemi=problemiConsumiFv(data.analisi_consumi,data.consumo_annuo_kwh,data.costo_kwh_attuale);
+        if(problemi.length)return{valido:false,motivo:problemi[0]};
         if (data.consumo_annuo_kwh == null || data.consumo_annuo_kwh < 500)
           return { valido: false, motivo: "Consumo annuo minimo 500 kWh" };
         return { valido: true };
@@ -1058,6 +1075,7 @@ function FotovoltaicoWizard() {
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
+          analisi_consumi: data.analisi_consumi ?? null,
           consumo_annuo_kwh: data.consumo_annuo_kwh,
           costo_kwh_attuale: data.costo_kwh_attuale,
           tariffa_tipo: data.tariffa_tipo,
@@ -1095,8 +1113,25 @@ function FotovoltaicoWizard() {
       let fonteEffettiva: "solar_api" | "pvgis" = fonteScelta === "pvgis" ? "pvgis" : "solar_api";
 
       const chiamaPvgis = async (): Promise<Record<string, unknown>> => {
+        const disegno=leggiDisegnoCommerciale(data.layout_overlay),mappa=disegno?.mappa,coordinate=data.riferimento_tetto?.posizione??mappa?.origine??{lat:data.latitudine,lng:data.longitudine};
+        if(mappa?.falde.length){
+          const solare:NonNullable<typeof mappa.solare>=[];
+          for(let i=0;i<mappa.falde.length;i+=3){const gruppo=await Promise.all(mappa.falde.slice(i,i+3).map(async f=>{
+            const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
+            try{const {data:r,error}=await supabase.functions.invoke("fv-pvgis-fetch",{body:{lat:coordinate.lat,lng:coordinate.lng,kwp:1,tilt:f.inclinazione,azimuth_solar:f.azimut},signal:controller.signal});
+              if(error)throw Error(await edgeErrorMessage(error,"Stima della falda non disponibile"));
+              if(r?._mock)throw Error("PVGIS non disponibile: inserisci una stima tecnica manuale oppure riprova.");
+              const ore=Number(r?.ore_sole_annue_equivalenti),mensili=r?.produzione_mensile_kwh as unknown;
+              if(!(ore>0&&ore<=4000)||!Array.isArray(mensili)||mensili.length!==12||!mensili.every(x=>typeof x==="number"&&Number.isFinite(x)&&x>=0))throw Error("PVGIS non ha restituito una stima completa della falda.");
+              const totale=mensili.reduce((a,b)=>a+b,0);if(!(totale>0))throw Error("Produzione mensile della falda non disponibile.");
+              return{faldaId:f.id,ore,pesiMensili:mensili.map(x=>x/totale)};
+            }finally{clearTimeout(timeout);}
+          }));solare.push(...gruppo);}
+          const piano={...disegno,mappa:{...mappa,solare}},resa=resaMappaFv(piano);if(!resa)throw Error("Stima delle falde non valida.");fonteEffettiva="pvgis";
+          return{fonte:"pvgis",ore_sole_annue_equivalenti:resa.ore,layout_analizzato:piano};
+        }
         const { data: r, error } = await supabase.functions.invoke("fv-pvgis-fetch", {
-          body: { lat: data.latitudine, lng: data.longitudine, kwp: data.potenza_kwp },
+          body: { lat: coordinate.lat, lng: coordinate.lng, kwp: data.potenza_kwp },
         });
         if (error) throw new Error(await edgeErrorMessage(error, "Dati PVGIS non disponibili"));
         fonteEffettiva = "pvgis";
@@ -1106,7 +1141,7 @@ function FotovoltaicoWizard() {
       if (fonteScelta === "solar_api") {
         try {
           const { data: r, error } = await supabase.functions.invoke("fv-solar-api-fetch", {
-            body: { lat: data.latitudine, lng: data.longitudine, progetto_id: progettoId },
+            body: { lat: data.riferimento_tetto?.posizione.lat??data.latitudine, lng: data.riferimento_tetto?.posizione.lng??data.longitudine, progetto_id: progettoId },
           });
           if (error) throw new Error(await edgeErrorMessage(error, "Dati Solar API non disponibili"));
           const sr = r as Record<string, unknown>;
@@ -1132,11 +1167,17 @@ function FotovoltaicoWizard() {
         return;
       }
 
+      let layoutAnalizzato=leggiDisegnoCommerciale(result.layout_analizzato);
+      // La stima aggiorna l'irraggiamento, conservando le modifiche alla posa fatte durante la richiesta.
+      const posaCorrente=leggiDisegnoCommerciale(datiCorrentiTetto.current.layout_overlay);
+      if(layoutAnalizzato?.mappa&&posaCorrente?.mappa)layoutAnalizzato={...posaCorrente,mappa:{...posaCorrente.mappa,solare:layoutAnalizzato.mappa.solare}};
       const ore =
+        (layoutAnalizzato?resaMappaFv(layoutAnalizzato)?.ore:null) ??
         (result.ore_sole_annue as number) ??
         (result.ore_sole_annue_equivalenti as number) ??
         null;
       const isMock = result._mock === true;
+      if(layoutAnalizzato)setData(d=>({...d,layout_overlay:layoutAnalizzato}));
       const qualitaTetto = isMock ? "mock" : ((result.qualita as string) ?? null);
 
       // PVGIS misura l'irraggiamento, non la capienza del tetto. Nessun
@@ -1186,7 +1227,7 @@ function FotovoltaicoWizard() {
           fonte_dati_tetto: fonteEffettiva,
           ore_sole_annue: ore,
           superficie_tetto_disponibile_mq: supTetto,
-          layout_overlay: data.layout_overlay,
+          layout_overlay: layoutAnalizzato??datiCorrentiTetto.current.layout_overlay,
           numero_pannelli_max: numMax,
           potenza_max_kwp: kwpMax,
           qualita_dati_tetto: qualitaTetto,
@@ -1281,6 +1322,8 @@ function FotovoltaicoWizard() {
           prezzo_vendita_manuale: data.kit_bundle_id ? null : data.prezzo_vendita_manuale,
           iva_aliquota: aliquotaIvaFv(data.iva_aliquota),
           layout_overlay: data.layout_overlay,
+          analisi_consumi: data.analisi_consumi ?? null,
+          riferimento_tetto: data.riferimento_tetto ?? null,
         } as never,
       });
 
@@ -1813,6 +1856,8 @@ function FotovoltaicoWizard() {
           prezzo_vendita_manuale: data.kit_bundle_id ? null : data.prezzo_vendita_manuale,
           iva_aliquota: aliquotaIvaFv(data.iva_aliquota),
           layout_overlay: data.layout_overlay,
+          analisi_consumi: data.analisi_consumi ?? null,
+          riferimento_tetto: data.riferimento_tetto ?? null,
           sconto_tipo: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_tipo : null,
           sconto_valore: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_valore : null,
         } as never,
@@ -2215,7 +2260,7 @@ function FotovoltaicoWizard() {
           {step === 1 && <Step1Cliente data={data} update={update} />}
           {step === 2 && <Step2Immobile data={data} update={update} />}
           {step === 3 && (
-            <Step3Consumi data={data} update={update} profili={profili as never} />
+            <Step3Consumi data={data} update={update} profili={profili as never} progettoId={progettoId} readOnlyMode={readOnlyMode} onIndirizzoFornitura={indirizzo=>{update("indirizzo",indirizzo);update("latitudine",null);update("longitudine",null);goTo(2);toast.info("Indirizzo di fornitura proposto: seleziona il risultato per confermare la posizione.");}} />
           )}
           {step === 4 && (
             <Step4Tetto
@@ -2775,21 +2820,17 @@ function Step2Immobile({
 // ============================================================================
 // STEP 3 — CONSUMI
 // ============================================================================
-function Step3Consumi({
+export function Step3Consumi({
   data,
   update,
   profili,
+  progettoId, readOnlyMode = false, onIndirizzoFornitura,
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   profili: Array<{ codice: string; nome_visualizzato: string; emoji: string | null }>;
+  progettoId?: string | null; readOnlyMode?: boolean; onIndirizzoFornitura?: (indirizzo:string)=>void;
 }) {
-  const consumoAnnuo = data.consumo_annuo_kwh ?? 0;
-  // F12: costo_kwh_attuale può essere null (campo svuotato) → tratta come 0
-  // nei derivati per non propagare NaN nei KPI.
-  const costoKwh = data.costo_kwh_attuale ?? 0;
-  const spesaAnnua = consumoAnnuo * costoKwh;
-  const stima10anni = spesaAnnua * 10 * 1.5; // include +5%/anno aspettato
 
   return (
     <>
@@ -2797,45 +2838,13 @@ function Step3Consumi({
         step={3}
         totalSteps={TOTAL_STEPS}
         title="Consumi elettrici attuali"
-        subtitle={<>Da bolletta o stima rapida. Più dati ⇒ analisi più precisa del payback.</>}
+        subtitle="Carica la bolletta, controlla il riepilogo e personalizza la proposta con poche scelte."
       />
 
-      {/* KPI hero. Telefono: restano i due calcolati (spesa annua, stima a 10
-          anni); consumo e prezzo medio sono gli stessi numeri dei campi qui sotto. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 max-sm:gap-2 max-sm:mb-3">
-        <FvKpi
-          label="Consumo annuo"
-          value={consumoAnnuo > 0 ? consumoAnnuo.toLocaleString("it-IT") : "—"}
-          unit="kWh"
-          variant="orange"
-          className="max-sm:hidden"
-        />
-        <FvKpi
-          label="Spesa annua"
-          value={spesaAnnua > 0 ? spesaAnnua.toLocaleString("it-IT", { maximumFractionDigits: 0 }) : "—"}
-          unit="€"
-        />
-        <FvKpi
-          label="Prezzo medio"
-          value={
-            data.costo_kwh_attuale != null && Number.isFinite(data.costo_kwh_attuale)
-              ? data.costo_kwh_attuale.toFixed(3)
-              : "—"
-          }
-          unit="€/kWh"
-          hint={data.tariffa_tipo}
-          className="max-sm:hidden"
-        />
-        <FvKpi
-          label="Stima 10 anni"
-          value={stima10anni > 0 ? `~${(stima10anni / 1000).toFixed(0)}k` : "—"}
-          unit="€"
-          variant="red"
-          hint="Senza FV (con +5%/anno)"
-        />
-      </div>
-
-      <div className="grid gap-4">
+      <FvBolletteConsumi consumoManuale={data.consumo_annuo_kwh} costoManuale={data.costo_kwh_attuale} progettoId={progettoId} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)} onApplica={r=>{update("consumo_annuo_kwh",r.consumo);update("costo_kwh_attuale",r.costoEvitabile);}} onIndirizzo={indirizzo=>onIndirizzoFornitura?.(indirizzo)}/>
+      <FvProfiloEnergetico consumoAnnuo={data.consumo_annuo_kwh} value={data.analisi_consumi??null} azienda={data.cliente_tipo==="azienda"} modificabile={!readOnlyMode} onChange={a=>update("analisi_consumi",a)}/>
+      {!data.analisi_consumi && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Tariffa e impostazioni manuali</summary>
+      <div className="mt-3 grid gap-4">
         <FvCard title="Dati consumo">
           {/* Telefono: i campi a coppie, come al computer. */}
           <div className="grid grid-cols-2 gap-3 mb-3 max-sm:gap-2">
@@ -2854,7 +2863,7 @@ function Step3Consumi({
               </p>
             </div>
             <div>
-              <Label>Costo €/kWh attuale</Label>
+              <Label>Costo evitabile €/kWh</Label>
               <Input
                 type="number"
                 step="0.001"
@@ -2909,6 +2918,7 @@ function Step3Consumi({
         </FvCard>
 
       </div>
+      </details>}
     </>
   );
 }
@@ -2916,113 +2926,6 @@ function Step3Consumi({
 // ============================================================================
 // STEP 4 — TETTO
 // ============================================================================
-// Vista satellitare del tetto: immagine reale via maps-proxy (Google Static Maps
-// → fallback HERE). Solo immagine + badge sorgente/orientamento, NESSUN overlay
-// di moduli (la disposizione reale si definisce in sopralluogo). Degrada con
-// grazia: se nessuna chiave/API risponde, la card non viene mostrata.
-function RoofSatelliteView({
-  lat,
-  lng,
-  azimut,
-  tilt,
-  fonte,
-  title,
-}: {
-  lat: number;
-  lng: number;
-  azimut?: string | null;
-  tilt?: number | null;
-  fonte?: string | null;
-  title?: string;
-}) {
-  const [img, setImg] = useState<string | null>(null);
-  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    setState("loading");
-    setImg(null);
-    (async () => {
-      try {
-        const { data: r, error } = await supabase.functions.invoke("maps-proxy", {
-          body: { action: "staticmap", lat, lng, zoom: 20, w: 700, h: 430 },
-        });
-        if (cancelled) return;
-        const url = (r as { dataUrl?: string } | null)?.dataUrl;
-        if (error || !url) {
-          setState("error");
-          return;
-        }
-        setImg(url);
-        setState("ok");
-      } catch {
-        if (!cancelled) setState("error");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [lat, lng]);
-
-  if (state === "error") return null; // niente immagine → nessuna card (graceful)
-
-  const fonteLabel =
-    fonte === "solar_api" ? "Google Solar API" : fonte === "pvgis" ? "PVGIS" : "Satellite";
-
-  return (
-    <FvCard title={title ?? "Vista satellitare del tetto"} className="mt-4">
-      <div
-        className="relative w-full overflow-hidden rounded-xl bg-slate-900/5 ring-1 ring-slate-200"
-        style={{ aspectRatio: "700 / 430" }}
-      >
-        {state === "loading" && (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carico l'immagine del tetto…
-          </div>
-        )}
-        {img && (
-          <img
-            src={img}
-            alt="Vista satellitare del tetto"
-            className="absolute inset-0 w-full h-full object-cover"
-            draggable={false}
-          />
-        )}
-        {img && (
-          <div
-            className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
-            style={{ background: "linear-gradient(to top, rgba(2,6,23,0.55), transparent)" }}
-          />
-        )}
-        {/* Badge sorgente (alto sx) */}
-        {img && (
-          <div
-            className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-white inline-flex items-center gap-1"
-            style={{ background: "rgba(2,6,23,0.55)" }}
-          >
-            <Sparkles className="h-3 w-3 text-amber-300" /> {fonteLabel}
-          </div>
-        )}
-        {/* Orientamento + inclinazione (alto dx) */}
-        {img && (azimut || tilt != null) && (
-          <div
-            className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-white inline-flex items-center gap-1"
-            style={{ background: "rgba(2,6,23,0.55)" }}
-          >
-            <Compass className="h-3 w-3" /> {azimut ?? "—"}
-            {tilt != null ? ` · ${tilt}°` : ""}
-          </div>
-        )}
-      </div>
-
-      <p className="text-xs text-slate-400 mt-1.5 max-md:hidden">
-        Immagine satellitare a scopo illustrativo del tetto; la disposizione reale dei moduli si
-        definisce in sopralluogo.
-      </p>
-    </FvCard>
-  );
-}
-
 export function Step4Tetto({
   data,
   update,
@@ -3040,12 +2943,13 @@ export function Step4Tetto({
   const localitaRichiesta = useRef<string | null>(null);
   useEffect(() => {
     if (readOnlyMode || analizzando || data.latitudine == null || data.longitudine == null) return;
-    const localita = `${data.latitudine}:${data.longitudine}`;
+    const mappa=leggiDisegnoCommerciale(data.layout_overlay)?.mappa;
+    const localita = `${data.riferimento_tetto?.posizione.lat??data.latitudine}:${data.riferimento_tetto?.posizione.lng??data.longitudine}:${JSON.stringify(mappa?.falde??[])}`;
     if (localitaRichiesta.current === localita) return;
     localitaRichiesta.current = localita;
     if (data.ore_sole_annue != null && data.ore_sole_annue > 0) return;
     onAnalizza("pvgis");
-  }, [senzaMappa, readOnlyMode, analizzando, data.latitudine, data.longitudine, data.ore_sole_annue, onAnalizza]);
+  }, [senzaMappa, readOnlyMode, analizzando, data.latitudine, data.longitudine, data.riferimento_tetto, data.layout_overlay, data.ore_sole_annue, onAnalizza]);
   return (
     <>
       <FvPanelTitle
@@ -3056,6 +2960,7 @@ export function Step4Tetto({
       />
       <FvSceltaProgettazione senzaMappa={senzaMappa} disabled={readOnlyMode || analizzando}
         onChange={(rapido) => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, rapido))} />
+      {!senzaMappa&&data.latitudine!=null&&data.longitudine!=null&&<FvMappaTetto key={`${data.latitudine}:${data.longitudine}`} ricerca={{lat:data.latitudine,lng:data.longitudine}} indirizzo={data.indirizzo} riferimento={data.riferimento_tetto??null} piano={leggiDisegnoCommerciale(data.layout_overlay)} modificabile={!readOnlyMode} onPosizione={r=>update("riferimento_tetto",r)} onChange={p=>update("layout_overlay",p)}/>}
       {senzaMappa && (
         <FvCard title="Stima solare senza mappa">
           <p className="mb-4 text-sm text-slate-600">Scegli numero e modello dei pannelli nella fase Impianto. La capienza del tetto resta da verificare con il sopralluogo.</p>
@@ -3090,7 +2995,7 @@ export function Step4Tetto({
         </FvCard>
       )}
       {!senzaMappa && <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Il simulatore 2D e 3D si apre nella fase Impianto. Puoi preparare il tetto prima di scegliere il pannello. Qui calcoli la stima solare; nel simulatore disegni le falde, importi il rilievo e disponi i moduli.</p>}
-      {!senzaMappa && <FvCard title="Sorgente dati">
+      {!senzaMappa && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Origine dei dati e opzioni della stima solare</summary><FvCard title="Sorgente dati" className="mt-3">
         {/* Telefono: le tre sorgenti in una fila di tasselli piccoli, senza descrizioni. */}
         <div className="grid grid-cols-3 gap-3 max-sm:gap-2">
           <SourceTile
@@ -3142,17 +3047,8 @@ export function Step4Tetto({
             )}
           </button>
         )}
-      </FvCard>}
+      </FvCard></details>}
 
-      {!senzaMappa && data.latitudine != null && data.longitudine != null && (
-        <RoofSatelliteView
-          lat={data.latitudine}
-          lng={data.longitudine}
-          azimut={data.azimut_tetto}
-          tilt={data.inclinazione_tetto}
-          fonte={data.fonte_dati_tetto}
-        />
-      )}
 
       {!senzaMappa && data.fonte_dati_tetto === "manuale" && (
         <FvCard title="Parametri manuali" className="mt-4">
@@ -3203,7 +3099,7 @@ export function Step4Tetto({
         </FvCard>
       )}
 
-      {!senzaMappa && data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
+      {!senzaMappa && !leggiDisegnoCommerciale(data.layout_overlay)?.mappa && data.ore_sole_annue != null && data.ore_sole_annue > 0 && (
         <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
           <FvKpi
             label="Sup. utilizzabile"
@@ -3263,7 +3159,7 @@ export function Step4Tetto({
           {/* Ombreggiamento da ostacoli vicini (alberi/edifici adiacenti).
               Lo slider/Select MOSTRA la percentuale ma SALVA la frazione 0..1.
               Default 0 = "Nessuno" → nessun impatto sui progetti esistenti. */}
-          <FvCard title="Ombreggiamento da ostacoli vicini" className="mt-4">
+          <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Ombre vicine e verifiche del tetto</summary><FvCard title="Ombreggiamento da ostacoli vicini" className="mt-3">
             <div className="grid sm:grid-cols-2 gap-3 items-start">
               <div>
                 <Label>Ombra da alberi o edifici vicini (opzionale)</Label>
@@ -3295,7 +3191,7 @@ export function Step4Tetto({
                 Riduce la stima di produzione del valore scelto.
               </p>
             </div>
-          </FvCard>
+          </FvCard></details>
 
           {!senzaMappa && <FvLayoutTetto panels={data.layout_tetto} className="mt-3" />}
         </>
@@ -3652,7 +3548,8 @@ export function Step5Configurazione({
   const daRivedereAttuali = disegnoAttuale ? pannelliDaRivedere(disegnoAttuale).length : 0;
   const articoloDisegno=pannelli.find(p=>p.id===data.pannello_id);
   const wattDisegno = Number(articoloDisegno?.potenza_w);
-  const moduloDisegno=articoloDisegno?misureModulo(articoloDisegno):disegnoBozza?.modulo??disegnoAttuale?.modulo??misureModulo(undefined);
+  const misureCatalogo=misureModulo(articoloDisegno), misureConfermate=disegnoBozza?.modulo??disegnoAttuale?.modulo;
+  const moduloDisegno=misureConfermate??misureCatalogo;
   useEffect(()=>{if(geometriaInAttesa&&wattDisegno>0&&!readOnlyMode){setDisegnoBozza({...geometriaInAttesa,modulo:misureModulo(articoloDisegno)});setGeometriaInAttesa(null);setDisegnoAperto(true);}},[geometriaInAttesa,wattDisegno,articoloDisegno,readOnlyMode]);
   const problemiDisegno = disegnoBozza ? pannelliDaRivedere(disegnoBozza) : [];
   const datiDisegno = disegnoBozza && wattDisegno > 0 ? { ...data, ...datiDalDisegno(disegnoBozza, wattDisegno, data.prodotti_extra) } : data;
@@ -4149,6 +4046,7 @@ export function Step5Configurazione({
         />
       </div>
 
+      {!data.kit_bundle_id&&<FvScenariEnergia data={data} listino={{pannelli,inverter,accumuli}} regoleSconto={regoleDisegno} modificabile={!readOnlyMode} onLayout={p=>update("layout_overlay",p)} onScenario={patch=>{(Object.keys(patch) as Array<keyof typeof patch>).forEach(k=>update(k,patch[k] as never));}}/>}
       <FvCard title="Simulatore del tetto · 2D e 3D (facoltativo)" className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
@@ -4298,7 +4196,7 @@ export function Step5Configurazione({
             </div>
           </div>
 
-          {suggerisciAccumulo && data.capacita_accumulo_kwh < 5 && (
+          {!data.analisi_consumi && suggerisciAccumulo && data.capacita_accumulo_kwh < 5 && (
             <div className="max-md:hidden">
               <FvCallout variant="tip" title="Suggerimento accumulo">
                 Profilo consumo <strong>{data.profilo_consumo}</strong>: con accumulo <strong>5 kWh</strong> sposti
@@ -5459,6 +5357,7 @@ function Step6FinanziarioPrivato({
   const ctxVarianti: ContestoVariantiVicine | null =
     data.potenza_kwp > 0 && investimento > 0 && produzioneAnnua > 0
       ? {
+          bilancio_orario: data.analisi_consumi?{profilo:data.analisi_consumi.profilo,capacitaAccumulo:data.con_accumulo?data.capacita_accumulo_kwh:0,pesiProduzioneMensili:resaMappaFv(data.layout_overlay)?.pesiMensili}:undefined,
           potenza_kwp: data.potenza_kwp,
           investimento_eur: investimento,
           produzione_anno_1_kwh: produzioneAnnua,
@@ -5724,13 +5623,15 @@ function Step6FinanziarioPrivato({
       <FvControlloEconomico guard={economicsGuard} variant={economicsVariant} title={economicsTitle} />
 
       {/* Confronto varianti — affianca configurazioni alternative (gap vs Reonic/Autarc) */}
-      <FvConfrontoVarianti ctx={ctxVarianti} className="mb-4" />
+      {!data.analisi_consumi&&<FvConfrontoVarianti ctx={ctxVarianti} className="mb-4" />}
+      {data.analisi_consumi&&<p className="mb-4 text-sm text-slate-600">Le configurazioni con quantità, spazio e prezzi del listino si confrontano nella fase Impianto.</p>}
 
       {/* Simulatore interattivo — il cliente muove i parametri e vede i numeri live.
           Telefono: da qui in giù è la presentazione al cliente (grafici a 25 anni, scenari,
           «perché adesso»): la trova nel preventivo; restano i numeri e le scelte. */}
       {baseSimulatore && (
         <FvSimulatoreInterattivo
+          key={JSON.stringify(baseSimulatore)}
           base={baseSimulatore}
           potenzaKwp={data.potenza_kwp}
           conAccumulo={data.con_accumulo}

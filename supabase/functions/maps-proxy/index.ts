@@ -95,7 +95,7 @@ serveConMetriche("maps-proxy", async (req) => {
         );
         if (dataUrl) provider = "google";
       }
-      if (!dataUrl && HERE_API_KEY) {
+      if (!dataUrl && HERE_API_KEY && body.solo_google !== true) {
         // Request 2× pixel dimensions so the browser can downscale to display size,
         // compensating for HERE's lower tile resolution vs Google in rural areas.
         // Cap at 1280px to stay within HERE's max allowed dimension.
@@ -361,7 +361,7 @@ serveConMetriche("maps-proxy", async (req) => {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Servizio mappe temporaneamente non disponibile" }), {
       status: 500,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });

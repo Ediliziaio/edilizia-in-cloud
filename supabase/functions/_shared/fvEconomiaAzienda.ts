@@ -1,6 +1,8 @@
 import {calcolaLeasing,type OffertaLeasing} from "./fvLeasing.ts";
 import { calcolaCanone, dataValida, euro, type TabellaNoleggio } from "./noleggioOperativo.ts";
+import { flussiAnnoOrarioFv, type BilancioOrarioFv, type FlussiEnergiaFv } from "./fvSimulazioneEnergetica.ts";
 export type ParametriEconomiaAzienda = {
+    bilancioOrario?: BilancioOrarioFv;
     versione: 1;
     dataPreventivo: string;
     dataInizio: string;
@@ -123,11 +125,17 @@ export function validaInputEconomiaAzienda(i: InputEconomiaAzienda) {
 export function dataMese(inizio: string, mese: number) { const [y, m, d] = inizio.split("-").map(Number), ultimo = new Date(Date.UTC(y, m - 1 + mese + 1, 0)).getUTCDate(); return new Date(Date.UTC(y, m - 1 + mese, Math.min(d, ultimo))).toISOString().slice(0, 10); }
 export function calcolaEconomiaAzienda(i: InputEconomiaAzienda): RisultatoEconomiaAzienda {
     validaInputEconomiaAzienda(i);
+    const bilanci=new Map<number,FlussiEnergiaFv>();
+    const meseOrario=(anno:number,mese:number)=>{
+      if(!i.parametri.bilancioOrario)return null;
+      let f=bilanci.get(anno);if(!f){f=flussiAnnoOrarioFv(i.produzioneAnnua*Math.pow(1-i.parametri.degrado,anno-1),i.parametri.consumiMensili.reduce((a,b)=>a+b,0),i.parametri.bilancioOrario);bilanci.set(anno,f);}return f.mensili[mese];
+    };
     if (i.parametri.modo === "noleggio" && !i.parametri.tabellaNoleggio)
         throw new Error("Seleziona una tabella di noleggio da Impostazioni → Finanziamenti.");
     const p = i.parametri, rental = p.modo === "noleggio" ? calcolaCanone(p.tabellaNoleggio!, i.imponibile, p.durataNoleggioMesi, p.periodoNoleggioMesi, i.companyId, p.dataPreventivo) : p.modo==="leasing"?calcolaLeasing(p.leasing,i.imponibile,i.companyId,p.dataPreventivo):null, c = rental?.tabella.condizioni;
     const durataCanoni=rental?.riga.durataMesi??0;
     const fineDefinita = !rental || c?.fine !== "da_definire", orizzonte = p.orizzonteAnni * 12, ultimo = rental && c?.fine !== "acquisto" ? Math.min(orizzonte, durataCanoni) : orizzonte, avvisi: string[] = [];
+    if(p.bilancioOrario)avvisi.push("Simulazione energetica su anno orario convenzionale: giorni, orari e stagionalità confermati nelle fasi Consumi e Tetto; accumulo utile 90%, rendimento 90%. Produzione e ombre da verificare nel sopralluogo.");
     if(p.modo==="leasing")avvisi.push("Leasing: maxicanone e canoni seguono l’offerta inserita, comprese numero e prima scadenza. La fiscalità è una stima per competenza senza verifiche normative sul contratto. Il riscatto si include solo se scelto esplicitamente; non è un finanziamento all’acquisto.");
     if(rental?.tabella.soloSimulazione&&!rental.tabella.prova)avvisi.push("Coefficienti dal documento fornito: simulazione non impegnativa, validità commerciale non confermata.");
     if(rental?.tabella.assicurazioneDaQuotare)avvisi.push("Assicurazione obbligatoria non inclusa nei coefficienti e non quantificata: i saldi sono prima del premio. Anche spese accessorie e prelocazione sono da confermare.");
@@ -137,7 +145,7 @@ export function calcolaEconomiaAzienda(i: InputEconomiaAzienda): RisultatoEconom
         avvisi.push((p.modo==="leasing"?"Fine leasing da definire:":"Fine noleggio da definire:")+" il prospetto si ferma alla durata contrattuale. Nessuna proprietà o prosecuzione del risparmio è presunta.");
     if (c?.fine === "restituzione")
         avvisi.push("Restituzione prevista: i benefici dell’impianto si fermano al termine del noleggio.");
-    avvisi.push("Autoconsumo stimato su bilanci mensili e quota dichiarata, senza curva oraria. Costi fissi della bolletta conservati.");
+    if(!p.bilancioOrario)avvisi.push("Autoconsumo stimato su bilanci mensili e quota dichiarata, senza curva oraria. Costi fissi della bolletta conservati.");
     if (p.produzionePesiMensili.every(v => Math.abs(v - 1 / 12) < .000001))
         avvisi.push("Produzione distribuita uniformemente nei mesi: carica un profilo mensile verificato per una simulazione stagionale.");
     if (p.fiscale.attivo)
@@ -178,7 +186,8 @@ export function calcolaEconomiaAzienda(i: InputEconomiaAzienda): RisultatoEconom
             ivaDaRecuperare.set(scad, (ivaDaRecuperare.get(scad) ?? 0) + euro(ivaPagata * p.ivaRecuperabilePct / 100));
         }
         ivaRecuperata = ivaDaRecuperare.get(mese) ?? 0;
-        const produzione = mese === 0 ? 0 : i.produzioneAnnua * p.produzionePesiMensili[calendario] * Math.pow(1 - p.degrado, anno - 1), consumo = mese === 0 ? 0 : p.consumiMensili[calendario], autoconsumo = Math.min(consumo, produzione * p.quotaAutoconsumo), immissione = Math.max(0, produzione - autoconsumo), prezzo = p.costoEnergia * Math.pow(1 + p.inflazioneEnergia, Math.max(0, anno - 1)), risparmio = autoconsumo * prezzo, ricavi = immissione * p.prezzoCessione, bollettaPrima = mese === 0 ? 0 : consumo * prezzo + p.costiFissiAnnui / 12, bollettaDopo = mese === 0 ? 0 : (consumo - autoconsumo) * prezzo + p.costiFissiAnnui / 12;
+        const orario=mese===0?null:meseOrario(anno,calendario);
+        const produzione = mese === 0 ? 0 : orario?.produzione??i.produzioneAnnua * p.produzionePesiMensili[calendario] * Math.pow(1 - p.degrado, anno - 1), consumo = mese === 0 ? 0 : orario?.consumo??p.consumiMensili[calendario], autoconsumo = orario?.autoconsumo??Math.min(consumo, produzione * p.quotaAutoconsumo), immissione = orario?.immessa??Math.max(0, produzione - autoconsumo), prezzo = p.costoEnergia * Math.pow(1 + p.inflazioneEnergia, Math.max(0, anno - 1)), risparmio = autoconsumo * prezzo, ricavi = immissione * p.prezzoCessione, bollettaPrima = mese === 0 ? 0 : consumo * prezzo + p.costiFissiAnnui / 12, bollettaDopo = mese === 0 ? 0 : (consumo - autoconsumo) * prezzo + p.costiFissiAnnui / 12;
         if (p.fiscale.attivo && mese > 0 && mese % 12 === 0) {
             const prec = mesi.filter(m => m.mese > mese - 12), gestioneAnno = prec.reduce((n, m) => n + m.gestione, 0) + gestione, beneficiAnno = prec.reduce((n, m) => n + m.risparmio + m.ricavi, 0) + risparmio + ricavi;
             const inizioAnno = mese - 12, mesiNoleggio = rental ? Math.max(0, Math.min(mese, durataCanoni) - inizioAnno) : 0;

@@ -1,3 +1,4 @@
+import {flussiAnnoOrarioFv} from "./fvSimulazioneEnergetica.ts";
 import {coverIndustrialeFv,copertinaIndustrialeAttiva} from "./fvCopertinaIndustriale.ts";
 import {leggiAmbitoOffertaFv} from "./fvAmbitoOfferta.ts";
 import {personalizzaDocumentoFv,contestoPersonalizzazioneFv,immaginiPersonalizzateFv} from "./fvPersonalizzazioneCompleta.ts";
@@ -214,6 +215,7 @@ export interface FvPdfTemplateData {
     costo_kwh_attuale: number;
     /** Quote fisse separate dalla tariffa sui kWh; assente = non disponibili. */
     costi_fissi_annui_eur?: number | null;
+    ipotesi_energetiche?: string[];
     profilo_consumo?: string | null;
     ore_sole_annue?: number | null;
     superficie_tetto_disponibile_mq?: number | null;
@@ -1814,6 +1816,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
     prezzo_kwh_attuale: d.progetto.costo_kwh_attuale,
     inflazione_perc: inflazione,
     orizzonte_anni: 20,
+    costi_fissi_annui_eur: d.progetto.costi_fissi_annui_eur ?? 0,
   });
   return `<div class="page">
     ${header(d.progetto.numero, d.azienda.name)}
@@ -2772,8 +2775,8 @@ function renderFvPdfHtmlBase(d: FvPdfTemplateData): string {
   })}};
   if(d.economia_azienda||d.economia_azienda_richiesta)d={...d,finanziamento:null,modalita_pagamento:null,costi:{...d.costi,detrazione_eur:0,detrazione_perc:0,costo_netto_dopo_detrazione:d.costi.prezzo_vendita_iva_inclusa}};
   if(d.economia_azienda&&modelloAzienda(d.template)){
-    const input=d.economia_azienda.input,r=calcolaEconomiaAzienda(input),mesi=r.mesi.filter(m=>m.mese>0&&m.mese<=12),produzione=mesi.reduce((n,m)=>n+m.produzione,0),autoconsumo=mesi.reduce((n,m)=>n+m.autoconsumo,0),consumo=input.parametri.consumiMensili.reduce((a,b)=>a+b,0),ceduto=mesi.reduce((n,m)=>n+m.immissione,0),rete=consumo-autoconsumo;
-    d={...d,progetto:{...d.progetto,consumo_annuo_kwh:consumo},flows:{produzione_kwh:produzione,autoconsumo_kwh:autoconsumo,ceduto_rete_kwh:ceduto,prelievo_rete_kwh:rete,autoconsumo_pct:produzione?autoconsumo/produzione:0,autosufficienza_pct:consumo?autoconsumo/consumo:0,consumo_da_rete_pct:consumo?rete/consumo:0,consumo_da_fv_pct:consumo?autoconsumo/consumo:0}};
+    const input=d.economia_azienda.input,orario=input.parametri.bilancioOrario?flussiAnnoOrarioFv(input.produzioneAnnua,input.parametri.consumiMensili.reduce((a,b)=>a+b,0),input.parametri.bilancioOrario):null,r=calcolaEconomiaAzienda(input),mesi=r.mesi.filter(m=>m.mese>0&&m.mese<=12),produzione=mesi.reduce((n,m)=>n+m.produzione,0),autoconsumo=mesi.reduce((n,m)=>n+m.autoconsumo,0),consumo=orario?.consumo??input.parametri.consumiMensili.reduce((a,b)=>a+b,0),ceduto=mesi.reduce((n,m)=>n+m.immissione,0),rete=consumo-autoconsumo;
+    d={...d,progetto:{...d.progetto,consumo_annuo_kwh:consumo},flows:{...(orario?{perdite_accumulo_kwh:orario.perditeAccumulo,energia_accumulo_finale_kwh:orario.energiaFinaleBatteria}:{}),produzione_kwh:produzione,autoconsumo_kwh:autoconsumo,ceduto_rete_kwh:ceduto,prelievo_rete_kwh:rete,autoconsumo_pct:produzione?autoconsumo/produzione:0,autosufficienza_pct:consumo?autoconsumo/consumo:0,consumo_da_rete_pct:consumo?rete/consumo:0,consumo_da_fv_pct:consumo?autoconsumo/consumo:0}};
   }
   const macroPages = dedicatedMacroPages(d);
   const orderedPages = pagineDaDisegnare(d);

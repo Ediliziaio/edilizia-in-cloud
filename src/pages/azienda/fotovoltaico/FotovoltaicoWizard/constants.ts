@@ -34,6 +34,8 @@ export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Default INITIAL wizard data ──────────────────────────────────────────
 export const INITIAL: WizardData = {
+  analisi_consumi: null,
+  riferimento_tetto: null,
   cliente_nome: "",
   cliente_cognome: "",
   cliente_telefono: "",

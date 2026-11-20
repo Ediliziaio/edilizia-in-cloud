@@ -7,10 +7,12 @@
  */
 
 import { produzioneAnnoN } from "./fisica";
+import { flussiAnnoOrarioFv, type BilancioOrarioFv } from "../../../supabase/functions/_shared/fvSimulazioneEnergetica";
 
 // ─── Cassa cumulata 25 anni (§19) ───────────────────────────────────────────
 
 export interface InputCassaCumulata {
+  bilancio_orario?: BilancioOrarioFv;
   /** Investimento iniziale (positivo, sarà segnato come negativo all'anno 0). */
   investimento_iniziale: number;
   produzione_anno_1_kwh: number;
@@ -100,11 +102,12 @@ export function calcolaCassaCumulata(input: InputCassaCumulata): FlussoAnno[] {
     // CAP autoconsumo: non si può auto-consumare più del consumo annuo. Se il
     // consumo non è fornito, nessun cap (comportamento storico). Il consumo è
     // costante in kWh anno su anno (non si degrada come la produzione).
-    const autoconsumata =
+    const flussiOrari=input.bilancio_orario&&input.consumo_annuo_kwh!=null?flussiAnnoOrarioFv(produzione_n,input.consumo_annuo_kwh,input.bilancio_orario):null;
+    const autoconsumata = flussiOrari?.autoconsumo ?? (
       input.consumo_annuo_kwh != null
         ? Math.min(produzione_n * input.autoconsumo_pct, input.consumo_annuo_kwh)
-        : produzione_n * input.autoconsumo_pct;
-    const immessa = produzione_n - autoconsumata;
+        : produzione_n * input.autoconsumo_pct);
+    const immessa = flussiOrari?.immessa ?? produzione_n - autoconsumata;
 
     const risparmio_bolletta = autoconsumata * prezzo_kwh_n;
     const ricavi_rid = immessa * prezzo_rid_n;
