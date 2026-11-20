@@ -500,7 +500,10 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </Select>
           </div>}
           {conti.isError && <p role="alert" className="text-sm text-destructive">Conti non caricati. <button type="button" className="underline" onClick={() => void conti.refetch()}>Riprova</button></p>}
-          <p className="text-xs text-muted-foreground">Le banche di Tesoreria e i conti di liquidità del piano contabile sono selezionabili qui. <a className="underline" href="/azienda/tesoreria?tab=conti">Gestisci i conti bancari</a>.</p>
+          <p className="text-xs text-muted-foreground">
+            <a className="underline" href="/azienda/impostazioni/banca?tab=manuali">Gestisci i conti manuali</a>
+            {conti.data?.some((c) => c.bancaCollegata) && <> · <a className="underline" href="/azienda/tesoreria?tab=conti">Conti collegati in Tesoreria</a></>}
+          </p>
           <div className="rounded-lg border p-3 text-sm">
             <p>Per un pagamento con commissioni, arrotondamenti o sconti usa una scrittura con più righe Dare/Avere.</p>
             <a className="mt-1 inline-block text-primary underline" href="/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura">Apri scrittura con più conti</a>
