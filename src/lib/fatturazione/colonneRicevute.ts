@@ -9,6 +9,8 @@ export const COLONNE_RICEVUTE = [
   { id: "stato", etichetta: "Stato" },
   { id: "verifica", etichetta: "Verifica" },
   { id: "pagamento", etichetta: "Pagamento" },
+  { id: "pagato", etichetta: "Pagato" },
+  { id: "residuo", etichetta: "Residuo" },
   { id: "metodo", etichetta: "Modalità di pagamento" },
   { id: "scadenza", etichetta: "Prossima scadenza" },
   { id: "netto", etichetta: "Netto a pagare" },
@@ -19,15 +21,23 @@ export const COLONNE_RICEVUTE = [
 
 export type ColonnaRicevute = (typeof COLONNE_RICEVUTE)[number]["id"];
 
-export const COLONNE_PREDEFINITE: ColonnaRicevute[] = ["imponibile", "stato", "verifica", "pagamento", "metodo", "scadenza", "collegata", "allegati"];
-const CHIAVE = "fatture-ricevute-colonne-v1";
+export const COLONNE_PREDEFINITE: ColonnaRicevute[] = ["imponibile", "stato", "verifica", "pagamento", "pagato", "residuo", "metodo", "scadenza", "collegata", "allegati"];
+const CHIAVE_PRECEDENTE = "fatture-ricevute-colonne-v1";
+const CHIAVE = "fatture-ricevute-colonne-v2";
 
 export function leggiColonne(): Set<ColonnaRicevute> {
   try {
-    const salvate = JSON.parse(localStorage.getItem(CHIAVE) ?? "null");
+    const corrente = localStorage.getItem(CHIAVE);
+    const salvate = JSON.parse(corrente ?? localStorage.getItem(CHIAVE_PRECEDENTE) ?? "null");
     if (Array.isArray(salvate)) {
       const valide = new Set<string>(COLONNE_RICEVUTE.map((c) => c.id));
-      return new Set(salvate.filter((c): c is ColonnaRicevute => valide.has(c)));
+      const colonne = new Set(salvate.filter((c): c is ColonnaRicevute => valide.has(c)));
+      // Chi mostrava Pagamento vede anche i due importi al primo accesso.
+      if (corrente === null && colonne.has("pagamento")) {
+        colonne.add("pagato");
+        colonne.add("residuo");
+      }
+      return colonne;
     }
   } catch { /* storage bloccato o valore rovinato: valgono le predefinite */ }
   return new Set(COLONNE_PREDEFINITE);

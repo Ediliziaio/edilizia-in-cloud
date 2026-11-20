@@ -1,12 +1,11 @@
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Check, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { formatDateShort } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
-import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { eNotaDiCredito, nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
 import { cn } from "@/lib/utils";
 
@@ -48,49 +47,10 @@ export function isNotaCreditoRicevuta(tipo: string | null | undefined): boolean 
   return eNotaDiCredito(tipo);
 }
 
-/** Per ogni fattura ricevuta dell'azienda, il giorno in cui è stata pagata (o assente). */
-export function usePagamentiRicevute(companyId: string | null | undefined) {
-  return useQuery({
-    queryKey: ["fatture-ricevute-pagamento", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const righe = await tutteLePagine((from, to) => supabase
-        .from("fatture_ricevute_pagamento" as never)
-        .select("id, pagata_il")
-        .eq("company_id", companyId!)
-        .not("pagata_il", "is", null)
-        .order("id", { ascending: true })
-        .range(from, to)) as unknown as { id: string; pagata_il: string }[];
-      return new Map(righe.map((r) => [r.id, r.pagata_il]));
-    },
-    staleTime: 30_000,
-  });
-}
-
-/** Le fatture a rate con una parte già pagata: id → quante rate pagate, su quante. */
-export function usePagamentiParzialiRicevute(companyId: string | null | undefined) {
-  return useQuery({
-    queryKey: ["fatture-ricevute-pagamento", "parziali", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const righe = await tutteLePagine((from, to) => supabase
-        .from("fatture_ricevute_pagamento" as never)
-        .select("id, rate_pagate, rate_totali")
-        .eq("company_id", companyId!)
-        .is("pagata_il", null)
-        .gt("rate_pagate", 0)
-        .order("id", { ascending: true })
-        .range(from, to)) as unknown as { id: string; rate_pagate: number; rate_totali: number }[];
-      return new Map(righe.map((r) => [r.id, { pagate: r.rate_pagate, totali: r.rate_totali }]));
-    },
-    staleTime: 30_000,
-  });
-}
-
 export function useSegnaRicevutaPagata() {
   const queryClient = useQueryClient();
   const invalida = () => {
-  refreshFinancialQueries(queryClient);
+    refreshFinancialQueries(queryClient);
     void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-pagamento"] });
     void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
     void queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
@@ -145,10 +105,10 @@ export function PagamentoRicevutaCella({
         disabled={inCorso}
         onClick={() => segna.mutate({ id, pagata: false, numero })}
         title={`${P.fatto}: clic per segnarla ${P.annulla}`}
-        className="group inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
+        className="group inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
       >
-        {inCorso ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Check className="h-2.5 w-2.5 group-hover:hidden" />}
-        {!inCorso && <Undo2 className="hidden h-2.5 w-2.5 group-hover:inline" />}
+        {inCorso ? <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" /> : <Check className="h-2.5 w-2.5 shrink-0 group-hover:hidden" />}
+        {!inCorso && <Undo2 className="hidden h-2.5 w-2.5 shrink-0 group-hover:inline" />}
         {P.fatto} {formatDateShort(pagataIl)}
       </button>
     );
@@ -159,6 +119,7 @@ export function PagamentoRicevutaCella({
       <Button
         variant="ghost"
         size="icon"
+        className="h-7 w-7 shrink-0"
         disabled={inCorso}
         onClick={() => segna.mutate({ id, pagata: true, numero })}
         title={P.azione}

@@ -7,12 +7,12 @@ const f = (p: Partial<RicevutaPerMesi> & { id: string }): RicevutaPerMesi => ({
 });
 
 describe("i mesi delle fatture ricevute", () => {
-  const pagate = new Set(["p"]);
-  const stato = {
-    pagata: (x: RicevutaPerMesi) => pagate.has(x.id),
-    stornata: (x: RicevutaPerMesi) => x.id === "s",
-    rate: (x: RicevutaPerMesi) => (x.id === "r" ? { pagate: 1, totali: 2 } : undefined),
-  };
+  const saldi = new Map([
+    ["p", { pagato: 122, residuo: 0 }],
+    ["r", { pagato: 300, residuo: 700 }],
+    ["d", { pagato: 0, residuo: 100 }],
+    ["s", { pagato: 0, residuo: 0 }],
+  ]);
 
   it("somma per mese, toglie le note di credito e salta rifiutate e altri anni", () => {
     const mesi = mesiRicevute([
@@ -20,7 +20,7 @@ describe("i mesi delle fatture ricevute", () => {
       f({ id: "nc", tipo_documento: "TD04", totale_documento: 22, imponibile_totale: 18, iva_totale: 4 }),
       f({ id: "x", stato: "rifiutata" }),
       f({ id: "y", data_fattura: "2025-03-10" }),
-    ], 2026, stato, "2026-11-16");
+    ], 2026, saldi, "2026-11-16");
     const marzo = mesi[2];
     expect(marzo.docCount).toBe(2);
     expect(marzo.totalAmount).toBe(100);
@@ -29,16 +29,16 @@ describe("i mesi delle fatture ricevute", () => {
     expect(mesi[0].docCount).toBe(0);
   });
 
-  it("pagato, da pagare e scaduto: pagata intera, a rate in parte, netto della ritenuta", () => {
+  it("somma i saldi effettivi, anche con rate di importi diversi", () => {
     const mesi = mesiRicevute([
       f({ id: "p" }),
-      f({ id: "r", totale_documento: 200 }),
+      f({ id: "r", totale_documento: 1_000 }),
       f({ id: "d", netto_a_pagare: 100, piano_pagamento: [{ scadenza: "2026-04-30" }] }),
       f({ id: "s" }),
-    ], 2026, stato, "2026-11-16");
+    ], 2026, saldi, "2026-11-16");
     const marzo = mesi[2];
-    expect(marzo.incassato).toBe(122 + 100);
-    expect(marzo.daIncassare).toBe(100 + 100);
+    expect(marzo.incassato).toBe(122 + 300);
+    expect(marzo.daIncassare).toBe(700 + 100);
     expect(marzo.scaduto).toBe(100);
   });
 });
