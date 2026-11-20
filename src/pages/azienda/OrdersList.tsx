@@ -532,7 +532,8 @@ function OrdersListInner() {
   const isLoadingMonthlyOrders = !elencoInizializzato || !gestione;
   const isMonthlyOrdersError = isStatusesError || errorePerimetro;
 
-  const {data: allOrdersForPipeline = [], isPending: pipelinePending, isFetching: pipelineFetching, isError: pipelineError, refetch: retryPipeline} = useQuery({
+  const {data: allOrdersForPipeline = [], isPending: pipelinePending, isLoadingError: pipelineError,
+    isRefetchError: pipelineRefreshError, isFetching: pipelineFetching, refetch: retryPipeline} = useQuery({
     queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, sortField, sortDir],
     enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady && !archivioTabella.caricamento && !archivioTabella.errore && !isLoadingStatuses && !isStatusesError,
     queryFn: ({ signal }) => withAbortableClientTimeout(async (readSignal) => {
@@ -541,10 +542,11 @@ function OrdersListInner() {
       return (await fetchOrderRows(0, Infinity, ids, readSignal)).orders;
     }, "Pipeline commesse", 20_000, signal),
     staleTime: 3 * 60 * 1000,
+    meta: { silent: true },
   });
   const conteggioNonDisponibile = isStatusesError || scopeError || (viewMode === "pipeline" ? pipelineError || !!archivioTabella.errore : isOrdersError);
   const conteggioFiltri = conteggioNonDisponibile ? null : viewMode === "pipeline"
-    ? (pipelinePending || pipelineFetching ? null : allOrdersForPipeline.length)
+    ? (pipelinePending ? null : allOrdersForPipeline.length)
     : (conteggioInAttesa ? null : totalCount);
 
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: erroreRiepilogo } = useQuery({
@@ -1832,7 +1834,12 @@ function OrdersListInner() {
       <div className="order-3 space-y-2 sm:order-none">
           {barraBacheca ? null : filtriCommesse}
 
-
+          {viewMode === "pipeline" && pipelineRefreshError && !archivioTabella.errore && (
+            <div role="alert" className="text-sm text-amber-800">
+              Aggiornamento delle commesse non riuscito. Sono visibili le ultime schede caricate.
+              <Button variant="link" size="sm" disabled={pipelineFetching} onClick={() => void retryPipeline()}>Riprova</Button>
+            </div>
+          )}
           {viewMode === "table" && isOrdersLoading && !scopeError && <AvvisoAttesaCommesse key={effectiveCompany?.id} onRetry={() => {
             if (isLoadingStatuses || isStatusesError) void retryStatuses();
             else if (focusReady) void refetchOrders();

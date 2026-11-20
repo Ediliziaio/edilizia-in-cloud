@@ -12,11 +12,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 
 const stato = vi.hoisted(() => ({
   venditori: [] as Array<Record<string, unknown>>,
   rispostaCreaAccesso: { data: null as unknown, error: null as unknown },
   erroreElimina: null as unknown,
+  erroreLettura: null as unknown,
   toasts: [] as Array<{ tipo: string; testo: string }>,
 }));
 
@@ -24,14 +26,14 @@ vi.mock("@/integrations/supabase/client", () => {
   const catena = () => {
     let modo = "select";
     const b: Record<string, unknown> = {};
-    for (const metodo of ["select", "eq", "order"]) b[metodo] = () => b;
+    for (const metodo of ["select", "eq", "order", "abortSignal"]) b[metodo] = () => b;
     b.delete = () => { modo = "delete"; return b; };
     b.update = () => { modo = "update"; return b; };
     b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
       Promise.resolve(
         modo === "delete" ? { data: null as unknown, error: stato.erroreElimina }
           : modo === "update" ? { data: null as unknown, error: null as unknown }
-          : { data: stato.venditori, error: null as unknown },
+          : { data: stato.venditori, error: stato.erroreLettura },
       ).then(ok, ko);
     return b;
   };
@@ -74,8 +76,7 @@ const MARIO = {
   user_id: null as unknown,
 };
 
-function pagina(soloLettura?: boolean) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+function pagina(soloLettura?: boolean, qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <SalespeopleConfig {...(soloLettura === undefined ? {} : { soloLettura })} />
@@ -87,9 +88,30 @@ beforeEach(() => {
   stato.venditori = [MARIO];
   stato.rispostaCreaAccesso = { data: { success: true, temp_password: "Tmp-Pass-1234" }, error: null as unknown };
   stato.erroreElimina = null;
+  stato.erroreLettura = null;
   stato.toasts = [];
 });
 afterEach(cleanup);
+
+it("carica la configurazione completa anche se la lista dei soli attivi è già in cache", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(queryKeys.salespeople.active("c1"), [{ id: "s1", first_name: "Mario", last_name: "Rossi" }]);
+  stato.venditori.push({ ...MARIO, id: "s2", first_name: "Elena", is_active: false });
+  pagina(undefined, client);
+  expect(await screen.findByText("Elena Rossi")).toBeVisible();
+  expect(client.getQueryData(queryKeys.salespeople.active("c1"))).toHaveLength(1);
+  client.clear();
+});
+
+it("permette di ricaricare l'elenco di fronte a un errore di rete", async () => {
+  stato.erroreLettura = new Error("Rete non disponibile");
+  pagina();
+  expect(await screen.findByText("Impossibile caricare i venditori.")).toBeVisible();
+  expect(screen.queryByText("Nessun venditore ancora.")).toBeNull();
+  stato.erroreLettura = null;
+  fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+  expect(await screen.findByText("Mario Rossi")).toBeVisible();
+});
 
 describe("Venditori: sola lettura onesta", () => {
   it("chi può scrivere ha tutti i pulsanti accesi", async () => {
@@ -150,8 +172,8 @@ describe("Venditori: crea l'accesso", () => {
 
   it("usa la stessa dicitura degli altri editor per la visibilità sui dati", async () => {
     const dialogo = await apriCreaAccesso();
-    expect(within(dialogo).getByLabelText("Solo i dati assegnati a lui")).toBeVisible();
-    expect(within(dialogo).queryByText(/Solo elementi assegnati/)).toBeNull();
+    expect(within(dialogo).getByLabelText("Solo il portafoglio CRM assegnato")).toBeVisible();
+    expect(within(dialogo).getByText(/Limita contatti, opportunità e attività commerciali/)).toBeVisible();
   });
 });
 

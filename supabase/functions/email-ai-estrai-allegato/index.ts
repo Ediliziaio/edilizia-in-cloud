@@ -31,6 +31,7 @@ import {
 } from "../_shared/doc-validation.ts";
 import { callOpenRouterAddebitato, CreditoAiInsufficiente } from "../_shared/ai-provider/openrouterAddebitato.ts";
 import { jsonDalModello } from "./jsonDalModello.ts";
+import { calcolaTentativoEstrazione } from "./tentativi.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
@@ -315,22 +316,20 @@ Deno.serve(async (req) => {
 
 /**
  * Ricorda che l'estrazione di questa mail è fallita, e quando riprovare: dopo un
- * errore di credito fra un'ora, dopo gli altri fra 30 minuti × 2^tentativi (al massimo
- * un giorno), e dopo 6 fallimenti non si riprova più (il dispatcher la salta).
+ * blocco di pagamento fra un'ora. Gli errori tecnici hanno un'attesa crescente
+ * fino a un giorno. Il dispatcher si ferma dopo sei errori tecnici consecutivi.
  */
-async function segnaTentativo(db: any, emailId: string, esito: string, errore: string): Promise<void> {
+async function segnaTentativo(db: any, emailId: string, esito: Parameters<typeof calcolaTentativoEstrazione>[1], errore: string): Promise<void> {
   try {
-    const { data: prima } = await db.from("email_estrazione_tentativi").select("tentativi").eq("email_id", emailId).maybeSingle();
-    const tentativi = ((prima?.tentativi as number | undefined) ?? 0) + 1;
-    const minuti = esito === "credito" ? 60 : Math.min(24 * 60, 30 * 2 ** tentativi);
-    await db.from("email_estrazione_tentativi").upsert({
+    const { data: prima, error: erroreLettura } = await db.from("email_estrazione_tentativi")
+      .select("tentativi, ultimo_esito").eq("email_id", emailId).maybeSingle();
+    if (erroreLettura) throw new Error(erroreLettura.message);
+    const { error: erroreSalvataggio } = await db.from("email_estrazione_tentativi").upsert({
       email_id: emailId,
-      tentativi,
-      ultimo_esito: esito,
+      ...calcolaTentativoEstrazione(prima, esito),
       ultimo_errore: errore.slice(0, 300),
-      prossimo_tentativo: new Date(Date.now() + minuti * 60_000).toISOString(),
-      updated_at: new Date().toISOString(),
     }, { onConflict: "email_id" });
+    if (erroreSalvataggio) throw new Error(erroreSalvataggio.message);
   } catch (e) {
     console.warn("[email-ai-estrai-allegato] tentativo non registrato:", e instanceof Error ? e.message : e);
   }

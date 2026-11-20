@@ -77,6 +77,12 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
       <Link aria-label="Gestisci pipeline" title="Gestisci pipeline" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted" to="/azienda/impostazioni/stati-ordine"><Settings2 className="size-4" /></Link>
     </>;
   return <>
+    {archivio.aggiornamentoFallito && (
+      <div role="alert" className="text-sm text-amber-800">
+        Aggiornamento di pipeline e stati non riuscito. Sono visibili gli ultimi dati caricati.
+        <Button variant="link" size="sm" disabled={archivio.aggiornamentoInCorso} onClick={() => void archivio.riprova()}>Riprova</Button>
+      </div>
+    )}
     {vista === SENZA_PIPELINE && <p className="text-sm text-muted-foreground">Commesse senza percorso assegnato. Usa «Sposta» per inserirle in una pipeline.</p>}
     <OrdersPipelineView controls={controls} canEdit={!!onStatusChange} showAmounts={showAmounts} onMove={onStatusChange && archivio.pipeline.length ? order => {
       const origine = archivio.fasiPerCommessa[order.id] ?? null;

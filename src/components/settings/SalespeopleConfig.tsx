@@ -34,6 +34,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
 import { CommissionRulesDialog } from "@/components/salespeople/CommissionRulesDialog";
 import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
+import { withAbortableClientTimeout } from "@/lib/query-timeout";
 
 export interface Salesperson {
   id: string;
@@ -90,18 +91,25 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
     open: false, password: "", name: "",
   });
 
-  const { data: salespeople = [], isLoading } = useQuery({
-    queryKey: queryKeys.salespeople.active(companyId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("salespeople").select("*").eq("company_id", companyId!)
-        .order("last_name", { ascending: true });
+  const { data: salespeople = [], isLoading, isLoadingError, isRefetchError, isPaused, isFetching, refetch } = useQuery({
+    queryKey: queryKeys.salespeople.settings(companyId),
+    queryFn: ({ signal }) => withAbortableClientTimeout(async (readSignal) => {
+      const { data, error } = await supabase.from("salespeople")
+        .select("id, first_name, last_name, email, phone, compensation_mode, fixed_monthly_eur, commission_type, commission_value, is_active, user_id")
+        .eq("company_id", companyId!)
+        .order("last_name", { ascending: true })
+        .abortSignal(readSignal);
       if (error) throw error;
-      return data as Salesperson[];
-    },
+      return (data ?? []) as Salesperson[];
+    }, "Caricamento venditori", 12_000, signal),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+    meta: { silent: true },
   });
+  const aggiornaVenditori = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.active(companyId) });
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: Partial<Salesperson> & { id?: string }) => {
@@ -128,7 +136,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
+      aggiornaVenditori();
       toast.success(editingSalesperson ? "Venditore aggiornato" : "Venditore creato");
       setDialogOpen(false); setEditingSalesperson(null);
     },
@@ -142,7 +150,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       const { error } = await supabase.from("salespeople").update({ is_active }).eq("id", id).eq("company_id", companyId!);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all }); },
+    onSuccess: aggiornaVenditori,
     onError: () => { toast.error("Non sono riuscito a cambiare lo stato del venditore. Riprova tra un attimo."); },
   });
 
@@ -152,7 +160,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
+      aggiornaVenditori();
       toast.success("Venditore eliminato");
     },
     onError: (error: Error) => {
@@ -174,7 +182,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all });
+      aggiornaVenditori();
       queryClient.invalidateQueries({ queryKey: queryKeys.staffUsers.all });
       const sp = createAccountDialog.salesperson;
       setCreateAccountDialog({ open: false, salesperson: null });
@@ -231,8 +239,8 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
     setAccountPermissions((prev) => {
       const allTrue: Partial<StaffPermissions> = {};
       ALL_PERMISSION_SECTIONS.forEach(s => {
-        (allTrue as any)[s.viewKey] = true;
-        if (s.editKey) (allTrue as any)[s.editKey] = true;
+        allTrue[s.viewKey] = true;
+        if (s.editKey) allTrue[s.editKey] = true;
       });
       return {
         ...DEFAULT_PERMISSIONS,
@@ -309,10 +317,20 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
         </div>
       </CardHeader>
       <CardContent>
+        {(isLoadingError || isRefetchError || isPaused) && (
+          <Alert role="alert" className="mb-3">
+            <AlertDescription className="flex flex-wrap items-center gap-2">
+              {isPaused ? "Connessione assente. L’elenco si aggiornerà al ripristino della rete." : isRefetchError
+                ? "Aggiornamento dei venditori non riuscito. Sono visibili gli ultimi dati caricati."
+                : "Impossibile caricare i venditori."}
+              <Button size="sm" variant="outline" disabled={isFetching || isPaused} onClick={() => void refetch()}>Riprova</Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <fieldset disabled={soloLettura} className="m-0 min-w-0 border-0 p-0">
         {isLoading ? (
           <div role="status" className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" /><span className="sr-only">Caricamento dei venditori…</span></div>
-        ) : salespeople.length === 0 ? (
+        ) : isLoadingError || (isPaused && salespeople.length === 0) ? null : salespeople.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground border rounded-lg">
             <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" aria-hidden="true" />
             <p>Nessun venditore ancora.</p>
@@ -463,7 +481,7 @@ export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boole
                       onCheckedChange={(checked) => setAccountPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} />
                     <Label htmlFor="sp-only_assigned" className="font-medium text-sm">Solo il portafoglio CRM assegnato</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
+                  <p className="text-xs text-muted-foreground ml-6">Limita contatti, opportunità e attività commerciali. Gli uffici vedono le commesse secondo i permessi salvati.</p>
                 </div>
               </div>
             </div>

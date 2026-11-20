@@ -44,7 +44,7 @@ export function usePipelineLocali(azienda: string) {
   const {user} = useAuth();
   const key = ["pipeline-commesse-condivise", azienda, user?.id];
   const query = useQuery({queryKey:key, enabled:!!azienda && !!user?.id, queryFn:()=>richiestaPipelineLocale<Archivio>(azienda),
-    refetchInterval:import.meta.env.DEV ? 5000 : 30_000, refetchOnWindowFocus:"always", retry:1});
+    staleTime:30_000, refetchInterval:30_000, refetchOnWindowFocus:true, retry:1, meta:{silent:true}});
   const archivio = query.data ?? vuoto;
   async function scrivi(body: object) {
     try { await richiestaPipelineLocale(azienda,body); }
@@ -64,7 +64,9 @@ export function usePipelineLocali(azienda: string) {
     localStorage.removeItem(chiaveBrowser(azienda));
     await client.invalidateQueries({queryKey:key});
   }
-  return {...archivio, caricamento:query.isLoading, errore:query.error?.message, riprova:query.refetch,
+  return {...archivio, caricamento:query.isLoading, errore:query.isLoadingError ? query.error.message
+    : query.isPaused && !query.data ? "Connessione assente. Le pipeline si caricheranno al ripristino della rete." : undefined,
+    aggiornamentoFallito:query.isRefetchError, aggiornamentoInCorso:query.isFetching, riprova:query.refetch,
     salvaPipeline:(pipeline:PipelineLocale)=>scrivi({azione:"salva",pipeline}),
     assegnaFase:(commessa:string,fase:string|null,precedente:string|null = archivio.fasiPerCommessa[commessa] ?? null)=>scrivi({azione:"assegna",commessa,fase,precedente}),
     daImportare:!!localStorage.getItem(chiaveBrowser(azienda)), importa};
