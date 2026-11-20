@@ -81,7 +81,7 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
               </span>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">Si aggiungono alle fasi già presenti, senza sostituirle.</p>
+          <p className="text-xs text-muted-foreground">Le fasi con lo stesso nome vengono mantenute: si aggiungono solo fasi e sottofasi mancanti.</p>
           <Button size="sm" className="w-full" disabled={inCorso || isLoading || isError} onClick={() => {if (!inCorso && !isLoading && !isError) onApplica(fasiPerCommessa(scelto), scelto);}}>
             {inCorso ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ListPlus className="mr-1 h-4 w-4" />}
             Aggiungi le {scelto.fasi.length} fasi

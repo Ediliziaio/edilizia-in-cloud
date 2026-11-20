@@ -12,9 +12,9 @@ import type { VocePerRendicontoTrasporti } from "@/lib/documentiOperativi/rendic
 import type { RapportinoCompleto } from "@/hooks/useRapportiniMese";
 import type { ReactNode } from "react";
 
-const stato = vi.hoisted(() => ({ rpc: vi.fn(), errore: vi.fn() }));
+const stato = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), errore: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: stato.rpc },
+  supabase: { rpc: stato.rpc, from: stato.from },
 }));
 vi.mock("@/lib/documentiOperativi/destinatarioRapporto", () => ({ leggiDestinatarioRapporto: async (_azienda: string, commessa: string) => ({ nome: commessa === "o2" ? "Secondo SIM" : "Cliente SIM", email: null as string | null }) }));
 vi.mock("sonner", () => ({ toast: { error: stato.errore } }));
@@ -61,7 +61,7 @@ const r: RapportinoCompleto = {
   ore_lavorate: 0,
   order: { client_name: "Cliente SIM", order_code: "SIM-1" },
 };
-const apri = (righe = [r], conDatiEconomici = true) =>
+const apri = (righe = [r], conDatiEconomici = true, orderId?: string) =>
   render(
     <QueryClientProvider
       client={
@@ -69,6 +69,7 @@ const apri = (righe = [r], conDatiEconomici = true) =>
       }
     >
       <RapportiPeriodoDialog
+        orderId={orderId}
         companyId="azienda-1"
         mese="2026-11"
         righe={righe}
@@ -219,4 +220,28 @@ describe("Riepilogo automatico dei rapportini approvati", () => {
       screen.getByRole("button", { name: "Crea documento PDF" }),
     ).toBeEnabled();
   });
+});
+
+
+it("dalla commessa apre il rapporto manuale intestato, anche senza rapportini approvati", async () => {
+  const ordine = { select: () => ordine, eq: vi.fn(() => ordine), single: async () => ({ data: { order_code: "SIM-1", work_address: "Via SIM 10" }, error: null }) };
+  stato.from.mockReturnValue(ordine);
+  apri([], false, "o1"); menu();
+  fireEvent.click(screen.getByRole("menuitem", { name: /^Rapporto trasporti/ }));
+  await screen.findByRole("dialog", { name: "Documento pronto" });
+  const documento = JSON.parse(screen.getByTestId("documento").textContent!) as DocumentoOperativo;
+  expect(documento).toMatchObject({ tipo: "trasporti", commessa: "SIM-1", luogo: "Via SIM 10", destinatario: { nome: "Cliente SIM" } });
+  expect(documento.righe).toHaveLength(1); expect(documento.rendicontoTrasporti).toBeUndefined();
+  expect(ordine.eq).toHaveBeenCalledWith("company_id", "azienda-1");
+  expect(stato.rpc).not.toHaveBeenCalled();
+});
+
+it("se la commessa non si legge non apre un documento intestato male", async () => {
+  const ordine = { select: () => ordine, eq: () => ordine, single: async () => ({ data: null, error: { message: "Commessa non disponibile" } }) };
+  stato.from.mockReturnValue(ordine);
+  apri([], false, "o1"); menu();
+  fireEvent.click(screen.getByRole("menuitem", { name: /^Rapporto trasporti/ }));
+  await waitFor(() => expect(stato.errore).toHaveBeenCalledWith("Commessa non disponibile"));
+  expect(screen.queryByRole("dialog", { name: "Documento pronto" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Crea documento PDF" })).toBeEnabled();
 });

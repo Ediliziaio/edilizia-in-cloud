@@ -959,6 +959,23 @@ jobs:
           src/test/ui/listinoDitta.test.tsx
           src/test/ui/subcontractorCompact.test.tsx
 
+      - name: Run report correction and phase template regressions
+        if: matrix.group == 'worksite'
+        run: >-
+          TZ=Europe/Rome bunx vitest run --maxWorkers=2 --testTimeout=30000
+          src/test/security/rapportiniCorrezioneCompleta.test.ts
+          src/test/ui/correggiRapportinoCompleto.test.tsx
+          src/test/ui/modificaVoceRapportino.test.tsx
+          src/test/ui/azioniRapportino.test.tsx
+          src/test/ui/rapportiPeriodoDialog.test.tsx
+          src/test/ui/rapportiniCommesse.test.tsx
+          src/test/ui/rapportiniUfficio.test.tsx
+          src/test/ui/modelliFasiPicker.test.tsx
+          src/test/logic/rapportinoRefreshCommessa.test.ts
+          src/test/logic/rapportinoPhaseScope.test.ts
+          src/test/logic/rapportinoFasiCollegamenti.test.ts
+          src/test/security/mezziCostiConfermati.test.ts
+
       - name: Run CG SQL reconciliation and rating regressions
         if: matrix.group == 'worksite'
         run: >-

@@ -1,3 +1,5 @@
+import { ModificaVoceRapportino } from "./ModificaVoceRapportino";
+import { misuraRapportino } from "@/lib/campo/correzioneRapportino";
 import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * I soldi del rapportino: per persona ore, costo orario e costo; per i mezzi ore × costo orario; le voci
@@ -107,10 +109,11 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   };
   const aggiungi = useMutation({
     mutationFn: async (v: Bozza) => {
+      if (misuraRapportino(v.quantita, "Quantità") <= 0) throw new Error("La quantità deve essere maggiore di zero.");
       // Dal listino: il prezzo proposto lo rifà il database; mandiamo solo quello scritto, se c'è.
       const { error } = await db.from("rapportino_voci_libere").insert({
-        rapportino_id: rapportinoId, descrizione: v.descrizione.trim(), quantita: numero(v.quantita) || 1, unita: v.unita.trim() || "cad",
-        costo_unitario: v.costo.trim() ? numero(v.costo) : null, vendita_unitaria: v.vendita.trim() ? numero(v.vendita) : null,
+        rapportino_id: rapportinoId, descrizione: v.descrizione.trim(), quantita: misuraRapportino(v.quantita, "Quantità"), unita: v.unita.trim() || "cad",
+        costo_unitario: v.costo.trim() ? misuraRapportino(v.costo, "Costo unitario") : null, vendita_unitaria: v.vendita.trim() ? misuraRapportino(v.vendita, "Vendita unitaria") : null,
         ...(v.voce ? { tariffa_id: v.voce.tariffa_id } : {}),
         ...(v.viaggio || (voceTrasporto(v.descrizione, v.unita) && unitaChilometro(v.unita))
           ? { viaggio: dettagliViaggio(v.viaggio ?? {}, v.unita, v.quantita) } : {}),
@@ -144,7 +147,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   const aMano = catalogo?.aMano ?? true;
   const puoAggiungere = puoModificare;
   const vedeImporti = permissions.canViewOrderAmounts;
-  const { data } = useQuery({
+  const quadro = useQuery({
     queryKey: chiave,
     queryFn: async () => {
       const { data, error } = await rpc("rapportino_quadro_economico", { p_rapportino_id: rapportinoId });
@@ -153,6 +156,8 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
     },
     retry: false,
   });
+  const { data } = quadro;
+  if (quadro.isError) return <p role="alert" className="rounded border p-3 text-sm">Quadro economico non disponibile. <Button variant="outline" size="sm" onClick={() => void quadro.refetch()}>Riprova</Button></p>;
   if (!data || !Array.isArray(data.persone) || (!data.persone.length && !data.voci?.length && !data.personale_aggregato && !puoModificare)) return null;
 
   const voci = (data.voci ?? []).map((voce) => ({ ...voce, viaggio: voce.viaggio ? leggiDettagliViaggio(voce.viaggio) : null }));
@@ -222,6 +227,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
         </div>
       )}
       {data.personale_aggregato && <p className="flex justify-between border-b px-3 py-2"><span>Personale interno · costo aggregato</span><strong>{euro(data.personale_aggregato.costo)}</strong></p>}
+      {mezzi.length > 0 && <p className="border-b px-3 py-2 text-xs text-muted-foreground">Costo interno: ore del rapportino × costo orario della scheda mezzo. Per i noleggi il costo effettivo arriva dalle fatture. Il nolo collegato al listino è invece il prezzo al cliente.</p>}
       <ul className="divide-y">
         {data.persone.map((r, i) => (
           <li key={`${r.emp ?? r.nome}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-1.5">
@@ -285,6 +291,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             </span>
             <span className="flex items-center justify-end gap-1 tabular-nums font-semibold">
               {costoVoce(v) == null ? <span className="font-normal text-muted-foreground">costo —</span> : euro(costoVoce(v))}
+              {puoModificare && <ModificaVoceRapportino id={v.id} rapportinoId={rapportinoId} nome={v.descrizione} />}
               {puoModificare && (
                 <button type="button" aria-label={`Togli ${v.descrizione}`} disabled={togli.isPending} onClick={() => togli.mutate(v.id)}
                   className="tap-compact rounded p-0.5 text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>

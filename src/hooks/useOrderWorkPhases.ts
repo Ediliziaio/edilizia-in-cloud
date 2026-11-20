@@ -473,8 +473,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     // Fasi e sottofasi in un colpo solo, dal server (aggiungi_fasi_commessa): il
     // permesso si controlla là e un modello non resta a metà.
     mutationFn: async (fasi: FaseModello[]) => {
-      const { error } = await db.rpc("aggiungi_fasi_commessa", { p_order_id: orderId, p_fasi: fasi });
+      const { data, error } = await db.rpc("aggiungi_fasi_commessa", { p_order_id: orderId, p_fasi: fasi });
       if (error) throw error;
+      return Number(data ?? 0);
     },
     onSuccess: invalidate,
     onError,

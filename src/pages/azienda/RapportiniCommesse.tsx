@@ -1,3 +1,4 @@
+import { AzioniRapportino } from "@/components/orders/AzioniRapportino";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 /**
  * Commesse → Rapportini: documenti operativi e pagine del giornale nello stesso
@@ -28,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApprovaRapportinoPopup, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { PulsantePdfRapportino } from "@/components/orders/PulsantePdfRapportino";
-import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/CorreggiRapportino";
+import { StoricoRapportino } from "@/components/orders/CorreggiRapportino";
 import { GiornatePersonaPopup, SegnaGiornataPersona } from "@/components/orders/GiornataPersona";
 import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 import { Input } from "@/components/ui/input";
@@ -731,7 +732,7 @@ function DettaglioRapportino({ r, conCosti, navigazione, onChiudi, onDeciso }: {
                 )}
                 {conCosti && <QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={puoModificare} />}
                 <StoricoRapportino rapportinoId={r.id} />
-                {puoDecidereSu(r.user_id) && stato !== "rifiutato" && <CorreggiRapportino rapportinoId={r.id} orderId={r.order_id} />}
+                <div className="flex flex-wrap gap-2"><AzioniRapportino report={r} orderId={r.order_id} onFatto={onChiudi} /></div>
                 <PulsantePdfRapportino report={r} orderId={r.order_id} className="w-full" />
                 <Button asChild variant="outline" className="w-full">
                   <Link to={`/azienda/ordini/${r.order_id}?tab=cantiere&vista_cantiere=diario`}>

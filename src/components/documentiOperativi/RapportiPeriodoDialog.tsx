@@ -36,11 +36,14 @@ export function RapportiPeriodoDialog({
   mese,
   companyId,
   conDatiEconomici = false,
+  orderId,
 }: {
   righe: RapportinoCompleto[];
   mese: string;
   companyId?: string;
   conDatiEconomici?: boolean;
+  /** Accesso dalla commessa: il rapporto manuale parte già intestato. */
+  orderId?: string;
 }) {
   const [doc, setDoc] = useState<DocumentoOperativo | null>(null);
   const [scegli, setScegli] = useState<RapportoDaPreparare | null>(null);
@@ -51,7 +54,7 @@ export function RapportiPeriodoDialog({
   const qc = useQueryClient();
   const approvati = righe.filter((r) => statoDi(r) === "approvato");
   const cantieri = [...new Map(approvati.map((r) => [r.order_id, r])).values()];
-  const scope = `${companyId}:${mese}:${conDatiEconomici}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
+  const scope = `${companyId}:${orderId ?? ""}:${mese}:${conDatiEconomici}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
   const busy = preparazione === scope;
   useEffect(
     () => () => {
@@ -114,6 +117,30 @@ export function RapportiPeriodoDialog({
       }
     }
   };
+  const rapportoManuale = async () => {
+    if (operazione.current || !companyId) return;
+    const documento: DocumentoOperativo = {
+      tipo: "trasporti", numero: `TRASPORTI-${campoWorkDay()}`, data: campoWorkDay(), periodo: mese,
+      destinatario: { nome: "" }, note: null,
+      righe: [{ descrizione: "", unita: "viaggio", quantita: 1, prezzo: null, iva: null }],
+    };
+    if (!orderId) { setDoc(documento); return; }
+    const controller = new AbortController();
+    operazione.current = controller; setPreparazione(scope);
+    try {
+      const [ordine, destinatario] = await Promise.all([
+        supabase.from("orders").select("order_code, work_address").eq("id", orderId).eq("company_id", companyId).single(),
+        leggiDestinatarioRapporto(companyId, orderId),
+      ]);
+      if (ordine.error) throw new Error(ordine.error.message);
+      if (controller.signal.aborted) return;
+      setDoc({ ...documento, commessa: ordine.data.order_code, luogo: ordine.data.work_address, destinazioneTipo: "cantiere", indirizzoCantiere: ordine.data.work_address, destinatario });
+    } catch (e) {
+      if (!controller.signal.aborted) toast.error(e instanceof Error ? e.message : "Rapporto trasporti non disponibile. Riprova.");
+    } finally {
+      if (operazione.current === controller) { operazione.current = null; setPreparazione(null); }
+    }
+  };
   const avvia = (rapporto: RapportoDaPreparare) => {
     if (cantieri.length === 1) void prepara(rapporto, cantieri[0].order_id);
     else {
@@ -167,25 +194,7 @@ export function RapportiPeriodoDialog({
             </DropdownMenuItem>
             <DropdownMenuItem
               className="block"
-              onSelect={() =>
-                setDoc({
-                  tipo: "trasporti",
-                  numero: `TRASPORTI-${campoWorkDay()}`,
-                  data: campoWorkDay(),
-                  periodo: mese,
-                  destinatario: { nome: "" },
-                  note: null,
-                  righe: [
-                    {
-                      descrizione: "",
-                      unita: "viaggio",
-                      quantita: 1,
-                      prezzo: null,
-                      iva: null,
-                    },
-                  ],
-                })
-              }
+              onSelect={() => void rapportoManuale()}
             >
               <span className="block font-medium">Rapporto trasporti</span>
               <span className="block text-xs text-muted-foreground">
