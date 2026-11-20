@@ -146,6 +146,9 @@ export function leggiFatturaRicevuta(xml: string, parser: LettoreXml, indiceCorp
   let sommaRighe = 0;
   Array.from(body.getElementsByTagName("DettaglioLinee")).forEach((r, i) => {
     const prezzoTotale = numero(r, "PrezzoTotale");
+    const codici = Array.from(r.getElementsByTagName("CodiceArticolo"))
+      .map(c => ({ tipo: testo(c, "CodiceTipo"), valore: testo(c, "CodiceValore") }))
+      .filter(c => c.valore);
     sommaRighe += prezzoTotale;
     righe.push({
       numero_linea: i + 1,
@@ -155,6 +158,8 @@ export function leggiFatturaRicevuta(xml: string, parser: LettoreXml, indiceCorp
       imponibile: prezzoTotale,
       aliquota_iva: String(numero(r, "AliquotaIVA")),
       natura_iva: testo(r, "Natura") || null,
+      ...(testo(r, "UnitaMisura") ? { unita_misura: testo(r, "UnitaMisura") } : {}),
+      ...(codici.length ? { codice_articolo: codici[0].valore, codici_articolo: codici } : {}),
     });
   });
 

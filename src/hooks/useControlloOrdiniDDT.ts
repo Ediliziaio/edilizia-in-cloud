@@ -55,7 +55,7 @@ export function useControlloOrdiniDDT(ddt: DDTRicezione) {
           db
             .from("purchase_order_items")
             .select(
-              "id,purchase_order_id,description,sku,unit_of_measure,quantity,quantity_received",
+              "id,purchase_order_id,description,sku,unit_of_measure,quantity,quantity_received,destinazioni_previste",
             )
             .eq("company_id", ddt.company_id)
             .in("purchase_order_id", ids)

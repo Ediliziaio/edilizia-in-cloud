@@ -89,15 +89,21 @@ update fattura_ddt set numero_ddt='TEST-1',data_ddt='2026-11-11' where fattura_r
 update fatture_ricevute set indice_corpo=1,xml_raw=$xml$<p:FatturaElettronica xmlns:p="urn:prova">
  <FatturaElettronicaBody><DatiDDT><NumeroDDT>999</NumeroDDT><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiDDT></FatturaElettronicaBody>
  <FatturaElettronicaBody><DatiGenerali>
-  <DatiDDT><NumeroDDT>TEST-1</NumeroDDT><DataDDT>2026-11-11</DataDDT><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiDDT>
+  <DatiDDT><NumeroDDT>TEST-1</NumeroDDT><DataDDT>2026-11-11</DataDDT><RiferimentoNumeroLinea>5</RiferimentoNumeroLinea></DatiDDT>
   <DatiDDT><NumeroDDT>TEST-99</NumeroDDT><DataDDT>2026-11-11</DataDDT><RiferimentoNumeroLinea>2</RiferimentoNumeroLinea></DatiDDT>
-  <DatiOrdineAcquisto><IdDocumento>CF-0029</IdDocumento><Data>2026-11-10</Data><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea></DatiOrdineAcquisto>
- </DatiGenerali></FatturaElettronicaBody></p:FatturaElettronica>$xml$ where id='${f}';
+  <DatiOrdineAcquisto><IdDocumento>CF-0029</IdDocumento><Data>2026-11-10</Data><RiferimentoNumeroLinea>5</RiferimentoNumeroLinea></DatiOrdineAcquisto>
+ </DatiGenerali><DatiBeniServizi>
+   <DettaglioLinee><NumeroLinea>5</NumeroLinea><Descrizione>Adesivo bianco A81</Descrizione></DettaglioLinee>
+   <DettaglioLinee><NumeroLinea>2</NumeroLinea><Descrizione>Altro</Descrizione></DettaglioLinee>
+ </DatiBeniServizi></FatturaElettronicaBody></p:FatturaElettronica>$xml$,
+ righe=righe || '[{"numero_linea":2,"descrizione":"Altro","quantita":1}]'::jsonb
+ where id='${f}';
 set local role authenticated;
 do $$declare c jsonb; o uuid:='00000008-0000-4000-a000-000000000001'; begin
  c:=fattura_riconciliazione_contesto('${f}',jsonb_build_object('ddt',jsonb_build_array('${d}'),'oda',jsonb_build_array(o)))->'contesto';
  assert c->'ddt_per_riga'->'1'=jsonb_build_array('${d}'), c::text;
  assert c->'ddt_per_riga'->'2'='[]'::jsonb, c::text;
+ assert c->'ddt_per_numero_xml'->'5'=jsonb_build_array('${d}'), c::text;
  assert c->'oda_per_riga'->'1'=jsonb_build_array(o), c::text;
  c:=fattura_riconciliazione_contesto('${f}',jsonb_build_object('ddt',jsonb_build_array('${d}'),'oda','[]'::jsonb))->'contesto';
  assert c->'oda_per_riga'->'1'='[]'::jsonb, c::text;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { quantitaFornitura, totalePagamentiFornitura } from '@/lib/orders/odaContabilita';
 import { impegniAcquisti } from '@/lib/orders/impegniAcquisti';
-import { proponiPrezziFattura, righeDocumentoFattura } from '@/lib/ddt/proponiPrezziFattura';
+import { proponiPrezziFattura, righeDocumentoFattura, righePrezzoDiQuestoDdt } from '@/lib/ddt/proponiPrezziFattura';
 
 describe('Fornitura con due consegne e due fatture', () => {
   it('mostra 4 ricevuti e 6 residui, poi il completamento', () => {
@@ -62,6 +62,13 @@ describe('Proposte quantità e prezzi dalla fattura', () => {
   });
   it('codici diversi prevalgono su descrizioni uguali', () => {
     expect(proponiPrezziFattura([{ ...bolla, codice_articolo: 'A' }], righe({ codice_articolo: 'B' }))).toEqual({});
+  });
+  it('la stessa merce consegnata su due DDT usa il prezzo della riga che cita ciascuna bolla', () => {
+    const f = [...righe({ numero_linea: 5 }), ...righe({ numero_linea: 7, imponibile: 120 }), ...righe({ numero_linea: 9 })];
+    const legami = { '5': ['d1'], '7': ['d2'] };
+    expect(proponiPrezziFattura([bolla], righePrezzoDiQuestoDdt(f, 'd1', legami, true))).toEqual({ b: { q: '6', prezzo: '15' } });
+    expect(proponiPrezziFattura([bolla], righePrezzoDiQuestoDdt(f, 'd2', legami, true))).toEqual({ b: { q: '6', prezzo: '20' } });
+    expect(righePrezzoDiQuestoDdt(f, 'd3', legami, true)).toEqual([]);
   });
   it('legge il corpo XML selezionato e conserva l’unità originale', () => {
     const body = (n: number, prezzo: number) => `<FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><Numero>${n}</Numero><Data>2026-11-19</Data></DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi><DettaglioLinee><Descrizione>Lastra cartongesso</Descrizione><Quantita>6</Quantita><UnitaMisura>pz</UnitaMisura><PrezzoUnitario>${prezzo}</PrezzoUnitario><PrezzoTotale>${6 * prezzo}</PrezzoTotale></DettaglioLinee></DatiBeniServizi></FatturaElettronicaBody>`;

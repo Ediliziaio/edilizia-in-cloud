@@ -1,9 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
-import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
-import type { TablesUpdate } from "@/integrations/supabase/types";
+import type { AggiornamentoRigaOda, PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
 import { ArticleCombobox, type ArticleTemplateData } from "./ArticleCombobox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import {
 import { giornoItaliano } from "@/lib/listino/validitaListino";
 import { useInputDraft } from "@/hooks/useInputDraft";
 import { OfficeSelect } from "./OfficeSelect";
+import { DestinazioniRigaOdaDialog } from "./DestinazioniRigaOdaDialog";
 import {
   aliquotaNormalizzata,
   opzioniAliquota,
@@ -35,7 +35,7 @@ const voceMenu = (o: OpzioneRiga) => ({
     </>
   ),
 });
-type Patch = TablesUpdate<"purchase_order_items">;
+type Patch = AggiornamentoRigaOda;
 export function PurchaseOrderItemRow({
   item,
   isEditable,
@@ -46,6 +46,7 @@ export function PurchaseOrderItemRow({
   onDelete,
   vociFornitore,
   supplierId,
+  commessaPrincipaleId = null,
 }: {
   item: PurchaseOrderItem;
   isEditable: boolean;
@@ -58,9 +59,15 @@ export function PurchaseOrderItemRow({
   onDelete: () => void;
   vociFornitore?: VoceListinoFornitore[];
   supplierId?: string;
+  commessaPrincipaleId?: string | null;
 }) {
   const [desc, setDesc] = useInputDraft(item.description);
   const [qty, setQty] = useInputDraft(String(item.quantity));
+  const [destinazioniAperte, setDestinazioniAperte] = useState(false);
+  const destinazioni = item.destinazioni_previste ?? [];
+  const riepilogoDestinazioni = destinazioni.map(d =>
+    `${d.nome ?? (d.tipo === "commessa" ? "Commessa" : "Magazzino")} · ${d.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })}`,
+  ).join(" / ");
   const [um, setUm] = useInputDraft(unitaNormalizzata(item.unit_of_measure) || "pz");
   const [pendingText, setPendingText] = useInputDraft(
     item.price_pending ? "yes" : "no",
@@ -210,6 +217,13 @@ export function PurchaseOrderItemRow({
         {item.misure_testo && (
           <span className="block whitespace-pre-line px-2 pb-1 text-xs text-slate-600">{item.misure_testo}</span>
         )}
+        {riepilogoDestinazioni && (
+          <span className="block px-2 pb-1 text-xs text-muted-foreground">{riepilogoDestinazioni}</span>
+        )}
+        {destinazioniAperte && (
+          <DestinazioniRigaOdaDialog item={item} commessaId={commessaPrincipaleId}
+            onSave={onUpdate} onClose={() => setDestinazioniAperte(false)} />
+        )}
         {item.ripartito && (
           <span className="ml-2 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800" title="Prezzo ricavato da un'offerta a corpo, ripartita sui mq delle posizioni">
             Ripartito
@@ -229,6 +243,8 @@ export function PurchaseOrderItemRow({
         {isEditable ? (
           <Input
             aria-label="Quantità"
+            title={destinazioni.length ? "Modifica la quantità dalle destinazioni dell’articolo." : undefined}
+            disabled={destinazioni.length > 0}
             type="number"
             min={Math.max(0.001, item.quantity_received || 0)}
             step="any"
@@ -405,6 +421,13 @@ export function PurchaseOrderItemRow({
       {isEditable && (
         <td className="p-1">
           <div className="flex items-center justify-end gap-2">
+            {!Number(item.quantity_received) && (
+              <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0"
+                title="Destinazioni" aria-label={`Destinazioni per ${item.description}`}
+                disabled={saving} onClick={() => setDestinazioniAperte(true)}>
+                <MapPin className="h-4 w-4" />
+              </Button>
+            )}
             <label className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] font-normal text-slate-600" title="Prezzo da confermare">
               <input
                 type="checkbox"

@@ -8,6 +8,14 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
+vi.mock("@/hooks/useWarehouses", () => ({ useWarehouses: () => ({ warehouses: [] }) }));
+vi.mock("@/components/orders/CommessaCombobox", () => ({
+  CommessaCombobox: ({ ariaLabel, value, onChange }: {
+    ariaLabel: string; value: string | null; onChange: (id: string) => void;
+  }) => <select aria-label={ariaLabel} value={value ?? ""} onChange={e => onChange(e.target.value)}>
+    <option value="">Scegli</option><option value="a">Cantiere A</option><option value="b">Cantiere B</option>
+  </select>,
+}));
 vi.mock("@/components/orders/ArticleCombobox", () => ({
   ArticleCombobox: ({
     onValueChange,
@@ -53,6 +61,24 @@ const apri = (row = item) => {
 };
 afterEach(cleanup);
 describe("Inserimento articoli dell’ordine", () => {
+  it("ripartisce la stessa riga tra due commesse senza cambiare il totale dell'ordine", async () => {
+    const salva = apri({ ...item, quantity: 100 });
+    fireEvent.click(screen.getByRole("button", { name: "Destinazioni per Materiale" }));
+    fireEvent.change(screen.getByLabelText("Commessa 1"), { target: { value: "a" } });
+    fireEvent.change(screen.getByLabelText("Quantità destinazione 1"), { target: { value: "60" } });
+    expect(screen.getByRole("button", { name: "Salva destinazioni" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi destinazione" }));
+    fireEvent.change(screen.getByLabelText("Commessa 2"), { target: { value: "b" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva destinazioni" }));
+    await waitFor(() => expect(salva).toHaveBeenCalledWith({
+      quantity: 100,
+      destinazioni_previste: [
+        { tipo: "commessa", id: "a", quantita: 60 },
+        { tipo: "commessa", id: "b", quantita: 40 },
+      ],
+    }));
+  });
+
   it("un articolo nuovo non conserva il prezzo di quello sostituito", async () => {
     const salva = apri();
     fireEvent.click(

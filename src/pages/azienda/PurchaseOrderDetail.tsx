@@ -597,6 +597,7 @@ function ContenutoPurchaseOrderDetail() {
                           key={`${item.id}:${item.quantity_received}`}
                           vociFornitore={vociFornitore}
                           supplierId={order.supplier_id}
+                          commessaPrincipaleId={order.order_id}
                           item={item}
                           isEditable={isEditable}
                           inversioneContabile={!!documentoInvio.inversioneContabile}

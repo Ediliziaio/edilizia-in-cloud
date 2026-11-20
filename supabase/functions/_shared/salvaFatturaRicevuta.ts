@@ -56,6 +56,18 @@ export interface EsitoSalvataggio {
 // deno-lint-ignore no-explicit-any
 type Client = any;
 
+async function verificaNuovaFattura(supabase: Client, companyId: string, id: string) {
+  const rivalutaBanca = async () => {
+    try {
+      const { error } = await supabase.rpc("tesoreria_rivaluta_fattura_ricevuta", { p_fattura: id });
+      if (error) throw error;
+    } catch (error) {
+      console.warn("[riferimenti banca] rivalutazione da riprovare", id, error);
+    }
+  };
+  await Promise.all([verificaRiferimentiRicevuta(supabase, companyId, id), rivalutaBanca()]);
+}
+
 async function cercaDoppione(supabase: Client, f: FatturaDaSalvare, idSdi: string | null) {
   if (f.openapiId) {
     const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note, data_ricezione_sdi")
@@ -112,7 +124,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       sdi_progressivo: l.sdi_progressivo || null, xml_raw: f.xml || null, note: null,
     }).eq("id", doppione.id);
     if (!erroreCompleta) {
-      if (f.xml.includes("FatturaElettronicaBody")) await verificaRiferimentiRicevuta(supabase, f.companyId, doppione.id);
+      if (f.xml.includes("FatturaElettronicaBody")) await verificaNuovaFattura(supabase, f.companyId, doppione.id);
       return { id: doppione.id, doppione: true, completata: true, percorso };
     }
     console.warn(`[salvaFatturaRicevuta] correzione ${doppione.id}: ${erroreCompleta.message}`);
@@ -146,7 +158,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       const { error: erroreAggiornamento } = await supabase.from("fatture_ricevute").update(campi).eq("id", doppione.id);
       if (!erroreAggiornamento) {
         if (!doppione.xml_raw && f.xml.includes("FatturaElettronicaBody")) {
-          await verificaRiferimentiRicevuta(supabase, f.companyId, doppione.id);
+          await verificaNuovaFattura(supabase, f.companyId, doppione.id);
         }
         return { id: doppione.id, doppione: true, completata: true, percorso };
       }
@@ -207,7 +219,7 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
     return { id: null, doppione: false, errore: error.message, percorso };
   }
   if (inserita?.id && f.xml.includes("FatturaElettronicaBody")) {
-    await verificaRiferimentiRicevuta(supabase, f.companyId, inserita.id);
+    await verificaNuovaFattura(supabase, f.companyId, inserita.id);
   }
   return { id: inserita?.id ?? null, doppione: false, percorso };
 }
