@@ -12,12 +12,13 @@ import { HeroAurora } from "@/components/admin/HeroAurora";
 
 interface BrandPageHeaderProps {
   icon: LucideIcon;
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
   className?: string;
+  compact?: boolean;
 }
 
 export function BrandPageHeader({
@@ -28,19 +29,20 @@ export function BrandPageHeader({
   actions,
   children,
   className,
+  compact,
 }: BrandPageHeaderProps) {
   return (
     <section className={"overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-slate-800 " + (className ?? "")}>
-      <div className="relative overflow-hidden bg-eic-navy-deep p-5 text-white sm:p-6">
+      <div className={`relative overflow-hidden bg-eic-navy-deep text-white ${compact ? "p-4" : "p-5 sm:p-6"}`}>
         <HeroAurora />
-        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className={`relative z-10 flex gap-4 ${compact ? "flex-wrap items-center justify-between" : "flex-col lg:flex-row lg:items-start lg:justify-between"}`}>
           <div className="flex min-w-0 gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">{eyebrow}</p>
-              <h1 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">{title}</h1>
+              {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">{eyebrow}</p>}
+              <h1 className={`text-xl font-semibold leading-tight sm:text-2xl ${eyebrow ? "mt-1" : ""}`}>{title}</h1>
               {subtitle && <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/80">{subtitle}</p>}
             </div>
           </div>
