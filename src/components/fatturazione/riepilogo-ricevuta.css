@@ -1,0 +1,32 @@
+[role="dialog"].dialog-readable.ricevuta-riepilogo { width: min(1100px, calc(100vw - 48px)); }
+.ricevuta-riepilogo .ricevuta-testata { flex: 0 0 auto; border-bottom: 1px solid hsl(var(--border)); padding-bottom: 12px; }
+.ricevuta-testata-riga { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-right: 18px; }
+.ricevuta-identita { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 18px; min-width: 0; }
+.ricevuta-riepilogo .ricevuta-fornitore { min-width: 0; max-width: 22rem; overflow-wrap: anywhere; }
+.ricevuta-anagrafica { min-width: 0; font-size: 12px; line-height: 1.4; }
+.ricevuta-azioni { display: flex; flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.ricevuta-riepilogo .ricevuta-azioni button { height: auto; min-height: 30px; padding: 5px 8px; gap: 4px; font-size: 12px; white-space: nowrap; text-align: left; }
+.ricevuta-azioni button svg { width: 14px; height: 14px; margin: 0; }
+.ricevuta-overview { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ricevuta-overview > *, .ricevuta-overview dd { min-width: 0; overflow-wrap: anywhere; }
+.ricevuta-pagamenti .commessa-payment-summary > div { padding: 10px; }
+.ricevuta-riepilogo .commessa-modal-body { padding-top: 4px; }
+@media (max-width: 899px) {
+  .ricevuta-overview { grid-template-columns: minmax(0, 1fr); }
+  .ricevuta-testata-riga { flex-wrap: wrap; }
+  .ricevuta-azioni { margin-left: auto; }
+}
+@media (max-width: 639px) {
+  [role="dialog"].dialog-readable.ricevuta-riepilogo { width: 100%; max-width: 100%; }
+  .ricevuta-testata-riga { padding-right: 0; }
+  .ricevuta-riepilogo .ricevuta-fornitore { padding-right: 24px; }
+  .ricevuta-azioni { gap: 4px; }
+  .ricevuta-riepilogo .ricevuta-azioni button { min-height: 36px; font-size: 12px; line-height: 1.3; }
+  .ricevuta-overview { gap: 12px; }
+  .ricevuta-quote { width: 100%; }
+  .ricevuta-quote tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 4px; margin-bottom: 8px; }
+  .ricevuta-quote td:first-child { grid-column: 1 / -1; padding-right: 0; }
+  .ricevuta-quote td:nth-child(2) { padding-right: 0; text-align: left; }
+  .ricevuta-riepilogo .commessa-payment-summary { gap: 4px; }
+  .ricevuta-riepilogo .commessa-payment-summary > div { padding: 8px; }
+}

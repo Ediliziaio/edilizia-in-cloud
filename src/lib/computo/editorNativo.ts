@@ -7,7 +7,7 @@ import { revisioneSchema } from "./revisioniSchema";
 import type { VoceComputo } from "./alberoComputo";
 
 const testo = z.string().max(30000);
-const misuraSchema = z.object({
+export const misuraSchema = z.object({
   id: z.string(), descrizione: testo, parti: testo, lunghezza: testo, larghezza: testo,
   altezza: testo, formula: testo,
 });
@@ -44,6 +44,7 @@ export const bozzaComputoSchema = z.object({
   // `clienteAnagraficaId` (14/11/2026): il cliente o committente dell'anagrafica (profiles), quando la scelta
   // non è un contatto del CRM. Sta nella bozza: riaprendo il computo il collegamento c'è ancora.
   clienteAnagraficaId: z.string().max(80).default(""),
+  opportunitaId: z.string().max(80).default(""),
   clienteId: z.string().max(80).default(""), clienteEmail: z.string().max(200).default(""), clienteTelefono: z.string().max(60).default(""),
   // Privato o azienda (30/10/2026): un privato ha il codice fiscale, un'azienda partita IVA, PEC e codice destinatario.
   clienteTipo: z.enum(["privato", "azienda", "pa"]).default("privato"),
@@ -84,7 +85,8 @@ export const bozzaComputoSchema = z.object({
     /** Tetto della DETRAZIONE scritto a mano (es. ecobonus serramenti 60.000 €); vuoto = quello del tipo. */
     tetto: z.string().max(20).default(""),
   }).prefault({}),
-  condizioniContrattuali: z.string().max(20000).default(""),
+  condizioniContrattuali: z.string().max(100000).default(""),
+  contrattoOrigine: z.object({ id: z.string(), nome: z.string(), versione: z.number() }).nullable().default(null),
   /** La foto o il render del passo Progetto che apre la copertina (id dell'allegato), vuoto = nessuna. */
   fotoCopertina: z.string().max(80).default(""),
   /** Le revisioni salvate, per confrontare cosa è cambiato (le più recenti in fondo). */
@@ -108,7 +110,7 @@ export type BozzaComputo = z.infer<typeof bozzaComputoSchema>;
 export type VoceEditor = BozzaComputo["voci"][number];
 export type MisuraEditor = VoceEditor["misure"][number];
 export type AllegatoComputo = z.infer<typeof allegatoSchema>;
-export const bozzaVuota = (): BozzaComputo => bozzaComputoSchema.parse({ versione: 1, titolo: "Nuovo computo metrico", committente: "", oggetto: "", mostraMisurePdf: false, mostraCodiciPdf: false, mostraFontiPdf: false, voci: [] });
+export const bozzaVuota = (): BozzaComputo => bozzaComputoSchema.parse({ versione: 1, titolo: "Nuovo preventivo / computo metrico", committente: "", oggetto: "", mostraMisurePdf: false, mostraCodiciPdf: false, mostraFontiPdf: false, voci: [] });
 export const misuraVuota = (): MisuraEditor => ({ id: crypto.randomUUID(), descrizione: "", parti: "", lunghezza: "", larghezza: "", altezza: "", formula: "" });
 export const voceVuota = (): VoceEditor => voceSchema.parse({
   id: crypto.randomUUID(), capitolo: "Opere edili", categoria: "", sottocategoria: "", tariffa: "", descrizione: "",
@@ -197,7 +199,7 @@ function voceDocumento(v: VoceEditor, i: number, senzaPrezzi: boolean, parziale:
     const somma = c.misure.reduce<number>((s, n) => s + n!, 0);
     const segno = v.detrazione && somma > 0 ? -1 : 1;
     return {
-      id: v.id, ordine: i + 1, numero_ordine: String(i + 1), codice_voce: null,
+      id: v.id, ordine: i + 1, numero_ordine: (v.numero ?? "").trim() || String(i + 1), codice_voce: null,
       codice_tariffa: v.tariffa.trim() || null, codice_prezzario: null,
       descrizione_breve: v.descrizione.trim() || "Lavorazione da completare", descrizione_estesa: v.descrizione.trim() || "Lavorazione da completare",
       unita_misura: v.unita.trim(), quantita: c.quantita, prezzo_unitario_computo: c.prezzo !== null && c.prezzo >= 0 ? c.prezzo : null, importo_computo: c.errori.length ? null : c.importo,

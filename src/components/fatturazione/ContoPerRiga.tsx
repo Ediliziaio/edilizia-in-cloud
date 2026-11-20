@@ -11,7 +11,7 @@
  * ricorda «conto:<id>» e la scrittura va su quel conto (migrazione 20290219100000). Per le altre
  * aziende restano le categorie.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
@@ -29,6 +29,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { CATEGORIE_DI_BASE, contoPropostoRiga, etichettaCategoria, proposteDalPiano, type FatturaStorica } from "@/lib/fatturazione/contoPerRiga";
 
 const DELLA_FATTURA = "__fattura";
+const uguali = (a: Record<string, string>, b: Record<string, string>) =>
+  Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([k, v]) => b[k] === v);
 
 export interface RigaPerConto { chiave: string; descrizione: string }
 
@@ -49,6 +51,10 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
 }) {
   const qc = useQueryClient();
   const [salvando, setSalvando] = useState(false);
+  const invio = useRef(false);
+  const [bozza, setBozza] = useState<{ id: string; base: Record<string, string>; valori: Record<string, string>; salvata: boolean } | null>(null);
+  const corrente = bozza?.id === fatturaId && (!bozza.salvata || uguali(salvati, bozza.base)) ? bozza : null;
+  const scelti = corrente?.valori ?? salvati;
   const { data: proprie = [] } = useQuery({
     queryKey: queryKeys.costCategories.list(companyId),
     enabled: !!companyId,
@@ -66,11 +72,12 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<ContoDiCosto[]> => {
       const { data: azienda, error: e1 } = await supabase.from("companies").select("contabilita_generale_attiva").eq("id", companyId).maybeSingle();
-      if (e1 || !azienda?.contabilita_generale_attiva) return [];
+      if (e1) throw e1;
+      if (!azienda?.contabilita_generale_attiva) return [];
       const { data, error } = await supabase.from("contabilita_conti")
         .select("id, codice, descrizione, movimentabile, mastro_id, voce_cee")
         .eq("company_id", companyId).eq("natura", "costo").eq("attivo", true).order("codice");
-      if (error) return [];
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -95,6 +102,8 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
           .order("data_fattura", { ascending: false }).limit(40),
         supabase.from("fatture_ricevute").select("xml_raw").eq("id", fatturaId).eq("company_id", companyId).maybeSingle(),
       ]);
+      if (passate.error) throw passate.error;
+      if (questa.error) throw questa.error;
       const fatture: FatturaStorica[] = (passate.data ?? []).map((f) => {
         const conti = (f.conti_righe ?? {}) as Record<string, string>;
         const righeF = Array.isArray(f.righe) ? (f.righe as Array<{ numero_linea?: unknown; descrizione?: unknown }>) : [];
@@ -116,37 +125,32 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
     const dalPiano = contiDelPiano.length > 0
       ? proposteDalPiano({ righe, riferimenti: storico.riferimenti, conti: contiDelPiano, storico: storico.fatture }) : {};
     for (const r of righe) {
-      if (salvati[r.chiave]) continue;
+      if (scelti[r.chiave]) continue;
       const p = dalPiano[r.chiave] ?? contoPropostoRiga(r.descrizione, categorie);
       if (p) m[r.chiave] = p;
     }
     return m;
-  }, [righe, salvati, categorie, contiDelPiano, storico]);
+  }, [righe, scelti, categorie, contiDelPiano, storico]);
 
-  const salva = async (nuovi: Record<string, string>, messaggio: string) => {
+  const salva = async () => {
+    if (!corrente || corrente.salvata || invio.current || uguali(corrente.valori, corrente.base)) return;
+    invio.current = true;
     setSalvando(true);
     try {
-      const { error } = await supabase.from("fatture_ricevute").update({ conti_righe: nuovi }).eq("id", fatturaId).eq("company_id", companyId);
+      // Conti e scrittura contabile cambiano nella stessa transazione. Un conflitto
+      // o un errore del giornale lascia entrambi come prima e conserva la bozza.
+      const { error } = await supabase.rpc("contabilita_salva_conti_fattura" as never, {
+        p_fattura: fatturaId, p_conti: corrente.valori, p_precedenti: corrente.base,
+      } as never);
       if (error) throw error;
-      // La contabilità generale segue; niente da fare se la fattura non c'è ancora.
-      const { error: errGiornale } = await supabase.rpc("contabilita_riregistra_documento", {
-        p_company: companyId, p_documento: fatturaId, p_motivo: "Conto di costo per riga cambiato",
-      });
-      toast.success(messaggio);
-      // La fattura ha il conto nuovo; se il giornale non lo segue, deve dirlo (prima l'«Accesso negato» spariva).
-      if (errGiornale) {
-        toast.warning("Conto salvato · contabilità generale da aggiornare", {
-          description: /Accesso negato/.test(errGiornale.message)
-            ? "Il conto è salvato sulla fattura. Se usate la contabilità generale, la sua scrittura la rifà chi ne ha il permesso: avvisalo."
-            : errGiornale.message,
-          duration: 12000,
-        });
-      }
+      setBozza({ ...corrente, salvata: true });
+      toast.success("Conti della fattura salvati");
       onCambiato();
       void qc.invalidateQueries({ queryKey: ["contabilita-generale", companyId] });
     } catch (e) {
       toast.error("Conto della riga non salvato", { description: e instanceof Error ? e.message : String(e) });
     } finally {
+      invio.current = false;
       setSalvando(false);
     }
   };
@@ -160,25 +164,31 @@ export function useContiRighe({ companyId, fatturaId, salvati, righe, onCambiato
   };
 
   const cambia = (chiave: string, valore: string | null): void => {
-    const nuovi = { ...salvati };
-    if (valore) nuovi[chiave] = valore; else delete nuovi[chiave];
-    void salva(nuovi, "Conto della riga salvato");
+    setBozza((prima) => {
+      const attuale = prima?.id === fatturaId && (!prima.salvata || uguali(salvati, prima.base)) ? prima : null;
+      const nuovi = { ...(attuale?.valori ?? salvati) };
+      if (valore) nuovi[chiave] = valore; else delete nuovi[chiave];
+      return { id: fatturaId, base: attuale && !attuale.salvata ? attuale.base : { ...(attuale?.valori ?? salvati) }, valori: nuovi, salvata: false };
+    });
   };
 
   return {
     categorie,
     salvando,
+    modificati: !!corrente && !corrente.salvata && !uguali(corrente.valori, corrente.base),
+    salva: (): void => { void salva(); },
+    annulla: (): void => { setBozza(null); },
     /** «piano»: si scelgono i conti di costo del piano dei conti; «categorie»: le categorie di costo. */
     modo: contiDelPiano.length > 0 ? ("piano" as const) : ("categorie" as const),
     contiDelPiano,
     mastriDelPiano,
     etichetta,
     /** Il conto da mostrare: quello scelto, altrimenti la proposta. */
-    valore: (chiave: string): string | null => salvati[chiave] ?? proposte[chiave] ?? null,
-    proposto: (chiave: string): boolean => !salvati[chiave] && !!proposte[chiave],
+    valore: (chiave: string): string | null => scelti[chiave] ?? proposte[chiave] ?? null,
+    proposto: (chiave: string): boolean => !scelti[chiave] && !!proposte[chiave],
     quanteProposte: Object.keys(proposte).length,
     cambia,
-    confermaProposte: (): void => void salva({ ...proposte, ...salvati }, "Conti proposti confermati"),
+    confermaProposte: (): void => setBozza({ id: fatturaId, base: corrente && !corrente.salvata ? corrente.base : { ...scelti }, valori: { ...proposte, ...scelti }, salvata: false }),
     /** Crea un conto di costo nel piano (sotto un mastro di costo) e lo mette sulla riga. */
     creaConto: async (chiave: string, nuovo: { codice: string; descrizione: string; mastroId: string }): Promise<boolean> => {
       const mastro = perId.get(nuovo.mastroId);
@@ -324,11 +334,14 @@ function NuovoContoDiCosto({ conti, onChiudi, onCrea }: {
 
 /** Sopra le righe: quante hanno un conto proposto, e il pulsante per confermarle tutte. */
 export function ProposteContiRighe({ conti }: { conti: ContiRighe }) {
-  if (conti.quanteProposte === 0) return null;
+  if (conti.quanteProposte === 0 && !conti.modificati) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-1.5 text-xs text-muted-foreground">
-      <span>{conti.quanteProposte} {conti.quanteProposte === 1 ? "riga ha" : "righe hanno"} un conto proposto (in corsivo): dal contratto, dalle fatture passate del fornitore o dalla descrizione.</span>
-      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={conti.salvando} onClick={conti.confermaProposte}>Conferma le proposte</Button>
+      <span aria-live="polite">{conti.modificati ? "Conti modificati: salva insieme tutte le righe della fattura." : `${conti.quanteProposte} righe hanno un conto proposto, da confermare.`}</span>
+      <div className="flex flex-wrap gap-2">
+        {conti.quanteProposte > 0 && <Button size="sm" variant="outline" disabled={conti.salvando} onClick={conti.confermaProposte}>Usa le proposte</Button>}
+        {conti.modificati && <><Button size="sm" variant="outline" disabled={conti.salvando} onClick={conti.annulla}>Annulla modifiche ai conti</Button><Button size="sm" disabled={conti.salvando} onClick={conti.salva}>{conti.salvando ? "Salvataggio…" : "Salva conti della fattura"}</Button></>}
+      </div>
     </div>
   );
 }

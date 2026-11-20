@@ -6,6 +6,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import { QuotePdfLivePreview } from '@/components/quotes/QuotePdfLivePreview';
+import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
+import { DocumentEditorWorkspace } from "@/components/shared/DocumentEditorWorkspace";
 import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
 import { PAGINA_CONDIZIONI } from '@/lib/condizioni/indirizzi';
 import { fontiCondizioni } from '@/lib/preventivi/fontiCondizioni';
@@ -582,6 +584,11 @@ function RigaInterruttoreModello({
 }
 
 export default function SettingsQuoteTemplates() {
+  return <QuoteTemplatesLegacy unificato />;
+}
+
+/** La libreria resta leggibile dalle versioni precedenti; il percorso pubblico usa un solo builder. */
+export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolean }) {
   const isMobile = useIsMobile();
   const { role, effectiveCompany } = useAuth();
   const permissions = usePermissions();
@@ -601,17 +608,25 @@ export default function SettingsQuoteTemplates() {
   // Se ?modulo non è specificato → undefined → landing con grid card.
   // Solo se l'URL contiene un modulo esplicito apre l'editor di quel modulo.
   const moduloFromUrl = searchParams.get("modulo") ?? undefined;
-  const topTab = resolveQuoteTemplatesTopTab(tabFromUrl, moduloFromUrl);
+  const tabRisolta = resolveQuoteTemplatesTopTab(tabFromUrl, moduloFromUrl);
+  const topTab = unificato && tabRisolta === "documenti" ? "computo" : tabRisolta;
 
   useEffect(() => {
-    const normalized = normalizeQuoteTemplatesParams(searchParams);
+    const normalized = unificato && tabRisolta === "documenti"
+      ? buildQuoteTemplatesTabParams(searchParams, "computo")
+      : normalizeQuoteTemplatesParams(searchParams);
     if (normalized) {
       setSearchParams(normalized, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, unificato, tabRisolta]);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
+  const [formIniziale, setFormIniziale] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
+  const caricaForm = useCallback((modello: Partial<QuoteTemplate>) => {
+    setForm(modello);
+    setFormIniziale(modello);
+  }, []);
   // Il testo che questa offerta stampa oggi, blocchi collegati compresi (07/11/2026): è quello che si
   // porta nell'archivio «Contratti e condizioni» con un clic, invece di riscriverlo.
   const aziendaDelModello = effectiveCompany?.id ?? null;
@@ -623,6 +638,11 @@ export default function SettingsQuoteTemplates() {
   }, [aziendaDelModello, templates, form]);
   const [editId, setEditId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [timbroUploading, setTimbroUploading] = useState(false);
+  const [productImageUploading, setProductImageUploading] = useState(false);
+  const uploadInCorso = uploading || coverUploading || timbroUploading || productImageUploading;
+  const salvaInCorso = useRef(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [previewPage, setPreviewPage] = useState<'cover' | 'detail'>('cover');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -635,6 +655,7 @@ export default function SettingsQuoteTemplates() {
   const [showAdvancedLibrary, setShowAdvancedLibrary] = useState(false);
   // Kind correntemente in editing (deriva da form.kind, default offerta)
   const formKind: QuoteTemplateKind = (form.kind as QuoteTemplateKind | undefined) ?? 'offerta';
+  const anteprimaPdf = formKind === 'offerta' || formKind === 'condizioni' || formKind === 'legali';
 
   // Conteggio template per ogni kind (per badge nelle tab)
   const countsByKind = useMemo(() => {
@@ -679,6 +700,7 @@ export default function SettingsQuoteTemplates() {
   );
 
   const updateForm = useCallback((patch: Partial<QuoteTemplate>) => {
+    if (salvaInCorso.current) return;
     setForm(prev => ({ ...prev, ...patch }));
     setIsDirty(true);
   }, []);
@@ -689,13 +711,14 @@ export default function SettingsQuoteTemplates() {
   const { evidenziato, vai: vaiAlRiquadro } = useVaiAlRiquadro();
 
   const confirmDiscardChanges = useCallback(() => {
+    if (upsertTemplate.isPending || uploadInCorso) return false;
     if (!editing || !isDirty) return true;
     return window.confirm("Hai modifiche non salvate. Vuoi uscire senza salvarle?");
-  }, [editing, isDirty]);
+  }, [editing, isDirty, upsertTemplate.isPending, uploadInCorso]);
 
   const logoSrcFor = useCallback((tmpl: Partial<QuoteTemplate>) => (
-    tmpl.logo_url ? getLogoPublicUrl(tmpl.logo_url) : undefined
-  ), []);
+    getLogoPublicUrl(tmpl.logo_url || effectiveCompany?.logo_url)
+  ), [effectiveCompany?.logo_url]);
 
   const designChecks = useMemo(() => [
     {
@@ -704,7 +727,7 @@ export default function SettingsQuoteTemplates() {
     },
     {
       label: "Logo o scelta esplicita",
-      ok: form.show_logo === false || !!form.logo_url,
+      ok: form.show_logo === false || !!logoSrcFor(form),
     },
     {
       label: "Condizioni complete",
@@ -718,7 +741,7 @@ export default function SettingsQuoteTemplates() {
       label: "Footer cliente",
       ok: !!form.footer_text?.trim() || !!form.bank_details?.trim(),
     },
-  ], [form]);
+  ], [form, logoSrcFor]);
 
   const designScore = Math.round((designChecks.filter((c) => c.ok).length / designChecks.length) * 100);
 
@@ -735,7 +758,7 @@ export default function SettingsQuoteTemplates() {
     setShowAdvancedCreateTypes(false);
     setActiveKind('offerta');
     setEditId(null);
-    setForm({
+    caricaForm({
       ...blankTemplateForKind('offerta'),
       ...blueprint.patch,
       name: blueprint.name,
@@ -747,14 +770,14 @@ export default function SettingsQuoteTemplates() {
     });
     setIsDirty(true);
     setEditing(true);
-  }, [confirmDiscardChanges]);
+  }, [caricaForm, confirmDiscardChanges]);
 
   const openNewTemplate = useCallback((kind: QuoteTemplateKind) => {
     setEditId(null);
-    setForm({ ...blankTemplateForKind(kind), name: nomeNuovoBlocco(kind) });
+    caricaForm({ ...blankTemplateForKind(kind), name: nomeNuovoBlocco(kind) });
     setIsDirty(false);
     setEditing(true);
-  }, []);
+  }, [caricaForm]);
 
   const handleNew = (kind: QuoteTemplateKind = activeKind) => {
     if (!confirmDiscardChanges()) return;
@@ -764,7 +787,7 @@ export default function SettingsQuoteTemplates() {
   const handleEdit = (tmpl: QuoteTemplate) => {
     if (!confirmDiscardChanges()) return;
     setEditId(tmpl.id);
-    setForm({ ...tmpl });
+    caricaForm({ ...tmpl });
     setIsDirty(false);
     setEditing(true);
   };
@@ -773,7 +796,7 @@ export default function SettingsQuoteTemplates() {
     if (!confirmDiscardChanges()) return;
     const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...rest } = tmpl;
     setEditId(null);
-    setForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
+    caricaForm({ ...rest, name: `${tmpl.name} (copia)`, is_default: false });
     setIsDirty(true);
     setEditing(true);
   };
@@ -793,7 +816,7 @@ export default function SettingsQuoteTemplates() {
    *   Dopo il primo insert, editId viene aggiornato così i salvataggi successivi sono UPDATE.
    */
   const handleSave = async (asDefault = false): Promise<boolean> => {
-    if (!puoModificare) return false; // sola lettura: nessun pulsante arriva qui, ma il database direbbe di no
+    if (!puoModificare || upsertTemplate.isPending || uploadInCorso || salvaInCorso.current) return false;
     const templateName = form.name?.trim();
     if (!templateName) {
       toast.error("Scrivi il nome del modello");
@@ -805,6 +828,7 @@ export default function SettingsQuoteTemplates() {
     if (editId) payload.id = editId;
     if (!editId) delete payload.id;
 
+    salvaInCorso.current = true;
     try {
       const result = await upsertTemplate.mutateAsync(payload);
       if (asDefault) {
@@ -815,18 +839,18 @@ export default function SettingsQuoteTemplates() {
       } else {
         // Salva bozza: resta in editor. Se era un nuovo modello, ora abbiamo un id.
         toast.success(editId ? "Bozza salvata" : "Bozza creata");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newId = (result as any)?.id ?? (result as any)?.[0]?.id ?? null;
-        if (!editId && newId) {
-          setEditId(newId);
-          setForm((prev) => ({ ...prev, id: newId }));
-        }
+        const id = editId ?? result?.id;
+        if (id) setEditId(id);
+        const valoriSalvati = { ...form, id: id ?? undefined, name: templateName };
+        caricaForm(valoriSalvati);
         setIsDirty(false);
       }
       return true;
     } catch (err: unknown) {
       toast.error("Modello non salvato", { description: erroreInItaliano(err, "Non sono riuscito a salvarlo. Riprova tra poco.") });
       return false;
+    } finally {
+      salvaInCorso.current = false;
     }
   };
 
@@ -867,7 +891,6 @@ export default function SettingsQuoteTemplates() {
     }
   };
 
-  const [coverUploading, setCoverUploading] = useState(false);
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !effectiveCompany?.id) return;
@@ -901,7 +924,6 @@ export default function SettingsQuoteTemplates() {
   // Timbro e firma dell'impresa (25/09/2026): si carica una volta nel modello e il
   // PDF lo stampa nel riquadro «Per l'impresa» di ogni preventivo. Nel contenitore
   // riservato dei modelli, nella cartella dell'azienda: la firma non è pubblica.
-  const [timbroUploading, setTimbroUploading] = useState(false);
   const handleTimbroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !effectiveCompany?.id) return;
@@ -938,7 +960,6 @@ export default function SettingsQuoteTemplates() {
   const productImageInputRef = useRef<HTMLInputElement>(null);
 
   // Upload immagine prodotto (riusa bucket quote-template-assets)
-  const [productImageUploading, setProductImageUploading] = useState(false);
   const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !effectiveCompany?.id) return;
@@ -990,13 +1011,13 @@ export default function SettingsQuoteTemplates() {
       className="space-y-4"
     >
       <TabsList className="h-auto max-w-full flex-wrap bg-slate-100">
-        <TabsTrigger value="documenti" className="gap-1.5">
+        {!unificato && <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
-          Preventivo generico
-        </TabsTrigger>
+          Libreria modelli
+        </TabsTrigger>}
         <TabsTrigger value="computo" className="gap-1.5">
           <FileSpreadsheet className="h-3.5 w-3.5" />
-          Computo metrico
+          {unificato ? "Preventivo / computo metrico" : "Builder preventivo"}
         </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
           <ShoppingBag className="h-3.5 w-3.5" />
@@ -1204,6 +1225,7 @@ export default function SettingsQuoteTemplates() {
                 variant="ghost"
                 size="sm"
                 onClick={handleCancel}
+                disabled={upsertTemplate.isPending || uploadInCorso}
                 className="gap-1.5 shrink-0"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -1233,12 +1255,21 @@ export default function SettingsQuoteTemplates() {
             </div>
             {/* Da telefono i due salvataggi stanno uno sopra l'altro: «Salva e usa per i nuovi preventivi» non entra in mezza riga e usciva tagliato. */}
             <div className="flex flex-wrap items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
+              {puoModificare && (
+                <DiscardDocumentDraft
+                  disabled={!isDirty || upsertTemplate.isPending || uploadInCorso}
+                  onDiscard={() => {
+                    setForm(formIniziale);
+                    setIsDirty(false);
+                  }}
+                />
+              )}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => handleSave(false)}
-                disabled={!puoModificare || upsertTemplate.isPending}
+                disabled={!puoModificare || upsertTemplate.isPending || uploadInCorso}
                 aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
                 title="Salva senza chiudere"
               >
@@ -1251,7 +1282,7 @@ export default function SettingsQuoteTemplates() {
                   variant="default"
                   size="sm"
                   onClick={() => handleSave(true)}
-                  disabled={!puoModificare || upsertTemplate.isPending}
+                  disabled={!puoModificare || upsertTemplate.isPending || uploadInCorso}
                   aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
                   className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
                 >
@@ -1262,9 +1293,11 @@ export default function SettingsQuoteTemplates() {
             </div>
           </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left: form. Da telefono scorre con la pagina; da computer ha la sua altezza e l'anteprima gli sta accanto. */}
-          <div className="min-w-0 space-y-6 lg:col-span-3 lg:max-h-[calc(100vh-200px)] lg:overflow-auto lg:pr-2">
+        <DocumentEditorWorkspace
+          affiancaDa="lg"
+          colonne="lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
+          previewClassName="lg:sticky lg:top-4"
+          editor={<div className="min-w-0 space-y-6 lg:max-h-[calc(100vh-200px)] lg:overflow-auto lg:pr-2">
             {/* Indice dei riquadri: resta in vista mentre si scorre (solo il preventivo ha 14 riquadri). */}
             {formKind === 'offerta' && (
               <div className="z-10 bg-background/95 py-1.5 backdrop-blur lg:sticky lg:top-0">
@@ -1272,7 +1305,8 @@ export default function SettingsQuoteTemplates() {
               </div>
             )}
             {/* disabled su un fieldset spegne ogni campo e pulsante che contiene: chi può solo consultare vede tutto e non cambia niente. */}
-            <fieldset disabled={!puoModificare} className="m-0 min-w-0 space-y-6 border-0 p-0">
+            <fieldset disabled={!puoModificare || upsertTemplate.isPending} inert={upsertTemplate.isPending}
+              className="m-0 min-w-0 space-y-6 border-0 p-0">
             {formKind === 'offerta' && (
             <Card className="border-primary/15 bg-gradient-to-br from-primary/5 via-background to-orange-50/50">
               <CardHeader className="pb-3">
@@ -1547,7 +1581,7 @@ export default function SettingsQuoteTemplates() {
                   checked={form.show_logo ?? true}
                   onCheckedChange={v => updateForm({ show_logo: v })}
                 />
-                {form.show_logo && (
+                {form.show_logo !== false && (
                   <>
                     <div role="group" aria-labelledby="modello-logo-carica">
                       <p id="modello-logo-carica" className="text-sm text-muted-foreground mb-2">Carica logo specifico (PNG/JPG, max 2MB)</p>
@@ -1576,21 +1610,21 @@ export default function SettingsQuoteTemplates() {
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div role="group" aria-labelledby="modello-logo-posizione">
-                        <p id="modello-logo-posizione" className="text-sm font-medium">Posizione</p>
+                        <p id="modello-logo-posizione" className="text-sm font-medium">Posizione del logo</p>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {(['left', 'center', 'right'] as LogoPosition[]).map(pos => (
-                            <Button key={pos} type="button" variant={form.logo_position === pos ? 'default' : 'outline'} aria-pressed={form.logo_position === pos} size="sm" onClick={() => updateForm({ logo_position: pos })}>
+                            <Button key={pos} type="button" variant={(form.logo_position ?? 'left') === pos ? 'default' : 'outline'} aria-pressed={(form.logo_position ?? 'left') === pos} size="sm" onClick={() => updateForm({ logo_position: pos })}>
                               {pos === 'left' ? 'Sinistra' : pos === 'center' ? 'Centro' : 'Destra'}
                             </Button>
                           ))}
                         </div>
                       </div>
                       <div role="group" aria-labelledby="modello-logo-dimensione">
-                        <p id="modello-logo-dimensione" className="text-sm font-medium">Dimensione</p>
+                        <p id="modello-logo-dimensione" className="text-sm font-medium">Dimensione del logo</p>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {(['small', 'medium', 'large'] as LogoSize[]).map(sz => (
-                            <Button key={sz} type="button" variant={form.logo_size === sz ? 'default' : 'outline'} aria-pressed={form.logo_size === sz} size="sm" onClick={() => updateForm({ logo_size: sz })}>
-                              {sz === 'small' ? 'Piccola' : sz === 'medium' ? 'Media' : 'Grande'}
+                            <Button key={sz} type="button" variant={(form.logo_size ?? 'medium') === sz ? 'default' : 'outline'} aria-pressed={(form.logo_size ?? 'medium') === sz} size="sm" onClick={() => updateForm({ logo_size: sz })}>
+                              {sz === 'small' ? '80%' : sz === 'medium' ? '100%' : '140%'}
                             </Button>
                           ))}
                         </div>
@@ -2234,7 +2268,7 @@ export default function SettingsQuoteTemplates() {
                   setEditing(false);
                   setEditId(null);
                 }}
-                disabled={!puoModificare || upsertTemplate.isPending}
+                disabled={!puoModificare || upsertTemplate.isPending || uploadInCorso}
                 aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
@@ -2242,10 +2276,8 @@ export default function SettingsQuoteTemplates() {
                 Salva e torna ai modelli
               </Button>
             </div>
-          </div>
-
-          {/* Right: preview kind-aware */}
-          <div className="lg:col-span-2 lg:sticky lg:top-4 self-start">
+          </div>}
+          anteprima={
             <Card className="overflow-hidden border-slate-200 shadow-sm">
               <CardHeader className="pb-3 bg-slate-950 text-white">
                 <CardTitle className="text-base flex items-center justify-between gap-3">
@@ -2261,8 +2293,8 @@ export default function SettingsQuoteTemplates() {
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-3 bg-slate-100 p-4">
-                {(formKind==='offerta'||formKind==='condizioni'||formKind==='legali')&&<QuotePdfLivePreview template={form} kind={formKind} companyId={effectiveCompany?.id} companyName={effectiveCompany?.name} />}
-                <details className="w-full">
+                {anteprimaPdf && <QuotePdfLivePreview template={form} kind={formKind} companyId={effectiveCompany?.id} companyName={effectiveCompany?.name} />}
+                <details className="w-full" open={!anteprimaPdf}>
                 <summary className="cursor-pointer text-xs text-muted-foreground">Schema rapido dello stile</summary>
                 <div className="w-full overflow-auto rounded-lg bg-slate-200/80 p-4 shadow-inner">
                   <div className="flex min-w-max justify-center">
@@ -2348,8 +2380,8 @@ export default function SettingsQuoteTemplates() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        </div>
+          }
+        />
         </div>
       )}
 

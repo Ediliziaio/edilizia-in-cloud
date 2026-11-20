@@ -44,6 +44,8 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
     progetto, azienda: { name: str(c?.business_name || c?.name), indirizzo: str(c?.address), email: str(c?.email), telefono: str(c?.phone), partita_iva: str(c?.vat_number), logo_url: str(c?.logo_url), logo_chiaro_url: str(c?.brand_logo_dark_url), colore_marca: str(c?.brand_primary_color) },
     template: { ...t, color_primary: t.primary_color, color_secondary: t.secondary_color, color_accent: t.accent_color,
       pdf_cover_hero: conNomeLeggibile(t.cover_title), pdf_cover_subhero: conNomeLeggibile(t.cover_subtitle), pdf_cover_image_url: t.show_cover_image === false ? null : t.cover_image_url,
+      pdf_cover_logo_position: t.pdf_cover_logo_position ?? t.cover_logo_position
+        ?? (t.logo_position === "center" ? "top_center" : t.logo_position === "right" ? "top_right" : "top_left"),
       // La dimensione del logo scelta nel modello (Piccola, Media, Grande) vale sulla copertina,
       // se il modello non ha già una misura sua (25/09/2026).
       pdf_cover_logo_size: t.pdf_cover_logo_size ?? (t.logo_size === "small" ? 80 : t.logo_size === "large" ? 140 : null),

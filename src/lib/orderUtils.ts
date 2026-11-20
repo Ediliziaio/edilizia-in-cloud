@@ -9,6 +9,7 @@ import type { PaymentType } from "@/components/orders/FinancialSummary";
 import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@/lib/commissions";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { calcolaQuoteIva, ivaMistaDaOrdine, lordoPattuitoConQuote } from "@/lib/orders/ivaMista";
+import type { ConteggioPipeline } from "@/lib/orders/conteggiPipeline";
 
 // ── Installment type ──────────────────────────────────────────────
 export interface Installment {
@@ -250,7 +251,7 @@ export function installmentsToLegacyColumns(installments: Installment[]) {
 
 // ── Existing types (unchanged) ────────────────────────────────────
 
-export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id" | "client_name" | "vat_breakdown">>, ImportiFinanziari {
+export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id" | "client_name" | "client_email" | "vat_breakdown">>, ImportiFinanziari {
   id: string;
   order_code: string | null;
   description: string;
@@ -265,6 +266,8 @@ export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "custom
   expected_date: string | null;
   work_start_date?: string | null;
   work_end_date?: string | null;
+  fasiPipeline?: ConteggioPipeline | null;
+  taskUfficioPipeline?: ConteggioPipeline | null;
   warehouse_arrival_date: string | null;
   indirizzo_lavori?: string | null;
   created_at: string;
@@ -319,6 +322,7 @@ export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "custom
     external_team?: {
       id: string;
       name: string | null;
+      kind?: string | null;
     } | null;
   }> | null;
 }
@@ -459,7 +463,12 @@ export function contrattoPattuito(order: Pick<OrderWithDetails, "total_amount"> 
   return order.variazioni ? agreedContractValue(order.total_amount || 0, order.variazioni) : order.total_amount || 0;
 }
 
-function financingCostForOrder(order: OrderWithDetails): number {
+export type OrderPaymentDetails = Parameters<typeof buildInstallmentsFromLegacy>[0] &
+  Pick<OrderWithDetails,
+    "total_amount" | "vat_rate" | "vat_breakdown" | "installments" | "variazioni" | "financing_cost" | "financing_cost_mode"
+  > & ImportiFinanziari;
+
+function financingCostForOrder(order: OrderPaymentDetails): number {
   return order.payment_type === "financing" ? (Number(order.financing_cost) || 0) : 0;
 }
 
@@ -472,7 +481,7 @@ function financingCostForOrder(order: OrderWithDetails): number {
  * per questo il saldo FINALE lo ricava per differenza, dentro
  * calculateCollectedGrossFromInstallments, invece di fidarsi dell'importo salvato.
  */
-function rateDellaCommessa(order: OrderWithDetails): InstallmentLike[] {
+function rateDellaCommessa(order: OrderPaymentDetails): InstallmentLike[] {
   if (order.installments && order.installments.length > 0) return order.installments;
   return buildInstallmentsFromLegacy(order);
 }
@@ -487,7 +496,7 @@ function rateDellaCommessa(order: OrderWithDetails): InstallmentLike[] {
  * la finanziaria). Un piano con più rate di saldo (SAL intermedi + saldo)
  * viene sommato per intero, senza perdere rate.
  */
-export function getAmountCollected(order: OrderWithDetails): number {
+export function getAmountCollected(order: OrderPaymentDetails): number {
   if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.incassato ?? 0;
   return Math.max(order.incasso_unita_lordo ?? 0, calculateCollectedGrossFromInstallments({
     installments: rateDellaCommessa(order),
@@ -507,7 +516,7 @@ export function getAmountCollected(order: OrderWithDetails): number {
  * è un'uscita e non la riduce. Per le modalità storiche nulle si conserva
  * la regola legacy, senza ricalcolare i movimenti già registrati.
  */
-export function getAmountDue(order: OrderWithDetails): number {
+export function getAmountDue(order: OrderPaymentDetails): number {
   if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.residuo ?? 0;
   const incassabile = getGrossOrderAmount(order) - costoTrattenuto(financingCostForOrder(order), order.financing_cost_mode);
   // Arrotondato ai centesimi: toglie il rumore in virgola mobile del totale

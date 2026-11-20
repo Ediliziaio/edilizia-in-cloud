@@ -37,7 +37,7 @@ export interface DocumentiFiscaliFilters {
   page?: number;
   perPage?: number;
   /** Ordinamento sul server, prima della paginazione; non confronta numeri come testo. */
-  ordinamento?: "progressivo" | "data";
+  ordinamento?: "progressivo" | "data" | "aggiornamento";
   /** When true, show soft-deleted docs (cestino) instead of active docs */
   showDeleted?: boolean;
   /** Fase verso lo SDI: le fatture da inviare, quelle che aspettano l'esito, le scartate. */
@@ -205,7 +205,7 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
           .select(filters.conImportate ? COLONNE_ELENCO : "*", { count: "exact" })
           .eq("company_id", companyId!);
 
-        if (filters.showDeleted) {
+        if (filters.showDeleted || filters.ordinamento === "aggiornamento") {
           query = query.order("updated_at", { ascending: false });
         } else if (filters.ordinamento === "progressivo") {
           query = query.order("anno", { ascending: false, nullsFirst: false })
@@ -468,6 +468,7 @@ export function useUpdateDocumento() {
         .update({ ...updates, updated_at: new Date().toISOString() } as never)
         .eq("id", id)
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .select()
         .single();
 
@@ -475,9 +476,13 @@ export function useUpdateDocumento() {
       return mapRow(data as Record<string, unknown>);
     },
     onSuccess: (doc) => {
+      // Riaprendo subito la bozza si vede già la versione confermata dal
+      // salvataggio, anche mentre la rilettura dal server è in corso.
+      queryClient.setQueryData<DocumentoFiscale>(queryKeys.documentiFiscali.detail(doc.id), (precedente) =>
+        precedente && { ...doc, stornato: precedente.stornato },
+      );
       refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.detail(doc.id) });
       // No toast — the editor top bar already shows "Salvata X fa" indicator
     },
     onError: (err: Error) => {

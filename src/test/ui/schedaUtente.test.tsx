@@ -34,7 +34,7 @@ const stato = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   function builder(tabella: string) {
     const b: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "in", "neq", "order", "limit", "is", "not", "or", "gte", "lte"]) b[m] = () => b;
+    for (const m of ["select", "eq", "in", "neq", "order", "limit", "is", "not", "or", "gte", "lte", "abortSignal"]) b[m] = () => b;
     const risposta = (): { data: unknown; error: unknown } => {
       if (tabella === "profiles") return { data: stato.profilo, error: null as unknown };
       if (tabella === "user_roles") return { data: stato.ruoli, error: null };

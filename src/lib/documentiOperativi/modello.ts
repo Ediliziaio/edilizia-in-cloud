@@ -1,5 +1,6 @@
 import type { Company } from "@/types/auth";
 import type { SceltaClausola } from "../../../supabase/functions/_shared/modelliPdfOperativi";
+import { unitaChilometro } from "../campo/viaggiRapportino";
 export type { SceltaClausola };
 export type TipoDocumentoOperativo =
   "richiesta" | "materiali" | "servizi" | "trasporti" | "economia";
@@ -34,11 +35,14 @@ export interface RigaDocumentoOperativo {
   carico?: string;
   scarico?: string;
   mezzo?: string;
+  km?: number;
   oreUomo?: number;
   oreMezzo?: number;
   ddt?: string;
 }
 export interface DocumentoOperativo {
+  /** Il rendiconto dei viaggi approvati è intestato al cliente della commessa. */
+  rendicontoTrasporti?: boolean;
   prezziDaConfermare?: boolean;
   riguardaLavori?: boolean;
   fornitoreId?: string;
@@ -89,6 +93,9 @@ export interface DocumentoOperativo {
   righe: RigaDocumentoOperativo[];
   totali?: { imponibile: number; iva: number; totale: number };
 }
+export const titoloDocumento = (d: Pick<DocumentoOperativo, "tipo" | "rendicontoTrasporti">) =>
+  d.rendicontoTrasporti ? "Rendiconto trasporti" : TITOLI[d.tipo];
+export const importiIvaEsclusa = (d: DocumentoOperativo) => d.tipo === "economia" || !!d.rendicontoTrasporti;
 export type ClausolaInversione = "a" | "a-ter";
 export const CLAUSOLE_INVERSIONE: { value: ClausolaInversione; label: string; norma: string }[] = [
   { value: "a", label: "Subappalto edile (lett. a)", norma: "art. 17 c. 6 lett. a DPR 633/72" },
@@ -138,7 +145,7 @@ export const importoRiga = (r: RigaDocumentoOperativo) =>
     100;
 /** Cambiare quantità o prezzo ricalcola anche una riga con importo già valorizzato. */
 export function modificaNumeroRigaDocumento(r: RigaDocumentoOperativo, key: string, value: string): RigaDocumentoOperativo {
-  if (!["quantita", "prezzo", "sconto", "iva", "oreUomo", "oreMezzo"].includes(key)) throw new Error("Campo numerico non valido");
+  if (!["quantita", "prezzo", "sconto", "iva", "km", "oreUomo", "oreMezzo"].includes(key)) throw new Error("Campo numerico non valido");
   return { ...r, ...(["quantita", "prezzo", "sconto"].includes(key) ? { importo: undefined } : {}), [key]: value === "" ? null : Number(value) };
 }
 /**
@@ -154,7 +161,7 @@ export const NOTA_TOTALE_ECONOMIA =
   "Comprende manodopera, straordinari e voci extra dei rapportini; materiali e mezzi sono elencati con le quantità e contano nel totale solo se hanno un prezzo.";
 
 export function totaliDocumento(d: DocumentoOperativo) {
-  if (d.tipo === "economia") {
+  if (importiIvaEsclusa(d)) {
     // Rapporto delle quantità e tariffe IVA escluse, come il modello approvato.
     const imponibile =
       Math.round(d.righe.reduce((sum, r) => sum + importoRiga(r), 0) * 100) /
@@ -280,6 +287,12 @@ export function clausoleStandard(
 export function clausoleDocumento(
   d: DocumentoOperativo,
 ): (ClausolaStandard & { attiva: boolean })[] {
+  if (d.rendicontoTrasporti) return [{
+    id: "conferma-viaggi",
+    etichetta: "Conferma del rendiconto",
+    testo: "Vi chiediamo di confermare le quantità e gli importi dei viaggi elencati.",
+    attiva: true,
+  }];
   return clausoleStandard(d.tipo)
     .filter((c) => !c.soloSenzaPrezzi || senzaPrezzi(d))
     .map((c) => {
@@ -316,6 +329,7 @@ export function applicaModelloAlDocumento<T extends DocumentoOperativo>(
   d: T,
   modello?: { condizioni?: string; clausole?: Record<string, SceltaClausola> },
 ): T {
+  if (d.rendicontoTrasporti) return d;
   return {
     ...d,
     clausole: d.clausole ?? modello?.clausole,
@@ -361,6 +375,7 @@ export function colonneDocumento(d: DocumentoOperativo): string[] {
     return [
       "Data",
       "Carico / scarico",
+      ...(d.rendicontoTrasporti ? ["Km", "Quantità e tariffa"] : []),
       "Mezzo",
       "Ore uomo",
       "Ore mezzo",
@@ -397,6 +412,7 @@ export function celleRiga(
     return [
       dataIt(r.data),
       [r.carico, r.scarico].filter(Boolean).join(" → ") || r.descrizione,
+      ...(d.rendicontoTrasporti ? [kmRigaTrasporto(r) == null ? "—" : numeroIt(kmRigaTrasporto(r)!), quantitaETariffaTrasporto(r)] : []),
       r.mezzo || "—",
       oreIt(r.oreUomo),
       oreIt(r.oreMezzo),
@@ -436,13 +452,16 @@ export function celleRiga(
         ]),
   ];
 }
+export const kmRigaTrasporto = (r: RigaDocumentoOperativo) => unitaChilometro(r.unita) ? r.quantita : r.km;
+export const quantitaETariffaTrasporto = (r: RigaDocumentoOperativo, separatore = " ") =>
+  `${numeroIt(r.quantita)} ${r.unita === "viaggio" && r.quantita !== 1 ? "viaggi" : r.unita}${r.prezzo == null ? "" : `${separatore}× ${euro(r.prezzo)}`}`;
 export function documentoIncompleto(d: DocumentoOperativo): boolean {
   return (
     d.tipo !== "richiesta" &&
     d.righe.some(
       (r) =>
         (r.prezzo == null && r.importo == null) ||
-        (d.tipo !== "economia" && !d.inversioneContabile && r.iva == null),
+        (!importiIvaEsclusa(d) && !d.inversioneContabile && r.iva == null),
     )
   );
 }
@@ -453,7 +472,7 @@ export function corpoDocumento(
   allegato = false,
 ): string {
   if (allegato)
-    return `<p>Spett.le ${esc(d.destinatario.nome)},</p><p>in allegato ${esc(TITOLI[d.tipo].toLowerCase())} <strong>${esc(d.numero)}</strong>${d.commessa ? `, commessa ${esc(d.commessa)}` : ""}.</p>${senzaPrezzi(d) ? `<p><strong>${esc(TESTO_PREZZI_DA_CONFERMARE)}</strong></p>` : ""}${d.noteNelMessaggio && d.note ? `<p style="white-space:pre-line"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}<p>Vi chiediamo cortese riscontro rispondendo a questa email e mantenendo il riferimento nell’oggetto.</p><p>Cordiali saluti,<br>${esc(a.business_name || a.name)}</p>`;
+    return `<p>Spett.le ${esc(d.destinatario.nome)},</p><p>in allegato ${esc(titoloDocumento(d).toLowerCase())} <strong>${esc(d.numero)}</strong>${d.commessa ? `, commessa ${esc(d.commessa)}` : ""}.</p>${senzaPrezzi(d) ? `<p><strong>${esc(TESTO_PREZZI_DA_CONFERMARE)}</strong></p>` : ""}${d.noteNelMessaggio && d.note ? `<p style="white-space:pre-line"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}<p>Vi chiediamo cortese riscontro rispondendo a questa email e mantenendo il riferimento nell’oggetto.</p><p>Cordiali saluti,<br>${esc(a.business_name || a.name)}</p>`;
   const head = colonneDocumento(d)
     .map(
       (v) =>
@@ -476,13 +495,13 @@ export function corpoDocumento(
     )
     .join("");
   const t = totaliDocumento(d);
-  return `<p>Spett.le ${esc(d.destinatario.nome)},</p><h2>${esc(TITOLI[d.tipo])}</h2><p><strong>${esc(d.numero)}</strong> ${dataIt(d.data) ? `del ${esc(dataIt(d.data))}` : ""}</p>${d.destinatario.indirizzo ? `<p>${esc(d.destinatario.indirizzo)}</p>` : ""}${d.destinatario.partitaIva ? `<p>P.IVA ${esc(d.destinatario.partitaIva)}</p>` : ""}<ul>${dettagliDocumento(
+  return `<p>Spett.le ${esc(d.destinatario.nome)},</p><h2>${esc(titoloDocumento(d))}</h2><p><strong>${esc(d.numero)}</strong> ${dataIt(d.data) ? `del ${esc(dataIt(d.data))}` : ""}</p>${d.destinatario.indirizzo ? `<p>${esc(d.destinatario.indirizzo)}</p>` : ""}${d.destinatario.partitaIva ? `<p>P.IVA ${esc(d.destinatario.partitaIva)}</p>` : ""}<ul>${dettagliDocumento(
     d,
   )
     .map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`)
     .join(
-      "",
-    )}</ul><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${d.tipo === "richiesta" || senzaPrezzi(d) ? "" : `<p>${documentoIncompleto(d) ? "<strong>Riepilogo da completare: prezzi o IVA mancanti. Gli importi seguenti riguardano solo le voci valorizzate.</strong><br>" : ""}${d.tipo === "economia" ? `Totale IVA esclusa: ${haImportiDocumento(d) ? euro(t.imponibile) : "Da definire"}` : `Imponibile: ${euro(t.imponibile)}<br>IVA: ${d.inversioneContabile ? "Inversione contabile" : euro(t.iva)}<br><strong>Totale: ${euro(t.totale)}</strong>`}</p>`}${d.note ? `<p style="white-space:pre-line"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}<p>${esc(condizioniDocumento(d))}</p><p>Cordiali saluti,<br>${esc(a.business_name || a.name)}</p>`;
+    "",
+    )}</ul><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${d.tipo === "richiesta" || senzaPrezzi(d) ? "" : `<p>${documentoIncompleto(d) ? `<strong>Riepilogo da completare: ${importiIvaEsclusa(d) ? "prezzi mancanti" : "prezzi o IVA mancanti"}. Gli importi seguenti riguardano solo le voci valorizzate.</strong><br>` : ""}${importiIvaEsclusa(d) ? `Totale IVA esclusa: ${haImportiDocumento(d) ? euro(t.imponibile) : "Da definire"}` : `Imponibile: ${euro(t.imponibile)}<br>IVA: ${d.inversioneContabile ? "Inversione contabile" : euro(t.iva)}<br><strong>Totale: ${euro(t.totale)}</strong>`}</p>`}${d.note ? `<p style="white-space:pre-line"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}<p>${esc(condizioniDocumento(d))}</p><p>Cordiali saluti,<br>${esc(a.business_name || a.name)}</p>`;
 }
 export const nomeFileDocumento = (d: DocumentoOperativo) =>
   `${d.numero}-${d.tipo}`.replace(/[^a-zA-Z0-9_-]/g, "_") + ".pdf";
@@ -496,14 +515,16 @@ export function erroriDocumento(d: DocumentoOperativo): string[] {
   d.righe.forEach((r, i) => {
     const n = i + 1;
     if (d.tipo === "trasporti") {
-      if (!r.data || !testo(r.carico) || !testo(r.scarico) || !testo(r.mezzo))
-        errors.push(`Viaggio ${n}: completa data, carico, scarico e mezzo.`);
+      if (d.rendicontoTrasporti ? !r.data : !r.data || !testo(r.carico) || !testo(r.scarico) || !testo(r.mezzo))
+        errors.push(d.rendicontoTrasporti ? `Viaggio ${n}: indica la data.` : `Viaggio ${n}: completa data, carico, scarico e mezzo.`);
       if (
         [r.oreUomo, r.oreMezzo].some(
           (v) => v != null && (!Number.isFinite(v) || v < 0),
         )
       )
         errors.push(`Viaggio ${n}: le ore devono essere positive o zero.`);
+      if (r.km != null && (!Number.isFinite(r.km) || r.km < 0))
+        errors.push(`Viaggio ${n}: controlla i chilometri percorsi.`);
     } else if (!testo(r.descrizione))
       errors.push(`Voce ${n}: indica la descrizione.`);
     if (!Number.isFinite(r.quantita) || r.quantita <= 0)
@@ -520,7 +541,7 @@ export function erroriDocumento(d: DocumentoOperativo): string[] {
       errors.push(`Voce ${n}: lo sconto deve essere tra 0 e 100.`);
     if (
       d.tipo !== "richiesta" &&
-      d.tipo !== "economia" &&
+      !importiIvaEsclusa(d) &&
       !d.inversioneContabile &&
       (r.iva == null || !Number.isFinite(r.iva) || r.iva < 0 || r.iva > 100)
     )

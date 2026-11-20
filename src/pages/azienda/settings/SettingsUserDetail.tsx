@@ -35,6 +35,7 @@ import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
 import { invalidaRuoliOperativi } from "@/lib/permessi/cacheRuoliOperativi";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
+import { withAbortableClientTimeout } from "@/lib/query-timeout";
 import type { Database } from "@/integrations/supabase/types";
 
 type CompanyUserRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
@@ -162,30 +163,37 @@ export default function SettingsUserDetail() {
     }, { replace: true });
   };
 
-  const { data: userData, isLoading } = useQuery<UserDetail>({
-    queryKey: [...queryKeys.users.detail(userId), effectiveCompany?.id],
-    queryFn: async (): Promise<UserDetail> => {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip, is_blocked, blocked_at, blocked_by, block_reason")
-        .eq("id", userId!)
-        .single();
-      if (error) throw error;
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId!);
-
-      const accessCompanyId = effectiveCompany?.id ?? profile.company_id ?? null;
-      const { data: multiCompanyAccess } = accessCompanyId
-        ? await supabase
+  const accessCompanyId = effectiveCompany?.id;
+  const { data: userData, isLoading, isError, isPaused, isFetching, refetch } = useQuery<UserDetail | null>({
+    queryKey: [...queryKeys.users.detail(userId), accessCompanyId],
+    queryFn: ({ signal }) => withAbortableClientTimeout(async (readSignal) => {
+      const [profilo, ruoli, accesso, azienda] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, phone, company_id, password_changed_at, failed_login_count, locked_until, require_2fa, last_login_at, last_login_ip, is_blocked, blocked_at, blocked_by, block_reason")
+          .eq("id", userId!)
+          .abortSignal(readSignal)
+          .maybeSingle(),
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId!)
+          .abortSignal(readSignal),
+        supabase
           .from("multi_company_access")
           .select("access_role, company_id")
           .eq("user_id", userId!)
-          .eq("company_id", accessCompanyId)
-          .maybeSingle()
-        : { data: null };
+          .eq("company_id", accessCompanyId!)
+          .abortSignal(readSignal)
+          .maybeSingle(),
+        supabase.from("companies").select("titolare_user_id").eq("id", accessCompanyId!).abortSignal(readSignal).maybeSingle(),
+      ]);
+      if (profilo.error) throw profilo.error;
+      const profile = profilo.data;
+      if (!profile) return null;
+      const erroreAccessi = ruoli.error ?? accesso.error ?? azienda.error;
+      if (erroreAccessi) throw erroreAccessi;
+      const multiCompanyAccess = accesso.data;
 
       const selectedAccessRole = normalizeCompanyAccessRole(multiCompanyAccess?.access_role);
       const isMultiCompanyAccess = !!multiCompanyAccess && profile.company_id !== accessCompanyId;
@@ -194,7 +202,7 @@ export default function SettingsUserDetail() {
       // dell'utente con la classifica di @/lib/permessi/ruoliUtente — la
       // stessa del database (ruolo_principale_utente). Gli altri fra
       // Venditore, Call Center e Operaio sono «anche …».
-      const ruoliUtente = (roles ?? []).map((r) => r.role as string);
+      const ruoliUtente = (ruoli.data ?? []).map((r) => r.role as string);
       const effectiveRole: CompanyUserRole | undefined =
         (selectedAccessRole as CompanyUserRole | null) ?? ruoloPrincipale(ruoliUtente);
       const additionalRoles = ruoliAggiuntivi(ruoliUtente, effectiveRole);
@@ -203,20 +211,19 @@ export default function SettingsUserDetail() {
       // degli altri amministratori li cambia solo lui. Il controllo vero sta
       // nel database (trigger proteggi_titolare_azienda); qui serve per non
       // far arrivare l'utente contro un errore grezzo.
-      const { data: azienda } = accessCompanyId
-        ? await supabase.from("companies").select("titolare_user_id").eq("id", accessCompanyId).maybeSingle()
-        : { data: null };
-      const titolareId = (azienda as { titolare_user_id?: string | null } | null)?.titolare_user_id ?? null;
+      const titolareId = azienda.data?.titolare_user_id ?? null;
 
       let permissions: StaffPermissions | null = null;
       // Load staff_permissions for any non-admin role (staff, salesperson, call_center all use it)
       if (effectiveRole && effectiveRole !== "company_admin") {
-        const { data: perms } = await supabase
+        const { data: perms, error } = await supabase
           .from("staff_permissions")
           .select("*")
           .eq("user_id", userId!)
           .eq("company_id", accessCompanyId!)
+          .abortSignal(readSignal)
           .maybeSingle();
+        if (error) throw error;
         if (perms) {
           permissions = perms as unknown as StaffPermissions;
         }
@@ -236,8 +243,9 @@ export default function SettingsUserDetail() {
         additionalRoles,
         permissions,
       };
-    },
-    enabled: !!userId && !!effectiveCompany?.id,
+    }, "Caricamento scheda utente", 12_000, signal),
+    enabled: !!userId && !!accessCompanyId && !authLoading && !permissions.isLoading && puoAprireScheda,
+    meta: { silent: true },
   });
 
   // ── Toggle ruolo aggiuntivo (salesperson/call_center secondario) ──
@@ -432,10 +440,9 @@ export default function SettingsUserDetail() {
     },
   });
 
-  // While auth is resolving, show a loading state instead of a blank/redirect flash
-  if (authLoading || permissions.isLoading) {
+  if (authLoading || permissions.isLoading || isLoading) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5" role="status" aria-label="Caricamento scheda utente">
         <div className="flex items-center gap-4">
           <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
           <div className="space-y-2">
@@ -453,28 +460,21 @@ export default function SettingsUserDetail() {
 
   if (!puoAprireScheda) return null;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-5">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-44" />
-            <Skeleton className="h-4 w-56" />
-          </div>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Skeleton className="h-48 w-full rounded-xl" />
-          <Skeleton className="h-48 w-full rounded-xl" />
-        </div>
-      </div>
-    );
-  }
+  const avvisoLettura = (isError || isPaused) && (
+    <Alert role="alert">
+      <AlertDescription className="flex flex-wrap items-center gap-2">
+        {isPaused ? "Connessione assente. La scheda si aggiornerà al ripristino della rete." : userData
+          ? "Aggiornamento della scheda non riuscito. Sono visibili gli ultimi dati caricati."
+          : "Impossibile caricare la scheda utente."}
+        <Button size="sm" variant="outline" disabled={isFetching || isPaused} onClick={() => void refetch()}>Riprova</Button>
+      </AlertDescription>
+    </Alert>
+  );
 
   if (!userData) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Utente non trovato.</p>
+        {avvisoLettura || <p className="text-muted-foreground">{accessCompanyId ? "Utente non trovato." : "Seleziona un’azienda per aprire la scheda utente."}</p>}
         <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/impostazioni/persone")}>
           Torna all'elenco
         </Button>
@@ -484,6 +484,7 @@ export default function SettingsUserDetail() {
 
   return (
     <div className="space-y-4 max-md:space-y-3">
+      {avvisoLettura}
       <div className="flex items-center gap-3 max-md:gap-1.5">
         <Button
           variant="ghost" size="icon" className="max-md:-ml-2 max-md:h-8 max-md:w-8"

@@ -1,5 +1,5 @@
 import { normalizzaCliente } from "@/lib/fatturazione/clienteSnapshot";
-import { useReducer, useEffect, useRef, useState } from "react";
+import { useCallback, useReducer, useEffect, useRef, useState } from "react";
 import type {
   DocumentoFiscale,
   RigaDocumento,
@@ -8,6 +8,8 @@ import type {
 } from "@/types/fatturazione";
 import { useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
+import { emessaMaiUscita } from "@/lib/fatturazione/correggibile";
+import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import type { UfficioPaFattura } from "@/types/fatturazione";
 import {
   allineaRighe, cigValido, colonneCompatibili, cupValido, normalizzaRiferimenti, proponiDallaCommessa,
@@ -121,11 +123,10 @@ function pickTracked(state: EditorState): Record<string, unknown> {
   return out;
 }
 
-/** Il documento si sta scrivendo: bozza, o scartata dallo SDI da correggere. */
+/** Bozza o documento ancora correggibile nel suo stato attuale. */
 function inCorrezione(state: EditorState): boolean {
-  if (state.stato === "bozza") return true;
-  return String(state.sdi_stato ?? "").toUpperCase() === "NS"
-    && !["annullata", "stornata", "in_invio"].includes(String(state.stato));
+  if (state.stato === "bozza" || emessaMaiUscita(state)) return true;
+  return state.stato !== "stornata" && faseSdi(state)?.fase === "scartata";
 }
 
 // Colonne che a database sono uuid, date, timestamp o numeri: una stringa vuota non
@@ -146,6 +147,9 @@ const finito = (v: unknown): number => (typeof v === "number" && Number.isFinite
 /** Payload completo per l'update: campi utente + totali derivati ricalcolati. */
 export function buildSavePayload(state: EditorState) {
   const campi = pickTracked(state);
+  // Il cliente rimosso va scritto come oggetto vuoto: la colonna è NOT NULL
+  // e il valore undefined verrebbe omesso dall'update, lasciando il vecchio cliente.
+  campi.cliente_snapshot = state.cliente_snapshot ?? {};
   for (const k of VUOTO_E_NULL) {
     const v = campi[k];
     if (v === "" || v === undefined || (typeof v === "number" && Number.isNaN(v))) campi[k] = null;
@@ -415,99 +419,76 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
 // ─── Hook ────────────────────────────────────────────────────
 
 export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
-  const [state, dispatch] = useReducer(editorReducer, {} as EditorState);
-  const updateMutation = useUpdateDocumento();
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [state, aggiorna] = useReducer(editorReducer, {} as EditorState);
+  const { mutateAsync, isPending: isSaving } = useUpdateDocumento();
+  const [confermato, setConfermato] = useState<{ contenuto: string; data: Date | null } | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Serializzazione dei tracked fields all'ultimo salvataggio realmente
-  // inviato. null = baseline non ancora stabilita (pre-INIT).
-  const lastSavedRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
+  const letturaRef = useRef(0);
+  const codaRef = useRef<{ contenuto: string; lettura: number; esito: Promise<void> } | null>(null);
 
-  // La mutation di react-query cambia identity ad ogni render: letta via ref
-  // per non far ri-eseguire l'effect di autosave (il cui cleanup
-  // cancellerebbe il timer in corsa — era la causa di salvataggi persi
-  // silenziosamente, con isDirty=false e nessun avviso all'uscita).
-  const updateMutationRef = useRef(updateMutation);
-  updateMutationRef.current = updateMutation;
-
-  // Initialize once when doc loads
-  useEffect(() => {
-    if (initialDoc && !initializedRef.current) {
-      dispatch({ type: "INIT", payload: initialDoc });
-      initializedRef.current = true;
-    }
-  }, [initialDoc]);
-
-  // Autosave con debounce 2s: bozza, o fattura scartata dallo SDI che si sta
-  // correggendo (per l'Agenzia non è emessa; il database lascia fermi numero e
-  // data, 24/09/2026).
-  //
-  // Invariante: lastSavedRef riflette ciò che è stato DAVVERO inviato al
-  // server, non ciò che è stato schedulato. Se il timer viene cancellato
-  // da un re-run dell'effect, il confronto fallisce di nuovo e il
-  // salvataggio viene ri-schedulato invece di andare perso.
-  useEffect(() => {
-    if (!state._initialized || !state.id || !inCorrezione(state)) return;
-
-    const serialized = JSON.stringify(pickTracked(state));
-
-    // Prima esecuzione dopo INIT: stabilisce la baseline senza salvare
-    // (il documento appena caricato non ha modifiche).
-    if (lastSavedRef.current === null) {
-      lastSavedRef.current = serialized;
-      return;
-    }
-
-    if (serialized === lastSavedRef.current) return;
-
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      lastSavedRef.current = serialized;
-      updateMutationRef.current.mutate(buildSavePayload(state), {
-        onSuccess: () => setLastSaved(new Date()),
-        // Save fallito → invalida la baseline: il prossimo change (o
-        // saveNow) ritenterà il salvataggio completo.
-        onError: () => { lastSavedRef.current = ""; },
-      });
-    }, 2000);
-
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [state]);
-
-  const isSaving = updateMutation.isPending;
-
-  // Modifiche non ancora inviate al server
-  const isDirty =
-    lastSavedRef.current !== null &&
-    state._initialized === true &&
-    JSON.stringify(pickTracked(state)) !== lastSavedRef.current;
-
-  // Flush autosave and save immediately — returns a Promise so callers can await
-  const saveNow = (): Promise<void> => {
+  const annullaAutosave = useCallback(() => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
     }
+  }, []);
 
-    if (state._initialized && state.id && inCorrezione(state)) {
-      const serialized = JSON.stringify(pickTracked(state));
-      return new Promise((resolve, reject) => {
-        updateMutationRef.current.mutate(buildSavePayload(state), {
-          onSuccess: () => {
-            lastSavedRef.current = serialized;
-            setLastSaved(new Date());
-            resolve();
-          },
-          onError: (err) => reject(err),
-        });
-      });
+  const dispatch = useCallback((azione: Action) => {
+    if (azione.type === "INIT") {
+      annullaAutosave();
+      letturaRef.current += 1;
+      setConfermato({ contenuto: JSON.stringify(pickTracked(editorReducer({}, azione))), data: null });
     }
-    return Promise.resolve();
-  };
+    aggiorna(azione);
+  }, [annullaAutosave]);
 
-  return { state, dispatch, isSaving, lastSaved, isDirty, saveNow };
+  useEffect(() => {
+    if (initialDoc && !initializedRef.current) {
+      initializedRef.current = true;
+      dispatch({ type: "INIT", payload: initialDoc });
+    }
+  }, [dispatch, initialDoc]);
+
+  // Salvataggio esplicito e automatico usano la stessa coda. Un autosave lento
+  // non può sovrascrivere una versione salvata subito dopo con il pulsante.
+  const salva = useCallback((documento: EditorState, contenuto: string) => {
+    const lettura = letturaRef.current;
+    const precedente = codaRef.current;
+    if (precedente?.lettura === lettura && precedente.contenuto === contenuto) return precedente.esito;
+    const esito = (async () => {
+      if (precedente) await precedente.esito.catch((): void => {});
+      if (lettura !== letturaRef.current) throw new Error("Il documento è stato ricaricato. Riprova a salvare.");
+      await mutateAsync(buildSavePayload(documento));
+      if (lettura === letturaRef.current) setConfermato({ contenuto, data: new Date() });
+    })();
+    const operazione = { contenuto, lettura, esito };
+    codaRef.current = operazione;
+    const termina = () => {
+      if (codaRef.current === operazione) codaRef.current = null;
+    };
+    void esito.then(termina, termina);
+    return esito;
+  }, [mutateAsync]);
+
+  const contenuto = JSON.stringify(pickTracked(state));
+  const isDirty = confermato !== null && contenuto !== confermato.contenuto;
+  const puoSalvare = !!state.id && inCorrezione(state);
+  useEffect(() => {
+    if (!isDirty || !puoSalvare) return;
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void salva(state, contenuto).catch(() => { /* La mutation mostra l'errore. */ });
+    }, 2000);
+    return annullaAutosave;
+  }, [annullaAutosave, contenuto, isDirty, puoSalvare, salva, state]);
+
+  const saveNow = useCallback(async () => {
+    annullaAutosave();
+    if (puoSalvare) await salva(state, contenuto);
+  }, [annullaAutosave, contenuto, puoSalvare, salva, state]);
+
+  return { state, dispatch, isSaving, lastSaved: confermato?.data ?? null, isDirty, puoSalvare, saveNow };
 }
 
 export function createEmptyRiga(numero_linea: number): RigaDocumento {

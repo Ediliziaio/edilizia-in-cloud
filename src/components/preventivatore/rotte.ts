@@ -13,4 +13,5 @@ export const MODULI_COL_GUSCIO = [
 
 const RICHIAMO = new RegExp(`^/azienda/(${MODULI_COL_GUSCIO.join("|")})/(nuovo|[^/]+/modifica)/?$`);
 
-export const rottaDelGuscio = (percorso: string): boolean => RICHIAMO.test(percorso);
+export const rottaDelGuscio = (percorso: string): boolean => RICHIAMO.test(percorso)
+  || /^\/azienda\/marketing\/preventivi\/computo\/?$/.test(percorso);

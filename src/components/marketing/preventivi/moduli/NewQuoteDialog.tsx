@@ -14,8 +14,6 @@ import { MODULI_CON_MODELLI, eModuloConModelloPreventivo } from "@/lib/moduli/mo
 import { SALES_AREAS, type SalesArea } from "@/lib/moduli-vendita/areas";
 import { hasAreaAccess, matchesIntervention, pilotHref, quoteCreationHref } from "./salesSelector";
 import { quoteAiWorkflow } from '@/lib/moduli-vendita/quoteAiWorkflow';
-import { useAuth } from "@/contexts/AuthContext";
-import { computoCloudAttivo } from "@/lib/computo/cloudComputo";
 
 interface Props {
   open: boolean;
@@ -51,7 +49,6 @@ function InterventionImage({ area, modelId }: { area: SalesArea; modelId: string
 
 function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSelect: () => void; ai: boolean }) {
   const permissions = usePermissions();
-  const { effectiveCompany } = useAuth();
   const classicHref = quoteCreationHref('/azienda/marketing/preventivi/nuovo', params);
   const aiClassicHref = `${classicHref}${classicHref.includes('?') ? '&' : '?'}ai=1`;
   const { moduli, isLoading, isError } = useModuliVendita();
@@ -107,15 +104,7 @@ function QuoteChooser({ params, onSelect, ai }: { params: URLSearchParams; onSel
       {!area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect} to={ai ? aiClassicHref : quoteCreationHref("/azienda/marketing/preventivi/nuovo", params)}
         className="mb-5 flex min-h-24 items-center gap-4 rounded-xl border border-orange-200 bg-orange-50/70 p-4 transition-colors hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:min-h-0 max-sm:gap-3 max-sm:px-3 max-sm:py-2.5">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm max-sm:h-9 max-sm:w-9"><FileText aria-hidden="true" className="h-6 w-6 max-sm:h-5 max-sm:w-5" /></span>
-        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Preventivo classico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">{ai ? 'Descrivi il lavoro in chat. Le voci si costruiscono nel preventivo e restano modificabili nell’editor esistente.' : 'Prodotti, servizi e voci libere. Lo componi come vuoi.'}</span></span>
-        <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
-      </Link>}
-
-      {(import.meta.env.DEV || computoCloudAttivo(effectiveCompany?.id)) && !area && !searching && permissions.canEditPreventivi && <Link onClick={onSelect}
-        to={quoteCreationHref("/azienda/marketing/preventivi/computo", params)}
-        className="mb-5 flex min-h-20 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:gap-3 max-sm:p-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><FileText aria-hidden="true" className="h-5 w-5" /></span>
-        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Computo metrico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">Lavorazioni, misure, prezzi e allegati del preventivo.</span></span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold max-sm:text-sm">Preventivo / computo metrico</span><span className="mt-1 block text-sm text-muted-foreground max-sm:hidden">{ai ? 'Descrivi il lavoro in chat. Le voci si costruiscono nel preventivo e restano modificabili nell’editor.' : 'Capitoli, lavorazioni, misure e formule. Il computo completo con il tuo modello grafico.'}</span></span>
         <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
       </Link>}
 

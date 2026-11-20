@@ -87,7 +87,12 @@ export function PipelineCommesseLocali({ azienda }: { azienda: string }) {
       {(corrente || principale) && <Link className="text-sm text-primary hover:underline"
         to={`/azienda/ordini?view=pipeline&pipeline=${corrente?.id ?? PIPELINE_PRINCIPALE}`}>Apri nelle commesse</Link>}
     </div>
-    {archivio.errore && <p role="alert">{archivio.errore} <Button variant="link" onClick={() => void riprova()}>Riprova</Button></p>}
+    {(archivio.errore || archivio.aggiornamentoFallito) && (
+      <p role="alert">
+        {archivio.errore ?? "Aggiornamento non riuscito. Sono visibili le ultime pipeline caricate."}
+        <Button variant="link" disabled={archivio.aggiornamentoInCorso} onClick={() => void riprova()}>Riprova</Button>
+      </p>
+    )}
     {modifica && daImportare && <Button disabled={occupato || !!bozza} variant="outline" size="sm" onClick={async () => {
       setOccupato(true);
       setErrore("");

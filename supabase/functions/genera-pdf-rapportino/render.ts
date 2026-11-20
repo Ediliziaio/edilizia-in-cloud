@@ -1,4 +1,5 @@
 import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
+import { dimensioniLogo } from "../_shared/dimensioniLogo.ts";
 import { valoreInTesto, valoriDaStampare, type ValoreCampo } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, setCharacterSpacing, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
 // Il carattere del piè proprio (EB Garamond, Impresa Vulcano). Nel browser e nei test Vite usa il pacchetto locale
@@ -297,10 +298,13 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const top = H - PG.margineAlto;
   const logo = modello.mostraLogo && ctx.branding.logoUrl ? await embed(ctx.branding.logoUrl, "logo") : null;
   // Le misure del logo: quelle della veste (Vulcano: logo largo), altrimenti quelle dello stile; la scala dei Modelli PDF.
-  const scalaLogo = modello.scalaLogo / 100;
-  const misuraLogo = logo
-    ? logo.scaleToFit((veste.logoLarghezzaMax ?? TS.logoLarghezzaMax) * scalaLogo, (veste.logoAltezza ?? TS.logoAltezza) * scalaLogo)
-    : null;
+  const misureLogoScalato = logo ? dimensioniLogo(
+    { larghezza: logo.width, altezza: logo.height },
+    { larghezza: Math.min(veste.logoLarghezzaMax ?? TS.logoLarghezzaMax, CW - 174), altezza: veste.logoAltezza ?? TS.logoAltezza },
+    modello.scalaLogo,
+    { larghezza: CW, altezza: 140 },
+  ) : null;
+  const misuraLogo = misureLogoScalato ? { width: misureLogoScalato.larghezza, height: misureLogoScalato.altezza } : null;
   let fondoSinistra: number, larghezzaSinistra: number;
   if (logo && misuraLogo) {
     // Il nome è già nel logo, e i dati societari stanno nel piè: non si ripete.
@@ -314,8 +318,9 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     larghezzaSinistra = Math.max(...righeNome.map(l => larghezza(l, TS.ragioneSocialeCorpo, bold)));
   }
   const xDestra = W - M;
-  const righeTitolo = wrap(title, bold, TS.titoloCorpo, Math.max(150, CW - larghezzaSinistra - 24)).slice(0, 2);
-  let yd = top - 11;
+  const titoloSotto = larghezzaSinistra > CW - 174;
+  const righeTitolo = wrap(title, bold, TS.titoloCorpo, titoloSotto ? CW : Math.max(150, CW - larghezzaSinistra - 24)).slice(0, 2);
+  let yd = (titoloSotto ? fondoSinistra - 12 : top) - 11;
   righeTitolo.forEach((l, i) => { T(l, xDestra - larghezza(l, TS.titoloCorpo, bold), yd, TS.titoloCorpo, bold, ink); if (i < righeTitolo.length - 1) yd -= 17; });
   // Sotto il titolo: lo stato come etichetta, poi riferimento · data sulla stessa riga; sotto, il meteo.
   yd -= 15;

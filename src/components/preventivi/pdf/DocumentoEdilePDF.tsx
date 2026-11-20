@@ -769,10 +769,10 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
   const corpoSottotitolo = Math.max(10, Math.min(16, c.corpoSottotitolo ?? 12.5));
   // Il logo scelto per la copertina vince; poi, su fondo scuro, il logo chiaro del kit del marchio.
   const logo = veste.logoCopertinaUrl || c.logoUrl || (testo === "#FFFFFF" ? dati.azienda.logoChiaroUrl : null) || dati.azienda.logoUrl;
-  const altezzaLogo = veste.logoCopertinaAltezza ?? 50 * c.scalaLogo;
-  const larghezzaLogo = veste.logoCopertinaLarghezzaMax ?? 190 * c.scalaLogo;
+  const altezzaLogo = Math.min(160, (veste.logoCopertinaAltezza ?? 50) * c.scalaLogo);
   // Un logo scuro su un fondo scuro non si legge: se non c'è quello chiaro, gli si mette sotto un fondo bianco.
   const logoSuBianco = veste.logoCopertinaAltezza != null && testo === "#FFFFFF" && !c.logoUrl && !dati.azienda.logoChiaroUrl;
+  const larghezzaLogo = Math.min(LARGHEZZA - MARGINE * 2 - (logoSuBianco ? 12 : 0), (veste.logoCopertinaLarghezzaMax ?? 190) * c.scalaLogo);
   const centro = c.allineamento === "center";
   const giustificaLogo = c.posizioneLogo === "top_right" ? "flex-end" : c.posizioneLogo === "top_center" ? "center" : "flex-start";
   const giustificaTesto = c.verticale === "top" ? "flex-start" : c.verticale === "center" ? "center" : "flex-end";

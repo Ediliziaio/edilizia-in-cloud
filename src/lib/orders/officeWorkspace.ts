@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { TASK_UFFICIO_PIPELINE, queryConteggioPipeline } from "./conteggiPipeline";
 export const OFFICE_STAGES = [
   ["avvio", "Avvio commessa"],
   ["acquisti", "Acquisti"],
@@ -29,6 +30,7 @@ export function invalidateOfficeWorkspace(
       : ["commessa-fasi-ufficio"],
   });
   void qc.invalidateQueries({ queryKey: ["tasks"] });
+  void qc.invalidateQueries({ predicate: ({ queryKey }) => queryConteggioPipeline(queryKey, TASK_UFFICIO_PIPELINE, orderId) });
   void qc.invalidateQueries({
     queryKey: orderId ? ["order-next-task", orderId] : ["order-next-task"],
   });

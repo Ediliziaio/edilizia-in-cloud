@@ -63,6 +63,7 @@ function builder(tabella: string) {
   b.insert = (v: unknown) => { stato.op = "insert"; stato.filtri.push(JSON.stringify(v)); return b; };
   b.update = (v: unknown) => { stato.op = "update"; stato.filtri.push(JSON.stringify(v)); return b; };
   b.upsert = (v: unknown) => { stato.op = "upsert"; stato.filtri.push(JSON.stringify(v)); return b; };
+  b.abortSignal = () => b;
   b.single = async () => risposta();
   b.maybeSingle = async () => risposta();
   b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(risposta()).then(ok, ko);

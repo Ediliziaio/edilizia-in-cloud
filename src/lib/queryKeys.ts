@@ -866,6 +866,7 @@ export const queryKeys = {
   salespeople: {
     all: ["salespeople"] as const,
     active: (companyId: string | undefined) => ["salespeople-active", companyId] as const,
+    settings: (companyId: string | undefined) => ["salespeople", "settings", companyId] as const,
     commissionRules: (companyId: string | undefined) => ["salespeople", "commission-rules", companyId] as const,
   },
 

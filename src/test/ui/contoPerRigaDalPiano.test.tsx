@@ -2,7 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ContoRigaMenu, useContiRighe, type RigaPerConto } from "@/components/fatturazione/ContoPerRiga";
+import { ContoRigaMenu, ProposteContiRighe, useContiRighe, type RigaPerConto } from "@/components/fatturazione/ContoPerRiga";
 
 const ID_MASTRO = "00000000-0000-4000-a000-000000000001";
 const ID_CONSUMO = "00000000-0000-4000-a000-000000000002";
@@ -30,7 +30,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); m.attiva = true; });
 const righe: RigaPerConto[] = [{ chiave: "1", descrizione: "Bulloni e tasselli" }];
 function Prova({ salvati }: { salvati: Record<string, string> }) {
   const conti = useContiRighe({ companyId: "co", fatturaId: "f1", salvati, righe, onCambiato: () => {} });
-  return <div><span data-testid="modo">{conti.modo}</span><ContoRigaMenu chiave="1" conti={conti} /></div>;
+  return <div><span data-testid="modo">{conti.modo}</span><ContoRigaMenu chiave="1" conti={conti} /><ProposteContiRighe conti={conti} /></div>;
 }
 const disegna = (salvati: Record<string, string> = {}) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Prova salvati={salvati} /></QueryClientProvider>,
@@ -43,7 +43,9 @@ it("con la contabilità in casa il menu mostra i conti del piano, e la scelta si
   expect(menu.textContent).toContain("6005000150 ACQUISTI MATERIALE DI CONSUMO");
   fireEvent.click(menu);
   fireEvent.click(await screen.findByText("Conto della fattura"));
-  await waitFor(() => expect(m.update).toHaveBeenCalledWith({ conti_righe: {} }));
+  expect(m.update).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Salva conti della fattura" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("contabilita_salva_conti_fattura", expect.objectContaining({ p_conti: {} })));
 });
 
 it("«Nuovo conto di costo» lo crea nel piano, sotto il mastro, e lo mette sulla riga", async () => {
@@ -57,7 +59,8 @@ it("«Nuovo conto di costo» lo crea nel piano, sotto il mastro, e lo mette sull
   fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "ACQUISTI MINUTERIA" } });
   fireEvent.click(screen.getByRole("button", { name: "Crea e usa" }));
   await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("contabilita_crea_conto", expect.objectContaining({ p_codice: "6005000700", p_natura: "costo", p_mastro: ID_MASTRO, p_voce_cee: "B.6" })));
-  await waitFor(() => expect(m.update).toHaveBeenCalledWith({ conti_righe: { "1": `conto:${ID_NUOVO}` } }));
+  fireEvent.click(screen.getByRole("button", { name: "Salva conti della fattura" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("contabilita_salva_conti_fattura", expect.objectContaining({ p_conti: { "1": `conto:${ID_NUOVO}` } })));
 });
 
 it("senza la contabilità in casa restano le categorie", async () => {

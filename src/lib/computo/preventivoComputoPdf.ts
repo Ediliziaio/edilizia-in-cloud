@@ -9,6 +9,8 @@ import { calcolaSconto, oneriSicurezza } from "./scontoComputo";
 import { testoPianoPagamenti } from "./pianoPagamentiPdf";
 import { disegnaCronoprogramma } from "./stampaCronoprogramma";
 import { segnaClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
+import { geometriaLogo, nomeFontModello } from "./assetModello";
+import { segnaVoceComputoPdf } from "./destinazioniPdf";
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
@@ -23,37 +25,56 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const mostraUnitari = !i.senzaPrezzi && i.mostraPrezziUnitari !== false && !i.soloRiepilogo;
   const haImporti = voci.some(v => v.importo_computo != null);
   const money = (n: number | null) => n == null ? "Da definire" : `${formatEuro(n)} €`;
-  const num = (n: number | null, min = 0) => n == null ? "-" : n.toLocaleString("it-IT", { minimumFractionDigits: min, maximumFractionDigits: 6 });
+  const num = (n: number | null, min = 0) => n == null ? "-" : n.toLocaleString("it-IT", { minimumFractionDigits: min, maximumFractionDigits: 6, useGrouping: "always" });
   let y = m;
+  const scalaTesto = (i.veste?.dimensioneTesto ?? 9.5) / 9.5;
+  const scalaTitoli = (i.veste?.dimensioneSottotitoli ?? 11) / 11;
+  const intestazioneVisibile = i.veste?.mostraIntestazione !== false;
   let ripetiIntestazioneTabella: (() => void) | null = null;
   const font = (size = 9.5, bold = false, color = t.inchiostro) => {
-    doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(color);
+    const titolo = bold && size >= 11;
+    doc.setFont(nomeFontModello(i.veste, titolo), bold ? "bold" : "normal");
+    doc.setFontSize(size * (titolo ? scalaTitoli : scalaTesto)); doc.setTextColor(color);
+  };
+  const fontCopertina = (size: number, color: string) => {
+    doc.setFont(nomeFontModello(i.veste, true), "bold"); doc.setFontSize(size); doc.setTextColor(color);
   };
   const wrap = (s: string, w = width): string[] => doc.splitTextToSize(s, w);
   const short = (s: string, w: number) => {
+    s = s.replace(/\s+/g, " ").trim();
     while (doc.getTextWidth(s) > w && s.length) s = s.slice(0, -1);
     return s;
   };
+  const testataContinua = (spazio = 0) => {
+    const riferimento = i.numero || (stato ? "BOZZA" : "");
+    const spazioNumero = intestazioneVisibile ? width * .48 : width;
+    font(8, false, t.grigio); const righeNumero = wrap(riferimento, spazioNumero);
+    const passoNumero = doc.getFontSize() * 1.3;
+    righeNumero.forEach((r, n) => doc.text(r, right, y + n * passoNumero, { align: "right" }));
+    if (intestazioneVisibile) { font(9, true, t.inchiostroMarca); doc.text(short(i.azienda || "Computo metrico", riferimento ? width - spazioNumero - 14 : width), m, y); }
+    y += Math.max(12, righeNumero.length * passoNumero);
+    font(7.5, false, t.grigio); const passoTitolo = doc.getFontSize() * 1.3;
+    for (const r of wrap(i.titolo, width)) { doc.text(r, m, y); y += passoTitolo; }
+    doc.setDrawColor(t.filetto); doc.setLineWidth(.5); doc.line(m, y + 3, right, y + 3); y += 15 + spazio;
+  };
   const continuation = () => {
-    doc.addPage(); y = m;
-    font(9, true, t.inchiostroMarca); doc.text(short(i.azienda || "Computo metrico", width - 110), m, y);
-    font(8, false, t.grigio); doc.text(short(i.numero || (stato ? "BOZZA" : ""), 100), right, y, { align: "right" });
-    y += 12; font(7.5, false, t.grigio); doc.text(short(i.titolo, width), m, y);
-    doc.setDrawColor(t.filetto); doc.setLineWidth(.5); doc.line(m, y + 7, right, y + 7); y += 24;
+    doc.addPage(); y = m; testataContinua();
     ripetiIntestazioneTabella?.();
   };
   const ensure = (h: number) => { if (y + h > bottom) continuation(); };
   const paragraph = (s: string, size = 9.5, color = t.inchiostro, bold = false, w = width, x = m) => {
     font(size, bold, color);
+    const passo = doc.getFontSize() * 1.35;
     const lines = wrap(s, w);
-    for (const line of lines) { ensure(size * 1.35); font(size, bold, color); doc.text(line, x, y); y += size * 1.35; }
+    for (const line of lines) { ensure(passo); font(size, bold, color); doc.text(line, x, y); y += passo; }
   };
   const rule = () => { ensure(9); doc.setDrawColor(t.filetto); doc.setLineWidth(.5); doc.line(m, y, right, y); y += 10; };
   const section = (numero: string, titolo: string, sottotitolo?: string) => {
     font(11, true); const lines = wrap(titolo, width - 27);
-    ensure(lines.length * 14 + (sottotitolo ? 25 : 15));
+    const passo = doc.getFontSize() * 1.3;
+    ensure(lines.length * passo + (sottotitolo ? 25 : 15));
     font(12, false, t.inchiostroMarca); doc.text(numero, m, y + 1);
-    for (const line of lines) { font(11, true); doc.text(line, m + 27, y); y += 14; }
+    for (const line of lines) { font(11, true); doc.text(line, m + 27, y); y += passo; }
     if (sottotitolo) paragraph(sottotitolo, 7, t.grigio, false, width - 34, m + 34);
     y += 3; rule();
   };
@@ -62,23 +83,27 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   };
   const coppia = (campi: [string, string][]) => {
     const colonna = (width - 22) / 2;
-    font(9); const h = Math.max(...campi.map(([, v]) => wrap(v, colonna).length * 12.15 + 22));
-    ensure(h); const base = y;
-    campi.forEach(([label, value], k) => {
-      y = base; const x = m + k * (colonna + 22);
-      paragraph(label.toUpperCase(), 7, t.grigio, true, colonna, x);
-      paragraph(value, 9, t.inchiostro, false, colonna, x);
-    });
-    y = base + h;
+    for (let offset = 0; offset < campi.length; offset += 2) {
+      const riga = campi.slice(offset, offset + 2);
+      font(9); const h = Math.max(...riga.map(([, v]) => wrap(v, colonna).length * 12.15 * scalaTesto + 12 * scalaTesto + 10));
+      ensure(h); const base = y;
+      riga.forEach(([label, value], k) => {
+        y = base; const x = m + k * (colonna + 22);
+        paragraph(label.toUpperCase(), 7, t.grigio, true, colonna, x);
+        paragraph(value, 9, t.inchiostro, false, colonna, x);
+      });
+      y = base + h;
+    }
   };
   // La copertina (29/10/2026): con «piena» è una pagina intera, scura, con la trama di un foglio millimetrato, il
   // logo, il titolo grande e i dati del lavoro in fondo; il documento comincia dalla pagina dopo. Le altre due
   // («fascia», «sobria») restano una testata sulla prima pagina. Mai il prezzo in copertina.
   const veste = i.veste;
-  const coperta = (veste?.copertina ?? "piena") === "piena" && i.sezioni?.copertina !== false;
+  const editoriale = veste?.copertina === "editoriale";
+  const coperta = ["piena", "editoriale"].includes(veste?.copertina ?? "piena") && i.sezioni?.copertina !== false;
   const logo = veste?.mostraLogo !== false ? veste?.logo : null;
   if (coperta) {
-    const c = coloriCopertina(t, {});
+    const c = editoriale ? { fondo: "#FAF8F4", testo: t.inchiostro, evidenza: t.inchiostroMarca } : coloriCopertina(t, {});
     // Niente trasparenze (jsPDF non le rende ovunque): i toni tenui sono il testo già mescolato col fondo.
     const mescola = (a: string, b: string, k: number) => {
       const n = (h: string, i0: number) => parseInt(h.replace("#", "").slice(i0, i0 + 2), 16);
@@ -91,26 +116,42 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     doc.setFillColor(c.fondo); doc.rect(0, 0, W, H, "F");
     // La trama di un foglio millimetrato, appena visibile: è un computo, un documento tecnico.
     doc.setDrawColor(trama); doc.setLineWidth(0.3);
-    for (let x = 0; x <= W; x += 24) doc.line(x, 0, x, H);
-    for (let r = 0; r <= H; r += 24) doc.line(0, r, W, r);
+    if (editoriale) {
+      doc.setFillColor(t.fondo); doc.rect(W * .74, 0, W * .26, H * .28, "F");
+      doc.setDrawColor(filo); doc.setLineWidth(.7); doc.line(m, H * .30, right, H * .30);
+    } else {
+      for (let x = 0; x <= W; x += 24) doc.line(x, 0, x, H);
+      for (let r = 0; r <= H; r += 24) doc.line(0, r, W, r);
+    }
     if (foto) { try { doc.addImage(foto.dati, "JPEG", 0, 0, W, fotoH); } catch { /* una foto illeggibile non ferma il preventivo */ } }
     doc.setFillColor(c.evidenza); doc.rect(0, fotoH, 7, H - fotoH, "F");
     let yc = 62;
     if (logo) {
-      const lw = Math.min(170, 50 * logo.larghezza / logo.altezza);
-      doc.setFillColor("#FFFFFF"); doc.roundedRect(m - 8, yc - 30, lw + 16, 64, 5, 5, "F");
-      try { doc.addImage(logo.dati, logo.formato, m, yc - 23, lw, 50); } catch { /* un logo illeggibile non ferma il preventivo */ }
-      yc += 60;
+      const { x, w, h } = geometriaLogo(veste, logo, m, right);
+      if (veste?.logoFondoBianco !== false) { doc.setFillColor("#FFFFFF"); doc.roundedRect(x - 8, yc - 30, w + 16, h + 14, 5, 5, "F"); }
+      try { doc.addImage(logo.dati, logo.formato, x, yc - 23, w, h); } catch { /* un logo illeggibile non ferma il preventivo */ }
+      yc += h + 15;
     }
     if (foto) yc = fotoH + 34;
-    font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", width), m, yc); yc += 15;
-    if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, width) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, m, yc + k * 11)); }
+    if (intestazioneVisibile) {
+      font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", width), m, yc); yc += 15;
+      if (i.dettagliAzienda) { font(8, false, tenue); (wrap(i.dettagliAzienda, width) as string[]).slice(0, 2).forEach((r, k) => doc.text(r, m, yc + k * 11 * scalaTesto)); }
+    }
     yc = foto ? yc + 44 : H * 0.36;
     const occhiello = (i.soloRiepilogo ? "Piano dei lavori · sintesi per capitoli" : i.senzaPrezzi ? "Computo metrico · lavorazioni e quantità" : veste?.sopratitolo?.trim() || "Preventivo · computo metrico estimativo").toUpperCase();
-    font(9, true, c.evidenza); doc.text(occhiello, m, yc, { charSpace: 0.8 });
+    font(9, true, c.evidenza); for (const [n, r] of wrap(occhiello, width).entries()) { doc.text(r, m, yc + n * 13); }
     doc.setFillColor(c.evidenza); doc.rect(m, yc + 9, 54, 2.5, "F"); yc += 46;
-    font(34, true, c.testo);
-    for (const r of (wrap(i.titolo || "Preventivo", width - 10) as string[]).slice(0, foto ? 2 : 4)) { doc.text(r, m, yc); yc += 39; }
+    let sizeTitolo = veste?.dimensioneTitolo ?? 34;
+    fontCopertina(sizeTitolo, c.testo);
+    let righeTitolo = wrap(i.titolo || "Preventivo", width - 10);
+    const limiteTitolo = H - 70 - 2 * 46 - 24 - (i.oggetto?.trim() ? 44 : 0);
+    while (sizeTitolo > 18 && yc + (righeTitolo.length - 1) * sizeTitolo * 1.15 > limiteTitolo) {
+      sizeTitolo--; fontCopertina(sizeTitolo, c.testo); righeTitolo = wrap(i.titolo || "Preventivo", width - 10);
+    }
+    for (const r of righeTitolo) {
+      if (yc > limiteTitolo) break; // Il titolo completo è riportato nei dati del lavoro.
+      doc.text(r, m, yc); yc += sizeTitolo * 1.15;
+    }
     if (i.oggetto?.trim()) { yc += 4; font(12, false, tenue); for (const r of (wrap(i.oggetto.trim(), width - 40) as string[]).slice(0, foto ? 2 : 4)) { doc.text(r, m, yc); yc += 16; } }
     const campi = ([
       ["Committente", i.nascondiCliente ? "" : i.committente ?? ""], ["Luogo dei lavori", i.nascondiCliente ? "" : i.indirizzoIntervento ?? ""],
@@ -129,11 +170,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
       yb += righe * 46;
     }
     if (stato) { font(7.5, false, tenue); doc.text(stato, m, H - 34); }
-    doc.addPage(); y = m;
-    font(9, true, t.inchiostroMarca); doc.text(short(i.azienda || "Computo metrico", width - 110), m, y);
-    font(8, false, t.grigio); doc.text(short(i.numero || "", 100), right, y, { align: "right" });
-    y += 12; font(7.5, false, t.grigio); doc.text(short(i.titolo, width), m, y);
-    doc.setDrawColor(t.filetto); doc.setLineWidth(.5); doc.line(m, y + 7, right, y + 7); y += 30;
+    doc.addPage(); y = m; testataContinua(6);
     paragraph("Dati del lavoro", 16, t.inchiostro, true); y += 6;
   } else {
   // Prima pagina: identità e perimetro, senza ripetere il prezzo finale. La copertina la sceglie il modello
@@ -143,31 +180,44 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const copertina: "fascia" | "sobria" = veste?.copertina === "sobria" ? "sobria" : "fascia";
   const suColore: boolean = false;
   const testoCopertina = suColore ? t.bianco : t.inchiostro;
-  const logoW = logo ? Math.min(150, 46 * logo.larghezza / logo.altezza) : 0;
-  const spazioTesto = width - (logo ? logoW + 24 : 0);
-  font(25, true); const titolo = wrap(i.titolo, width - 38);
+  const geometria = logo ? geometriaLogo(veste, logo, m, right) : null;
+  const logoW = geometria?.w ?? 0;
+  const logoCentrato = !!logo && veste?.logoAllineamento === "centro";
+  const logoSinistra = !!logo && (veste?.logoAllineamento ?? "sinistra") === "sinistra";
+  const xTesto = logoSinistra ? m + logoW + 24 : m;
+  const spazioTesto = width - (logo && !logoCentrato ? logoW + 24 : 0);
+  const sizeTitolo = (veste?.dimensioneTitolo ?? 34) * 25 / 34;
+  fontCopertina(sizeTitolo, testoCopertina); const titolo = wrap(i.titolo, width - 38);
   font(8); const metadati = wrap([i.numero, i.dataDocumento, i.revisione && `Rev. ${i.revisione}`].filter(Boolean).join("  |  ") || (stato ? "BOZZA" : " "), width - 38);
-  font(13, true); const aziendaH = wrap(i.azienda || "Preventivo con computo metrico", spazioTesto).length * 17.55;
-  font(8); const dettagliH = i.dettagliAzienda ? wrap(i.dettagliAzienda, spazioTesto).length * 10.8 : 0;
-  const altezzaContenuto = m + aziendaH + dettagliH + 63 + titolo.length * 30 + metadati.length * 11;
+  font(13, true); const aziendaH = intestazioneVisibile ? wrap(i.azienda || "Preventivo con computo metrico", spazioTesto).length * 17.55 * scalaTitoli : 0;
+  font(8); const dettagliH = intestazioneVisibile && i.dettagliAzienda ? wrap(i.dettagliAzienda, spazioTesto).length * 10.8 * scalaTesto : 0;
+  const altezzaContenuto = m + (logoCentrato ? (geometria?.h ?? 0) + 18 + aziendaH + dettagliH : Math.max(aziendaH + dettagliH, geometria?.h ?? 0)) + 63 + titolo.length * sizeTitolo * 1.2 + metadati.length * 11;
   const heroH = suColore ? Math.max(235, altezzaContenuto) : altezzaContenuto - 10;
   if (copertina === "fascia") { doc.setFillColor(t.fondo); doc.rect(0, 0, W, 10, "F"); }
-  if (logo) {
-    const lx = right - logoW, ly = m - 8;
-    if (suColore) { doc.setFillColor("#FFFFFF"); doc.roundedRect(lx - 6, ly - 6, logoW + 12, 58, 4, 4, "F"); }
-    try { doc.addImage(logo.dati, logo.formato, lx, ly, logoW, 46); } catch { /* un logo illeggibile non ferma il preventivo */ }
+  if (logo && geometria) {
+    const { x, w, h } = geometria, ly = m - 8;
+    if (veste?.logoFondoBianco !== false) { doc.setFillColor("#FFFFFF"); doc.roundedRect(x - 6, ly - 6, w + 12, h + 12, 4, 4, "F"); }
+    try { doc.addImage(logo.dati, logo.formato, x, ly, w, h); } catch { /* un logo illeggibile non ferma il preventivo */ }
+    if (logoCentrato) y = m + h + 18;
   }
-  paragraph(i.azienda || "Preventivo con computo metrico", 13, suColore ? t.bianco : t.inchiostroMarca, true, spazioTesto);
-  if (i.dettagliAzienda) paragraph(i.dettagliAzienda, 8, suColore ? t.bianco : t.grigio, false, spazioTesto);
+  if (intestazioneVisibile) {
+    paragraph(i.azienda || "Preventivo con computo metrico", 13, suColore ? t.bianco : t.inchiostroMarca, true, spazioTesto, xTesto);
+    if (i.dettagliAzienda) paragraph(i.dettagliAzienda, 8, suColore ? t.bianco : t.grigio, false, spazioTesto, xTesto);
+  }
+  y = Math.max(y, m + (geometria?.h ?? 0));
+  if (i.immagineCopertina && i.sezioni?.copertina !== false) {
+    const hFoto = width * .30;
+    y += 18; doc.addImage(i.immagineCopertina.dati, "JPEG", m, y, width, hFoto); y += hFoto;
+  }
   y += 27;
   const sopratitolo = veste?.sopratitolo?.trim().toUpperCase();
   font(8, true, suColore ? t.bianco : t.inchiostroMarca); doc.text(i.soloRiepilogo ? "PIANO DEI LAVORI / SINTESI PER CAPITOLI" : i.senzaPrezzi ? "COMPUTO METRICO / LAVORAZIONI E QUANTITÀ" : sopratitolo || "PREVENTIVO / COMPUTO METRICO ESTIMATIVO", m, y);
   y += 29;
-  for (const line of titolo) { font(25, true, testoCopertina); doc.text(line, m, y); y += 30; }
+  for (const line of titolo) { ensure(sizeTitolo * 1.2); fontCopertina(sizeTitolo, testoCopertina); doc.text(line, m, y); y += sizeTitolo * 1.2; }
   font(8, false, suColore ? t.bianco : t.grigio);
   metadati.forEach((line, k) => doc.text(line, m, y + 1 + k * 11));
   if (copertina === "sobria") { y += metadati.length * 11 + 8; doc.setDrawColor(t.fondo); doc.setLineWidth(1.2); doc.line(m, y, right, y); y += 25; }
-  else y = heroH + 25;
+  else y = Math.max(y + metadati.length * 11 + 15, heroH + 25);
   }
   if (stato && !coperta) { paragraph(stato, 8, t.grigio); y += 12; }
   const anagrafica: [string, string][] = [];
@@ -177,7 +227,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     if (i.indirizzoIntervento?.trim()) anagrafica.push(["Immobile / intervento", i.indirizzoIntervento.trim()]);
   }
   if (anagrafica.length) coppia(anagrafica);
+  if (coperta) labelValue("Progetto", i.titolo);
   if (i.oggetto?.trim()) labelValue("Oggetto e perimetro dei lavori", i.oggetto.trim());
+  const campiCustom = veste?.campiPersonalizzati?.filter(c => c.mostraNelDocumento && c.valore.trim()) ?? [];
+  for (const campo of campiCustom) labelValue(campo.etichetta, campo.valore);
   if (veste?.premessa?.trim()) { y += 4; paragraph(veste.premessa.trim(), 9.5); y += 10; }
   const riferimenti: [string, string][] = [];
   if (i.tecnico?.trim()) riferimenti.push(["Tecnico / referente", i.tecnico.trim()]);
@@ -205,130 +258,169 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   else if (voci.length) continuation();
 
   const pagineCapitoli = new Map<NodoComputo, number>();
-  const finaliCapitolo = new Set<string>();
-  const raccogliVoci = (n: NodoComputo): VoceComputo[] => [...n.voci, ...n.figli.flatMap(raccogliVoci)];
-  nodi.forEach(n => { const ultima = raccogliVoci(n).at(-1); if (ultima) finaliCapitolo.add(ultima.id); });
-  const measuresHeader = () => {
-    ensure(26); doc.setFillColor(t.tinta); doc.rect(m, y - 9, width, 16, "F");
-    font(6.5, true, t.inchiostroMarca); doc.text("MISURAZIONI", m + 6, y + 1);
-    ["PARTI", "LUNG.", "LARG.", "H/PESO", "QUANTITÀ"].forEach((s, k) => doc.text(s, m + [282, 329, 376, 423, width - 7][k], y + 1, { align: "right" })); y += 18;
+  let voceInCorso: VoceComputo | null = null;
+  const metaVoce = (v: VoceComputo) => [i.mostraCodici === false ? "" : tariffaVoce(v), v.a_corpo && "A corpo", v.is_sicurezza && "Sicurezza", v.is_detrazione && "Detrazione", i.mostraFonti !== false && v.fonte_prezzo && `Fonte [${fonti.indexOf(v.fonte_prezzo.trim()) + 1}]`].filter(Boolean).join(" / ");
+  const misuraSemplice = (v: VoceComputo) => {
+    if (v.misure.length !== 1) return false;
+    const misura = v.misure[0], formula = misura.formula?.trim() || "";
+    return misura.quantita != null && misura.quantita === v.quantita
+      && [misura.parti_uguali, misura.lunghezza, misura.larghezza, misura.altezza_peso].every(n => n == null)
+      && (!/^[+-]?\d+(?:[.,]\d+)?$/.test(formula) || Number(formula.replace(",", ".")) === misura.quantita);
   };
-  // «A misura» è il caso normale: scritto su ogni voce era solo rumore sopra la descrizione (29/10/2026).
-  const metaVoce = (v: VoceComputo) => [i.mostraCodici === false ? "" : tariffaVoce(v), v.a_corpo && "A corpo", v.is_sicurezza && "Sicurezza", v.is_detrazione && "Detrazione", i.mostraFonti !== false && v.fonte_prezzo && `Fonte [${fonti.indexOf(v.fonte_prezzo.trim()) + 1}]`].filter(Boolean).join("  /  ");
+  const riferimentoSemplice = (v: VoceComputo) => {
+    const misura = v.misure[0], formula = misura?.formula?.trim() || "";
+    return [misura?.descrizione?.trim(), formula && !/^[+-]?\d+(?:[.,]\d+)?$/.test(formula) && `Formula: ${formula}`].filter(Boolean).join(" / ");
+  };
+  font(7.5, true);
+  const numeroW = Math.max(28, ...voci.map(v => doc.getTextWidth(numeroVoce(v)) + 18));
+  font(7);
+  const unitaW = Math.max(32, Math.min(57, Math.max(...voci.map(v => doc.getTextWidth(v.unita_misura || "-") + 14))));
   const colonne = [
-    { titolo: "N.", larghezza: 24, destra: false },
-    { titolo: "DESCRIZIONE DELLA LAVORAZIONE", larghezza: width - 24 - 30 - 58 - (mostraUnitari ? 73 : 0) - (mostraImporti ? 79 : 0), destra: false },
-    { titolo: "U.M.", larghezza: 30, destra: false },
-    { titolo: "QUANTITÀ", larghezza: 58, destra: true },
-    ...(mostraUnitari ? [{ titolo: "PREZZO UNITARIO", larghezza: 73, destra: true }] : []),
-    ...(mostraImporti ? [{ titolo: "IMPORTO VOCE", larghezza: 79, destra: true }] : []),
+    { label: "N.", w: numeroW, destra: false },
+    { label: "DESCRIZIONE DELLA LAVORAZIONE", w: width - numeroW - unitaW - 62 - (mostraUnitari ? 70 : 0) - (mostraImporti ? 82 : 0), destra: false },
+    { label: "U.M.", w: unitaW, destra: false },
+    { label: "QUANTITÀ", w: 62, destra: true },
+    ...(mostraUnitari ? [{ label: "PREZZO UNITARIO €", w: 70, destra: true }] : []),
+    ...(mostraImporti ? [{ label: "IMPORTO VOCE €", w: 82, destra: true }] : []),
   ];
   const intestazioneTabella = () => {
-    doc.setFillColor(t.tinta); doc.rect(m, y - 9, width, 22, "F");
+    if (voceInCorso) { font(6.5, false, t.grigio); doc.text(`Voce ${numeroVoce(voceInCorso)} - continua`, m, y); y += 14; }
+    font(6.1, true);
+    const testi = colonne.map(c => wrap(c.label, c.w - 14)), passo = doc.getFontSize() * 1.3;
+    const h = Math.max(25, Math.max(...testi.map(r => r.length)) * passo + 14);
+    doc.setFillColor("#F1F4F7"); doc.rect(m, y, width, h, "F");
     let x = m;
-    for (const colonna of colonne) {
-      font(6.2, true, t.inchiostroMarca);
-      doc.text(colonna.titolo, colonna.destra ? x + colonna.larghezza - 5 : x + 5, y + 4, { align: colonna.destra ? "right" : "left" });
-      x += colonna.larghezza;
-    }
-    y += 22;
+    colonne.forEach((c, k) => {
+      font(6.1, true);
+      testi[k].forEach((riga, n) => doc.text(riga, c.destra ? x + c.w - 7 : x + 7, y + 12 + n * passo, { align: c.destra ? "right" : "left" }));
+      x += c.w;
+    });
+    doc.setDrawColor(t.filetto); doc.setLineWidth(.35); doc.line(m, y + h, right, y + h);
+    y += h;
   };
-  // Una riga può proseguire su più pagine senza troncare descrizioni o valori.
-  const rigaTabella = (celle: string[], evidenza = false) => {
-    const righe = celle.map((testo, k) => { font(k === 1 ? 8.5 : 7.5); return wrap(testo, colonne[k].larghezza - 10); });
-    const lunghezza = Math.max(...righe.map(r => r.length), 1);
-    const altezza = lunghezza * 11 + 8;
-    if (altezza < bottom - m - 70 && y + altezza > bottom) continuation();
+  type TestoCella = { testo: string; size: number; bold?: boolean; grigio?: boolean };
+  const righeCella = (testo: string, w: number, size: number, bold = false, grigio = false): TestoCella[] => {
+    font(size, bold); return wrap(testo, w - 14).map(testo => ({ testo, size, bold, grigio }));
+  };
+  const celleVoce = (v: VoceComputo): TestoCella[][] => {
+    const descrizione = [
+      ...righeCella(v.descrizione_estesa || v.descrizione_breve, colonne[1].w, 8),
+      ...(metaVoce(v) ? righeCella(metaVoce(v), colonne[1].w, 6.5, false, true) : []),
+      ...(i.dettaglioMisure !== false && misuraSemplice(v) && riferimentoSemplice(v) ? righeCella(`Misura: ${riferimentoSemplice(v)}`, colonne[1].w, 6.7, false, true) : []),
+    ];
+    return [
+      righeCella(numeroVoce(v), colonne[0].w, 7.5, true), descrizione,
+      [], [], ...(mostraUnitari ? [[]] : []), ...(mostraImporti ? [[]] : []),
+    ];
+  };
+  const passoVoce = 8 * scalaTesto * 1.4;
+  // Una sola griglia: descrizione e misure precedono sempre il riepilogo economico della voce.
+  const disegnaCelle = (celle: TestoCella[][], passo: number, padding: number, riserva = 0, fondo?: string, alPrimoFrammento?: () => void) => {
+    const lunghezza = Math.max(1, ...celle.map(r => r.length));
     let offset = 0;
     while (offset < lunghezza) {
-      if (bottom - y < 35) continuation();
-      const count = Math.min(lunghezza - offset, Math.max(1, Math.floor((bottom - y - 8) / 11)));
-      const h = count * 11 + 8;
-      doc.setDrawColor(t.filetto); doc.setLineWidth(.35);
+      if (y + passo + padding * 2 + riserva > bottom) continuation();
+      if (offset === 0) alPrimoFrammento?.();
+      const quante = Math.min(lunghezza - offset, Math.max(1, Math.floor((bottom - y - padding * 2 - riserva) / passo)));
+      const h = quante * passo + padding * 2;
+      if (fondo) { doc.setFillColor(fondo); doc.rect(m + numeroW, y, width - numeroW, h, "F"); }
       let x = m;
-      colonne.forEach((colonna, k) => {
-        doc.rect(x, y - 9, colonna.larghezza, h);
-        righe[k].slice(offset, offset + count).forEach((line, n) => {
-          font(k === 1 ? 8.5 : 7.5, evidenza || (k === colonne.length - 1 && mostraImporti), k === 1 ? t.inchiostro : t.inchiostroMarca);
-          doc.text(line, colonna.destra ? x + colonna.larghezza - 5 : x + 5, y + 2 + n * 11, { align: colonna.destra ? "right" : "left" });
+      colonne.forEach((c, k) => {
+        doc.setDrawColor(t.filetto); doc.setLineWidth(.25); doc.line(x, y, x, y + h);
+        (celle[k] || []).slice(offset, offset + quante).forEach((riga, n) => {
+          font(riga.size, riga.bold, riga.grigio ? t.grigio : t.inchiostro);
+          doc.text(riga.testo, c.destra ? x + c.w - 7 : x + 7, y + padding + passo * .75 + n * passo, { align: c.destra ? "right" : "left" });
         });
-        x += colonna.larghezza;
+        x += c.w;
       });
-      y += h; offset += count;
+      doc.line(right, y, right, y + h); y += h; offset += quante;
       if (offset < lunghezza) continuation();
     }
   };
+  const disegnaRigaVoce = (v: VoceComputo, sottoTitolo: boolean) => {
+    const celle = celleVoce(v), lunghezza = Math.max(...celle.map(r => r.length));
+    const altezza = lunghezza * passoVoce + 12;
+    if (!sottoTitolo && altezza < bottom - m - 110 && y + altezza > bottom) continuation();
+    disegnaCelle(celle, passoVoce, 6, 27, undefined, () => segnaVoceComputoPdf(doc, v.id, y));
+  };
+  const fattori = ["parti_uguali", "lunghezza", "larghezza", "altezza_peso"] as const;
+  const nomiFattori = ["Parti", "Lung.", "Larg.", "H/Peso"];
+  const righeMisura = (misura: VoceComputo["misure"][number]) => {
+    const formula = misura.formula?.trim() || "";
+    const valore = /^[+-]?\d+(?:[.,]\d+)?$/.test(formula) ? Number(formula.replace(",", ".")) : null;
+    const ridondante = valore != null && misura.quantita != null && valore === misura.quantita;
+    const dimensioni = fattori.flatMap((campo, k) => misura[campo] == null ? [] : [`${nomiFattori[k]} ${num(misura[campo])}`]).join(" / ");
+    return [
+      ...righeCella(misura.descrizione || "Misura", colonne[1].w, 7.2),
+      ...(dimensioni ? righeCella(dimensioni, colonne[1].w, 6.7, false, true) : []),
+      ...(formula && !ridondante ? righeCella(`Formula: ${formula}`, colonne[1].w, 6.7, false, true) : []),
+    ];
+  };
+  const passoMisura = 7.2 * scalaTesto * 1.35;
+  const misuraVoce = (misura: VoceComputo["misure"][number], ultima: boolean) => {
+    const celle = [[], righeMisura(misura), [], righeCella(num(misura.quantita, 2), 62, 7.2), ...(mostraUnitari ? [[]] : []), ...(mostraImporti ? [[]] : [])];
+    disegnaCelle(celle, passoMisura, 2, ultima ? altezzaSomma : 0);
+  };
+  const celleSomma = (v: VoceComputo): TestoCella[][] => [
+    [], righeCella(v.is_detrazione ? "SI DETRAGGONO" : "SOMMANO", colonne[1].w, 7.2, true),
+    righeCella(v.unita_misura || "-", unitaW, 7), righeCella(num(v.quantita, 2), 62, 7.5, true),
+    ...(mostraUnitari ? [righeCella(v.prezzo_unitario_computo == null ? "Da definire" : formatEuro(v.prezzo_unitario_computo), 70, 7.5)] : []),
+    ...(mostraImporti ? [righeCella(v.da_quantificare ? "Da quantificare" : v.importo_computo == null ? "Da definire" : formatEuro(v.importo_computo), 82, 7.5, true)] : []),
+  ];
+  const altezzaSomma = 7.5 * scalaTesto * 1.4 + 12;
+  const sommaMisure = (v: VoceComputo) => {
+    const celle = celleSomma(v);
+    const h = Math.max(...celle.map(c => c.length)) * 7.5 * scalaTesto * 1.4 + 12;
+    ensure(h); doc.setDrawColor(t.filetto); doc.setLineWidth(.3); doc.line(m + numeroW, y, right, y);
+    disegnaCelle(celle, 7.5 * scalaTesto * 1.4, 6, 0, "#F1F4F7");
+  };
   const altezzaVoce = (v: VoceComputo) => {
-    font(8.5); const descr = wrap([metaVoce(v), v.descrizione_estesa || v.descrizione_breve].filter(Boolean).join("\n"), colonne[1].larghezza - 10).length * 11.5;
-    let h = descr + 34;
-    if (v.misure.length && i.dettaglioMisure !== false) {
-      h += 18;
-      for (const misura of v.misure) h += wrap([misura.descrizione || "Misurazione", misura.formula && `Formula: ${misura.formula}`].filter(Boolean).join(" / "), 235).length * 10 + 8;
+    let h = Math.max(...celleVoce(v).map(c => c.length)) * passoVoce + 12 + Math.max(...celleSomma(v).map(c => c.length)) * 7.5 * scalaTesto * 1.4 + 12;
+    if (v.misure.length && i.dettaglioMisure !== false && !misuraSemplice(v)) {
+      for (const misura of v.misure) h += righeMisura(misura).length * passoMisura + 4;
     }
     return h;
   };
   let comunePrecedente = "";
-  const voce = (v: VoceComputo) => {
-    const nuovaComune = !!v.descrizione_comune && v.descrizione_comune !== comunePrecedente;
-    font(9); const hComune = nuovaComune ? wrap(v.descrizione_comune!).length * 12.15 + 18 : 0;
-    const h = altezzaVoce(v) + hComune;
-    const riserva = mostraImporti && finaliCapitolo.has(v.id) ? 24 : 0;
-    ensure(Math.min(h, 120) + riserva);
-    if (nuovaComune) {
-      y += 6;
-      paragraph("DESCRIZIONE COMUNE DELLE LAVORAZIONI SEGUENTI", 6.5, t.inchiostroMarca, true); y += 2;
-      paragraph(v.descrizione_comune!, 9); y += 7;
+  const voce = (v: VoceComputo, sottoTitolo = false) => {
+    ensure(Math.min(altezzaVoce(v), 230)); voceInCorso = v;
+    if (v.descrizione_comune && v.descrizione_comune !== comunePrecedente) {
+      y += 6; paragraph("DESCRIZIONE COMUNE DELLE LAVORAZIONI SEGUENTI", 6.5, t.grigio, true); y += 4;
+      paragraph(v.descrizione_comune, 8); y += 8;
     }
     comunePrecedente = v.descrizione_comune || "";
-    rigaTabella([
-      numeroVoce(v), [metaVoce(v), v.descrizione_estesa || v.descrizione_breve].filter(Boolean).join("\n"),
-      v.unita_misura || "-", num(v.quantita),
-      ...(mostraUnitari ? [money(v.prezzo_unitario_computo)] : []),
-      ...(mostraImporti ? [v.da_quantificare ? "Da quantificare" : money(v.importo_computo)] : []),
-    ]);
-    if (v.misure.length && i.dettaglioMisure !== false) {
-      y += 5;
-      measuresHeader();
-      for (const misura of [...v.misure].sort((a, b) => a.ordine - b.ordine)) {
-        font(7.5); const desc = wrap([misura.descrizione || "Misurazione", misura.formula && `Formula: ${misura.formula}`].filter(Boolean).join(" / "), 235);
-        const h = desc.length * 10 + 8;
-        if (y + Math.min(h, 100) > bottom) { continuation(); measuresHeader(); }
-        const firstPage = doc.getNumberOfPages(), firstY = y;
-        for (const d of desc) {
-          if (y + 10 > bottom) { continuation(); measuresHeader(); }
-          font(7.5); doc.text(d, m + 6, y); y += 10;
-        }
-        const lastPage = doc.getNumberOfPages(), lastY = y;
-        doc.setPage(firstPage);
-        [misura.parti_uguali, misura.lunghezza, misura.larghezza, misura.altezza_peso, misura.quantita].forEach((n, k) => {
-          font(7.5, k === 4); const text = num(n); const w = k === 4 ? 60 : 43;
-          if (doc.getTextWidth(text) > w) doc.setFontSize(Math.max(6, 8 * w / doc.getTextWidth(text)));
-          doc.text(text, m + [282, 329, 376, 423, width - 7][k], firstY, { align: "right" });
-        });
-        doc.setPage(lastPage); y = lastY;
-        y += 2; doc.setDrawColor(t.filetto); doc.setLineWidth(.3); doc.line(m, y, right, y); y += 6;
-      }
+    disegnaRigaVoce(v, sottoTitolo);
+    if (v.misure.length && i.dettaglioMisure !== false && !misuraSemplice(v)) {
+      const misure = [...v.misure].sort((a, b) => a.ordine - b.ordine);
+      misure.forEach((misura, indice) => misuraVoce(misura, indice === misure.length - 1));
     }
     if (v.note_misure && i.dettaglioMisure !== false) {
-      ensure(45); y += 5; paragraph("MISURE DI RIFERIMENTO DEL DOCUMENTO ORIGINALE", 6.5, t.inchiostroMarca, true);
-      paragraph(v.note_misure, 7.5, t.grigio); y += 6;
+      y += 5; paragraph("MISURE DI RIFERIMENTO DEL DOCUMENTO ORIGINALE", 6.5, t.grigio, true);
+      paragraph(v.note_misure, 7.2, t.grigio, false, width - numeroW - 14, m + numeroW + 7); y += 5;
     }
-    if (v.misure.length > 1 && i.dettaglioMisure !== false) {
-      ensure(20); font(7.5, true, t.inchiostroMarca); doc.text(`${v.is_detrazione ? "SI DETRAGGONO" : "SOMMANO"} ${num(v.quantita)} ${v.unita_misura || ""}`, right - 5, y, { align: "right" }); y += 15;
-    }
+    sommaMisure(v);
+    doc.setDrawColor(t.filetto); doc.setLineWidth(.6); doc.line(m, y, right, y);
+    voceInCorso = null;
   };
   const nodoConImporti = (n: NodoComputo): boolean => n.voci.some(v => v.importo_computo != null) || n.figli.some(nodoConImporti);
+  // Si riserva spazio anche per i titoli annidati, la tabella e la prima voce.
+  // Se la descrizione supera una pagina, comincia comunque sotto il suo titolo.
+  const avvioNodo = (n: NodoComputo): number => {
+    font(n.livello === 0 ? 11 : 12, true);
+    const titoloH = wrap(n.nome, n.livello === 0 ? width - 27 : width).length * doc.getFontSize() * 1.35 + 15;
+    return titoloH + (n.voci.length ? 30 + Math.min(altezzaVoce(n.voci[0]), 230) : n.figli[0] ? avvioNodo(n.figli[0]) : 0);
+  };
   const visit = (n: NodoComputo, index: number) => {
     ripetiIntestazioneTabella = null;
+    // La testata di un sottocapitolo ha la baseline sopra il bordo della tabella precedente.
+    if (n.livello > 0) y += 16;
+    ensure(avvioNodo(n));
     if (n.livello === 0) {
-      const prima = (nodo: NodoComputo): VoceComputo | undefined => nodo.voci[0] || nodo.figli.map(prima).find(Boolean);
-      const primaVoce = prima(n);
-      if (primaVoce) ensure(Math.min(altezzaVoce(primaVoce), 110) + 65);
       section(String(index + 1).padStart(2, "0"), n.nome);
       pagineCapitoli.set(n, doc.getNumberOfPages());
     } else { ensure(55); paragraph(n.nome, 12, t.inchiostroMarca, true); y += 10; }
     if (n.voci.length) { ensure(55); intestazioneTabella(); ripetiIntestazioneTabella = intestazioneTabella; }
-    n.voci.forEach(voce); n.figli.forEach(child => visit(child, index));
+    n.voci.forEach((v, k) => voce(v, k === 0)); n.figli.forEach(child => visit(child, index));
     ripetiIntestazioneTabella = null;
     if (mostraImporti && n.livello === 0) {
       y += 10; ensure(24); font(8, true, t.inchiostroMarca); doc.text("SUBTOTALE CAPITOLO", m, y);
@@ -359,23 +451,24 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     const sconto = calcolaSconto(totale, i.sconto, oneriSicurezza(voci));
     const fiscale = calcolaIvaComputo(haImporti ? totale - sconto.importo : null, i);
     const noto = fiscale.totale != null;
-    ensure((noto ? 145 : 95) + (sconto.importo > 0 ? 38 : 0));
+    ensure((noto ? 110 : 75) + (sconto.importo > 0 ? 38 : 0));
+    const xTotali = right - Math.min(width, 300);
     if (sconto.importo > 0 && haImporti) {
-      font(9); doc.text("Totale dei lavori", m, y); doc.text(money(totale), right, y, { align: "right" }); y += 18;
-      doc.text(`${sconto.etichetta}${sconto.percentuale != null ? ` ${num(sconto.percentuale)}%` : ""}`, m, y); doc.text(`-${money(sconto.importo)}`, right, y, { align: "right" }); y += 19;
-      if (!noto) { font(9, true); doc.text("Imponibile", m, y); doc.text(money(totale - sconto.importo), right, y, { align: "right" }); y += 18; }
+      font(9); doc.text("Totale dei lavori", xTotali, y); doc.text(money(totale), right, y, { align: "right" }); y += 18;
+      doc.text(`${sconto.etichetta}${sconto.percentuale != null ? ` ${num(sconto.percentuale)}%` : ""}`, xTotali, y); doc.text(`-${money(sconto.importo)}`, right, y, { align: "right" }); y += 19;
+      if (!noto) { font(9, true); doc.text("Imponibile", xTotali, y); doc.text(money(totale - sconto.importo), right, y, { align: "right" }); y += 18; }
     }
     if (noto) {
-      font(9); doc.text("Imponibile", m, y); doc.text(money(fiscale.imponibile), right, y, { align: "right" }); y += 18;
+      font(9); doc.text("Imponibile", xTotali, y); doc.text(money(fiscale.imponibile), right, y, { align: "right" }); y += 18;
       const etichettaIva = fiscale.modalita === "non-applicabile" ? "IVA non applicabile" : `IVA ${num(fiscale.aliquota)}%`;
-      doc.text(etichettaIva, m, y); doc.text(money(fiscale.iva), right, y, { align: "right" }); y += 19;
+      doc.text(etichettaIva, xTotali, y); doc.text(money(fiscale.iva), right, y, { align: "right" }); y += 19;
     }
-    ensure(76); y += 5; doc.setFillColor(t.fondo); doc.rect(m, y - 5, width, 52, "F");
+    ensure(46); y += 3; doc.setFillColor("#F1F4F7"); doc.rect(xTotali - 8, y - 5, right - xTotali + 8, 31, "F");
     const etichettaTotale = noto ? (fiscale.modalita === "non-applicabile" ? "TOTALE PREVENTIVO" : "TOTALE IVA INCLUSA") : "TOTALE IMPONIBILE";
-    font(9, true, t.bianco); doc.text(i.parziale ? etichettaTotale.replace("TOTALE", "PARZIALE") : etichettaTotale, m + 15, y + 16);
-    font(19, true, t.bianco); const totaleTxt = money(noto ? fiscale.totale : fiscale.imponibile);
-    if (doc.getTextWidth(totaleTxt) > 230) doc.setFontSize(17);
-    doc.text(totaleTxt, right - 15, y + 34, { align: "right" }); y += 65;
+    font(8, true); doc.setFontSize(Math.min(9, doc.getFontSize())); doc.text(i.parziale ? etichettaTotale.replace("TOTALE", "PARZIALE") : etichettaTotale, xTotali, y + 15);
+    font(10.5, true); doc.setFontSize(Math.min(12, doc.getFontSize())); const totaleTxt = money(noto ? fiscale.totale : fiscale.imponibile);
+    if (doc.getTextWidth(totaleTxt) > 150) doc.setFontSize(doc.getFontSize() * 150 / doc.getTextWidth(totaleTxt));
+    doc.text(totaleTxt, right - 7, y + 15, { align: "right" }); y += 42;
     if (!noto) paragraph(fiscale.errore ? "IVA DA COMPLETARE - totale IVA inclusa non determinato." : fiscale.modalita === "da-definire" ? "IVA DA DEFINIRE - importi esposti al netto dell'IVA; totale IVA inclusa non determinato." : "Importi da completare - totale non determinato.", 8, t.grigio);
     if (i.ivaNota?.trim()) paragraph(i.ivaNota.trim(), 8, t.grigio);
     const oneri = oneriSicurezza(voci);
@@ -406,7 +499,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     paragraph(AVVERTENZA_DETRAZIONE, 7.5, t.grigio); y += 6;
   }
   if (i.cronoprogramma?.fasi.length && voci.length) {
-    const dopo = disegnaCronoprogramma(doc, i.cronoprogramma, { margine: m, colore: t.fondo, tinta: t.tinta, inchiostro: t.inchiostro, grigio: t.grigio, filetto: t.filetto, titolo: i.titolo });
+    const dopo = disegnaCronoprogramma(doc, i.cronoprogramma, { margine: m, colore: t.fondo, tinta: t.tinta, inchiostro: t.inchiostro, grigio: t.grigio, filetto: t.filetto, titolo: i.titolo, fontFamiglia: nomeFontModello(veste) });
     if (dopo != null) y = dopo;
   }
   const note = [
@@ -418,14 +511,34 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     for (const [titolo, testo] of note) { ensure(48); paragraph(titolo, 9, t.inchiostroMarca, true); y += 2; paragraph(testo, 9); y += 8; }
   }
   if (i.condizioniContrattuali?.trim()) {
-    ensure(110); y += 14; paragraph("Condizioni contrattuali", 13, t.inchiostro, true); y += 6; rule();
+    const righeContratto = i.condizioniContrattuali.split("\n");
+    font(13, true); let altezzaContratto = doc.getFontSize() * 1.35 + 34 + (i.contrattoOrigine ? 17 * scalaTesto : 0);
+    for (const riga of righeContratto) {
+      const r = riga.trim();
+      if (!r) { altezzaContratto += 4; continue; }
+      if (/^#{1,3}\s+condizioni contrattuali\s*$/i.test(r)) continue;
+      const heading = /^#{1,3}\s/.test(r);
+      font(heading ? 9.5 : 8.5, heading);
+      const testo = r.replace(/^#{1,3}\s+/, "").replace(/^[-*]\s+/, "• ").replace(/\*\*(.+?)\*\*/g, "$1");
+      altezzaContratto += wrap(testo).length * doc.getFontSize() * 1.35 + (heading ? 5 : 0);
+    }
+    // Se il contratto sta in una pagina, si tiene unito invece di lasciare l'ultima clausola da sola.
+    ensure(altezzaContratto < bottom - m - 65 ? altezzaContratto : 110);
+    y += 14; paragraph("Condizioni contrattuali", 13, t.inchiostro, true);
+    if (i.contrattoOrigine) { y += 3; paragraph(`${i.contrattoOrigine.nome} · versione ${i.contrattoOrigine.versione}`, 7.5, t.grigio); }
+    y += 6; rule();
     // Il testo arriva dal modello in Impostazioni: titoli «#»/«##» e righe «- » come nelle offerte del preventivo classico.
-    for (const riga of i.condizioniContrattuali.split("\n")) {
+    for (const [index, riga] of righeContratto.entries()) {
       const r = riga.trim();
       if (!r) { y += 4; continue; }
       // Il titolo della sezione c'è già: un «# Condizioni contrattuali» in testa al testo sarebbe doppio.
       if (/^#{1,3}\s+condizioni contrattuali\s*$/i.test(r)) continue;
-      if (/^#{1,3}\s/.test(r)) { ensure(30); y += 4; paragraph(r.replace(/^#{1,3}\s+/, ""), 9.5, t.inchiostroMarca, true); y += 1; }
+      if (/^#{1,3}\s/.test(r)) {
+        font(9.5, true); const hTitolo = wrap(r.replace(/^#{1,3}\s+/, "")).length * doc.getFontSize() * 1.35;
+        font(8.5); const seguente = righeContratto.slice(index + 1).find(s => s.trim()) ?? "";
+        ensure(hTitolo + Math.min(3, wrap(seguente).length) * doc.getFontSize() * 1.35 + 10);
+        y += 4; paragraph(r.replace(/^#{1,3}\s+/, ""), 9.5, t.inchiostroMarca, true); y += 1;
+      }
       else paragraph(r.replace(/^[-*]\s+/, "• ").replace(/\*\*(.+?)\*\*/g, "$1"), 8.5);
     }
   }
@@ -479,17 +592,14 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     // Le stesse clausole vanno alla pagina di firma (31/10/2026): il cliente approva quelle stampate qui.
     segnaClausoleDelDocumento(clausole);
     if (clausole.length) {
-      const h = 60 + clausole.length * 13 + 60;
-      ensure(h); y += 10;
-      doc.setDrawColor(t.inchiostro); doc.setLineWidth(.8); doc.rect(m, y, width, h);
-      let yc = y + 18;
-      font(8, true); doc.text("APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)", m + 14, yc); yc += 14;
-      font(9, false, t.grigio); doc.text("Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:", m + 14, yc); yc += 14;
-      for (const c of clausole) { font(9); doc.text(short(`- ${c}`, width - 28), m + 14, yc); yc += 13; }
-      const ys = y; y = yc - 4;
-      firma("LUOGO E DATA", "", m + 14, terzo);
-      firma("SECONDA FIRMA DEL COMMITTENTE", "", m + 14 + terzo + 16, terzo * 2 - 12);
-      y = ys + h + 10;
+      ensure(100); y += 12; rule();
+      paragraph("APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)", 8, t.inchiostroMarca, true); y += 4;
+      paragraph("Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:", 9, t.grigio); y += 6;
+      for (const c of clausole) { paragraph(`- ${c}`, 9, t.inchiostro, false, width - 28, m + 14); y += 3; }
+      ensure(85); y += 8;
+      firma("LUOGO E DATA", "", m, terzo);
+      firma("SECONDA FIRMA DEL COMMITTENTE", "", m + terzo + 16, terzo * 2 - 12);
+      y += 75;
     }
   }
   const endPage = doc.getNumberOfPages();
@@ -500,7 +610,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     if (p === 1 && coperta) continue;
     doc.setPage(p); doc.setDrawColor(t.filetto); doc.line(m, H - 37, right, H - 37);
     font(7, false, t.grigio); doc.text(short(stato || veste?.piePagina?.trim() || i.azienda || "", width - 90), m, H - 23);
-    doc.text(`Pagina ${p} di ${endPage}`, right, H - 23, { align: "right" });
+    if (veste?.mostraNumeriPagina !== false) doc.text(`Pagina ${p} di ${endPage}`, right, H - 23, { align: "right" });
   }
   doc.setPage(endPage);
   return doc;

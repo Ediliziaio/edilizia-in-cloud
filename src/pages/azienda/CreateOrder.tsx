@@ -1,3 +1,4 @@
+import { withAbortableClientTimeout } from "@/lib/query-timeout";
 import {StatoPipelineIniziale} from "@/components/orders/StatoPipelineIniziale";
 import {usePipelineLocali,richiestaPipelineLocale,type PipelineLocale} from "@/lib/orders/pipelineLocali";
 import {PIPELINE_PRINCIPALE,verificaPipelineCreazione,assegnaPipelineNuovaCommessa,statoDiPartenza} from "@/lib/orders/pipelineCreazione";
@@ -1038,20 +1039,21 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   }, [suggestedOrderCode, createdOrderId, draftRestored, getValues, setValue]);
 
   // Fetch order statuses for the company
-  const { data: statuses = [] } = useQuery({
-    queryKey: ["order-statuses", effectiveCompany?.id],
-    queryFn: async () => {
+  const { data: statuses = [], isLoading: statiInCaricamento, isError: erroreStati, refetch: ricaricaStati } = useQuery({
+    queryKey: ["order-statuses", effectiveCompany?.id, "creazione"],
+    queryFn: ({ signal }) => withAbortableClientTimeout(async (segnaleLettura) => {
       if (!effectiveCompany?.id) return [];
 
       const { data, error } = await supabase
         .from("order_statuses")
         .select("id, name, color, position, is_default")
         .eq("company_id", effectiveCompany.id)
-        .order("position");
+        .order("position")
+        .abortSignal(segnaleLettura);
 
       if (error) throw error;
       return data as OrderStatus[];
-    },
+    }, "Stati iniziali commessa", 20_000, signal),
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
@@ -2002,6 +2004,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 pipeline={pipelineCommessa.pipeline}
                 principale={principale}
                 statiPrincipali={statuses}
+                statiPrincipaliInCaricamento={statiInCaricamento}
+                erroreStatiPrincipali={erroreStati}
+                onRiprovaStati={() => void ricaricaStati()}
                 value={{pipelineId:pipelineId||PIPELINE_PRINCIPALE,faseId:pipelineId===PIPELINE_PRINCIPALE?statusId||"":pipelineStageId||""}}
                 disabled={createOrderMutation.isPending||!!createdOrderId}
                 caricamento={pipelineCommessa.caricamento}

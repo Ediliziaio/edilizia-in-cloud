@@ -50,7 +50,8 @@ describe("a chi resta attaccata un'attività", () => {
 describe("le due finestre che creano attività", () => {
   it("la finestra condivisa salva i collegamenti senza guardare la categoria", () => {
     const sorgente = leggi("src/components/tasks/TaskDialog.tsx");
-    expect(sorgente).toContain("...collegamentiAttivita(");
+    expect(sorgente).toContain("const links = collegamentiAttivita(");
+    expect(sorgente).toContain("...links,");
     // Prima: contact_id usciva solo con categoria «contatti»/«marketing».
     expect(sorgente).not.toMatch(/contact_id: \(category === "contatti"/);
     expect(sorgente).not.toMatch(/opportunity_id: \(category === "opportunita"/);

@@ -3,7 +3,6 @@ import { useParams, useSearchParams, useNavigate, useLocation, type To, type Nav
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -11,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   useDocumentoFiscale,
   rileggiDocumentoFiscale,
@@ -23,6 +23,7 @@ import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { emessaMaiUscita } from "@/lib/fatturazione/correggibile";
+import { PERCORSO_FATTURE_IN_BOZZA, TIPI_ELENCO_FATTURE } from "@/lib/fatturazione/filtriDocumenti";
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
@@ -42,6 +43,7 @@ import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { APRI_FATTURAZIONE_ELETTRONICA } from "./editor/EditorFatturazioneElettronicaSection";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
+import { FoglioFatturaAdattabile } from "@/components/fatturazione/FoglioFatturaAdattabile";
 import { AnteprimaXmlFattura } from "@/components/fatturazione/AnteprimaXmlFattura";
 import { useAuth } from "@/contexts/AuthContext";
 import { PanelRight } from "lucide-react";
@@ -134,19 +136,12 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   });
 
   const createMutation = useCreateDocumento();
+  const creaDocumento = createMutation.mutate;
   const { data: loadedDoc, isLoading } = useDocumentoFiscale(id);
   const emittiMutation = useEmittiDocumento();
   const deleteMutation = useDeleteDocumento();
 
-  // Ref alla mutation per evitare deps instabili (la reference di
-  // createMutation cambia ad ogni render del componente parent ma il suo
-  // .mutate è stabile; usiamo il ref per leggere l'ultima istanza senza
-  // far re-fire l'effect).
-  const createMutationRef = useRef(createMutation);
-  createMutationRef.current = createMutation;
-
-  // Auto-create on mount for /nuovo. Deps minimizzate: solo i flag che
-  // davvero determinano se procedere. createMutation viene letta dal ref.
+  // La rotta /nuovo crea il documento una volta, dopo aver letto i dati iniziali.
   useEffect(() => {
     if (!isCreate || createdRef.current) return;
     // If ordine param specified, wait until the query has completed (success OR error)
@@ -172,7 +167,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       mergedPrefill.note_documento = ordineData.description || undefined;
     }
 
-    createMutationRef.current.mutate(
+    creaDocumento(
       { tipo: tipoParam, ...mergedPrefill },
       {
         onSuccess: async (doc) => {
@@ -208,9 +203,9 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam, fromDdtParam, ddtFetched]);
+  }, [creaDocumento, isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam, fromDdtParam, ddtFetched]);
 
-  const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
+  const { state, dispatch, isSaving, lastSaved, isDirty, puoSalvare: modificabile, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
   // La fattura verso lo SDI (24/09/2026). Una scartata per l'Agenzia non è
   // emessa: si corregge qui (tranne numero e data) e si rimanda.
@@ -220,7 +215,8 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   // ancora, quindi si corregge come una scartata — numero e data restano quelli. L'ultima
   // parola è del database (trigger documenti_fiscali_proteggi_emessi).
   const maiUscita = emessaMaiUscita(state);
-  const modificabile = isBozza || scartata || maiUscita;
+  const eFattura = !!state.tipo && TIPI_ELENCO_FATTURE.includes(state.tipo);
+  const percorsoRitorno = !popup && isBozza && eFattura ? PERCORSO_FATTURE_IN_BOZZA : "/azienda/documenti";
   const aziendaAllegati = useEffectiveCompanyId();
   const { data: aziendaAnagrafica } = useAnagraficaAzienda();
 
@@ -228,8 +224,22 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   // sono modifiche non salvate. Prima esisteva solo un dialog sulla freccia
   // back; tutti gli altri path (refresh, link sidebar, close tab) facevano
   // perdere le modifiche fatte negli ultimi 2s (autosave window).
-  useBeforeUnload(isDirty && modificabile);
+  useBeforeUnload(modificabile && (isDirty || isSaving));
   const [isConvertLoading, setIsConvertLoading] = useState(false);
+
+  const salvaManualmente = useCallback(async () => {
+    if (!modificabile || isSaving) return false;
+    try {
+      await saveNow();
+      toast.success(isBozza ? "Bozza salvata" : "Modifiche salvate", {
+        description: isBozza && eFattura ? "La trovi in Fatturazione, sotto Fatture in bozza." : undefined,
+      });
+      return true;
+    } catch {
+      // Il messaggio del server è già mostrato dalla mutation.
+      return false;
+    }
+  }, [eFattura, isBozza, isSaving, modificabile, saveNow]);
 
   // Convert proforma/preventivo to fattura
   const handleConvertToFattura = useCallback(async () => {
@@ -324,9 +334,8 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   // ── Auto-cleanup draft "vuote" ─────────────────────────────────
   //
   // L'editor crea sempre un draft su mount per assegnare l'ID. Se l'utente
-  // esce senza compilare niente (no cliente + no righe + no causale ecc.),
-  // il documento è di fatto rifiuti che brucia la numerazione. Lo
-  // eliminiamo silenziosamente sia su back che su unmount (cambio rotta).
+  // La bozza creata aprendo l'editor si rimuove se resta vuota e non viene
+  // mai salvata. Un salvataggio aggiorna updated_at anche dopo la riapertura.
   const isEmpty = useMemo(() => {
     if (!state || !state._initialized) return false;
     const cs = (state.cliente_snapshot ?? {}) as Record<string, unknown>;
@@ -341,16 +350,21 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       !!state.ddt_aspetto_beni ||
       !!state.ddt_mezzo_trasporto ||
       !!state.ddt_peso ||
-      !!(state.ddt_numero_colli && state.ddt_numero_colli > 0) ||
-      !!state.note_documento;
-    return !hasCliente && !hasRighe && !hasDdtFields;
+      !!(state.ddt_numero_colli && state.ddt_numero_colli > 0);
+    return !hasCliente && !hasRighe && !hasDdtFields && !(
+      state.note_documento?.trim() || state.note_interne?.trim() ||
+      state.causale?.some((voce) => typeof voce === "string" && voce.trim()) || state.ordine_id
+    );
   }, [state]);
 
+  const giaSalvata = !!lastSaved || !!(state.created_at && state.updated_at && state.updated_at !== state.created_at);
+  const bozzaVuotaDaRimuovere = isBozza && isEmpty && !giaSalvata && !isDirty && !isSaving;
+
   // Ref per cleanup di unmount — useEffect cleanup non vede lo state corrente.
-  const cleanupRef = useRef({ id: null as string | null, isEmpty: false, isBozza: false });
+  const cleanupRef = useRef<string | null>(null);
   useEffect(() => {
-    cleanupRef.current = { id: state.id ?? null, isEmpty, isBozza };
-  }, [state.id, isEmpty, isBozza]);
+    cleanupRef.current = bozzaVuotaDaRimuovere ? state.id ?? null : null;
+  }, [state.id, bozzaVuotaDaRimuovere]);
 
   // Cleanup di un draft vuoto: tenta RPC `rilascia_numero_documento` per
   // restituire il numero al counter (se era l'ultimo emesso), altrimenti
@@ -372,7 +386,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       if (!error) return;
       // RPC non disponibile (migration non applicata) → fallback delete diretto
       if (error.code === "PGRST202" || /function .* does not exist/i.test(error.message)) {
-        await supabase.from("documenti_fiscali").delete().eq("id", docId);
+        await supabase.from("documenti_fiscali").delete().eq("id", docId).eq("stato", "bozza").is("deleted_at", null);
         return;
       }
       console.warn("[EditorDocumento] rilascia_numero_documento errore", error);
@@ -386,35 +400,33 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   // Cleanup su unmount: se la bozza è ancora vuota, eliminala (best-effort).
   useEffect(() => {
     return () => {
-      const { id, isEmpty: empty, isBozza: bozza } = cleanupRef.current;
-      if (id && empty && bozza) {
-        void releaseEmptyDraft(id);
-      }
+      const id = cleanupRef.current;
+      if (id) void releaseEmptyDraft(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
-    if (popup && isSaving) {
-      toast.info("Salvataggio in corso. Attendi per chiudere la bozza.");
+    if (isSaving) {
+      toast.info("Salvataggio in corso. Attendi prima di uscire.");
       return;
     }
     // Draft vuoto → elimina silenziosamente senza dialog (no spreco numerazione)
     // Naviga IMMEDIATA (no await) — il cleanup avviene in background, evita
     // freeze UI se il network è lento. L'unmount cleanup useEffect riprova.
-    if (state.id && isEmpty && isBozza) {
+    if (state.id && bozzaVuotaDaRimuovere) {
       void releaseEmptyDraft(state.id);
-      navigate("/azienda/documenti");
+      navigate(percorsoRitorno);
       return;
     }
-    if (isDirty && (isBozza || (popup && modificabile))) {
-      setPendingNavigation("/azienda/documenti");
+    if (isDirty && modificabile) {
+      setPendingNavigation(percorsoRitorno);
       setShowLeaveDialog(true);
     } else {
-      navigate("/azienda/documenti");
+      navigate(percorsoRitorno);
     }
-  }, [state.id, isEmpty, isDirty, isBozza, isSaving, modificabile, navigate, popup, releaseEmptyDraft]);
+  }, [state.id, bozzaVuotaDaRimuovere, isDirty, isSaving, modificabile, navigate, percorsoRitorno, releaseEmptyDraft]);
 
   useEffect(() => {
     if (!popup) return;
@@ -501,6 +513,8 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
         isSaving={isSaving}
         isDirty={isDirty}
         lastSaved={lastSaved}
+        bozzaProvvisoria={bozzaVuotaDaRimuovere}
+        onSalva={modificabile ? () => { void salvaManualmente(); } : undefined}
         onEmetti={async () => {
           if (!state.id || emittiMutation.isPending) return;
           // Il salvataggio automatico aspetta 2 secondi. Chi correggeva un
@@ -732,11 +746,9 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
             {vistaAnteprima === "xml" && xmlDisponibile ? (
               <AnteprimaXmlFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} />
             ) : (
-              <div className="flex justify-center">
-                <div className="shrink-0">
-                  <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.45} />
-                </div>
-              </div>
+              <FoglioFatturaAdattabile>
+                <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={1} />
+              </FoglioFatturaAdattabile>
             )}
           </aside>
         )}
@@ -762,7 +774,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Salvare come bozza?</AlertDialogTitle>
+            <AlertDialogTitle>{isBozza ? "Salvare come bozza?" : "Salvare le modifiche?"}</AlertDialogTitle>
             <AlertDialogDescription>
               Hai modifiche non salvate. Desideri salvarle prima di uscire?
             </AlertDialogDescription>
@@ -777,27 +789,22 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
             <button
               onClick={() => {
                 setShowLeaveDialog(false);
+                navigate(pendingNavigation ?? percorsoRitorno);
                 setPendingNavigation(null);
-                navigate("/azienda/documenti");
               }}
+              disabled={isSaving}
               className="text-destructive hover:text-destructive/80 text-sm font-medium"
             >
               Esci senza salvare
             </button>
-            <AlertDialogAction onClick={async () => {
+            <Button type="button" disabled={isSaving} onClick={async () => {
+              if (!(await salvaManualmente())) return;
               setShowLeaveDialog(false);
-              try {
-                await saveNow();
-                toast.success("Bozza salvata");
-              } catch {
-                toast.error("Errore nel salvataggio");
-                if (popup) return;
-              }
-              navigate(pendingNavigation || "/azienda/documenti");
+              navigate(pendingNavigation ?? percorsoRitorno);
               setPendingNavigation(null);
             }}>
-              Salva bozza
-            </AlertDialogAction>
+              {isBozza ? "Salva bozza" : "Salva modifiche"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

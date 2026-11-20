@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { dimensioniLogo } from "../../../supabase/functions/_shared/dimensioniLogo";
 import {
   normalizzaModelloPdf,
   type ModelloPdf,
@@ -8,7 +9,7 @@ import {
   type AziendaDocumento,
   type DocumentoOperativo,
   type RigaDocumentoOperativo,
-  TITOLI,
+  titoloDocumento,
   testoInversioneContabile,
   senzaPrezzi,
   footerAzienda,
@@ -20,10 +21,13 @@ import {
   importoIt,
   numeroIt,
   quantitaDocumento,
+  quantitaETariffaTrasporto,
+  kmRigaTrasporto,
   oreIt,
   dataIt,
   documentoIncompleto,
   haImportiDocumento,
+  importiIvaEsclusa,
   NOTA_TOTALE_ECONOMIA,
 } from "./modello";
 
@@ -56,17 +60,20 @@ export function creaPdfOperativo(
   logo?: string,
   personalizzazione?: ModelloPdf,
 ): jsPDF {
-  const modello = normalizzaModelloPdf(d.tipo, personalizzazione);
+  const rendiconto = d.rendicontoTrasporti;
+  const modello = normalizzaModelloPdf(d.tipo, rendiconto
+    ? { ...personalizzazione, titolo: "", introduzione: "", conclusione: "", notaPagina: "", etichettaFirma: "" }
+    : personalizzazione);
   d = applicaModelloAlDocumento(d, modello);
   if (!modello.mostraLogo) logo = undefined;
   const veste = personalizzazioneDocumento(a.id);
   const logoDellaVeste = Boolean(logo && veste.logoAltezza && veste.logoLarghezzaMax);
   // Logo grande e carattere proprio pesano: si comprime solo chi li ha.
-  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: logoDellaVeste });
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: logoDellaVeste || !!rendiconto });
   pdf.setProperties({
-    title: `${modello.titolo || TITOLI[d.tipo]} ${d.numero}`,
+    title: `${modello.titolo || titoloDocumento(d)} ${d.numero}`,
     author: a.business_name || a.name,
-    subject: modello.titolo || TITOLI[d.tipo],
+    subject: modello.titolo || titoloDocumento(d),
   });
   const left = modello.margine || mm(pagina.margineLaterale),
     width = 210 - left * 2,
@@ -83,7 +90,9 @@ export function creaPdfOperativo(
       coloreAzienda: modello.colore || a.brand_primary_color,
     }));
   const corpo = modello.dimensioneTesto || pagina.corpo;
-  const standard = STANDARD_DOCUMENTI[d.tipo];
+  const standard = rendiconto
+    ? { ...STANDARD_DOCUMENTI.trasporti, titoloPdf: titoloDocumento(d), destinatario: "COMMITTENTE", condizioni: "Conferma del rendiconto" }
+    : STANDARD_DOCUMENTI[d.tipo];
   const safe = (v: string) =>
     v
       .replace(/\u00a0/g, " ")
@@ -126,20 +135,24 @@ export function creaPdfOperativo(
     let hSx = 0,
       wSx = 0;
     let immagine: { tipo: string; w: number; h: number } | null = null;
+    let titoloSotto = false;
     let ragione: string[] = [];
     const passoRagione = passo(stileTestata.ragioneSocialeCorpo, 1.2);
     if (logo) {
       const info = pdf.getImageProperties(logo);
-      const scala = logoDellaVeste ? 1 : modello.scalaLogo / 100;
-      const maxH = mm(logoDellaVeste ? veste.logoAltezza! : stileTestata.logoAltezza) * scala;
-      // Il titolo deve stare su una riga accanto al logo: un logo largo (Vulcano, con le certificazioni) si ferma
-      // prima, invece di mandare il titolo a capo sopra il numero (14/11/2026).
+      // La veste decide la misura di serie; la scelta dell'utente la scala anche per Vulcano.
       font(stileTestata.titoloCorpo, true);
       const spazioTitolo = Math.min(pdf.getTextWidth(titolo), width * 0.5) + 8;
-      const maxW = Math.min(mm(logoDellaVeste ? veste.logoLarghezzaMax! : stileTestata.logoLarghezzaMax) * scala, width - spazioTitolo);
-      const rapporto = info.width / info.height;
-      wSx = Math.min(maxW, maxH * rapporto);
-      hSx = wSx / rapporto;
+      const misure = dimensioniLogo(
+        { larghezza: info.width, altezza: info.height },
+        { larghezza: Math.min(mm(veste.logoLarghezzaMax ?? stileTestata.logoLarghezzaMax), width - spazioTitolo), altezza: mm(veste.logoAltezza ?? stileTestata.logoAltezza) },
+        modello.scalaLogo,
+        { larghezza: width, altezza: mm(140) },
+      );
+      wSx = misure.larghezza;
+      hSx = misure.altezza;
+      // Un logo ingrandito può usare tutta la riga: titolo e numero scendono sotto.
+      titoloSotto = wSx > width - spazioTitolo + 0.01;
       immagine = { tipo: info.fileType, w: wSx, h: hSx };
     } else if (modello.mostraLogo) {
       // Senza logo: la ragione sociale, in grassetto.
@@ -148,7 +161,7 @@ export function creaPdfOperativo(
       wSx = Math.max(...ragione.map((r) => pdf.getTextWidth(r)));
       hSx = ragione.length * passoRagione;
     }
-    const wDx = Math.max(50, width - wSx - 8);
+    const wDx = titoloSotto ? width : Math.max(50, width - wSx - 8);
     let corpoTitolo: number = stileTestata.titoloCorpo;
     font(corpoTitolo, true);
     let righeTitolo = lines(titolo, wDx);
@@ -159,8 +172,8 @@ export function creaPdfOperativo(
     }
     const passoTitolo = passo(corpoTitolo, 1.2);
     const hDx = righeTitolo.length * passoTitolo + passo(stileTestata.sottotitoloCorpo, 1.3);
-    const fondo = top + Math.max(hSx, hDx);
-    if (immagine) pdf.addImage(logo!, immagine.tipo, left, fondo - immagine.h, immagine.w, immagine.h);
+    const fondo = top + (titoloSotto ? hSx + mm(12) + hDx : Math.max(hSx, hDx));
+    if (immagine) pdf.addImage(logo!, immagine.tipo, left, titoloSotto ? top : fondo - immagine.h, immagine.w, immagine.h);
     else if (ragione.length) {
       font(stileTestata.ragioneSocialeCorpo, true);
       ragione.forEach((r, i) => pdf.text(r, left, fondo - hSx + passoRagione * (i + 0.78)));
@@ -241,13 +254,21 @@ export function creaPdfOperativo(
             (() => {
               const oreUomo = d.righe.reduce((s, r) => s + (r.oreUomo || 0), 0);
               const oreMezzo = d.righe.reduce((s, r) => s + (r.oreMezzo || 0), 0);
+              const viaggiContabili = d.righe.every((r) => r.unita === "viaggio" || !!(r.carico && r.scarico && r.mezzo));
+              const n = rendiconto && viaggiContabili
+                ? d.righe.reduce((s, r) => s + (r.unita === "viaggio" ? r.quantita : 1), 0)
+                : d.righe.length;
+              const [singolare, plurale] = rendiconto && !viaggiContabili ? ["voce", "voci"] : ["viaggio", "viaggi"];
+              const km = rendiconto ? d.righe.reduce((s, r) => s + (kmRigaTrasporto(r) ?? 0), 0) : 0;
               return [
-                `${d.righe.length} ${d.righe.length === 1 ? "viaggio" : "viaggi"}`,
+                `${numeroIt(n)} ${n === 1 ? singolare : plurale}`,
+                km > 0 ? `${numeroIt(km)} km` : null,
                 oreUomo > 0 ? `${numeroIt(oreUomo)} ore uomo` : null,
                 oreMezzo > 0 ? `${numeroIt(oreMezzo)} ore mezzo` : null,
               ].filter(Boolean).join(" - ");
             })(),
             d.commessa,
+            rendiconto && d.luogo,
           ]
         : [
             d.luogo || "Da indicare",
@@ -383,7 +404,29 @@ export function creaPdfOperativo(
   const emptyPrices = d.tipo === "richiesta" || senzaPrezzi(d);
   const money = importoIt;
   let cols: Col[];
-  if (d.tipo === "trasporti")
+  const totaleTrasporto = (r: RigaDocumentoOperativo) =>
+    r.prezzo == null && r.importo == null ? "Da definire" : money(importoRiga(r));
+  if (rendiconto)
+    cols = [
+      { title: "DATA", width: 23, value: (r) => dataIt(r.data) },
+      { title: "CARICO / VOCE", width: 26, value: (r) => r.carico || r.descrizione },
+      { title: "SCARICO", width: 26, value: (r) => r.scarico || "-" },
+      {
+        title: "MEZZO", width: 22, value: (r) => [
+          r.mezzo || "-",
+          r.oreUomo ? `${numeroIt(r.oreUomo)} h uomo` : null,
+          r.oreMezzo ? `${numeroIt(r.oreMezzo)} h mezzo` : null,
+        ].filter(Boolean).join("\n"),
+      },
+      { title: "KM", width: 10, align: "right", value: (r) => {
+        const km = kmRigaTrasporto(r);
+        return km == null ? "-" : numeroIt(km);
+      } },
+      { title: "DDT", width: 29, value: (r) => r.ddt || "-" },
+      { title: "QUANTITÀ E TARIFFA", width: 24, align: "right", value: (r) => quantitaETariffaTrasporto(r, "\n") },
+      { title: "IMPORTO", width: 22, align: "right", value: totaleTrasporto },
+    ];
+  else if (d.tipo === "trasporti")
     cols = [
       // DATA a 23: a 9 pt la data intera sta in una riga.
       { title: "DATA", width: 23, value: (r) => dataIt(r.data) },
@@ -407,10 +450,7 @@ export function creaPdfOperativo(
         title: "IMPORTO",
         width: 24,
         align: "right",
-        value: (r) =>
-          r.prezzo == null && r.importo == null
-            ? "Da definire"
-            : money(importoRiga(r)),
+        value: totaleTrasporto,
       },
     ];
   else {
@@ -637,10 +677,10 @@ export function creaPdfOperativo(
   const payX = d.tipo === "richiesta" ? left + width / 2 + 2 : left;
   const payWidth =
     d.tipo === "richiesta" ? width / 2 - 2 : emptyPrices ? width - 92 : width - 80;
-  let py = titoloSezioneA("Pagamento", payX, payWidth, sy);
+  let py = rendiconto && !d.pagamento ? sy : titoloSezioneA("Pagamento", payX, payWidth, sy);
   const pay = [
     d.tipo === "richiesta" ? "Condizione concordata con voi:" : "",
-    d.pagamento || (d.tipo === "economia" ? "Da concordare con il committente" : "Da definire con il fornitore"),
+    d.pagamento || (rendiconto ? null : d.tipo === "economia" ? "Da concordare con il committente" : "Da definire con il fornitore"),
     d.inversioneContabile ? "Fatturazione" : null,
     d.inversioneContabile ? testoInversioneContabile(d) : null,
     d.banca,
@@ -669,7 +709,7 @@ export function creaPdfOperativo(
     const tx = left + width - tw;
     const ty = sy + mm(stileSezione.spazioPrima);
     const voci: [string, string][] =
-      d.tipo === "economia"
+      importiIvaEsclusa(d)
         ? []
         : [
             ["Imponibile", euro(t.imponibile)],
@@ -698,7 +738,7 @@ export function creaPdfOperativo(
     pdf.text(
       documentoIncompleto(d)
         ? "Totale parziale"
-        : d.tipo === "economia"
+        : importiIvaEsclusa(d)
           ? "Totale IVA esclusa"
           : d.tipo === "trasporti"
             ? "Totale"

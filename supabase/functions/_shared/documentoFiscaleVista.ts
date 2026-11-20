@@ -12,6 +12,7 @@
  */
 
 import { normalizzaHex, schiarisci, testoSuChiaro } from "./temaColori.ts";
+import { normalizzaScalaLogo } from "./dimensioniLogo.ts";
 import {
   ETICHETTA_TIPO_RIFERIMENTO,
   numeriLineaDi,
@@ -335,19 +336,20 @@ export function importoInEvidenza(doc: Record<string, unknown>): { etichetta: st
  * Chrome allinea le celle di tabella in alto anche con `vertical-align:
  * baseline`, e l'etichetta piccola finiva 3 punti sopra il valore grande.
  */
-export function cssFoglio(t: TemaFattura): string {
+export function cssFoglio(t: TemaFattura, scalaLogo: unknown = 100): string {
+  const scala = normalizzaScalaLogo(scalaLogo) / 100;
   return `
 .fd-foglio { box-sizing: border-box; width: 210mm; padding: 12mm 14mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; background: #ffffff; color: #1e293b; font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9pt; line-height: 1.45; font-variant-numeric: tabular-nums; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fd-foglio *, .fd-foglio *::before, .fd-foglio *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fd-foglio table { border-collapse: collapse; border-spacing: 0; }
 .fd-foglio th, .fd-foglio td { vertical-align: top; }
-.fd-testata { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; }
-.fd-emittente { flex: 1 1 auto; min-width: 0; }
-.fd-foglio .fd-logo { display: block; height: 22mm; width: auto; max-width: 70mm; object-fit: contain; object-position: left center; margin: 0 0 3mm; }
+.fd-testata { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8mm; }
+.fd-emittente { flex: 1 1 ${scala > 1 ? "100%" : "auto"}; min-width: 0; }
+.fd-foglio .fd-logo { display: block; height: auto; width: auto; max-height: ${22 * scala}mm; max-width: min(100%, ${70 * scala}mm); object-fit: contain; object-position: left center; margin: 0 0 3mm; }
 .fd-ragione { font-size: 13pt; font-weight: 700; line-height: 1.2; color: #0f172a; }
 .fd-forma { margin-top: 0.4mm; font-size: 8pt; color: #64748b; }
 .fd-dati { margin-top: 1.4mm; font-size: 7.8pt; line-height: 1.55; color: #475569; }
-.fd-documento { flex: 0 0 82mm; min-width: 0; text-align: right; }
+.fd-documento { flex: 0 0 82mm; min-width: 0; margin-left: auto; text-align: right; }
 .fd-tipo { font-size: 19pt; font-weight: 800; line-height: 1.08; letter-spacing: 0.04em; color: ${t.accentoTesto}; }
 .fd-estremi { display: grid; grid-template-columns: auto auto; justify-content: end; align-items: baseline; column-gap: 4mm; row-gap: 0.9mm; margin-top: 2.6mm; }
 .fd-voce { text-align: right; font-size: 7.8pt; font-weight: 500; color: #64748b; white-space: nowrap; }

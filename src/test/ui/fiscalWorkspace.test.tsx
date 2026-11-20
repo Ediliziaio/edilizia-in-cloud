@@ -125,7 +125,7 @@ describe("registro fiscale reale, senza scritture", () => {
     expect(screen.getByText("0 documenti da verificare")).toBeVisible();
     // documenti_fiscali: solo gli id delle fatture scartate dallo SDI, che il registro lascia fuori.
     expect(new Set(state.calls)).toEqual(
-      new Set(["fatture_vendite_iva", "fatture_ricevute_periodo_iva", "documenti_fiscali"]),
+      new Set(["fatture_vendite_iva", "fatture_ricevute_periodo_iva", "documenti_fiscali", "iva_sezionali", "iva_protocolli"]),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Registro acquisti" }));
     expect(screen.getByTestId("url").textContent).toContain(

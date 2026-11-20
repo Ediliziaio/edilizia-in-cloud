@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { leggiModelloPdf } from "@/lib/modelliPdf/repository";
-import { applicaModelloAlDocumento, corpoDocumento, erroriDocumento, nomeFileDocumento, TITOLI, type DocumentoOperativo, type AziendaDocumento } from "./modello";
+import { applicaModelloAlDocumento, corpoDocumento, erroriDocumento, nomeFileDocumento, titoloDocumento, type DocumentoOperativo, type AziendaDocumento } from "./modello";
 import type { ComposeContext, ComposeAttachment } from "@/pages/azienda/email/components/EmailComposeDialog";
 
 /** Prepara una bozza completa. L'invio resta esclusivamente nel compositore email. */
@@ -34,7 +34,7 @@ export async function preparaEmailDocumento({documento:d,azienda,context,modo,us
       ...context,
       ...(context.procurement?{procurement:{...context.procurement,documento}}:{}),
       initialSubject:d.numero === originale.numero && d.tipo === originale.tipo && context.initialSubject
-        ? context.initialSubject : `${TITOLI[d.tipo]} ${d.tipo === "richiesta" ? `[${d.numero}]` : d.numero} | ${azienda.name}`,
+        ? context.initialSubject : `${titoloDocumento(d)} ${d.tipo === "richiesta" ? `[${d.numero}]` : d.numero} | ${azienda.name}`,
       initialTo:d.destinatario.email?.trim() ? [d.destinatario.email.trim()] : d.fornitoreId ? [] : context.initialTo,
       initialBodyHtml:corpoDocumento(documento,azienda,modo === "pdf"),
       initialAttachments:[...(context.initialAttachments ?? []),...allegati],

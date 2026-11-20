@@ -11,6 +11,8 @@ import {
   type QuoteTemplate,
 } from "@/types/quoteTemplate";
 import { QuotePdfLivePreview } from "@/components/quotes/QuotePdfLivePreview";
+import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
+import { DocumentEditorWorkspace } from "@/components/shared/DocumentEditorWorkspace";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,9 @@ function LibreriaContratti({
   const query = useQuoteTemplates({ refetchOnWindowFocus: false });
   const [selected, setSelected] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [ricariche, setRicariche] = useState(0);
+  const [ricaricando, setRicaricando] = useState(false);
+  const occupato = query.upsertTemplate.isPending || ricaricando;
   const conferma = () =>
     !dirty ||
     window.confirm("Ci sono modifiche non salvate. Uscire senza salvarle?");
@@ -58,14 +63,14 @@ function LibreriaContratti({
   const source = condizioni.find((t) => t.id === actual);
   const canEdit = permissions.isAdmin || permissions.canEditSettingsPricing;
   const select = (id: string) => {
-    if (conferma()) {
+    if (id !== actual && conferma()) {
       setDirty(false);
       onDirty(false);
       setSelected(id);
     }
   };
   if (query.isLoading) return <p>Caricamento contratti…</p>;
-  if (query.fetchError)
+  if (query.fetchError && !query.templates.length && !dirty)
     return (
       <Card>
         <CardContent className="space-y-3 p-6">
@@ -91,7 +96,7 @@ function LibreriaContratti({
         </div>
         <Button
           variant="outline"
-          disabled={!canEdit || query.upsertTemplate.isPending}
+          disabled={!canEdit || occupato}
           onClick={() => select("nuovo")}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -99,16 +104,27 @@ function LibreriaContratti({
         </Button>
         <Button
           variant="ghost"
-          disabled={query.upsertTemplate.isPending}
-          onClick={() => {
-            if (conferma()) {
+          disabled={occupato}
+          onClick={async () => {
+            if (!conferma()) return;
+            setRicaricando(true);
+            onSaving(true);
+            try {
+              const esito = await query.refetch();
+              if (esito.isError) {
+                toast.error("Ricarica dei contratti non riuscita");
+                return;
+              }
               setDirty(false);
               onDirty(false);
-              void query.refetch();
+              setRicariche((v) => v + 1);
+            } finally {
+              setRicaricando(false);
+              onSaving(false);
             }
           }}
         >
-          Ricarica contratti
+          {ricaricando ? "Ricarico…" : "Ricarica contratti"}
         </Button>
         <Button variant="ghost" asChild>
           <Link to="/azienda/impostazioni/template-preventivi">
@@ -126,7 +142,7 @@ function LibreriaContratti({
           <Button
             key={t.id}
             variant={actual === t.id ? "secondary" : "outline"}
-            disabled={query.upsertTemplate.isPending}
+            disabled={occupato}
             aria-pressed={actual === t.id}
             onClick={() => select(t.id)}
           >
@@ -135,12 +151,13 @@ function LibreriaContratti({
         ))}
       </div>
       <Editor
-        key={`${actual}:${source?.updated_at ?? "nuovo"}`}
+        key={`${actual}:${source?.updated_at ?? "nuovo"}:${ricariche}`}
         source={source}
         companyId={effectiveCompany?.id}
         companyName={effectiveCompany?.business_name || effectiveCompany?.name}
         canEdit={canEdit}
-        busy={query.upsertTemplate.isPending}
+        busy={occupato}
+        saving={query.upsertTemplate.isPending}
         onDirty={(v) => {
           setDirty(v);
           onDirty(v);
@@ -169,6 +186,7 @@ function Editor({
   companyName,
   canEdit,
   busy,
+  saving,
   onDirty,
   save,
 }: {
@@ -177,11 +195,12 @@ function Editor({
   companyName?: string;
   canEdit: boolean;
   busy: boolean;
+  saving: boolean;
   onDirty: (v: boolean) => void;
   save: (form: Partial<QuoteTemplate>) => Promise<void>;
 }) {
   const savingGuard = useRef(false);
-  const [form, setForm] = useState<Partial<QuoteTemplate>>(() =>
+  const [base, setBase] = useState<Partial<QuoteTemplate>>(() =>
     source
       ? { ...source, body_html: htmlPerEditorContratto(source.body_html ?? "") }
       : {
@@ -190,6 +209,7 @@ function Editor({
           body_html: "",
         },
   );
+  const [form, setForm] = useState(base);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
   const patch = (value: Partial<QuoteTemplate>) => {
@@ -206,7 +226,9 @@ function Editor({
     }
     savingGuard.current = true;
     try {
-      await save({ ...form, body_format: "html" });
+      const valori = { ...form, body_format: "html" } as const;
+      await save(valori);
+      setBase(valori);
       setDirty(false);
       toast.success("Blocco contrattuale salvato");
     } catch (e) {
@@ -221,8 +243,8 @@ function Editor({
     }
   };
   return (
-    <div className="grid min-w-0 items-start gap-5 xl:grid-cols-2">
-      <Card className="min-w-0 xl:max-h-[70vh] xl:overflow-y-auto">
+    <DocumentEditorWorkspace
+      editor={<Card className="min-w-0 xl:max-h-[70vh] xl:overflow-y-auto">
         <CardContent className="space-y-4 p-5">
           <div className="space-y-2">
             <Label htmlFor="contratto-nome">Nome del blocco contrattuale</Label>
@@ -249,13 +271,22 @@ function Editor({
               {error}
             </p>
           )}
-          <Button disabled={!canEdit || busy || !dirty} onClick={salva}>
-            <Save className="mr-2 h-4 w-4" />
-            {busy ? "Salvataggio…" : "Salva contratto"}
-          </Button>
+          {canEdit && <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={busy || !dirty} onClick={salva}>
+              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+              {saving ? "Salvataggio…" : "Salva contratto"}
+            </Button>
+            <DiscardDocumentDraft disabled={busy || !dirty} onDiscard={() => {
+              setForm(base);
+              setDirty(false);
+              setError("");
+              onDirty(false);
+            }} />
+            {dirty && <span className="text-xs text-amber-700">Modifiche non salvate</span>}
+          </div>}
         </CardContent>
-      </Card>
-      <div className="min-w-0">
+      </Card>}
+      anteprima={<div>
         <p className="mb-3 text-sm text-slate-500">
           Anteprima delle condizioni nel preventivo, con dati di esempio.
         </p>
@@ -278,7 +309,7 @@ function Editor({
             </CardContent>
           </Card>
         )}
-      </div>
-    </div>
+      </div>}
+    />
   );
 }

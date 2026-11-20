@@ -75,6 +75,38 @@ export interface RiferimentiFattura {
   causale: string;
 }
 
+/** Testi del solo corpo della fattura, con l'ambito della riga conservato. */
+export function testiRiferimentiFattura(rif: RiferimentiFattura, testoExtra = ""): Array<{ testo: string; righe: number[] }> {
+  return [
+    { testo: [rif.causale, testoExtra].filter(Boolean).join("\n"), righe: [] },
+    ...[...rif.ordini, ...rif.contratti, ...rif.convenzioni, ...rif.ricezioni, ...rif.fattureCollegate]
+      .map(r => ({ testo: [r.testo, r.codiceCommessa, r.cup, r.cig].filter(Boolean).join("\n"), righe: r.righe })),
+    ...rif.righe.map(r => ({ testo: [r.descrizione, ...r.altriDati.map(a => [a.tipo, a.testo].filter(Boolean).join(" "))].join("\n"), righe: [r.numeroLinea] })),
+  ].filter(t => t.testo.trim());
+}
+
+/** Solo riferimenti dichiarati come ordine/ODA: un numero nudo non identifica un acquisto. */
+export function ordiniNeiTesti(rif: RiferimentiFattura, testoExtra = ""): RiferimentoDocumento[] {
+  const trovati = new Map<string, RiferimentoDocumento>();
+  const re = /\b(?:(o\.?\s*d\.?\s*a\.?)(?=[\s:/.-])|ordin(?:e|i)\b(?:\s+d(?:i|['’])\s*acquisto)?)\s*(?:n(?:r|um)?\.?|n°|numero)?\s*[-:#.]?\s*([A-Z0-9][A-Z0-9/.-]{0,49})(?:\s*(?:del|data)\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}-\d{2}-\d{2}))?/gi;
+  for (const t of testiRiferimentiFattura(rif, testoExtra)) for (const m of t.testo.matchAll(re)) {
+    const testo = `${m[1] ? "ODA-" : ""}${m[2].replace(/[./-]$/, "")}`;
+    const numero = numeroDocumento(testo);
+    if (!numero) continue;
+    const data = m[3] ? dataIso(m[3]) : null;
+    const k = `${numero.chiave}|${data ?? ""}|${t.righe.join(",")}`;
+    trovati.set(k, { tipo: "ordine", numero, testo, data, numItem: null, codiceCommessa: null, cup: null, cig: null, righe: t.righe });
+  }
+  return [...trovati.values()];
+}
+
+/** DDT citati anche in causale, riferimenti e altri dati gestionali, senza perdere le righe. */
+export function ddtNeiTesti(rif: RiferimentiFattura, testoExtra = ""): RiferimentoDdt[] {
+  return testiRiferimentiFattura(rif, testoExtra).flatMap(t => ddtNelleDescrizioni([
+    { numeroLinea: 0, descrizione: t.testo, codici: [], quantita: null, unitaLetta: null, unita: null, prezzoUnitario: null, totale: 0, tipoCessione: null, dataInizio: null, dataFine: null, altriDati: [] },
+  ]).map(d => ({ ...d, righe: t.righe })));
+}
+
 /** Toglie i prefissi di namespace dai nomi degli elementi (stessa regola di `fatturaRicevutaXml`). */
 export function senzaPrefissi(xml: string): string {
   return xml.replace(/<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/g, "<$1");
@@ -94,6 +126,13 @@ function decodifica(v: string): string {
 function blocchi(xml: string, tag: string): string[] {
   const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "g");
   return [...xml.matchAll(re)].map((m) => m[1]);
+}
+
+/** Anche le regole SQL devono ricevere solo il corpo selezionato del lotto. */
+export function corpoXmlFattura(xmlGrezzo: string, indiceCorpo = 0): string {
+  const xml = senzaPrefissi(String(xmlGrezzo ?? ""));
+  const corpi = blocchi(xml, "FatturaElettronicaBody");
+  return corpi.length ? corpi[indiceCorpo] ?? "" : xml;
 }
 
 function valori(xml: string, tag: string): string[] {
@@ -134,9 +173,7 @@ function riferimento(tipo: TipoRiferimento, b: string): RiferimentoDocumento {
  * di fatture: ognuna ha i suoi riferimenti e non si mescolano).
  */
 export function leggiRiferimentiFattura(xmlGrezzo: string, indiceCorpo = 0): RiferimentiFattura {
-  const xml = senzaPrefissi(String(xmlGrezzo ?? ""));
-  const corpi = blocchi(xml, "FatturaElettronicaBody");
-  const corpo = corpi[indiceCorpo] ?? (corpi.length ? "" : xml);
+  const corpo = corpoXmlFattura(xmlGrezzo, indiceCorpo);
   const generali = blocchi(corpo, "DatiGenerali")[0] ?? "";
 
   const lista = (tag: string, tipo: TipoRiferimento) => blocchi(generali, tag).map((b) => riferimento(tipo, b));
@@ -207,7 +244,7 @@ export function leggiRiferimentiFattura(xmlGrezzo: string, indiceCorpo = 0): Rif
  */
 export function ddtNelleDescrizioni(righe: RigaFatturaLetta[]): RiferimentoDdt[] {
   const trovati = new Map<string, RiferimentoDdt>();
-  const re = /\b(?:d\.?\s*d\.?\s*t\.?|bolla|doc\.?\s*trasp(?:orto)?\.?)\s*(?:n(?:r|um)?\.?|n°|numero)?\s*[:.]?\s*([A-Z0-9][A-Z0-9/\-.]{0,20})(?:\s*(?:del|dd|data)\.?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|\d{4}-\d{2}-\d{2}))?/gi;
+  const re = /\b(?:d\.?\s*d\.?\s*t\.?|bolla|doc\.?\s*trasp(?:orto)?\.?)\s*(?:n(?:r|um)?\.?|n°|numero)?\s*[:.]?\s*([A-Z0-9][A-Z0-9/.-]{0,20})(?:\s*(?:del|dd|data)\.?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}-\d{2}-\d{2}))?/gi;
   for (const r of righe) {
     for (const m of r.descrizione.matchAll(re)) {
       const numero = numeroDocumento(m[1].replace(/[.\-/]$/, ""));

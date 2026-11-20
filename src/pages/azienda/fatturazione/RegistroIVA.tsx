@@ -35,6 +35,8 @@ import { LiquidazioneIVA } from "@/components/contabilita/LiquidazioneIVA";
 import { RicezioneAcquisti } from "@/components/fatturazione/RicezioneAcquisti";
 import { DetraibilitaAcquisti } from "@/components/fatturazione/DetraibilitaAcquisti";
 import { fiscalDate, fiscalVatGroups } from "@/lib/fatturazione/fiscalInsights";
+import { chiaveProtocolloIva, useRegistriIva } from "@/hooks/useRegistriIva";
+import { AssegnaProtocolliIva, GestioneSezionaliIva } from "@/components/fatturazione/ProtocolliIva";
 
 function etichettaAliquota(r: { rate: string; nature: string }): string {
   const aliquota = r.rate || "Da verificare";
@@ -56,6 +58,8 @@ function RegistroContent() {
   const search = p.params.get("q_iva") ?? "";
   const [page, setPage] = useState(0);
   const [aliquota, setAliquota] = useState("tutte");
+  const [sezionale, setSezionale] = useState("tutti");
+  const registri = useRegistriIva(company);
   const side =
     p.params.get("registro") === "tutti"
       ? "tutti"
@@ -114,14 +118,19 @@ function RegistroContent() {
       )) as unknown as FiscalDocument[],
   });
   const rows = useMemo(
-    () => fiscalRows(sales.data || [], purchases.data || []),
-    [sales.data, purchases.data],
+    () => fiscalRows(sales.data || [], purchases.data || []).map(r => {
+      const protocollo = r.synthetic ? undefined : registri.perDocumento.get(chiaveProtocolloIva(r.side, r.documentId));
+      const s = protocollo ? registri.perSezionale.get(protocollo.sezionale_id) : undefined;
+      return { ...r, protocol: protocollo ? `${s?.codice ?? ""} ${protocollo.numero}/${protocollo.anno}`.trim() : "", section: s ? `${s.codice} · ${s.nome}` : "", sectionId: s?.id ?? "", registrationDate: protocollo?.data_registrazione ?? "" };
+    }),
+    [sales.data, purchases.data, registri.perDocumento, registri.perSezionale],
   );
   const issues = fiscalDocumentIssues(rows);
   const aliquote = [...new Set(rows.filter((r) => !r.synthetic).map((r) => etichettaAliquota(r)))].sort();
   const matching = rows.filter(
     (r) =>
       (side === "tutti" || r.side === side) &&
+      (sezionale === "tutti" || (sezionale === "non_assegnato" ? !r.synthetic && !r.protocol : r.sectionId === sezionale)) &&
       (aliquota === "tutte" || etichettaAliquota(r) === aliquota) &&
       (!onlyIssues || r.issues.length > 0) &&
       `${r.number} ${r.counterparty} ${r.nature}`
@@ -178,7 +187,7 @@ function RegistroContent() {
     logo_url: anagrafica.data?.logo_url ?? null,
   };
   const apriStampa = () =>
-    setStampa(htmlRegistroIva({ azienda: intestazione, righe: filtered, lato: side, dal: p.dal, al: p.al }));
+    setStampa(htmlRegistroIva({ azienda: intestazione, righe: filtered, lato: side, dal: p.dal, al: p.al, sezionale: registri.perSezionale.get(sezionale)?.nome }));
   const scaricaExcel = async () => {
     await exportXlsx({
       filename: `registro-iva-${side}-${p.dal}-${p.al}.xlsx`,
@@ -194,6 +203,9 @@ function RegistroContent() {
           { header: "Data documento", key: "data", width: 14 },
           { header: side === "acquisti" ? "Data detrazione" : "Data periodo", key: "periodo", width: 14 },
           { header: "Numero", key: "numero", width: 16 },
+          { header: "Protocollo", key: "protocollo", width: 18 },
+          { header: "Sezionale", key: "sezionale", width: 24 },
+          { header: "Data registrazione", key: "registrazione", width: 18 },
           { header: "Controparte", key: "controparte", width: 38 },
           { header: "Registro", key: "registro", width: 11 },
           { header: "Imponibile", key: "imponibile", type: "number", width: 15 },
@@ -214,6 +226,9 @@ function RegistroContent() {
         "Ricezione",
         "Origine ricezione",
         "Numero",
+        "Protocollo",
+        "Sezionale",
+        "Data registrazione",
         "Controparte",
         "Imponibile",
         "IVA",
@@ -228,6 +243,9 @@ function RegistroContent() {
         r.received?.slice(0, 10) || "",
         r.receivedOrigin || "",
         r.number,
+        r.protocol,
+        r.section,
+        r.registrationDate,
         r.counterparty,
         r.base === null ? "" : (r.base / 100).toFixed(2).replace(".", ","),
         r.tax === null ? "" : (r.tax / 100).toFixed(2).replace(".", ","),
@@ -344,7 +362,13 @@ function RegistroContent() {
         </details>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="Registri IVA" className="flex gap-1">
+        {(registri.protocolli.isError || registri.sezionali.isError) && <p role="alert" className="w-full text-sm text-destructive">Protocolli IVA non disponibili. <button className="underline" onClick={() => void registri.ricarica()}>Riprova</button></p>}
+        <GestioneSezionaliIva company={company} registri={registri} />
+        {registri.puoScrivere && side !== "tutti" && <AssegnaProtocolliIva righe={filtered} lato={side} registri={registri} />}
+        <UniformSelect aria-label="Sezionale IVA" className="h-9 rounded-md border bg-background px-2 text-sm" value={sezionale} onChange={e => { setSezionale(e.target.value); setPage(0); }}>
+          <option value="tutti">Tutti i sezionali</option><option value="non_assegnato">Senza protocollo</option>{(registri.sezionali.data ?? []).filter(s => side === "tutti" || s.lato === side).map(s => <option key={s.id} value={s.id}>{s.codice} · {s.nome}</option>)}
+        </UniformSelect>
+        <div role="tablist" aria-label="Registri IVA" className="flex flex-wrap gap-1">
           {(["vendite", "acquisti", "tutti"] as const).map((s) => (
             <Button
               key={s}
@@ -354,6 +378,7 @@ function RegistroContent() {
               variant={side === s ? "default" : "outline"}
               onClick={() => {
                 p.set({ registro: s, gruppo_iva: "" });
+                setSezionale("tutti");
                 setPage(0);
               }}
             >
@@ -483,6 +508,7 @@ function RegistroContent() {
             <tr>
               {[
                 "Documento / controparte",
+                "Protocollo / sezionale",
                 "Data / periodo",
                 "Imponibile",
                 "IVA",
@@ -508,6 +534,7 @@ function RegistroContent() {
                     {r.counterparty}
                   </p>
                 </td>
+                <td className="p-3 whitespace-nowrap">{r.synthetic ? <span className="text-xs text-muted-foreground">Proiezione RC</span> : <><AssegnaProtocolliIva righe={[r]} lato={r.side} registri={registri} singolo /><p className="text-xs text-muted-foreground">{r.section}{r.registrationDate ? ` · ${fiscalDate(r.registrationDate)}` : ""}</p></>}</td>
                 <td className="p-3 whitespace-nowrap">
                   {fiscalDate(r.date)}
                   {r.periodDate !== r.date && (

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DocumentoInvioDialog } from "./DocumentoInvioDialog";
-import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { titoloDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { preparaRendicontoTrasporti } from "@/lib/documentiOperativi/rendicontoTrasporti";
 import type { RapportinoCompleto } from "@/hooks/useRapportiniMese";
 import { nomeCantiere, statoDi } from "@/lib/orders/rapportiniMese";
 import { campoWorkDay } from "@/lib/campo/workDay";
@@ -28,6 +29,8 @@ import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
+type RapportoDaPreparare = "economia" | "rendiconto-trasporti";
+
 export function RapportiPeriodoDialog({
   righe,
   mese,
@@ -40,7 +43,7 @@ export function RapportiPeriodoDialog({
   conDatiEconomici?: boolean;
 }) {
   const [doc, setDoc] = useState<DocumentoOperativo | null>(null);
-  const [scegli, setScegli] = useState(false);
+  const [scegli, setScegli] = useState<RapportoDaPreparare | null>(null);
   const [cantiere, setCantiere] = useState("");
   const [cercaCantiere, setCercaCantiere] = useState("");
   const [preparazione, setPreparazione] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export function RapportiPeriodoDialog({
   const qc = useQueryClient();
   const approvati = righe.filter((r) => statoDi(r) === "approvato");
   const cantieri = [...new Map(approvati.map((r) => [r.order_id, r])).values()];
-  const scope = `${companyId}:${mese}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
+  const scope = `${companyId}:${mese}:${conDatiEconomici}:${approvati.map((r) => `${r.id}:${r.updated_at ?? ""}`).join(",")}`;
   const busy = preparazione === scope;
   useEffect(
     () => () => {
@@ -58,13 +61,15 @@ export function RapportiPeriodoDialog({
     [scope],
   );
 
-  const economia = async (orderId: string) => {
+  const prepara = async (rapporto: RapportoDaPreparare, orderId: string) => {
     if (operazione.current || !companyId) return;
     const controller = new AbortController();
     operazione.current = controller;
     setPreparazione(scope);
     try {
-      const documento = await preparaRapportoEconomia(
+      const documento = rapporto === "rendiconto-trasporti"
+        ? await preparaRendicontoTrasporti(companyId, orderId, approvati, mese, controller.signal)
+        : await preparaRapportoEconomia(
         approvati.filter((r) => r.order_id === orderId),
         mese,
         conDatiEconomici
@@ -94,7 +99,7 @@ export function RapportiPeriodoDialog({
       );
       if (controller.signal.aborted) return;
       setDoc(documento);
-      setScegli(false);
+      setScegli(null);
     } catch (e) {
       if (!controller.signal.aborted)
         toast.error(
@@ -109,12 +114,12 @@ export function RapportiPeriodoDialog({
       }
     }
   };
-  const avviaEconomia = () => {
-    if (cantieri.length === 1) void economia(cantieri[0].order_id);
+  const avvia = (rapporto: RapportoDaPreparare) => {
+    if (cantieri.length === 1) void prepara(rapporto, cantieri[0].order_id);
     else {
       setCantiere("");
       setCercaCantiere("");
-      setScegli(true);
+      setScegli(rapporto);
     }
   };
   return (
@@ -138,7 +143,7 @@ export function RapportiPeriodoDialog({
           >
             <DropdownMenuItem
               disabled={!approvati.length}
-              onSelect={avviaEconomia}
+              onSelect={() => avvia("economia")}
               className="block"
             >
               <span className="block font-medium">
@@ -146,6 +151,18 @@ export function RapportiPeriodoDialog({
               </span>
               <span className="block text-xs text-muted-foreground">
                 Rapporto in economia: compilato dai rapportini del periodo
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!approvati.length || !conDatiEconomici}
+              onSelect={() => avvia("rendiconto-trasporti")}
+              className="block"
+            >
+              <span className="block font-medium">Rendiconto trasporti al cliente</span>
+              <span className="block text-xs text-muted-foreground">
+                {!conDatiEconomici
+                  ? "Richiede accesso alle voci e ai costi dei rapportini"
+                  : "Viaggi dei rapportini approvati nel periodo"}
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -185,24 +202,32 @@ export function RapportiPeriodoDialog({
               : "Il riepilogo si prepara dai rapportini approvati"}
         </span>
       </div>
-      <Dialog open={scegli} onOpenChange={setScegli}>
+      <Dialog open={!!scegli} onOpenChange={(open) => {
+        if (!open) {
+          operazione.current?.abort();
+          setScegli(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Riepilogo lavori approvati</DialogTitle>
+            <DialogTitle>{scegli === "rendiconto-trasporti" ? "Rendiconto trasporti al cliente" : "Riepilogo lavori approvati"}</DialogTitle>
             <DialogDescription>
-              Scegli il cantiere: preparo la bozza del periodo con cliente,
-              lavori, ore, materiali, mezzi e prezzi di vendita disponibili.
+              {scegli === "rendiconto-trasporti"
+                ? "Scegli la commessa per riportare il suo cliente e i viaggi approvati nel periodo."
+                : "Scegli il cantiere per preparare la bozza con cliente, lavori, ore, materiali, mezzi e prezzi di vendita disponibili."}
             </DialogDescription>
           </DialogHeader>
           <Input
             aria-label="Cerca cantiere per il documento"
             placeholder="Cerca per nome o codice…"
+            disabled={busy}
             value={cercaCantiere}
             onChange={(e) => setCercaCantiere(e.target.value)}
           />
           <OfficeSelect
             label="Cantiere del documento"
             value={cantiere}
+              disabled={busy}
             onValueChange={setCantiere}
             options={[
               { value: "", label: "Scegli il cantiere" },
@@ -223,7 +248,7 @@ export function RapportiPeriodoDialog({
           />
           <Button
             disabled={!cantiere || busy}
-            onClick={() => void economia(cantiere)}
+            onClick={() => { if (scegli) void prepara(scegli, cantiere); }}
           >
             {busy ? "Preparo…" : "Apri bozza compilata"}
           </Button>
@@ -241,7 +266,7 @@ export function RapportiPeriodoDialog({
           initialMode="pdf"
           context={{
             mode: "new",
-            initialSubject: `${doc.tipo === "economia" ? "Rapporto lavori in economia" : "Rapporto trasporti"} ${doc.numero}`,
+            initialSubject: `${doc.rendicontoTrasporti ? titoloDocumento(doc) : doc.tipo === "economia" ? "Rapporto lavori in economia" : "Rapporto trasporti"} ${doc.numero}`,
           }}
         />
       )}

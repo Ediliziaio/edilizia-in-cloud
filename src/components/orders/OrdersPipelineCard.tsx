@@ -1,56 +1,39 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
+import { useDraggable, useDndMonitor } from "@dnd-kit/core";
 import {
-  AlertTriangle,
-  Calendar as CalendarIcon,
-  ArrowRight,
-  CheckCircle2,
-  Euro,
-  Eye,
-  GripVertical,
-  MapPin,
-  PackageCheck,
-  PackageX,
-  Pencil,
-  Users,
-  Wrench,
+  AlertTriangle, ArrowRight, ArrowRightLeft, CalendarDays, ClipboardCheck, Eye, ListTodo, Mail, MapPin,
+  PackageCheck, Pencil, Users, Wallet, X,
 } from "lucide-react";
-import { useDraggable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
+import { Popover, PopoverContent } from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getGrossOrderAmount } from "@/lib/orderUtils";
+import { isPipelineCardControl } from "@/lib/orders/cardInteraction";
+import type { ConteggioPipeline } from "@/lib/orders/conteggiPipeline";
+import { orderDetailLocation, type OrderDetailDestination } from "@/lib/orders/detailNavigation";
+import { emailVera } from "@/lib/preventivatore/selezionaCliente";
 import {
-  prossimoPasso, statoIncasso, statoMateriali, statoPosa, statoSquadra, type Tono,
+  lavoriCompletati, prossimoPasso, ritardoLavori, statoIncasso, statoMateriali, statoSquadra, type Tono,
 } from "@/lib/orders/etichettePipeline";
+import type { PipelineTarget } from "./PipelineDrag";
 
 interface OrdersPipelineCardProps {
-  onMove?: (order: OrderWithDetails) => void;
   order: OrderWithDetails;
+  stage: string;
+  canEdit?: boolean;
+  showAmounts?: boolean;
   isDraggable?: boolean;
-  /** Copia che segue il mouse durante il trascinamento: non apre mai il riepilogo. */
-  soloAnteprima?: boolean;
+  destinazioni?: PipelineTarget[];
+  onPhaseChange?: (id: string, fase: string) => void;
+  onMove?: (order: OrderWithDetails) => void;
 }
 
-const SUMMARY_OPEN_DELAY_MS = 1000;
 const SIGLE_SOCIETARIE = /\b(?:S\.?R\.?L|S\.?P\.?A|S\.?A\.?S|S\.?N\.?C|A\.?P\.?S|E\.?T\.?S)\b/u;
-
-function isOverdue(order: OrderWithDetails): boolean {
-  const days = getDaysToExpectedDate(order);
-  return days !== null && days < 0;
-}
-
-function getDaysToExpectedDate(order: OrderWithDetails): number | null {
-  if (!order.expected_date) return null;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const exp = new Date(order.expected_date);
-  exp.setHours(0, 0, 0, 0);
-  const timestamp = exp.getTime();
-  if (Number.isNaN(timestamp)) return null;
-  return Math.ceil((timestamp - now.getTime()) / 86_400_000);
-}
 
 function getMaterialSummary(order: OrderWithDetails) {
   const items = Array.isArray(order.order_items) ? order.order_items : [];
@@ -63,23 +46,20 @@ function getMaterialSummary(order: OrderWithDetails) {
   return { total, ready, toOrder };
 }
 
-function getFullDateLabel(date?: string | null) {
-  return date ? formatDateShort(date) : "Non indicata";
-}
-
 function getWorkPeriodLabel(order: OrderWithDetails) {
   if (order.work_start_date && order.work_end_date) {
     return `${formatDateShort(order.work_start_date)} - ${formatDateShort(order.work_end_date)}`;
   }
   if (order.work_start_date) return `Dal ${formatDateShort(order.work_start_date)}`;
   if (order.work_end_date) return `Entro ${formatDateShort(order.work_end_date)}`;
-  return "Non pianificato";
+  return null;
 }
 
 function getPaymentTypeLabel(paymentType?: string | null) {
   const normalized = paymentType || "standard";
   const labels: Record<string, string> = {
     standard: "Standard",
+    financing: "Finanziamento",
     finanziamento: "Finanziamento",
     bonus: "Bonus edilizio",
     rateale: "Rateale",
@@ -101,8 +81,6 @@ function getCustomerName(order: OrderWithDetails) {
 
 function getOrderDescription(order: OrderWithDetails) {
   const descrizione = order.description?.trim() || "Descrizione non indicata";
-  const prefisso = descrizione.match(/^(.+?)\s+[-–—]\s+([\s\S]+)$/u);
-  if (!prefisso) return descrizione;
   const confronta = (valore: string) => valore.trim().replace(/\s+/g, " ").toLocaleLowerCase("it-IT");
   const cliente = order.customer;
   const nomi = [
@@ -110,7 +88,11 @@ function getOrderDescription(order: OrderWithDetails) {
     formatPersonName(cliente),
     cliente && formatPersonName({ first_name: cliente.last_name, last_name: cliente.first_name }),
   ];
-  return nomi.some(nome => nome && confronta(nome) === confronta(prefisso[1])) ? prefisso[2] : descrizione;
+  const coincide = (parte: string) => nomi.some(nome => nome && confronta(nome) === confronta(parte));
+  const prefisso = descrizione.match(/^(.+?)\s+[-–—]\s+([\s\S]+)$/u);
+  const senzaPrefisso = prefisso && coincide(prefisso[1]) ? prefisso[2] : descrizione;
+  const suffisso = senzaPrefisso.match(/^([\s\S]+)\s+[-–—]\s+(.+)$/u);
+  return suffisso && coincide(suffisso[2]) ? suffisso[1] : senzaPrefisso;
 }
 
 function formatPersonName(person?: { first_name: string | null; last_name: string | null } | null) {
@@ -121,550 +103,352 @@ function formatPersonName(person?: { first_name: string | null; last_name: strin
 function getLaborSummary(order: OrderWithDetails) {
   const employees = (order.order_employees || [])
     .map((row) => formatPersonName(row.employee))
-    .filter(Boolean) as string[];
-  const teams = (order.order_external_teams || [])
-    .map((row) => row.external_team?.name?.trim())
-    .filter(Boolean) as string[];
-  const names = [...employees, ...teams].filter((name, index, array) => array.indexOf(name) === index);
-  const primary = names[0] || null;
-  const label = teams.length > 0 && employees.length === 0 ? "Subappalto" : employees.length > 0 ? "Squadra interna" : "Montaggio";
-
-  return {
-    employees,
-    teams,
-    names,
-    label,
-    primary,
-    shortLabel: primary ? `${primary}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "Non assegnato",
-    detailLabel: names.length > 0 ? names.join(", ") : "Nessuna squadra assegnata",
-  };
+    .filter((nome): nome is string => !!nome);
+  const teams = (order.order_external_teams || []).flatMap(({ external_team }) => {
+    const name = external_team?.name?.trim();
+    return name ? [{ name, internal: external_team?.kind === "interna" }] : [];
+  });
+  const internal = [...new Set(teams.filter(team => team.internal).map(team => team.name))];
+  const external = [...new Set(teams.filter(team => !team.internal).map(team => team.name))];
+  return { employees: [...new Set(employees)], internal, external, names: [...new Set([...internal, ...external, ...employees])] };
 }
 
 const TONO_TESTO: Record<Tono, string> = {
-  critico: "text-red-700",
-  attenzione: "text-amber-700",
-  ok: "text-emerald-700",
+  critico: "text-red-700 dark:text-red-400",
+  attenzione: "text-amber-700 dark:text-amber-400",
+  ok: "text-emerald-700 dark:text-emerald-400",
   neutro: "text-foreground",
 };
 
-/** Una riga con l'etichetta a sinistra, così si capisce di cosa parla il valore. */
-function RigaInfo({
-  etichetta, valore, tono, icona, suggerimento,
-}: { etichetta: string; valore: string; tono: Tono; icona: React.ReactNode; suggerimento: string }) {
+const ACTION_CLASS = "grid min-h-9 min-w-0 flex-1 place-items-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-8";
+const PIANIFICAZIONE = { tab: "cantiere", cantiereView: "cronoprogramma" } satisfies OrderDetailDestination;
+const PAGAMENTI = { tab: "finanza", economiaView: "pagamenti" } satisfies OrderDetailDestination;
+
+function RigaInfo({ label, value, icon, tone }: { label: string; value: string; icon: ReactNode; tone: Tono }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 text-[11px]" title={suggerimento}>
-      <span className="w-[78px] shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">{etichetta}</span>
-      <span className={cn("flex min-w-0 items-center gap-1 font-medium", TONO_TESTO[tono])}>
-        <span className="shrink-0">{icona}</span>
-        <span className="truncate">{valore}</span>
-      </span>
+    <div className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-1.5 text-xs">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn("flex min-w-0 items-center gap-1.5 font-medium [&>svg]:size-3.5 [&>svg]:shrink-0", TONO_TESTO[tone])}>
+        {icon}
+        <span className="truncate">{value}</span>
+      </dd>
     </div>
   );
 }
 
-function SummaryRow({ label, value, tone }: { label: string; value: string; tone?: "danger" | "success" | "warning" }) {
-  return (
-    <div className="rounded-md border bg-muted/20 px-2.5 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn(
-        "mt-0.5 text-xs font-semibold text-foreground",
-        tone === "danger" && "text-red-700",
-        tone === "success" && "text-emerald-700",
-        tone === "warning" && "text-amber-700"
-      )}>
-        {value}
-      </p>
-    </div>
-  );
+function riepilogoConteggio(conteggio: ConteggioPipeline | null | undefined, vuoto: string, unita: string) {
+  if (!conteggio?.total) {
+    return { value: conteggio === undefined ? "Caricamento…" : conteggio === null ? "Non disponibile" : vuoto, tone: "neutro" as const };
+  }
+  return {
+    value: `${conteggio.done}/${conteggio.total} ${unita}`,
+    tone: conteggio.done === conteggio.total ? "ok" as const : "neutro" as const,
+  };
 }
 
 export const OrdersPipelineCard = memo(function OrdersPipelineCard({
-  order,
-  isDraggable = true,
-  soloAnteprima = false, onMove,
+  order, stage, isDraggable = false, canEdit = false, showAmounts = true,
+  destinazioni = [], onMove, onPhaseChange,
 }: OrdersPipelineCardProps) {
   const navigate = useNavigate();
-  const [summaryOpen, setSummaryOpen] = useState(false);
-  const [summaryPosition, setSummaryPosition] = useState<{ left: number; top: number } | null>(null);
-  // Aggiornato a ogni render: i timer partiti prima del trascinamento lo leggono
-  // allo scadere e non aprono il riepilogo in mezzo a un drag.
-  const inTrascinamentoRef = useRef(false);
-  const riepilogoRef = useRef<HTMLDivElement | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
-  const hoverTimerRef = useRef<number | null>(null);
-  const closeTimerRef = useRef<number | null>(null);
-  const longPressTriggeredRef = useRef(false);
-  const startPointRef = useRef<{ x: number; y: number } | null>(null);
-  const overdue = isOverdue(order);
-  const due = getAmountDue(order);
-  const collected = getAmountCollected(order);
-  const materials = getMaterialSummary(order);
-  // Incassato e da incassare sono IVA inclusa, con le varianti: la percentuale sta sulla loro somma.
-  const incassabile = collected + due;
-  const valoreIvato = getGrossOrderAmount(order);
-  const paymentPct = incassabile > 0 ? Math.min(100, Math.round((collected / incassabile) * 100)) : 0;
-  const isPaid = due === 0 && incassabile > 0;
-  const needsMaterials = materials.total > 0 && materials.ready < materials.total;
+  const cardRef = useRef<HTMLDivElement>(null);
+  const previewButton = useRef<HTMLButtonElement>(null);
+  const timer = useRef<number | null>(null);
+  const [preview, setPreview] = useState<"hover" | "pinned" | null>(null);
+  const cancelTimer = useCallback(() => {
+    if (timer.current === null) return;
+    window.clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  useEffect(() => cancelTimer, [cancelTimer]);
+
   const customerName = getCustomerName(order);
   const codice = order.order_code?.trim();
+  const emailCliente = [order.customer?.email, order.client_email].map(emailVera)
+    .find(email => email && /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(email));
+  const oggettoEmail = codice ? `Commessa ${codice}` : "Aggiornamento commessa";
+  const hrefEmail = emailCliente
+    ? `mailto:${encodeURIComponent(emailCliente).replace("%40", "@")}?subject=${encodeURIComponent(oggettoEmail)}`
+    : null;
+  const label = codice || customerName;
   const descrizione = getOrderDescription(order);
+  const urlCommessa = `/azienda/ordini/${order.id}`;
+  const apriSezione = (destination: OrderDetailDestination) => ({
+    pathname: urlCommessa,
+    ...orderDetailLocation("", destination),
+  });
+
   const labor = getLaborSummary(order);
-  const giorni = getDaysToExpectedDate(order);
-  const posa = statoPosa(giorni, order.expected_date ? formatDateShort(order.expected_date) : null);
-  const stMateriali = statoMateriali(materials.total, materials.ready, materials.toOrder);
-  const stIncasso = statoIncasso(incassabile, collected, due);
-  const stSquadra = statoSquadra(labor.names, labor.employees.length > 0, labor.teams.length > 0);
+  const materials = getMaterialSummary(order);
+  const ritardo = ritardoLavori(order);
+  const ritardoTesto = ritardo === 1 ? "1 giorno di ritardo" : `${ritardo} giorni di ritardo`;
+  const periodoLavori = getWorkPeriodLabel(order);
+  const dataPrevista = periodoLavori ?? (order.expected_date ? formatDateShort(order.expected_date) : null);
+  const squadra = statoSquadra(labor.names, labor.employees.length > 0 || labor.internal.length > 0, labor.external.length > 0);
+  const materiali = statoMateriali(materials.total, materials.ready, materials.toOrder);
+  const fasiRiga = <RigaInfo label="Fasi" {...riepilogoConteggio(order.fasiPipeline, "Da definire", "completate")} icon={<ClipboardCheck aria-hidden />} />;
+  const ufficioRiga = <RigaInfo label="Task ufficio" {...riepilogoConteggio(order.taskUfficioPipeline, "Nessuna attività", "fatti")} icon={<ListTodo aria-hidden />} />;
+  const due = showAmounts ? getAmountDue(order) : 0;
+  const collected = showAmounts ? getAmountCollected(order) : 0;
+  const incassabile = collected + due;
+  const valore = showAmounts ? formatCurrency(getGrossOrderAmount(order)) : null;
+  const aMisura = order.order_type === "appaltatore_lavoro" && order.valorizzazione === "a_misura";
+  const pagamento = statoIncasso(incassabile, collected, due);
   const passo = prossimoPasso({
-    giorniAllaPosa: giorni, daIncassare: due, incassato: collected,
+    ritardo, lavoriCompletati: lavoriCompletati(order), daIncassare: due, incassato: collected,
     articoli: materials.total, pronti: materials.ready, daOrdinare: materials.toOrder,
   });
+  const linkPasso = passo.destinazione ? apriSezione(passo.destinazione) : urlCommessa;
+  const fasi = destinazioni.filter(fase => fase.id !== stage);
+  const azioni: Array<{ label: string; icon: typeof Eye; destination: OrderDetailDestination }> = [
+    ...(showAmounts ? [{ label: "Fatture e incassi", icon: Wallet, destination: PAGAMENTI }] : []),
+    { label: "Materiali", icon: PackageCheck, destination: { tab: "articoli" } },
+    { label: "Cronoprogramma", icon: CalendarDays, destination: PIANIFICAZIONE },
+    { label: "Squadra e lavorazioni", icon: Users, destination: { tab: "cantiere", cantiereView: "lavorazioni" } },
+  ];
+  const importi = showAmounts && preview && (
+    <dl className="grid grid-cols-3 gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-2 text-[11px] tabular-nums">
+      <div><dt className="text-muted-foreground">Totale con IVA</dt><dd className="mt-0.5 break-words text-xs font-semibold">{valore}</dd></div>
+      <div><dt className="text-muted-foreground">Incassato</dt><dd className={cn("mt-0.5 break-words text-xs font-semibold", collected > 0 && TONO_TESTO.ok)}>{formatCurrency(collected)}</dd></div>
+      <div><dt className="text-muted-foreground">Da incassare</dt><dd className={cn("mt-0.5 break-words text-xs font-semibold", due > 0 && TONO_TESTO.attenzione)}>{formatCurrency(due)}</dd></div>
+    </dl>
+  );
 
-  const clearLongPressTimer = useCallback(() => {
-    if (longPressTimerRef.current !== null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
+  const dettagli = (
+    <div className="space-y-2 px-3 pb-2 pt-2.5">
+      <div>
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <p className="min-w-0 truncate text-sm font-semibold leading-tight">{customerName}</p>
+          {codice && <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">{codice}</span>}
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{descrizione}</p>
+      </div>
+      {valore && (
+        <dl className="flex items-baseline justify-between gap-2">
+          <dt className="text-xs text-muted-foreground">{aMisura ? "Fatturato" : "Importo contratto"}</dt>
+          <dd className="text-right text-sm font-bold tabular-nums" title="IVA inclusa">{valore}</dd>
+        </dl>
+      )}
+      {ritardo > 0 && <div className={cn("flex items-center gap-1 text-xs", TONO_TESTO.critico)}><AlertTriangle className="size-3.5 shrink-0" aria-hidden />{ritardoTesto}</div>}
+      <dl className="grid gap-1.5 border-t pt-2">
+        {fasiRiga}
+        <RigaInfo label="Materiali" value={materiali.testo} tone={materiali.tono} icon={<PackageCheck aria-hidden />} />
+        <RigaInfo label="Squadra" value={squadra.testo} tone={squadra.tono} icon={<Users aria-hidden />} />
+        {ufficioRiga}
+      </dl>
+      <Link to={linkPasso} data-no-drag
+        className={cn("flex w-fit max-w-full items-center gap-1 rounded-sm text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:underline",
+          passo.tipo === "pronto" ? TONO_TESTO.ok : "text-primary")}>
+        <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+        <span className="truncate">{passo.testo}</span>
+      </Link>
+    </div>
+  );
 
-  const clearHoverTimer = useCallback(() => {
-    if (hoverTimerRef.current !== null) {
-      window.clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-  }, []);
-
-  const clearCloseTimer = useCallback(() => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  }, []);
-
-  const updateSummaryPosition = useCallback((clientX: number, clientY: number) => {
-    const panelWidth = 384;
-    const panelHeight = 440;
-    const margin = 12;
-    const viewportWidth = window.innerWidth || 1280;
-    const viewportHeight = window.innerHeight || 800;
-    const leftCandidate = clientX + 16;
-    const left = leftCandidate + panelWidth > viewportWidth - margin
-      ? Math.max(margin, clientX - panelWidth - 16)
-      : leftCandidate;
-    const top = Math.min(
-      Math.max(margin, clientY - 24),
-      Math.max(margin, viewportHeight - panelHeight - margin)
-    );
-
-    setSummaryPosition({ left, top });
-  }, []);
-
-  useEffect(() => () => {
-    clearLongPressTimer();
-    clearHoverTimer();
-    clearCloseTimer();
-  }, [clearCloseTimer, clearHoverTimer, clearLongPressTimer]);
-
-  // L'altezza vera del riepilogo si conosce solo dopo averlo disegnato (cambia
-  // con indirizzo e assegnazioni): se esce dallo schermo in basso, lo si alza.
-  useLayoutEffect(() => {
-    const el = riepilogoRef.current;
-    if (!summaryOpen || !el) return;
-    const margin = 12;
-    const { bottom, height } = el.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    if (bottom > viewportHeight - margin) {
-      setSummaryPosition((prec) =>
-        prec && { ...prec, top: Math.max(margin, viewportHeight - margin - height) },
-      );
-    }
-  }, [summaryOpen]);
-
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === "mouse") return;
-    clearLongPressTimer();
-    longPressTriggeredRef.current = false;
-    startPointRef.current = { x: event.clientX, y: event.clientY };
-    longPressTimerRef.current = window.setTimeout(() => {
-      if (inTrascinamentoRef.current || soloAnteprima) return;
-      longPressTriggeredRef.current = true;
-      updateSummaryPosition(event.clientX, event.clientY);
-      setSummaryOpen(true);
-    }, SUMMARY_OPEN_DELAY_MS);
-  }, [clearLongPressTimer, soloAnteprima, updateSummaryPosition]);
-
-  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (!startPointRef.current) return;
-    const dx = Math.abs(event.clientX - startPointRef.current.x);
-    const dy = Math.abs(event.clientY - startPointRef.current.y);
-    if (dx > 10 || dy > 10) clearLongPressTimer();
-  }, [clearLongPressTimer]);
-
-  const handlePointerEnd = useCallback(() => {
-    clearLongPressTimer();
-    startPointRef.current = null;
-  }, [clearLongPressTimer]);
-
-  const handleMouseEnter = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (summaryOpen || soloAnteprima || inTrascinamentoRef.current) return;
-    clearCloseTimer();
-    clearHoverTimer();
-    updateSummaryPosition(event.clientX, event.clientY);
-    hoverTimerRef.current = window.setTimeout(() => {
-      if (inTrascinamentoRef.current) return;
-      setSummaryOpen(true);
-    }, SUMMARY_OPEN_DELAY_MS);
-  }, [clearCloseTimer, clearHoverTimer, soloAnteprima, summaryOpen, updateSummaryPosition]);
-
-  const handleMouseLeave = useCallback(() => {
-    clearHoverTimer();
-    if (summaryOpen) {
-      clearCloseTimer();
-      closeTimerRef.current = window.setTimeout(() => {
-        setSummaryOpen(false);
-      }, 250);
-    }
-  }, [clearCloseTimer, clearHoverTimer, summaryOpen]);
-
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!summaryOpen) updateSummaryPosition(event.clientX, event.clientY);
-    if (summaryOpen || hoverTimerRef.current !== null) return;
-    handleMouseEnter(event);
-  }, [handleMouseEnter, summaryOpen, updateSummaryPosition]);
-
-  const handlePointerEnterHover = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== "mouse") return;
-    handleMouseEnter(event);
-  }, [handleMouseEnter]);
-
-  const handlePointerLeaveHover = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== "mouse") return;
-    handleMouseLeave();
-  }, [handleMouseLeave]);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    isDragging
-  } = useDraggable({
+  const aspetto = cn("min-w-0 rounded-xl border border-border/80 bg-card text-card-foreground shadow-sm", ritardo > 0 && "border-l-2 border-l-orange-400");
+  const anteprimaDrag = (
+    <div className={aspetto}>
+      {dettagli}
+      <div className="flex items-center gap-0.5 border-t bg-muted/20 px-1.5 py-0.5">
+        <span className={ACTION_CLASS}><Eye className="size-4" /></span>
+        {hrefEmail && <span className={ACTION_CLASS}><Mail className="size-4" /></span>}
+        {azioni.map(({ label: nome, icon: Icon }) => <span key={nome} className={ACTION_CLASS}><Icon className="size-4" /></span>)}
+        {canEdit && <span className={ACTION_CLASS}><Pencil className="size-4" /></span>}
+        {(onMove || (onPhaseChange && fasi.length > 0)) && <span className={ACTION_CLASS}><ArrowRightLeft className="size-4" /></span>}
+      </div>
+    </div>
+  );
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: order.id,
-    data: { order },
     disabled: !isDraggable,
+    data: { stage, label, content: anteprimaDrag, getRect: () => cardRef.current?.getBoundingClientRect() },
+  });
+  useDndMonitor({
+    onDragStart: () => {
+      cancelTimer();
+      setPreview(null);
+    },
   });
 
-  inTrascinamentoRef.current = isDragging;
-
-  // Appena parte il trascinamento il riepilogo si chiude e i timer si fermano:
-  // altrimenti restava aperto (o si apriva dopo un secondo) sopra le colonne.
-  useEffect(() => {
-    if (!isDragging) return;
-    clearHoverTimer();
-    clearLongPressTimer();
-    clearCloseTimer();
-    setSummaryOpen(false);
-  }, [isDragging, clearCloseTimer, clearHoverTimer, clearLongPressTimer]);
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
+  const mostraSpostamento = !!onPhaseChange && fasi.length > 0;
+  const spostaProps = {
+    "aria-label": `Sposta commessa ${label}`,
+    title: "Sposta commessa",
+    className: ACTION_CLASS,
+  };
+  const chiudiAnteprima = () => {
+    cancelTimer();
+    setPreview(null);
+  };
+  const ritardaChiusura = (event: React.PointerEvent) => {
+    if (event.pointerType !== "mouse" || preview === "pinned") return;
+    cancelTimer();
+    if (preview === "hover") timer.current = window.setTimeout(chiudiAnteprima, 250);
   };
 
-  const handleCardClick = useCallback(() => {
-    if (isDragging) return;
-    if (longPressTriggeredRef.current) {
-      longPressTriggeredRef.current = false;
-      return;
-    }
-    navigate(`/azienda/ordini/${order.id}`);
-  }, [isDragging, navigate, order.id]);
-
   return (
-    <>
-      <div
-        ref={setNodeRef}
-        style={style}
-        className={cn(
-          "touch-none w-full min-w-0",
-          isDragging && "opacity-50 z-50",
-          summaryOpen && "relative z-50"
-        )}
-        onMouseEnter={handleMouseEnter}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        onPointerEnter={handlePointerEnterHover}
-        onPointerLeave={handlePointerLeaveHover}
-      >
-      <div className={cn(
-        "rounded-lg border bg-card shadow-sm group relative transition-all",
-        isDraggable && "hover:shadow-md",
-        isDragging && "shadow-lg ring-2 ring-primary",
-        overdue && "border-orange-300 dark:border-orange-600"
-      )}>
-        {/* Overdue top accent */}
-        {overdue && (
-          <div className="h-1 bg-gradient-to-r from-orange-400 to-orange-500 rounded-t-lg" />
-        )}
-
-        <div className="flex">
-          {/* Drag handle — full height strip */}
-          {isDraggable && (
-            <div
-              {...attributes}
-              {...listeners}
-              className="flex items-center px-1 cursor-grab active:cursor-grabbing text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/40 rounded-l-lg transition-colors shrink-0"
-            >
-              <GripVertical className="h-4 w-4" />
-            </div>
-          )}
-
-          {/* Card body */}
-          <div
-            className="flex-1 pt-2 pb-1 pr-2.5 pl-1 cursor-pointer min-w-0"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerEnd}
-            onPointerCancel={handlePointerEnd}
-            onPointerLeave={handlePointerEnd}
-            onMouseEnter={handleMouseEnter}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            onFocus={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              updateSummaryPosition(rect.right, rect.top + 24);
-              if (!summaryOpen) {
-                clearHoverTimer();
-                hoverTimerRef.current = window.setTimeout(() => setSummaryOpen(true), SUMMARY_OPEN_DELAY_MS);
-              }
-            }}
-            onBlur={handleMouseLeave}
-            onContextMenu={(event) => {
-              if (longPressTriggeredRef.current || summaryOpen) event.preventDefault();
-            }}
-            onClick={handleCardClick}
-            tabIndex={0}
-            role="button"
-            aria-label={`Apri dettagli commessa ${order.order_code || ""}`.trim()}
-          >
-            <div className="flex min-w-0 items-baseline gap-2">
-              <p title={customerName} className="min-w-0 truncate text-sm font-semibold leading-tight">{customerName}</p>
-              {codice && <span className="shrink-0 text-[10px] text-muted-foreground">{codice}</span>}
-            </div>
-            <div className="mt-0.5 flex min-w-0 items-start gap-2">
-              <p title={descrizione} className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{descrizione}</p>
-              {overdue && (
-                <span
-                  className="shrink-0 rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-orange-200"
-                  title={posa.dettaglio}
-                >
-                  In ritardo
-                </span>
-              )}
-            </div>
-
-            {/* Importo + pagamenti */}
-            <div className="mt-1 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-bold text-sm" title="Contratto più varianti, IVA inclusa">{formatCurrency(valoreIvato)}</p>
-                <span title={stIncasso.dettaglio} className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                  isPaid
-                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                    : due > 0
-                      ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                      : "bg-muted text-muted-foreground"
-                )}>
-                  <Euro className="h-2.5 w-2.5" />
-                  {stIncasso.testo}
-                </span>
-              </div>
-              {collected > 0 && due > 0 && <div className="h-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-amber-500" style={{width: `${paymentPct}%`}} /></div>}
-            </div>
-
-            {/* Tre righe con l'etichetta: di cosa parla ogni valore */}
-            <div className="mt-1 space-y-0.5 border-t pt-1">
-              <RigaInfo
-                etichetta="Posa prevista" valore={posa.testo} tono={posa.tono} suggerimento={posa.dettaglio}
-                icona={posa.tono === "critico" ? <AlertTriangle className="h-3 w-3" /> : <CalendarIcon className="h-3 w-3" />}
-              />
-              <RigaInfo
-                etichetta="Materiali" valore={materials.total ? `${materials.ready} di ${materials.total} pronti` : stMateriali.testo} tono={stMateriali.tono === "critico" && !overdue ? "attenzione" : stMateriali.tono} suggerimento={stMateriali.dettaglio}
-                icona={stMateriali.tono === "ok" ? <PackageCheck className="h-3 w-3" /> : <PackageX className="h-3 w-3" />}
-              />
-              <RigaInfo
-                etichetta="Squadra" valore={stSquadra.testo} tono={stSquadra.tono} suggerimento={stSquadra.dettaglio}
-                icona={<Users className="h-3 w-3" />}
-              />
-            </div>
-
-          </div>
-        </div>
-        <div className="mx-2 mb-1 flex items-center gap-2 border-t pt-0.5">
-          <div className={cn("flex min-w-0 flex-1 items-center gap-1 text-[11px] font-medium", passo.tipo === "pronto" ? "text-emerald-700" : "text-primary")} title={passo.motivo}>
-            <ArrowRight className="size-3 shrink-0" />
-            <span className="truncate">{passo.testo}</span>
-          </div>
-          {onMove && <button type="button" aria-label={`Sposta commessa ${order.order_code || order.description}`}
-            className="shrink-0 rounded px-2 py-1 text-xs font-medium text-primary hover:bg-muted focus-visible:ring-2"
-            onClick={() => { clearHoverTimer(); setSummaryOpen(false); onMove(order); }}>Sposta →</button>}
-        </div>
-        {/* Quick actions on hover */}
-        <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-0.5">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); navigate(`/azienda/ordini/${order.id}`); }}
-            className="p-1 rounded bg-background/95 shadow-sm border text-muted-foreground hover:text-foreground transition-colors"
-            title="Visualizza"
-          >
-            <Eye className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); navigate(`/azienda/ordini/${order.id}/modifica`); }}
-            className="p-1 rounded bg-background/95 shadow-sm border text-muted-foreground hover:text-foreground transition-colors"
-            title="Modifica"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-        </div>
-
-        </div>
-      </div>
-      {/* In un portale su <body>: un `fixed` dentro un elemento con `transform`
-          (la card lo ha mentre la si trascina) si misura sulla card e non sullo
-          schermo, e il riepilogo finiva spostato in basso a destra. */}
-      {summaryOpen && summaryPosition && createPortal(
+    <Popover open={preview !== null} onOpenChange={(open) => { if (!open) chiudiAnteprima(); }}>
+      <PopoverAnchor asChild>
         <div
-          ref={riepilogoRef}
-          className="fixed z-[80] max-h-[calc(100vh-1.5rem)] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border bg-background p-3 text-left shadow-xl ring-1 ring-black/5"
-          style={{ left: summaryPosition.left, top: summaryPosition.top }}
-          onMouseEnter={clearCloseTimer}
-          onMouseLeave={handleMouseLeave}
+          ref={node => { cardRef.current = node; setNodeRef(node); }}
+          {...(isDraggable ? attributes : {})}
+          role="group"
+          tabIndex={0}
+          aria-label={`Apri dettagli commessa ${label}`}
+          aria-roledescription={isDraggable ? "scheda trascinabile" : undefined}
+          className={cn(aspetto, "transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", isDragging && "opacity-30")}
+          onDragStartCapture={event => event.preventDefault()}
+          onMouseDown={event => {
+            if (!isPipelineCardControl(event.target)) listeners?.onMouseDown?.(event);
+          }}
+          onTouchStart={event => {
+            if (!isPipelineCardControl(event.target)) listeners?.onTouchStart?.(event);
+          }}
+          onClick={event => {
+            if (!isDragging && !event.defaultPrevented && !isPipelineCardControl(event.target)) navigate(urlCommessa);
+          }}
+          onKeyDown={event => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || (!isDraggable && event.key === " ")) {
+              event.preventDefault();
+              navigate(urlCommessa);
+              return;
+            }
+            listeners?.onKeyDown?.(event);
+          }}
+          onPointerLeave={ritardaChiusura}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-baseline gap-2">
-                <p title={customerName} className="min-w-0 truncate text-sm font-bold leading-tight text-foreground">{customerName}</p>
-                {codice && <span className="shrink-0 text-xs text-muted-foreground">{codice}</span>}
-              </div>
-              <p className="mt-1 whitespace-pre-line break-words text-xs leading-snug text-muted-foreground">{descrizione}</p>
-              <p className="mt-1 text-xs font-medium text-muted-foreground">{order.status?.name || "Senza stato"}</p>
+          <div onPointerEnter={event => {
+            if (event.pointerType !== "mouse" || isDragging || preview === "pinned") return;
+            cancelTimer();
+            if (!preview) timer.current = window.setTimeout(() => setPreview("hover"), 650);
+          }}>
+            {dettagli}
+          </div>
+          <div className="flex items-center gap-0.5 rounded-b-xl border-t bg-muted/20 px-1.5 py-0.5" onPointerEnter={ritardaChiusura}>
+            <button ref={previewButton} type="button" title="Anteprima" aria-label={`Anteprima commessa ${label}`}
+              aria-haspopup="dialog" aria-expanded={preview !== null} className={ACTION_CLASS}
+              onClick={() => { cancelTimer(); setPreview(preview === "pinned" ? null : "pinned"); }}>
+              <Eye className="size-4" aria-hidden />
+            </button>
+            {hrefEmail && (
+              <a href={hrefEmail} data-no-drag title="Scrivi al cliente" aria-label={`Scrivi al cliente · ${label}`} className={ACTION_CLASS}
+                onClick={chiudiAnteprima}>
+                <Mail className="size-4" aria-hidden />
+              </a>
+            )}
+            {azioni.map(({ label: nome, icon: Icon, destination }) => (
+              <Link key={nome} to={apriSezione(destination)} data-no-drag title={nome} aria-label={`${nome} · ${label}`} className={ACTION_CLASS}>
+                <Icon className="size-4" aria-hidden />
+              </Link>
+            ))}
+            {canEdit && (
+              <Link to={`${urlCommessa}/modifica`} data-no-drag title="Modifica commessa" aria-label={`Modifica commessa ${label}`} className={ACTION_CLASS}>
+                <Pencil className="size-4" aria-hidden />
+              </Link>
+            )}
+            {mostraSpostamento ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild><button type="button" {...spostaProps}><ArrowRightLeft className="size-4" aria-hidden /></button></DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Sposta nella fase</DropdownMenuLabel>
+                  {fasi.map(fase => (
+                    <DropdownMenuItem key={fase.id} onClick={() => { chiudiAnteprima(); onPhaseChange?.(order.id, fase.id); }}>
+                      {fase.label}
+                    </DropdownMenuItem>
+                  ))}
+                  {onMove && <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => { chiudiAnteprima(); onMove(order); }}>Cambia pipeline…</DropdownMenuItem>
+                  </>}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : onMove && (
+              <button type="button" {...spostaProps} onClick={() => { chiudiAnteprima(); onMove(order); }}><ArrowRightLeft className="size-4" aria-hidden /></button>
+            )}
+          </div>
+        </div>
+      </PopoverAnchor>
+
+      {preview && (
+        <PopoverContent
+          aria-label={`Riepilogo commessa ${label}`} side="right" align="start" sideOffset={8} collisionPadding={12}
+          className="z-[80] max-h-[var(--radix-popover-content-available-height)] w-[min(23rem,calc(100vw-1.5rem))] overflow-auto rounded-xl p-0 shadow-xl"
+          onOpenAutoFocus={event => { if (preview === "hover") event.preventDefault(); }}
+          onCloseAutoFocus={event => event.preventDefault()}
+          onEscapeKeyDown={() => { if (preview === "pinned") previewButton.current?.focus(); }}
+          onPointerEnter={cancelTimer} onPointerLeave={ritardaChiusura}
+        >
+          <div className="relative rounded-t-xl border-b bg-muted/40 px-4 py-3.5 pr-12">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-sm font-bold">{customerName}</p>
+              {codice && <span className="text-[11px] font-medium tabular-nums text-muted-foreground">{codice}</span>}
             </div>
-            <button
-              type="button"
-              className="shrink-0 rounded-md px-1.5 py-0.5 text-lg leading-none text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={(event) => {
-                event.stopPropagation();
-                clearCloseTimer();
-                setSummaryOpen(false);
-              }}
-              aria-label="Chiudi riepilogo commessa"
-            >
-              x
+            <p className="mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-muted-foreground">{descrizione}</p>
+            <span className="mt-2 inline-flex rounded-full bg-background px-2 py-0.5 text-[11px] font-medium ring-1 ring-border">
+              {order.status?.name || "Senza stato"}
+            </span>
+            <button type="button" aria-label="Chiudi riepilogo commessa"
+              className="absolute right-2.5 top-2.5 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={() => { chiudiAnteprima(); if (preview === "pinned") previewButton.current?.focus(); }}>
+              <X aria-hidden className="size-4" />
             </button>
           </div>
 
-          <div className="mt-3 space-y-2 border-t pt-3 text-xs">
-            {order.indirizzo_lavori && (
-              <div className="flex items-start gap-2 text-muted-foreground">
-                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span className="line-clamp-2">{order.indirizzo_lavori}</span>
+          <div className="space-y-3.5 p-4 text-xs">
+            <dl className="grid gap-1.5 rounded-lg border bg-muted/20 px-2.5 py-2">
+              {fasiRiga}
+              {ufficioRiga}
+            </dl>
+            {showAmounts && (
+              <div className="space-y-1.5">
+                {importi}
+                <div className="flex justify-between gap-2 px-0.5 text-[11px] text-muted-foreground">
+                  <span>Pagamento · {getPaymentTypeLabel(order.payment_type)}</span>
+                  <span className={cn("font-medium", TONO_TESTO[pagamento.tono])}>{pagamento.testo}</span>
+                </div>
               </div>
             )}
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <CalendarIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">Posa: </span>
-                {posa.testo}
-              </span>
-            </div>
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <CalendarIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">Lavori: </span>
-                {getWorkPeriodLabel(order)}
-              </span>
-            </div>
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <PackageCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">Arrivo magazzino: </span>
-                {getFullDateLabel(order.warehouse_arrival_date)}
-              </span>
-            </div>
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">{labor.label}: </span>
-                {labor.detailLabel}
-              </span>
-            </div>
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-medium text-foreground">Azione: </span>
-                {passo.testo}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <SummaryRow label="Stato" value={order.status?.name || "Senza stato"} />
-            <SummaryRow label="Pagamento" value={getPaymentTypeLabel(order.payment_type)} />
-            <SummaryRow label="Valore (IVA incl.)" value={formatCurrency(valoreIvato)} />
-            <SummaryRow
-              label="Incassato"
-              value={`${formatCurrency(collected)} (${paymentPct}%)`}
-              tone={isPaid ? "success" : due > 0 ? "warning" : undefined}
-            />
-            <SummaryRow
-              label="Da incassare"
-              value={formatCurrency(due)}
-              tone={due > 0 ? "warning" : "success"}
-            />
-            <SummaryRow
-              label="Posa"
-              value={posa.testo}
-              tone={overdue ? "danger" : undefined}
-            />
-            <SummaryRow
-              label="Materiali pronti"
-              value={materials.total > 0 ? `${materials.ready}/${materials.total}` : "Nessun articolo"}
-              tone={needsMaterials ? "danger" : materials.total > 0 ? "success" : undefined}
-            />
-            <SummaryRow
-              label="Da ordinare"
-              value={`${materials.toOrder}`}
-              tone={materials.toOrder > 0 ? "warning" : "success"}
-            />
-            <SummaryRow
-              label="Articoli totali"
-              value={`${materials.total}`}
-              tone={materials.total > 0 ? undefined : "warning"}
-            />
-            <SummaryRow
-              label="Assegnazioni"
-              value={`${labor.names.length}`}
-              tone={labor.names.length > 0 ? "success" : "warning"}
-            />
-          </div>
-
-          <div className="mt-3 flex justify-end border-t pt-3">
-            <button
-              type="button"
-              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
-              onClick={(event) => {
-                event.stopPropagation();
-                clearCloseTimer();
-                setSummaryOpen(false);
-                navigate(`/azienda/ordini/${order.id}`);
-              }}
-            >
+            <dl className="space-y-2.5">
+              {order.indirizzo_lavori && <div className="flex items-start gap-2 text-muted-foreground"><MapPin aria-hidden className="mt-0.5 size-3.5 shrink-0" /><dt className="sr-only">Indirizzo cantiere</dt><dd>{order.indirizzo_lavori}</dd></div>}
+              {dataPrevista && <div className="flex items-start gap-2">
+                <CalendarDays aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <div><dt className="font-semibold">{periodoLavori ? "Lavori previsti" : "Data prevista"}</dt><dd className="mt-0.5 text-muted-foreground">
+                  {dataPrevista}
+                  {ritardo > 0 && <span className={cn("ml-1.5", TONO_TESTO.critico)}>{ritardoTesto}</span>}
+                </dd></div>
+              </div>}
+              <div className="flex items-start gap-2">
+                <PackageCheck aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <div><dt className="font-semibold">Materiali</dt><dd className="mt-0.5 text-muted-foreground">
+                  <span className={TONO_TESTO[materiali.tono]}>{materiali.testo}</span>
+                  {materials.toOrder > 0 && ` · ${materials.toOrder} da ordinare`}
+                  {order.warehouse_arrival_date && <span className="block">Arrivo in magazzino {formatDateShort(order.warehouse_arrival_date)}</span>}
+                </dd></div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Users aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <div><dt className="font-semibold">Squadra</dt><dd className="mt-0.5 break-words text-muted-foreground">
+                  {labor.names.length === 0 && squadra.testo}
+                  {labor.employees.length > 0 && <span className="block">{labor.employees.join(", ")}</span>}
+                  {labor.internal.length > 0 && <span className="block">Squadre interne · {labor.internal.join(", ")}</span>}
+                  {labor.external.length > 0 && <span className="block">Subappalto · {labor.external.join(", ")}</span>}
+                </dd></div>
+              </div>
+            </dl>
+            {passo.destinazione && (
+              <Link to={linkPasso} className="flex items-start justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <span><span className="block font-semibold text-primary">{passo.testo}</span><span className="mt-0.5 block text-muted-foreground">{passo.motivo}</span></span>
+                <ArrowRight aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+              </Link>
+            )}
+            <Link to={urlCommessa} className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
               Apri commessa
-            </button>
+            </Link>
           </div>
-        </div>,
-        document.body,
+        </PopoverContent>
       )}
-    </>
+    </Popover>
   );
 });

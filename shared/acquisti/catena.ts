@@ -23,7 +23,7 @@
  *   - nessuna memoria per fornitore: «l'ultima volta questo fornitore era sulla
  *     commessa X» non è una prova, e qui non entra.
  */
-import { confrontaNumeri, giorniFra, indirizzoConfrontabile, numeroDocumento, soloAlfanumerico, centesimi } from "./normalizza.ts";
+import { confrontaNumeri, giorniFra, indirizzoConfrontabile, nomeConfrontabile, numeroDocumento, soloAlfanumerico, centesimi } from "./normalizza.ts";
 import {
   decidi,
   decidiTraFonti,
@@ -34,6 +34,7 @@ import {
   type Prova,
 } from "./riconciliazione.ts";
 import type { RiferimentiFattura, RiferimentoDdt, RiferimentoDocumento, RigaFatturaLetta } from "./riferimentiFattura.ts";
+import { ddtNeiTesti, ordiniNeiTesti, testiRiferimentiFattura } from "./riferimentiFattura.ts";
 
 export interface DdtNoto {
   id: string;
@@ -73,6 +74,8 @@ export interface CommessaNota {
   companyId: string;
   codice: string | null;
   indirizzoCantiere?: string | null;
+  clienteNome?: string | null;
+  clienteRagioneSociale?: string | null;
   cup?: string[];
   cig?: string[];
   /** Chiusa o archiviata: si può ancora collegare (fatture tardive), ma non da sola. */
@@ -97,7 +100,7 @@ export interface OpzioniCatena {
 }
 
 export interface Percorso {
-  fonte: "ordine" | "ddt" | "ddt_ordine" | "contratto" | "codice_commessa" | "cup" | "cig" | "indirizzo";
+  fonte: "ordine" | "ddt" | "ddt_ordine" | "contratto" | "codice_commessa" | "cup" | "cig" | "indirizzo" | "cliente";
   /** I passi, nell'ordine: «riga 3», «DDT 1068 del 2026-09-07», «ordine ODA-2026-0039». */
   passi: string[];
   /** Id dei documenti attraversati, per la traccia. */
@@ -281,15 +284,18 @@ export function costruisciCatena(
   const commesse = noti.commesse.filter((c) => c.companyId === fattura.companyId);
   const ordiniPerId = new Map(noti.ordini.filter((o) => o.companyId === fattura.companyId).map((o) => [o.id, o]));
   const rif = fattura.riferimenti;
-  const ddtCitati = rif.ddt.length ? rif.ddt : (fattura.ddtNelTesto ?? []);
+  const unici = <T extends RiferimentoDdt>(rs: T[]): T[] => [...new Map(rs.map(r => [`${r.numero?.chiave ?? r.testo}|${r.data ?? ""}|${[...r.righe].sort((a,b)=>a-b).join(",")}`, r])).values()];
+  const ddtCitati = unici([...rif.ddt, ...ddtNeiTesti(rif, fattura.testo), ...(fattura.ddtNelTesto ?? [])]);
+  const ordiniCitati = unici([...rif.ordini, ...ordiniNeiTesti(rif, fattura.testo)]);
 
   const ddt = ddtCitati.map((r) => ({ riferimento: r, decisione: abbinaDdt(r, fattura, noti.ddt, opz) }));
-  const ordini = rif.ordini.map((r) => ({ riferimento: r, decisione: abbinaOrdine(r, fattura, noti.ordini) }));
+  const ordini = ordiniCitati.map((r) => ({ riferimento: r, decisione: abbinaOrdine(r, fattura, noti.ordini) }));
   const contratti = rif.contratti.map((r) => ({ riferimento: r, decisione: abbinaContratto(r, fattura, noti.contratti) }));
 
   // Le indicazioni FORTI, con le righe a cui valgono (vuoto = tutto il documento).
   type IndRighe = Indicazione & { righe: number[]; percorso: Percorso };
   const forti: IndRighe[] = [];
+  const indiziCodici: IndRighe[] = [];
   const scelto = <T>(d: Decisione<T>) =>
     d.esito === "automatico" ? (d.candidati.find((c) => c.id === d.sceltoId)?.dato as T | undefined) : undefined;
 
@@ -351,41 +357,65 @@ export function costruisciCatena(
     });
   }
 
-  // Codici: CUP/CIG e codice commessa valgono per tutto il documento.
-  const testo = `${fattura.testo ?? ""}\n${rif.causale}\n${rif.righe.map((x) => x.descrizione).join("\n")}\n${[...rif.ordini, ...rif.contratti, ...rif.convenzioni].map((x) => `${x.testo} ${x.codiceCommessa ?? ""}`).join("\n")}`;
+  // Un codice nella riga vale per quella riga; la causale vale per il documento.
+  const testi = testiRiferimentiFattura(rif, fattura.testo);
   for (const c of commesse) {
     const comm = `commessa:${c.id}`;
     for (const cup of c.cup ?? [])
-      if (rif.cup.includes(cup.toUpperCase()))
-        forti.push({ valore: comm, fonte: "cup", forte: true, testo: `CUP ${cup}`, righe: [], percorso: { fonte: "cup", passi: [`CUP ${cup}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+      if (rif.cup.includes(cup.toUpperCase())) {
+        const ambiti = testi.filter(t => parolaIntera(t.testo, cup));
+        for (const t of ambiti.length ? ambiti : [{ righe: [] as number[] }])
+          forti.push({ valore: comm, fonte: "cup", forte: true, testo: `CUP ${cup}`, righe: t.righe, percorso: { fonte: "cup", passi: [`CUP ${cup}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+      }
     for (const cig of c.cig ?? [])
-      if (rif.cig.includes(cig.toUpperCase()))
-        forti.push({ valore: comm, fonte: "cig", forte: true, testo: `CIG ${cig}`, righe: [], percorso: { fonte: "cig", passi: [`CIG ${cig}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+      if (rif.cig.includes(cig.toUpperCase())) {
+        const ambiti = testi.filter(t => parolaIntera(t.testo, cig));
+        for (const t of ambiti.length ? ambiti : [{ righe: [] as number[] }])
+          forti.push({ valore: comm, fonte: "cig", forte: true, testo: `CIG ${cig}`, righe: t.righe, percorso: { fonte: "cig", passi: [`CIG ${cig}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+      }
     const cod = soloAlfanumerico(c.codice);
-    // Codice con lettere e cifre, o di almeno 6 cifre: un numero corto nudo è anche una quantità o un DDT.
-    if (cod.length >= 4 && (/[A-Z]/.test(cod) ? /\d/.test(cod) : cod.length >= 6) && parolaIntera(testo, c.codice ?? ""))
-      forti.push({ valore: comm, fonte: "codice_commessa", forte: true, testo: `codice commessa ${c.codice}`, righe: [], percorso: { fonte: "codice_commessa", passi: [`codice ${c.codice}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+    const codiceRe = regexParolaIntera(c.codice ?? "");
+    // Codici alfabetici (es. ELISII-SCARFOGLIO): certi soltanto con «commessa/cantiere»;
+    // senza etichetta restano indizi. Un numero corto nudo può essere una quantità o un DDT.
+    if (cod.length >= 4) for (const t of testi) {
+      const trovato = codiceRe?.exec(t.testo);
+      if (!trovato) continue;
+      const etichettato = /\b(?:commessa|cantiere|comm|cant)\.?\s*(?:(?:codice|cod|n|nr|numero)\.?\s*)?[:#-]?\s*$/i.test(t.testo.slice(0,trovato.index));
+      const forte = (/[A-Z]/.test(cod) ? /\d/.test(cod) : cod.length >= 6) || etichettato;
+      if (!forte && (/\d/.test(cod) || cod.length < 8)) continue;
+      (forte ? forti : indiziCodici).push({ valore: comm, fonte: "codice_commessa", forte, testo: `codice commessa ${c.codice}`, righe: t.righe, percorso: { fonte: "codice_commessa", passi: [`codice ${c.codice}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+    }
   }
 
-  // L'indirizzo è un indizio: vale per tutto il documento, e solo se è scritto per intero.
-  const deboli: IndRighe[] = [];
-  const testoInd = ` ${indirizzoConfrontabile(testo)} `;
+  // Indirizzo e nome del cliente sono indizi, sempre da confermare.
+  const deboli: IndRighe[] = [...indiziCodici];
+  const testiNormalizzati = testi.map(t => ({ ...t, indirizzo: ` ${indirizzoConfrontabile(t.testo)} `, nome: ` ${nomeConfrontabile(t.testo)} ` }));
   for (const c of commesse) {
     const ind = indirizzoConfrontabile(c.indirizzoCantiere);
-    if (ind.length >= 10 && /\d/.test(ind) && testoInd.includes(` ${ind} `))
-      deboli.push({
-        valore: `commessa:${c.id}`,
-        fonte: "indirizzo",
-        forte: false,
-        testo: `indirizzo del cantiere (${c.indirizzoCantiere})`,
-        righe: [],
-        percorso: { fonte: "indirizzo", passi: [`indirizzo ${c.indirizzoCantiere}`], documenti: [{ tipo: "commessa", id: c.id }] },
-      });
+    const nomi = [...new Set([c.clienteNome, c.clienteRagioneSociale].filter(Boolean))].map(nome => ({ nome, chiave: nomeConfrontabile(nome) }))
+      .filter(n => n.chiave.length >= 6 && (n.chiave.split(" ").length >= 2 || n.chiave.length >= 8) && !["condominio", "cliente", "amministrazione", "costruzioni"].includes(n.chiave));
+    for (const t of testiNormalizzati) {
+      if (ind.length >= 10 && /\d/.test(ind) && t.indirizzo.includes(` ${ind} `))
+        deboli.push({
+          valore: `commessa:${c.id}`,
+          fonte: "indirizzo",
+          forte: false,
+          testo: `indirizzo del cantiere (${c.indirizzoCantiere})`,
+          righe: t.righe,
+          percorso: { fonte: "indirizzo", passi: [`indirizzo ${c.indirizzoCantiere}`], documenti: [{ tipo: "commessa", id: c.id }] },
+        });
+      for (const n of nomi) {
+        if (!t.nome.includes(` ${n.chiave} `)) continue;
+        deboli.push({ valore: `commessa:${c.id}`, fonte: "cliente", forte: false, testo: `cliente citato in fattura (${n.nome})`, righe: t.righe,
+          percorso: { fonte: "cliente", passi: [`cliente ${n.nome}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+      }
+    }
   }
 
   // Riga per riga: le indicazioni della riga + quelle del documento.
-  const righeMerce = rif.righe.filter((r) => !rigaAccessoria(r));
-  const accessorie = rif.righe.filter(rigaAccessoria);
+  const conDestinazionePropria = (r: RigaFatturaLetta) => [...forti, ...deboli].some(f => f.righe.includes(r.numeroLinea));
+  const righeMerce = rif.righe.filter(r => !rigaAccessoria(r) || conDestinazionePropria(r));
+  const accessorie = rif.righe.filter(r => rigaAccessoria(r) && !conDestinazionePropria(r));
   const perRiga = (n: number) => {
     const proprie = forti.filter((f) => f.righe.includes(n));
     const docu = forti.filter((f) => f.righe.length === 0);
@@ -394,8 +424,9 @@ export function costruisciCatena(
     const fortiRiga = [...proprie, ...docu];
     // L'indirizzo che conferma una fonte forte toglie di mezzo gli altri indirizzi
     // (due commesse nello stesso stabile); se nessun indirizzo la conferma, contano tutti.
-    const conferma = deboli.filter((d) => fortiRiga.some((f) => f.valore === d.valore));
-    return [...fortiRiga, ...(conferma.length ? conferma : deboli)];
+    const deboliRiga = deboli.filter(d => !d.righe.length || d.righe.includes(n));
+    const conferma = deboliRiga.filter((d) => fortiRiga.some((f) => f.valore === d.valore));
+    return [...fortiRiga, ...(conferma.length ? conferma : deboliRiga)];
   };
   const esitiRiga: EsitoRiga[] = righeMerce.map((r) => {
     const ind = perRiga(r.numeroLinea);
@@ -406,7 +437,7 @@ export function costruisciCatena(
   });
 
   // Fattura senza righe merce (solo accessorie, o righe illeggibili): decide il documento.
-  const docDecisione = decidiTraFonti([...forti.filter((f) => f.righe.length === 0), ...deboli], { automaticoConsentito: true });
+  const docDecisione = decidiTraFonti([...forti.filter((f) => f.righe.length === 0), ...deboli.filter(d => !d.righe.length)], { automaticoConsentito: true });
 
   const conflitti = esitiRiga.filter((e) => e.decisione.esito === "conflitto");
   const allocazioni: Allocazione[] = [];
@@ -470,8 +501,12 @@ export function costruisciCatena(
 
 /** Il codice compare come parola a sé (non dentro un numero più lungo). */
 function parolaIntera(testo: string, codice: string): boolean {
+  return regexParolaIntera(codice)?.test(testo) ?? false;
+}
+
+function regexParolaIntera(codice: string): RegExp | null {
   const c = codice.trim();
-  if (!c) return false;
+  if (!c) return null;
   const esc = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^A-Za-z0-9])${esc}([^A-Za-z0-9]|$)`, "i").test(testo);
+  return new RegExp(`(^|[^A-Za-z0-9])${esc}([^A-Za-z0-9]|$)`, "i");
 }

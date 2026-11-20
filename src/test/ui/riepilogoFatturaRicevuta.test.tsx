@@ -70,6 +70,33 @@ beforeEach(() => {
 });
 
 describe("riepilogo della fattura ricevuta", () => {
+  it("mostra il riferimento del cliente che giustifica la proposta della commessa",async()=>{
+    finto.dati.fatture_ricevute={...FIC,order_id_suggerito:'o9',order_suggerito_motivo:'Da confermare: cliente Biemme citato nella causale'};
+    apri();
+    expect(await screen.findByText('Riferimento trovato')).toBeVisible();
+    expect(screen.getByText('Da confermare: cliente Biemme citato nella causale')).toBeVisible();
+    expect(screen.getByRole('button',{name:'Collega'})).toBeVisible();
+  });
+  it("spiega i riferimenti ambigui senza presentare una commessa già scelta",async()=>{
+    finto.dati.fatture_ricevute={...FIC,order_id_suggerito:null,order_suggerito_motivo:'Riferimenti da verificare: più cantieri dello stesso cliente'};
+    apri();
+    expect(await screen.findByText('Riferimenti da verificare: più cantieri dello stesso cliente')).toBeVisible();
+    expect(screen.queryByText('Riferimento trovato')).toBeNull();
+    expect(screen.getByRole('button',{name:'Ripartisci imponibile'})).toBeVisible();
+  });
+  it("mantiene i dati fiscali nella testata del fornitore e mostra più ordini con le loro quote",async()=>{
+    finto.dati.fatture_ricevute={...conXml(),stato:'contabilizzata',cedente_indirizzo:'Via di prova 12',cedente_comune:'Milano',cedente_cap:'20100'};
+    finto.dati['fattura_ricevuta_ordini[]']=[{importo:100,purchase_orders:{id:'o1',oda_number:'ODA-100',orders:{id:'c1',order_code:'C-1'}}},{importo:75.49,purchase_orders:{id:'o2',oda_number:'ODA-200',orders:{id:'c2',order_code:'C-2'}}}];
+    finto.dati['orders[]']=[{id:'c1',order_code:'C-1'},{id:'c2',order_code:'C-2'}];
+    apri();
+    const dati=await screen.findByLabelText('Dati del fornitore');
+    expect(dati.closest('.ricevuta-testata')).not.toBeNull();
+    expect(dati).toHaveTextContent('P.IVA IT01234567890');
+    expect(dati).toHaveTextContent('Via di prova 12');
+    expect(screen.getByRole('link',{name:/ODA-100.*100,00/})).toBeVisible();
+    expect(screen.getByRole('link',{name:/ODA-200.*75,49/})).toBeVisible();
+    expect(screen.getByRole('group',{name:'Azioni della fattura'}).closest('.ricevuta-testata-riga')).not.toBeNull();
+  });
   it("mostra targhe e DDT sulla riga corrispondente, precisione XML, causale e altri riferimenti nel popup", async () => {
     finto.dati.fatture_ricevute=conXml();
     apri();
@@ -88,6 +115,32 @@ describe("riepilogo della fattura ricevuta", () => {
     const dettagli=screen.getByText(/Altri dati presenti nell’XML/).closest('details')!;
     fireEvent.click(within(dettagli).getByText(/Altri dati presenti/));
     expect(dettagli).toHaveTextContent('xml@example.test');
+  });
+  it("espone in testata le azioni e rende consultabili beneficiario, banca e dati XML aggiuntivi",async()=>{
+    const pagamento='<DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento><Beneficiario>BENEFICIARIO ORIGINALE</Beneficiario><ModalitaPagamento>MP12</ModalitaPagamento><IBAN>IT60X0542811101000000123456</IBAN><IstitutoFinanziario>BANCA DEL FORNITORE</IstitutoFinanziario><DataScadenzaPagamento>2026-11-30</DataScadenzaPagamento><ImportoPagamento>434.32</ImportoPagamento></DettaglioPagamento></DatiPagamento>';
+    finto.dati.fatture_ricevute={...conXml(),xml_raw:XML_DETTAGLI.replace('</FatturaElettronicaBody>',pagamento+'</FatturaElettronicaBody>')};
+    apri();
+    const azioni=within(await screen.findByRole('group',{name:'Azioni della fattura'}));
+    expect(azioni.getByRole('button',{name:'Versione completa e stampa'})).toBeVisible();
+    expect(azioni.getByRole('button',{name:'Scarica il file originale'})).toBeVisible();
+    expect(azioni.getByRole('button',{name:'Confronta con DDT e ordini'})).toBeVisible();
+    fireEvent.click(screen.getByText('Dati del documento e pagamenti XML'));
+    const originale=screen.getByRole('table',{name:'Dati di pagamento'});
+    expect(originale).toHaveTextContent('BENEFICIARIO ORIGINALE');
+    expect(originale).toHaveTextContent('BANCA DEL FORNITORE');
+    expect(originale).toHaveTextContent('IT60X0542811101000000123456');
+  });
+  it("il residuo deriva dai movimenti effettivi anche quando le rate risultano ancora aperte",async()=>{
+    finto.dati.fatture_ricevute={...FIC,company_cost_id:'c1'};
+    finto.dati.company_costs={id:'c1',amount:356};
+    finto.dati['rate_fornitori[]']=[{id:'r1',numero:1,stato:'da_pagare',importo:434.32,scadenza:'2026-11-30'}];
+    finto.rpc.mockImplementation(async(name:string)=>({data:name==='dettaglio_pagamento_costo'?{id:'c1',company_id:'co',totale:434.32,pagato:100,residuo:334.32,da_verificare:false,movimenti:[]}:null,error:null}));
+    apri();
+    expect(await screen.findByText('Pagamento parziale')).toBeVisible();
+    const stato=within(screen.getByLabelText('Situazione dei pagamenti'));
+    expect(stato.getByText('100,00 €')).toBeVisible();
+    expect(stato.getByText('334,32 €')).toBeVisible();
+    expect(screen.queryByRole('button',{name:'Segna pagata la rata 1'})).toBeNull();
   });
 
   it("conserva anche righe XML assenti nell’importazione, senza associarle per posizione", async () => {
@@ -111,7 +164,7 @@ describe("riepilogo della fattura ricevuta", () => {
     apri();
     expect((await screen.findAllByText("CEMENTO 32,5 R SACCO 25 KG")).length).toBeGreaterThan(0);
     expect(screen.getByText(/IVA 22% su/)).toBeTruthy();
-    expect(screen.getByText("434,32 €")).toBeTruthy();
+    expect(within(screen.getByLabelText("Importi del documento")).getByText("434,32 €")).toBeTruthy();
     expect(screen.queryByText(/Versione completa/)).toBeNull();
   });
 

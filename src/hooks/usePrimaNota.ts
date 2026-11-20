@@ -56,6 +56,8 @@ export interface PrimaNotaEntry {
   updated_at?: string;
   order_item_id: string | null;
   account_label: string | null;
+  bank_account_id?: string | null;
+  conto_liquidita_id?: string | null;
   is_auto: boolean;
   auto_source: string | null;
   attachment_url: string | null;
@@ -103,6 +105,8 @@ export interface DatiRegistrazione {
   payment_method?: string;
   reference_number?: string;
   account_label?: string;
+  bank_account_id?: string | null;
+  conto_liquidita_id?: string | null;
   supplier_id?: string | null;
   order_id?: string | null;
   invoice_id?: string | null;
@@ -126,12 +130,23 @@ export interface PrimaNotaFilters {
   search?: string;
   isAuto?: boolean | null; // true=auto only, false=manual only, null=all
   autoSource?: string;
+  bankAccountId?: string;
+  liquiditaId?: string;
+  accountLabel?: string;
 }
 
 export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, pageSize: number = 50) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  // Il conto filtra insieme elenco, saldo, grafico ed esportazione.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyConto = (q: any) => {
+    if (filters.bankAccountId) q = q.eq("bank_account_id", filters.bankAccountId);
+    if (filters.liquiditaId) q = q.eq("conto_liquidita_id", filters.liquiditaId);
+    if (filters.accountLabel) q = q.ilike("account_label", `${filters.accountLabel}%`);
+    return q;
+  };
 
   // Un unico posto per i filtri → lista, saldo ed export restano allineati.
   // (Prima il saldo ignorava direzione/categoria/ricerca e l'export prendeva
@@ -146,7 +161,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     if (filters.isAuto === false) q = q.eq("is_auto", false);
     if (filters.autoSource) q = q.eq("auto_source", filters.autoSource);
     if (filters.search?.trim()) q = q.ilike("description", `%${filters.search.trim()}%`);
-    return q;
+    return applyConto(q);
   };
 
   const entriesQuery = useQuery({
@@ -188,7 +203,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   // KPI combaciano con ciò che l'utente vede (prima mostravano l'intero periodo).
   const hasNonDateFilter = !!(
     filters.direction || filters.category || filters.search?.trim() ||
-    filters.isAuto != null || filters.autoSource
+    filters.isAuto != null || filters.autoSource || filters.bankAccountId || filters.liquiditaId || filters.accountLabel
   );
 
   const saldoQuery = useQuery({
@@ -196,6 +211,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       ...queryKeys.primaNota.saldo(companyId, filters.fromDate, filters.toDate),
       filters.direction ?? "", filters.category ?? "", filters.search?.trim() ?? "",
       filters.isAuto ?? "", filters.autoSource ?? "",
+      filters.bankAccountId ?? "", filters.liquiditaId ?? "", filters.accountLabel ?? "",
     ],
     queryFn: async () => {
       if (!hasNonDateFilter) {
@@ -229,18 +245,18 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   // grafico leggeva la lista paginata/filtrata (default = solo mese corrente, 50
   // righe) → mostrava un solo mese.
   const monthlyChartQuery = useQuery({
-    queryKey: ["primaNota", "chart6m", companyId],
+    queryKey: ["primaNota", "chart6m", companyId, filters.bankAccountId ?? "", filters.liquiditaId ?? "", filters.accountLabel ?? ""],
     queryFn: async () => {
       const since = new Date();
       since.setDate(1);
       since.setMonth(since.getMonth() - 5);
       const sinceStr = since.toLocaleDateString("en-CA"); // yyyy-MM-dd, locale
-      const { data, error } = await supabase
+      const { data, error } = await applyConto(supabase
         .from("prima_nota_entries")
         .select("amount, direction, entry_date")
         .eq("company_id", companyId!)
         .gte("entry_date", sinceStr)
-        .limit(50000);
+        .limit(50000));
       if (error) throw error;
       const buckets: Record<string, { entrate: number; uscite: number }> = {};
       for (const r of ((data as { amount: number | null; direction: string; entry_date: string }[]) ?? [])) {
@@ -283,6 +299,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       /** Incasso di una fattura emessa: chiude anche la fattura e la sua scadenza. */
       invoice_id?: string | null;
       account_label?: string;
+      bank_account_id?: string | null;
+      conto_liquidita_id?: string | null;
       attachment_url?: string;
       attachment_name?: string;
       notes?: string;
@@ -300,12 +318,14 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
         order_id: params.order_id || null,
         invoice_id: params.invoice_id || null,
         account_label: params.account_label || "banca",
+        bank_account_id: params.bank_account_id || null,
+        conto_liquidita_id: params.conto_liquidita_id || null,
         attachment_url: params.attachment_url || null,
         attachment_name: params.attachment_name || null,
         notes: params.notes || null,
         is_auto: false,
         created_by: (await supabase.auth.getUser()).data.user?.id,
-      }).select("id").single();
+      } as never).select("id").single();
       if (error) throw error;
       // L'incasso di una fattura passa anche dal registro dei pagamenti, come la
       // riconciliazione bancaria: lì i trigger ricalcolano pagato, stato e scadenze.

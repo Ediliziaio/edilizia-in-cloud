@@ -6,7 +6,9 @@
  * capitolati. Niente quantità né importi: è il listino del lavoro.
  */
 import type { jsPDF } from "jspdf";
+import { segnaVoceComputoPdf } from "./destinazioniPdf";
 import type { IntestazioneComputo } from "./esportaComputo";
+import { nomeFontModello } from "./assetModello";
 import { alberoComputo, numeroVoce, tariffaVoce, type NodoComputo, type VoceComputo } from "./alberoComputo";
 import { formatEuro } from "./computoStrutturato";
 import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
@@ -52,7 +54,7 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
   const m = 36, destra = W - m, larghezza = W - m * 2, fondo = H - 46;
   const t = creaTema({ primario: i.colore });
   const { nodi } = alberoComputo(voci);
-  const font = (size: number, bold = false, colore = t.inchiostro) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(colore); };
+  const font = (size: number, bold = false, colore = t.inchiostro) => { doc.setFont(nomeFontModello(i.veste, size >= 11), bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(colore); };
   const avvolgi = (s: string, w: number) => doc.splitTextToSize(s, w) as string[];
   const col = { n: m, codice: m + 30, desc: m + 108, um: destra - 168, cifre: destra - 120, lettere: destra };
   const largDesc = col.um - col.desc - 10;
@@ -66,7 +68,7 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
   };
   const nuovaPagina = () => {
     doc.addPage(); y = m;
-    font(8.5, true, t.inchiostroMarca); doc.text(i.azienda || "Elenco prezzi unitari", m, y);
+    if (i.veste?.mostraIntestazione !== false) { font(8.5, true, t.inchiostroMarca); doc.text(i.azienda || "Elenco prezzi unitari", m, y); }
     font(7.5, false, t.grigio); doc.text(`Elenco prezzi · ${i.titolo}`.slice(0, 110), destra, y, { align: "right" }); y += 20;
     testataColonne();
   };
@@ -74,8 +76,10 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
 
   // Testata del documento.
   doc.setFillColor(t.fondo); doc.rect(0, 0, W, 60, "F");
-  font(12, true, t.bianco); doc.text(i.azienda || "", m, 28);
-  if (i.dettagliAzienda) { font(7, false, t.bianco); doc.text(i.dettagliAzienda.slice(0, 160), m, 42); }
+  if (i.veste?.mostraIntestazione !== false) {
+    font(12, true, t.bianco); doc.text(i.azienda || "", m, 28);
+    if (i.dettagliAzienda) { font(7, false, t.bianco); doc.text(i.dettagliAzienda.slice(0, 160), m, 42); }
+  }
   y = 90;
   font(7, true, t.inchiostroMarca); doc.text("E L E N C O   P R E Z Z I   U N I T A R I", m, y); y += 18;
   font(17, true); for (const r of avvolgi(i.titolo, larghezza).slice(0, 3)) { doc.text(r, m, y); y += 20; }
@@ -92,6 +96,7 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
     // Una descrizione lunghissima si spezza fra le pagine: il prezzo resta con la sua prima riga.
     let k = 0;
     serve(Math.min(alto, 60));
+    segnaVoceComputoPdf(doc, v.id, y);
     font(7.5, true); doc.text(numeroVoce(v), col.n + 4, y);
     font(7, false, t.grigio); doc.text(tariffaVoce(v).slice(0, 18), col.codice, y);
     font(7.5); doc.text(v.unita_misura ?? "", col.um, y);
@@ -118,7 +123,7 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
   for (let p = 1; !i.senzaPiede && p <= pagine; p++) {
     doc.setPage(p); doc.setDrawColor(t.filetto); doc.line(m, H - 30, destra, H - 30);
     font(6.5, false, t.grigioChiaro); doc.text((i.stato || i.veste?.piePagina || i.azienda || "").slice(0, 100), m, H - 18);
-    doc.text(`Pagina ${p} di ${pagine}`, destra, H - 18, { align: "right" });
+    if (i.veste?.mostraNumeriPagina !== false) doc.text(`Pagina ${p} di ${pagine}`, destra, H - 18, { align: "right" });
   }
   return doc;
 }

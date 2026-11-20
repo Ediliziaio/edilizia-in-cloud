@@ -16,6 +16,11 @@ import {
 import { periodoInLettere } from "./registroPrimaNota";
 
 export interface RigaIva {
+  documentId?: string;
+  protocol?: string;
+  section?: string;
+  sectionId?: string;
+  registrationDate?: string;
   date: string;
   periodDate: string;
   number: string;
@@ -60,7 +65,7 @@ export function totaliIva(tutte: readonly RigaIva[]): TotaliIva {
   return {
     imponibile: Math.round(imponibile * 100) / 100,
     imposta: Math.round(imposta * 100) / 100,
-    documenti: new Set(righe.map((r) => `${r.side}|${r.number}|${r.date}`)).size,
+    documenti: new Set(righe.map((r) => `${r.side}|${r.documentId ?? `${r.number}|${r.date}|${r.counterparty}`}`)).size,
   };
 }
 
@@ -73,7 +78,7 @@ export function perAliquota(tutte: readonly RigaIva[]): GruppoAliquota[] {
   const righe = tutte.filter((r) => !r.synthetic);
   const mappa = new Map<string, GruppoAliquota>();
   for (const r of righe) {
-    const chiave = r.rate ? `${r.rate}%` : r.nature || "Senza aliquota";
+    const chiave = r.nature ? [r.rate && Number(r.rate) > 0 ? `${r.rate}%` : "", r.nature].filter(Boolean).join(" · ") : r.rate ? `${r.rate}%` : "Senza aliquota";
     const g = mappa.get(chiave) ?? { chiave, imponibile: 0, imposta: 0, righe: 0 };
     g.imponibile = Math.round((g.imponibile + inEuro(r.base)) * 100) / 100;
     g.imposta = Math.round((g.imposta + inEuro(r.tax)) * 100) / 100;
@@ -120,10 +125,11 @@ export function htmlRegistroIva(d: {
   lato: "vendite" | "acquisti" | "tutti";
   dal: string;
   al: string;
+  sezionale?: string;
 }): string {
   const righe = [...d.righe].sort(
     (a, b) =>
-      a.periodDate.localeCompare(b.periodDate) ||
+      (a.registrationDate || a.periodDate).localeCompare(b.registrationDate || b.periodDate) ||
       a.number.localeCompare(b.number, "it", { numeric: true }),
   );
   const t = totaliIva(righe);
@@ -131,7 +137,7 @@ export function htmlRegistroIva(d: {
   const proiezioni = righe.filter((r) => r.synthetic).length;
 
   return htmlDocumentoContabile<RigaIva>({
-    titolo: TITOLI[d.lato] ?? TITOLI.tutti,
+    titolo: [TITOLI[d.lato] ?? TITOLI.tutti, d.sezionale].filter(Boolean).join(" · "),
     periodo: periodoInLettere(d.dal, d.al),
     sottotitolo:
       d.lato === "acquisti"
@@ -146,6 +152,8 @@ export function htmlRegistroIva(d: {
       { etichetta: "Imposta", valore: euro(t.imposta) },
     ],
     colonne: [
+      { intestazione: "Protocollo", valore: (r) => r.synthetic ? "Proiezione RC" : r.protocol || "Non assegnato", larghezza: "12%" },
+      { intestazione: "Data reg.", valore: (r) => r.registrationDate ? dataIT(r.registrationDate) : "—", compatta: true, larghezza: "9%" },
       { intestazione: "Data doc.", valore: (r) => dataIT(r.date), compatta: true, larghezza: "9%" },
       { intestazione: d.lato === "acquisti" ? "Detrazione" : "Periodo", valore: (r) => dataIT(r.periodDate), compatta: true, larghezza: "9%" },
       { intestazione: "Numero", valore: (r) => r.number, compatta: true, larghezza: "11%" },
@@ -180,6 +188,9 @@ export function righeExcelIva(righe: readonly RigaIva[]) {
     data: dataIT(r.date),
     periodo: dataIT(r.periodDate),
     numero: r.number,
+    protocollo: r.protocol ?? "",
+    sezionale: r.section ?? "",
+    registrazione: r.registrationDate ? dataIT(r.registrationDate) : "",
     controparte: r.counterparty,
     registro: r.side === "vendite" ? "Vendite" : "Acquisti",
     imponibile: inEuro(r.base),

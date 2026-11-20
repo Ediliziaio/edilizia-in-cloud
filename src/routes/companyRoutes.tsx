@@ -1282,7 +1282,9 @@ export default function CompanyRoutesContainer() {
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
-        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><ComputoPreventivo /></FeatureRoute>)} />
+        {/* Compatibilità per le bozze del precedente editor: il nuovo ingresso apre il computo nativo. */}
+        <Route path="marketing/preventivi/classico/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteBuilder /></FeatureRoute>)} />
         {ComputoPreventivo && <Route path="marketing/preventivi/computo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="preventivi_crm"><ComputoPreventivo /></FeatureRoute>)} />}
         {QuoteAiSimulationPage && <Route path="marketing/preventivi/simulazione-ai" element={withCompanyPermission("canEditPreventivi", <QuoteAiSimulationPage />)} />}
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><QuoteDetail /></FeatureRoute>)} />

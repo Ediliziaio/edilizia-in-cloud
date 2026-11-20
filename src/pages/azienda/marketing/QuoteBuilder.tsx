@@ -1,4 +1,7 @@
 import { QuoteDescriptionFields } from "@/components/quotes/QuoteDescriptionFields";
+import { QuoteMisureRiga } from "@/components/quotes/QuoteMisureRiga";
+import { aggiornaMisurePreventivo, descrizioneConMisure, rileggiMisurePreventivo, salvaMisurePreventivo, righeConMisureIncomplete, righePreventivoDaComputo, type MisurePreventivo } from "@/lib/preventivi/misurePreventivo";
+import { useModelloComputo } from "@/lib/computo/modelloComputo";
 import { SelezionaCliente } from "@/components/preventivatore/SelezionaCliente";
 import { TestoCheCresce } from "@/components/ui/testo-che-cresce";
 import { tipoDaScelta, type ClienteScelto } from "@/lib/preventivatore/selezionaCliente";
@@ -7,6 +10,7 @@ import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliClient
 import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
 import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
 import { useState, useId, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+const ImportaVociPreventivo = lazy(() => import("@/components/computo/ImportaVociDialog"));
 import type { QuoteWizardProjectContext } from '@/components/quotes/dev/QuoteWizardProjectPanel';
 const QuoteWizardProjectPanel = lazy(() => import('@/components/quotes/dev/QuoteWizardProjectPanel'));
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
@@ -325,6 +329,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
+  const modelloDocumento = useModelloComputo(companyId);
   const contestoQuoteRef = useRef(`${companyId}:${id ?? "nuovo"}`);
   useLayoutEffect(() => {
     const contesto = `${companyId}:${id ?? "nuovo"}`;
@@ -399,6 +404,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
   // Step 1: Items
   const [items, setItems] = useState<QuoteItemPro[]>([]);
+  const [importaComputo, setImportaComputo] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(0);
   // Prezzo scritto a mano (21/09/2026): sostituisce la somma delle righe per
   // chi usa il builder per il documento ma non carica il listino. L'IVA qui è
@@ -499,15 +505,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const [dettagliLavoroAperti, setDettagliLavoroAperti] = useState(false);
 
   useEffect(() => {
-    if (!localEditor && defaultTemplate && !selectedTemplateId && !isEdit) {
-      setSelectedTemplateId(defaultTemplate.id);
+    if (!localEditor && defaultTemplate && !selectedTemplateId && !isEdit && !modelloDocumento.isLoading) {
+      const modelloComune = modelloDocumento.data?.modello.modelloOffertaId;
+      setSelectedTemplateId(offerTemplates.some(t => t.id === modelloComune) ? modelloComune! : defaultTemplate.id);
     }
     // Intenzionale: pre-selezione template SOLO al primo caricamento di `defaultTemplate`.
     // `isEdit` e `selectedTemplateId` non devono ri-triggerare: la selezione manuale
     // dell'utente non va sovrascritta, e in modalità edit il template viene impostato
     // altrove da `existingQuote.template_id`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultTemplate]);
+  }, [defaultTemplate, modelloDocumento.isLoading]);
 
   const effectiveSelectedTemplateId = offerTemplates.some((template) => template.id === selectedTemplateId)
     ? selectedTemplateId
@@ -616,24 +623,24 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // Applicare i default una sola volta: un refetch non deve cancellare le scelte.
   const pdfDefaultsAppliedRef = useRef(false);
   useEffect(() => {
-    if (!pdfDefaultsAppliedRef.current && impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
+    if (!pdfDefaultsAppliedRef.current && impostazioni && Object.keys(impostazioni).length > 0 && !isEdit && !modelloDocumento.isLoading) {
       pdfDefaultsAppliedRef.current = true;
       setPdfPrezziRiga(impostazioni.pdf_mostra_prezzi_per_riga ?? true);
-      setPdfSoloTotale(impostazioni.pdf_mostra_solo_totale ?? false);
+      setPdfSoloTotale(modelloDocumento.data?.salvato && modelloDocumento.data.modello.sezioni.lavorazioni === false ? true : impostazioni.pdf_mostra_solo_totale ?? false);
       setPdfSconti(impostazioni.pdf_mostra_sconti ?? false);
       setPdfImmagini(impostazioni.pdf_mostra_immagini ?? true);
       setPdfSchedeTecniche(impostazioni.pdf_includi_schede_tecniche ?? false);
-      setPdfFirma(impostazioni.firma_digitale_abilitata ?? true);
+      setPdfFirma(modelloDocumento.data?.salvato ? modelloDocumento.data.modello.mostraFirma && modelloDocumento.data.modello.sezioni.firme : impostazioni.firma_digitale_abilitata ?? true);
       // MP-preventivi-v2: nuovi flag (default da preventivo_impostazioni)
       const imp = impostazioni as Record<string, unknown>;
       setPdfMisure((imp.pdf_mostra_misure as boolean | undefined) ?? true);
       setPdfAttributi((imp.pdf_mostra_attributi as boolean | undefined) ?? true);
       setPdfNoteCliente((imp.pdf_mostra_note_cliente as boolean | undefined) ?? true);
-      setPdfCondizioni((imp.pdf_mostra_condizioni as boolean | undefined) ?? true);
+      setPdfCondizioni(modelloDocumento.data?.salvato && modelloDocumento.data.modello.sezioni.contrattuali === false ? false : (imp.pdf_mostra_condizioni as boolean | undefined) ?? true);
       setPdfWatermarkText((imp.pdf_watermark_text as string | undefined) ?? "");
       setPdfCopiaDestinatario((imp.pdf_copia_destinatario as string | undefined) ?? "cliente");
     }
-  }, [impostazioni, isEdit]);
+  }, [impostazioni, isEdit, modelloDocumento.isLoading, modelloDocumento.data]);
 
   // Load contacts
   const { data: contacts = [] } = useQuery({
@@ -861,9 +868,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   useEffect(() => {
     if (existingItems.length > 0) {
       setItems(
-        existingItems.map((i): QuoteItemPro => {
+        existingItems.map((i, posizione): QuoteItemPro => {
           // Una riga «Sconto» salvata in positivo (prima del 05/10/2026) torna in negativo.
-          return normalizzaRigaSconto<QuoteItemPro>({
+          return normalizzaRigaSconto<QuoteItemPro>(rileggiMisurePreventivo({
             id: i.id,
             item_type: i.item_type === "service" ? "service" : "product",
             item_category: (i.item_category || "prodotto") as QuoteItemPro["item_category"],
@@ -896,11 +903,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             parent_item_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
             client_temp_id: i.id,
             parent_temp_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
-          });
+          }, posizione, existingQuote?.custom_field_values));
         })
       );
     }
-  }, [existingItems]);
+  }, [existingItems, existingQuote?.custom_field_values]);
 
   useEffect(() => {
     if (existingAttachments.length > 0) {
@@ -1473,6 +1480,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     setItems(items.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
   };
 
+  const aggiornaMisureRiga = (index: number, misure: MisurePreventivo) => {
+    setItems(prev => aggiornaMisurePreventivo(prev, index, misure));
+  };
+
   // Duplica: la copia è una riga NUOVA, con il suo identificativo temporaneo. Teneva
   // quello dell'originale (client_temp_id): cambiando la quantità della copia si
   // scalava la posa legata all'ORIGINALE, e al salvataggio i legami si confondevano
@@ -1881,6 +1892,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         return true;
       }
       case 1: {
+        if (righeConMisureIncomplete(items)) { toast.error("Completa le misure o correggi le formule prima di procedere."); return false; }
         const activeItems = items.filter(
           (i) => !["nota", "subtotale", "sconto"].includes(i.item_category)
         );
@@ -1933,7 +1945,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       : effectiveTemplate,
     mergeContext: { contratto: contractPreviewValues },
     companyName: effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda",
-    clientName, clientAddress, title, description, siteAddress: indirizzoLavori, validityDays, items,
+    clientName, clientAddress, title, description, siteAddress: indirizzoLavori, validityDays, items: items.map(r => ({ ...r, description: descrizioneConMisure(r) })),
     showImages: pdfImmagini, imageForItem: resolveItemImage, showMeasurements: pdfMisure,
     subtotal, net: imponibilePreventivo, total, vatBreakdown: totaliPro.iva_breakdown, discountPercent,
     manualPrice: totaliPro.prezzo_manuale, showPrices: pdfPrezziRiga, onlyTotal: pdfSoloTotale, showDiscounts: pdfSconti,
@@ -1991,10 +2003,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
       ...(isEdit ? {} : { created_by: user?.id }),
       template_id: effectiveSelectedTemplateId || null,
-      ...((Object.keys(templateValues).length || contractFields.length) ? { custom_field_values: {
-        ...((existingQuote?.custom_field_values && typeof existingQuote.custom_field_values === 'object' && !Array.isArray(existingQuote.custom_field_values)) ? existingQuote.custom_field_values : {}),
+      custom_field_values: {
+        ...salvaMisurePreventivo(existingQuote?.custom_field_values, items),
         _template_values: templateValues,
-      } as Json } : {}),
+      } as Json,
       tipo_lavoro: tipoLavoro || null,
       indirizzo_lavori: indirizzoLavori || null,
       piano_installazione: pianoInstallazione || null,
@@ -2063,7 +2075,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     parent_temp_id: it.parent_temp_id ?? null,
     item_type: it.item_type,
     name: it.name,
-    description: it.description ?? null,
+    description: descrizioneConMisure(it) || null,
     quantity: it.quantity,
     unit_price: it.unit_price,
     discount_percent: it.discount_percent ?? 0,
@@ -2098,6 +2110,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
     if (localEditor) { toast.info('Bozza AI locale: nessuna scrittura nel gestionale e nessun PDF remoto.'); return; }
     if (!companyId || !user) return;
+    if (righeConMisureIncomplete(items)) {
+      if (!opts?.autosave) toast.error("Completa le misure", { description: "Correggi le misure o le formule evidenziate prima di salvare." });
+      return;
+    }
     if (recoverableDraft) {
       toast.error("Scegli se ripristinare o ignorare la bozza prima di salvare.");
       return;
@@ -2336,7 +2352,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const productLines = items.filter((item) => !["nota", "subtotale", "sconto"].includes(item.item_category));
   const productsReady = productLines.length > 0 && productLines.every((item) => !!item.name.trim());
   const paymentError = paymentPlanError(paymentPhases);
-  const quoteReady = clientReady && productsReady && !paymentError && prezziVenditaCompleti(items, prezzoManuale);
+  const quoteReady = clientReady && productsReady && !paymentError && !righeConMisureIncomplete(items) && prezziVenditaCompleti(items, prezzoManuale);
 
   // Prima le voci, poi la definizione del prezzo: stessa sequenza in modifica e riepilogo.
   const priceAndDiscountPanel = productLines.length > 0 ? (
@@ -2874,6 +2890,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
                             <StickyNote className="h-4 w-4 mr-2" /> Descrizione senza prezzo
                           </DropdownMenuItem>
+                          {!localEditor && <DropdownMenuItem onClick={() => setImportaComputo(true)}><FileStack className="mr-2 h-4 w-4" />Importa computo o elenco voci</DropdownMenuItem>}
                           {tariffe.filter((t) => t.tipo === "trasporto")
                             .length > 0 && (
                             <DropdownMenuItem
@@ -2941,6 +2958,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                           <DropdownMenuItem onClick={() => addItemPro("nota")}>
                             <StickyNote className="h-4 w-4 mr-2" /> Descrizione senza prezzo
                           </DropdownMenuItem>
+                          {!localEditor && <DropdownMenuItem onClick={() => setImportaComputo(true)}><FileStack className="mr-2 h-4 w-4" />Importa computo o elenco voci</DropdownMenuItem>}
                           <DropdownMenuItem
                             onClick={() => addItemPro("sconto")}
                           >
@@ -3199,6 +3217,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     min={0}
                                     step={0.01}
                                     aria-label={`Quantità: ${item.name || "riga"}`}
+                                    disabled={item.misureComputo?.attive}
                                     value={localEditor && (item as QuoteItemPro & { ai_missing_quantity?: boolean }).ai_missing_quantity ? '' : item.quantity}
                                     onChange={(e) =>
                                       updateItem(
@@ -3361,6 +3380,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                               )}
                               </div>
                               </div>
+                              {!isNota && !isSconto && !isSubtotale && !localEditor && <QuoteMisureRiga item={item} onChange={m => aggiornaMisureRiga(idx, m)} />}
                               {/* Badges visibili a tutti */}
                               {(item.is_optional || !item.mostra_nel_pdf) && (
                                 <div className="flex items-center gap-2 mt-1">
@@ -3994,7 +4014,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 ? "Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica."
                 : "Bozza visiva: il documento vero è in «PDF vero»."}
             >
-              {conPdfVero && bozzaPerIlPdf
+              {righeConMisureIncomplete(items) ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">Completa le misure o correggi le formule per aggiornare l'anteprima e salvare.</p> : conPdfVero && bozzaPerIlPdf
                 ? <PdfVeroPreventivoClassico quoteId={isEdit ? id : null} bozza={bozzaPerIlPdf}
                     // Un preventivo salvato si stampa quando testata e righe sono arrivate: prima uscirebbe a metà.
                     attivo={colonnaAnteprimaVisibile && (!isEdit || (!!existingQuote && existingItemsLoaded))} />
@@ -4190,6 +4210,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         </Dialog>
       )}
 
+      {importaComputo && <Suspense fallback={<p role="status">Apro l'importazione…</p>}><ImportaVociPreventivo open onOpenChange={setImportaComputo}
+        vociPresenti={items.length} massimoVoci={1000} consentiAi={consentiPreventivoConversazionale(companyId)}
+        notaDestinazione="Le voci entrano in questo preventivo, con misure modificabili, IVA e sconti per riga."
+        onAggiungi={voci => { setItems(prev => [...prev, ...righePreventivoDaComputo(voci, ivaPredefinita(), prev.length)]); setImportaComputo(false); }} /></Suspense>}
       {/* FASE 10.4: Apply bundle dialog (famiglie + prodotti + tariffe) */}
       <ApplyBundleDialog
         open={bundleOpen}

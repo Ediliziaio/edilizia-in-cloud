@@ -9,6 +9,7 @@
  */
 import { componiValori, mancanti, type BloccoStandard, type CampoModulo, type FaseScelta } from "../../../supabase/functions/_shared/moduliCantiere";
 import { fasiLavorateDelRapportino, type Sottofase } from "@/lib/orders/sottofasi";
+import { dettagliViaggio, misureViaggioValide, unitaChilometro, voceTrasporto, type BozzaViaggio } from "./viaggiRapportino";
 
 export type StatoSottofaseGiorno = "lavorata" | "finita";
 
@@ -24,6 +25,7 @@ export interface PersonaPresenza { chiave: string; nome: string; employee_id?: s
 /** Una voce libera con i suoi prezzi: si salva col rapportino. */
 export interface VoceUfficio {
   chiave: string; descrizione: string; quantita: string; unita: string; costo: string; vendita: string;
+  viaggio?: BozzaViaggio;
   /** Voce del listino generale (14/11/2026): il database ne rifà prezzo e provenienza al salvataggio. */
   tariffa_id?: string; codice?: string | null; fonte?: string; proposta?: number | null; avviso?: string | null;
 }
@@ -112,6 +114,12 @@ export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string,
       const n2 = oreLette(q);
       if (n2 == null || n2 <= 0) { errori.push(`Quantità dei materiali maggiore di zero${n}.`); break; }
     }
+    if (g.voci?.some((v) => v.viaggio && !misureViaggioValide(v.viaggio))) {
+      errori.push(`Controlla i chilometri e le ore dei viaggi${n}.`);
+    }
+    if (g.voci?.some((v) => (v.viaggio || voceTrasporto(v.descrizione, v.unita)) && (oreLette(v.quantita) ?? 0) <= 0)) {
+      errori.push(`Indica una quantità maggiore di zero per ogni viaggio${n}.`);
+    }
     for (const m of mancanti(campi, g.campi ?? {}, fasiDelGiorno(g, nomiFasi))) errori.push(`Compila ${m}${n}.`);
     const chiave = `${g.data}|${g.autore}`;
     if (g.data && visti.has(chiave)) errori.push(`Due rapportini della stessa persona lo stesso giorno${n}.`);
@@ -165,6 +173,8 @@ export function caricoRapportini(
         descrizione: v.descrizione.trim(), quantita: oreLette(v.quantita) ?? 0, unita: v.unita.trim() || "cad",
         costo_unitario: oreLette(v.costo), vendita_unitaria: oreLette(v.vendita),
         ...(v.tariffa_id ? { tariffa_id: v.tariffa_id } : {}),
+        ...(v.viaggio || (voceTrasporto(v.descrizione, v.unita) && unitaChilometro(v.unita))
+          ? { viaggio: dettagliViaggio(v.viaggio ?? {}, v.unita, v.quantita) } : {}),
       })) } : {}),
       meteo: g.meteo || null,
       ...(valori.length > 0 ? { campi_extra: valori } : {}),
@@ -197,6 +207,7 @@ export function giorniDaPeriodo(
       ...base, chiave: `p-${d}`, data: d, sottofasi: {},
       presenze: { ...(base.presenze ?? {}) }, mezzi: { ...(base.mezzi ?? {}) }, percentuali: { ...(base.percentuali ?? {}) },
       fasi: [...base.fasi], foto: [], materiali: {}, campi: {},
+      voci: base.voci?.filter((v) => !v.viaggio && !voceTrasporto(v.descrizione, v.unita)),
     });
   }
   return out;

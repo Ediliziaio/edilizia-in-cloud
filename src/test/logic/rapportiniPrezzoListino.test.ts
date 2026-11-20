@@ -12,6 +12,7 @@ import { etichettaPrezzo, prezzoModificatoAMano, scegliPrezzo, totaliQuadro } fr
 const MIGRAZIONE = "supabase/migrations/20290318120000_rapportini_prezzo_dal_listino_e_costi_da_completare.sql";
 const MIGRAZIONE_B = "supabase/migrations/20290318120100_rapportini_ore_in_economia_rendiconto_unita.sql";
 const MIGRAZIONE_G = "supabase/migrations/20290318120200_rapportini_mezzi_e_ditte_dal_listino.sql";
+const MIGRAZIONE_TRASPORTI = "supabase/migrations/20290422100000_rendiconto_trasporti_da_rapportini.sql";
 const C = "11111111-1111-4111-a111-111111111111";
 const ALTRA = "11111111-1111-4111-a111-111111111112";
 const UTENTE = "22222222-2222-4222-a222-222222222222";
@@ -46,7 +47,10 @@ beforeAll(async () => {
     create function auth.uid() returns uuid language sql as $$select '${UTENTE}'::uuid$$;
     create function auth.role() returns text language sql as $$select 'authenticated'::text$$;
     create function public.has_permission_for_company(uuid, text, uuid) returns boolean language sql as
-      $$select coalesce(nullif(current_setting('test.costi', true), '')::boolean, true) or $2 <> 'can_view_costs'$$;
+      $$select case $2
+        when 'can_view_costs' then coalesce(nullif(current_setting('test.costi', true), '')::boolean, true)
+        when 'can_view_order_amounts' then coalesce((nullif(current_setting('test.diritti', true), '')::jsonb->>'amounts')::boolean, true)
+        else true end$$;
     create function public.user_can_access_company(uuid) returns boolean language sql as $$select true$$;
     create function public.utente_bloccato() returns boolean language sql as $$select false$$;
     create function public.utente_e_cliente_esterno() returns boolean language sql as $$select false$$;
@@ -113,6 +117,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE), "utf8"));
   await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE_B), "utf8"));
   await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE_G), "utf8"));
+  await db.exec(readFileSync(resolve(MIGRAZIONE_TRASPORTI), "utf8"));
   await db.exec(`create trigger trg_rapportino_costo_manodopera before update on public.campo_rapportini
     for each row execute function public.fn_rapportino_costo_manodopera()`);
 }, 30_000);
@@ -402,6 +407,40 @@ describe("Popup dell'ufficio — voce dal listino", () => {
   it("ricerca per commessa e giorno, senza rapportino", async () => {
     const r = await uno<J[]>("select public.commessa_listino_cerca($1, '2026-11-10', 'pos', 10) v", [O_COMM]);
     expect(r[0]).toMatchObject({ tariffa_id: T_POSA, fonte: "committente", prezzo: 45 });
+  });
+});
+
+describe("Viaggi dei rapportini per il rendiconto al cliente", () => {
+  const leggiRendiconto = (companyId = C, orderId = O_COMM) => db.query<J>(
+    "select * from public.rapportini_voci_approvate_per_trasporti($1, $2, $3)", [companyId, orderId, [R_COMM, R_APP]],
+  );
+  it("salva i dati del viaggio e legge solo i rapportini approvati di quella commessa", async () => {
+    const viaggio = { carico: "Deposito", scarico: "Cantiere", km: 120, mezzo: "DEMO-01", ddt: "101" };
+    const voci = [{ descrizione: "Trasporto", quantita: 120, unita: "km", vendita_unitaria: 2.4, costo_unitario: 1.15, viaggio }];
+    for (const [orderId, id] of [[O_COMM, R_COMM], [O_APP, R_APP]]) {
+      await db.query("select public.ufficio_crea_rapportini($1, $2::jsonb)", [
+        orderId, JSON.stringify([{ id, voci_libere: voci }]),
+      ]);
+    }
+    expect((await leggiRendiconto()).rows).toEqual([]);
+    await db.exec("update public.campo_rapportini set stato = 'approvato'");
+    const { rows } = await leggiRendiconto();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ descrizione: "Trasporto", viaggio, unita: "km" });
+    expect(Number(rows[0].vendita_unitaria)).toBe(2.4);
+    expect(rows[0]).not.toHaveProperty("costo_unitario");
+    expect((await leggiRendiconto(ALTRA)).rows).toEqual([]);
+    await db.exec(`update public.campo_rapportini set annullato_at = now() where id = '${R_COMM}'`);
+    expect((await leggiRendiconto()).rows).toEqual([]);
+    expect((await leggiRendiconto(C, O_APP)).rows).toHaveLength(1);
+  });
+  it("oscura il prezzo a chi non può vedere gli importi e nega l’accesso anonimo", async () => {
+    await db.exec(`insert into public.rapportino_voci_libere (rapportino_id, descrizione, quantita, unita, vendita_unitaria)
+      values ('${R_COMM}', 'TRASPORTI', 2, 'cad', 55);
+      update public.campo_rapportini set stato = 'approvato' where id = '${R_COMM}';
+      set test.diritti = '{"amounts":false}';`);
+    expect((await leggiRendiconto()).rows[0]).toMatchObject({ descrizione: "TRASPORTI", vendita_unitaria: null, viaggio: null });
+    expect(await uno("select has_function_privilege('anon', 'public.rapportini_voci_approvate_per_trasporti(uuid,uuid,uuid[])', 'execute') v")).toBe(false);
   });
 });
 

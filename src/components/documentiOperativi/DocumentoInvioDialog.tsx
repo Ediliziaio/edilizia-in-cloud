@@ -33,6 +33,7 @@ import {
   senzaPrezzi,
   erroriDocumento,
   TITOLI,
+  titoloDocumento,
   nomeFileDocumento,
   modificaNumeroRigaDocumento,
   type DocumentoOperativo,
@@ -81,7 +82,7 @@ function DocumentoInvioContent({
 }: Props) {
   const { effectiveCompany, user } = useAuth();
   const [d, setD] = useState(() =>
-    documento.tipo === "trasporti" || documento.tipo === "economia"
+    (documento.tipo === "trasporti" && !documento.rendicontoTrasporti) || documento.tipo === "economia"
       ? {
           ...documento,
           banca: effectiveCompany?.bank_name,
@@ -212,7 +213,7 @@ function DocumentoInvioContent({
         initialSubject:
           d.numero === documento.numero && d.tipo === documento.tipo
             ? context.initialSubject
-            : `${TITOLI[d.tipo]} ${d.tipo === "richiesta" ? `[${d.numero}]` : d.numero} | ${effectiveCompany.name}`,
+            : `${titoloDocumento(d)} ${d.tipo === "richiesta" ? `[${d.numero}]` : d.numero} | ${effectiveCompany.name}`,
         initialTo: d.destinatario.email?.trim()
           ? [d.destinatario.email.trim()]
           : d.fornitoreId
@@ -237,6 +238,33 @@ function DocumentoInvioContent({
       if (op === operazione.current) setBusy(false);
     }
   };
+  const azioniPdf = (
+    <>
+      <Button variant={d.rendicontoTrasporti ? "default" : "outline"} onClick={anteprima} disabled={busy}>
+        <FileDown className="mr-2 h-4 w-4" />
+        Anteprima PDF
+      </Button>
+      {url && (
+        <Button asChild variant="outline">
+          <a href={url} download={nomeFileDocumento(d)}>Scarica PDF</a>
+        </Button>
+      )}
+    </>
+  );
+  const anteprimaPdf = blob && (
+    <div className="h-[60vh] min-h-80 overflow-hidden rounded-lg border">
+      <Suspense fallback={<p className="p-4 text-sm">Caricamento anteprima…</p>}>
+        <PdfPreview
+          renderBlobUrl={async () => URL.createObjectURL(blob)}
+          depsKey={chiave}
+          debounceMs={0}
+          downloadFileName={nomeFileDocumento(d)}
+          headerLabel="Anteprima PDF documento"
+          showDownloadOnMobile
+        />
+      </Suspense>
+    </div>
+  );
   return (
     <>
       <Dialog
@@ -247,12 +275,19 @@ function DocumentoInvioContent({
       >
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Prepara documento e invio</DialogTitle>
+            <DialogTitle>{d.rendicontoTrasporti ? "Rendiconto trasporti al cliente" : "Prepara documento e invio"}</DialogTitle>
             <DialogDescription>
-              Controlla i dati, scegli testo nell’email o PDF allegato. L’email
-              si apre per la revisione: l’invio avviene solo dal pulsante Invia.
+              {d.rendicontoTrasporti
+                ? "Controlla il cliente e i viaggi ripresi dai rapportini approvati, poi apri l’anteprima per scaricare il PDF."
+                : "Controlla i dati, scegli testo nell’email o PDF allegato. L’email si apre per la revisione: l’invio avviene solo dal pulsante Invia."}
             </DialogDescription>
           </DialogHeader>
+          {d.rendicontoTrasporti && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">{azioniPdf}</div>
+              {anteprimaPdf}
+            </div>
+          )}
           <fieldset disabled={busy} className="space-y-4 disabled:opacity-70">
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
@@ -272,7 +307,7 @@ function DocumentoInvioContent({
                 >
                   {(tipi ?? [d.tipo]).map((t) => (
                     <option key={t} value={t}>
-                      {TITOLI[t]}
+                      {t === d.tipo ? titoloDocumento(d) : TITOLI[t]}
                     </option>
                   ))}
                 </UniformSelect>
@@ -298,7 +333,7 @@ function DocumentoInvioContent({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="doc-nome">Destinatario</Label>
+                <Label htmlFor="doc-nome">{d.rendicontoTrasporti ? "Cliente" : "Destinatario"}</Label>
                 <Input
                   id="doc-nome"
                   value={d.destinatario.nome}
@@ -324,7 +359,7 @@ function DocumentoInvioContent({
                       email: e.target.value,
                     })
                   }
-                  placeholder="Email ordini o referente del fornitore"
+                  placeholder={d.rendicontoTrasporti ? "Email del cliente" : "Email ordini o referente del fornitore"}
                 />
                 {d.fornitoreId && (
                   <p className="mt-1 text-xs text-slate-500">
@@ -333,7 +368,12 @@ function DocumentoInvioContent({
                   </p>
                 )}
               </div>
-              <div className="space-y-1">
+              {d.rendicontoTrasporti ? (
+                <div>
+                  <Label htmlFor="doc-commessa">Commessa</Label>
+                  <Input id="doc-commessa" value={d.commessa ?? ""} readOnly />
+                </div>
+              ) : <div className="space-y-1">
                 <Label>Commessa</Label>
                 <CommessaCombobox
                   value={commessaId}
@@ -379,9 +419,9 @@ function DocumentoInvioContent({
                   riferimento e l’indirizzo nella copia; non cambia il
                   collegamento dell’ordine originale.
                 </p>
-              </div>
+              </div>}
               {/* Consegna e referente del fornitore: non riguardano il rapporto dei lavori al committente (14/11/2026). */}
-              {d.tipo !== "economia" && (
+              {d.tipo !== "economia" && !d.rendicontoTrasporti && (
               <DestinazioneDocumento
                 documento={d}
                 commessaId={commessaId}
@@ -419,7 +459,7 @@ function DocumentoInvioContent({
                   </UniformSelect>
                 </div>
               )}
-              {d.tipo !== "economia" && (<>
+              {d.tipo !== "economia" && !d.rendicontoTrasporti && (<>
               <div>
                 <Label htmlFor="doc-referente">Nome referente fornitore</Label>
                 <Input
@@ -460,9 +500,9 @@ function DocumentoInvioContent({
               )
                 .filter(
                   ([key]) =>
-                    key !== "periodo" ||
-                    d.tipo === "trasporti" ||
-                    d.tipo === "economia",
+                    key === "periodo"
+                      ? d.tipo === "trasporti" || d.tipo === "economia"
+                      : !d.rendicontoTrasporti,
                 )
                 .map(([key, label]) => (
                   <div key={key}>
@@ -484,7 +524,7 @@ function DocumentoInvioContent({
                       ["consegna", "Materiale richiesto entro"],
                       ["scadenzaOfferta", "Rispondere entro"],
                     ]
-                  : d.tipo === "economia"
+                  : d.tipo === "economia" || d.rendicontoTrasporti
                     ? []
                     : [["consegna", "Consegna prevista"]]
               ).map(([key, label]) => (
@@ -553,17 +593,18 @@ function DocumentoInvioContent({
               />
             ) : modificaRighe ? (
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Voci del rapporto</p>
+                <p className="text-sm font-semibold">{d.rendicontoTrasporti ? "Viaggi dai rapportini approvati" : "Voci del rapporto"}</p>
                 <p className="text-xs text-slate-500">
-                  Inserisci i prezzi di vendita concordati: i costi interni non
-                  vengono usati. Le modifiche valgono per questo documento e non
-                  cambiano i rapportini originali.
+                  {d.rendicontoTrasporti
+                    ? "Puoi completare i dati per questa copia. Gli importi sono al netto dell’IVA."
+                    : "Inserisci i prezzi di vendita concordati: i costi interni non vengono usati. Le modifiche valgono per questo documento e non cambiano i rapportini originali."}
                 </p>
                 {d.righe.map((r, i) => (
                   <div
-                    key={i}
+                    key={r.origineId ?? i}
                     className="grid gap-2 rounded-lg border p-3 sm:grid-cols-4"
                   >
+                    {d.rendicontoTrasporti && <p className="col-span-full text-sm font-medium">{i + 1}. {r.descrizione}</p>}
                     {(d.tipo === "trasporti"
                       ? [
                           ["data", "Data viaggio"],
@@ -605,8 +646,13 @@ function DocumentoInvioContent({
                       ? [
                           ["oreUomo", "Ore uomo"],
                           ["oreMezzo", "Ore mezzo"],
-                          ["prezzo", "Importo viaggio"],
-                          ["iva", "IVA %"],
+                          ...(d.rendicontoTrasporti
+                            ? [
+                                ...(r.unita === "km" ? [] : [["km", "Km percorsi"]]),
+                                ["quantita", r.unita === "km" ? "Km percorsi" : r.unita === "viaggio" ? "Viaggi" : `Quantità (${r.unita})`],
+                                ["prezzo", r.unita === "km" ? "Tariffa €/km" : "Prezzo unitario"],
+                              ]
+                            : [["prezzo", "Importo viaggio"], ["iva", "IVA %"]]),
                         ]
                       : [
                           ["quantita", "Quantità"],
@@ -633,7 +679,7 @@ function DocumentoInvioContent({
                             }
                             step="0.01"
                             aria-label={`${label} voce ${i + 1}`}
-                            value={r[key as "quantita" | "prezzo" | "sconto" | "iva" | "oreUomo" | "oreMezzo"] ?? ""}
+                            value={r[key as "quantita" | "prezzo" | "sconto" | "iva" | "km" | "oreUomo" | "oreMezzo"] ?? ""}
                             onChange={(e) =>
                               cambia(
                                 "righe",
@@ -650,6 +696,7 @@ function DocumentoInvioContent({
                     <Button
                       variant="ghost"
                       size="sm"
+                      disabled={!!d.rendicontoTrasporti && d.righe.length === 1}
                       onClick={() =>
                         cambia(
                           "righe",
@@ -661,7 +708,7 @@ function DocumentoInvioContent({
                     </Button>
                   </div>
                 ))}
-                <Button
+                {!d.rendicontoTrasporti && <Button
                   variant="outline"
                   onClick={() =>
                     cambia("righe", [
@@ -677,7 +724,7 @@ function DocumentoInvioContent({
                   }
                 >
                   Aggiungi voce
-                </Button>
+                </Button>}
               </div>
             ) : (
               <p className="rounded-lg bg-slate-50 p-3 text-sm">
@@ -703,7 +750,9 @@ function DocumentoInvioContent({
                 value={d.note ?? ""}
                 onChange={(e) => cambia("note", e.target.value)}
                 placeholder={
-                  d.tipo === "economia"
+                  d.rendicontoTrasporti
+                    ? "Note per il cliente sui viaggi del periodo"
+                    : d.tipo === "economia"
                     ? "Es. lavori eseguiti su richiesta del vostro direttore lavori; prezzi come da listino concordato."
                     : "Accordi con il fornitore, caratteristiche richieste, imballo o altre indicazioni…"
                 }
@@ -725,10 +774,10 @@ function DocumentoInvioContent({
             </div>
             <details className="rounded-lg border border-slate-200 p-3">
               <summary className="cursor-pointer text-sm font-semibold">
-                Consegna, condizioni e note delle singole voci
+                {d.rendicontoTrasporti ? "Condizioni del rendiconto" : "Consegna, condizioni e note delle singole voci"}
               </summary>
               <div className="mt-3 space-y-3">
-                <div>
+                {!d.rendicontoTrasporti && <div>
                   <Label htmlFor="doc-consegna-note">
                     Istruzioni per consegna o accesso al cantiere
                   </Label>
@@ -738,7 +787,7 @@ function DocumentoInvioContent({
                     onChange={(e) => cambia("noteConsegna", e.target.value)}
                     placeholder="Orari di scarico, preavviso, referente, mezzi necessari…"
                   />
-                </div>
+                </div>}
                 <div>
                   <Label htmlFor="doc-condizioni">
                     Condizioni da riportare nella copia
@@ -776,11 +825,11 @@ function DocumentoInvioContent({
                       />
                     </div>
                   ))}
-                <p className="text-xs text-slate-500">
+                {!d.rendicontoTrasporti && <p className="text-xs text-slate-500">
                   Le modifiche qui valgono per la copia da inviare. Per
                   conservarle nell’ordine, modifica le note nella scheda
                   dell’ordine.
-                </p>
+                </p>}
               </div>
             </details>
             <div
@@ -807,49 +856,24 @@ function DocumentoInvioContent({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-slate-500">
+            {!d.rendicontoTrasporti && <p className="text-xs text-slate-500">
               PDF standard: logo in alto; dati dell’azienda nel piè di pagina,
               su massimo due righe.
-            </p>
+            </p>}
             {errore && (
               <p role="alert" className="text-sm text-red-700">
                 {errore}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-              <Button variant="outline" onClick={anteprima}>
-                <FileDown className="mr-2 h-4 w-4" />
-                Anteprima PDF
-              </Button>
-              {url && (
-                <Button asChild variant="outline">
-                  <a href={url} download={nomeFileDocumento(d)}>
-                    Scarica PDF
-                  </a>
-                </Button>
-              )}
+              {!d.rendicontoTrasporti && azioniPdf}
               <Button className="ml-auto" onClick={prepara}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Prepara email
               </Button>
             </div>
           </fieldset>
-          {blob && (
-            <div className="h-[60vh] min-h-80 overflow-hidden rounded-lg border">
-              <Suspense
-                fallback={<p className="p-4 text-sm">Caricamento anteprima…</p>}
-              >
-                <PdfPreview
-                  renderBlobUrl={async () => URL.createObjectURL(blob)}
-                  depsKey={chiave}
-                  debounceMs={0}
-                  downloadFileName={nomeFileDocumento(d)}
-                  headerLabel="Anteprima PDF documento"
-                  showDownloadOnMobile
-                />
-              </Suspense>
-            </div>
-          )}
+          {!d.rendicontoTrasporti && anteprimaPdf}
         </DialogContent>
       </Dialog>
       {email && (

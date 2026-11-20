@@ -6,6 +6,7 @@
  * `commessa_da_codici`). L'AI si chiama solo per ciò che le regole non sanno dire, e il motivo finisce
  * nel registro dei costi AI. Modulo puro: lo usa ai-fattura-classify, lo provano i test.
  */
+import type { EsitoCatenaServer } from "./catenaFatturaServer.ts";
 
 export interface CommessaDaRegole {
   order_id: string;
@@ -18,6 +19,29 @@ export interface CommessaDaRegole {
  */
 export interface ConflittoDaRegole {
   conflitto: string;
+  richiedeScelta?: boolean;
+}
+
+/** Nessuna singola proposta può assorbire una fattura riferita a più destinazioni. */
+export function decidiRiferimentiCommessa(codici: CommessaDaRegole | null, catena: EsitoCatenaServer): {
+  regola: CommessaDaRegole | null; proposta: CommessaDaRegole | null; conflitto: ConflittoDaRegole | null;
+} {
+  const fermati = (conflitto: string, richiedeScelta = false): ReturnType<typeof decidiRiferimentiCommessa> => ({ regola: null, proposta: null, conflitto: { conflitto, richiedeScelta } });
+  if (catena.conflitto) return fermati(catena.conflitto, catena.catena?.esito === "scelta");
+  const documenti = [...(catena.catena?.ddt ?? []), ...(catena.catena?.ordini ?? []), ...(catena.catena?.contratti ?? [])];
+  const incerto = documenti.find(d => d.decisione.esito === "conflitto" || d.decisione.esito === "scelta");
+  if (incerto) return fermati(`${incerto.riferimento.testo}: ${incerto.decisione.motivo}`, incerto.decisione.esito === "scelta");
+  if (catena.saltata && catena.catena) return fermati(catena.saltata, true);
+  const quote = catena.catena?.allocazioni ?? [];
+  const destinazioni = new Set(quote.filter(a => a.destinazione.tipo !== "da_attribuire").map(a => `${a.destinazione.tipo}:${a.destinazione.id}`));
+  if (destinazioni.size > 1) return fermati("La fattura indica più destinazioni: conferma la ripartizione delle righe.", true);
+  if (destinazioni.size && quote.some(a => a.destinazione.tipo === "da_attribuire")) return fermati("Alcune righe sono ancora da attribuire: conferma la ripartizione della fattura.", true);
+  const candidata = catena.commessa ?? catena.proposta;
+  if (codici && candidata && codici.order_id !== candidata.order_id) return fermati(`${codici.motivo} e ${candidata.motivo} indicano commesse diverse.`);
+  // Il magazzino non diventa una commessa soltanto perché un altro codice sembra compatibile.
+  if (codici && quote.some(a => a.destinazione.tipo === "magazzino")) return fermati("I documenti indicano il magazzino e i codici una commessa diversa.");
+  const regola = catena.commessa ?? codici;
+  return { regola, proposta: regola ? null : catena.proposta ?? null, conflitto: null };
 }
 
 export interface Decisione {
@@ -42,8 +66,10 @@ export function commessaFinale(
   regola: CommessaDaRegole | null,
   ai: { orderId: string | null; confidenza: number },
   conflitto?: ConflittoDaRegole | null,
+  proposta?: CommessaDaRegole | null,
 ): { orderId: string | null; confidenza: number; motivo: string | null } {
-  if (conflitto) return { orderId: null, confidenza: 0, motivo: `Conflitto fra i documenti, da decidere: ${conflitto.conflitto}`.slice(0, 300) };
+  if (conflitto) return { orderId: null, confidenza: 0, motivo: `${conflitto.richiedeScelta ? "Riferimenti da verificare" : "Conflitto fra i documenti, da decidere"}: ${conflitto.conflitto}`.slice(0, 300) };
   if (regola) return { orderId: regola.order_id, confidenza: 1, motivo: regola.motivo };
+  if (proposta) return { orderId: proposta.order_id, confidenza: 0.6, motivo: proposta.motivo };
   return { orderId: ai.orderId, confidenza: ai.confidenza, motivo: null };
 }

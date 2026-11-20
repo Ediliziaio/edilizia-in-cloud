@@ -48,6 +48,41 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("shared semantic PDF preview, including Facciate direct consumer", () => {
+  it("porta la voce alla sua posizione nella pagina senza rigenerare il PDF alla selezione", async () => {
+    state.doc = makeDocument({ "computo.voce.a": 2, "computo.voce.b": 5 });
+    const resolve = state.doc.getDestination;
+    state.doc.getDestination = vi.fn(async (id: string) => [...(await resolve(id)), { name: "XYZ" }, null, 500, null]);
+    const { rerender } = render(<PdfBlobLivePreviewPanel {...props} activeDestination="computo.voce.a" destinationLabel="Voce 58" />);
+    await screen.findByText("Voce 58 · pagina 3 di 9");
+    expect(panel().scrollTop).toBeCloseTo(top(3) + (841 - 500) / 841 * canvas(3).height - 12);
+    rerender(<PdfBlobLivePreviewPanel {...props} activeDestination="computo.voce.b" destinationLabel="Voce 101" />);
+    await screen.findByText("Voce 101 · pagina 6 di 9");
+    expect(state.getDocument).toHaveBeenCalledOnce();
+    expect(state.generate.mock.calls.every(call => call[1] === "same-content")).toBe(true);
+    expect(panel().scrollTop).toBeCloseTo(top(6) + (841 - 500) / 841 * canvas(6).height - 12);
+  });
+  it("ritorna alla voce dopo modifica e paginazione nuova, conservando lo zoom", async () => {
+    state.doc = makeDocument({ "computo.voce.a": 2 });
+    const { rerender } = render(<PdfBlobLivePreviewPanel {...props} activeDestination="computo.voce.a" destinationLabel="Voce 58" />);
+    await screen.findByText("Voce 58 · pagina 3 di 9");
+    fireEvent.click(screen.getByTitle("Ingrandisci"));
+    await waitFor(() => expect(canvas(3).height).toBeGreaterThan(600));
+    panel().scrollTop = top(8); fireEvent.scroll(panel());
+    state.doc = makeDocument({ "computo.voce.a": 5 }); state.url = "blob:computo-modificato";
+    rerender(<PdfBlobLivePreviewPanel {...props} depsKey="modifica-lavorazione" activeDestination="computo.voce.a" destinationLabel="Voce 58" />);
+    await screen.findByText("Voce 58 · pagina 6 di 9");
+    expect(panel().scrollTop).toBeCloseTo(top(6) - 12); expect(screen.getByText("125%")).toBeInTheDocument();
+  });
+  it("ricentra la stessa voce su richiesta e mantiene la vista se la voce è esclusa", async () => {
+    state.doc = makeDocument({ "computo.voce.a": 2 });
+    const { rerender } = render(<PdfBlobLivePreviewPanel {...props} activeDestination="computo.voce.a" destinationLabel="Voce 58" destinationRequest={1} />);
+    await screen.findByText("Voce 58 · pagina 3 di 9");
+    panel().scrollTop = top(7); fireEvent.scroll(panel());
+    rerender(<PdfBlobLivePreviewPanel {...props} activeDestination="computo.voce.a" destinationLabel="Voce 58" destinationRequest={2} />);
+    await waitFor(() => expect(panel().scrollTop).toBeCloseTo(top(3) - 12));
+    rerender(<PdfBlobLivePreviewPanel {...props} activeDestination="computo.voce.esclusa" />);
+    await screen.findByText(/Voce non presente/); expect(panel().scrollTop).toBeCloseTo(top(3) - 12);
+  });
   it("keeps the first page at the top on initial paint and zoom", async () => {
     render(<PdfBlobLivePreviewPanel {...props} />);
     await waitFor(() => expect(document.querySelector('[data-preview-state="ready"]')).not.toBeNull());

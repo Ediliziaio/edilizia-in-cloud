@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { allegatiDaIncludere, caricaAllegatoLocale, leggiAllegatoLocale } from "@/lib/computo/allegatiLocali";
 import { generaDocumentoComputo } from "@/lib/computo/esportaComputo";
 import { bozzaVuota, voceVuota, vociDaBozza } from "@/lib/computo/editorNativo";
+import { modelloComputoDiSerie, vesteDalModello } from "@/lib/computo/modelloComputo";
 
 beforeAll(() => vi.stubGlobal("Blob", NodeBlob));
 afterAll(() => vi.unstubAllGlobals());
@@ -14,6 +15,22 @@ const file = (nome: string, type: string, data = new Uint8Array([1, 2, 3])) => n
 const voci = () => vociDaBozza({ ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Posa pavimento", quantita: "12", prezzo: "35,50" }] });
 
 describe("progetto e allegati del computo", () => {
+  it("rispetta font, piede personalizzato e numerazione esclusa anche sugli allegati", async () => {
+    const m = { ...modelloComputoDiSerie(), copertina: "fascia" as const, mostraFirma: false, fontFamiglia: "times" as const, mostraNumeriPagina: false, piePagina: "PIEDE_PERSONALIZZATO" };
+    const plan = await PDFDocument.create(); plan.addPage().drawText("TAVOLA_DIMOSTRATIVA");
+    const blob = await generaDocumentoComputo(voci(), { titolo: "Prova modello", impaginazione: "editoriale", stato: "", veste: vesteDalModello(m) }, [
+      { nome: "tavola.pdf", tipo: "planimetria", blob: new NodeBlob([Uint8Array.from(await plan.save()).buffer], { type: "application/pdf" }) as unknown as Blob },
+    ]);
+    const caricamento = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }); const pdf = await caricamento.promise;
+    try {
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const content = await (await pdf.getPage(p)).getTextContent();
+        const testo = content.items.map(x => "str" in x ? x.str : "").join(" ");
+        expect(testo).toContain("PIEDE_PERSONALIZZATO");
+        expect(testo).not.toMatch(/Pagina \d+ di \d+/); expect(testo).not.toContain("Bozza locale");
+      }
+    } finally { await caricamento.destroy(); }
+  }, 30000);
   it.each(["primus", "elenco-prezzi"] as const)("%s con allegati ha un solo numero pagina riferito all'intero PDF", async (impaginazione) => {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
     const blob = await generaDocumentoComputo(voci(), { titolo: "Prova numerazione", impaginazione }, [

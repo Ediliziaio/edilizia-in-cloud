@@ -8,7 +8,7 @@ import type { jsPDF } from "jspdf";
 import { dataBreve, dataDelGiorno, durataTotale, leggiData, normalizzaFasi, type Cronoprogramma } from "./cronoprogramma";
 
 export function disegnaCronoprogramma(doc: jsPDF, crono: Cronoprogramma, stile: {
-  margine: number; colore: string; tinta: string; inchiostro: string; grigio: string; filetto: string; titolo?: string;
+  margine: number; colore: string; tinta: string; inchiostro: string; grigio: string; filetto: string; titolo?: string; fontFamiglia?: string;
 }): number | null {
   const fasi = normalizzaFasi(crono.fasi);
   if (!fasi.length) return null;
@@ -19,7 +19,7 @@ export function disegnaCronoprogramma(doc: jsPDF, crono: Cronoprogramma, stile: 
   const inizio = leggiData(crono.dataInizio);
   const colNome = 168, x0 = m + colNome + 8, largo = destra - x0;
   const passo = largo / (settimane * 5);
-  const font = (size: number, bold = false, colore = stile.inchiostro) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(colore); };
+  const font = (size: number, bold = false, colore = stile.inchiostro) => { doc.setFont(stile.fontFamiglia ?? "helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(colore); };
   const riga = 22;
 
   let y = 0;

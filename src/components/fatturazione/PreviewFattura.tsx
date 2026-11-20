@@ -79,7 +79,7 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
       style={{ transform: `scale(${scale})`, transformOrigin: "top center", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
     >
       {/* Come HTML: il foglio di stile ha virgolette e «>» che React, come testo, renderebbe innocui. Solo colori già normalizzati. */}
-      <style dangerouslySetInnerHTML={{ __html: cssFoglio(tema) }} />
+      <style dangerouslySetInnerHTML={{ __html: cssFoglio(tema, az.scala_logo) }} />
       <div className="preview-fattura-sheet fd-foglio shadow-lg border rounded-sm mx-auto" style={{ minHeight: "297mm" }}>
         <div className="fd-testata">
           <div className="fd-emittente">

@@ -345,6 +345,7 @@ function useInternalChat(companyIdOverride?: string) {
     enabled: !!companyId && !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
+    retry: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("internal_chat_members")
@@ -371,6 +372,7 @@ function useInternalChat(companyIdOverride?: string) {
     enabled: !!companyId && !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
+    retry: false,
     queryFn: async () => {
       if (memberChannelIds.length === 0) return [] as Channel[];
       const { data, error } = await supabase
@@ -2384,11 +2386,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 <div className="mb-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[13px] text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
                   <div className="flex items-center gap-2 font-medium">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Preparazione chat in corso
+                    Il caricamento della chat sta impiegando più del previsto
                   </div>
-                  <p className="mt-1 text-blue-800/80 dark:text-blue-100/75">
-                    Sto recuperando canali, membri e il canale Silvio. Se Supabase è appena ripartito può richiedere qualche secondo.
-                  </p>
                   <Button
                     type="button"
                     size="sm"
