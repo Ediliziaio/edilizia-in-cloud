@@ -37,6 +37,12 @@ describe("colonne scelte", () => {
     localStorage.setItem("fatture-ricevute-colonne-v1", JSON.stringify(["note", "vecchia"]));
     expect([...leggiColonne()]).toEqual(["note"]);
   });
+  it("aggiunge i saldi quando Pagamento era visibile e rispetta la nuova scelta", () => {
+    localStorage.setItem("fatture-ricevute-colonne-v1", JSON.stringify(["pagamento", "note"]));
+    expect([...leggiColonne()]).toEqual(["pagamento", "note", "pagato", "residuo"]);
+    salvaColonne(new Set(["pagamento", "note", "residuo"]));
+    expect([...leggiColonne()]).toEqual(["pagamento", "note", "residuo"]);
+  });
 });
 
 describe("da rettificare", () => {

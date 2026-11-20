@@ -139,6 +139,9 @@ jobs:
       - name: Received invoice links and split payments
         run: >-
           bunx vitest run --maxWorkers=2
+          src/test/security/fattureRicevuteSaldi.test.ts
+          src/test/logic/mesiRicevute.test.ts
+          src/test/logic/colonneRicevute.test.ts
           src/test/ui/expensePaymentDialog.test.tsx
           src/test/ui/riepilogoFatturaRicevuta.test.tsx
           src/test/ui/collegamentiFattura.test.tsx

@@ -9,7 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { AzioniInBloccoRicevute } from "@/components/fatturazione/AzioniInBloccoRicevute";
 import type { RicevutaInBlocco } from "@/lib/fatturazione/azioniInBlocco";
-import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
+import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
+import { useSaldiRicevute, type SaldoRicevuta } from "@/hooks/useSaldiRicevute";
 import { imponibileIvaFornitori, importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
 import { importoNotaCredito } from "@/lib/fatturazione/notaCreditoStorno";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
@@ -209,6 +210,24 @@ const STATO_CONFIG: Record<
   rifiutata: { label: "Rifiutata", variant: "destructive" },
 };
 
+function testoSaldo(saldo: SaldoRicevuta | undefined) {
+  if (!saldo) return "—";
+  if (saldo.stornata) return "Stornata";
+  if (saldo.pagata_il || saldo.data_saldo) return "Pagata";
+  if (saldo.residuo == null) return "Da verificare";
+  if (saldo.residuo === 0) return saldo.pagato ? "Pagata" : "Nessun residuo";
+  if (saldo.rate_pagate > 0 && saldo.rate_pagate < saldo.rate_totali) {
+    return testoRatePagate(saldo.rate_pagate, saldo.rate_totali);
+  }
+  return saldo.pagato ? "Parziale" : "Da pagare";
+}
+
+function ImportoRicevuta({ valore, titolo }: { valore?: number | null; titolo?: string }) {
+  return <span title={titolo} className={cn("whitespace-nowrap tabular-nums", valore == null && "text-muted-foreground")}>
+    {valore == null ? "—" : formatCurrency(valore)}
+  </span>;
+}
+
 /** La contabilizzata dello storico (data di taglio) non è passata da qui: si dice. */
 const etichettaStato = (f: { stato: string; storico_esterno?: boolean | null; da_leggere?: boolean | null }) => {
   if (f.stato === "non_letta" || f.stato === "letta") return ricevutaDaLeggere(f) ? "Non letta" : "Letta";
@@ -290,7 +309,6 @@ export default function FattureRicevutePage() {
   const companyId = useEffectiveCompanyId();
   const lettura = useLetturaRicevuta(companyId);
   const permessiCosti = usePermissions();
-  const { data: pagate } = usePagamentiRicevute(companyId);
   const { data: storni } = useStorniNoteCredito(companyId);
   const [collegaNota, setCollegaNota] = useState<FatturaRicevuta | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
@@ -299,13 +317,6 @@ export default function FattureRicevutePage() {
     if (isNotaCreditoRicevuta(f.tipo_documento) && !f.purchase_order_id) setCollegaNota(f);
     else setContabilizzaFattura(f);
   }, []);
-  const stornataDelTutto = useCallback((f: FatturaRicevuta) => {
-    const s = storni?.perFattura.get(f.id);
-    // Quello che si deve al fornitore è al netto della ritenuta: con la ritenuta la nota non arriva al totale.
-    return !!s && s.importo >= importoNotaCredito(f) - 0.01;
-  }, [storni]);
-  const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
-  const { data: parziali } = usePagamentiParzialiRicevute(companyId);
   const queryClient = useQueryClient();
   const [daIntegrare, setDaIntegrare] = useState<FatturaRicevuta | null>(null);
   const [pdfInCoda, setPdfInCoda] = useState<File[]>([]);
@@ -386,6 +397,15 @@ export default function FattureRicevutePage() {
   const [selezioneMobile, setDettaglioMobile] = useState<FatturaRicevuta | null>(null);
   // «Da pagare»: le fatture dei fornitori non ancora pagate (né a mano né con tutte le rate).
   const [pagamentoFilter, setPagamentoFilter] = useState<"all" | "da_pagare">("all");
+  const { data: saldi, isError: erroreSaldi, refetch: rileggiSaldi } = useSaldiRicevute(companyId, annoFilter);
+  const pagataIl = useCallback((id: string) => saldi?.get(id)?.pagata_il ?? null, [saldi]);
+  const stornataDelTutto = useCallback((f: FatturaRicevuta) => {
+    const saldo = saldi?.get(f.id);
+    if (saldo) return saldo.stornata;
+    const s = storni?.perFattura.get(f.id);
+    return !!s && s.importo >= importoNotaCredito(f) - 0.01;
+  }, [saldi, storni]);
+  const daPagare = useCallback((f: FatturaRicevuta) => (saldi?.get(f.id)?.residuo ?? 0) > 0, [saldi]);
 
   const { data: partitaIvaAzienda } = useQuery({
     queryKey: ["azienda-partita-iva", companyId],
@@ -510,9 +530,9 @@ export default function FattureRicevutePage() {
     queryKey: ["fatture-costi-commesse", companyId, idCosti],
     enabled: !!companyId && idCosti.length > 0,
     queryFn: async () => {
-      const costi: Array<{ id: string; order_id: string | null; allocations: unknown; is_paid: boolean | null; paid_date: string | null }> = [];
+      const costi: Array<{ id: string; order_id: string | null; allocations: unknown }> = [];
       for (let i = 0; i < idCosti.length; i += 100) {
-        const { data, error } = await (supabase as any).from("company_costs").select("id, order_id, allocations, is_paid, paid_date").eq("company_id", companyId!).in("id", idCosti.slice(i, i + 100));
+        const { data, error } = await supabase.from("company_costs").select("id, order_id, allocations").eq("company_id", companyId!).in("id", idCosti.slice(i, i + 100));
         if (error) throw error;
         costi.push(...(data ?? []));
       }
@@ -540,8 +560,6 @@ export default function FattureRicevutePage() {
             generale: generali.has(quota.order_id),
           };
         })])),
-        // Il pagamento vero sta sul costo: una fattura può essere pagata senza che sia segnato su di lei.
-        pagati: Object.fromEntries(costi.filter((c) => c.is_paid).map((c) => [c.id, c.paid_date])) as Record<string, string | null>,
       };
     },
   });
@@ -553,7 +571,10 @@ export default function FattureRicevutePage() {
     return [data ? formatDateShort(data) : "—", riba && "Ri.Ba."].filter(Boolean).join(" · ");
   }
   const commesseDi = useCallback((f: FatturaRicevuta) => (f.company_cost_id ? datiCosti?.quote[f.company_cost_id] ?? [] : []), [datiCosti]);
-  const pagataSulCosto = useCallback((f: FatturaRicevuta) => !!f.company_cost_id && !!datiCosti && f.company_cost_id in datiCosti.pagati, [datiCosti]);
+  const pagataSulCosto = useCallback((f: FatturaRicevuta) => {
+    const saldo = saldi?.get(f.id);
+    return saldo?.residuo === 0 && (saldo.pagato ?? 0) > 0 && !saldo.stornata;
+  }, [saldi]);
   const haCollegamento = useCallback((f: FatturaRicevuta) => haOrdine(f) || commesseDi(f).length > 0, [haOrdine, commesseDi]);
 
   // I numeri OdA degli ordini collegati: una query sola per tutta la lista,
@@ -633,12 +654,8 @@ export default function FattureRicevutePage() {
 
   // I dodici mesi dell'anno scelto, dalle fatture già caricate (stesse regole della tabella).
   const mesi = useMemo(
-    () => annoFilter === "all" ? null : mesiRicevute(fatture, Number(annoFilter), {
-      pagata: (f) => !!pagataIl(f.id) || pagataSulCosto(f as FatturaRicevuta),
-      stornata: (f) => stornataDelTutto(f as FatturaRicevuta),
-      rate: (f) => parziali?.get(f.id),
-    }, oggiIso),
-    [fatture, annoFilter, pagataIl, pagataSulCosto, stornataDelTutto, parziali, oggiIso],
+    () => annoFilter === "all" || !saldi ? null : mesiRicevute(fatture, Number(annoFilter), saldi, oggiIso),
+    [fatture, annoFilter, saldi, oggiIso],
   );
 
   // ─── Filters ────────────────────────────────────────────
@@ -659,9 +676,9 @@ export default function FattureRicevutePage() {
       senzaOrdine: fatture.filter((f) => !haCollegamento(f)).length,
       daVerificare: fatture.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare").length,
       daRettificare: fatture.filter((f) => verifiche[f.id] === "da_rettificare").length,
-      daPagare: fatture.filter((f) => !nonSiPaga(f.tipo_documento) && !stornataDelTutto(f) && !pagataSulCosto(f) && !pagataIl(f.id)).length,
+      daPagare: fatture.filter(daPagare).length,
     }),
-    [fatture, haCollegamento, verificata, verifiche, pagataIl, pagataSulCosto, stornataDelTutto, storni],
+    [fatture, haCollegamento, verificata, verifiche, daPagare, storni],
   );
   // Quelli dentro «Altri filtri»: si contano sul bottone, altrimenti non si vedono.
   const opzioniMetodo = useMemo(() => [...new Set(fatture.flatMap((f) => metodiPagamento(f.piano_pagamento)))].sort(), [fatture]);
@@ -727,7 +744,7 @@ export default function FattureRicevutePage() {
       result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id));
     }
     if (pagamentoFilter === "da_pagare") {
-      result = result.filter((f) => !nonSiPaga(f.tipo_documento) && !stornataDelTutto(f) && !pagataSulCosto(f) && !pagataIl(f.id));
+      result = result.filter(daPagare);
     }
     const termini = terminiRicercaRicevute(searchQuery);
     if (termini.length) {
@@ -754,7 +771,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, commesseDi, ordiniCollegati, quoteOrdini, meseScelto]);
+  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, daPagare, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, storni, searchQuery, ordinamento, commesseDi, ordiniCollegati, quoteOrdini, meseScelto]);
 
   // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
   const puoInBlocco = !permessiCosti.solaLettura;
@@ -1344,6 +1361,10 @@ export default function FattureRicevutePage() {
           if (erroreOrdini) void rileggiOrdini();
         }}>Rileggi riferimenti</Button>
       </div>}
+      {!erroreFatture && erroreSaldi && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 p-3 text-sm">
+        <span>Pagato e residuo non disponibili.</span>
+        <Button variant="outline" size="sm" onClick={() => void rileggiSaldi()}>Riprova pagamenti</Button>
+      </div>}
       {/* Table */}
       {erroreFatture ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm">
@@ -1405,8 +1426,9 @@ export default function FattureRicevutePage() {
                 <div className="text-[13px] font-semibold leading-tight tabular-nums">
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
-                <div className={`mt-0.5 text-[11px] leading-tight ${pagataIl(f.id) || pagataSulCosto(f) ? "text-emerald-600" : f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
-                  {isNotaCreditoRicevuta(f.tipo_documento) ? (storni?.perNota.has(f.id) ? "Collegata" : etichettaStato(f)) : nonSiPaga(f.tipo_documento) ? etichettaStato(f) : stornataDelTutto(f) ? "Stornata" : pagataIl(f.id) || pagataSulCosto(f) ? "Pagata" : parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}
+                <div className={`mt-0.5 whitespace-nowrap text-[11px] leading-tight ${pagataIl(f.id) || pagataSulCosto(f) ? "text-emerald-600" : "text-muted-foreground"}`}>
+                  {isNotaCreditoRicevuta(f.tipo_documento) && storni?.perNota.has(f.id) ? "Collegata"
+                    : nonSiPaga(f.tipo_documento) || f.stato === "rifiutata" ? etichettaStato(f) : testoSaldo(saldi?.get(f.id))}
                 </div>
               </div>
             </button>
@@ -1431,14 +1453,16 @@ export default function FattureRicevutePage() {
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Emessa il</IntestazioneOrdinabile>
                 {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">Scadenza fattura</TableHead>}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
-                <TableHead>Arrivata il</TableHead>
+                <TableHead className="whitespace-nowrap">Arrivata il</TableHead>
                 {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
                 <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
-                {colonne.has("netto") && <TableHead className="text-right">Netto</TableHead>}
+                {colonne.has("netto") && <TableHead className="whitespace-nowrap text-right">Netto a pagare</TableHead>}
+                {colonne.has("pagato") && <TableHead className="whitespace-nowrap text-right">Pagato</TableHead>}
+                {colonne.has("residuo") && <TableHead className="whitespace-nowrap text-right">Residuo</TableHead>}
+                {colonne.has("pagamento") && <TableHead className="whitespace-nowrap">Pagamento</TableHead>}
+                {colonne.has("metodo") && <TableHead>Modalità</TableHead>}
                 {colonne.has("stato") && <TableHead>Stato</TableHead>}
                 {colonne.has("verifica") && <TableHead>Verifica</TableHead>}
-                {colonne.has("pagamento") && <TableHead>Pagamento</TableHead>}
-                {colonne.has("metodo") && <TableHead>Modalità</TableHead>}
                 {colonne.has("collegata") && <TableHead>Collegata a</TableHead>}
                 {colonne.has("allegati") && <TableHead>Allegati</TableHead>}
                 {colonne.has("note") && <TableHead>Note</TableHead>}
@@ -1446,7 +1470,12 @@ export default function FattureRicevutePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((f) => (
+              {filtered.map((f) => {
+                const saldo = saldi?.get(f.id);
+                const metodo = metodiPagamento(f.piano_pagamento).join(", ");
+                const split = (saldo?.iva_split ?? 0) > 0;
+                const titoloResiduo = split ? `Residuo verso il fornitore. IVA split ${formatCurrency(saldo!.iva_split)}` : "Residuo verso il fornitore";
+                return (
                 <TableRow
                   key={f.id}
                   onClick={event => {
@@ -1501,12 +1530,14 @@ export default function FattureRicevutePage() {
                   <TableCell className="whitespace-nowrap text-right font-medium" title={f.iva_totale != null ? `IVA ${formatCurrency(f.iva_totale)}` : undefined}>
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
-                  {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right">{f.netto_a_pagare != null ? formatCurrency(f.netto_a_pagare) : <span className="text-muted-foreground">—</span>}</TableCell>}
-                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} daLeggere={f.da_leggere} /></TableCell>}
-                  {colonne.has("verifica") && <TableCell>
-                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? "Lettura verifica…" : "Verifica non disponibile"}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
+                  {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right"><ImportoRicevuta valore={saldo?.dovuto} /></TableCell>}
+                  {colonne.has("pagato") && <TableCell className="whitespace-nowrap text-right">
+                    <ImportoRicevuta valore={saldo?.pagato} titolo="Pagamenti registrati e anticipi compensati" />
                   </TableCell>}
-                  {colonne.has("pagamento") && <TableCell>
+                  {colonne.has("residuo") && <TableCell className={cn("whitespace-nowrap text-right font-medium", daPagare(f) && "text-amber-800 dark:text-amber-400")}>
+                    <ImportoRicevuta valore={saldo?.residuo} titolo={titoloResiduo} />
+                  </TableCell>}
+                  {colonne.has("pagamento") && <TableCell className="whitespace-nowrap">
                     {isNotaCreditoRicevuta(f.tipo_documento) ? (
                       f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : (
                         <button type="button" className="whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground" onClick={() => setCollegaNota(f)}>
@@ -1515,17 +1546,26 @@ export default function FattureRicevutePage() {
                             : <span className="text-amber-700 dark:text-amber-400">Collega alla fattura</span>}
                         </button>
                       )
-                    ) : nonSiPaga(f.tipo_documento) ? <span className="text-muted-foreground">—</span> : stornataDelTutto(f) ? (
+                    ) : nonSiPaga(f.tipo_documento) || f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : stornataDelTutto(f) ? (
                       <StatoPill tono="grigio">Stornata</StatoPill>
                     ) : pagataSulCosto(f) && !pagataIl(f.id) ? (
-                      <StatoPill tono="verde">Pagata{datiCosti?.pagati[f.company_cost_id!] ? ` ${formatDateShort(datiCosti.pagati[f.company_cost_id!]!)}` : ""}</StatoPill>
+                      <StatoPill tono="verde">Pagata{saldo?.data_saldo ? ` ${formatDateShort(saldo.data_saldo)}` : ""}</StatoPill>
                     ) : pagataIl(f.id) ? (
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                     ) : (
-                      <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">{parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}<PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} /></span>
+                      <span className={cn("inline-flex items-center gap-1 whitespace-nowrap text-xs", daPagare(f) ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+                        {testoSaldo(saldo)}
+                        {daPagare(f) && <PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={null} />}
+                      </span>
                     )}
                   </TableCell>}
-                  {colonne.has("metodo") && <TableCell className="whitespace-nowrap text-xs">{metodiPagamento(f.piano_pagamento).join(", ") || <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("metodo") && <TableCell className="whitespace-nowrap text-xs">
+                    {[metodo, split ? "Split payment" : null].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
+                  </TableCell>}
+                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} daLeggere={f.da_leggere} /></TableCell>}
+                  {colonne.has("verifica") && <TableCell>
+                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? "Lettura verifica…" : "Verifica non disponibile"}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
+                  </TableCell>}
                   {colonne.has("collegata") && <TableCell>
                     <div className="flex flex-nowrap items-center gap-1">
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
@@ -1660,7 +1700,8 @@ export default function FattureRicevutePage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
@@ -1730,12 +1771,16 @@ export default function FattureRicevutePage() {
                   ? ` · divisa tra ${quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ")}`
                   : ""}
               </p>
-              {!nonSiPaga(dettaglioMobile.tipo_documento) && (
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">Pagamento</span>
-                  <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />
+              {!nonSiPaga(dettaglioMobile.tipo_documento) && dettaglioMobile.stato !== "rifiutata" && <>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div><dt className="text-xs text-muted-foreground">Pagato</dt><dd><ImportoRicevuta valore={saldi?.get(dettaglioMobile.id)?.pagato} /></dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Residuo</dt><dd><ImportoRicevuta valore={saldi?.get(dettaglioMobile.id)?.residuo} /></dd></div>
+                </dl>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{testoSaldo(saldi?.get(dettaglioMobile.id))}</span>
+                  {(pagataIl(dettaglioMobile.id) || daPagare(dettaglioMobile)) && !stornataDelTutto(dettaglioMobile) && <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />}
                 </div>
-              )}
+              </>}
               <Button
                 variant="outline"
                 className="mt-4 h-10 w-full"
