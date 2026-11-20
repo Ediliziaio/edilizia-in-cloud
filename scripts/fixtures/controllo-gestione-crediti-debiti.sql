@@ -8,6 +8,8 @@
 --   Debiti: costo da 1.000 non pagato (1.000); costo da 500 col bonifico abbinato in banca il 20/12
 --   ma col flag «non pagato» (0); costo da 2.000 pagato il 15/1/2026 (2.000 alla data); costo da
 --   1.000 di imponibile da una fattura ricevuta da 1.220 non pagata (1.220). Totale 4.220.
+--   I primi tre costi sono senza IVA. Una seconda prova aggiunge 100 imponibili al 22%
+--   e un bonifico parziale da 21, con un residuo di 101.
 begin;
 set local session_replication_role = replica;
 insert into companies(id, name, email, status, payment_method)
@@ -25,11 +27,11 @@ insert into invoice_payments(invoice_id, company_id, amount, payment_date)
   values ('c9100000-0000-4000-a000-0000000000a1', 'c9100000-0000-4000-a000-000000000001', 6100, '2025-12-05');
 
 insert into suppliers(id, company_id, name) values ('c9100000-0000-4000-a000-0000000000b1', 'c9100000-0000-4000-a000-000000000001', 'Fornitore CI');
-insert into company_costs(id, company_id, name, due_date, amount, supplier_id, mese_competenza, is_paid, paid_date) values
-  ('c9100000-0000-4000-a000-0000000000c1', 'c9100000-0000-4000-a000-000000000001', 'Materiali', '2025-12-15', 1000, 'c9100000-0000-4000-a000-0000000000b1', '2025-11-01', false, null),
-  ('c9100000-0000-4000-a000-0000000000c2', 'c9100000-0000-4000-a000-000000000001', 'Noleggio', '2025-12-15', 500, 'c9100000-0000-4000-a000-0000000000b1', '2025-11-01', false, null),
-  ('c9100000-0000-4000-a000-0000000000c3', 'c9100000-0000-4000-a000-000000000001', 'Ponteggi', '2026-01-15', 2000, 'c9100000-0000-4000-a000-0000000000b1', '2025-12-01', true, '2026-01-15'),
-  ('c9100000-0000-4000-a000-0000000000c4', 'c9100000-0000-4000-a000-000000000001', 'Fattura ricevuta', '2026-01-31', 1000, null, '2025-12-01', false, null);
+insert into company_costs(id, company_id, name, due_date, amount, vat_rate, supplier_id, mese_competenza, is_paid, paid_date) values
+  ('c9100000-0000-4000-a000-0000000000c1', 'c9100000-0000-4000-a000-000000000001', 'Materiali', '2025-12-15', 1000, 0, 'c9100000-0000-4000-a000-0000000000b1', '2025-11-01', false, null),
+  ('c9100000-0000-4000-a000-0000000000c2', 'c9100000-0000-4000-a000-000000000001', 'Noleggio', '2025-12-15', 500, 0, 'c9100000-0000-4000-a000-0000000000b1', '2025-11-01', false, null),
+  ('c9100000-0000-4000-a000-0000000000c3', 'c9100000-0000-4000-a000-000000000001', 'Ponteggi', '2026-01-15', 2000, 0, 'c9100000-0000-4000-a000-0000000000b1', '2025-12-01', true, '2026-01-15'),
+  ('c9100000-0000-4000-a000-0000000000c4', 'c9100000-0000-4000-a000-000000000001', 'Fattura ricevuta', '2026-01-31', 1000, 22, null, '2025-12-01', false, null);
 insert into fatture_ricevute(company_id, cedente_ragione_sociale, numero_fattura, data_fattura, company_cost_id,
                              imponibile_totale, totale_documento, netto_a_pagare)
   values ('c9100000-0000-4000-a000-000000000001', 'Altro Fornitore', 'A-1', '2025-12-01', 'c9100000-0000-4000-a000-0000000000c4', 1000, 1220, 1220);
@@ -60,6 +62,26 @@ begin
   end if;
   if (sp_nov -> 'passivo' ->> 'debiti_fornitori')::numeric is distinct from 1500.00 then
     raise exception 'Debiti verso fornitori al 30/11/2025: attesi 1500, trovati %', sp_nov -> 'passivo' ->> 'debiti_fornitori';
+  end if;
+end $$;
+reset role;
+
+set local session_replication_role = replica;
+insert into company_costs(id,company_id,name,due_date,amount,vat_rate,supplier_id,mese_competenza,is_paid) values
+  ('c9100000-0000-4000-a000-0000000000c5','c9100000-0000-4000-a000-000000000001','Costo con IVA e acconto',
+    '2025-12-15',100,22,'c9100000-0000-4000-a000-0000000000b1','2025-12-01',false);
+insert into bank_transactions(company_id,account_id,external_transaction_id,amount,transaction_type,value_date,booking_date,linked_cost_id)
+  values ('c9100000-0000-4000-a000-000000000001','c9100000-0000-4000-a000-0000000000d1','ci-mov-2',-21,'debit',
+    '2025-12-20','2025-12-20','c9100000-0000-4000-a000-0000000000c5');
+set local session_replication_role = origin;
+set local role authenticated;
+do $$
+declare
+  debiti numeric := (public.cg_get_stato_patrimoniale_riclassificato(
+    'c9100000-0000-4000-a000-000000000001',2025,'2025-12-31') #>> '{passivo,debiti_fornitori}')::numeric;
+begin
+  if debiti is distinct from 4321.00 then
+    raise exception 'Debiti al lordo IVA con acconto: attesi 4321, trovati %',debiti;
   end if;
 end $$;
 reset role;
