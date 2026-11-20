@@ -41,6 +41,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   UsersRound,
+  Building2,
   FileUp,
   ShieldCheck,
 } from "lucide-react";
@@ -215,11 +216,13 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const [occupato, setOccupato] = useState(false);
   const [aziendaPopup, setAziendaPopup] = useState(effectiveCompany?.id);
   const [avanzate, setAvanzate] = useState(false);
+  const [tipoAssegnazione, setTipoAssegnazione] = useState<"interni" | "ditte">("interni");
   const apriOrganizza = (ids: string[], assegna: boolean) => {
     const attiva = ids[0] ?? INTERA_COMMESSA;
     setAziendaPopup(effectiveCompany?.id);
     setOccupato(false);
     setAvanzate(false);
+    setTipoAssegnazione("interni");
     setOrganizza({ attiva, ids: ids.length ? ids : [attiva], sezione: assegna ? "chi" : "sottofasi" });
   };
   const chiudiOrganizza = () => { setOrganizza(null); setAvanzate(false); };
@@ -782,7 +785,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const fase = phases.find((p) => p.id === attiva?.faseId);
     const voce = !!attiva && attiva.id !== INTERA_COMMESSA && attiva.id !== fase?.id;
     const puoModificare = canEditOrders && !solaLettura;
-    const puoSubappaltare = puoModificare && canViewCosts && canViewSubappaltatoriAmministrazione && !!effectiveCompany?.id;
+    const puoAssegnareDitta = puoModificare && canViewCosts && !!effectiveCompany?.id;
+    const puoSubappaltare = puoAssegnareDitta && canViewSubappaltatoriAmministrazione;
+    const assegnaDitta = puoAssegnareDitta && tipoAssegnazione === "ditte";
     const sezioni: Array<[SezioneLavoro, string]> = [
       ["sottofasi", "Riepilogo"], ["chi", "Chi lavora"],
       ...(fase && !voce ? SCHEDE_FASE.filter(([id]) => id !== "sottofasi" && id !== "chi" && (id !== "economia" || canViewCosts || canViewOrderAmounts || canViewMargins)) : []),
@@ -881,17 +886,38 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           </>}
         </div>}
         {sezione === "chi" && <div className="space-y-3">
-          {fase && <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-sm font-semibold">Assegnazioni attuali</h4>
-            {previsionale.disponibile && <Button type="button" size="sm" variant="outline" onClick={() => vaiA("previsionale")}>Apri previsionale</Button>}
-          </div>}
+          {fase && <h4 className="text-sm font-semibold">Assegnazioni attuali</h4>}
           {voce && renderVoce && <details className="rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-semibold">Dettaglio della voce</summary>
             <div className="mt-3">{renderVoce(organizza.attiva, chiudiOrganizza)}</div>
           </details>}
           {fase && !voce && schedaDi(fase, true, "chi")}
           {previsioniVisibili}
-          {(puoModificare || puoSquadre) && (!advanced
+          {puoAssegnareDitta && <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/40 p-1 sm:inline-grid"
+            role="group" aria-label="Tipo di assegnazione">
+            <Button type="button" size="sm" variant="ghost" aria-pressed={!assegnaDitta}
+              className={cn("h-auto min-h-9 whitespace-normal px-2 text-left", !assegnaDitta && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary")}
+              disabled={occupato} onClick={() => { setTipoAssegnazione("interni"); setAvanzate(false); }}>
+              <UsersRound className="size-4 shrink-0" aria-hidden="true" />Operai e squadre
+            </Button>
+            <Button type="button" size="sm" variant="ghost" aria-pressed={assegnaDitta}
+              className={cn("h-auto min-h-9 whitespace-normal px-2 text-left", assegnaDitta && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary")}
+              disabled={occupato} onClick={() => { setTipoAssegnazione("ditte"); setAvanzate(false); }}>
+              <Building2 className="size-4 shrink-0" aria-hidden="true" />Ditte e subappaltatori
+            </Button>
+          </div>}
+          {assegnaDitta && <section className="space-y-3 rounded-xl border bg-background p-3" aria-label="Assegna una ditta">
+            {voce ? <>
+              <p className="text-sm text-muted-foreground">Per affidare questa voce indica le quantità nel subappalto. Per assegnare la ditta all’intera fase, seleziona la fase nell’elenco.</p>
+              {puoSubappaltare && <Button size="sm" variant="outline" onClick={() => vaiA("subappalto")}>Subappalto della voce</Button>}
+            </> : bersagli.length !== 1 || bersagli[0].id !== attiva?.id ? (
+              <p className="text-sm text-muted-foreground">Scegli una fase o l’intera commessa dall’elenco per assegnarle una ditta.</p>
+            ) : <AddAssignmentDialog key={`ditta:${organizza.attiva}`} orderId={orderId} phaseId={fase?.id ?? null} incorporato soloDitta aperto
+              employees={employees} externalTeams={externalTeams} phases={phaseOptions}
+              existingAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
+              onOccupato={setOccupato} onAdd={(payload, opts) => addAssignment.mutate(payload, opts)} />}
+          </section>}
+          {!assegnaDitta && (puoModificare || puoSquadre) && (!advanced
             ? <PianificaAssegnazione key={`assegnazione:${organizza.attiva}`} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
               calendario={calendario} puoPersone={puoModificare} puoSquadre={puoSquadre && (!voce || puoModificare)} puoDate={puoModificare}
               puoVoci={puoModificare && chiSottofasi.dati.disponibile}
@@ -899,7 +925,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             : <AddAssignmentDialog key={`assegnazione-avanzata:${organizza.attiva}`} orderId={orderId} phaseId={fase?.id ?? null} incorporato aperto={true}
               employees={employees} externalTeams={externalTeams} phases={phaseOptions} existingAssignments={[...unassigned, ...phases.flatMap((p) => p.assignments)]}
               onOccupato={setOccupato} onAperto={() => setAvanzate(false)} onAdd={(payload, opts) => addAssignment.mutate(payload, opts)} />)}
-          {!advanced && !voce && !occupato && (puoModificare || puoSquadre) && bersagli.length === 1 && <Button variant="ghost" size="sm" onClick={() => setAvanzate(true)}>Dettagli avanzati di assegnazione</Button>}
+          {!assegnaDitta && !advanced && !voce && !occupato && (puoModificare || puoSquadre) && bersagli.length === 1 && <Button variant="ghost" size="sm" onClick={() => setAvanzate(true)}>Dettagli avanzati di assegnazione</Button>}
         </div>}
         {sezione === "mezzi" && fase && <div className="space-y-3">
           {voce && <p className="text-sm text-muted-foreground">Risorse della fase {fase.name}, condivise con le sue voci.</p>}

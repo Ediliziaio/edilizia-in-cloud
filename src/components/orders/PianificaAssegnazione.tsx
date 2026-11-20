@@ -3,7 +3,7 @@ import type { DisponibilitaCantiere } from "@/lib/orders/disponibilitaCantiere";
 import { plannedLaborCost } from "@/lib/orders/laborEconomics";
 import { AzioniLavorazioni } from "./AzioniLavorazioni";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, Loader2, UsersRound } from "lucide-react";
+import { CalendarDays, ChevronDown, Loader2, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -187,16 +187,20 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
   };
 
   const dateParziali = (!!dal !== !!al) && (salvaDate || bersagli.some((a) => !a.faseId));
+  const ContenitorePeriodo = previsionale ? "div" : "details";
+  const titoloPeriodo = <h4 className="inline-flex items-center gap-2 text-sm font-semibold"><CalendarDays className="size-4" aria-hidden="true" />Periodo previsto</h4>;
   return (
     <section aria-label="Pianifica assegnazione" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border bg-muted/30 px-3 py-2.5">
-        <h4 className="flex items-center gap-2 text-sm font-semibold"><UsersRound className="h-4 w-4 text-primary" />{previsionale ? salvato ? "Modifica previsione" : "Nuova previsione" : "Nuova assegnazione"}</h4>
-        <p className="min-w-0 break-words text-xs text-muted-foreground">{bersagli.map((a) => a.nome).join(" · ") || "Seleziona almeno una lavorazione."}</p>
+        <h4 className="flex items-center gap-2 text-sm font-semibold"><UsersRound className="h-4 w-4 text-primary" aria-hidden="true" />{previsionale ? salvato ? "Modifica previsione" : "Nuova previsione" : "Nuova assegnazione"}</h4>
+        <p className="max-w-full truncate text-xs text-muted-foreground" title={iniziale?.nome}>
+          {iniziale?.nome ?? (bersagli.length ? `${bersagli.length} lavorazioni selezionate` : "Seleziona almeno una lavorazione.")}
+        </p>
       </div>
       {senzaSottofase && <p role="status" className="text-sm text-muted-foreground">Per assegnare questa voce agli operai, crea la sottofase dal suo riepilogo oppure seleziona la fase.</p>}
       {!previsionale && haVoci && !puoVoci && <p role="status" className="text-sm text-muted-foreground">Le assegnazioni sulle sottofasi non sono disponibili per questa commessa.</p>}
       <fieldset disabled={inCorso || inRipresa} className="min-w-0 space-y-3">
-        <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_14rem]">
+        <div className={previsionale ? "grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_14rem]" : "space-y-3"}>
           <div className="min-w-0 space-y-3">
             <Input aria-label="Cerca operai e squadre" placeholder="Cerca operai e squadre" value={cerca} onChange={(e) => setCerca(e.target.value)} />
             <div className="grid gap-3 sm:grid-cols-2">
@@ -230,9 +234,13 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
               </div>}
             </div>
           </div>
-          <div className="space-y-2 rounded-lg border p-3">
-            <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4" />Periodo previsto</h4>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+          <ContenitorePeriodo className="group space-y-2 rounded-lg border p-3">
+            {previsionale ? titoloPeriodo : <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+              {titoloPeriodo}
+              <span className="ml-auto text-xs text-muted-foreground">{periodo ? "Date impostate" : "Facoltativo"}</span>
+              <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
+            </summary>}
+            <div className={previsionale ? "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1" : "grid grid-cols-2 gap-2 sm:grid-cols-3"}>
               <label className="min-w-0 space-y-1 text-sm">Dal<Input aria-label="Dal" className="w-full min-w-0" type="date" value={dal} onChange={(e) => setDal(e.target.value)} /></label>
               <label className="min-w-0 space-y-1 text-sm">Al<Input aria-label="Al" className="w-full min-w-0" type="date" min={dal || undefined} value={al} onChange={(e) => setAl(e.target.value)} /></label>
               <label className="space-y-1 text-sm">Ore al giorno per persona<Input inputMode="decimal" value={oreGiorno} onChange={(e) => { setOreGiorno(e.target.value); setQuoteScritte({}); }} /></label>
@@ -242,7 +250,7 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
               <Checkbox checked={salvaDate} disabled={inCorso || inRipresa} onCheckedChange={(si) => setSalvaDate(si === true)} />Applica il periodo alle lavorazioni selezionate
             </label>}
             {periodo && !valido && <p role="alert" className="text-sm text-destructive">Controlla le date. Serve almeno un giorno lavorativo e un numero di ore maggiore di 0 e fino a 24.</p>}
-          </div>
+          </ContenitorePeriodo>
         </div>
         {previsionale && bersagli.length > 1 && <section className="space-y-2 rounded-lg border p-3" aria-label="Ripartizione delle ore">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -308,7 +316,8 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
         <Button type="button" disabled={inCorso || (!inRipresa && (!bersagli.length || senzaSottofase || (!previsionale && haVoci && !puoVoci) || !puoCalcolare || !valido || dateParziali || (salvaDate && !periodo)
           || (!personeScelte.length && !squadreScelte.length && !salvaDate) || (!!oreTotali && tariffe.allowed && caricaTariffe)))} onClick={() => void salva()}>
           {inCorso && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {previsionale ? "Salva previsionale" : inRipresa ? "Completa il salvataggio" : personeScelte.length || squadreScelte.length ? "Salva assegnazione" : "Salva periodo"}
+          {previsionale ? "Salva previsionale" : inRipresa ? "Completa il salvataggio"
+            : salvaDate && !personeScelte.length && !squadreScelte.length ? "Salva periodo" : "Salva assegnazione"}
         </Button>
       </div></AzioniLavorazioni>
     </section>
