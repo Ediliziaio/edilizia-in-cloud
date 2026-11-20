@@ -267,7 +267,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     enabled: !!orderId && !!companyId,
     queryFn: async () => {
       const [phasesRes, empRes, teamRes] = await Promise.all([
-        db.from("order_work_phases").select("*").eq("order_id", orderId!).eq("company_id", companyId!).order("position", { ascending: true }),
+        db.from("order_work_phases").select("*").eq("order_id", orderId!).eq("company_id", companyId!).order("position", { ascending: true }).order("id", { ascending: true }),
         db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, is_paid, paid_date, notes, employee:employees(first_name,last_name,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("employee.company_id", companyId!),
         db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, vat_rate, tariffa_id, quantita, costo_unitario, costo_origine, is_paid, paid_date, notes, team:external_teams(name,kind,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("team.company_id", companyId!),
       ]);
@@ -510,17 +510,18 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     onError,
   });
 
-  // L'ordine delle fasi (prima non si poteva cambiare): posizioni 0..n nell'ordine dato.
+  // Una transazione sola; la versione letta impedisce di sovrascrivere un altro riordino.
   const riordinaFasi = useMutation({
     mutationFn: async (ids: ReadonlyArray<string>) => {
-      for (const [position, id] of ids.entries()) {
-        const { data, error } = await db.from("order_work_phases").update({ position }).eq("id", id).eq("order_id", orderId).select("id");
-        if (error) throw error;
-        if (!data?.length) throw new Error("Ordine delle fasi non salvato: non hai il permesso di modificarle.");
-      }
+      if (!orderId || !data) throw new Error("Ricarica le fasi prima di riordinarle.");
+      const { error } = await db.rpc("riordina_fasi_commessa", {
+        p_order_id: orderId, p_fasi: [...ids], p_ordine_atteso: data.phases.map(p => p.id),
+      });
+      if (error) throw error;
     },
     onSuccess: invalidate,
-    onError,
+    // Una risposta persa può arrivare dopo il commit: rileggere anche quando fallisce la rete.
+    onError: (e: unknown) => { invalidate(); onError(e); },
   });
 
   const deletePhase = useMutation({

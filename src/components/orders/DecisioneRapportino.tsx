@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { messaggioApprovazione } from "@/lib/campo/erroreApprovazione";
+import { messaggioAnnullamento } from "@/lib/campo/erroreAnnullamento";
 import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
@@ -122,7 +123,7 @@ export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?:
       void notifyRapportinoPdf(id, orderId, qc);
       opzioni.onAnnullato?.();
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Annullamento non riuscito"),
+    onError: (e: unknown) => toast.error(messaggioAnnullamento(e)),
   });
 
   return { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation, annullaMutation };
