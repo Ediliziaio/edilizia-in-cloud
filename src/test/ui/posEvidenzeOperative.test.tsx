@@ -4,28 +4,31 @@ import { afterEach, expect, it, vi } from "vitest";
 import { SezioneEmergenze, SezioneRumore } from "@/components/sicurezza/pos/PosSezioni";
 import { ConsegneDpiLavorazionePos } from "@/components/sicurezza/pos/EvidenzeOperativePos";
 import { RiferimentiSchedaPos } from "@/components/sicurezza/pos/SchedeStandardPos";
+import type { DocumentoSicurezza } from "@/lib/sicurezza/documentiSicurezza";
 import { lavorazioneVuota, posVuoto, type PosContenuto } from "../../../supabase/functions/_shared/posModello";
-import { dataRiscontriDpiPos, type RiscontroDpiPos } from "../../../supabase/functions/_shared/posEvidenzeOperative";
+import { dataRiscontriDpiPos, type AddettoConConsegne, type RiscontroDpiPos } from "../../../supabase/functions/_shared/posEvidenzeOperative";
 import type { FontePscSchedaPos } from "../../../supabase/functions/_shared/posFontiScheda";
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/usePos", () => ({ chiamaServerPos: api }));
+const rapporto: Pick<DocumentoSicurezza, "id" | "titolo" | "tipo" | "fonte" | "subappaltatore_id" | "file_path" | "data_documento"> = {
+  id: "id-rapporto", titolo: "Rapporto RUM-11", tipo: "valutazione_rumore", fonte: "sicurezza",
+  subappaltatore_id: null, file_path: "azienda/file.pdf", data_documento: "2026-10-29",
+};
 vi.mock("@/hooks/useDocumentiSicurezza", () => ({
-  useDocumentiSicurezza: () => ({ data: [{
-    id: "id-rapporto", titolo: "Rapporto RUM-11", tipo: "valutazione_rumore", fonte: "sicurezza",
-    subappaltatore_id: null, file_path: "azienda/file.pdf", data_documento: "2026-10-29",
-  }] }),
+  useDocumentiSicurezza: () => ({ data: [rapporto] }),
 }));
 vi.mock("@/hooks/useDpiCommessa", () => ({
-  useDpiCommessa: (_company: string, _ordine: string, data: string, faseId?: string) => ({
-    data: { data, fase_id: faseId, addetti: [{
+  useDpiCommessa: (_company: string, _ordine: string, data: string, faseId?: string) => {
+    const addetti: AddettoConConsegne[] = [{
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", nome: "Mario", cognome: "Verdi", attivo: true,
-      assegnazioni: [{ fase_id: faseId }], consegne: [{
+      assegnazioni: [{ fase_id: faseId ?? null }], consegne: [{
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", tipo: "casco", consegnato_il: data,
         scade_il: null, restituito_il: null, stato: "in_use", versione: 2,
       }],
-    }] },
-  }),
+    }];
+    return { data: { data, fase_id: faseId, addetti } };
+  },
 }));
 afterEach(cleanup);
 
