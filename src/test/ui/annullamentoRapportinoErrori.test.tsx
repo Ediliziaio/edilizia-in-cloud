@@ -9,7 +9,7 @@ vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({role:'company_staff',effect
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({canEditOrders:m.canEdit,canViewCosts:true})}));
 vi.mock('@/lib/orders/refreshWorkQueries',()=>({refreshWorkQueries:m.refresh}));
 vi.mock('@/lib/campo/rapportinoPdf',()=>({notifyRapportinoPdf:m.pdf}));
-vi.mock('@/components/orders/LaborApprovalDialog',()=>({LaborApprovalDialog:()=>null}));
+vi.mock('@/components/orders/LaborApprovalDialog',()=>({LaborApprovalDialog:():null=>null}));
 vi.mock('sonner',()=>({toast:{error:m.error,success:vi.fn()}}));
 import { useDecisioneRapportino } from '@/components/orders/DecisioneRapportino';
 import { messaggioAnnullamento } from '@/lib/campo/erroreAnnullamento';

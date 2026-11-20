@@ -9,9 +9,9 @@ vi.mock('@/lib/orders/refreshWorkQueries',()=>({refreshWorkQueries:m.refresh}));
 vi.mock('sonner',()=>({toast:{error:vi.fn(),success:vi.fn()}}));
 vi.mock('@tanstack/react-query',async importOriginal=>{
   const actual=await importOriginal<typeof import('@tanstack/react-query')>();
-  return {...actual,useQuery:({queryKey}:{queryKey:unknown[]})=>({data:queryKey[0]==='order_work_phases' ? (m.data ? {phases:[{id:'a',assignments:[]},{id:'b',assignments:[]}],unassigned:[],all:[]} : undefined) : [],isLoading:false,isError:false,refetch:vi.fn()})};
+  return {...actual,useQuery:({queryKey}:{queryKey:unknown[]})=>({data:queryKey[0]==='order_work_phases' ? (m.data ? {phases:[{id:'a',assignments:[] as PhaseAssignment[]},{id:'b',assignments:[] as PhaseAssignment[]}],unassigned:[] as PhaseAssignment[],all:[] as PhaseAssignment[]} : undefined) : [],isLoading:false,isError:false,refetch:vi.fn()})};
 });
-import { useOrderWorkPhases } from '@/hooks/useOrderWorkPhases';
+import { useOrderWorkPhases, type PhaseAssignment } from '@/hooks/useOrderWorkPhases';
 beforeEach(()=>{vi.clearAllMocks();m.data=true;m.rpc.mockResolvedValue({data:2,error:null});});afterEach(cleanup);
 function open(){const qc=new QueryClient({defaultOptions:{mutations:{retry:false}}});return renderHook(()=>useOrderWorkPhases('ordine'),{wrapper:({children}:{children:ReactNode})=><QueryClientProvider client={qc}>{children}</QueryClientProvider>});}
 it('riordina in una sola richiesta con la sequenza letta come versione attesa',async()=>{

@@ -63,7 +63,7 @@ beforeEach(async()=>{
 async function reorder(next= [ids[2],ids[0],ids[1]], expected:unknown=ids) {
   return pg.query('select riordina_fasi_commessa($1,$2::uuid[],$3::uuid[]) as n',[order,next,expected]);
 }
-async function positions() { return (await pg.query('select id,position from order_work_phases where order_id=$1 order by id',[order])).rows; }
+async function positions() { return (await pg.query<{id:string;position:number}>('select id,position from order_work_phases where order_id=$1 order by id',[order])).rows; }
 async function dispatch(){ return (await pg.query<{n:{dispatched:number}}>("select silvio_email_dispatch_opportunita('cron-di-prova',10) as n")).rows[0].n.dispatched; }
 async function ready(){return(await pg.query<{ok:boolean}>('select email_opportunita_puo_elaborare($1) as ok',[company])).rows[0].ok;}
 
