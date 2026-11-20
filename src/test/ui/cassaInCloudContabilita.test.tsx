@@ -16,7 +16,11 @@ const gruppi = ["2025-10-01", "2025-10-02"].map((giorno, i) => ({
   totale_scontrini: 122, scontrini_assenti: 0, con_resi: false, con_fatture: false, con_differiti: false,
   chiusure: [{ id: String(i), presente: true, valuta: "EUR", dati: {
     numero: String(i + 1), data_chiusura: giorno, numero_scontrini: 1, totale_scontrini: 122, contanti: 22,
-    elettronici: 100, iva: [{ id: "22", aliquota: 22, scontrini: 122, annulli: 0, pagamenti: [] }],
+    elettronici: 100,
+    iva: [{ id: "22", aliquota: 22, scontrini: 122, annulli: 0, pagamenti: [
+      { tipo: "CASH", importo: 22, annulli: 0, descrizione: "Contanti" },
+      { tipo: "CREDITCARD", importo: 100, annulli: 0, descrizione: "Carta" },
+    ] }],
   } }],
 }));
 
