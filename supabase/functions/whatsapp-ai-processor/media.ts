@@ -274,7 +274,7 @@ export async function leggiFotoOperativa(
       console.error(JSON.stringify({ level: "error", fn: "leggi_ddt", error: String(e) }));
     }
     if (opts.acquisizioneConsentita !== false && sembraDdtDallaDidascalia(didascalia)) {
-      const acquisito = await acquisisciDdtWhatsapp(supabase, opts).catch(() => null);
+      const acquisito = await acquisisciDdtWhatsapp(supabase, opts).catch((): null => null);
       if (acquisito) return `[Foto di un DDT — da leggere]\n\nTesto dell'utente: ${didascalia}`;
     }
     if (!descrizione) await descrivi().catch(() => false);
@@ -359,7 +359,7 @@ export async function leggiDocumentoOperativo(
       console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf_vision", error: String(e) }));
     }
     if (opts.acquisizioneConsentita !== false && sembraDdtDallaDidascalia(opts.didascalia)) {
-      const acquisito = await acquisisciDdtWhatsapp(supabase, opts).catch(() => null);
+      const acquisito = await acquisisciDdtWhatsapp(supabase, opts).catch((): null => null);
       if (acquisito) return `[Documento PDF — DDT da leggere, non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia}`;
     }
     return `[Documento PDF ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;

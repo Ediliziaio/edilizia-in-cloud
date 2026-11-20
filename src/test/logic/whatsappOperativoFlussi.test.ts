@@ -37,8 +37,8 @@ const persone = [
   { employee_id: "e3", nome: "Luca Blu" },
 ];
 const job = { id: "bolla-1", source_key: "foto-1", result: { intestazione: { numero_ddt: "438" } }, status: "review",
-  company_id: "azienda", created_by: "utente", employee_id: "e1", source: "whatsapp", order_id: null,
-  warehouse_id: null, destinazione: null };
+  company_id: "azienda", created_by: "utente", employee_id: "e1", source: "whatsapp", order_id: null as string | null,
+  warehouse_id: null as string | null, destinazione: null as string | null };
 const foto = { id: "foto-1", wa_message_id: "wamid.foto", from_phone: "393331234567",
   wa_number_id: "linea", company_id: "azienda", direction: "inbound", message_type: "image", created_at: new Date().toISOString() };
 
@@ -159,7 +159,7 @@ describe("DDT operativo", () => {
   it("distingue due bolle aperte e usa il riferimento al messaggio originale", async () => {
     const prima = { ...job }, seconda = { ...job, id: "bolla-2", source_key: "foto-2" };
     const { ctx, writes } = ambiente({ whatsapp_messages: [foto, { ...foto, id: "foto-2", wa_message_id: "wamid.seconda" }], ddt_document_jobs: [prima, seconda] });
-    const input = { id: "audio-2", tipo: "audio", testo: "Cantiere Rossi", riferimento: null, ddtLetto: false };
+    const input: Parameters<typeof trattaBollaInConversazione>[1] = { id: "audio-2", tipo: "audio", testo: "Cantiere Rossi", riferimento: null, ddtLetto: false };
     expect(await trattaBollaInConversazione(ctx, input)).toContain("Ci sono 2 bolle");
     expect(writes).not.toHaveBeenCalled();
     expect(await trattaBollaInConversazione(ctx, { ...input, riferimento: "wamid.seconda" })).toContain("salvata");
@@ -174,7 +174,7 @@ describe("DDT operativo", () => {
       warehouses: [{ company_id: "azienda", id: "bolgare", name: "Bolgare", is_active: true },
         { company_id: "azienda", id: "centro", name: "Centro", is_active: true }],
     });
-    const input = { id: "testo-1", tipo: "text", testo: "Va in magazzino", riferimento: null, ddtLetto: false };
+    const input: Parameters<typeof trattaBollaInConversazione>[1] = { id: "testo-1", tipo: "text", testo: "Va in magazzino", riferimento: null, ddtLetto: false };
     expect(await trattaBollaInConversazione(ctx, input)).toContain("Quale magazzino");
     expect(writes).not.toHaveBeenCalled();
     expect(await trattaBollaInConversazione(ctx, { ...input, testo: "Va in magazzino di Bolgare" })).toContain("magazzino Bolgare");
@@ -189,7 +189,7 @@ describe("DDT operativo", () => {
   });
 
   it("completa una destinazione citata quando il webhook dell’originale arriva dopo", async () => {
-    const audio = { ...foto, id: "audio-anticipato", message_type: "audio", metadata: { reply_to: "wamid.foto" }, ai_extracted_data: null };
+    const audio = { ...foto, id: "audio-anticipato", message_type: "audio", metadata: { reply_to: "wamid.foto" }, ai_extracted_data: null as Record<string, unknown> | null };
     const bolla = { ...job };
     const tabelle = { whatsapp_messages: [audio] as Row[], ddt_document_jobs: [] as Row[] };
     const { ctx } = ambiente(tabelle);

@@ -53,11 +53,11 @@ create or replace function public.whatsapp_contesto_rapportino(
 ) returns jsonb
 language plpgsql security definer
 set search_path = ''
-set request.jwt.claims = ''
-set request.jwt.claim.sub = ''
-set request.jwt.claim.role = ''
 as $$
 declare
+  claims_prima text := current_setting('request.jwt.claims', true);
+  sub_prima text := current_setting('request.jwt.claim.sub', true);
+  ruolo_prima text := current_setting('request.jwt.claim.role', true);
   ruolo jsonb;
   regole jsonb;
   squadra jsonb := '[]'::jsonb;
@@ -91,6 +91,11 @@ begin
   if responsabile and (not con_capo or chi <> 'ore_proprie') then
     squadra := public.campo_squadra_rapportino(p_order, p_day);
   end if;
+
+  -- In caso di errore Postgres annulla anche le impostazioni locali.
+  perform set_config('request.jwt.claims', coalesce(claims_prima, ''), true);
+  perform set_config('request.jwt.claim.sub', coalesce(sub_prima, ''), true);
+  perform set_config('request.jwt.claim.role', coalesce(ruolo_prima, ''), true);
   return jsonb_build_object('persone', coalesce(squadra, '[]'::jsonb),
     'solo_timbratura', con_capo and not responsabile and chi = 'capo',
     'solo_ore', con_capo and not responsabile and chi = 'ore_proprie',

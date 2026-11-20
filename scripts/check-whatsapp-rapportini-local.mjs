@@ -68,6 +68,19 @@ try {
   await assert.rejects(leggi(sospeso), /Permessi/);
   await assert.rejects(leggi(capo, altraAzienda), /Commessa non disponibile/);
   assert.equal((await db.query("select auth.uid() as utente")).rows[0].utente, null);
+  await db.exec(`begin;
+    select set_config('request.jwt.claims', '{"role":"service_role"}', true),
+           set_config('request.jwt.claim.role', 'service_role', true);
+    savepoint prima;
+  `);
+  await leggi(capo);
+  const contesto = "select auth.uid() as utente, current_setting('request.jwt.claims')::jsonb as claims, current_setting('request.jwt.claim.role') as ruolo";
+  const atteso = { utente: null, claims: { role: "service_role" }, ruolo: "service_role" };
+  assert.deepEqual((await db.query(contesto)).rows[0], atteso);
+  await assert.rejects(leggi(sospeso), /Permessi/);
+  await db.exec("rollback to prima;");
+  assert.deepEqual((await db.query(contesto)).rows[0], atteso);
+  await db.exec("rollback;");
 
   await db.exec("reset role;");
   const scrivi = () => db.query(

@@ -166,7 +166,8 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
       if (!assegnati.data?.length) return `${etichetta} conservata. Nessun deposito è assegnato al tuo profilo.`;
       dep = dep.in("id", assegnati.data.map(r => r.warehouse_id));
     }
-    const depositi = cercaDepositi ? await dep : { data: [], error: null };
+    const depositi: { data: { id: string; name: string }[] | null; error: unknown } =
+      cercaDepositi ? await dep : { data: [], error: null };
     if (depositi.error) throw new Error("magazzini_non_reperibili");
     const scelti = (depositi.data ?? []).filter(d => !destinazione!.nome || conParole(destinazione!.nome, d.name));
     if (destinazione.tipo === "luogo" && candidati.length + scelti.length !== 1) {
