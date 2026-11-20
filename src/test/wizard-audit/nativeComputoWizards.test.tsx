@@ -92,7 +92,7 @@ describe.each(families)('%s: wizard originale con confini dati simulati', (modul
     state.id = undefined; state.params = new URLSearchParams({ modello: model.id });
     mount(module);
     const title = module === 'tetti' ? findTettiTemplateModule(model.id)!.title : model.title;
-    expect(await screen.findByRole('heading', { name: `Preventivo · ${title}` })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: title, level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Crea e continua/ })).toBeEnabled();
     expect(state.save).not.toHaveBeenCalled();
   });

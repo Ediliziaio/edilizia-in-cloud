@@ -134,9 +134,9 @@ export function GuscioEdile({
             <div className="flex flex-wrap items-center gap-2 max-md:gap-y-0.5">
               <Icona className="h-4 w-4 text-orange-600 max-md:hidden" />
               <div className="flex min-w-0 max-w-full items-center gap-2 max-md:order-1 max-md:gap-1.5">
-                <span className="min-w-0 truncate text-sm font-semibold" title={testata.titolo}>
+                <h1 className="min-w-0 truncate text-sm font-semibold" title={testata.titolo}>
                   {testata.titolo}
-                </span>
+                </h1>
                 {testata.stato && (
                   <Badge variant="outline" className={cn("shrink-0 whitespace-nowrap text-[10px] max-md:px-1.5 max-md:text-[11px]", testata.stato.className)}>
                     {testata.stato.label}
