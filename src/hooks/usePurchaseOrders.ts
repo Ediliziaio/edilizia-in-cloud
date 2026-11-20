@@ -343,7 +343,9 @@ export function usePurchaseOrderDetail(poId: string | null) {
   const updateItemMutation = useMutation({
     mutationFn: async (params: { id: string; updates: AggiornamentoRigaOda }) => {
       const updates = {...params.updates,...(params.updates.unit_price != null && params.updates.price_pending === undefined ? {price_pending:false} : {})};
-      const { error } = await supabase.from("purchase_order_items").update(updates).eq("id", params.id);
+      // La colonna delle destinazioni arriva dalla migrazione, prima dei tipi generati.
+      const { error } = await supabase.from("purchase_order_items")
+        .update(updates as TablesUpdate<"purchase_order_items">).eq("id", params.id);
       if (error) throw error;
     },
     onSuccess: async () => {

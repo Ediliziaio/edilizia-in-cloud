@@ -8,7 +8,8 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
-vi.mock("@/hooks/useWarehouses", () => ({ useWarehouses: () => ({ warehouses: [] }) }));
+import type { Warehouse } from "@/hooks/useWarehouses";
+vi.mock("@/hooks/useWarehouses", () => ({ useWarehouses: (): { warehouses: Warehouse[] } => ({ warehouses: [] }) }));
 vi.mock("@/components/orders/CommessaCombobox", () => ({
   CommessaCombobox: ({ ariaLabel, value, onChange }: {
     ariaLabel: string; value: string | null; onChange: (id: string) => void;
