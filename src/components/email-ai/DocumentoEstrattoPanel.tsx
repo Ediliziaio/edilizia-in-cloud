@@ -138,13 +138,16 @@ export function CarichiSection({ emailId, documentoId }: { emailId?: string | nu
             )}
           </div>
 
+          {c.avviso_ordine && <p className="mb-2 text-amber-800">{c.avviso_ordine}</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="text-left text-muted-foreground">
                   <th className="py-1 pr-2 font-medium">Articolo</th>
                   <th className="px-1 text-right font-medium">In bolla</th>
-                  <th className="px-1 text-right font-medium">Ordinato</th>
+                  <th className="px-1 text-right font-medium">
+                    {c.righe.some(r => r.qta_residua != null) ? "Da ricevere" : "Ordinato"}
+                  </th>
                   <th className="px-1 text-right font-medium">Δ</th>
                 </tr>
               </thead>
@@ -159,7 +162,7 @@ export function CarichiSection({ emailId, documentoId }: { emailId?: string | nu
                         {r.note && <span className="ml-1 text-[10px] text-rose-600">({r.note})</span>}
                       </td>
                       <td className="px-1 text-right tabular-nums">{r.qta_bolla}</td>
-                      <td className="px-1 text-right tabular-nums">{r.qta_ordine ?? "—"}</td>
+                      <td className="px-1 text-right tabular-nums">{r.qta_residua ?? r.qta_ordine ?? "—"}</td>
                       <td className={cn("px-1 text-right tabular-nums font-semibold", bad ? "text-rose-700" : "text-emerald-700")}>
                         {diff == null ? "n/d" : diff > 0 ? `+${diff}` : diff}
                       </td>

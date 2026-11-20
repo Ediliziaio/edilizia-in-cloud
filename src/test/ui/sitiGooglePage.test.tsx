@@ -13,6 +13,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 function sito(nome: string, dominio: string) {
@@ -101,7 +102,7 @@ describe("SitiGooglePage", () => {
     contenitore?.remove();
   });
 
-  async function rendi(): Promise<string> {
+  async function rendi(url = "/admin/siti"): Promise<string> {
     const { default: SitiGooglePage } = await import("@/pages/admin/SitiGooglePage");
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     contenitore = document.createElement("div");
@@ -110,7 +111,7 @@ describe("SitiGooglePage", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <SitiGooglePage />
+          <MemoryRouter initialEntries={[url]}><SitiGooglePage /></MemoryRouter>
         </QueryClientProvider>,
       );
     });
@@ -178,6 +179,66 @@ describe("SitiGooglePage", () => {
     expect(testo).toContain("dati fino al 09/09/2026");
     expect(testo).toContain("+50%");   // 900 visite contro 600 del periodo prima
     expect(testo).toContain("1m 25s"); // 85 secondi
-    expect(testo).toContain("8.4");    // posizione pesata, come arriva dal database
+    expect(testo).toContain("8,4");    // posizione pesata, formattata in italiano
+  });
+  it("precompila dominio e proprietà Search Console dopo una scelta esplicita", async () => {
+    invoke.mockResolvedValueOnce({
+      data: { ok: true, siti_search_console: ["sc-domain:numerinedilizia.com"] },
+      error: null,
+    });
+    await rendi();
+    await act(async () => bottone("Scopri proprietà").click());
+    await aspetta(() => !!contenitore.querySelector('[aria-label="Configura sc-domain:numerinedilizia.com"]'), "la proprietà da associare");
+    await act(async () => bottone("Configura sito").click());
+    const dialogo = document.querySelector('[role="dialog"]');
+    expect(dialogo?.querySelector<HTMLInputElement>("#dominio")?.value).toBe("numerinedilizia.com");
+    expect(dialogo?.querySelector<HTMLInputElement>("#gsc")?.value).toBe("sc-domain:numerinedilizia.com");
+    expect(rpc.mock.calls.some(args => (args as unknown[])[0] === "admin_sito_salva")).toBe(false);
+  });
+  it("combina i filtri condivisi nell’URL e azzera senza cambiare periodo", async () => {
+    metriche = {
+      ...collegato,
+      siti: [
+        collegato.siti[0],
+        { ...sito("Numeri in Edilizia", "numerinedilizia.com"), ga4_property_id: "777", ultimo_errore: "GA4: 403" },
+        { ...sito("Archivio", "archivio.example"), attivo: false, ga4_property_id: "888", ultimo_errore: "GA4: 403" },
+      ],
+      siti_collegati: 2,
+    };
+    await rendi("/admin/siti?giorni=7&q=Numeri+edil%C3%ACzia&stato=verifica&fonte=ga4");
+    expect(contenitore.querySelector("tbody")?.textContent).toContain("Numeri in Edilizia");
+    expect(contenitore.querySelector("tbody")?.textContent).not.toContain("Edilizia in Cloud");
+    expect(contenitore.textContent).toContain("1 di 3 siti");
+    await act(async () => bottone("Azzera").click());
+    const corpo = contenitore.querySelector("tbody")?.textContent;
+    expect(corpo).toContain("Edilizia in Cloud");
+    expect(corpo).toContain("Archivio");
+    expect(contenitore.textContent).toContain("3 di 3 siti · Ultimi 7 giorni");
+
+    const [stato, fonte, ordinamento] = [...contenitore.querySelectorAll("select")];
+    await act(async () => {
+      for (const [select, value] of [[stato, "errori"], [fonte, "ga4"], [ordinamento, "visite"]] as const) {
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    expect([stato.value, fonte.value, ordinamento.value]).toEqual(["errori", "ga4", "visite"]);
+    expect(contenitore.textContent).toContain("2 di 3 siti · Ultimi 7 giorni");
+
+  });
+
+  it("ordina per visite GA4 mantenendo una sola riga per sito", async () => {
+    metriche = {
+      ...collegato,
+      siti: [
+        collegato.siti[0],
+        { ...collegato.siti[0], id: "altro", nome: "Altro sito", dominio: "altro.example", sessioni: 60 },
+      ],
+    };
+    await rendi("/admin/siti?ordine=visite");
+    const righe = [...contenitore.querySelectorAll("tbody tr")];
+    expect(righe).toHaveLength(2);
+    expect(righe[0]?.textContent).toContain("Edilizia in Cloud");
+    expect(righe[1]?.textContent).toContain("Altro sito");
   });
 });

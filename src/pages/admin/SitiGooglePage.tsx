@@ -1,20 +1,6 @@
-/**
- * Siti e Google — quello che GA4 e Search Console sanno dei nostri siti,
- * scaricato una volta al giorno e conservato qui.
- *
- * Le due fonti non si sommano e non si sostituiscono. Search Console dice
- * quante volte Google ha mostrato il sito e quante volte l'hanno cliccato;
- * GA4 dice cosa è successo dopo. Un sito con zero impressioni non ha un
- * problema di conversione: non lo trova nessuno, ed è lì che si interviene.
- *
- * Fino all'11/09/2026 la pagina non aveva mai mostrato un numero: la chiave
- * Google non era mai stata caricata, la raccolta notturna rispondeva «ok»
- * senza scaricare nulla e «Sincronizza» diceva «completata» qualunque cosa
- * fosse successa. Il riquadro in alto ora guarda le cose vere — la chiave,
- * gli ID dei siti, i dati arrivati — e ogni sito dice perché è fermo.
- */
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigationType, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,40 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Globe, RefreshCw, Search, Settings2, Plus, AlertTriangle, CheckCircle2, XCircle,
+  Globe, RefreshCw, Search, Settings2, Plus, AlertTriangle, CheckCircle2, XCircle, BarChart3, ChevronDown, MousePointer2, Activity, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-
-interface Sito {
-  id: string; nome: string; dominio: string;
-  ga4_property_id: string | null; gsc_site_url: string | null;
-  attivo: boolean; ultimo_sync: string | null; ultimo_errore: string | null;
-  /** Ultimo giorno per cui ci sono numeri, di qualunque fonte. */
-  ultimo_dato: string | null;
-  utenti: number; sessioni: number; visualizzazioni: number;
-  /** Durata di una visita, pesata sulle visite di ogni giorno. */
-  durata_media_s: number | null;
-  sessioni_prima: number; visualizzazioni_prima: number;
-  impressioni: number; clic: number;
-  /** Pesata sulle impressioni, come la calcola Google. */
-  posizione_media: number | null;
-  clic_prima: number; ctr_pct: number | null; pagine_viste_da_google: number;
-}
-
-interface Metriche {
-  giorni: number; siti: Sito[]; calcolato_il: string;
-  /** Nel Vault, oppure provata da una raccolta riuscita su un sito collegato. */
-  chiave_google: boolean;
-  /** Siti attivi con almeno un ID fra GA4 e Search Console. */
-  siti_collegati: number;
-  ultimo_dato: string | null;
-  configurato: boolean;
-}
+import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
+import { dominioSito, PERIODI_TRAFFICO, periodoTraffico, useSitiGoogleMetriche, type SitoGoogle as Sito } from "@/hooks/useSitiGoogleMetriche";
 
 interface Scoperta {
   ok: boolean; configurato?: boolean; messaggio?: string; account?: string;
@@ -69,8 +35,6 @@ interface EsitoSincronizzazione {
   ok: boolean; configurato?: boolean; messaggio?: string; error?: string;
   siti?: Array<{ sito: string; giorni_metriche: number; righe_pagine: number; errore: string | null }>;
 }
-
-const PERIODI = [7, 28, 90];
 
 function crescita(ora: number, prima: number): string | null {
   if (!prima) return null;
@@ -111,14 +75,15 @@ function percorsoLeggibile(indirizzo: string, dominio: string): string {
 function oraRaccolta(): string {
   const d = new Date();
   d.setUTCHours(5, 35, 0, 0);
-  return format(d, "HH:mm");
+  return orarioItalia.format(d);
 }
+const orarioItalia = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
 
 /**
  * Cosa dire dopo «Sincronizza». Prima era sempre «Sincronizzazione
  * completata», anche quando la funzione rispondeva che non poteva partire.
  */
-function esitoSincronizzazione(r: EsitoSincronizzazione): { tipo: "success" | "warning" | "error"; testo: string } {
+function esitoSincronizzazione(r: EsitoSincronizzazione, collegati: number): { tipo: "success" | "warning" | "error"; testo: string } {
   if (r.configurato === false) {
     return { tipo: "warning", testo: "Nessun dato scaricato: manca la chiave Google (istruzioni in alto)" };
   }
@@ -133,7 +98,9 @@ function esitoSincronizzazione(r: EsitoSincronizzazione): { tipo: "success" | "w
     };
   }
   if (!conDati.length) {
-    return { tipo: "warning", testo: "Nessun dato scaricato: nessun sito ha GA4 o Search Console collegati" };
+    return { tipo: "warning", testo: collegati
+      ? "Google non ha restituito dati per il periodo richiesto."
+      : "Nessun dato scaricato: nessun sito ha GA4 o Search Console collegati" };
   }
   return { tipo: "success", testo: `Dati scaricati per ${conDati.length} ${conDati.length === 1 ? "sito" : "siti"}` };
 }
@@ -155,31 +122,159 @@ function statoSito(s: Sito): string {
   return "mai raccolto";
 }
 
+const numero = new Intl.NumberFormat("it-IT");
+const ordineItaliano = new Intl.Collator("it-IT", { sensitivity: "base", numeric: true });
+
+const STATI = {
+  tutti: "Tutti gli stati",
+  operativi: "Operativi",
+  verifica: "Da verificare",
+  errori: "Con errori",
+  sospesi: "Sospesi",
+};
+
+const FONTI = {
+  tutte: "Tutte le fonti",
+  entrambe: "GA4 e Search Console",
+  ga4: "Solo GA4",
+  gsc: "Solo Search Console",
+  nessuna: "Nessuna fonte",
+};
+
+const ORDINAMENTI = {
+  nome: "Nome A–Z",
+  clic: "Clic da Google",
+  impressioni: "Impressioni",
+  visite: "Visite GA4",
+  viste: "Pagine viste",
+  recente: "Dato più recente",
+};
+
+function opzione<T extends Record<string, string>>(opzioni: T, valore: string | null, predefinita: keyof T & string): keyof T & string {
+  return valore && Object.hasOwn(opzioni, valore) ? valore as keyof T & string : predefinita;
+}
+
+function testoRicerca(valore: string) {
+  return valore.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+function necessitaVerifica(sito: Sito) {
+  return sito.attivo && (!sito.ga4_property_id || !sito.gsc_site_url || !sito.ultimo_dato || !!sito.ultimo_errore);
+}
+
+function fonteSito(sito: Sito): keyof typeof FONTI {
+  if (sito.ga4_property_id && sito.gsc_site_url) return "entrambe";
+  if (sito.ga4_property_id) return "ga4";
+  return sito.gsc_site_url ? "gsc" : "nessuna";
+}
+
+function verificaStato(sito: Sito, filtro: keyof typeof STATI) {
+  switch (filtro) {
+    case "operativi": return sito.attivo && !necessitaVerifica(sito);
+    case "verifica": return necessitaVerifica(sito);
+    case "errori": return !!sito.ultimo_errore;
+    case "sospesi": return !sito.attivo;
+    default: return true;
+  }
+}
+
+function valoreOrdine(sito: Sito, ordine: keyof typeof ORDINAMENTI) {
+  switch (ordine) {
+    case "clic": return sito.gsc_site_url ? sito.clic : -1;
+    case "impressioni": return sito.gsc_site_url ? sito.impressioni : -1;
+    case "visite": return sito.ga4_property_id ? sito.sessioni : -1;
+    case "viste": return sito.ga4_property_id ? sito.visualizzazioni : -1;
+    case "recente": return sito.ultimo_dato ? Date.parse(sito.ultimo_dato) : -1;
+    default: return 0;
+  }
+}
+
+function FiltroSiti({ label, value, options, onChange }: {
+  label: string; value: string; options: Record<string, string>; onChange: (value: string) => void;
+}) {
+  return (
+    <label className="min-w-0 text-xs font-medium text-muted-foreground">
+      {label}
+      <span className="relative mt-1 block">
+        <select value={value} onChange={event => onChange(event.target.value)}
+          className="h-9 w-full appearance-none truncate rounded-md border border-input bg-background pl-3 pr-7 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {Object.entries(options).map(([key, nome]) => <option key={key} value={key}>{nome}</option>)}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2" aria-hidden="true" />
+      </span>
+    </label>
+  );
+}
+
+function DatoSito({ titolo, valore, confronto }: { titolo: string; valore: number | null; confronto?: string | null }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-end gap-x-1.5">
+      <span className="font-semibold tabular-nums">{valore === null ? "—" : numero.format(valore)}</span>
+      {valore !== null && <span className="text-xs text-muted-foreground">{titolo}</span>}
+      {valore !== null && confronto && (
+        <span title="Variazione sul periodo precedente" className="text-[11px] tabular-nums text-muted-foreground">{confronto}</span>
+      )}
+    </div>
+  );
+}
+
 export default function SitiGooglePage() {
-  const [giorni, setGiorni] = useState(28);
+  const [parametri, setParametri] = useSearchParams();
+  const posizione = useLocation();
+  const navigazione = useNavigationType();
+  const ultimiParametri = useRef(parametri);
+  useEffect(() => {
+    if (navigazione === "POP" || posizione.state?.origine !== "siti-google") {
+      ultimiParametri.current = parametri;
+    }
+  }, [navigazione, parametri, posizione]);
+  const giorni = periodoTraffico(parametri.get("giorni"), 28);
   const [inModifica, setInModifica] = useState<Partial<Sito> | null>(null);
   const [scoperta, setScoperta] = useState<Scoperta | null>(null);
-  const [dettaglio, setDettaglio] = useState<string | null>(null);
+  const [ricercaProprieta, setRicercaProprieta] = useState("");
   const qc = useQueryClient();
 
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["admin-siti-metriche", giorni],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_siti_metriche" as never,
-        { p_giorni: giorni } as never);
-      if (error) throw error;
-      return data as unknown as Metriche;
-    },
-    staleTime: 60_000,
+  const { data, isLoading, isFetching, error, refetch } = useSitiGoogleMetriche(giorni);
+  const siti = data?.siti ?? [];
+  const ricercaSiti = parametri.get("q") ?? "";
+  const stato = opzione(STATI, parametri.get("stato"), "tutti");
+  const fonte = opzione(FONTI, parametri.get("fonte"), "tutte");
+  const ordine = opzione(ORDINAMENTI, parametri.get("ordine"), "nome");
+  const filtriAttivi = !!ricercaSiti || stato !== "tutti" || fonte !== "tutte" || ordine !== "nome";
+  const parole = testoRicerca(ricercaSiti.trim()).split(/\s+/).filter(Boolean);
+  const sitiVisibili = siti.filter(sito => {
+    const termine = testoRicerca(`${sito.nome} ${sito.dominio}`);
+    return parole.every(parola => termine.includes(parola))
+      && verificaStato(sito, stato)
+      && (fonte === "tutte" || fonteSito(sito) === fonte);
+  }).sort((a, b) => valoreOrdine(b, ordine) - valoreOrdine(a, ordine) || ordineItaliano.compare(a.nome, b.nome));
+  const dominioRichiesto = dominioSito(parametri.get("sito") ?? "");
+  const dettaglio = sitiVisibili.find(sito => dominioSito(sito.dominio) === dominioRichiesto)?.id;
+
+  // React Router legge la query renderizzata, anche quando due filtri cambiano nello stesso evento.
+  const aggiornaParametri = (modifica: (next: URLSearchParams) => void) => {
+    const next = new URLSearchParams(ultimiParametri.current);
+    modifica(next);
+    ultimiParametri.current = next;
+    setParametri(next, { replace: true, state: { origine: "siti-google" } });
+  };
+  const impostaParametro = (chiave: string, valore: string | null) => aggiornaParametri(next => {
+    if (valore === null) next.delete(chiave);
+    else next.set(chiave, valore);
+  });
+  const azzeraFiltri = () => aggiornaParametri(next => {
+    for (const chiave of ["q", "stato", "fonte", "ordine"]) next.delete(chiave);
   });
 
-  const { data: pagine, isFetching: caricaPagine } = useQuery({
+  const { data: pagine, isLoading: caricaPagine, isError: errorePagine, refetch: ricaricaPagine } = useQuery({
     queryKey: ["admin-sito-pagine", dettaglio, giorni],
     enabled: !!dettaglio,
+    retry: retryAuthorizedRead,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("admin_sito_pagine_google" as never,
         { p_sito_id: dettaglio, p_giorni: giorni } as never);
       if (error) throw error;
+      if (!data) throw new Error("Dettaglio Google non disponibile.");
       return data as unknown as {
         ricerca: Array<{ percorso: string; impressioni: number; clic: number; posizione: number | null; ctr_pct: number | null }>;
         visite: Array<{ percorso: string; visualizzazioni: number; utenti: number; durata_media_s: number | null }>;
@@ -202,6 +297,7 @@ export default function SitiGooglePage() {
       toast.success("Sito salvato");
       setInModifica(null);
       qc.invalidateQueries({ queryKey: ["admin-siti-metriche"] });
+      qc.invalidateQueries({ queryKey: ["admin-sito-pagine"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -214,25 +310,29 @@ export default function SitiGooglePage() {
         body: { azione, giorni: Math.max(28, giorni) },
       });
       if (error) throw new Error(await edgeErrorMessage(error, "La funzione non ha risposto"));
+      if (!data) throw new Error("Google non ha restituito un esito.");
       return { azione, risposta: data as Scoperta & EsitoSincronizzazione };
     },
     onSuccess: ({ azione, risposta }) => {
       if (azione === "scopri") {
         setScoperta(risposta);
+        setRicercaProprieta("");
         if (risposta.configurato === false) toast.warning("Manca la chiave Google: vedi le istruzioni in alto");
         return;
       }
-      const esito = esitoSincronizzazione(risposta);
+      const esito = esitoSincronizzazione(risposta, data?.siti_collegati ?? 0);
       toast[esito.tipo](esito.testo);
     },
     onError: (e) => toast.error((e as Error).message),
     // Anche quando va male i siti cambiano: la funzione scrive su ognuno perché è fermo.
-    onSettled: (_r, _e, azione) => {
-      if (azione === "sincronizza") qc.invalidateQueries({ queryKey: ["admin-siti-metriche"] });
+    onSettled: async (_r, _e, azione) => {
+      if (azione === "sincronizza") await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin-siti-metriche"] }),
+        qc.invalidateQueries({ queryKey: ["admin-sito-pagine"] }),
+      ]);
     },
   });
 
-  const siti = data?.siti ?? [];
   const tuttoPronto = !!data && data.chiave_google && data.siti_collegati > 0 && !!data.ultimo_dato;
   const ultimoTentativo = siti
     .map((s) => s.ultimo_sync)
@@ -240,37 +340,59 @@ export default function SitiGooglePage() {
     .sort()
     .at(-1);
   const inCorso = chiamaFunzione.isPending ? chiamaFunzione.variables : null;
+  const proprietaGa4 = (scoperta?.proprieta_ga4 ?? []).filter(p => /^\d+$/.test(p.id));
+  const proprietaGsc = (scoperta?.siti_search_console ?? []).filter(s => /^(sc-domain:|https?:\/\/)/i.test(s));
+  const cercaProprieta = ricercaProprieta.trim().toLowerCase();
+  const ga4Visibili = (scoperta?.proprieta_ga4 ?? []).filter(p =>
+    [p.nome, p.id, p.account].some(v => v?.toLowerCase().includes(cercaProprieta)));
+  const gscVisibili = (scoperta?.siti_search_console ?? []).filter(s => s.toLowerCase().includes(cercaProprieta));
+  const daVerificare = siti.filter(necessitaVerifica).length;
+  const totali = siti.reduce((tot, sito) => {
+    if (!sito.attivo || !sito.ultimo_dato) return tot;
+    if (sito.gsc_site_url) {
+      tot.clic += sito.clic;
+      tot.impressioni += sito.impressioni;
+    }
+    if (sito.ga4_property_id) {
+      tot.visite += sito.sessioni;
+      tot.viste += sito.visualizzazioni;
+    }
+    return tot;
+  }, { clic: 0, impressioni: 0, visite: 0, viste: 0 });
+  const configuraGsc = (proprieta: string) => {
+    const host = proprieta.match(/^(?:sc-domain:|https?:\/\/)([^/]+)/i)?.[1];
+    if (!host) return;
+    const esistente = siti.find(s => dominioSito(s.dominio) === dominioSito(host));
+    setInModifica(esistente ? { ...esistente, gsc_site_url: proprieta } : {
+      nome: dominioSito(host), dominio: host, gsc_site_url: proprieta, attivo: true,
+    });
+  };
 
   return (
-    <div className="p-3 md:p-6 space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="hidden md:flex items-center gap-3">
-          <Globe className="h-6 w-6 text-blue-500" />
-          <div>
-            <h1 className="text-xl font-semibold">Siti e Google</h1>
-            <p className="text-sm text-muted-foreground">
-              Quante volte Google ci mostra, quanti entrano, e su quali pagine
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 ml-auto">
-          {PERIODI.map((g) => (
-            <Button key={g} size="sm" variant={g === giorni ? "default" : "outline"}
-                    onClick={() => setGiorni(g)}>{g}g</Button>
+    <div className="min-w-0 max-w-[1600px] space-y-4">
+      <BrandPageHeader compact icon={Globe} title="Siti e Google"
+        subtitle="Raccolta delle metriche GA4 e Search Console per i siti del gruppo." />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-2.5">
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Periodo delle metriche Google">
+          {PERIODI_TRAFFICO.map(g => (
+            <Button key={g} size="sm" variant={g === giorni ? "secondary" : "ghost"} aria-pressed={g === giorni}
+              onClick={() => impostaParametro("giorni", String(g))}>{g} giorni</Button>
           ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button size="sm" variant="outline" onClick={() => chiamaFunzione.mutate("scopri")}
                   disabled={chiamaFunzione.isPending}>
             <Search className={`h-4 w-4 md:mr-1.5 ${inCorso === "scopri" ? "animate-pulse" : ""}`} />
-            <span className="hidden md:inline">Scopri proprietà</span>
+            <span className="ml-1.5 md:ml-0">{inCorso === "scopri" ? "Ricerca…" : "Scopri proprietà"}</span>
           </Button>
           <Button size="sm" variant="outline" onClick={() => chiamaFunzione.mutate("sincronizza")}
                   disabled={chiamaFunzione.isPending}>
             <RefreshCw className={`h-4 w-4 md:mr-1.5 ${inCorso === "sincronizza" ? "animate-spin" : ""}`} />
-            <span className="hidden md:inline">Sincronizza</span>
+            <span className="ml-1.5 md:ml-0">{inCorso === "sincronizza" ? "Sincronizzazione…" : "Sincronizza"}</span>
           </Button>
           <Button size="sm" onClick={() => setInModifica({ attivo: true })}>
             <Plus className="h-4 w-4 md:mr-1.5" />
-            <span className="hidden md:inline">Sito</span>
+            <span className="ml-1.5 md:ml-0">Aggiungi sito</span>
           </Button>
           <Button size="sm" variant="ghost" onClick={() => refetch()} disabled={isFetching}
                   aria-label="Ricarica">
@@ -280,16 +402,20 @@ export default function SitiGooglePage() {
       </div>
 
       {error && (
-        <Card><CardContent className="p-6">
-          <p className="text-sm text-destructive">Errore: {(error as Error).message}</p>
-        </CardContent></Card>
+        <Alert variant="destructive">
+          <AlertTriangle className="size-4" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            {data ? "Aggiornamento non riuscito. Sono mostrati gli ultimi dati disponibili." : "Impossibile caricare i siti e le metriche Google."}
+            <Button size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>Riprova</Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {data && !tuttoPronto && (
         <Card className="border-amber-500/40">
           <CardContent className="p-4 space-y-3">
             <p className="text-sm font-medium">
-              Il collegamento a Google non è completo: per questo qui non ci sono ancora numeri
+              Il collegamento a Google non è completo
             </p>
             <ul className="text-sm space-y-1">
               <Passo fatto={data.chiave_google}>
@@ -307,7 +433,9 @@ export default function SitiGooglePage() {
               </Passo>
             </ul>
             {!data.chiave_google && (
-              <ol className="text-sm text-muted-foreground list-decimal pl-5 space-y-1">
+              <details className="text-sm text-muted-foreground">
+                <summary className="cursor-pointer font-medium text-foreground">Configura l’accesso a Google</summary>
+                <ol className="mt-2 list-decimal space-y-1 pl-5">
                 <li>Nel progetto Google Cloud della piattaforma: abilitare <strong>Google Analytics Data API</strong>,
                     <strong> Google Analytics Admin API</strong> e <strong>Search Console API</strong></li>
                 <li>Creare un <strong>service account</strong> e scaricarne la chiave in formato JSON</li>
@@ -316,12 +444,13 @@ export default function SitiGooglePage() {
                 <li>In GA4 → Amministrazione → Gestione accessi: aggiungere l'email del service account
                     come <em>Visualizzatore</em></li>
                 <li>In Search Console → Impostazioni → Utenti: aggiungere la stessa email, per ogni sito</li>
-                <li>Premere <strong>Scopri proprietà</strong> e incollare gli identificativi nei siti (⚙)</li>
-              </ol>
+                <li>Premere <strong>Scopri proprietà</strong> e associare i siti.</li>
+                </ol>
+              </details>
             )}
             {data.chiave_google && data.siti_collegati === 0 && (
               <p className="text-sm text-muted-foreground">
-                Premi <strong>Scopri proprietà</strong>, poi apri ogni sito con ⚙ e incolla gli identificativi.
+                Premi <strong>Scopri proprietà</strong> per vedere i siti disponibili su Google e associarli.
               </p>
             )}
             {data.chiave_google && data.siti_collegati > 0 && !data.ultimo_dato && (
@@ -333,22 +462,37 @@ export default function SitiGooglePage() {
         </Card>
       )}
 
-      {scoperta && (
+      {scoperta && !inModifica && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">
-              Cosa vede il service account{scoperta.account ? ` (${scoperta.account})` : ""}
+              Proprietà disponibili su Google
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {scoperta.messaggio && <p className="text-amber-600">{scoperta.messaggio}</p>}
+            {scoperta.configurato === false ? (
+              <p className="text-amber-700 dark:text-amber-400">Configura l’account di servizio Google per trovare le proprietà accessibili.</p>
+            ) : scoperta.messaggio && (
+              <p className="text-amber-700 dark:text-amber-400">{scoperta.messaggio}</p>
+            )}
             {scoperta.error && <p className="text-destructive">{scoperta.error}</p>}
-            {!!scoperta.proprieta_ga4?.length && (
+            {scoperta.account && <p className="break-all text-xs text-muted-foreground">{scoperta.account}</p>}
+            {scoperta.ok && !proprietaGa4.length && !proprietaGsc.length && (
+              <p>Nessuna proprietà selezionabile con l’accesso configurato.</p>
+            )}
+            {(proprietaGa4.length > 0 || proprietaGsc.length > 0) && (
+              <Input aria-label="Cerca proprietà Google" placeholder="Cerca per dominio, nome o ID"
+                value={ricercaProprieta} onChange={e => setRicercaProprieta(e.target.value)} />
+            )}
+            {cercaProprieta && !ga4Visibili.length && !gscVisibili.length && (
+              <p className="text-muted-foreground">Nessuna proprietà corrispondente.</p>
+            )}
+            {ga4Visibili.length > 0 && (
               <div>
-                <p className="font-medium mb-1">Proprietà GA4</p>
-                <ul className="space-y-0.5">
-                  {scoperta.proprieta_ga4.map((p) => (
-                    <li key={p.id || p.nome} className="text-muted-foreground">
+                <p className="mb-1 font-medium">Proprietà GA4</p>
+                <ul className="max-h-44 space-y-0.5 overflow-y-auto">
+                  {ga4Visibili.map((p) => (
+                    <li key={p.id || p.nome} className="break-words text-muted-foreground">
                       <code className="text-xs bg-muted px-1 rounded">{p.id}</code> {p.nome}
                       {p.account && <span className="text-xs"> · {p.account}</span>}
                     </li>
@@ -356,15 +500,19 @@ export default function SitiGooglePage() {
                 </ul>
               </div>
             )}
-            {!!scoperta.siti_search_console?.length && (
+            {gscVisibili.length > 0 && (
               <div>
-                <p className="font-medium mb-1">Siti in Search Console</p>
-                <ul className="space-y-0.5">
-                  {scoperta.siti_search_console.map((s) => (
-                    <li key={s} className="text-muted-foreground">
-                      <code className="text-xs bg-muted px-1 rounded">{s}</code>
-                    </li>
-                  ))}
+                <p className="mb-1 font-medium">Proprietà Search Console</p>
+                <ul className="max-h-72 space-y-1 overflow-y-auto">
+                  {gscVisibili.map((s) => {
+                    const associato = siti.some(sito => sito.gsc_site_url === s);
+                    return <li key={s} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b py-1.5 last:border-0">
+                      <code className="break-all text-xs text-muted-foreground">{s}</code>
+                      {associato ? <Badge variant="secondary">Associato</Badge> : proprietaGsc.includes(s) && (
+                        <Button variant="outline" size="sm" onClick={() => configuraGsc(s)} aria-label={`Configura ${s}`}>Configura sito</Button>
+                      )}
+                    </li>;
+                  })}
                 </ul>
               </div>
             )}
@@ -374,107 +522,160 @@ export default function SitiGooglePage() {
       )}
 
       {isLoading && (
-        <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+        </div>
       )}
 
-      {!isLoading && (
+      {data && (
+        <section aria-label="Riepilogo dei siti del gruppo" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Card>
+            <CardContent className="p-3 sm:p-4">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Globe className="size-4 shrink-0" aria-hidden="true" /> Siti collegati</p>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.siti_collegati} <span className="text-sm font-normal text-muted-foreground">su {siti.length}</span></p>
+              <p className="text-xs text-muted-foreground">{data.ultimo_dato ? `Dati fino al ${giorno(data.ultimo_dato)}` : "Importazione in attesa"}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 sm:p-4">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><MousePointer2 className="size-4 shrink-0" aria-hidden="true" /> Clic da Google</p>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{totali.impressioni || totali.clic ? numero.format(totali.clic) : "—"}</p>
+              <p className="text-xs text-muted-foreground">{numero.format(totali.impressioni)} impressioni</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 sm:p-4">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Activity className="size-4 shrink-0" aria-hidden="true" /> Visite GA4</p>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{totali.visite || totali.viste ? numero.format(totali.visite) : "—"}</p>
+              <p className="text-xs text-muted-foreground">{numero.format(totali.viste)} pagine viste</p>
+            </CardContent>
+          </Card>
+          <Card className={stato === "verifica" ? "border-primary" : ""}>
+            <button type="button" aria-pressed={stato === "verifica"} aria-label="Mostra i siti da verificare"
+              onClick={() => impostaParametro("stato", stato === "verifica" ? null : "verifica")}
+              className="h-full w-full rounded-lg p-3 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><AlertTriangle className="size-4 shrink-0" aria-hidden="true" /> Da verificare</p>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums">{daVerificare}</p>
+              <p className="text-xs text-muted-foreground">{daVerificare ? "Errori o fonti da completare" : "Nessun sito attivo da verificare"}</p>
+            </button>
+          </Card>
+        </section>
+      )}
+
+      {data && (
         <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
+          <CardHeader className="space-y-3 p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Siti monitorati</CardTitle>
+                <p aria-live="polite" className="mt-1 text-xs text-muted-foreground">{sitiVisibili.length} di {siti.length} siti · Ultimi {giorni} giorni</p>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/admin/sito?giorni=${giorni}`}><BarChart3 className="size-4" /> Traffico sito</Link>
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(12rem,1.3fr)_repeat(3,minmax(8rem,1fr))_auto]">
+              <label className="col-span-2 min-w-0 text-xs font-medium text-muted-foreground sm:col-span-3 lg:col-span-1">
+                Cerca sito
+                <span className="relative mt-1 block">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2" aria-hidden="true" />
+                  <Input type="search" placeholder="Nome o dominio" className="h-9 pl-8"
+                    value={ricercaSiti} onChange={e => impostaParametro("q", e.target.value || null)} />
+                </span>
+              </label>
+              <FiltroSiti label="Stato" value={stato} options={STATI}
+                onChange={v => impostaParametro("stato", v === "tutti" ? null : v)} />
+              <FiltroSiti label="Fonti collegate" value={fonte} options={FONTI}
+                onChange={v => impostaParametro("fonte", v === "tutte" ? null : v)} />
+              <FiltroSiti label="Ordina per" value={ordine} options={ORDINAMENTI}
+                onChange={v => impostaParametro("ordine", v === "nome" ? null : v)} />
+              <Button type="button" size="sm" variant="ghost" onClick={azzeraFiltri} disabled={!filtriAttivi}
+                className="justify-self-end"><X className="size-4" /> Azzera</Button>
+            </div>
+          </CardHeader>
+          <CardContent className="overflow-x-auto border-t p-0">
+            <table className="w-full table-fixed text-sm">
+              <caption className="sr-only">Prestazioni per sito e fonte Google</caption>
+              <colgroup><col className="w-[44%] sm:w-[50%]" /><col /><col /><col className="w-10 sm:w-12" /></colgroup>
               <thead className="border-b bg-muted/40">
                 <tr className="text-left">
-                  <th className="p-2 font-medium">Sito</th>
-                  <th className="p-2 font-medium text-right" title="Search Console">Impressioni</th>
-                  <th className="p-2 font-medium text-right" title="Search Console">Clic</th>
-                  <th className="p-2 font-medium text-right hidden md:table-cell" title="Search Console">CTR</th>
-                  <th className="p-2 font-medium text-right hidden md:table-cell"
-                      title="Search Console, media pesata sulle impressioni">Posizione</th>
-                  <th className="p-2 font-medium text-right" title="GA4: sessioni">Visite</th>
-                  <th className="p-2 font-medium text-right hidden lg:table-cell" title="GA4">Pagine viste</th>
-                  <th className="p-2 font-medium text-right hidden lg:table-cell"
-                      title="GA4, media pesata sulle visite">Durata visita</th>
-                  <th className="p-2 font-medium text-right hidden xl:table-cell"
-                      title="Pagine che Google ha mostrato almeno una volta nel periodo">Pagine su Google</th>
-                  <th className="p-2 w-8"></th>
+                  <th scope="col" className="px-3 py-2 font-medium sm:px-4">Sito</th>
+                  <th scope="col" className="px-1 py-2 text-right font-medium sm:px-2">Search Console</th>
+                  <th scope="col" className="px-1 py-2 text-right font-medium sm:px-2">GA4</th>
+                  <th scope="col"><span className="sr-only">Azioni</span></th>
                 </tr>
               </thead>
               <tbody>
-                {siti.length === 0 && (
-                  <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">
-                    Nessun sito. Aggiungine uno con il pulsante «Sito».
+                {sitiVisibili.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center">
+                    <p className="font-medium">{siti.length ? "Nessun sito corrispondente" : "Nessun sito monitorato"}</p>
+                    {siti.length
+                      ? <Button size="sm" variant="link" onClick={azzeraFiltri}>Azzera i filtri</Button>
+                      : <p className="mt-1 text-sm text-muted-foreground">Usa «Scopri proprietà» o «Aggiungi sito».</p>}
                   </td></tr>
                 )}
-                {siti.map((s) => (
+                {sitiVisibili.map(s => (
                   <Fragment key={s.id}>
-                    <tr className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
-                        onClick={() => setDettaglio(dettaglio === s.id ? null : s.id)}>
-                      <td className="p-2">
-                        <span className="font-medium">{s.nome}</span>
-                        <span className="block text-[11px] text-muted-foreground">
-                          {s.dominio} · {statoSito(s)}
-                        </span>
-                        <span className="flex flex-wrap gap-1 mt-0.5">
-                          {!s.ga4_property_id && <Badge variant="outline" className="text-[10px]">GA4 da collegare</Badge>}
-                          {!s.gsc_site_url && <Badge variant="outline" className="text-[10px]">Search Console da collegare</Badge>}
-                          {!s.attivo && <Badge variant="secondary" className="text-[10px]">sospeso</Badge>}
-                          {s.ultimo_errore && (
-                            <Badge variant="destructive" className="text-[10px] gap-1">
-                              <AlertTriangle className="h-3 w-3" /> errore
-                            </Badge>
-                          )}
-                        </span>
+                    <tr className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="min-w-0 px-3 py-2.5 sm:px-4">
+                        <button type="button" className="inline-flex max-w-full items-start gap-1.5 text-left font-semibold hover:underline"
+                          aria-expanded={dettaglio === s.id}
+                          onClick={() => impostaParametro("sito", dettaglio === s.id ? null : dominioSito(s.dominio))}>
+                          <ChevronDown className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${dettaglio === s.id ? "" : "-rotate-90"}`} aria-hidden="true" />
+                          <span className="[overflow-wrap:anywhere]">{s.nome}</span>
+                        </button>
+                        <p className="block break-all text-xs text-muted-foreground">{s.dominio}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-[11px] text-muted-foreground">{statoSito(s)}</span>
+                          {!s.attivo && <Badge variant="secondary" className="text-[10px]">Sospeso</Badge>}
+                          {s.ultimo_errore
+                            ? <Badge variant="destructive" className="gap-1 text-[10px]"><AlertTriangle className="size-3" /> Errore</Badge>
+                            : s.attivo && (!s.ga4_property_id || !s.gsc_site_url) && <Badge variant="outline" className="text-[10px]">Fonti da completare</Badge>}
+                        </div>
                       </td>
-                      <td className="p-2 text-right tabular-nums">{s.impressioni.toLocaleString("it-IT")}</td>
-                      <td className="p-2 text-right tabular-nums">
-                        {s.clic.toLocaleString("it-IT")}
-                        {crescita(s.clic, s.clic_prima) && (
-                          <span className="block text-[10px] text-muted-foreground">
-                            {crescita(s.clic, s.clic_prima)}
-                          </span>
-                        )}
+                      <td className="px-1 py-2.5 text-right sm:px-2">
+                        <DatoSito titolo="clic" valore={s.gsc_site_url && s.ultimo_dato ? s.clic : null} confronto={crescita(s.clic, s.clic_prima)} />
+                        {s.gsc_site_url && s.ultimo_dato && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(s.impressioni)} impr.</p>}
+                        {s.posizione_media != null && <p className="hidden text-[11px] text-muted-foreground lg:block">Pos. {numero.format(s.posizione_media)}{s.ctr_pct != null && ` · CTR ${numero.format(s.ctr_pct)}%`}</p>}
                       </td>
-                      <td className="p-2 text-right tabular-nums hidden md:table-cell">
-                        {s.ctr_pct === null ? "—" : `${s.ctr_pct}%`}
+                      <td className="px-1 py-2.5 text-right sm:px-2">
+                        <DatoSito titolo="visite" valore={s.ga4_property_id && s.ultimo_dato ? s.sessioni : null} confronto={crescita(s.sessioni, s.sessioni_prima)} />
+                        {s.ga4_property_id && s.ultimo_dato && <p className="mt-0.5 text-xs text-muted-foreground">{numero.format(s.visualizzazioni)} viste</p>}
+                        {s.durata_media_s != null && <p className="hidden text-[11px] text-muted-foreground lg:block">{durata(s.durata_media_s)} a visita</p>}
                       </td>
-                      <td className="p-2 text-right tabular-nums hidden md:table-cell">
-                        {s.posizione_media === null ? "—" : s.posizione_media}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {s.sessioni.toLocaleString("it-IT")}
-                        {crescita(s.sessioni, s.sessioni_prima) && (
-                          <span className="block text-[10px] text-muted-foreground">
-                            {crescita(s.sessioni, s.sessioni_prima)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 text-right tabular-nums hidden lg:table-cell">
-                        {s.visualizzazioni.toLocaleString("it-IT")}
-                      </td>
-                      <td className="p-2 text-right tabular-nums hidden lg:table-cell">
-                        {durata(s.durata_media_s)}
-                      </td>
-                      <td className="p-2 text-right tabular-nums hidden xl:table-cell">
-                        {s.pagine_viste_da_google || "—"}
-                      </td>
-                      <td className="p-2 text-right">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Modifica ${s.nome}`}
-                                onClick={(e) => { e.stopPropagation(); setInModifica(s); }}>
-                          <Settings2 className="h-4 w-4" />
-                        </Button>
+                      <td className="p-1 text-center">
+                        <Button size="icon" variant="ghost" className="size-8" aria-label={`Modifica ${s.nome}`}
+                          onClick={() => setInModifica(s)}><Settings2 className="size-4" /></Button>
                       </td>
                     </tr>
                     {s.ultimo_errore && (
                       <tr className="border-b last:border-0">
-                        <td colSpan={10} className="px-2 pb-2 text-[11px] text-destructive">
+                        <td colSpan={4} className="px-3 pb-2 text-xs text-destructive [overflow-wrap:anywhere]">
                           {s.ultimo_errore}
                         </td>
                       </tr>
                     )}
                     {dettaglio === s.id && (
                       <tr className="border-b last:border-0 bg-muted/20">
-                        <td colSpan={10} className="p-3">
+                        <td colSpan={4} className="p-3 sm:p-4">
+                          <div className="mb-3 grid gap-2 rounded-md border bg-card p-3 text-xs sm:grid-cols-2">
+                            <div className="[overflow-wrap:anywhere]">
+                              <p className="font-medium">Search Console</p>
+                              <p className="text-muted-foreground">{s.gsc_site_url ?? "Proprietà da associare"}</p>
+                              {!!s.gsc_site_url && <p className="mt-1">CTR {s.ctr_pct == null ? "—" : `${numero.format(s.ctr_pct)}%`} · Pos. {s.posizione_media == null ? "—" : numero.format(s.posizione_media)} · {numero.format(s.pagine_viste_da_google)} pagine su Google</p>}
+                            </div>
+                            <div className="[overflow-wrap:anywhere]">
+                              <p className="font-medium">GA4</p>
+                              <p className="text-muted-foreground">{s.ga4_property_id ?? "Proprietà da associare"}</p>
+                              {!!s.ga4_property_id && s.durata_media_s != null && <p className="mt-1">Durata media della visita {durata(s.durata_media_s)}</p>}
+                            </div>
+                          </div>
                           {caricaPagine && <Skeleton className="h-24 w-full" />}
-                          {!caricaPagine && (
+                          {errorePagine && <div className="flex flex-wrap items-center gap-2 text-sm" role="alert">
+                            Impossibile aggiornare il dettaglio Google.
+                            <Button size="sm" variant="outline" onClick={() => void ricaricaPagine()}>Riprova dettaglio</Button>
+                          </div>}
+                          {((!caricaPagine && !errorePagine) || pagine) && (
                             <div className="grid gap-4 lg:grid-cols-2">
                               <div>
                                 <p className="text-xs font-medium mb-1">Pagine che Google mostra</p>
@@ -518,22 +719,14 @@ export default function SitiGooglePage() {
               </tbody>
             </table>
           </CardContent>
-          <CardContent className="pt-3">
-            <p className="text-[11px] text-muted-foreground">
-              <strong>Impressioni</strong> è quante volte Google ha mostrato il sito nei risultati,
-              <strong> clic</strong> quante volte l'hanno aperto. Molte impressioni e pochi clic è un
-              problema di titolo o di posizione; poche impressioni è un problema di indicizzazione, e
-              nessun lavoro sulla pagina lo risolve. Posizione e durata sono medie pesate, come in
-              Google. I dati di Search Console arrivano con due o tre giorni di ritardo.
-            </p>
-          </CardContent>
         </Card>
       )}
 
       <Dialog open={!!inModifica} onOpenChange={(o) => !o && setInModifica(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{inModifica?.id ? "Modifica sito" : "Nuovo sito"}</DialogTitle>
+            <DialogDescription>Associa le proprietà Google a questo dominio.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -547,13 +740,28 @@ export default function SitiGooglePage() {
                      onChange={(e) => setInModifica({ ...inModifica, dominio: e.target.value })} />
             </div>
             <div>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" disabled={chiamaFunzione.isPending} onClick={() => chiamaFunzione.mutate("scopri")}>
+                  <Search className="size-4" /> {inCorso === "scopri" ? "Ricerca…" : "Scopri proprietà"}
+                </Button>
+                {scoperta?.configurato === false && <span className="text-xs text-muted-foreground">Accesso Google da configurare.</span>}
+              </div>
               <Label htmlFor="ga4">Proprietà GA4</Label>
               <Input id="ga4" placeholder="123456789" value={inModifica?.ga4_property_id ?? ""}
                      onChange={(e) => setInModifica({ ...inModifica, ga4_property_id: e.target.value })} />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Solo il numero della proprietà. Non il codice «G-…»: quello è il tag che sta nel sito.
-                Lo trovi con «Scopri proprietà».
+                Usa l’ID numerico della proprietà GA4.
               </p>
+              {proprietaGa4.length > 0 && (
+                <Select value={proprietaGa4.some(p => p.id === inModifica?.ga4_property_id) ? inModifica?.ga4_property_id : ""}
+                  onValueChange={v => setInModifica(s => s && { ...s, ga4_property_id: v })}>
+                  <SelectTrigger aria-label="Scegli proprietà GA4" className="mt-2 min-w-0 [&>span]:truncate"><SelectValue placeholder="Scegli tra le proprietà visibili" /></SelectTrigger>
+                  <SelectContent>
+                    {proprietaGa4.map(p => <SelectItem key={p.id} value={p.id}>{p.nome || "GA4"} · {p.id}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              {scoperta?.proprieta_ga4?.filter(p => !p.id).map(p => <p key={p.nome} className="break-words text-xs text-destructive">{p.nome}</p>)}
             </div>
             <div>
               <Label htmlFor="gsc">Sito in Search Console</Label>
@@ -561,14 +769,32 @@ export default function SitiGooglePage() {
                      value={inModifica?.gsc_site_url ?? ""}
                      onChange={(e) => setInModifica({ ...inModifica, gsc_site_url: e.target.value })} />
               <p className="text-[11px] text-muted-foreground mt-1">
-                Copiato esattamente com'è in Search Console: la proprietà «dominio» e quella
-                «prefisso URL» sono due cose diverse e non si equivalgono.
+                Usa l’identificativo esatto mostrato in Search Console.
               </p>
+              {proprietaGsc.length > 0 && (
+                <Select value={proprietaGsc.includes(inModifica?.gsc_site_url ?? "") ? inModifica?.gsc_site_url ?? "" : ""}
+                  onValueChange={v => setInModifica(s => s && { ...s, gsc_site_url: v })}>
+                  <SelectTrigger aria-label="Scegli proprietà Search Console" className="mt-2 min-w-0 [&>span]:truncate"><SelectValue placeholder="Scegli tra i siti visibili" /></SelectTrigger>
+                  <SelectContent>
+                    {proprietaGsc.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              {scoperta?.siti_search_console?.filter(p => /^errore:/i.test(p)).map(p => <p key={p} className="break-words text-xs text-destructive">{p}</p>)}
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div>
+                <Label htmlFor="sito-google-attivo">Raccolta attiva</Label>
+                <p className="text-xs text-muted-foreground">Include il sito nelle sincronizzazioni Google.</p>
+              </div>
+              <Switch id="sito-google-attivo" checked={inModifica?.attivo ?? true}
+                onCheckedChange={attivo => setInModifica(s => s && { ...s, attivo })} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInModifica(null)}>Annulla</Button>
-            <Button onClick={() => inModifica && salva.mutate(inModifica)} disabled={salva.isPending}>
+            <Button onClick={() => inModifica && salva.mutate(inModifica)}
+              disabled={salva.isPending || !inModifica?.nome?.trim() || !inModifica?.dominio?.trim()}>
               Salva
             </Button>
           </DialogFooter>
@@ -580,7 +806,7 @@ export default function SitiGooglePage() {
           {ultimoTentativo
             ? `Ultima raccolta tentata ${format(new Date(ultimoTentativo), "dd/MM HH:mm")}`
             : "Nessuna raccolta registrata"}
-          {" · "}parte da sola ogni mattina alle {oraRaccolta()} e riscarica gli ultimi quattordici giorni
+          {" · "}Raccolta automatica alle {oraRaccolta()} (Roma) sugli ultimi 14 giorni.
         </p>
       )}
     </div>

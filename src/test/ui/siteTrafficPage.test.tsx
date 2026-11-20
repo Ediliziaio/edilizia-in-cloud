@@ -11,6 +11,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const traffico = {
@@ -46,10 +47,13 @@ const traffico = {
   calcolato_il: "2026-09-11T18:00:00+00:00",
 };
 
-const rpc = vi.fn(async () => ({ data: traffico, error: null }));
+const rpc = vi.fn(async (nome: string, _parametri: unknown) => ({
+  data: nome === "admin_siti_metriche" ? { siti: [], chiave_google: false } : traffico,
+  error: null,
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: (...args: unknown[]) => rpc(...(args as [])) },
+  supabase: { rpc: (...args: unknown[]) => rpc(args[0] as string, args[1]) },
 }));
 
 describe("SiteTrafficPage", () => {
@@ -82,7 +86,7 @@ describe("SiteTrafficPage", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <SiteTrafficPage />
+          <MemoryRouter><SiteTrafficPage /></MemoryRouter>
         </QueryClientProvider>,
       );
     });
@@ -108,21 +112,40 @@ describe("SiteTrafficPage", () => {
     expect(testo).not.toContain("3m 10s"); // 190 s di media: non deve comparire come valore
   });
 
-  it("mostra le richieste: quante, chi, da dove", async () => {
-    const testo = await rendi();
-    expect(testo).toContain("Visite diventate richieste");
-    expect(testo).toContain("0.9% delle visite ha scritto");
+  async function apriScheda(nome: string) {
+    const scheda = [...contenitore.querySelectorAll('[role="tab"]')]
+      .find(tab => tab.textContent === nome);
+    if (!scheda) throw new Error("Scheda non trovata");
+    await act(async () => { scheda.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 })); });
+    return contenitore.textContent ?? "";
+  }
+
+  it("mostra le richieste e mantiene il rapporto nel riepilogo", async () => {
+    await rendi();
+    const testo = await apriScheda("Richieste");
+    expect(testo).toContain("Richieste dal sito");
+    expect(testo).toContain("0,9 richieste ogni 100 visite");
     expect(testo).toContain("PATRICK ZANDONELLA");
     expect(testo).toContain("Nicole");
   });
 
   it("riconosce gli assistenti AI fra le fonti", async () => {
-    const testo = await rendi();
-    expect(testo).toContain("assistenti AI");
+    await rendi();
+    expect(await apriScheda("Fonti")).toContain("assistenti AI");
   });
 
-  it("dice «primo periodo misurato» quando non c'è confronto", async () => {
+  it("indica quando manca il confronto con il periodo precedente", async () => {
     const testo = await rendi();
-    expect(testo).toContain("primo periodo misurato");
+    expect(testo).toContain("Senza confronto con il periodo precedente");
+  });
+
+  it("passa il periodo selezionato al riepilogo Google e al link di dettaglio", async () => {
+    await rendi();
+    const periodo = [...contenitore.querySelectorAll("button")].find(b => b.textContent === "28 giorni");
+    await act(async () => periodo?.click());
+    await apriScheda("Dati Google");
+    expect(rpc).toHaveBeenCalledWith("admin_siti_metriche", { p_giorni: 28 });
+    expect([...contenitore.querySelectorAll("a")].map(a => a.getAttribute("href")))
+      .toContain("/admin/siti?giorni=28&sito=ediliziaincloud.com");
   });
 });
