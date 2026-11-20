@@ -47,8 +47,29 @@ describe("PDF del verbale", () => {
     const dati = testi.indexOf("Dati del collaudo");
     expect(dati).toBeGreaterThan(testi.indexOf("02 / Controlli effettuati"));
     expect(dati).toBeLessThan(testi.indexOf("03 / Esito e riserve"));
-    expect(testo).toContain("Pezzi controllati: 9");
+    expect(testi).toContain("Pezzi controllati");
+    expect(testi).toContain("9");
     expect(testo).not.toContain("riservato");
+  });
+  it("riporta i dati aziendali nel piè di pagina di ogni pagina", async () => {
+    const testiPerPagina = new Map<number, string[]>();
+    vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, t: string, o?: PDFPageDrawTextOptions) {
+      const numero = this.doc.getPages().indexOf(this);
+      testiPerPagina.set(numero, [...(testiPerPagina.get(numero) ?? []), t]);
+      vero.call(this, t, o);
+    });
+    const { pages } = await renderAcceptance(
+      { ...emptyAcceptance("2026-11-02"), notes: "Testo lungo ".repeat(800) },
+      { ...contesto, companyAddress: "Via Revedole 78/B", companyVat: "01941970939", companyEmail: "commerciale@renovasolution.it" },
+    );
+    expect(pages).toBeGreaterThan(1);
+    for (let i = 0; i < pages; i++) {
+      const testo = testiPerPagina.get(i)?.join(" ") ?? "";
+      expect(testo).toContain("Azienda");
+      expect(testo).toContain("Via Revedole 78/B");
+      expect(testo).toContain("01941970939");
+      expect(testo).toContain("commerciale@renovasolution.it");
+    }
   });
   it("il titolo della firma sta sempre sulla stessa pagina della firma", async () => {
     for (let righe = 0; righe < 60; righe += 2) {
