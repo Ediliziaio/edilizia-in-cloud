@@ -207,7 +207,9 @@ jobs:
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/cassaInCloud.test.ts
+          src/test/logic/cassaInCloudChiusure.test.ts
           src/test/ui/cassaInCloud.test.tsx
+          src/test/ui/cassaInCloudContabilita.test.tsx
 
   frontend-build:
     name: Frontend production build
@@ -808,6 +810,16 @@ jobs:
       - name: Run order PDF type boundary regressions
         if: matrix.group == 'worksite'
         run: bunx vitest run --maxWorkers=1 src/test/logic/ordinePdfTypeBoundary.test.tsx
+
+      - name: Appalto original contracts, large files and parent/application navigation
+        if: matrix.group == 'worksite'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/contrattoAppaltoOriginale.test.ts
+          src/test/ui/contrattoAppaltoOriginale.test.tsx
+          src/test/ui/generaleImpostazioneSemplice.test.tsx
+          src/test/ui/commesseGenerali.test.tsx
+          src/test/ui/generaleDocumentiScheda.test.tsx
 
       - name: Run typed quote, task and catalogue data regressions
         if: matrix.group == 'access'

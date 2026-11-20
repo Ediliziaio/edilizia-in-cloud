@@ -27,6 +27,8 @@ vi.mock("@/hooks/useQuoteCostiComuni", () => ({ useQuoteCostiComuni: () => m.quo
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: (): { piano: null } => ({ piano: null }) }));
 vi.mock("@/hooks/useGeneraleContratto", () => ({ useDatiContratto: () => ({ data: m.contratto }) }));
+// Il documento originale ha i suoi test in contrattoAppaltoOriginale.test.tsx.
+vi.mock("@/components/orders/generali/contratto/DocumentoContrattoAppalto", () => ({ DocumentoContrattoAppalto: (): null => null }));
 vi.mock("@/components/orders/generali/PerPartire", () => ({ PerPartire: (): ReactElement => <p>Per partire</p> }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: m.canEditOrders, isLoading: false }) }));
@@ -167,7 +169,8 @@ describe("la pagina della commessa generale", () => {
     expect(screen.getByText(/1120 €\/m²/)).toBeVisible();
   });
 
-  it("senza superficie la si scrive da lì, e nessun importo è diviso per i metri", () => {
+  it("nell'operazione immobiliare senza superficie la si scrive da lì", () => {
+    m.riepilogo!.generale.modello = "sviluppo";
     m.unita = { unita: [] };
     disegna();
     expect(screen.getByText(/Per i €\/m² serve la superficie vendibile/)).toBeVisible();
@@ -178,6 +181,14 @@ describe("la pagina della commessa generale", () => {
     fireEvent.change(screen.getByLabelText(/Superficie vendibile in metri quadri/), { target: { value: "1.250" } });
     fireEvent.click(screen.getByRole("button", { name: /Salva la superficie/ }));
     expect(m.salvaDati).toHaveBeenCalledWith({ area: { mq_vendibili: 1250 } }, expect.anything());
+  });
+
+  it("l'appalto non chiede superficie vendibile e distingue il valore principale dai lavori collegati", () => {
+    m.riepilogo!.generale.valore = null;
+    disegna();
+    expect(screen.queryByText(/Per i €\/m² serve la superficie vendibile/)).not.toBeInTheDocument();
+    expect(screen.getByText("Importo dei lavori collegati")).toBeVisible();
+    expect(screen.getByText("Valore del contratto principale non indicato")).toBeVisible();
   });
 
   it("generale vuota: il prossimo passo, non una tabella di zeri", () => {

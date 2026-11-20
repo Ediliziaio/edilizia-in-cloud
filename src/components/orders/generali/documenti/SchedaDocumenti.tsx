@@ -56,6 +56,7 @@ import {
   type ConteggiDocumenti,
 } from "@/lib/orders/generali/documenti";
 import { cn } from "@/lib/utils";
+import { DocumentoContrattoAppalto } from "../contratto/DocumentoContrattoAppalto";
 
 export function SchedaDocumenti({ riepilogo: r, puoModificare }: PropsScheda) {
   const [parametri, setParametri] = useSearchParams();
@@ -148,6 +149,7 @@ export function SchedaDocumenti({ riepilogo: r, puoModificare }: PropsScheda) {
   const filtrata = filtro !== "tutti" || !!cerca.trim();
   return (
     <div className="generale-sheet generale-documenti space-y-4">
+      <DocumentoContrattoAppalto riepilogo={r} puoModificare={puoModificare && !isMobile} />
       <IntestazioneScheda
         icona={FolderOpen}
         titolo="Archivio e scadenze"

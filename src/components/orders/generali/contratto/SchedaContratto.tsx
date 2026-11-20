@@ -25,6 +25,7 @@ import { MisureOrdini } from "./MisureOrdini";
 import { FattureContratto, SalContratto } from "./SalContratto";
 import { NumeroCheSiApre, ProssimoPasso, type RigaOrigine } from "./campi";
 import { dataIt, euro, percentoIt } from "./formato";
+import { DocumentoContrattoAppalto } from "./DocumentoContrattoAppalto";
 
 type Sezione = typeof SEZIONI_CONTRATTO[number];
 
@@ -99,6 +100,7 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
         </TabsList>
 
         <TabsContent value="contratto" className="mt-4 space-y-4">
+          <DocumentoContrattoAppalto riepilogo={riepilogo} puoModificare={modifiche} />
           {dati.contratto && <RiepilogoDati dati={dati} onModifica={modifiche ? () => setModifica(true) : undefined} />}
           <AttiAggiuntivi generaleId={generaleId} atti={dati.atti} puoModificare={modifiche && !!dati.contratto} />
           <Garanzie generaleId={generaleId} garanzie={dati.garanzie} puoModificare={modifiche} />

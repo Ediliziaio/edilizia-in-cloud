@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 
 const dataValida = (v: string) => v === "" || /^(19|20)\d\d-\d\d-\d\d$/.test(v);
 
-export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModificare }: {
+export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModificare, nascondiIntestazione = false }: {
   casella: CasellaDocumento;
   generaleId: string;
   /** La commessa su cui sta la voce, se è una figlia («ODL 12 · Via Roma»). */
@@ -29,6 +29,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
   /** L'archivio della commessa su cui sta la voce. */
   allegati: readonly AllegatoCommessa[];
   puoModificare: boolean;
+  nascondiIntestazione?: boolean;
 }) {
   const azione = useAzioneDocumento(generaleId);
   const carica = useCaricaDocumentoVoce(generaleId);
@@ -71,11 +72,11 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
 
   return (
     <div className="space-y-3 text-sm">
-      <div className="space-y-0.5">
+      {!nascondiIntestazione && <div className="space-y-0.5">
         <p className="flex items-center gap-1.5 font-medium leading-tight"><IconaStato c={c} /> {voce.nome}</p>
         <p className={cn("text-xs", COLORE_TONO[tonoCasella(c)])}>{[dove, testoCasella(c)].filter(Boolean).join(" · ")}</p>
         {voce.aiuto && <p className="text-xs text-muted-foreground">{voce.aiuto}</p>}
-      </div>
+      </div>}
 
       {c.documenti.length > 0 && (
         <ul className="space-y-2">
@@ -100,7 +101,7 @@ export function PannelloVoce({ casella: c, generaleId, dove, allegati, puoModifi
               />
             </div>
           )}
-          <input ref={fileRef} type="file" multiple accept={ACCEPT_INPUT} className="hidden" onChange={(e) => void caricaFile(e.target.files)} />
+          <input ref={fileRef} type="file" multiple accept={ACCEPT_INPUT} aria-label={`Carica file per ${voce.nome}`} className="hidden" onChange={(e) => void caricaFile(e.target.files)} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => fileRef.current?.click()} disabled={occupato}>
               {carica.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}

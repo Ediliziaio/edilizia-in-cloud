@@ -3,7 +3,7 @@
 // e per passare alle commesse sorelle (precedente, successiva, oppure una qualsiasi dall'elenco).
 // Se la commessa non è dentro una generale, o la lettura fallisce, non mostra niente.
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight, Layers } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, FileText, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeneraleDellaCommessa, useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
@@ -50,6 +50,7 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
             {formattaEuro(figlia!.importo!)} · {Math.round(sulValore)}% di {formattaEuro(valore!)}
           </span>
         )}
+        {g.modello === "appalto" && r?.permessi.importi && <Link to={`/azienda/ordini/${g.id}?scheda=contratto`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-primary hover:bg-muted"><FileText className="h-3.5 w-3.5" aria-hidden="true" />Contratto della commessa principale</Link>}
 
         {g.sorelle.length > 1 && indice >= 0 && (
           <div className="ml-auto flex items-center gap-1">

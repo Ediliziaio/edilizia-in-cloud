@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ARCHIVIO_CASSA, chiaveQueryCassa, invocaCassa, useCollegamentiCassa } from "@/lib/cassaInCloud";
 import type { CollegamentoCassa, PuntoVenditaCassa } from "../../../../shared/cassaInCloud";
+import { CassaInCloudAuto } from "./CassaInCloudAuto";
 
 function ConfiguraCassa({ companyId }: { companyId: string }) {
   const permessi = usePermissions();
@@ -27,8 +28,10 @@ function ConfiguraCassa({ companyId }: { companyId: string }) {
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [daScollegare, setDaScollegare] = useState<CollegamentoCassa | null>(null);
+  const [puntoAuto, setPuntoAuto] = useState<string | null>(null);
   const punto = punti?.find((p) => p.id === puntoId && p.compatibile);
   const esistente = collegamenti.data?.some((p) => p.punto_vendita_id === puntoId);
+  const configAuto = collegamenti.data?.find((p) => p.punto_vendita_id === puntoAuto);
 
   async function avvia(operazione: () => Promise<void>) {
     if (occupato || !puoGestire) return;
@@ -107,8 +110,15 @@ function ConfiguraCassa({ companyId }: { companyId: string }) {
                   <div className="text-xs text-muted-foreground">
                     {p.ultimo_import ? `Ultimo import ${new Date(p.ultimo_import).toLocaleString("it-IT", { timeZone: "Europe/Rome" })}` : "In attesa del primo import"}
                   </div>
+                  {p.sync_attivo && <div className="text-xs text-muted-foreground">
+                    {p.ultimo_sync ? `Sincronizzato ${new Date(p.ultimo_sync).toLocaleString("it-IT", { timeZone: "Europe/Rome" })}` : "Sincronizzazione attiva"}
+                  </div>}
+                  {p.sync_attivo && p.errore_sync && <div role="alert" className="text-xs text-destructive">{p.errore_sync}</div>}
                 </div>
-                {puoGestire && <Button size="sm" variant="ghost" disabled={occupato} onClick={() => setDaScollegare(p)}>Scollega</Button>}
+                {puoGestire && <div className="flex flex-wrap items-center gap-1">
+                  <Button size="sm" variant="outline" disabled={occupato} onClick={() => setPuntoAuto(p.punto_vendita_id)}>Sincronizzazione</Button>
+                  <Button size="sm" variant="ghost" disabled={occupato} onClick={() => setDaScollegare(p)}>Scollega</Button>
+                </div>}
               </li>
             ))}
           </ul>
@@ -161,6 +171,7 @@ function ConfiguraCassa({ companyId }: { companyId: string }) {
         {occupato && <p role="status" className="text-sm text-muted-foreground">Operazione in corso…</p>}
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
       </CardContent>
+      {puoGestire && configAuto && <CassaInCloudAuto companyId={companyId} punto={configAuto} onClose={() => setPuntoAuto(null)} />}
       <AlertDialog open={!!daScollegare} onOpenChange={(open) => { if (!open) setDaScollegare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
