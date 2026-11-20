@@ -7,7 +7,7 @@ import { RegoleContoFornitore } from "@/components/costi/RegoleContoFornitore";
 const stato = vi.hoisted(() => ({
   regola: null as { company_id: string; fornitore_id: string; categoria_id: string } | null,
   errorePiano: false,
-  inserisci: vi.fn(), aggiorna: vi.fn(), exportCsv: vi.fn(),
+  inserisci: vi.fn(), aggiorna: vi.fn(), exportCsv: vi.fn(), contiene: vi.fn(),
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true, canViewBilling: true, solaLettura: false }) }));
 vi.mock("@/lib/csvExport", async (importOriginal) => {
@@ -27,7 +27,8 @@ vi.mock("@/integrations/supabase/client", () => {
       const q = {
         select: () => q,
         eq: (campo: string, valore: string) => { filtri.set(campo, valore); return q; },
-        neq: () => q, is: () => q, not: () => q, contains: () => q, order: () => q,
+        neq: () => q, is: () => q, not: () => q, order: () => q,
+        contains: (colonna: string, valore: unknown) => { stato.contiene(colonna, valore); return q; },
         range: async (): Promise<{ data: unknown[] | null; error: Error | null }> => {
           if (tabella === "fatture_ricevute" && stato.errorePiano) {
             return { data: null, error: new Error("Piano non disponibile") };
@@ -79,7 +80,14 @@ vi.mock("@/integrations/supabase/client", () => {
   };
   return { supabase: { from, rpc: from } };
 });
-beforeEach(() => { stato.regola = null; stato.errorePiano = false; stato.inserisci.mockClear(); stato.aggiorna.mockClear(); stato.exportCsv.mockClear(); });
+beforeEach(() => {
+  stato.regola = null;
+  stato.errorePiano = false;
+  stato.inserisci.mockClear();
+  stato.aggiorna.mockClear();
+  stato.exportCsv.mockClear();
+  stato.contiene.mockClear();
+});
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 describe("Scadenzario rate e conti predefiniti", () => {
@@ -92,6 +100,7 @@ describe("Scadenzario rate e conti predefiniti", () => {
     fireEvent.click(screen.getByRole("button", { name: "Solo Ri.Ba." }));
     const seconda = await screen.findByRole("row", { name: /F-2/ });
     expect(seconda).toHaveTextContent("da contabilizzare");
+    expect(stato.contiene).toHaveBeenCalledWith("piano_pagamento", '[{"modalita":"MP12"}]');
     expect(within(seconda).queryByRole("button", { name: "Segna pagata" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
     expect(stato.exportCsv.mock.calls[0]?.[0]).toMatchObject([

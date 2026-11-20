@@ -44,7 +44,8 @@ export function RateFornitori({ companyId, anno, cerca }: { companyId: string; a
     queryFn: () => tutteLePagine((from, to) => supabase.from("fatture_ricevute")
       .select("id, numero_fattura, cedente_ragione_sociale, tipo_documento, piano_pagamento, pagata_il")
       .eq("company_id", companyId).is("company_cost_id", null).not("stato", "in", "(annullata,scartata,rifiutata,contabilizzata)")
-      .contains("piano_pagamento", [{ modalita: "MP12" }]).order("id").range(from, to)),
+      // Il filtro di contenimento JSONB richiede un valore JSON serializzato.
+      .contains("piano_pagamento", JSON.stringify([{ modalita: "MP12" }])).order("id").range(from, to)),
   });
   const includeNonContabilizzate = soloRiba && permessi.canViewBilling;
   const inCaricamento = rate.isLoading || (soloRiba && permessi.isLoading) || (includeNonContabilizzate && daContabilizzare.isLoading);
