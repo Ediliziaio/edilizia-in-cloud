@@ -31,6 +31,7 @@ interface Props {
   voci: VocePrevista[];
   affidamenti: AffidamentoChiFaCosa[];
   inRicarica?: boolean;
+  contrattoAperto?: string;
 }
 const dataIt = (data: string) => data.includes("T")
   ? new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome" }).format(new Date(data))
@@ -40,21 +41,26 @@ const statoSal = { ricevuto: "Da verificare", verificato: "Approvato", pagato: "
 export function ContrattiSubappaltoCommessa(props: Props) {
   const p = usePermissions();
   if (!p.canViewCosts || !puoConsultareSalSub(p)) return null;
+  const attivo = props.dati.contratti.find((c) => c.id === props.contrattoAperto);
+  const contratti = attivo ? [attivo, ...props.dati.contratti.filter((c) => c.id !== attivo.id)] : props.dati.contratti;
   return <section className="space-y-2" aria-label="Contratti e avanzamento del subappalto">
     <div>
       <h4 className="text-sm font-semibold">Contratti, varianti e SAL</h4>
       <p className="text-xs text-muted-foreground">Tutti i contratti della commessa. Gli importi riguardano l’intero contratto e sono IVA esclusa.</p>
     </div>
     {!props.dati.contratti.length && <p className="text-sm text-muted-foreground">Dopo la conferma dei costi trovi qui il computo della ditta, le varianti e i SAL.</p>}
-    {props.dati.contratti.map((c) => <Contratto key={c.id} {...props} contratto={c} />)}
+    {props.contrattoAperto && !attivo && (props.inRicarica
+      ? <p role="status" className="text-sm text-muted-foreground">Carico il contratto collegato…</p>
+      : <p role="alert" className="text-sm text-muted-foreground">Il contratto collegato non è disponibile tra i contratti della commessa.</p>)}
+    {contratti.map((c) => <Contratto key={c.id} {...props} contratto={c} />)}
   </section>;
 }
 
-function Contratto({ companyId, orderId, dati, voci, affidamenti, inRicarica, contratto: c }: Props & { contratto: ContrattoFlusso }) {
+function Contratto({ companyId, orderId, dati, voci, affidamenti, inRicarica, contrattoAperto, contratto: c }: Props & { contratto: ContrattoFlusso }) {
   const p = usePermissions();
   const qc = useQueryClient();
   const { effectiveCompany: azienda } = useAuth();
-  const [aperto, setAperto] = useState(false);
+  const [aperto, setAperto] = useState(c.id === contrattoAperto);
   const dettaglio = useDettaglioSubappaltoCommessa(companyId, orderId, c.id, aperto && p.canViewCosts && puoConsultareSalSub(p));
   const [computo, setComputo] = useState<"corrente" | "originale">();
   const [scheda, setScheda] = useState<string>();

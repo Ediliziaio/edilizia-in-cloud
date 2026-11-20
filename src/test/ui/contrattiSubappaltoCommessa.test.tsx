@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -46,6 +47,11 @@ it("mostra un contratto anche senza squadra esterna e legge i dettagli solo all'
   const iniziale = screen.getByText("Importo iniziale").parentElement!;
   expect(within(iniziale).getByText("1.100,00 €")).toBeVisible();
   expect(screen.getByText("Costo attuale").parentElement).toHaveTextContent("1.300,00 €");
+});
+it("dalla richiesta apre direttamente il contratto collegato", () => {
+  disegna({ ...props, contrattoAperto: "c" });
+  expect(screen.getByRole("button", { name: /Alfa · ORD-12\/S01/ })).toHaveAttribute("aria-expanded", "true");
+  expect(m.dettaglio).toHaveBeenCalledWith("az", "ord", "c", true);
 });
 it("apre il computo corrente con quantità variata e mantiene distinto l'originale firmato", async () => {
   disegna(); apri(); fireEvent.click(screen.getByRole("button", { name: /Computo aggiornato/ }));

@@ -3,7 +3,7 @@ import { usePrevisionaleCantiereLocale } from "@/hooks/usePrevisionaleCantiereLo
 import { chiavePrevisto, destinazionePrevisto, riepilogaPrevisioni, type DestinazionePrevisto } from "@/lib/orders/previsionaleSalvato";
 import { OrganizzaLavoroDialog, type AperturaLavoro, type SezioneLavoro } from "./OrganizzaLavoroDialog";
 import { PianificaAssegnazione, type PassaggioPiano, type PianoAssegnazione } from "./PianificaAssegnazione";
-import { SubappaltoLavorazioni } from "./SubappaltoLavorazioni";
+import { SubappaltoLavorazioni, type AperturaSubappalto } from "./SubappaltoLavorazioni";
 import { INTERA_COMMESSA, type AmbitoLavoro } from "@/lib/orders/previsionaleLavoro";
 import { righeDistinta } from "@/lib/orders/distintaLavorazioni";
 import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
@@ -826,7 +826,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const risorseFase = fase ? mezziPerFase.get(fase.id) ?? [] : [];
     const mezziSulCantiere = mezziLavoro?.sul_cantiere ?? [];
     const montaggi = mezziLavoro?.montati ?? [];
-    const vaiA = (sezione: SezioneLavoro) => setOrganizza({ ...organizza, sezione });
+    const vaiA = (sezione: SezioneLavoro, subappalto?: AperturaSubappalto) => setOrganizza({ ...organizza, sezione, subappalto });
     const collegamenti = fase && (
       <section className="space-y-2 rounded-lg border bg-slate-50/70 p-3" aria-label="Collegamenti della lavorazione">
         <h4 className="text-sm font-semibold">Risorse collegate</h4>
@@ -853,15 +853,18 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
       </section>
     );
     const riepilogoSubappalto = puoSubappaltare && sezione === "sottofasi" && attiva &&
-      <SubappaltoLavorazioni orderId={orderId} companyId={effectiveCompany!.id} ambiti={[attiva]} albero={albero} apri={() => vaiA("subappalto")} />;
+      <SubappaltoLavorazioni orderId={orderId} companyId={effectiveCompany!.id} ambiti={[attiva]} albero={albero} apri={() => vaiA("subappalto", "lavorazioni")} />;
     const advanced = avanzate && (puoModificare || puoSquadre) && !voce;
     return (
       <OrganizzaLavoroDialog key={`${effectiveCompany?.id}:${orderId}`} apertura={{ ...organizza, sezione }} albero={albero}
         sezioni={sezioni} occupato={occupato} onChiudi={chiudiOrganizza}
-        onCambio={(a) => { if (a.attiva !== organizza.attiva || a.sezione !== sezione || a.ids !== organizza.ids) setAvanzate(false); setOrganizza(a); }}>
+        onCambio={(a) => {
+          if (a.attiva !== organizza.attiva || a.sezione !== sezione || a.ids !== organizza.ids) setAvanzate(false);
+          setOrganizza({ ...a, subappalto: undefined });
+        }}>
         {sezione === "subappalto" && puoSubappaltare && (
-          <SubappaltoLavorazioni key={organizza.ids.join("|")} orderId={orderId} companyId={effectiveCompany!.id}
-            ambiti={bersagli} albero={albero} onOccupato={setOccupato} />
+          <SubappaltoLavorazioni orderId={orderId} companyId={effectiveCompany!.id}
+            ambiti={bersagli} albero={albero} apertura={organizza.subappalto} onOccupato={setOccupato} />
         )}
         {sezione === "previsionale" && fase && <div className="space-y-4">
           {previsioneSalvata.fasi.has(fase.id) && <div className="rounded-lg border bg-background px-4 py-3 text-sm" aria-label="Costo previsto della fase">
@@ -906,10 +909,18 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               <Building2 className="size-4 shrink-0" aria-hidden="true" />Ditte e subappaltatori
             </Button>
           </div>}
+          {assegnaDitta && puoSubappaltare && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <p className="text-sm">{bersagli.length ? "La richiesta riprende le lavorazioni selezionate." : "Seleziona almeno una lavorazione per chiedere un preventivo."}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="ghost" disabled={occupato} onClick={() => vaiA("subappalto")}>Vedi richieste</Button>
+              <Button size="sm" disabled={occupato || !bersagli.length} onClick={() => vaiA("subappalto", "nuova-richiesta")}>Richiedi preventivo</Button>
+            </div>
+          </div>}
           {assegnaDitta && <section className="space-y-3 rounded-xl border bg-background p-3" aria-label="Assegna una ditta">
+            <h4 className="text-sm font-semibold">Assegna una ditta già scelta</h4>
             {voce ? <>
-              <p className="text-sm text-muted-foreground">Per affidare questa voce indica le quantità nel subappalto. Per assegnare la ditta all’intera fase, seleziona la fase nell’elenco.</p>
-              {puoSubappaltare && <Button size="sm" variant="outline" onClick={() => vaiA("subappalto")}>Subappalto della voce</Button>}
+              <p className="text-sm text-muted-foreground">Indica le quantità da affidare nel subappalto della voce.</p>
+              {puoSubappaltare && <Button size="sm" variant="outline" disabled={occupato} onClick={() => vaiA("subappalto", "lavorazioni")}>Apri affidamento della voce</Button>}
             </> : bersagli.length !== 1 || bersagli[0].id !== attiva?.id ? (
               <p className="text-sm text-muted-foreground">Scegli una fase o l’intera commessa dall’elenco per assegnarle una ditta.</p>
             ) : <AddAssignmentDialog key={`ditta:${organizza.attiva}`} orderId={orderId} phaseId={fase?.id ?? null} incorporato soloDitta aperto
