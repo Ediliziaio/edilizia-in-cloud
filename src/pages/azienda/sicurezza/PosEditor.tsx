@@ -1,3 +1,5 @@
+import type { ContestoLetturaPsc } from "@/components/sicurezza/pos/LetturaOcrPsc";
+import { PerimetroAiPos, RevisioneProposteAiPos, type PerimetroPropostePos, type RisultatoPropostePos } from "@/components/sicurezza/pos/ProposteAiPos";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { ContestoSchedaCommessa, useModificheSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCommessa";
 import { invalidaRiesameTecnico } from "../../../../supabase/functions/_shared/posTecnica";
@@ -5,7 +7,10 @@ import { ConfrontoFontiPos } from "@/components/sicurezza/pos/ConfrontoFontiPos"
 import { useAnteprimaPos } from "@/hooks/useAnteprimaPos";
 import { AnnullaPdf, AnnunciaFasePdf } from "@/components/sicurezza/pos/PosPdfStato";
 import { etichettaFasePdf } from "@/lib/sicurezza/posPdfErrori";
-import { verificaIterNegativa } from "@/lib/sicurezza/posIter";
+import { errorePscAvvio, prossimoPassoPos, verificaIterNegativa } from "@/lib/sicurezza/posIter";
+import { useAvvioSicurezza } from "@/hooks/useAvvioSicurezza";
+import { AvvioSicurezzaPos } from "@/components/sicurezza/AvvioSicurezzaPos";
+import { stessaFontePsc, stessoRiferimentoPsc } from "../../../../supabase/functions/_shared/posPsc";
 import { EmissioniPos } from "@/components/sicurezza/pos/EmissioniPos";
 import { RiusoPosDialog } from "@/components/sicurezza/pos/RiusoPosDialog";
 import { StoricoContenutiPos } from "@/components/sicurezza/pos/StoricoContenutiPos";
@@ -35,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePscCommessa } from "@/hooks/usePscCommessa";
 import {
   ErrorePos, datiAppPos, lavorazioniAiPos, useApprovaPos, useNuovaRevisione, usePos, useSalvaPos,
   type IterPos, type PosRiga,
@@ -42,7 +48,7 @@ import {
 import type { ContestoPos } from "../../../../supabase/functions/_shared/posModello";
 import {
   completezzaPercento, vociMancanti,
-  type Lavorazione, type PosContenuto, type SezionePos, type VoceMancante,
+  type PosContenuto, type SezionePos, type VoceMancante,
 } from "../../../../supabase/functions/_shared/posModello";
 import { AperturaSezioniContext, Campo } from "@/components/sicurezza/pos/campi";
 import { CosaManca } from "@/components/sicurezza/pos/CosaManca";
@@ -98,16 +104,19 @@ export default function PosEditor() {
   const perms = usePermissions();
   const { data: pos, isLoading, error, refetch } = usePos(id);
   const puoScrivere = (perms.canViewSicurezzaCantiere || perms.isAdmin) && !perms.solaLettura;
+  const [compilazioneManuale, setCompilazioneManuale] = useState<string | null>(null);
+  const identita = `${companyId}:${id}`;
 
   // I dati dell'app: il contesto (mezzi e subappaltatori della commessa) per le
   // lavorazioni, e il POS già compilato per chi lo apre la prima volta.
-  const { data: datiApp, isLoading: datiInCorso } = useQuery({
+  const fonti = useQuery({
     queryKey: ["pos-dati-app", companyId, id],
-    enabled: !!id && !!companyId && !!pos && puoScrivere,
+    enabled: !!id && !!companyId && !!pos && puoScrivere && pos.status !== "approvato",
     queryFn: () => datiAppPos(companyId!, id!),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+  const datiApp = fonti.data;
 
   if (isLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -126,28 +135,40 @@ export default function PosEditor() {
   }
   // Un POS del vecchio generatore o creato vuoto dall'assistente si compila
   // subito dai dati dell'app: si aspetta che arrivino.
-  if (pos.daCompilare && puoScrivere && pos.status !== "approvato" && datiInCorso) {
-    return (
-      <div className="flex flex-col items-center gap-2 py-20 text-sm text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />Compilo il POS con i dati dell'app…
-      </div>
-    );
+  if (pos.daCompilare && puoScrivere && pos.status !== "approvato" && !datiApp && compilazioneManuale !== identita) {
+    if (fonti.isLoading) {
+      return <div role="status" className="flex flex-col items-center gap-2 py-20 text-sm text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />Recupero i dati della commessa…
+      </div>;
+    }
+    if (fonti.isError) {
+      return <div className="mx-auto max-w-lg space-y-3 py-16 text-center">
+        <p role="alert" className="text-sm">I dati della commessa non sono disponibili per la precompilazione.</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button variant="outline" onClick={() => void fonti.refetch()}>Riprova a recuperare i dati</Button>
+          <Button variant="outline" onClick={() => setCompilazioneManuale(identita)}>Compila a mano</Button>
+        </div>
+      </div>;
+    }
   }
 
   // Si rimonta quando cambiano stato o revisione (approvato, nuova revisione),
   // NON a ogni salvataggio: un rimontaggio a metà di un'operazione (salva e poi
   // chiedi le proposte all'AI, salva e poi approva) ne butterebbe via l'esito.
   const versione = `${companyId}:${pos.id}:${pos.revisione}:${pos.status}`;
-  return <EditorPos key={versione} pos={pos} datiApp={datiApp ?? null} puoScrivere={puoScrivere} />;
+  return <EditorPos key={versione} pos={pos} datiApp={datiApp ?? null} puoScrivere={puoScrivere}
+    senzaPrecompilazione={compilazioneManuale === identita} fontiNonDisponibili={fonti.isError && !datiApp} />;
 }
 
 interface EditorProps {
   pos: PosRiga;
   datiApp: { contenuto: PosContenuto; contesto: ContestoPos } | null;
   puoScrivere: boolean;
+  senzaPrecompilazione: boolean;
+  fontiNonDisponibili: boolean;
 }
 
-function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
+function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDisponibili }: EditorProps) {
   const schedaCommessa = useContext(ContestoSchedaCommessa);
   const location = useLocation();
   const companyId = useEffectiveCompanyId();
@@ -157,7 +178,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
 
   const approvato = pos.status === "approvato";
   const ro = !puoScrivere || approvato || approva.isPending;
-  const compilaSubito = pos.daCompilare && !!datiApp && !ro;
+  const compilaSubito = pos.daCompilare && !!datiApp && !ro && !senzaPrecompilazione;
   const aggiornaControlli = !ro && (pos.contenuto.versione_controlli !== 2 || pos.contenuto.versione_prodotti !== 1 || (pos.contenuto.procedure_psc.psc_presente && pos.contenuto.versione_psc !== 1));
 
   // This identifies the content the editor actually loaded, not a later cache
@@ -169,9 +190,13 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   // Il contenuto da cui parte questa sessione: «Annulla» ci torna (non al POS vuoto da cui si è appena compilato).
   const contenutoDiPartenza = () => { const base = compilaSubito && datiApp ? datiApp.contenuto : pos.contenuto; return ro ? base : conControlliAggiornati(base); };
   const [bozza, setBozza] = useState<PosContenuto>(contenutoDiPartenza);
-  // L'ultima bozza mostrata: dopo un'attesa lunga (la risposta dell'AI) si legge questa, non quella del clic.
-  const bozzaCorrente = useRef(bozza);
-  bozzaCorrente.current = bozza;
+  const avvioQuery = useAvvioSicurezza(pos.company_id, pos.order_id);
+  const pscCorrente = avvioQuery.data?.psc;
+  const documentiPsc = usePscCommessa(pos.company_id, pscCorrente ? pos.order_id : "");
+  const pscDisponibile = !pscCorrente || !!documentiPsc.data?.some((f) => stessaFontePsc(pscCorrente, f));
+  const avvio = avvioQuery.data && !pscDisponibile ? { ...avvioQuery.data, psc: null } : avvioQuery.data;
+  const erroreAvvio = avvioQuery.isError ? "Riprova a caricare la decisione del PSC in Avvio sicurezza."
+    : errorePscAvvio(bozza.procedure_psc, avvio);
   const [iter, setIter] = useState<IterPos>(() => pos.iter);
   const [sporco, setSporco] = useState(compilaSubito || aggiornaControlli);
   const [iterSporco, setIterSporco] = useState(false);
@@ -185,7 +210,9 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   const [revisioneAperta, setRevisioneAperta] = useState(false);
   const [descrRevisione, setDescrRevisione] = useState("");
   const [aggiornaAperto, setAggiornaAperto] = useState(false);
-  const [proposte, setProposte] = useState<Lavorazione[] | null>(null);
+  const [proposte, setProposte] = useState<RisultatoPropostePos | null>(null);
+  const [perimetroAi, setPerimetroAi] = useState(false);
+  const [erroreProposte, setErroreProposte] = useState<string | null>(null);
   const [proponendo, setProponendo] = useState(false);
 
   const modifica: Modifica = useCallback((fn) => {
@@ -261,6 +288,10 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
       setMancantiServer(mancanti);
       return;
     }
+    if (erroreAvvio) {
+      setErroreApprovazione(erroreAvvio);
+      return;
+    }
     if (sporco || iterSporco) {
       const ok = await salvaOra();
       if (!ok) return;
@@ -274,35 +305,24 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
     }
   };
 
-  const proponiAi = async () => {
-    if (!companyId) return;
-    if (sporco) {
-      // L'AI legge il POS salvato: prima si salva la descrizione dell'attività.
-      const ok = await salvaOra();
-      if (!ok) return;
-    }
+  const contestoLetturaPsc: ContestoLetturaPsc | undefined = bozza.procedure_psc.psc_presente && bozza.procedure_psc.documento
+    ? { companyId: pos.company_id, posId: pos.id, fonte: bozza.procedure_psc.documento, salva: sporco ? salvaOra : undefined }
+    : undefined;
+  const apriProposteAi = () => { setErroreProposte(null); setPerimetroAi(true); };
+  const proponiAi = async (perimetro: PerimetroPropostePos) => {
+    if (!companyId || proponendo || ro) return;
+    setErroreProposte(null);
     setProponendo(true);
     try {
-      const r = await lavorazioniAiPos(companyId, pos.id);
-      setProposte(r.lavorazioni);
-      // Le modalità organizzative (lettera c) si riempiono solo se sono vuote:
-      // quello che il titolare ha scritto non si tocca.
-      const modalita = r.modalita_organizzative;
-      // Mentre l'AI risponde si può scrivere: conta il testo di adesso, non quello del clic. Il testo dell'AI
-      // resta «da verificare» (e blocca l'approvazione) finché chi firma non lo conferma nella sezione Opera.
-      if (modalita && !bozzaCorrente.current.opera.modalita_organizzative.trim()) {
-        modifiche.current++;
-        setBozza((prev) => {
-          if (prev.opera.modalita_organizzative.trim()) return prev;
-          const copia = { ...prev, opera: { ...prev.opera, modalita_organizzative: modalita, modalita_organizzative_da_verificare: true as const } };
-          invalidaRiesameTecnico(prev, copia);
-          return copia;
-        });
-        setSporco(true);
-        toast.success("L'AI ha scritto le modalità organizzative del cantiere: rileggile e confermale, poi controlla le lavorazioni proposte e salva");
+      if (sporco && !await salvaOra()) {
+        setErroreProposte("Salva la bozza prima di generare le proposte.");
+        return;
       }
+      const risultato = await lavorazioniAiPos(companyId, pos.id, perimetro);
+      setProposte(risultato);
+      setPerimetroAi(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Proposte non arrivate");
+      setErroreProposte(e instanceof Error ? e.message : "Proposte non arrivate. Riprova tra poco.");
     } finally {
       setProponendo(false);
     }
@@ -316,7 +336,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
 
   const titoloCommessa = [pos.commessa?.order_code, pos.commessa?.description].filter(Boolean).join(" — ") || "Commessa";
   const subappalto = bozza.impresa.ruolo === "esecutrice_subappalto";
-  const conCse = bozza.procedure_psc.psc_presente;
+  const conCse = avvio?.stato === "previsto" || bozza.procedure_psc.psc_presente;
   // L'invio del POS parte dal PDF approvato della revisione corrente; il CSE della commessa precompila il destinatario.
   const emissioni = useEmissioniPos(companyId || pos.company_id, pos.id, approvato && puoScrivere);
   const emissioneCorrente = emissioni.data?.find((e) => e.stato === "completa" && e.revisione === pos.revisione) ?? null;
@@ -343,14 +363,13 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   );
   // Art. 101 c. 3: con una verifica negativa i lavori non possono iniziare, anche se il POS è approvato nell'app.
   const verificaNegativa = verificaIterNegativa(bozza, iter);
-  const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : "Approvato") : "Bozza";
+  const prossimo = prossimoPassoPos({ status: pos.status, contenuto: bozza, iter }, avvio);
+  const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : prossimo ? "PDF approvato · iter da completare" : "Iter registrato") : "Bozza";
   const baseProps = { d: bozza, modifica, ro };
 
   return (
     <div ref={radiceEditor} className="mx-auto max-w-6xl space-y-4 pb-28">
-      {/* Intestazione. Mobile: senza riquadro e senza il secondo «indietro»
-          (c'è la freccia della barra in alto); stampa e riallineo coi dati
-          dell'app restano al computer, «Approva» resta. */}
+      {/* Su mobile la barra dei comandi usa icone per lasciare spazio al pulsante principale. */}
       <div className="rounded-2xl border bg-card p-4 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {!schedaCommessa && <Link to="/azienda/sicurezza-cantiere" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground max-sm:hidden">
           <ArrowLeft className="h-3.5 w-3.5" />Sicurezza cantiere
@@ -374,22 +393,29 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
           {riusoAperto && <RiusoPosDialog pos={pos} onClose={()=>setRiusoAperto(false)}/>}
           {/* Telefono: azioni secondarie a sola icona, l'azione principale occupa il resto della riga (prima
               «Approva» usciva dallo schermo e non si raggiungeva). */}
-          <div className="flex flex-wrap gap-2 empty:hidden max-sm:flex-nowrap">
+          <div className="flex flex-wrap gap-2 empty:hidden">
             {puoScrivere && !pos.daCompilare && (
               <Button variant="outline" aria-label="Riutilizza POS" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" disabled={sporco||iterSporco||salva.isPending} title={sporco||iterSporco ? "Salva le modifiche prima di riutilizzare il POS" : "Duplica POS o salva modello aziendale"} onClick={()=>setRiusoAperto(true)}>
                 <Copy className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Riutilizza POS</span>
               </Button>
             )}
-            <Button variant="outline" className="max-sm:hidden" disabled={anteprima.inCorso||sporco||iterSporco||salva.isPending} title={sporco||iterSporco?"Salva le modifiche prima di preparare l’anteprima":"Anteprima del PDF con filigrana BOZZA"} onClick={()=>void anteprima.apri(pos.company_id,pos.id)}><FileDown className="mr-1 h-4 w-4"/>{anteprima.inCorso?etichettaFasePdf(anteprima.fase)??"Preparazione…":"Anteprima PDF"}</Button>
-            <AnnullaPdf fase={anteprima.fase} onAnnulla={anteprima.annulla} className="max-sm:hidden"/>
+            <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0"
+              aria-label={anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "Anteprima PDF"}
+              disabled={anteprima.inCorso || sporco || iterSporco || salva.isPending}
+              title={sporco || iterSporco ? "Salva le modifiche prima di preparare l’anteprima" : "Anteprima del PDF con filigrana BOZZA"}
+              onClick={() => void anteprima.apri(pos.company_id, pos.id)}>
+              {anteprima.inCorso ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden /> : <FileDown className="h-4 w-4 sm:mr-1" aria-hidden />}
+              <span className="max-sm:hidden">{anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "Anteprima PDF"}</span>
+            </Button>
+            <AnnullaPdf fase={anteprima.fase} onAnnulla={anteprima.annulla} />
             {!ro && (
               <Button variant="outline" aria-label="Confronta dati dell’app" title="Confronta con i dati aggiornati dell’app" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" onClick={() => setAggiornaAperto(true)}>
                 <RefreshCw className="h-4 w-4 sm:mr-1" aria-hidden="true" /><span className="max-sm:hidden">Confronta dati dell’app</span>
               </Button>
             )}
             {!ro && (
-              <Button variant="outline" className="max-sm:hidden border-violet-200 text-violet-700 hover:bg-violet-50" onClick={proponiAi} disabled={proponendo}
-                title="Scrive le modalità organizzative e propone le schede delle lavorazioni dalle fasi della commessa">
+              <Button variant="outline" className="max-sm:hidden border-violet-200 text-violet-700 hover:bg-violet-50" onClick={apriProposteAi} disabled={proponendo}
+                title="Prepara proposte da fasi, computo e PSC della commessa">
                 {proponendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}Completa con l'AI
               </Button>
             )}
@@ -443,6 +469,31 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
 
       {erroreApprovazione&&<div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"><p className="font-medium">POS non approvato</p><p>{erroreApprovazione}</p></div>}
 
+      {!ro && fontiNonDisponibili && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p>Le fonti aggiornate della commessa non sono disponibili.</p>
+          <Button size="sm" variant="outline" onClick={() => setAggiornaAperto(true)}>Rileggi le fonti</Button>
+        </div>
+      )}
+      <AvvioSicurezzaPos companyId={pos.company_id} orderId={pos.order_id} solaLettura={!puoScrivere || approva.isPending}
+        usaNelPos={!ro ? (riferimento) => {
+          if (bozza.procedure_psc.psc_presente !== !!riferimento || !stessoRiferimentoPsc(bozza.procedure_psc.documento, riferimento)) {
+            modifica((x) => {
+              x.versione_psc = 1;
+              x.procedure_psc.psc_presente = !!riferimento;
+              if (riferimento) x.procedure_psc.documento = riferimento;
+              else {
+                delete x.procedure_psc.documento;
+                x.procedure_psc.richieste = false;
+              }
+            });
+          }
+          if (riferimento) vaiASezione("psc");
+        } : undefined} />
+      {(erroreAvvio || (approvato && prossimo)) && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        {erroreAvvio || prossimo}
+      </p>}
+
       {avvisi.length > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -463,13 +514,14 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
           <SezioneOpera {...baseProps} mancanti={perSezione.get("opera") ?? 0} />
           <SezioneImpresa {...baseProps} mancanti={perSezione.get("impresa") ?? 0} />
           <SezioneFigure {...baseProps} mancanti={perSezione.get("figure") ?? 0} />
-          <SezioneEmergenze {...baseProps} mancanti={perSezione.get("emergenze") ?? 0} />
-          <SezioneLavoratori {...baseProps} mancanti={perSezione.get("lavoratori") ?? 0} />
+          <SezioneEmergenze {...baseProps} lettura={contestoLetturaPsc} mancanti={perSezione.get("emergenze") ?? 0} />
+          <SezioneLavoratori {...baseProps} mancanti={perSezione.get("lavoratori") ?? 0} organico={datiApp?.contesto.organico}
+            confronta={() => setAggiornaAperto(true)} />
           <SezioneFormazione {...baseProps} mancanti={perSezione.get("formazione") ?? 0} />
-          <SezioneRumore {...baseProps} mancanti={perSezione.get("rumore") ?? 0} />
+          <SezioneRumore {...baseProps} companyId={pos.company_id} orderId={pos.order_id} posId={pos.id} salvaPrimaDellaLettura={sporco ? salvaOra : undefined} allegatiSalvati={pos.contenuto.allegati} mancanti={perSezione.get("rumore") ?? 0} />
           <SezioneLavorazioni {...baseProps} companyId={pos.company_id} orderId={pos.order_id} mancanti={perSezione.get("lavorazioni") ?? 0}
-            contesto={datiApp?.contesto ?? null} onProponiAi={proponiAi} proponendo={proponendo} />
-          <SezionePsc {...baseProps} companyId={pos.company_id} orderId={pos.order_id} mancanti={perSezione.get("psc") ?? 0} />
+            contesto={datiApp?.contesto ?? null} pscVigente={avvio?.stato === "non_previsto" ? null : avvio?.psc} onProponiAi={apriProposteAi} proponendo={proponendo} />
+          <SezionePsc {...baseProps} companyId={pos.company_id} orderId={pos.order_id} lettura={contestoLetturaPsc} onLetturaPronta={ro ? undefined : apriProposteAi} mancanti={perSezione.get("psc") ?? 0} />
           {companyId && <SezioneAllegati {...baseProps} mancanti={perSezione.get("allegati") ?? 0} companyId={companyId} posId={pos.id} />}
 
           {/* 11. Firme e consegna: si segna anche dopo l'approvazione */}
@@ -502,11 +554,13 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
                     <h3 className="text-sm font-semibold">Impresa affidataria: {bozza.impresa.subappalto_a || "da indicare"}</h3>
-                    {approvato && puoScrivere && invio("affidataria")}
+                    {approvato && puoScrivere && !erroreAvvio && invio("affidataria")}
                   </div>
                   <Campo id="iter-aff-inv" label="Consegnato il" type="date" value={iter.affidataria_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
-                    hint={iter.affidataria_inviato_il ? `Verifica entro il ${dataIt(piu15(iter.affidataria_inviato_il))}` : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_inviato_il: v || null }))} />
+                  <Campo id="iter-aff-ricezione" label="Ricevuto il" type="date" value={iter.affidataria_ricevuto_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                    hint={iter.affidataria_ricevuto_il ? `Verifica entro il ${dataIt(piu15(iter.affidataria_ricevuto_il))}` : undefined}
+                    onChange={(v) => modificaIter((x) => ({ ...x, affidataria_ricevuto_il: v || null }))} />
                   <EsitoSelect id="iter-aff-esito" value={iter.affidataria_esito ?? null} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_esito: v }))} />
                   <Campo id="iter-aff-data" label="Data dell'esito" type="date" value={iter.affidataria_esito_il ?? ""} readOnly={!puoScrivere || approva.isPending}
@@ -517,11 +571,14 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
                     <h3 className="text-sm font-semibold">Coordinatore per l'esecuzione (CSE)</h3>
-                    {approvato && puoScrivere && invio("cse")}
+                    {approvato && puoScrivere && !erroreAvvio && !subappalto && invio("cse")}
                   </div>
+                  {subappalto && <p className="text-xs text-muted-foreground sm:col-span-3">Registra qui il passaggio effettuato dall’impresa affidataria e il riscontro del CSE.</p>}
                   <Campo id="iter-cse-inv" label="Trasmesso il" type="date" value={iter.cse_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
-                    hint={iter.cse_inviato_il ? `Verifica entro il ${dataIt(piu15(iter.cse_inviato_il))}` : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_inviato_il: v || null }))} />
+                  <Campo id="iter-cse-ricezione" label="Ricevuto dal CSE il" type="date" value={iter.cse_ricevuto_il ?? ""} readOnly={!puoScrivere || approva.isPending}
+                    hint={iter.cse_ricevuto_il ? `Verifica entro il ${dataIt(piu15(iter.cse_ricevuto_il))}` : undefined}
+                    onChange={(v) => modificaIter((x) => ({ ...x, cse_ricevuto_il: v || null }))} />
                   <EsitoSelect id="iter-cse-esito" value={iter.cse_esito ?? null} readOnly={!puoScrivere || approva.isPending}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_esito: v }))} />
                   <Campo id="iter-cse-data" label="Data dell'esito" type="date" value={iter.cse_esito_il ?? ""} readOnly={!puoScrivere || approva.isPending}
@@ -592,37 +649,36 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
           toast.success("Modifiche applicate alla bozza: controlla e salva");
         }}/>}
 
-      {/* Proposte dell'AI */}
-      <Dialog open={!!proposte} onOpenChange={(o) => !o && setProposte(null)}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Lavorazioni proposte dall'AI</DialogTitle>
-            <DialogDescription>
-              Sono una base da adattare al cantiere: ogni scheda va letta e confermata prima di approvare il POS.
-            </DialogDescription>
-          </DialogHeader>
-          <ol className="space-y-2">
-            {(proposte ?? []).map((l, i) => (
-              <li key={l.id} className="rounded-lg border p-3">
-                <p className="text-sm font-medium">{i + 1}. {l.titolo}</p>
-                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{l.descrizione}</p>
-                {l.svolgimento === "subappalto" && l.svolgimento_con && <p className="mt-1 text-xs">In subappalto a {l.svolgimento_con}</p>}
-              </li>
-            ))}
-          </ol>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setProposte(null)}>Annulla</Button>
-            {bozza.lavorazioni.length > 0 && (
-              <Button variant="outline" onClick={() => { modifica((x) => { x.lavorazioni = proposte ?? []; }); setProposte(null); }}>
-                Sostituisci le attuali
-              </Button>
-            )}
-            <Button onClick={() => { modifica((x) => { x.lavorazioni.push(...(proposte ?? [])); }); setProposte(null); vaiASezione("lavorazioni"); }}>
-              Aggiungi al POS
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {perimetroAi && !ro && <PerimetroAiPos companyId={pos.company_id} orderId={pos.order_id} posId={pos.id} inSubappalto={subappalto} psc={contestoLetturaPsc}
+        occupato={proponendo} errore={erroreProposte} onClose={() => setPerimetroAi(false)} onGenera={proponiAi} />}
+      {proposte && !ro && <RevisioneProposteAiPos risultato={proposte} modalitaVuota={!bozza.opera.modalita_organizzative.trim()}
+        preesistenti={bozza.lavorazioni} onClose={() => setProposte(null)} onApplica={(lavorazioni, modalita, aggiornamenti) => {
+          modifica(d => {
+            if (modalita && !d.opera.modalita_organizzative.trim()) {
+              d.opera.modalita_organizzative = modalita;
+              d.opera.modalita_organizzative_da_verificare = true;
+            }
+            for (const proposta of lavorazioni) {
+              const idEsistente = aggiornamenti[proposta.id];
+              if (!idEsistente) {
+                d.lavorazioni.push(proposta);
+                continue;
+              }
+              const esistente = d.lavorazioni.find(l => l.id === idEsistente);
+              if (!esistente || !proposta.fonti_scheda) continue;
+              const quesiti = esistente.fonti_scheda?.quesiti ?? [];
+              const nuovi = (proposta.fonti_scheda.quesiti ?? []).filter(q => !quesiti.some(x => x.domanda === q.domanda));
+              esistente.fonti_scheda = {
+                ...esistente.fonti_scheda, ...proposta.fonti_scheda, quesiti: [...quesiti, ...nuovi].slice(0, 8),
+              };
+              esistente.origine = "ai";
+              esistente.verificata = false;
+              if (esistente.tecnica) esistente.tecnica.riesaminata = false;
+            }
+          });
+          setProposte(null);
+          vaiASezione(lavorazioni.length ? "lavorazioni" : "opera");
+        }} />}
 
       {/* Nuova revisione */}
       <Dialog open={revisioneAperta} onOpenChange={setRevisioneAperta}>

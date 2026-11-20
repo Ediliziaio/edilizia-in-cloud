@@ -1,3 +1,4 @@
+import { posVuoto } from "../../../supabase/functions/_shared/posModello";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
@@ -7,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/components/sicurezza/SchedaCommessaDialog", () => ({
   SchedaCommessaDialog: ({ destinazione, onClose }: any) => <div role="dialog" aria-label="Scheda interna"><output>{destinazione.to}</output><output>{JSON.stringify(destinazione.state)}</output><button onClick={onClose}>Torna alla commessa</button></div>,
 }));
@@ -101,10 +102,19 @@ vi.mock("@tanstack/react-query", () => ({
     refetch: vi.fn(),
   }),
 }));
-vi.mock("@/hooks/usePos", () => ({
-  usePosElenco: () => ({ data: s.pos, isLoading: false, isError: false }),
-  useCreaPos: () => ({ isPending: false, mutateAsync: s.crea }),
+vi.mock("@/hooks/useAvvioSicurezza", () => ({
+  useAvvioSicurezza: () => ({ data: null as null, isLoading: false, isError: false }),
+  useRuoliSicurezza: () => ({ data: {}, isLoading: false, isError: false, isSuccess: true }),
+  useConsegnePosEsterno: () => ({ data: [] as never[], isLoading: false, isError: false, isSuccess: true }),
+  STATI_POS_ESTERNO: {},
 }));
+vi.mock("@/hooks/usePos", () => ({
+  usePosElenco: () => ({ data: s.pos.map((r) => ({ contenuto: posVuoto(), iter: {}, ...(r as Record<string, unknown>) })), isLoading: false, isError: false }),
+  useCreaPos: () => ({ isPending: false, mutateAsync: s.crea }),
+  useModelliPos: () => ({ data: [] as never[], isError: false }),
+  useArchiviaModelloPos: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
+vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "azienda" }));
 vi.mock("@/hooks/useDocumentiSicurezza", () => ({
   useDocumentiSicurezza: () => ({ data: [] as never[], isLoading: false, isError: false }),
 }));
@@ -188,6 +198,9 @@ vi.mock("@/hooks/useFascicoloCantiere", () => ({
   }),
 }));
 import { SicurezzaCommessa } from "@/components/sicurezza/SicurezzaCommessa";
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+});
 afterEach(cleanup);
 beforeEach(() => {
   s.erroreFasi = false;
@@ -210,6 +223,14 @@ const area = (nome: RegExp) =>
   fireEvent.click(screen.getByRole("button", { name: nome }));
 const torna = () =>
   fireEvent.click(screen.getByRole("button", { name: "Torna al riepilogo" }));
+function scegliRuoloPos() {
+  fireEvent.click(screen.getByRole("button", { name: "Prepara il POS" }));
+  const crea = screen.getByRole("button", { name: "Crea bozza POS" });
+  expect(crea).toBeDisabled();
+  expect(s.crea).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("radio", { name: "Impresa esecutrice in subappalto" }));
+  return crea;
+}
 describe("Riepilogo sicurezza e dettagli nei popup", () => {
   it("mostra quattro aree senza montare tutti i moduli nella pagina", () => {
     mostra();
@@ -285,13 +306,14 @@ describe("Riepilogo sicurezza e dettagli nei popup", () => {
   });
   it("la creazione apre il POS nel popup senza navigare fuori dalla commessa", async () => {
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: "Prepara il POS" }));
+    fireEvent.click(scegliRuoloPos());
     await waitFor(() =>
       expect(
         screen.getByRole("heading", { name: "Bozza POS creata" }),
       ).toBeInTheDocument(),
     );
     expect(s.navigate).not.toHaveBeenCalled();
+    expect(s.crea).toHaveBeenCalledWith({ orderId: "ordine", ruoloImpresa: "esecutrice_subappalto" });
     expect(screen.getByText("Completa le lavorazioni")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Apri scheda POS" }));
     expect(s.navigate).not.toHaveBeenCalled();
@@ -302,7 +324,7 @@ describe("Riepilogo sicurezza e dettagli nei popup", () => {
   });
   it("si può restare nella commessa dopo la creazione", async () => {
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: "Prepara il POS" }));
+    fireEvent.click(scegliRuoloPos());
     await waitFor(() =>
       expect(
         screen.getByRole("heading", { name: "Bozza POS creata" }),
@@ -323,7 +345,7 @@ describe("Riepilogo sicurezza e dettagli nei popup", () => {
         }),
     );
     mostra();
-    const b = screen.getByRole("button", { name: "Prepara il POS" });
+    const b = scegliRuoloPos();
     fireEvent.click(b);
     fireEvent.click(b);
     expect(s.crea).toHaveBeenCalledTimes(1);
@@ -337,13 +359,14 @@ describe("Riepilogo sicurezza e dettagli nei popup", () => {
   it("mantiene la commessa aperta e mostra l’errore quando la creazione fallisce", async () => {
     s.crea.mockRejectedValue(new Error("Servizio non disponibile"));
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: "Prepara il POS" }));
+    fireEvent.click(scegliRuoloPos());
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Servizio non disponibile",
       ),
     );
     expect(screen.queryByText("Bozza POS creata")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Impresa esecutrice in subappalto" })).toBeChecked();
     expect(s.navigate).not.toHaveBeenCalled();
   });
   it("in sola lettura non propone di creare POS e conserva la consultazione", () => {

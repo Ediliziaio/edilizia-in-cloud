@@ -1,5 +1,5 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,19 @@ import {
   stessaFontePsc,
 } from "../../../../supabase/functions/_shared/posPsc";
 export function RiferimentoPscPos(
-  { companyId, orderId, valore, ro, onChange }: {
+  { companyId, orderId, valore, ro, onChange, ambitoCommessa }: {
     companyId: string;
     orderId: string;
     valore?: RiferimentoPsc;
     ro: boolean;
     onChange: (r: RiferimentoPsc | undefined) => void;
+    ambitoCommessa?: boolean;
   },
 ) {
   const docs = usePscCommessa(companyId, orderId);
   const perms = usePermissions();
   const qc = useQueryClient();
+  const formId = useId();
   const [selezione, setSelezione] = useState("");
   const [rev, setRev] = useState("");
   const [carica, setCarica] = useState(false);
@@ -176,14 +178,13 @@ export function RiferimentoPscPos(
         )
         : (
           <p className="text-sm text-amber-800">
-            Nessun originale PSC collegato a questa bozza.
+            {ambitoCommessa ? "Nessun originale PSC scelto per la commessa." : "Nessun originale PSC collegato a questa bozza."}
           </p>
         )}
       {modificato && (
         <p role="alert" className="text-sm text-amber-800">
           Il riferimento scelto è cambiato o non è più disponibile negli archivi
-          accessibili. Riesamina il PSC prima di usare questa bozza. Il
-          riferimento salvato non è stato sostituito.
+          accessibili. Riesamina il riferimento prima di usarlo.
         </p>
       )}
       {!!valore && altre.length > 0 && (
@@ -197,11 +198,11 @@ export function RiferimentoPscPos(
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <div className="min-w-0 flex-1">
-              <Label htmlFor="psc-originale" className="text-xs">
+              <Label htmlFor={`${formId}-originale`} className="text-xs">
                 Originale da collegare
               </Label>
               <UniformSelect
-                id="psc-originale"
+                id={`${formId}-originale`}
                 className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                 disabled={busy || docs.isPending}
                 value={selezione}
@@ -237,11 +238,11 @@ export function RiferimentoPscPos(
           {fonte && (
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-48 flex-1">
-                <Label htmlFor="psc-revisione" className="text-xs">
+                <Label htmlFor={`${formId}-revisione`} className="text-xs">
                   Revisione riportata sul documento
                 </Label>
                 <Input
-                  id="psc-revisione"
+                  id={`${formId}-revisione`}
                   value={fonte.revisione || rev}
                   disabled={busy || !!fonte.revisione}
                   onChange={(e) => setRev(e.target.value)}

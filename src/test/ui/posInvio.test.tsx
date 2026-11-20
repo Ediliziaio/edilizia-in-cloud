@@ -109,7 +109,7 @@ describe("«Invia al CSE» / «Invia all'impresa affidataria»", () => {
     await waitFor(() => expect(s.insertTask).toHaveBeenCalledTimes(1));
     const t = s.insertTask.mock.calls[0][0];
     expect(t).toMatchObject({ company_id: "az", created_by: "utente-1", assigned_to: "utente-1", order_id: "ord", priority: "alta", due_date: piuGiorni(oggi, 13) });
-    expect(t.title).toContain("Verifica del POS 2026-014 (CSE): scade il");
+    expect(t.title).toBe("Controlla ricezione ed esito del POS 2026-014 (CSE)");
     expect(t.notes).toContain("art. 101, comma 3");
     await waitFor(() => expect(screen.queryByTestId("composer")).toBeNull());
   });

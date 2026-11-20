@@ -5,6 +5,7 @@ import { readAllPages } from "@/lib/personale/readAllPages";
 import {
   type FontePsc,
   improntaPsc,
+  normalizzaRiferimentoPsc,
   percorsoPscValido,
   type RiferimentoPsc,
   stessaFontePsc,
@@ -38,7 +39,7 @@ export async function leggiPscCommessa(
       const r = raw as Record<string, unknown>;
       if (
         r.company_id !== companyId || r.order_id !== orderId || !r.file_path ||
-        r.stato === "non_applicabile"
+        r.stato === "non_applicabile" || r.stato === "superato"
       ) return [];
       const s = (k: string) => typeof r[k] === "string" ? r[k] as string : "";
       if (!percorsoPscValido(s("file_path"), companyId)) return [];
@@ -106,6 +107,7 @@ export async function identificaPsc(
   }
   const sha256 = await improntaPsc(data);
   await rileggi();
-  const { created_at: _created, ...r } = fonte;
-  return { ...r, revisione: revisione.trim(), sha256 };
+  const riferimento = normalizzaRiferimentoPsc({ ...fonte, revisione, sha256 });
+  if (!riferimento) throw new Error("Il riferimento del PSC è incompleto.");
+  return riferimento;
 }

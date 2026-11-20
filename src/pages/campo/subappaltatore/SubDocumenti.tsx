@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { toast } from "sonner";
+import { PosDellaDitta } from "./PosDellaDitta";
 
 const TIPI_DOCUMENTO = [
   { value: "visura_camerale", label: "Visura camerale" },
@@ -191,6 +192,7 @@ export default function SubDocumenti() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        {companyId && user?.id && <PosDellaDitta companyId={companyId} userId={user.id} />}
         {/* Alert scadenze */}
         {scadutiCount > 0 && (
           <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-500/30 rounded-xl">
