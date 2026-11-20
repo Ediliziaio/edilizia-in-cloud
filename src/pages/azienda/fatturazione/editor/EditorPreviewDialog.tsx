@@ -59,8 +59,8 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
     try {
       await downloadNativePDF(state.id, state.numero || undefined);
       toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
-    } catch (err: any) {
-      toast.error("Errore generazione PDF", { description: err.message });
+    } catch (err) {
+      toast.error("Errore generazione PDF", { description: err instanceof Error ? err.message : undefined });
     } finally {
       setPdfLoading(false);
     }
@@ -68,7 +68,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[90dvh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className={`flex h-[90dvh] flex-col gap-0 overflow-hidden p-0 ${mostraXml ? "max-w-5xl" : "max-w-4xl"}`}>
         <DialogHeader className="shrink-0 space-y-2 border-b px-4 py-3 pr-12 text-left">
           <DialogTitle className="text-sm font-medium">
             Anteprima — {state.numero || "Documento"}
@@ -89,31 +89,31 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
                 ))}
               </div>
             )}
-            <Button variant="outline" size="sm" onClick={handlePrint} disabled={mostraXml}>
-              <Printer className="h-3 w-3 mr-1.5" />
-              Stampa
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label="Apri PDF per la stampa"
-              onClick={handleDownloadPDF}
-              disabled={pdfLoading || !state.id}
-            >
-              {pdfLoading ? (
-                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-              ) : (
-                <Download className="h-3 w-3 mr-1.5" />
-              )}
-              PDF
-            </Button>
+            {!mostraXml && <>
+              <Button variant="outline" size="sm" onClick={handlePrint}>
+                <Printer className="h-3 w-3 mr-1.5" />
+                Stampa
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Apri PDF per la stampa"
+                onClick={handleDownloadPDF}
+                disabled={pdfLoading || !state.id}
+              >
+                {pdfLoading ? (
+                  <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                ) : (
+                  <Download className="h-3 w-3 mr-1.5" />
+                )}
+                PDF
+              </Button>
+            </>}
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-2 sm:p-4">
           {mostraXml ? (
-            <div className="mx-auto w-full max-w-2xl">
-              <AnteprimaXmlFattura documento={state} azienda={azienda ?? null} />
-            </div>
+            <AnteprimaXmlFattura documento={state} azienda={azienda ?? null} mostraStampa />
           ) : (
             <FoglioFatturaAdattabile>
               <div ref={previewRef}>

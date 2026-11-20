@@ -121,7 +121,7 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
     setLavoro("vista");
     try {
       const { xml } = await leggiXmlFattura(doc, azienda);
-      const v = fatturaXmlTabellareHtml(xml);
+      const v = fatturaXmlTabellareHtml(xml, { direzione: 'emessa', dentroIframe: true });
       if (!v) throw new Error("L'XML non è leggibile come fattura: lancia «Verifica formale».");
       setVista(v);
     } catch (e) {
@@ -135,7 +135,7 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
     setLavoro("pdf");
     try {
       const { xml, partito } = await leggiXmlFattura(doc, azienda);
-      const bytes = await generaPdfFatturaXml(xml);
+      const bytes = await generaPdfFatturaXml(xml, { direzione: 'emessa' });
       const url = URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer], { type: "application/pdf" }));
       const a = document.createElement("a");
       a.href = url; a.download = `Fattura_elettronica_${String(doc.numero || "anteprima").replace(/[^a-zA-Z0-9_-]/g,"_")}.pdf`;
@@ -266,11 +266,11 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
 
       {/* La fattura elettronica come fattura */}
       <Dialog open={!!vista} onOpenChange={(o) => { if (!o) setVista(null); }}>
-        <DialogContent className="flex h-[90vh] max-w-4xl flex-col gap-0 p-0">
-          <DialogHeader className="shrink-0 flex-row items-center justify-between space-y-0 border-b px-4 py-3">
+        <DialogContent className="flex h-[90dvh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0 border-b px-4 py-3 pr-12">
             <DialogTitle className="flex items-center gap-2 pr-8 text-sm font-medium"><FileSearch className="h-4 w-4" />{vista?.titolo}</DialogTitle>
             <Button
-              variant="outline" size="sm" className="mr-6 h-8 text-xs"
+              variant="outline" size="sm" className="h-8 text-xs"
               onClick={() => {
                 if (!vista) return;
                 stampaPreventivoNativo(vista.html, vista.titolo).catch((e: unknown) =>
@@ -280,8 +280,8 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
               <Printer className="mr-1.5 h-3.5 w-3.5" /> Stampa / Salva PDF
             </Button>
           </DialogHeader>
-          <DialogDescription className="sr-only">Rappresentazione tabellare dei dati contenuti nel file XML, anche quando differiscono dal PDF di cortesia.</DialogDescription>
-          {vista && <iframe title={vista.titolo} srcDoc={vista.html} sandbox="" className="w-full flex-1 border-0 bg-white" />}
+          <DialogDescription className="sr-only">Dati della fattura elettronica letti dal file XML.</DialogDescription>
+          {vista && <iframe title={vista.titolo} srcDoc={vista.html} sandbox="" className="min-h-0 w-full flex-1 border-0 bg-white" />}
         </DialogContent>
       </Dialog>
 

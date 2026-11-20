@@ -139,7 +139,7 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
 
   it('conserva tutti i riferimenti e i dati dell’intestazione, del documento, del trasporto e delle rate', () => {
     const testo = doc().body.textContent;
-    for (const atteso of ['TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'VIA FORNITORE', '12B', 'TEL-TEST', 'fornitore@example.test', 'VIA CLIENTE', 'RT01', '12.34', 'TC04', '7.89', 'ODA-TEST', 'COMMESSA-TEST', 'CUP-TEST', 'CIG-TEST', 'CONTRATTO-TEST', 'CONSEGNA-TEST', 'VIA CONSEGNA', 'NORMA-TEST', 'TP01', 'BANCA-UNO', 'BANCA-DUE', 'IBAN-UNO', 'IBAN-DUE', 'BIC-TEST', 'COD-PAGAMENTO', '19-12-2026', '19-01-2027']) expect(testo).toContain(atteso);
+    for (const atteso of ['TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'VIA FORNITORE', '12B', 'TEL-TEST', 'fornitore@example.test', 'VIA CLIENTE', 'RT01', '12.34', 'TC04', '7.89', 'ODA-TEST', 'COMMESSA-TEST', 'CUP-TEST', 'CIG-TEST', 'CONTRATTO-TEST', 'CONSEGNA-TEST', 'VIA CONSEGNA', 'NORMA-TEST', 'TP01', 'BANCA-UNO', 'BANCA-DUE', 'IBAN-UNO', 'IBAN-DUE', 'BIC-TEST', 'COD-PAGAMENTO', '19/12/2026', '19/01/2027']) expect(testo).toContain(atteso);
   });
 
   it('tiene codici, sconti, periodi, seriali e campi futuri sulla loro riga senza ripetere l’articolo', () => {
@@ -162,8 +162,8 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
     const riga = documento.querySelector('table[aria-label="Righe della fattura"] tbody tr')!;
     expect(riga.textContent).toContain('2,12345678');
     expect(riga.textContent).toContain('0,12345678');
-    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '<Quantita>0</Quantita>')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[2].textContent).toBe('0');
-    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[2].textContent).toBe('—');
+    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '<Quantita>0</Quantita>')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[2].textContent).toBe('0 pz');
+    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[2].textContent).toBe('— pz');
   });
 
   it('usa la valuta dichiarata anche nella rappresentazione delle righe', () => {
@@ -210,7 +210,8 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
         ? valore.replace(/\.00$/, '').replace('.', ',')
         : prezzi.has(el.localName) ? valore.replace('.', ',')
         : el.parentElement?.localName === 'DatiRiepilogo' && el.localName === 'AliquotaIVA' ? '22%' : valore;
-      expect(testo, el.tagName).toContain(data ? `${data[3]}-${data[2]}-${data[1]}` : numero);
+      const separatore = el.localName === 'DataScadenzaPagamento' ? '/' : '-';
+      expect(testo, el.tagName).toContain(data ? [data[3], data[2], data[1]].join(separatore) : numero);
     }
   });
 });

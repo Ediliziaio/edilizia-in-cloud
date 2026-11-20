@@ -7,17 +7,31 @@
  */
 
 import { useMemo } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
+import { fatturaXmlTabellareHtml } from "@/lib/fatturazione/fatturaXmlTabellare";
+import { esigiOriginaleSeTrasmesso, leggiXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { sezioniFatturaXml, versioneFatturaXml, type NodoXml } from "@/lib/fatturazione/xmlLeggibile";
+import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorState";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
+import { toast } from "sonner";
 
 interface Props {
   documento: EditorState;
   azienda: AnagraficaAzienda | null;
   /** Lo stesso rimpicciolimento del foglio PDF, per stare nella stessa colonna. */
   scale?: number;
+  mostraStampa?: boolean;
+}
+
+interface EsitoAnteprima {
+  foglio: ReturnType<typeof fatturaXmlTabellareHtml> | null;
+  errore: string | null;
+  sezioni: NodoXml[];
+  versione: string;
 }
 
 /** Blocchi che si ripetono: si numerano, così «Riga 2» si distingue da «Riga 1». */
@@ -55,34 +69,49 @@ function Blocco({ nodo, livello, indice }: { nodo: NodoXml; livello: number; ind
   );
 }
 
-export function AnteprimaXmlFattura({ documento, azienda, scale = 1 }: Props) {
-  const esito = useMemo(() => {
-    if (!azienda) return { errore: "I dati dell'azienda non sono ancora caricati." as string | null, sezioni: [] as NodoXml[], versione: "" };
+export function AnteprimaXmlFattura({ documento, azienda, scale = 1, mostraStampa = false }: Props) {
+  const archiviato = !!documento.sdi_file_xml_url;
+  const { data: originale, error: erroreOriginale } = useQuery({
+    queryKey: ["anteprima-xml-emessa", documento.company_id, documento.id, documento.sdi_file_xml_url],
+    enabled: archiviato,
+    queryFn: () => leggiXmlFattura(documento as DocumentoFiscale, null),
+    retry: false,
+  });
+  const esito = useMemo<EsitoAnteprima | null>(() => {
     try {
-      const xml = generateFatturaPAXML(documento as unknown as DocumentoFiscale, azienda);
-      return { errore: null, sezioni: sezioniFatturaXml(xml), versione: versioneFatturaXml(xml) };
+      if (erroreOriginale) throw erroreOriginale;
+      esigiOriginaleSeTrasmesso(documento as DocumentoFiscale);
+      if (archiviato && !originale) return null;
+      if (!originale && !azienda) throw new Error("I dati dell'azienda non sono ancora caricati.");
+      const xml = archiviato ? originale!.xml : generateFatturaPAXML(documento as DocumentoFiscale, azienda!);
+      const foglio = fatturaXmlTabellareHtml(xml, { direzione: 'emessa', dentroIframe: true });
+      return { foglio, errore: null, sezioni: sezioniFatturaXml(xml), versione: versioneFatturaXml(xml) };
     } catch (e) {
-      return { errore: e instanceof Error ? e.message : String(e), sezioni: [] as NodoXml[], versione: "" };
+      return { foglio: null, errore: e instanceof Error ? e.message : String(e), sezioni: [], versione: "" };
     }
-  }, [documento, azienda]);
+  }, [documento, azienda, archiviato, originale, erroreOriginale]);
+  const foglio = esito?.foglio;
 
   return (
     <div className="w-full" style={scale === 1 ? undefined : { transform: `scale(${scale})`, transformOrigin: "top center" }}>
       <div className="space-y-2 p-2" data-testid="anteprima-xml">
-        <div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/40 p-2 text-[11px] text-muted-foreground">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            Il contenuto del file che parte allo SDI{esito.versione ? ` (${esito.versione})` : ""}. È la fattura con valore
-            fiscale: il PDF ne è la copia di cortesia.
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+          <span>{archiviato ? "File XML archiviato" : "Anteprima del file XML per lo SDI"}{esito?.versione ? ` · ${esito.versione}` : ""}</span>
+          {mostraStampa && foglio && <Button variant="outline" size="sm" onClick={() => {
+            stampaPreventivoNativo(foglio.html, foglio.titolo).catch(() => toast.error("Impossibile preparare la stampa da XML."));
+          }}><Printer className="mr-1.5 h-3.5 w-3.5" />Stampa / Salva PDF da XML</Button>}
         </div>
-        {esito.errore ? (
+        {!esito ? <p role="status" className="p-2 text-sm text-muted-foreground">Caricamento dell’XML archiviato…</p> : esito.errore ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] text-destructive" role="alert">
-            L'XML non si può generare adesso: {esito.errore}
+            Anteprima XML non disponibile. {esito.errore}
           </p>
-        ) : (
-          esito.sezioni.map((s, i) => <Blocco key={i} nodo={s} livello={0} />)
-        )}
+        ) : foglio && <>
+          <iframe title={foglio.titolo} srcDoc={foglio.html} sandbox="" className="h-[min(64dvh,680px)] w-full rounded-md border bg-white" />
+          <details className="rounded-md border bg-card p-2">
+            <summary className="cursor-pointer text-sm font-medium">Struttura XML</summary>
+            <div className="mt-2 space-y-2">{esito.sezioni.map((s, i) => <Blocco key={i} nodo={s} livello={0} />)}</div>
+          </details>
+        </>}
       </div>
     </div>
   );

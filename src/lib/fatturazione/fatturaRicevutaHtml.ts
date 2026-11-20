@@ -49,7 +49,7 @@ export function fatturaRicevutaHtml(
   try {
     const f = leggiFatturaRicevuta(senzaPrefissi(xml), parser, indiceCorpo);
     if (!f) return null;
-    const comune = fatturaXmlTabellareHtml(xml, { parser, indiceCorpo });
+    const comune = fatturaXmlTabellareHtml(xml, { parser, indiceCorpo, direzione: opzioni.emessa ? 'emessa' : 'ricevuta', dentroIframe: true });
     const titolo = opzioni.emessa ? comune.titolo : `Fattura ${f.numero_fattura} - ${f.cedente_ragione_sociale}`;
     const allegatiFile = allegatiFatturaXml(xml, parser, indiceCorpo);
     return { html: comune.html, titolo, xmlOriginale: xml, indiceCorpo, allegatiPdf: pdfTraAllegati(allegatiFile), allegatiFile };

@@ -45,7 +45,7 @@ describe("fatturaRicevutaHtml", () => {
     expect(h).toContain("24-09-2026");
     expect(h).toContain("Serramenti in PVC");
     expect(h).toMatch(/4\.?148,00/); // totale documento (3.400 + IVA 22%); l'italiano non raggruppa le migliaia a 4 cifre
-    expect(h).toContain("24-10-2026");
+    expect(h).toContain("24/10/2026");
     expect(h).toContain("IT60X0542811101000000123456");
     expect(h).toContain("Bonifico");
     expect(v!.titolo).toBe("Fattura FT-2026-0042 - Ferramenta Bianchi & Figli S.r.l.");
