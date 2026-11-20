@@ -6,7 +6,7 @@ export function spostaPinTettoFv(
   data: WizardData,
   riferimento: WizardData["riferimento_tetto"],
 ): WizardData {
-  const base = {
+  const base: WizardData = {
     ...data,
     riferimento_tetto: riferimento,
     ore_sole_annue: null,

@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
 import { pianoDaMappaFv } from "@/components/fotovoltaico/tetto/mappaGeometria";
 import { spostaPinTettoFv } from "@/lib/fotovoltaico/spostaPinTetto";
@@ -18,7 +18,7 @@ import {
 
 vi.mock(
   "@/components/fotovoltaico/tetto/MappaGoogleFv",
-  () => ({ MappaGoogleFv: () => null }),
+  () => ({ MappaGoogleFv: (): null => null }),
 );
 afterEach(() => {
   cleanup();
@@ -53,10 +53,14 @@ const mappa = (): MappaFv => ({
 const piano = () =>
   pianoDaMappaFv(mappa(), { corto: 1.134, lungo: 1.762, stimato: true });
 function prepara(
-  { readOnly = false, p = piano(), salva = vi.fn() }: {
+  {
+    readOnly = false,
+    p = piano(),
+    salva = vi.fn<(p: DisegnoCommercialeFv) => void>(),
+  }: {
     readOnly?: boolean;
     p?: DisegnoCommercialeFv;
-    salva?: ReturnType<typeof vi.fn>;
+    salva?: Mock<(p: DisegnoCommercialeFv) => void>;
   } = {},
 ) {
   function Host() {
