@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Loader2, Search, Download, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -39,10 +39,11 @@ import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/
 import { ModificaScadenzaDialog } from "@/components/scadenzario/ModificaScadenzaDialog";
 import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 import { formatCurrency } from "@/lib/formatters";
+import { FiltriScadenzario, FiltriScadenzarioAttivi, type ValoriFiltriScadenzario } from "@/components/scadenzario/FiltriScadenzario";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
-// Periodi rapidi (16/11/2026): quelli che servono davvero a chi paga e incassa. «Da» e «A»
-// restano sempre visibili accanto: toccarli rende il periodo «Personalizzato».
+// Periodi rapidi nella barra; le date personalizzate stanno in «Altri filtri».
 const DATE_PRESETS = [
   { label: "Oggi", value: "oggi" },
   { label: "Questa settimana", value: "settimana" },
@@ -110,10 +111,9 @@ export default function Scadenzario() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterMetodo, setFilterMetodo] = useState("");
 
-  const hasActiveFilters = datePreset || filterTipo || filterStatus || filterMetodo;
   // Mobile: linguette, periodo e tipo in un pannello dal basso.
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const nFiltriMobile = [tab !== "aperte", !!datePreset && datePreset !== "all", !!filterTipo && filterTipo !== "all"].filter(Boolean).length;
+  const nFiltriMobile = [tab !== "aperte", ...[datePreset, filterTipo, filterStatus, filterMetodo].map(v => !!v && v !== "all")].filter(Boolean).length;
 
   const clearFilters = useCallback(() => {
     setDatePreset("");
@@ -154,6 +154,22 @@ export default function Scadenzario() {
     }
     return null;
   }, [datePreset, customFrom, customTo, yearFilter, tab]);
+
+  const valoriFiltri: ValoriFiltriScadenzario = {
+    periodo: datePreset, dal: serverDateRange?.from ?? "", al: serverDateRange?.to ?? "",
+    metodo: filterMetodo, tipo: filterTipo, stato: filterStatus,
+  };
+  const cambiaFiltri = (patch: Partial<ValoriFiltriScadenzario>) => {
+    if (patch.periodo !== undefined) setDatePreset(patch.periodo);
+    if (patch.dal !== undefined) setCustomFrom(patch.dal);
+    if (patch.al !== undefined) setCustomTo(patch.al);
+    if (patch.metodo !== undefined) setFilterMetodo(patch.metodo);
+    if (patch.tipo !== undefined) setFilterTipo(patch.tipo);
+    if (patch.stato !== undefined) setFilterStatus(patch.stato);
+    setPage(1);
+  };
+  const vistaElenco = !["rate", "settimane", "adempimenti"].includes(tab);
+  const viste = [{ value: "rate", label: "Rate fornitori" }, { value: "settimane", label: "Per settimana" }, { value: "adempimenti", label: "Adempimenti fiscali" }];
 
   // La ricerca va al server con un attimo di attesa: prima filtrava solo le
   // righe gia' scaricate, quindi cercare una fattura finita in seconda pagina
@@ -199,7 +215,7 @@ export default function Scadenzario() {
     enabled: !!companyId && conGraficoMesi,
     staleTime: 60_000,
     queryFn: async () => {
-      const righe = await readAllPages<{ direction: string; amount: number | null; due_date: string }>((from, to) => queryFontiScadenzario(companyId!).select("direction, amount, due_date")
+      const righe = await readAllPages<{ direction: string; amount: number | null; due_date: string }>((from, to) => queryFontiScadenzario(companyId!).select("id, direction, amount, due_date")
         .eq("company_id", companyId!).neq("status", "annullata")
         .gte("due_date", `${yearFilter}-01-01`).lte("due_date", `${yearFilter}-12-31`)
         .order("id").range(from, to) as never);
@@ -226,7 +242,6 @@ export default function Scadenzario() {
     setDatePreset("custom");
     setCustomFrom(format(inizio, "yyyy-MM-dd"));
     setCustomTo(format(endOfMonth(inizio), "yyyy-MM-dd"));
-    setShowFilters(true);
     setPage(1);
   };
   const [exporting, setExporting] = useState(false);
@@ -239,7 +254,7 @@ export default function Scadenzario() {
     try {
       const data = await readAllPages(async (from, to) => {
       const q = filtraScadenzario(queryFontiScadenzario(companyId)
-        .select("due_date, direction, description, amount, paid_amount, payment_method, status, invoices(invoice_number), orders(order_code)"), serverFilters)
+        .select("id, due_date, direction, description, amount, paid_amount, payment_method, status, invoices(invoice_number), orders(order_code)"), serverFilters)
         .order("due_date", { ascending: true, nullsFirst: false }).order("id");
       return await q.range(from, to);
       });
@@ -308,7 +323,7 @@ export default function Scadenzario() {
   }, [tab, totalCount, summary]);
 
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-4 max-sm:space-y-3">
       {/* Header — mobile: titolo 18px, anno e «Nuova» piccoli sulla stessa riga
           (prima il bottone usciva dallo schermo: pagina larga 488px). */}
       <div className="flex items-center justify-between max-sm:gap-2">
@@ -393,158 +408,41 @@ export default function Scadenzario() {
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
 
-      {/* Tabs + Search + Filters toggle */}
-      <div className="flex flex-col gap-3 max-sm:hidden">
-        {/* Linguette su una riga sola e ricerca accanto se ci stanno, sotto se
-            no: a 1024 le linguette andavano su due righe dentro il riquadro. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }}>
-            <TabsList className="flex h-auto gap-1 p-1 justify-start">
-              {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side).
-                  Sotto 1280 resta solo quello delle scadute: con tutti i numeri la
-                  riga era 753px e a 768/1024 usciva dal riquadro. */}
+      <div className="space-y-2 max-sm:hidden">
+        <div className="flex min-w-0 items-center gap-2">
+          <Tabs className="min-w-0 flex-1 overflow-x-auto" value={tab} onValueChange={v => { setTab(v); setPage(1); }}>
+            <TabsList className="inline-flex h-9 w-max justify-start gap-0.5 p-0.5 [&>button]:px-2.5 [&>button]:text-xs">
               <TabsTrigger value="aperte">Aperte<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
               <TabsTrigger value="tutte">Tutte<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
               <TabsTrigger value="da_incassare">Da Incassare<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
-              <TabsTrigger value="rate">Rate fornitori</TabsTrigger>
               <TabsTrigger value="da_pagare">Da Pagare<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
-              <TabsTrigger value="scadute">
-                Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
-              </TabsTrigger>
+              <TabsTrigger value="scadute">Scadute{counts.scadute > 0 && <span className="ml-1 font-semibold text-destructive">({counts.scadute})</span>}</TabsTrigger>
               <TabsTrigger value="pagate">Pagate<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
-              <TabsTrigger value="settimane">Per settimana</TabsTrigger>
-              <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="relative w-full sm:w-56">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                aria-label="Cerca nello scadenzario"
-                placeholder="Cerca..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="pl-8"
-              />
-            </div>
-            <Button
-              variant={showFilters ? "default" : "outline"}
-              size="icon"
-              onClick={() => setShowFilters(!showFilters)}
-              aria-label="Filtri avanzati scadenzario"
-              aria-expanded={showFilters}
-              className={tab === "rate" ? "hidden" : "relative"}
-            >
-              <Filter className="h-4 w-4" />
-              {hasActiveFilters && (
-                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary border-2 border-background" />
-              )}
-            </Button>
-            {/* Niente export su telefono: icon-only non lo rende un'altra cosa. */}
-            {!isMobile && tab !== "rate" && (
-              <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting || isLoading || isError || ricercaInAttesa || dateInvertite} title="Esporta CSV" aria-label="Esporta CSV">
-                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </Button>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant={vistaElenco ? "outline" : "secondary"} size="sm" className="h-9 shrink-0 gap-1.5" aria-label="Altre viste dello scadenzario">
+              {viste.find(v => v.value === tab)?.label ?? "Altre viste"}<ChevronDown className="h-3.5 w-3.5" />
+            </Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">{viste.map(v => <DropdownMenuItem key={v.value} onSelect={() => { setTab(v.value); setPage(1); }}>{v.label}</DropdownMenuItem>)}</DropdownMenuContent>
+          </DropdownMenu>
         </div>
-
-        {/* Advanced filters row */}
-        {showFilters && tab !== "rate" && (
-          <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg border bg-muted/30">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Periodo</label>
-              <Select value={datePreset} onValueChange={(v) => { setDatePreset(v); setPage(1); }}>
-                <SelectTrigger aria-label="Periodo scadenze" className="w-[170px] h-9 text-sm">
-                  <SelectValue placeholder={yearFilter === "all" ? "Tutti gli anni" : `Tutto il ${yearFilter}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{yearFilter === "all" ? "Tutti gli anni" : `Tutto il ${yearFilter}`}</SelectItem>
-                  {DATE_PRESETS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* «Da» e «A» sempre a vista, con le date del periodo scelto: cambiarle lo rende «Personalizzato». */}
-            {(() => {
-              const r = datePreset && datePreset !== "custom" && datePreset !== "all" ? getDateRange(datePreset) : null;
-              const da = datePreset === "custom" ? customFrom : r?.from ?? (yearFilter !== "all" && !datePreset ? `${yearFilter}-01-01` : "");
-              const a = datePreset === "custom" ? customTo : r?.to ?? (yearFilter !== "all" && !datePreset ? `${yearFilter}-12-31` : "");
-              const personalizza = (campo: "da" | "a", v: string) => {
-                setDatePreset("custom");
-                setCustomFrom(campo === "da" ? v : da);
-                setCustomTo(campo === "a" ? v : a);
-                setPage(1);
-              };
-              return (
-                <>
-                  <div className="space-y-1">
-                    <label htmlFor="scad-da" className="text-xs font-medium text-muted-foreground">Da</label>
-                    <Input id="scad-da" type="date" value={da} onChange={(e) => personalizza("da", e.target.value)} className="h-9 w-[150px] text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label htmlFor="scad-a" className="text-xs font-medium text-muted-foreground">A</label>
-                    <Input id="scad-a" type="date" value={a} min={da || undefined} onChange={(e) => personalizza("a", e.target.value)} className="h-9 w-[150px] text-sm" />
-                  </div>
-                </>
-              );
-            })()}
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Modalità</label>
-              <Select value={filterMetodo} onValueChange={(v) => { setFilterMetodo(v); setPage(1); }}>
-                <SelectTrigger aria-label="Modalità di pagamento" className="w-[150px] h-9 text-sm">
-                  <SelectValue placeholder="Tutte" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  {GRUPPI_METODO.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Tipo</label>
-              <Select value={filterTipo} onValueChange={(v) => { setFilterTipo(v); setPage(1); }}>
-                <SelectTrigger aria-label="Tipo di scadenza" className="w-[160px] h-9 text-sm">
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="incasso_cliente">Incasso cliente</SelectItem>
-                  <SelectItem value="pagamento_fornitore">Pagamento fornitore</SelectItem>
-                  <SelectItem value="costo_aziendale">Costo aziendale</SelectItem>
-                  <SelectItem value="scadenza_fiscale">Scadenza fiscale</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Stato</label>
-              <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
-                <SelectTrigger aria-label="Stato della scadenza" className="w-[140px] h-9 text-sm">
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="da_pagare">Da pagare</SelectItem>
-                  <SelectItem value="parziale">Parziale</SelectItem>
-                  <SelectItem value="pagata">Pagata</SelectItem>
-                  <SelectItem value="annullata">Annullata</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs gap-1">
-                <X className="h-3 w-3" /> Pulisci
-              </Button>
-            )}
+        {tab !== "adempimenti" && <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input aria-label="Cerca nello scadenzario" placeholder="Cerca cliente, fornitore o descrizione…" value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }} className="h-9 pl-8 text-xs" />
           </div>
-        )}
+          {vistaElenco && <>
+            <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={DATE_PRESETS}
+              aperto={showFilters} onAperto={setShowFilters} cambia={cambiaFiltri} azzera={clearFilters} />
+            <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={handleExport}
+              disabled={exporting || isLoading || isError || ricercaInAttesa || dateInvertite} title="Esporta CSV" aria-label="Esporta CSV">
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            </Button>
+          </>}
+        </div>}
+        {vistaElenco && <FiltriScadenzarioAttivi valore={valoriFiltri} cambia={cambiaFiltri} azzera={clearFilters} />}
       </div>
 
       {/* Adempimenti Fiscali tab */}
@@ -569,7 +467,7 @@ export default function Scadenzario() {
           </div>
         ) : (
           <>
-            {!permessi.solaLettura && filtered.length > 0 && <BarraSelezioneRighe nome="le scadenze" selezionate={selezione.selezionate.length} consentite={annullabili.length}
+            {!permessi.solaLettura && selezione.selezionate.length > 0 && <BarraSelezioneRighe nome="le scadenze" selezionate={selezione.selezionate.length} consentite={annullabili.length}
               tutte={selezione.tutte} parziale={selezione.parziale}
               entrate={annullabili.filter((s) => s.direction === "entrata").reduce((n, s) => n + Number(s.amount), 0)}
               uscite={annullabili.filter((s) => s.direction === "uscita").reduce((n, s) => n + Number(s.amount), 0)}
@@ -583,6 +481,9 @@ export default function Scadenzario() {
               onModifica={!permessi.solaLettura ? setDaModificare : undefined}
               selezionate={selezione.ids}
               onSeleziona={!permessi.solaLettura ? selezione.alterna : undefined}
+              onSelezionaPagina={!permessi.solaLettura ? selezione.pagina : undefined}
+              tutteSelezionate={selezione.tutte}
+              selezioneParziale={selezione.parziale}
               inCorso={cancelMany.isPending || cancel.isPending || update.isPending}
               onAnnullaIncasso={setDaAnnullare}
               onAdd={() => setNewOpen(true)}
@@ -652,6 +553,9 @@ export default function Scadenzario() {
             ...DATE_PRESETS.filter((p) => p.value !== "custom"),
           ]}
         />
+        <PilloleFiltro titolo="Modalità di pagamento" valore={filterMetodo || "all"}
+          onScegli={v => { setFilterMetodo(v === "all" ? "" : v); setPage(1); }}
+          scelte={[{ value: "all", label: "Tutte" }, ...GRUPPI_METODO]} />
         <PilloleFiltro
           titolo="Tipo"
           valore={filterTipo || "all"}

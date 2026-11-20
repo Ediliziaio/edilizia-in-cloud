@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Scadenzario from "@/pages/azienda/billing/Scadenzario";
 
-const state = vi.hoisted(() => ({ fail: false, summaryFail: false, extraRows: false, senzaData: false, exportCsv: vi.fn(), writes: vi.fn() }));
+const state = vi.hoisted(() => ({ fail: false, summaryFail: false, extraRows: false, senzaData: false, exportCsv: vi.fn(), writes: vi.fn(), projectionErrors: vi.fn() }));
+vi.mock("@/components/charts/grafici/GraficoEntrateUscite", () => ({ GraficoEntrateUscite: (): null => null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/csvExport", () => ({ exportToCSV: state.exportCsv }));
@@ -33,6 +34,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
     if (state.extraRows) rows = [...rows, ...Array.from({ length: 1001 }, (_, i) => ({ ...rows[0], id: `extra-${i}`, description: `Scadenza demo ${i}` }))];
     if (state.senzaData) rows.push({ ...rows[0], id: "senza-data", description: "Commessa senza data", due_date: null });
     let from = 0, to = Infinity;
+    let proiezione = "*";
     const q: Record<string, unknown> = {};
     const methods: Record<string, (a: unknown, b: unknown) => void> = {
       eq: (k, v) => { rows = rows.filter(r => r[k as keyof typeof r] === v); },
@@ -42,7 +44,13 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       or: () => {},
       gte: () => {}, lte: () => {}, lt: () => {},
       ilike: (_, v) => { rows = rows.filter(r => r.description.toLowerCase().includes(String(v).slice(1, -1).toLowerCase())); },
-      order: () => {}, select: () => {}, range: (a, b) => { from = Number(a); to = Number(b); }, limit: () => {},
+      order: (campo) => {
+        if (campo === "id" && !proiezione.includes("*") && !proiezione.split(",").some(c => c.trim() === "id")) {
+          state.projectionErrors();
+          throw new Error("column scadenze.id does not exist");
+        }
+      },
+      select: (campi) => { proiezione = String(campi ?? "*"); }, range: (a, b) => { from = Number(a); to = Number(b); }, limit: () => {},
     };
     for (const [name, fn] of Object.entries(methods)) q[name] = (a: unknown, b: unknown) => { fn(a, b); return q; };
     for (const name of ["insert", "update", "delete"]) q[name] = state.writes;
@@ -55,10 +63,15 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<MemoryRouter><QueryClientProvider client={client}><Scadenzario /></QueryClientProvider></MemoryRouter>);
 }
-beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.senzaData = false; state.exportCsv.mockClear(); state.writes.mockClear(); });
+beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.senzaData = false; state.exportCsv.mockClear(); state.writes.mockClear(); state.projectionErrors.mockClear(); });
 afterEach(cleanup);
 
 describe("Scadenzario: viste aperte e recupero errori", () => {
+  it("carica il grafico con l'identità necessaria all'ordinamento della RPC", async () => {
+    setup();
+    await screen.findByText("Incasso aperto");
+    expect(state.projectionErrors).not.toHaveBeenCalled();
+  });
   it("Da incassare e Da pagare escludono saldati e annullati, anche nell'export", async () => {
     setup();
     // Si apre su «Aperte» (16/11/2026): il saldato non c'è; con «Tutte» compare.

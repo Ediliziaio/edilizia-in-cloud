@@ -6,7 +6,7 @@ const company = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
   other = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
   invoice = "cccccccc-cccc-4ccc-cccc-cccccccccccc";
 beforeAll(async () => {
-  await pg.exec(`create role anon;create role authenticated;create schema auth;
+  await pg.exec(`create role anon;create role authenticated;create schema auth;create schema private;
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.user',true),'')::uuid$$;
  create function utente_bloccato() returns boolean language sql stable as $$select coalesce(current_setting('test.blocked',true),'')='true'$$;
  create table fatture_ricevute(id uuid primary key,company_id uuid,stato text,company_cost_id uuid,pagata_il date,note_interne text);
@@ -19,6 +19,9 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  const conservaLettura = await readFile("supabase/migrations/20290423108000_conserva_lettura_fatture_contabilizzate.sql", "utf8");
+  await pg.exec(conservaLettura);
+  await pg.exec(conservaLettura);
   await pg.exec(
     await readFile(
       "supabase/migrations/20290317103000_fatture_ricevute_stato_lettura.sql",
@@ -77,6 +80,19 @@ it("non sovrascrive una contabilizzazione effettuata dopo la lettura della lista
     "reset role;update fatture_ricevute set stato='contabilizzata';set role authenticated;",
   );
   expect((await mark(false)).stato).toBe("contabilizzata");
+});
+it("una fattura mai letta resta da leggere quando viene contabilizzata", async () => {
+  await pg.exec(`update fatture_ricevute set stato='contabilizzata',company_cost_id='${other}'`);
+  const row = (await pg.query<{stato:string;da_leggere:boolean;company_cost_id:string}>("select stato,da_leggere,company_cost_id from fatture_ricevute")).rows[0];
+  expect(row).toEqual({stato:'contabilizzata',da_leggere:true,company_cost_id:other});
+  expect(await mark(false)).toEqual({id:invoice,stato:'contabilizzata',da_leggere:false});
+});
+it("preserva sia una lettura precedente sia la scelta esplicita di rimettere non letta", async () => {
+  await mark(false);
+  await pg.exec("update fatture_ricevute set stato='contabilizzata'");
+  expect((await pg.query<{da_leggere:boolean}>("select da_leggere from fatture_ricevute")).rows[0].da_leggere).toBe(false);
+  await mark(true);
+  expect((await pg.query<{stato:string;da_leggere:boolean}>("select stato,da_leggere from fatture_ricevute")).rows[0]).toEqual({stato:'contabilizzata',da_leggere:true});
 });
 it("rispetta azienda, RLS e blocco utente", async () => {
   await expect(mark(false, other)).rejects.toThrow(/non disponibile/);

@@ -38,6 +38,9 @@ interface Props {
   onModifica?: (s: Scadenza) => void;
   selezionate?: Set<string>;
   onSeleziona?: (id: string) => void;
+  onSelezionaPagina?: (attive: boolean) => void;
+  tutteSelezionate?: boolean;
+  selezioneParziale?: boolean;
   inCorso?: boolean;
 }
 
@@ -50,7 +53,7 @@ const monthLabel = (d: Date | null) => {
 /** I totali di un mese nella riga del titolo: quanto entra, quanto esce, quanto resta aperto. */
 interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, inCorso = false }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota, onModifica, selezionate, onSeleziona, onSelezionaPagina, tutteSelezionate, selezioneParziale, inCorso = false }: Props) {
   // Totali per mese delle righe in pagina (16/11/2026): si legge il mese senza sommare a mente.
   const totaliMese = useMemo(() => {
     const m = new Map<string, TotaliMese>();
@@ -89,6 +92,10 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
 
   return (
     <>
+    {onSelezionaPagina && <label className="flex items-center gap-2 py-1 text-xs sm:hidden">
+      <Checkbox aria-label="Seleziona le scadenze di questa pagina" checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} />
+      Seleziona pagina
+    </label>}
     {/* Mobile: una riga da ~52px per scadenza (descrizione; data, riferimento e
         giorni; importo e «Paga»), col mese come riga sottile. Prima: tre righe
         di testo, badge del tipo e bottone per ogni scadenza. */}
@@ -173,7 +180,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
       <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 [&_td]:py-1.5">
         <thead>
           <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-            {onSeleziona && <th className="w-10"><span className="sr-only">Selezione</span></th>}
+            {onSeleziona && <th className="w-10">{onSelezionaPagina ? <Checkbox aria-label="Seleziona le scadenze di questa pagina" checked={tutteSelezionate ? true : selezioneParziale ? "indeterminate" : false} disabled={inCorso} onCheckedChange={v => onSelezionaPagina(v === true)} /> : <span className="sr-only">Selezione</span>}</th>}
             <th className="py-2 font-medium">Scadenza</th>
             <th className="hidden py-2 font-medium 2xl:table-cell">Tipo</th>
             <th className="py-2 font-medium">Cliente / fornitore</th>
