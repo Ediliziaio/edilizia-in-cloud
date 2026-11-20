@@ -198,6 +198,11 @@ jobs:
           src/test/logic/calendarBookingRetry.test.ts
           src/test/logic/calendarioEsternoAssociazione.test.ts
           src/test/logic/outlookBooking.test.ts
+      - name: Verify Cassa in Cloud receipt imports
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/cassaInCloud.test.ts
+          src/test/ui/cassaInCloud.test.tsx
 
   frontend-build:
     name: Frontend production build

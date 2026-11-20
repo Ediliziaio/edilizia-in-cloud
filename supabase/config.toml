@@ -492,6 +492,9 @@ verify_jwt = false
 [functions.billing-sync]
 verify_jwt = false
 
+[functions.cassa-in-cloud]
+verify_jwt = false
+
 [functions.billing-webhook]
 verify_jwt = false
 

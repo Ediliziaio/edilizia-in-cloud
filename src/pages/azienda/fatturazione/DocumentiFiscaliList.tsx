@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, MoreHorizontal, Search, X, Loader2, ChevronLeft, ChevronRight,
-  Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText,
+  Download, Eye, Pencil, Copy, CreditCard, Trash2, FileWarning, FileText, ReceiptText,
   AlertCircle, CheckCircle2, Clock, Truck, RotateCcw, FileSpreadsheet,
   BarChart3, Settings2, BookUser, Wallet, Archive, Calculator, ShieldCheck,
   Link2, Landmark,
@@ -701,6 +701,9 @@ function DocumentiFiscaliListInner() {
             </Button>
             {!isCommercialistaMode && (
               <>
+                <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+                  <Link to="/azienda/documenti/scontrini"><ReceiptText className="h-4 w-4" />Scontrini</Link>
+                </Button>
                 {/* Da telefono la fatturazione non si imposta (solo computer o tablet).
                     Chi importa imposta il collegamento al gestionale, non la numerazione. */}
                 {!isMobile && (

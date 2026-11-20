@@ -22557,6 +22557,71 @@ export type Database = {
         }
         Relationships: []
       }
+      cassa_in_cloud_scontrini: {
+        Row: {
+          company_id: string
+          con_fattura: boolean
+          con_reso: boolean
+          confermato: boolean | null
+          data: string
+          esterno_id: string
+          numero: string | null
+          numero_z: string | null
+          ora: string | null
+          pagamenti: Json
+          presente_in_cassa: boolean
+          punto_vendita_id: string
+          punto_vendita_nome: string
+          resto: number | null
+          totale: number
+          valuta: string | null
+        }
+        Insert: {
+          company_id: string
+          con_fattura: boolean
+          con_reso: boolean
+          confermato?: boolean | null
+          data: string
+          esterno_id: string
+          numero?: string | null
+          numero_z?: string | null
+          ora?: string | null
+          pagamenti: Json
+          presente_in_cassa?: boolean
+          punto_vendita_id: string
+          punto_vendita_nome: string
+          resto?: number | null
+          totale: number
+          valuta?: string | null
+        }
+        Update: {
+          company_id?: string
+          con_fattura?: boolean
+          con_reso?: boolean
+          confermato?: boolean | null
+          data?: string
+          esterno_id?: string
+          numero?: string | null
+          numero_z?: string | null
+          ora?: string | null
+          pagamenti?: Json
+          presente_in_cassa?: boolean
+          punto_vendita_id?: string
+          punto_vendita_nome?: string
+          resto?: number | null
+          totale?: number
+          valuta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cassa_in_cloud_scontrini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cassa_voce_storico: {
         Row: {
           a_voce_id: string | null

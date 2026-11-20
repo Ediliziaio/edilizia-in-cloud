@@ -2,12 +2,12 @@
  * SettingsFatturazioneUnified — la pagina Fatturazione delle impostazioni.
  *
  * In cima la scelta «Come fatturi?» (con un altro programma / con Edilizia in Cloud), che decide tutto il resto;
- * sotto due schede, una per modo:
+ * sotto le schede della fatturazione e il connettore per gli scontrini:
  *  - «Con un altro programma»: il programma collegato (Fatture in Cloud, Fattura24, Aruba…) e cosa è arrivato.
  *  - «Con Edilizia in Cloud»: i dati che escono sulle fatture, l'invio allo SDI, la numerazione. Si possono
  *    cambiare solo se si fattura così: altrimenti la scheda si legge e basta, e dice come attivarla.
  *
- * URL: /azienda/impostazioni/fatturazione?tab=esterna|nativa (senza: la scheda del modo scelto)
+ * URL: /azienda/impostazioni/fatturazione?tab=esterna|nativa|cassa (senza: la scheda del modo scelto)
  * Redirect: /azienda/impostazioni/fatturazione-nativa → ?tab=nativa
  */
 import { lazy, Suspense } from "react";
@@ -15,7 +15,7 @@ import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plug, FileSignature, Lock, ArrowRight, Monitor } from "lucide-react";
+import { Loader2, Plug, FileSignature, Lock, ArrowRight, Monitor, ReceiptText } from "lucide-react";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ComeFatturi } from "@/components/fatturazione/ComeFatturi";
@@ -25,6 +25,7 @@ import { ContabilitaInCasa } from "@/components/contabilita/ContabilitaInCasa";
 // Code-split: le due schede sono pesanti. Carico solo quella che si vede.
 const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
 const ImpostazioniFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ImpostazioniFatturazione"));
+const SettingsCassaInCloud = lazy(() => import("@/pages/azienda/settings/SettingsCassaInCloud"));
 
 const TabFallback = () => (
   <div className="flex items-center justify-center py-12">
@@ -32,7 +33,7 @@ const TabFallback = () => (
   </div>
 );
 
-const VALID_TABS = new Set(["esterna", "nativa"]);
+const VALID_TABS = new Set(["esterna", "nativa", "cassa"]);
 
 export default function SettingsFatturazioneUnified() {
   const [params, setParams] = useSearchParams();
@@ -79,7 +80,7 @@ export default function SettingsFatturazioneUnified() {
       </details>
 
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid h-auto w-full max-w-xl grid-cols-2">
+        <TabsList className="grid h-auto w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="esterna" className="gap-1.5 whitespace-normal py-2 text-xs sm:text-sm">
             <Plug className="h-3.5 w-3.5 shrink-0" />
             Con un altro programma
@@ -88,6 +89,10 @@ export default function SettingsFatturazioneUnified() {
             <FileSignature className="h-3.5 w-3.5 shrink-0" />
             Con Edilizia in Cloud
             {!isLoading && !isNative && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Sola lettura" />}
+          </TabsTrigger>
+          <TabsTrigger value="cassa" className="gap-1.5 whitespace-normal py-2 text-xs sm:text-sm">
+            <ReceiptText className="h-3.5 w-3.5 shrink-0" />
+            Cassa in Cloud
           </TabsTrigger>
         </TabsList>
 
@@ -123,6 +128,12 @@ export default function SettingsFatturazioneUnified() {
               <ImpostazioniFatturazione />
             </Suspense>
           </fieldset>
+        </TabsContent>
+
+        <TabsContent value="cassa" className="mt-4">
+          <Suspense fallback={<TabFallback />}>
+            <SettingsCassaInCloud />
+          </Suspense>
         </TabsContent>
       </Tabs>
 
