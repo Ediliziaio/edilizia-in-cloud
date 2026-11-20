@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { configurazioneMapsBrowser } from "../_shared/mapsBrowserConfig.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -34,6 +36,17 @@ Deno.serve(async (req) => {
 
     const { integration } = await req.json();
 
+    // Configurazione browser: Static satellite non è disponibile per gli account SEE.
+    if (integration === "google_maps") {
+      const configurazione = await configurazioneMapsBrowser(getPlatformSetting);
+      const esito = {ok:configurazione.configured,message:configurazione.configured
+        ? "Chiave della mappa interattiva configurata. Verifica immagini e domini aprendo il tetto nel configuratore."
+        : configurazione.message};
+      return new Response(JSON.stringify(esito), {
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
     // Read settings from key-value store
     const { data: allSettings } = await supabaseAdmin
       .from("platform_settings")
@@ -67,20 +80,6 @@ Deno.serve(async (req) => {
         if (!clientId) { message = "Client ID non configurato"; break; }
         ok = clientId.includes(".apps.googleusercontent.com");
         message = ok ? "Formato Client ID valido" : "Formato Client ID non valido";
-        break;
-      }
-
-      case "google_maps": {
-        const apiKey = settings.get("google_maps_api_key") || Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
-        if (!apiKey) { message = "API Key non configurata"; break; }
-        try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=Roma&key=${apiKey}`
-          );
-          const json = await res.json();
-          ok = json.status === "OK";
-          message = ok ? "Google Maps API funzionante" : `Errore: ${json.status}`;
-        } catch (e: any) { message = e.message; }
         break;
       }
 

@@ -100,10 +100,10 @@ const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string
           {status === "testing"
             ? "Test..."
             : status === "ok"
-            ? "Connesso"
+            ? integrationKey === "google_maps" ? "Configurata" : "Connesso"
             : status === "error"
             ? "Errore"
-            : "Testa connessione"}
+            : integrationKey === "google_maps" ? "Verifica configurazione" : "Testa connessione"}
         </Button>
         {message && (
           <span
@@ -147,6 +147,7 @@ function ApiKeyCard({
   const [lastClearedAt, setLastClearedAt] = useState(0);
 
   const isConfigured = fields.some((f) => {
+    if (integrationKey === "google_maps" && f.key !== "google_maps_browser_key") return false;
     const s = settings?.[f.key];
     return !!(s?.value || s?.masked);
   });
@@ -287,12 +288,13 @@ const API_CARDS = [
   {
     icon: MapPin,
     title: "Google Maps",
-    description: "API Key per geocoding e autocompletamento indirizzi",
+    description: "Credenziale server e chiave dedicata alla mappa interattiva",
     tooltipText:
-      "La chiave viene usata dal proxy server-side per le API Places, Geocoding e Directions.",
+      "La credenziale server resta nel proxy. Per la mappa satellitare usa una chiave browser separata, limitata ai domini EiC e alla sola Maps JavaScript API.",
     integrationKey: "google_maps",
     fields: [
-      { key: "google_maps_api_key", label: "Google Maps API Key", isSecret: true },
+      { key: "google_maps_api_key", label: "Google Maps API Key — servizi server", isSecret: true },
+      { key: "google_maps_browser_key", label: "Mappa interattiva — chiave browser con domini limitati", isSecret: true },
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { type PointerEvent, useRef, useState } from "react";
-import { useSatelliteFv } from "./tetto/useSatelliteFv";
+import { MappaGoogleFv, type DimensioniMappaGoogleFv, type StatoMappaGoogleFv } from "./tetto/MappaGoogleFv";
 import {
   Hand,
   LocateFixed,
@@ -85,14 +85,16 @@ export function FvMappaTetto(
     [ostacoli, setOstacoli] = useState(piano?.mappa?.distanzaOstacoli ?? .3);
   const svg = useRef<SVGSVGElement>(null),
     drag = useRef<{ fid: string; i: number } | null>(null);
-  const satellite = useSatelliteFv(centro, zoom),
-    origine = riferimento?.posizione ?? piano?.mappa?.origine ?? pin,
+  const [satellite, setSatellite] = useState<StatoMappaGoogleFv>({caricando:true,pronto:false,errore:""});
+  const [dimensioni, setDimensioni] = useState<DimensioniMappaGoogleFv>({w:640,h:440});
+  const [tentativoMappa, setTentativoMappa] = useState(0);
+  const origine = riferimento?.posizione ?? piano?.mappa?.origine ?? pin,
     confermato = (!!riferimento || !!piano?.mappa) &&
       Math.abs(pin.lat - origine.lat) < 1e-8 &&
       Math.abs(pin.lng - origine.lng) < 1e-8;
   const selezionata = falde.find((f) => f.id === attiva);
   const schermo = (p: PuntoFv) =>
-    pixelDaCoordinate(coordinateDaMetri(p, origine), centro, zoom);
+    pixelDaCoordinate(coordinateDaMetri(p, origine), centro, zoom, dimensioni.w, dimensioni.h);
   const serializza = (ps: PuntoFv[]) =>
     ps.map((p) => {
       const q = schermo(p);
@@ -102,11 +104,13 @@ export function FvMappaTetto(
     const el = svg.current!, r = el.getBoundingClientRect();
     return coordinateDaPixel(
       {
-        x: (e.clientX - r.left) * 640 / r.width,
-        y: (e.clientY - r.top) * 440 / r.height,
+        x: (e.clientX - r.left) * dimensioni.w / r.width,
+        y: (e.clientY - r.top) * dimensioni.h / r.height,
       },
       centro,
       zoom,
+      dimensioni.w,
+      dimensioni.h,
     );
   };
   const aggiungi = (ps: PuntoFv[]) => {
@@ -143,11 +147,11 @@ export function FvMappaTetto(
   const finisciSpostamento = (e: PointerEvent) => {
     if (vistaDrag.current && svg.current) {
       const r = svg.current.getBoundingClientRect(), d = vistaDrag.current;
-      const dx = (e.clientX - d.x) * 640 / r.width,
-        dy = (e.clientY - d.y) * 440 / r.height;
+      const dx = (e.clientX - d.x) * dimensioni.w / r.width,
+        dy = (e.clientY - d.y) * dimensioni.h / r.height;
       if (Math.hypot(dx, dy) > 2) {
         setCentro(
-          coordinateDaPixel({ x: 320 - dx, y: 220 - dy }, d.centro, zoom),
+          coordinateDaPixel({ x: dimensioni.w / 2 - dx, y: dimensioni.h / 2 - dy }, d.centro, zoom, dimensioni.w, dimensioni.h),
         );
       }
     }
@@ -344,21 +348,30 @@ export function FvMappaTetto(
               <button
                 type="button"
                 className="underline"
-                onClick={satellite.riprova}
+                onClick={() => setTentativoMappa(t => t + 1)}
               >
                 Riprova mappa
               </button>
             </p>
           )}
+          <div className="relative mx-auto w-full overflow-hidden rounded-xl border bg-slate-100" style={{aspectRatio:"640/440",maxWidth:900}}>
+          <MappaGoogleFv key={tentativoMappa} centro={centro} zoom={zoom} navigabile={tool === "sposta"}
+            onStato={setSatellite}
+            onDimensioni={d => setDimensioni(p => Math.abs(p.w-d.w)<.5&&Math.abs(p.h-d.h)<.5?p:d)}
+            onVista={(c,z) => {setCentro(p => Math.abs(p.lat-c.lat)<1e-9&&Math.abs(p.lng-c.lng)<1e-9?p:c);setZoom(z);}}
+          />
           <svg
             ref={svg}
-            viewBox="0 0 640 440"
-            className="w-full rounded-xl border bg-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+            viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
+            className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
             style={{
               aspectRatio: "640/440",
               maxWidth: 900,
               marginInline: "auto",
               display: "block",
+              background: "transparent",
+              clipPath: satellite.pronto ? "inset(0 0 28px 0)" : undefined,
+              pointerEvents: satellite.pronto && tool === "sposta" ? "none" : "auto",
               touchAction: "none",
               cursor: tool === "sposta"
                 ? "grab"
@@ -407,7 +420,7 @@ export function FvMappaTetto(
                 return;
               }
               if (tool === "poligono" && punti.length < 64) {
-                const pixel = pixelDaCoordinate(p, centro, zoom),
+                const pixel = pixelDaCoordinate(p, centro, zoom, dimensioni.w, dimensioni.h),
                   primo = punti.length ? schermo(punti[0]) : null;
                 if (
                   punti.length >= 3 && primo &&
@@ -424,8 +437,8 @@ export function FvMappaTetto(
                 const r = svg.current.getBoundingClientRect(),
                   d = vistaDrag.current;
                 setSpostamento({
-                  x: (e.clientX - d.x) * 640 / r.width,
-                  y: (e.clientY - d.y) * 440 / r.height,
+                  x: (e.clientX - d.x) * dimensioni.w / r.width,
+                  y: (e.clientY - d.y) * dimensioni.h / r.height,
                 });
                 return;
               }
@@ -457,9 +470,6 @@ export function FvMappaTetto(
             }}
           >
             <g transform={`translate(${spostamento.x} ${spostamento.y})`}>
-              {satellite.url && (
-                <image href={satellite.url} width={640} height={440} />
-              )}
               {falde.map((f) => (
                 <g key={f.id}>
                   <polygon
@@ -549,7 +559,7 @@ export function FvMappaTetto(
                 );
               })}
               {(() => {
-                const q = pixelDaCoordinate(pin, centro, zoom);
+                const q = pixelDaCoordinate(pin, centro, zoom, dimensioni.w, dimensioni.h);
                 return (
                   <g
                     transform={`translate(${q.x} ${q.y})`}
@@ -575,9 +585,10 @@ export function FvMappaTetto(
               })()}
             </g>
           </svg>
+          </div>
           <p className="mt-2 text-xs text-slate-500">
-            Nord in alto · {satellite.url
-              ? "Immagine Google Maps, scala da coordinate geografiche"
+            Nord in alto · {satellite.pronto
+              ? "Google Maps: vista satellitare interattiva, scala da coordinate geografiche"
               : "Schema metrico manuale: verifica le misure sul posto"}. Le
             immagini non sono salvate nel progetto.
           </p>
