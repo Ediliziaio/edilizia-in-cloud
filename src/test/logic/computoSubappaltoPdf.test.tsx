@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer/lib/react-pdf.js";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { ComputoSubappaltoPDF, type DatiComputoSubappalto } from "@/components/subappaltatori/ComputoSubappaltoPDF";
 import { writeFileSync } from "node:fs";
+import { generaPdfComputoSubappalto } from "@/lib/subappaltatori/computoPdf";
 
 const dati: DatiComputoSubappalto = {
   azienda: "Impresa di collaudo", companyId: "demo-isolata", ditta: "Edil Alfa S.r.l.", numero: "ORD-012/S01", commessa: "ORD-012", revisione: 3, bozza: false, oneri: 100,
@@ -11,6 +12,12 @@ const dati: DatiComputoSubappalto = {
     { fase: "Finiture", sottofase: "Primo piano", descrizione: "Rasatura aggiuntiva", quantita: 30, prezzo: 10, importo: 300, unita: "mq", comprende: "posa" },
   ],
 };
+
+it("il comando di esportazione restituisce un file PDF scaricabile", async () => {
+  const blob = await generaPdfComputoSubappalto(dati);
+  expect(blob.type).toBe("application/pdf");
+  expect(blob.size).toBeGreaterThan(1000);
+});
 
 async function leggi(d: DatiComputoSubappalto) {
   const bytes = await renderToBuffer(<ComputoSubappaltoPDF dati={d} />);

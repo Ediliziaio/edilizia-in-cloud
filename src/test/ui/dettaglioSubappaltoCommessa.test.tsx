@@ -2,6 +2,7 @@ import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
+import type { VoceSub } from "@/lib/subappaltatori/lavoriMisure";
 import { useDettaglioSubappaltoCommessa } from "@/hooks/useDettaglioSubappaltoCommessa";
 
 const m = vi.hoisted(() => ({ error: false, calls: [] as { tabella: string; filtri: [string, unknown][]; from: number }[] }));
@@ -13,7 +14,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: s
     range: (from: number) => { q.from = from; return catena; },
     then: (ok: (r: unknown) => unknown) => {
       m.calls.push(q);
-      const righe = tabella === "subappalto_quadri_lavori" ? [{ id: "q", revisione: 1, voci: [], importo_lavori: 1 }]
+      const righe = tabella === "subappalto_quadri_lavori" ? [{ id: "q", revisione: 1, voci: [] as VoceSub[], importo_lavori: 1 }]
         : Array.from({ length: q.from === 0 ? 1000 : 1 }, (_, i) => ({ id: String(q.from + i) }));
       return Promise.resolve({ data: righe, error: m.error && tabella === "sal_subappaltatori" ? { message: "Lettura SAL fallita" } : null }).then(ok);
     },
