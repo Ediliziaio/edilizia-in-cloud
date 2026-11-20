@@ -1,4 +1,4 @@
--- PROPOSTA COLLAUDATA, NON APPLICATA. Spostare in supabase/migrations solo dopo apply_migration e riallineamento del registro, secondo AGENTS.md.
+-- Bollette, mappa e scenari FV. Applicata via MCP e riallineata al registro del repository.
 -- Bozze FV: bollette verificate e posizione del tetto, senza modificare i progetti esistenti.
 SET LOCAL lock_timeout='3s';
 SET LOCAL statement_timeout='60s';

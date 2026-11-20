@@ -15,7 +15,7 @@ import { INITIAL, LS_KEY_NEW } from "@/pages/azienda/fotovoltaico/FotovoltaicoWi
 const { stato, ARTICOLI, NESSUNO, apiInvoke, aggiorna } = vi.hoisted(() => ({
   stato: { margini: true, id: undefined as string | undefined },
   apiInvoke: vi.fn(),
-  aggiorna: vi.fn(() => Promise.resolve({})),
+  aggiorna: vi.fn((_args:unknown) => Promise.resolve({})),
   ARTICOLI: {
     pannello: [{ id: "pan1", descrizione: "Pannello 450 W bifacciale", prezzo_vendita: 180, prezzo_acquisto: 120, potenza_w: 450, garanzia_anni: 25 }],
     inverter: [{ id: "inv1", descrizione: "Inverter ibrido 6 kW", prezzo_vendita: 1500, prezzo_acquisto: 1000, potenza_kw: 6, garanzia_anni: 10 }],
@@ -409,4 +409,22 @@ it("prepara il tetto 2D/3D anche senza pannello senza inventare potenza o prezzo
  expect(screen.getByRole("button",{name:"Conserva il disegno e scegli il pannello"})).not.toBeDisabled();
  fireEvent.click(screen.getByRole("button",{name:"Conserva il disegno e scegli il pannello"}));expect(screen.queryByRole("dialog")).toBeNull();
  expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
+});
+
+it("l'analisi solare non riscrive bollette modificate mentre la stima è in corso", async()=>{
+  const {analisiConsumiIniziale}=await import("../../../supabase/functions/_shared/fvBollette");
+  const analisi={...analisiConsumiIniziale(),correzioni:{consumoAnnuo:6000,costiEvitabiliAnnui:1440}};
+  stato.id="progetto-locale";
+  let rispondi:(r:{data:{ore_sole_annue_equivalenti:number};error:null})=>void=()=>{};
+  apiInvoke.mockImplementation((nome:string)=>nome==="fv-pvgis-fetch"?new Promise(resolve=>{rispondi=resolve;}):Promise.resolve({data:null,error:null}));
+  seminaBozza(4,{latitudine:42.56,longitudine:12.64,ore_sole_annue:null,analisi_consumi:analisi,consumo_annuo_kwh:6000,costo_kwh_attuale:.24});monta();
+  await waitFor(()=>expect(apiInvoke).toHaveBeenCalledWith("fv-pvgis-fetch",expect.anything()));
+  fireEvent.click(tab("Consumi"));
+  fireEvent.change(screen.getByLabelText("Consumo annuo confermato (kWh)"),{target:{value:"7200"}});
+  fireEvent.click(screen.getByRole("button",{name:"Applica al simulatore i dati confermati"}));
+  rispondi({data:{ore_sole_annue_equivalenti:1500},error:null});
+  await waitFor(()=>expect(aggiorna).toHaveBeenCalledWith(expect.objectContaining({patch:expect.objectContaining({ore_sole_annue:1500})})));
+  const patch=aggiorna.mock.calls.map(c=>(c[0] as unknown as {patch:Record<string,unknown>}).patch).find(p=>p?.ore_sole_annue===1500)!;
+  expect(patch).not.toHaveProperty("analisi_consumi");expect(patch).not.toHaveProperty("riferimento_tetto");
+  expect(screen.getByLabelText("Consumo annuo confermato (kWh)")).toHaveValue(7200);
 });

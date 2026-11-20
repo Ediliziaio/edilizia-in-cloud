@@ -5,7 +5,7 @@
 | Metrica | Prima | Dopo |
 |---|---|---|
 | Errori TypeScript nell'ambito modificato | 0 nel controllo iniziale ristretto | 0, inclusi i nuovi test e le dipendenze del wizard |
-| Controllo TypeScript completo | Non misurato sul codice base | In attesa della CI; cinque errori delle nuove fixture emersi nel controllo completo locale sono stati corretti e verificati nell'ambito interessato |
+| Controllo TypeScript completo | Non misurato sul codice base | PASS nel controllo completo locale e in CI; zero errori alla soglia zero |
 | Lint wizard | 11 errori e 2 warning | Stesso debito preesistente; nuove superfici senza errori lint |
 | Warning build | Non misurati in build base | Avvisi Rollup su chunk/import dinamici e annotazioni di dipendenze, documentati nel log locale |
 | Vulnerabilità dipendenze | Nessuna dipendenza modificata | `bun audit --json`: nessuna vulnerabilità segnalata |
@@ -30,7 +30,7 @@
 | Prezzi e dati nuovi modificabili dopo emissione | Media | Protezione dei nuovi progetti emessi e delle righe collegate; copia in bozza per modificarli |
 | Testo documentale non fidato | Media | Solo estrazione dati; nessuna esecuzione di istruzioni; risposta strutturata validata prima della revisione |
 
-Le protezioni SQL sono collaudate ma non ancora applicate in produzione. Gli advisor precedenti alla modifica segnalano debito di sicurezza preesistente su oggetti esterni all'ambito FV; non è stato alterato con questa attività.
+Le protezioni SQL sono state applicate in produzione via MCP il 20 novembre 2026, con immediato allineamento del registro alla versione `20290430140000`. Gli advisor precedenti alla modifica segnalano debito di sicurezza preesistente su oggetti esterni all'ambito FV; non è stato alterato con questa attività.
 
 ## 🐛 BUG CORRETTI
 
@@ -79,9 +79,9 @@ Le protezioni SQL sono collaudate ma non ancora applicate in produzione. Gli adv
 - [x] TypeScript ambito interessato e nuovi test: PASS.
 - [x] Deno check dei quattro endpoint interessati: PASS.
 - [x] Audit dipendenze: PASS, nessuna dipendenza nuova.
-- [ ] Build completa con prerender SEO: limite locale di 15 minuti raggiunto, controllo CI ancora necessario.
+- [x] Build di produzione in CI: PASS; il prerender locale aveva raggiunto il limite di 15 minuti.
 - [ ] Lint globale pulito: FAIL preesistente; 11 errori nel wizard già presenti in base, nessuna bonifica generale inclusa.
-- [x] Suite fotovoltaico finale: 991 PASS, 12 esclusi preesistenti, 67 file passati e un file escluso; controlli Storage aggiuntivi PASS.
+- [x] Suite fotovoltaico finale: 992 PASS, 12 esclusi preesistenti, 67 file passati e un file escluso; controlli Storage aggiuntivi PASS.
 - [x] Test nuovi: 82 PASS fra logica, UI, endpoint e SQL.
 - [x] Autorizzazioni e SQL: 409 PASS, inclusa doppia applicazione SQL nel database di prova.
 - [x] Smoke test locale: Consumi → Tetto → Impianto → Preventivo → salva → reload, PASS con backend sintetico.
@@ -95,15 +95,15 @@ Le protezioni SQL sono collaudate ma non ancora applicate in produzione. Gli adv
 - [ ] Firefox: non avviabile per errore sandbox/compositore dell'installazione locale.
 - [ ] Lighthouse Performance/A11Y: non misurati.
 - [ ] Test AI su bollette reali di fornitori e risposta positiva Google Static Maps: da verificare dopo attivazione, senza dichiarare questi risultati sulla base dei mock.
-- [ ] Migrazione e rilascio: non effettuati. Conferma Supabase scaduta; database controllato e invariato.
+- [x] Migrazione applicata via MCP e registro riallineato dopo il verde completo di CI, Supabase Preview e Cloudflare Pages.
+- [ ] Merge e rilascio frontend/edge: in corso, dopo ulteriore verifica del commit finale.
 
 ## 🔴 PROBLEMI NON RISOLTI
 
 | Problema | Motivo blocco | Soluzione proposta | Sprint stimato |
 |---|---|---|---|
-| Applicazione SQL | Conferma Supabase scaduta | Approvazione migrazione, apply MCP, allineamento immediato del registro, spostamento in migrations | Passaggio di rilascio |
 | Google Static Maps e campionamento OCR reale | Verificata configurazione server e percorso manuale, non l'esito positivo del provider per ogni formato/sede | Collaudo successivo all'attivazione con documenti autorizzati e controllo del provider effettivo | Collaudo di attivazione |
-| Prerender SEO/Lighthouse/Firefox fisico | Limiti e dipendenze dell'ambiente locale | CI per build completa; browser e dispositivi dedicati per gli altri controlli | Verifica separata |
+| Prerender SEO/Lighthouse/Firefox fisico | Limiti e dipendenze dell'ambiente locale | Build completa già verde in CI; browser e dispositivi dedicati per gli altri controlli | Verifica separata |
 | Debito lint globale | Preesistente ed esterno alle nuove superfici | Intervento distinto senza modificare i calcoli durante la consegna FV | Da pianificare |
 
 **VERDETTO FINALE: implementazione collaudata localmente, rilascio subordinato a migrazione e controlli CI.**

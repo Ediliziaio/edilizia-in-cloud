@@ -2,7 +2,7 @@
 
 ## Stato della consegna
 
-Implementazione nel wizard esistente, con collaudo locale dei componenti reali e test dell'endpoint, del salvataggio SQL e dei documenti. La migrazione è ancora una proposta in `docs/sql-proposte/fv_bollette_mappa_scenari.sql`: la conferma Supabase per applicarla è scaduta e la verifica successiva conferma che colonne, bucket e registro non sono stati modificati. Il codice richiede questa migrazione prima del rilascio. Merge e produzione restano da autorizzare.
+Implementazione nel wizard esistente, collaudata localmente e con tutti i controlli della PR 195 verdi. Migrazione applicata in produzione il 20 novembre 2026 tramite MCP; registro subito allineato al file `supabase/migrations/20290430140000_fv_bollette_mappa_scenari.sql`. L’utente ha autorizzato migrazione, merge e rilascio dopo il verde dei controlli. In corso l’ultima verifica del commit di allineamento prima del merge.
 
 ## Audit del percorso precedente
 
@@ -54,7 +54,7 @@ I file sono destinati al bucket privato `fv-bollette`, massimo 20 MB ciascuno, c
 
 | Dipendenza | Evidenza e funzione coinvolta |
 |---|---|
-| Migrazione SQL | Non applicata: da eseguire con MCP e allineare subito al file finale secondo AGENTS.md, prima del push nella cartella migrazioni |
+| Migrazione SQL | Applicata via MCP il 20 novembre 2026 e subito riallineata alla versione `20290430140000`; colonne e bucket privato verificati prima del push |
 | Google Maps Static API | `GOOGLE_MAPS_API_KEY` risulta presente fra le variabili server; non è stata letta la chiave. `maps-proxy` ha 860 risposte HTTP 200 nei sette giorni osservati, ma il conteggio non distingue Google dal fallback HERE: non prova l'abilitazione positiva di Google Static Maps. Verificare il provider nella nuova schermata dopo il rilascio; il flusso manuale è collaudato |
 | Cartografia | Riutilizza `maps-proxy`; `solo_google` esclude il fallback a scala diversa. Nessuna chiave pubblica e nessuna dipendenza dalla libreria Google Drawing. Le immagini non vengono salvate nella bozza né aggiunte al nuovo PDF: si esporta la geometria vettoriale |
 | PVGIS | Endpoint esistente `fv-pvgis-fetch`; nuove falde inviate con coordinate del tetto, inclinazione e azimut. Indisponibilità esplicita e dato manuale alternativi |
@@ -63,7 +63,7 @@ I file sono destinati al bucket privato `fv-bollette`, massimo 20 MB ciascuno, c
 
 ## Prove riproducibili
 
-`bun run test:fotovoltaico` include le nuove verifiche di logica, UI, endpoint e SQL. La proposta SQL viene eseguita due volte in PostgreSQL PGlite e con policy permissive preesistenti, per verificare anche i guard restrittivi. I test non usano record dei clienti.
+`bun run test:fotovoltaico` include le nuove verifiche di logica, UI, endpoint e SQL. La migrazione SQL viene eseguita due volte in PostgreSQL PGlite e con policy permissive preesistenti, per verificare anche i guard restrittivi. I test non usano record dei clienti.
 
 | Caso richiesto | Prova |
 |---|---|
@@ -80,4 +80,4 @@ I file sono destinati al bucket privato `fv-bollette`, massimo 20 MB ciascuno, c
 
 Anteprima isolata: `bun x vite --config vite.fv-bolletta-qa.config.ts` su `127.0.0.1:5193`. Usa le vere fasi 3/4/5 con backend e catalogo sintetici, senza sessioni di produzione. Non misura l'accuratezza del provider AI.
 
-Firefox locale non si avvia (errore sandbox/compositore del browser installato); WebKit non equivale a una verifica su iPhone fisico. Il prerender SEO completo ha raggiunto il limite locale di 15 minuti; la compilazione dell'applicazione va verificata separatamente e il controllo CI resta necessario. Il lint globale presenta debito preesistente: 872 errori/3.119 warning nella scansione iniziale di questa attività; nel wizard 11 errori già presenti nel codice di base. Nessuna modifica a questo debito è compresa nel flusso fotovoltaico.
+Firefox locale non si avvia (errore sandbox/compositore del browser installato); WebKit non equivale a una verifica su iPhone fisico. Il prerender SEO completo ha raggiunto il limite locale di 15 minuti; la compilazione dell’applicazione e la build di produzione sono invece passate sia localmente sia in CI. Il lint globale presenta debito preesistente: 872 errori/3.119 warning nella scansione iniziale di questa attività; nel wizard 11 errori già presenti nel codice di base. Nessuna modifica a questo debito è compresa nel flusso fotovoltaico.

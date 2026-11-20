@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 const company = "d2000000-0000-4000-a000-000000000002",
   project = "00000000-0000-4000-a000-000000000001";
 let db: PGlite;
-const pending = readFileSync("docs/sql-proposte/fv_bollette_mappa_scenari.sql","utf8");
+const pending = readFileSync("supabase/migrations/20290430140000_fv_bollette_mappa_scenari.sql","utf8");
 const migration = readFileSync(
   "supabase/migrations/20261024132650_fv_configurazione_atomica.sql",
   "utf8",

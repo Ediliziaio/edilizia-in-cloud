@@ -790,6 +790,9 @@ function FotovoltaicoWizard() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [readOnlyMode, autoSaveState, step]);
 
+  const datiCorrentiTetto = useRef(data);
+  useEffect(() => { datiCorrentiTetto.current = data; }, [data]);
+
   const update = <K extends keyof WizardData>(k: K, v: WizardData[K]) => {
     if (readOnlyMode) {
       // F14a: dedup del toast — un singolo gesto (es. slider) chiama update()
@@ -800,13 +803,14 @@ function FotovoltaicoWizard() {
       return;
     }
     if (["layout_overlay","numero_pannelli_scelti","pannello_id","analisi_consumi","riferimento_tetto","consumo_annuo_kwh","costo_kwh_attuale","profilo_consumo"].includes(k)) setScenarioFin(null);
-    if ((k === "latitudine" || k === "longitudine") && data[k] !== v) {
+    const faldeCambiate = k === "layout_overlay" && JSON.stringify(leggiDisegnoCommerciale(v)?.mappa?.falde ?? null) !== JSON.stringify(leggiDisegnoCommerciale(data.layout_overlay)?.mappa?.falde ?? null);
+    if (k === "riferimento_tetto" || faldeCambiate || ((k === "latitudine" || k === "longitudine") && data[k] !== v)) {
       versioneAnalisiTetto.current += 1;
       setAnalizzandoTetto(false);
       setScenarioFin(null);
     }
     setData((d) => {
-      if (k === "riferimento_tetto") return {...d,[k]:v,ore_sole_annue:null,qualita_dati_tetto:null,layout_overlay:null,numero_pannelli_scelti:0,potenza_kwp:0};
+      if (k === "riferimento_tetto") return {...d,[k]:v,ore_sole_annue:null,qualita_dati_tetto:null,layout_overlay:null,layout_tetto:null,numero_pannelli_scelti:0,potenza_kwp:0,superficie_tetto_disponibile_mq:null,numero_pannelli_max:null,potenza_max_kwp:null,imagery_date:null};
       if(d.analisi_consumi&&k==="consumo_annuo_kwh"&&typeof v==="number"&&v>0){const a=d.analisi_consumi,evitabili=a.correzioni.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:{...a,correzioni:{...a.correzioni,consumoAnnuo:v}},...(evitabili!=null?{costo_kwh_attuale:evitabili/v}:{})};}
       if(d.analisi_consumi&&k==="costo_kwh_attuale"){const c={...d.analisi_consumi.correzioni};if(typeof v==="number"&&v>=0&&d.consumo_annuo_kwh)c.costiEvitabiliAnnui=v*d.consumo_annuo_kwh;else delete c.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:{...d.analisi_consumi,correzioni:c}};}
       const localitaCambiata = (k === "latitudine" || k === "longitudine") && d[k] !== v;
@@ -1163,13 +1167,17 @@ function FotovoltaicoWizard() {
         return;
       }
 
+      let layoutAnalizzato=leggiDisegnoCommerciale(result.layout_analizzato);
+      // La stima aggiorna l'irraggiamento, conservando le modifiche alla posa fatte durante la richiesta.
+      const posaCorrente=leggiDisegnoCommerciale(datiCorrentiTetto.current.layout_overlay);
+      if(layoutAnalizzato?.mappa&&posaCorrente?.mappa)layoutAnalizzato={...posaCorrente,mappa:{...posaCorrente.mappa,solare:layoutAnalizzato.mappa.solare}};
       const ore =
+        (layoutAnalizzato?resaMappaFv(layoutAnalizzato)?.ore:null) ??
         (result.ore_sole_annue as number) ??
         (result.ore_sole_annue_equivalenti as number) ??
         null;
       const isMock = result._mock === true;
-      const layoutAnalizzato=leggiDisegnoCommerciale(result.layout_analizzato);
-      if(layoutAnalizzato)update("layout_overlay",layoutAnalizzato);
+      if(layoutAnalizzato)setData(d=>({...d,layout_overlay:layoutAnalizzato}));
       const qualitaTetto = isMock ? "mock" : ((result.qualita as string) ?? null);
 
       // PVGIS misura l'irraggiamento, non la capienza del tetto. Nessun
@@ -1219,9 +1227,7 @@ function FotovoltaicoWizard() {
           fonte_dati_tetto: fonteEffettiva,
           ore_sole_annue: ore,
           superficie_tetto_disponibile_mq: supTetto,
-          layout_overlay: layoutAnalizzato??data.layout_overlay,
-          analisi_consumi: data.analisi_consumi ?? null,
-          riferimento_tetto: data.riferimento_tetto ?? null,
+          layout_overlay: layoutAnalizzato??datiCorrentiTetto.current.layout_overlay,
           numero_pannelli_max: numMax,
           potenza_max_kwp: kwpMax,
           qualita_dati_tetto: qualitaTetto,
