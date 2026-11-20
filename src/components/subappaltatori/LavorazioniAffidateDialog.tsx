@@ -7,7 +7,7 @@ import { quantitaContratto, totaleElencoLavori, type RigaElencoLavori } from "@/
 import { MacrofasiSubappalto } from "./MacrofasiSubappalto";
 
 export function LavorazioniAffidateDialog({
-  titolo, righe, oneri = 0, importoPattuito, onApriContratto, onPdf, pdfInCorso, onClose,
+  titolo, righe, oneri = 0, importoPattuito, onApriContratto, onPdf, etichettaPdf = "PDF contratto", pdfInCorso, onClose,
 }: {
   titolo: string;
   righe: readonly RigaElencoLavori[];
@@ -15,6 +15,7 @@ export function LavorazioniAffidateDialog({
   importoPattuito?: number;
   onApriContratto?: () => void;
   onPdf?: () => void;
+  etichettaPdf?: string;
   pdfInCorso?: boolean;
   onClose: () => void;
 }) {
@@ -111,7 +112,7 @@ export function LavorazioniAffidateDialog({
           </div>
           {onPdf ? (
             <Button size="sm" variant="outline" onClick={onPdf} disabled={pdfInCorso}>
-              {pdfInCorso ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <FileText className="mr-1.5 size-4" />} PDF contratto
+              {pdfInCorso ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <FileText className="mr-1.5 size-4" />}{etichettaPdf}
             </Button>
           ) : onApriContratto && (
             <Button size="sm" variant="outline" onClick={onApriContratto}>

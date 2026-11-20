@@ -933,6 +933,32 @@ jobs:
           src/test/ui/officeProfileSelector.test.tsx
           src/test/ui/employeeIndividualCosts.test.tsx
 
+      - name: Run subcontract phases, variations, costs and SAL regressions
+        if: matrix.group == 'economics'
+        run: >-
+          TZ=Europe/Rome bunx vitest run --maxWorkers=2 --testTimeout=30000
+          src/test/logic/flussoSubappaltoCommessa.test.ts
+          src/test/logic/computoSubappaltoPdf.test.tsx
+          src/test/logic/affidaEContratto.test.ts
+          src/test/logic/affidamentiCommessa.test.ts
+          src/test/logic/contrattoDaAffidamenti.test.ts
+          src/test/logic/richiesteDaLavorazioni.test.ts
+          src/test/logic/lavoriMisureSub.test.ts
+          src/test/logic/riconciliazioneSubappalto.test.ts
+          src/test/logic/subcontractStatistics.test.ts
+          src/test/logic/subappaltoPrevistoComputo.test.ts
+          src/test/logic/listinoDitta.test.ts
+          src/test/logic/listinoDittaStessaAzienda.test.ts
+          src/test/logic/contabilitaSubappalto.test.ts
+          src/test/ui/contrattiSubappaltoCommessa.test.tsx
+          src/test/ui/dettaglioSubappaltoCommessa.test.tsx
+          src/test/ui/varianteVociDialog.test.tsx
+          src/test/ui/affidaVociDialog.test.tsx
+          src/test/ui/lavoriMisureSubDialog.test.tsx
+          src/test/ui/contabilitaSubappalto.test.tsx
+          src/test/ui/listinoDitta.test.tsx
+          src/test/ui/subcontractorCompact.test.tsx
+
       - name: Run CG SQL reconciliation and rating regressions
         if: matrix.group == 'worksite'
         run: >-

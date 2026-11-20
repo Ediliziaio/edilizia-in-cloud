@@ -47,10 +47,12 @@ export function useAffidamentiCommessa(orderId: string) {
   });
 }
 
-export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onCambio }: {
+export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onCambio, dittaFissa, onAffidate }: {
   orderId: string; companyId: string;
   voci: VoceChiFaCosa[]; fasi: Array<{ id: string; name: string; position?: number | null }>;
   onChiudi: () => void; onCambio: () => void;
+  dittaFissa?: { id: string; nome: string };
+  onAffidate?: () => void;
 }) {
   const qc = useQueryClient();
   const affidamenti = useAffidamentiCommessa(orderId);
@@ -72,7 +74,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
   const [cerca, setCerca] = useState("");
   const [soloSenza, setSoloSenza] = useState(false);
   const [scelte, setScelte] = useState<Set<string>>(new Set());
-  const [ditta, setDitta] = useState("");
+  const [ditta, setDitta] = useState(dittaFissa?.id ?? "");
   const [comprende, setComprende] = useState<"posa" | "fornitura_e_posa">("posa");
   const [quantita, setQuantita] = useState("");
   const [inModifica, setInModifica] = useState<{ id: string; quantita: string; prezzo: string; comprende: AffidamentoChiFaCosa["comprende"] } | null>(null);
@@ -109,6 +111,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
     onSuccess: (r) => {
       toast.success(`${r.affidate} ${r.affidate === 1 ? "voce affidata" : "voci affidate"} a ${nome(ditta)}${r.gia_piene ? ` · ${r.gia_piene} ${r.gia_piene === 1 ? "aveva" : "avevano"} già tutta la quantità affidata` : ""}.`);
       setScelte(new Set()); setQuantita(""); aggiorna();
+      if (r.affidate > 0) onAffidate?.();
     },
     onError: (e: Error) => toast.error(e.message || "Affidamento non riuscito."),
   });
@@ -147,7 +150,7 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
     <Dialog open onOpenChange={(o) => !o && !occupato && onChiudi()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>Affida le voci alle ditte</DialogTitle>
+          <DialogTitle>{dittaFissa ? `Nuove voci per ${dittaFissa.nome}` : "Affida le voci alle ditte"}</DialogTitle>
           <DialogDescription>
             Scegli le voci (o una fase intera), poi la ditta. Il prezzo lo propone il listino della ditta; una voce si può dividere fra più ditte per quantità, mai oltre il totale.
           </DialogDescription>
@@ -266,8 +269,8 @@ export function AffidaVociDialog({ orderId, companyId, voci, fasi, onChiudi, onC
             {scelte.size > 0 && (
               <div className="sticky bottom-0 flex flex-wrap items-end gap-2 rounded-md border bg-background p-2 shadow-sm">
                 <span className="text-sm">{scelte.size} {scelte.size === 1 ? "voce scelta" : "voci scelte"}{sceltePiene.length ? ` (${sceltePiene.length} già piene)` : ""}</span>
-                <OfficeSelect label="Ditta" className="h-9 min-w-[14rem] flex-1" value={ditta} onValueChange={setDitta} placeholder="Scegli la ditta"
-                  options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />
+                {dittaFissa ? <p className="flex-1 text-sm font-medium">{dittaFissa.nome}</p> : <OfficeSelect label="Ditta" className="h-9 min-w-[14rem] flex-1" value={ditta} onValueChange={setDitta} placeholder="Scegli la ditta"
+                  options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />}
                 <OfficeSelect label="Cosa comprende il prezzo" className="h-9 w-44" value={comprende} onValueChange={(c) => setComprende(c as typeof comprende)}
                   options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
                 {scelte.size === 1 && (

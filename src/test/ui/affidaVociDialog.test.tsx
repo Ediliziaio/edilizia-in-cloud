@@ -61,6 +61,17 @@ function apri() {
 }
 
 describe("Affida le voci alle ditte", () => {
+  it("assegna le nuove voci alla ditta del contratto e prosegue alla variante dopo la conferma del server", async () => {
+    const prosegui = vi.fn();
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AffidaVociDialog orderId="o1" companyId="az" voci={voci} fasi={fasi} dittaFissa={{ id: "rossi", nome: "Rossi srl" }} onAffidate={prosegui} onChiudi={vi.fn()} onCambio={vi.fn()} />
+    </QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Scegli Intonaco civile" }));
+    expect(screen.queryByRole("combobox", { name: "Ditta" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Affida" }));
+    await waitFor(() => expect(finto.rpc).toHaveBeenCalledWith("affida_voci", expect.objectContaining({ p_subappaltatore: "rossi" })));
+    await waitFor(() => expect(prosegui).toHaveBeenCalledOnce());
+  });
   it("riepilogo e stato delle voci: la quota a contratto non si cambia, la voce piena non si sceglie", async () => {
     apri();
     expect(await screen.findByText("Intonaco civile")).toBeInTheDocument();

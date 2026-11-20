@@ -10,19 +10,19 @@ import { VarianteVociDialog, righeVariante } from "@/components/orders/VarianteV
 import type { AffidamentoChiFaCosa } from "@/lib/subappaltatori/affidamentiCommessa";
 
 const finto = vi.hoisted(() => {
-  const stato = { quadri: [{ id: "ql1" }] as Array<{ id: string }> };
+  const stato = { quadri: [{ id: "ql1" }] as Array<{ id: string }>, errore: false };
   const from = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const c: any = {};
     for (const m of ["select", "eq", "limit"]) c[m] = () => c;
-    c.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => Promise.resolve({ data: stato.quadri, error: null as null }).then(ok, ko);
+    c.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => Promise.resolve({ data: stato.quadri, error: stato.errore ? { message: "Lettura non disponibile" } : null }).then(ok, ko);
     return c;
   };
   return { stato, from, rpc: vi.fn(async (_n: string, _a?: unknown) => ({ data: { importo: 1085, differenza: 14, revisione: 2 }, error: null as null })) };
 });
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: finto.rpc, from: finto.from } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-afterEach(() => { cleanup(); finto.rpc.mockClear(); finto.stato.quadri = [{ id: "ql1" }]; });
+afterEach(() => { cleanup(); finto.rpc.mockClear(); finto.stato.quadri = [{ id: "ql1" }]; finto.stato.errore = false; });
 
 const quote: AffidamentoChiFaCosa[] = [
   { id: "a1", voce_id: "v1", subappaltatore_id: "rossi", quantita: 120, prezzo_unitario: 9, origine_prezzo: "listino_ditta", comprende: "posa", stato: "a_contratto", contratto_id: "c1" },
@@ -34,6 +34,33 @@ const voci = [
 ];
 
 describe("variante sulle voci", () => {
+  it("distingue la stessa lavorazione in due sottofasi per evitare di variare la quantità sbagliata", () => {
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi" importo={1080} quote={quote}
+        voci={voci.map((v, i) => ({ ...v, descrizione: "Intonaco", fase: "Finiture", sottofase: i ? "Primo piano" : "Piano terra" }))} onChiudi={vi.fn()} onFatto={vi.fn()} />
+    </QueryClientProvider>);
+    expect(screen.getByLabelText("Quantità di Intonaco · Finiture · Piano terra")).toHaveValue("120");
+    expect(screen.getByLabelText("Quantità di Intonaco · Finiture · Primo piano")).toHaveValue("");
+  });
+  it("distingue l'aumento dei lavori dal totale comprensivo degli oneri invariati", async () => {
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi" importo={1080} oneri={100} quote={quote} voci={voci} onChiudi={vi.fn()} onFatto={vi.fn()} />
+    </QueryClientProvider>);
+    changeFormControl(screen.getByLabelText("Quantità di Muri perimetrali"), { target: { value: "2" } });
+    expect(screen.getByRole("status")).toHaveTextContent("Lavori 1.080,00 € → 1.094,00 €");
+    expect(screen.getByText(/Oneri sicurezza invariati/)).toHaveTextContent("Totale IVA esclusa 1.194,00 €");
+  });
+  it("non registra una variante se la lettura del quadro lavori fallisce, anche con quantità e motivo validi", async () => {
+    finto.stato.errore = true;
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi" importo={1080} quote={quote} voci={voci} onChiudi={vi.fn()} onFatto={vi.fn()} />
+    </QueryClientProvider>);
+    await screen.findByRole("alert");
+    changeFormControl(screen.getByLabelText("Quantità di Muri perimetrali"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Motivo della variante"), { target: { value: "Nuove murature" } });
+    expect(screen.getByRole("button", { name: "Registra la variante" })).toBeDisabled();
+    expect(finto.rpc).not.toHaveBeenCalled();
+  });
   it("il conto: solo le righe cambiate, differenza riga per riga", () => {
     expect(righeVariante(quote, { a1: { quantita: "120", prezzo: "9" } }).righe).toEqual([]);
     const r = righeVariante(quote, { a1: { quantita: "119", prezzo: "9" }, a2: { quantita: "2", prezzo: "7" } });
