@@ -140,7 +140,7 @@ describe("Lavorazioni e squadra", () => {
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.click(screen.getByRole("button", { name: /^Assegna$/ }));
     const dialog = within(await screen.findByRole("dialog", { name: "Organizza il lavoro" }));
-    fireEvent.click(dialog.getByRole("button", { name: "Opere murarie", exact: true }));
+    fireEvent.click(dialog.getByRole("button", { name: /^Opere murarie$/ }));
     fireEvent.click(dialog.getByRole("button", { name: "Ditte e subappaltatori" }));
     const assegna = dialog.getByRole("button", { name: "Assegna ditta" });
     expect(assegna).toBeDisabled();
