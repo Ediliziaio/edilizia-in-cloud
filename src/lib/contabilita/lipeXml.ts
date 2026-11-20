@@ -1,9 +1,12 @@
+import { validaCodiceFiscale, validaPartitaIva } from "@/lib/fatturazione/validazioniAnagrafiche";
+import { italianHolidays } from "@/lib/personale/calendarioLavorativo";
+
 /**
  * Il file della Comunicazione delle liquidazioni periodiche IVA (LIPE, fornitura
  * IVP18), secondo le specifiche tecniche dell'Agenzia delle Entrate (provvedimento
  * 14/03/2024) e lo schema comunicazioneIvp_2018_v1.xsd.
  * Non calcola niente: scrive i righi già confermati, e controlla le regole che
- * farebbero scartare il file. Il file poi va firmato e inviato da Entratel.
+ * farebbero scartare il file. Il controllo dell'Agenzia e la trasmissione avvengono dopo lo scaricamento.
  */
 export const NS_IVP = "urn:www.agenziaentrate.gov.it:specificheTecniche:sco:ivp";
 
@@ -36,10 +39,21 @@ export interface ComunicazioneLipe {
   moduli: ModuloLipe[];
 }
 
-const CF_16 = /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/;
-const NUM_11 = /^[0-9]{11}$/;
-const cifre = (n: number) => Math.round(n * 100);
-const cfValido = (cf: string) => CF_16.test(cf) || NUM_11.test(cf);
+const cifre = (n: number) => Math.sign(n) * Math.round((Math.abs(n) + Number.EPSILON) * 100);
+const RIGHI_FIRMATI = ["vp2", "vp3", "vp4", "vp5", "vp9"] as const;
+const RIGHI_POSITIVI = ["vp6_debito", "vp6_credito", "vp7", "vp8", "vp10", "vp11", "vp12", "vp13", "vp14_debito", "vp14_credito"] as const;
+const RIGHI_IMPORTO = [...RIGHI_FIRMATI, ...RIGHI_POSITIVI] as const;
+const codicePulito = (cf: string) => cf.replace(/\s/g, "").toUpperCase();
+
+export function moduloLipeConDati(m: ModuloLipe): boolean {
+  return RIGHI_IMPORTO.some((k) => !(m.trimestre === 5 && k.startsWith("vp14"))
+    && Number.isFinite(m.righi?.[k]) && cifre(m.righi[k]) !== 0);
+}
+
+export function stessiRighiLipe(a: RighiLipe, b: RighiLipe): boolean {
+  return RIGHI_IMPORTO.every((k) => cifre(a[k]) === cifre(b[k]))
+    && (a.vp13 <= 0 || a.vp13_metodo === b.vp13_metodo);
+}
 
 /** «1234,50»: virgola e due decimali, come vuole lo schema. */
 export function importoLipe(n: number): string {
@@ -51,34 +65,65 @@ export function importoLipe(n: number): string {
 const dataLipe = (iso: string) => `${iso.slice(8, 10)}${iso.slice(5, 7)}${iso.slice(0, 4)}`;
 
 /** Le regole bloccanti delle specifiche. Vuoto = il file si può generare. */
-export function controlliLipe(c: ComunicazioneLipe): string[] {
+export function controlliLipe(c: ComunicazioneLipe, ora = new Date()): string[] {
   const e: string[] = [];
-  if (!cfValido(c.codiceFiscale)) e.push("Codice fiscale dell'azienda non valido.");
-  if (!NUM_11.test(c.partitaIva)) e.push("Partita IVA non valida: servono 11 cifre.");
-  const personaFisica = c.codiceFiscale.length === 16;
-  if (!personaFisica && !c.cfDichiarante) e.push("Manca il codice fiscale di chi firma (dichiarante).");
-  if (c.cfDichiarante && !cfValido(c.cfDichiarante)) e.push("Codice fiscale del dichiarante non valido.");
-  if (c.cfDichiarante && !c.codiceCarica) e.push("Manca il codice carica del dichiarante.");
-  if (c.codiceCarica && !/^([1-9]|1[1-5])$/.test(c.codiceCarica)) e.push("Codice carica non valido: da 1 a 9 o da 11 a 15.");
-  if (c.cfIntermediario && !cfValido(c.cfIntermediario)) e.push("Codice fiscale dell'intermediario non valido.");
-  if (c.moduli.length === 0 || c.moduli.length > 5) e.push("Il file deve avere da 1 a 5 moduli.");
+  const oggi = ora.toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" });
+  const annoInvio = Number(oggi.slice(0, 4));
+  const cf = codicePulito(c.codiceFiscale);
+  const dichiarante = c.cfDichiarante ? codicePulito(c.cfDichiarante) : null;
+  if (!validaCodiceFiscale(cf).valida || cf === "00000000000") e.push("Codice fiscale del contribuente non valido.");
+  const partitaIva = codicePulito(c.partitaIva);
+  if (!/^[0-7]\d{10}$/.test(partitaIva) || !validaPartitaIva(partitaIva).valida || partitaIva === "00000000000")
+    e.push("Partita IVA non valida.");
+  if (!Number.isInteger(c.anno) || c.anno < annoInvio - 1 || c.anno > annoInvio) e.push("Anno d'imposta non ammesso per la trasmissione LIPE.");
+  if (cf.length !== 16 && !dichiarante) e.push("Manca il codice fiscale di chi firma (dichiarante).");
+  if (dichiarante && (dichiarante.length !== 16 || !validaCodiceFiscale(dichiarante).valida))
+    e.push("Indica il codice fiscale di 16 caratteri della persona fisica dichiarante.");
+  if (dichiarante && dichiarante === cf) e.push("Compila il dichiarante solo quando è diverso dal contribuente.");
+  if (dichiarante && !/^([1-9]|1[1-5])$/.test(c.codiceCarica ?? "")) e.push("Indica un codice carica da 1 a 9 o da 11 a 15.");
+  if (c.cfIntermediario) {
+    if (!validaCodiceFiscale(c.cfIntermediario).valida || codicePulito(c.cfIntermediario) === "00000000000")
+      e.push("Codice fiscale dell'intermediario non valido.");
+    if (c.impegnoPresentazione !== 1 && c.impegnoPresentazione !== 2) e.push("Indica chi ha predisposto la comunicazione.");
+    const data = c.dataImpegno ?? "";
+    const giorno = new Date(`${data}T12:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !Number.isFinite(giorno.getTime())
+      || giorno.toISOString().slice(0, 10) !== data || data > oggi || data < `${annoInvio - 4}-01-01`)
+      e.push("Indica la data effettiva dell'impegno dell'intermediario.");
+  } else if (c.impegnoPresentazione || c.dataImpegno) {
+    e.push("Indica il codice fiscale dell'intermediario per usare i dati dell'impegno.");
+  }
+  if (c.moduli.length === 0 || c.moduli.length > 3) e.push("Servono fino a tre moduli mensili oppure un modulo trimestrale.");
 
   const visti = new Set<string>();
+  const mesi = new Map<number, RighiLipe>();
+  const trimestri = new Set<number>();
   c.moduli.forEach((m, i) => {
     const nome = m.mese ? `mese ${m.mese}` : `trimestre ${m.trimestre}`;
     const r = m.righi;
-    if (!m.mese && !m.trimestre) e.push(`Modulo ${i + 1}: manca mese o trimestre.`);
-    if (m.mese && m.trimestre) e.push(`Modulo ${i + 1}: mese e trimestre sono alternativi.`);
+    if (m.mese == null && m.trimestre == null) e.push(`Modulo ${i + 1} senza mese o trimestre.`);
+    if (m.mese != null && m.trimestre != null) e.push(`Modulo ${i + 1} con mese e trimestre insieme. Verifica la periodicità.`);
+    if (m.mese != null && (!Number.isInteger(m.mese) || m.mese < 1 || m.mese > 12)) e.push("Il mese deve essere compreso fra 1 e 12.");
+    if (m.trimestre != null && (!Number.isInteger(m.trimestre) || m.trimestre < 1 || m.trimestre > 5)) e.push("Il trimestre deve essere compreso fra 1 e 5.");
     if (visti.has(nome)) e.push(`Due moduli per lo stesso periodo: ${nome}.`);
     visti.add(nome);
+    if (m.mese) mesi.set(m.mese, r);
+    if (m.trimestre) trimestri.add(m.trimestre);
+    if (!r || RIGHI_IMPORTO.some((k) => !Number.isSafeInteger(cifre(r[k])) || importoLipe(r[k]).length > 16)
+      || RIGHI_POSITIVI.some((k) => r[k] < 0)) {
+      e.push(`Righi VP incompleti o importi fuori tracciato per ${nome}.`);
+      return;
+    }
 
     const a = cifre(r.vp4) - cifre(r.vp5);
     if (cifre(r.vp6_debito) !== Math.max(a, 0) || cifre(r.vp6_credito) !== Math.max(-a, 0))
       e.push(`${nome}: VP6 non torna con VP4 e VP5.`);
-    if (r.vp7 > 100) e.push(`${nome}: VP7 non può superare 100,00 €.`);
+    const soglia = c.anno < 2024 ? 25.82 : 100;
+    if (r.vp7 > soglia) e.push(`${nome}: VP7 non può superare ${importoLipe(soglia)} €.`);
     if (r.vp7 > 0 && (m.mese === 1 || m.mese === 12 || m.trimestre === 1 || m.trimestre === 4 || m.trimestre === 5))
       e.push(`${nome}: VP7 non ammesso in questo periodo.`);
     if (r.vp8 > 0 && (m.mese === 1 || m.trimestre === 1)) e.push(`${nome}: VP8 non ammesso nel primo periodo.`);
+    if (r.vp9 < 0 && (m.mese === 1 || m.trimestre === 1)) e.push(`${nome}: VP9 negativo non ammesso nel primo periodo.`);
 
     const dovutoPrima = cifre(r.vp6_debito) + cifre(r.vp7) - cifre(r.vp8) - cifre(r.vp9) - cifre(r.vp10);
     if (r.vp11 > 0 && (dovutoPrima <= 0 || cifre(r.vp11) > dovutoPrima || m.trimestre === 5))
@@ -87,7 +132,7 @@ export function controlliLipe(c: ComunicazioneLipe): string[] {
     if (r.vp13 > 0) {
       if (r.vp13 < 103.29) e.push(`${nome}: l'acconto non può essere sotto 103,29 €.`);
       if (!(m.mese === 12 || m.trimestre === 4 || m.trimestre === 5)) e.push(`${nome}: acconto ammesso solo a dicembre o nel 4° trimestre.`);
-      if (!r.vp13_metodo) e.push(`${nome}: manca il metodo dell'acconto.`);
+      if (![1, 2, 3, 4].some((metodo) => metodo === r.vp13_metodo)) e.push(`${nome}: indica il metodo dell'acconto da 1 a 4.`);
     }
     if (m.trimestre !== 5) {
       const fin = cifre(r.vp6_debito) - cifre(r.vp6_credito) + cifre(r.vp7) + cifre(r.vp12) - cifre(r.vp11)
@@ -97,9 +142,16 @@ export function controlliLipe(c: ComunicazioneLipe): string[] {
     }
   });
 
-  const mesi = c.moduli.map((m) => m.mese).filter((m): m is number => !!m);
-  if (mesi.length && new Set(mesi.map((m) => Math.ceil(m / 3))).size > 1)
+  if (trimestri.size > 1 || (trimestri.size && mesi.size))
+    e.push("La comunicazione deve contenere i mesi di un trimestre oppure un solo modulo trimestrale.");
+  if (new Set([...mesi.keys()].map((m) => Math.ceil(m / 3))).size > 1)
     e.push("I mesi devono stare nello stesso trimestre.");
+  for (const [mese, righi] of mesi) {
+    if (mese % 3 !== 1 && righi?.vp8 > (mesi.get(mese - 1)?.vp14_credito ?? 0))
+      e.push(`Il VP8 del mese ${mese} supera il credito del mese precedente.`);
+  }
+  if (c.moduli.length && !c.moduli.some(moduloLipeConDati))
+    e.push("Non ci sono dati da comunicare nel quadro VP del trimestre.");
   return e;
 }
 
@@ -133,39 +185,48 @@ function moduloXml(m: ModuloLipe, n: number): string {
 }
 
 /** Lancia un errore con l'elenco dei controlli falliti: un file sbagliato non esce. */
-export function xmlLipe(c: ComunicazioneLipe): string {
-  const errori = controlliLipe(c);
+export function xmlLipe(c: ComunicazioneLipe, ora?: Date): string {
+  const errori = controlliLipe(c, ora);
   if (errori.length) throw new Error(errori.join(" "));
-  const dichiarante = c.cfDichiarante || c.codiceFiscale;
+  const dichiarante = c.cfDichiarante ? codicePulito(c.cfDichiarante) : null;
+  const contribuente = codicePulito(c.codiceFiscale);
   const fronte = [
-    tag("CodiceFiscale", c.codiceFiscale),
+    tag("CodiceFiscale", contribuente),
     tag("AnnoImposta", String(c.anno)),
-    tag("PartitaIVA", c.partitaIva),
-    ...(c.cfDichiarante ? [tag("CFDichiarante", c.cfDichiarante), tag("CodiceCaricaDichiarante", String(c.codiceCarica))] : []),
+    tag("PartitaIVA", c.partitaIva.replace(/\s/g, "")),
+    ...(dichiarante ? [tag("CFDichiarante", dichiarante), tag("CodiceCaricaDichiarante", c.codiceCarica!)] : []),
     tag("FirmaDichiarazione", "1"),
     ...(c.cfIntermediario
       ? [
-          tag("CFIntermediario", c.cfIntermediario),
-          tag("ImpegnoPresentazione", String(c.impegnoPresentazione ?? 1)),
-          tag("DataImpegno", dataLipe(c.dataImpegno ?? new Date().toLocaleDateString("en-CA"))),
+          tag("CFIntermediario", codicePulito(c.cfIntermediario)),
+          tag("ImpegnoPresentazione", String(c.impegnoPresentazione)),
+          tag("DataImpegno", dataLipe(c.dataImpegno!)),
           tag("FirmaIntermediario", "1"),
         ]
       : []),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<iv:Fornitura xmlns:iv="${NS_IVP}">`
-    + `<iv:Intestazione>${tag("CodiceFornitura", "IVP18")}${tag("CodiceFiscaleDichiarante", dichiarante)}${tag("CodiceCarica", String(c.codiceCarica ?? "1"))}</iv:Intestazione>`
+    + `<iv:Intestazione>${tag("CodiceFornitura", "IVP18")}${dichiarante ? tag("CodiceFiscaleDichiarante", dichiarante) + tag("CodiceCarica", c.codiceCarica!) : ""}</iv:Intestazione>`
     + `<iv:Comunicazione identificativo="00001"><iv:Frontespizio>${fronte.join("")}</iv:Frontespizio>`
     + `<iv:DatiContabili>${c.moduli.map((m, i) => moduloXml(m, i + 1)).join("")}</iv:DatiContabili></iv:Comunicazione></iv:Fornitura>\n`;
 }
 
-export function nomeFileLipe(partitaIva: string, anno: number, trimestre: number): string {
-  return `LIPE_${partitaIva}_${anno}_T${trimestre}.xml`;
+export function nomeFileLipe(codiceFiscaleTrasmittente: string, progressivo?: string): string {
+  const cf = codicePulito(codiceFiscaleTrasmittente);
+  const alfanumerico = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const id = progressivo ?? Array.from(crypto.getRandomValues(new Uint32Array(5)), (n) => alfanumerico[n % alfanumerico.length]).join("");
+  if (!validaCodiceFiscale(cf).valida || cf === "00000000000" || !/^[A-Za-z0-9]{1,5}$/.test(id))
+    throw new Error("Codice fiscale del trasmittente o progressivo del file non valido.");
+  return `IT${cf}_LI_${id}.xml`;
 }
 
 /** Scadenza dell'invio per ogni trimestre solare. */
 export function scadenzaLipe(anno: number, trimestre: number): string {
-  if (trimestre === 1) return `${anno}-05-31`;
-  if (trimestre === 2) return `${anno}-09-30`;
-  if (trimestre === 3) return `${anno}-11-30`;
-  return new Date(Date.UTC(anno + 1, 2, 0)).toISOString().slice(0, 10);
+  const giorno = trimestre === 4 ? new Date(Date.UTC(anno + 1, 2, 0))
+    : new Date(Date.UTC(anno, [5, 9, 11][trimestre - 1], 0));
+  const festivita = new Set(italianHolidays(giorno.getUTCFullYear()).map((f) => f.data));
+  const iso = () => giorno.toISOString().slice(0, 10);
+  while (giorno.getUTCDay() === 0 || giorno.getUTCDay() === 6 || festivita.has(iso()))
+    giorno.setUTCDate(giorno.getUTCDate() + 1);
+  return iso();
 }

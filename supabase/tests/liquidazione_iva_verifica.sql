@@ -114,6 +114,10 @@ BEGIN
     err := err || format('split payment escluso: atteso 440.00, ottenuto %s', r -> 'escluso' ->> 'split_payment');
   ELSE ok := ok || 'split payment 440,00 escluso dal debito'::text; END IF;
 
+  IF (r #>> '{lipe,vp2}')::numeric IS DISTINCT FROM 16000.00 THEN
+    err := err || format('Il VP2 deve includere l’imponibile split payment. Atteso 16000,00, ottenuto %s.', r #>> '{lipe,vp2}');
+  ELSE ok := ok || 'VP2 16.000,00, compreso imponibile split payment'::text; END IF;
+
   IF (r -> 'documenti' ->> 'vendite')::int <> 4 THEN
     err := err || format('documenti vendite: attesi 4 (bozza e aprile fuori), ottenuti %s', r -> 'documenti' ->> 'vendite');
   ELSE ok := ok || 'bozza e documento di aprile esclusi'::text; END IF;

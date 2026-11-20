@@ -59,6 +59,7 @@ function iniziali(s: ReturnType<typeof useImpostazioniIVA>, cfAzienda: string | 
 function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType<typeof useImpostazioniIVA>; cfAzienda: string | null; onSalvate?: () => void }) {
   const [v, setV] = useState<Valori>(() => iniziali(s, cfAzienda));
   const nuova = !s.impostazioni;
+  const [periodicitaScelta, setPeriodicitaScelta] = useState(!!s.impostazioni || !!s.impostazioniAnnoPrima);
 
   const mancanti = impostazioniMancanti(nuova ? null : v);
   const off = !s.puoModificare || s.isSalvando;
@@ -70,6 +71,7 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
       className="space-y-5 rounded-xl border bg-white p-5"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!periodicitaScelta) return;
         // Prima compilazione: si torna dritti alla liquidazione.
         void s.salva(v).then(() => { if (nuova) onSalvate?.(); }).catch((): undefined => undefined);
       }}
@@ -84,7 +86,7 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
 
       {mancanti.length > 0 && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-          <strong>Mancano ancora:</strong> {mancanti.join(" · ")}. Finché mancano, la liquidazione non si può confermare.
+          <strong>Per preparare la LIPE</strong> · {mancanti.join(" · ")}.
         </div>
       )}
       {v.regime === "forfettario" && (
@@ -101,8 +103,12 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="iva-periodicita">Liquidazione</Label>
-          <UniformSelect id="iva-periodicita" className={selectClass} disabled={off} value={v.periodicita}
-            onChange={(e) => set("periodicita", e.target.value as Valori["periodicita"])}>
+          <UniformSelect id="iva-periodicita" className={selectClass} required disabled={off} value={periodicitaScelta ? v.periodicita : ""}
+            onChange={(e) => {
+              setPeriodicitaScelta(!!e.target.value);
+              if (e.target.value) set("periodicita", e.target.value as Valori["periodicita"]);
+            }}>
+            <option value="">Seleziona la periodicità dell'azienda</option>
             <option value="mensile">Mensile (versamento il 16 del mese dopo)</option>
             <option value="trimestrale">Trimestrale su opzione (+1% di interessi)</option>
             <option value="trimestrale_speciale">Trimestrale per natura (senza interessi)</option>
@@ -164,6 +170,7 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
             <Label htmlFor="iva-dich">Codice fiscale di chi firma</Label>
             <Input id="iva-dich" disabled={off} placeholder="Legale rappresentante" value={v.cf_dichiarante ?? ""}
               onChange={(e) => set("cf_dichiarante", testo(e.target.value))} />
+            <p className="text-xs text-muted-foreground">Da compilare quando il dichiarante è diverso dal contribuente.</p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="iva-carica">Codice carica</Label>
@@ -181,7 +188,7 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
 
       <div className="flex items-center justify-end gap-3">
         {!s.puoModificare && <p className="text-sm text-muted-foreground">Solo l'amministrazione può modificarle.</p>}
-        <Button type="submit" disabled={off}>
+        <Button type="submit" disabled={off || !periodicitaScelta}>
           {s.isSalvando ? "Salvataggio…" : nuova ? "Salva impostazioni" : "Aggiorna impostazioni"}
         </Button>
       </div>
