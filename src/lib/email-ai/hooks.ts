@@ -599,6 +599,7 @@ export interface DdtCaricoRiga {
   codice: string | null;
   qta_bolla: number;
   qta_ordine: number | null;
+  qta_residua?: number | null;
   scostamento: number | null;
   po_item_id: string | null;
   note: string | null;
@@ -612,6 +613,7 @@ export interface DdtCarico {
   ddt_data?: string | null;
   purchase_order_numero: string | null;
   senza_ordine: boolean;
+  avviso_ordine?: string | null;
   righe: DdtCaricoRiga[];
   scostamenti_totali: number;
   stato: "bozza" | "confermato" | "scartato";
