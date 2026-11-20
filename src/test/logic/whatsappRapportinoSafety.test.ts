@@ -15,6 +15,9 @@ beforeEach(() => {
   db = new DbMinimo();
   db.tabelle.orders = [{ id: "order", company_id: "company", order_code: "TEST-01", description: "Cantiere test" }];
   db.tabelle.order_campo_assignments = [{ order_id: "order", company_id: "company", user_id: "user" }];
+  db.rpcs.whatsapp_contesto_rapportino = ({ p_company, p_user, p_order }) =>
+    db.tabelle.order_campo_assignments.some(a => a.company_id === p_company && a.user_id === p_user && a.order_id === p_order)
+      ? { persone: [], solo_ore: false, solo_timbratura: false, giorni_indietro: 7 } : null;
   ctx = { supabase: db, company_id: "company", user_id: "user", employee_id: null, phone: "0000", waNumberId: "number", sessionId: null, kind: "operaio", role_grants: ["rapportino.write"], locale: "it" } as unknown as ToolCtx;
 });
 describe("WhatsApp report persistence is scoped and truthful", () => {

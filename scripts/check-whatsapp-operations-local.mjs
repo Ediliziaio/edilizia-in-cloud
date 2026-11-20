@@ -15,6 +15,7 @@ try {
     create schema auth; create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql as $$select null::uuid$$;
     create function public.puo_gestire_whatsapp(uuid) returns boolean language sql as $$select false$$;
+    create function public.utente_bloccato() returns boolean language sql as $$select false$$;
     create table companies(id uuid primary key); create table ai_whatsapp_numbers(id uuid primary key);
     create table whatsapp_messages(id uuid primary key,company_id uuid,wa_number_id uuid,from_phone text,direction text,processing_status text,created_at timestamptz,metadata jsonb default '{}');
     create table whatsapp_credits(company_id uuid primary key,balance_eur numeric,sends_blocked boolean);

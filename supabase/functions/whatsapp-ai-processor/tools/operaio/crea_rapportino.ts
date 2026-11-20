@@ -8,6 +8,8 @@ import { resolveCantiere } from "../shared/resolve_cantiere.ts";
 import { requireSiteAccess } from "../shared/siteAccess.ts";
 import { rapportinoContentIssue, workHoursIssue } from "../../../_shared/operationalDraftValidation.ts";
 import { rapportiniWhatsAppDelDipendente } from "../shared/cantieriAperti.ts";
+import { giornoRapportinoWhatsapp, verificaContestoRapportino, type OrePersona } from "./rapportinoSquadra.ts";
+import { oggiARoma } from "../shared/cantieriAperti.ts";
 import { giornalieroDelGiorno } from "../../../_shared/rapportoGiornaliero.ts";
 
 export const creaRapportinoDef: Omit<ToolDef, "handler"> = {
@@ -15,14 +17,19 @@ export const creaRapportinoDef: Omit<ToolDef, "handler"> = {
   description:
     "Registra il rapportino giornaliero dell'operaio per un cantiere e lo INVIA all'ufficio, come dall'app Campo. " +
     "Un solo rapportino per persona, cantiere e giorno. Chiama SOLO quando l'operaio " +
-    "ha dato almeno ore_lavorate oppure almeno 1 attività. Se non hai order_id, " +
+    "ha dato le ore proprie, le ore distinte per persona o almeno 1 attività. Se non hai order_id, " +
     "passa cantiere_hint con il nome parziale.",
   parameters: {
     type: "object",
     properties: {
       order_id: { type: "string", description: "UUID cantiere (orders.id). Opzionale se c'è cantiere_hint." },
       cantiere_hint: { type: "string", description: "Nome parziale cantiere (es: 'Rossi', 'Via Verdi')." },
-      data_lavoro: { type: "string", description: "YYYY-MM-DD. Default oggi." },
+      data_lavoro: { type: "string", description: "YYYY-MM-DD, oggi o ieri rispetto al messaggio." },
+      persone: {
+        type: "array", maxItems: 30, description: "Per la squadra: ore individuali, nome o io del mittente. Non compilare ore_lavorate se usi persone.",
+        items: { type: "object", properties: { nome: { type: "string" }, ore: { type: "number", minimum: 0, maximum: 24 } },
+          required: ["nome", "ore"], additionalProperties: false },
+      },
       ore_lavorate: { type: "number", minimum: 0, maximum: 14 },
       ore_straordinario: { type: "number", minimum: 0, maximum: 8 },
       attivita: {
@@ -58,6 +65,7 @@ interface Args {
   order_id?: string;
   cantiere_hint?: string;
   data_lavoro?: string;
+  persone?: OrePersona[];
   ore_lavorate?: number;
   ore_straordinario?: number;
   attivita?: string[];
@@ -82,7 +90,10 @@ export async function creaRapportino(
   if (issue) return errResult("invalid_rapportino", issue);
   if (args.meteo != null && !["soleggiato", "nuvoloso", "pioggia", "neve", "vento", "non_specificato"].includes(args.meteo)) return errResult("invalid_meteo", "Meteo non valido.");
 
-  if (!args.ore_lavorate && (!args.attivita || args.attivita.length === 0)) {
+  if (args.persone?.length && (args.ore_lavorate != null || args.ore_straordinario != null)) {
+    return errResult("ore_duplicate", "Indica le ore per persona oppure le tue ore personali.");
+  }
+  if (!args.ore_lavorate && !args.persone?.length && (!args.attivita || args.attivita.length === 0)) {
     return errResult(
       "insufficient_data",
       "Dimmi almeno le ore lavorate oppure almeno un'attività svolta.",
@@ -105,7 +116,7 @@ export async function creaRapportino(
   }
 
   // Verifica cantiere
-  try { await requireSiteAccess(ctx, orderId); }
+  try { if (!ctx.user_id) await requireSiteAccess(ctx, orderId); }
   catch { return errResult("cantiere_access_unavailable", "Non posso verificare l’accesso al cantiere. Nessun rapportino salvato."); }
   const { data: cantiere, error: siteError } = await ctx.supabase
     .from("orders")
@@ -122,16 +133,23 @@ export async function creaRapportino(
   }
 
   cantiereNome = cantiere.description || cantiere.order_code || cantiereNome || "cantiere";
-  // Oggi in Italia: con la data UTC un rapportino mandato dopo mezzanotte
-  // finiva sul giorno prima.
-  const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
-  const dataLavoro = args.data_lavoro ?? oggi;
-  // Il rapportino nasce già inviato: niente giorni futuri, e indietro al massimo
-  // una settimana. Per giorni più vecchi lo corregge l'ufficio dall'app.
-  const settimanaFa = new Date(`${oggi}T12:00:00Z`);
-  settimanaFa.setUTCDate(settimanaFa.getUTCDate() - 7);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataLavoro) || dataLavoro > oggi || dataLavoro < settimanaFa.toISOString().slice(0, 10)) {
-    return errResult("data_non_ammessa", "Il rapportino da WhatsApp vale per oggi o per un giorno dell'ultima settimana. Dimmi il giorno giusto, oppure chiedi all'ufficio.");
+  const oggi = oggiARoma();
+  let dataLavoro: string;
+  let contesto: Awaited<ReturnType<typeof verificaContestoRapportino>>;
+  try {
+    const istante = ctx.sentAt ? new Date(ctx.sentAt) : new Date();
+    dataLavoro = giornoRapportinoWhatsapp(args.data_lavoro, istante, /^ieri\b/i.test(ctx.transcript ?? ""));
+    contesto = await verificaContestoRapportino(ctx, orderId, dataLavoro, args.persone);
+  } catch (e) {
+    return errResult("rapportino_contesto_non_valido", e instanceof Error ? e.message : "Dati del rapportino da verificare.");
+  }
+  const primoGiorno = new Date(`${oggi}T12:00:00Z`);
+  primoGiorno.setUTCDate(primoGiorno.getUTCDate() - contesto.giorniIndietro);
+  if (dataLavoro > oggi || dataLavoro < primoGiorno.toISOString().slice(0, 10)) {
+    return errResult("data_non_ammessa", "La data non rientra nel periodo consentito dall’azienda. Indica il giorno giusto oppure chiedi all’ufficio.");
+  }
+  if (contesto.soloOre && (args.attivita?.length || args.materiali_usati?.length || args.note || args.meteo)) {
+    return errResult("solo_ore_personali", "Per questa commessa puoi inviare le tue ore personali. Il resto lo registra il responsabile.");
   }
   // «non_specificato» non è un valore ammesso dalla colonna meteo.
   const meteo = args.meteo && args.meteo !== "non_specificato" ? args.meteo : null;
@@ -150,7 +168,7 @@ export async function creaRapportino(
 
   // Cerca esistente: nello stesso giorno può esserci anche il collaudo col
   // cliente, che non va toccato da qui. Si lavora solo sul giornaliero.
-  const colonne = "id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario, lavoro_completato, firma_cliente_url";
+  const colonne = "id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario, lavoro_completato, firma_cliente_url, presenze";
   const nonVerificabile = errResult("rapportino_lookup_failed", "Non posso verificare il rapportino esistente. Nessun nuovo rapportino creato: verifica prima di riprovare.");
   let existing: Record<string, unknown> | null = null;
   if (ctx.user_id) {
@@ -177,7 +195,7 @@ export async function creaRapportino(
   }
 
   const oreTotali = (ordinarie: unknown, straordinario: unknown) => Number(ordinarie ?? 0) + Number(straordinario ?? 0);
-  const presenze = (ordinarie: unknown, straordinario: unknown) => ctx.user_id ? undefined
+  const presenze = (ordinarie: unknown, straordinario: unknown) => ctx.user_id ? contesto.presenze
     : [{ employee_id: ctx.employee_id, nome: nomeDipendente ?? "Operaio", ore: oreTotali(ordinarie, straordinario) }];
 
   if (existing) {
@@ -187,8 +205,8 @@ export async function creaRapportino(
       return errResult("rapportino_locked", `Il rapportino di oggi per ${cantiereNome} è già all'ufficio. Per correggerlo scrivi all'ufficio: non lo modifico.`);
     }
     if (existing.materiali_usati != null && !Array.isArray(existing.materiali_usati)) return errResult("invalid_existing_materials", "Elenco materiali esistente da verificare nell’app.");
-    const ore = args.ore_lavorate ?? existing.ore_lavorate;
-    const straordinario = args.ore_straordinario ?? existing.ore_straordinario;
+    const ore = contesto.presenze ? 0 : args.ore_lavorate ?? existing.ore_lavorate;
+    const straordinario = contesto.presenze ? 0 : args.ore_straordinario ?? existing.ore_straordinario;
     const mergedHoursIssue = workHoursIssue(ore as number | undefined, straordinario as number | undefined, 14);
     if (mergedHoursIssue) return errResult("invalid_rapportino", mergedHoursIssue);
     const mergedDescrizione = [existing.descrizione_lavori, descriptionFromAttivita]
@@ -201,7 +219,16 @@ export async function creaRapportino(
       ? `${existing.note}\n${args.note}`
       : (existing.note ?? args.note ?? null);
 
-    const pres = presenze(ore, straordinario);
+    let pres = presenze(ore, straordinario);
+    if (contesto.presenze && Array.isArray(existing.presenze)) {
+      const nuove = contesto.presenze;
+      pres = [...existing.presenze.filter(p => !nuove.some(n => n.employee_id === p?.employee_id)), ...nuove];
+    }
+    if (contesto.presenze && (!Array.isArray(existing.presenze) || !existing.presenze.length) &&
+        oreTotali(existing.ore_lavorate, existing.ore_straordinario) > 0 &&
+        !contesto.presenze.some(p => p.employee_id === ctx.employee_id)) {
+      return errResult("ore_autore_da_verificare", "Il rapportino aveva già le tue ore personali. Includile esplicitamente per passare alla squadra.");
+    }
     let update = ctx.supabase
       .from("campo_rapportini")
       .update({
@@ -213,6 +240,7 @@ export async function creaRapportino(
         ...(pres ? { presenze: pres } : {}),
         note: mergedNote,
         source: "whatsapp",
+        ...(ctx.sourceMessageId ? { whatsapp_message_id: ctx.sourceMessageId } : {}),
         stato: "inviato",
         motivo_rifiuto: null,
         updated_at: new Date().toISOString(),
@@ -248,6 +276,7 @@ export async function creaRapportino(
       meteo,
       note: [ctx.user_id ? null : `Mandato su WhatsApp da ${nomeDipendente ?? "un operaio senza account"}`, args.note ?? null].filter(Boolean).join("\n") || null,
       source: "whatsapp",
+      ...(ctx.sourceMessageId ? { whatsapp_message_id: ctx.sourceMessageId } : {}),
       // La colonna ammette solo employee / subcontractor: con «operaio»
       // (com'era fino al 25/09/2026) ogni rapportino nuovo da WhatsApp falliva.
       role_type: "employee",
@@ -271,10 +300,12 @@ export async function creaRapportino(
       .eq("id", ctx.sessionId).eq("company_id", ctx.company_id).eq("wa_number_id", ctx.waNumberId);
   }
 
+  const totaleSquadra = contesto.presenze?.reduce((totale, p) => totale + p.ore, 0);
   const conMateriali = Array.isArray(args.materiali_usati) && args.materiali_usati.length > 0;
   return okResult(
     { id: inserted.id, is_new: true, cantiere_nome: cantiereNome },
     `✅ Rapportino inviato all'ufficio per ${cantiereNome}: lo approva l'ufficio.` +
+      (totaleSquadra !== undefined ? ` ${totaleSquadra.toLocaleString("it-IT")} ore totali per ${contesto.presenze!.length} persone.` : "") +
       (conMateriali ? " I materiali sono solo annotati: nessuno scarico di magazzino." : ""),
   );
 }

@@ -4,6 +4,7 @@ import type { ToolCtx } from "./tools/shared/types.ts";
 import { sceltaCantiere, cantiereDalTesto } from "./tools/shared/sceltaCantiere.ts";
 import { cantieriInOrdine, cercaCommesseUfficio } from "./tools/shared/cantieriAperti.ts";
 import { descriviFattura } from "./tools/ufficio/assegna_fattura.ts";
+import { giornoRapportinoWhatsapp, verificaContestoRapportino, type OrePersona } from "./tools/operaio/rapportinoSquadra.ts";
 import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 import { isEdileDraftModel, validEdileReview } from "../_shared/edileQuoteDraft.ts";
@@ -86,7 +87,13 @@ function riepilogoOperativo(action: string, args: Record<string, unknown>, voci:
     const materiali = elenco(args.materiali_usati);
     const ore = typeof args.ore_lavorate === "number" ? `${numeroIt(args.ore_lavorate)} h` : "non indicate";
     const extra = typeof args.ore_straordinario === "number" && args.ore_straordinario > 0 ? ` + ${numeroIt(args.ore_straordinario)} h di straordinario` : "";
-    return [`Rapportino del ${dataIt(args.data_lavoro)}`, `Ore: ${ore}${extra}`,
+    const persone = Array.isArray(args.persone) ? args.persone as OrePersona[] : [];
+    const oreTesto = persone.length ? [
+      `Ore di squadra: ${numeroIt(persone.reduce((totale, p) => totale + Number(p.ore), 0))} h`,
+      ...persone.slice(0, voci).map(p => `• ${testo(p.nome, 35)} · ${numeroIt(p.ore)} h`),
+      ...(persone.length > voci ? [`…e altre ${persone.length - voci} persone`] : []),
+    ] : [`Ore: ${ore}${extra}`];
+    return [`Rapportino del ${dataIt(args.data_lavoro)}`, ...oreTesto,
       ...(attivita.length ? ["Lavori:", ...attivita.slice(0, voci).map((a) => `• ${testo(a, 90)}`), ...(attivita.length > voci ? [`…e altri ${attivita.length - voci} lavori`] : [])] : []),
       ...(materiali.length ? ["Materiali usati:", ...righeElenco(materiali, "materiali")] : []),
       ...(args.meteo && args.meteo !== "non_specificato" ? [`Meteo: ${testo(args.meteo, 20)}`] : []),
@@ -242,8 +249,22 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
       cantieri = cantieri.slice(0, MAX_CANTIERI_IN_ELENCO);
     }
   }
+  if (action === "crea_rapportino") {
+    const ricevuto = ctx.sentAt ? new Date(ctx.sentAt) : now;
+    try {
+      const data = giornoRapportinoWhatsapp(typeof args.data_lavoro === "string" ? args.data_lavoro : undefined, ricevuto, /^ieri\b/i.test(ctx.transcript ?? ""));
+      args.data_lavoro = data;
+      if (args.order_id) {
+        const persone = Array.isArray(args.persone) ? args.persone as OrePersona[] : undefined;
+        const verificate = await verificaContestoRapportino(ctx, String(args.order_id), data, persone);
+        if (persone?.length) args.persone = verificate.presenze?.map(p => ({ nome: p.nome, ore: p.ore })) ?? [];
+      }
+    } catch (e) {
+      throw new ConfirmationReviewError("dati_rapportino_da_chiarire", e instanceof Error ? e.message : "Verifica data e operai del rapportino.");
+    }
+  }
   if (args.order_id) {
-    await requireSiteAccess(ctx, String(args.order_id));
+    if (action !== "crea_rapportino" || !ctx.user_id) await requireSiteAccess(ctx, String(args.order_id));
     const { data, error } = await ctx.supabase.from("orders").select("id, description, order_code, client_name, indirizzo_lavori")
       .eq("id", args.order_id).eq("company_id", ctx.company_id).maybeSingle();
     if (error || !data) throw new Error("Cantiere non disponibile per la conferma.");
@@ -258,9 +279,6 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
     const { data: tk } = await ctx.supabase.from("tickets")
       .select("subject").eq("id", args.richiesta_id).eq("company_id", ctx.company_id).eq("fonte", "campo").maybeSingle();
     oggettoRichiesta = (tk?.subject as string | undefined)?.trim() || null;
-  }
-  if (action === "crea_rapportino" && !args.data_lavoro) {
-    args.data_lavoro = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(now);
   }
   if (action === "carica_scontrino" && !args.data) args.data = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(now);
   if (action === "registra_presenza") {

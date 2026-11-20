@@ -72,7 +72,8 @@ export async function acquisisciDdtWhatsapp(
   const bytes = new Uint8Array(await file.arrayBuffer());
   const mime = tipoFileDdt(bytes);
   if (!mime) throw new Error("Formato documento non valido");
-  const fileHash = await sha(new TextEncoder().encode(await sha(bytes)));
+  const paginaHash = await sha(bytes);
+  const fileHash = await sha(new TextEncoder().encode(paginaHash));
   const lookup = async () => {
     const r = await db
       .from("ddt_document_jobs")
@@ -123,6 +124,7 @@ export async function acquisisciDdtWhatsapp(
             mime,
             size: file.size,
             bucket: "ddt-documenti",
+            sha256: paginaHash,
           },
         ],
         status: opts.result ? "review" : "queued",
@@ -131,7 +133,11 @@ export async function acquisisciDdtWhatsapp(
       .select("id,created_by,order_id,status,result")
       .single();
     if (insertError && insertError.code !== "23505") throw insertError;
-    j = insertError ? await lookup() : data;
+    if (insertError) {
+      j = await lookup();
+      // Un'altra acquisizione ha vinto il vincolo sull'impronta.
+      if (j && j.id !== id) await db.storage.from("ddt-documenti").remove([originalePath]);
+    } else j = data;
   }
   if (!j) throw new Error("Manca la conferma del salvataggio");
   // Un duplicato di un collega non si riassegna: il documento viene confrontato dall'ufficio.

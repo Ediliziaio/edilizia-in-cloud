@@ -10,10 +10,14 @@ export interface ToolCtx {
   phone: string;
   role_grants: string[];
   locale: "it" | "en";
+  soloMieiMagazzini?: boolean;
   waNumberId: string;
   sessionId: string | null;
   /** Verified inbound message ID, used for business-operation idempotency. */
   requestId?: string;
+  sourceMessageId?: string;
+  sentAt?: string;
+  transcript?: string;
   kind: "operaio" | "ufficio" | "admin" | "unknown";
   /** Il file arrivato con questo messaggio, già salvato nel bucket (foto del DDT, foto di cantiere, vocale). */
   mediaCorrente?: { storagePath: string; url: string; tipo: string } | null;

@@ -1,15 +1,14 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 const m = vi.hoisted(() => ({
   ai: vi.fn(),
+  acquisisci: vi.fn(),
   download: vi.fn(),
   fetch: vi.fn(),
 }));
 vi.mock(
   "../../../supabase/functions/_shared/ddtWhatsappPersistente.ts",
   () => ({
-    acquisisciDdtWhatsapp: vi
-      .fn()
-      .mockResolvedValue({ id: "job", status: "review" }),
+    acquisisciDdtWhatsapp: m.acquisisci,
   }),
 );
 vi.mock("../../../supabase/functions/_shared/aiRouter.ts", () => ({
@@ -35,6 +34,7 @@ const db = {
   storage: { from: () => ({ download: m.download }) },
 } as unknown as Parameters<typeof leggiDocumentoOperativo>[0];
 beforeEach(() => {
+  m.acquisisci.mockReset().mockResolvedValue({ id: "job", status: "review" });
   vi.stubGlobal("Deno", { env: { get: () => "https://progetto.invalid" } });
   vi.stubGlobal("fetch", m.fetch);
   m.fetch
@@ -101,6 +101,7 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
     expect(await leggiDocumentoOperativo(db, opts)).toContain(
       "non sono riuscito a leggerlo",
     );
+    expect(m.acquisisci).toHaveBeenCalledWith(db, opts);
   });
   it("non manda al modello un allegato oltre il limite", async () => {
     m.download.mockResolvedValue({
@@ -111,5 +112,6 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
       "non sono riuscito a leggerlo",
     );
     expect(m.ai).not.toHaveBeenCalled();
+    expect(m.acquisisci).not.toHaveBeenCalled();
   });
 });

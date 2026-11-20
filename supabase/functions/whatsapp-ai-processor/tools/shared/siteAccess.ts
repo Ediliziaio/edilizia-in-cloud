@@ -8,7 +8,14 @@ import type { ToolCtx } from "./types.ts";
  */
 export async function assignedSiteIds(ctx: ToolCtx, day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date())): Promise<Set<string> | null> {
   if (ctx.kind === "unknown") return new Set();
-  if (ctx.kind !== "operaio") return null;
+  if (ctx.kind === "admin") return null;
+  if (ctx.kind === "ufficio") {
+    if (!ctx.soloMieiMagazzini) return null;
+    if (!ctx.user_id) return new Set();
+    const { data, error } = await ctx.supabase.rpc("silvio_commesse_visibili", { p_company_id: ctx.company_id, p_user_id: ctx.user_id });
+    if (error || !Array.isArray(data)) throw new Error("site_assignments_unavailable");
+    return new Set(data.map((r: { id: string }) => r.id));
+  }
   const ids = new Set<string>();
   if (ctx.user_id) {
     const { data, error } = await ctx.supabase.from("order_campo_assignments")

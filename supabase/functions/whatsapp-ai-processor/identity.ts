@@ -11,15 +11,16 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
 import {
-  chiaveTelefono,
   eUtenteInterno,
-  stessoTelefono,
   tipoUtenteBot,
   type TipoUtenteBot,
 } from "../_shared/botOperativoRuoli.ts";
 
 export interface ResolvedIdentity {
   matched: boolean;
+  negata?: boolean;
+  solaLettura?: boolean;
+  soloMieiMagazzini?: boolean;
   kind: TipoUtenteBot | "unknown";
   user_id: string | null;
   employee_id: string | null;
@@ -68,9 +69,10 @@ function grantsPer(tipo: TipoUtenteBot): string[] {
   return GRANTS_OPERAIO;
 }
 
-function unknownResult(companyId: string): ResolvedIdentity {
+function unknownResult(companyId: string, negata = false): ResolvedIdentity {
   return {
     matched: false,
+    negata,
     kind: "unknown",
     user_id: null,
     employee_id: null,
@@ -82,11 +84,49 @@ function unknownResult(companyId: string): ResolvedIdentity {
   };
 }
 
-function riconosciuto(
+function numeroAnagrafica(telefono: string | null | undefined): string | null {
+  const testo = telefono?.trim() ?? "";
+  if (!/^\+?[\d ().-]+$/.test(testo)) return null;
+  const cifre = testo.replace(/\D/g, "");
+  const normalizzato = testo.startsWith("+") ? cifre : cifre.startsWith("00") ? cifre.slice(2)
+    : /^(?:3\d{8,9}|0\d{6,10})$/.test(cifre) ? `39${cifre}` : cifre;
+  return /^[1-9]\d{7,14}$/.test(normalizzato) ? normalizzato : null;
+}
+
+const DIMENSIONE_PAGINA = 250;
+
+async function trovaIdentitaTelefoniche<T extends { id: string }>(
+  leggi: (dopo: string | null) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  combacia: (riga: T) => boolean,
+  errore: string,
+): Promise<T[]> {
+  const corrispondenze: T[] = [];
+  let dopo: string | null = null;
+  do {
+    const { data, error } = await leggi(dopo);
+    if (error) throw new Error(errore);
+    const pagina = data ?? [];
+    corrispondenze.push(...pagina.filter(combacia));
+    dopo = pagina.length === DIMENSIONE_PAGINA ? pagina[pagina.length - 1].id : null;
+  } while (dopo && corrispondenze.length < 2);
+  return corrispondenze;
+}
+
+async function riconosciuto(
+  db: SupabaseClient,
   companyId: string,
   tipo: TipoUtenteBot,
   dati: { user_id: string | null; employee_id: string | null; display_name: string; ruoli: string[] },
-): ResolvedIdentity {
+): Promise<ResolvedIdentity> {
+  let solaLettura = false;
+  let soloMieiMagazzini = false;
+  if (tipo !== "admin" && dati.user_id) {
+    const { data, error } = await db.from("staff_permissions").select("sola_lettura, only_my_warehouse")
+      .eq("user_id", dati.user_id).eq("company_id", companyId).maybeSingle();
+    if (error) throw new Error("identity_permissions_lookup_unavailable");
+    solaLettura = data?.sola_lettura === true;
+    soloMieiMagazzini = data?.only_my_warehouse === true;
+  }
   if (tipo === "admin") {
     console.warn(
       "[whatsapp-identity][SECURITY] poteri ADMIN concessi dal numero di telefono",
@@ -99,7 +139,9 @@ function riconosciuto(
     user_id: dati.user_id,
     employee_id: dati.employee_id,
     display_name: dati.display_name,
-    role_grants: grantsPer(tipo),
+    role_grants: grantsPer(tipo).filter(g => !solaLettura || !/\.write$|\.assegna$|^preventivi\./.test(g)),
+    solaLettura,
+    soloMieiMagazzini,
     ruolo_silvio: dati.ruoli.length > 0 ? ruoloPrincipaleSilvio(dati.ruoli) : null,
     company_id: companyId,
     locale: "it",
@@ -111,28 +153,31 @@ export async function resolveIdentity(
   fromPhone: string,
   companyId: string,
 ): Promise<ResolvedIdentity> {
-  if (!chiaveTelefono(fromPhone)) return unknownResult(companyId);
+  const mittente = fromPhone.replace(/^\+/, "");
+  if (!/^[1-9]\d{7,14}$/.test(mittente)) return unknownResult(companyId);
+  const corrisponde = (telefono: string | null | undefined) => numeroAnagrafica(telefono) === mittente;
 
-  // 1) Dipendente col telefono.
-  const { data: employees, error: employeeError } = await supabase
-    .from("employees")
-    .select("id, user_id, first_name, last_name, phone_whatsapp, phone")
-    .eq("company_id", companyId)
-    .eq("is_active", true);
-  if (employeeError) throw new Error("identity_employee_lookup_unavailable");
-  const matches = (employees ?? []).filter((e) =>
-    stessoTelefono(e.phone_whatsapp, fromPhone) || stessoTelefono(e.phone, fromPhone)
-  );
-  if (matches.length > 1) return unknownResult(companyId);
+  const matches = await trovaIdentitaTelefoniche(dopo => {
+    const query = supabase.from("employees").select("id, user_id, first_name, last_name, phone_whatsapp, phone, is_active")
+      .eq("company_id", companyId).order("id").limit(DIMENSIONE_PAGINA);
+    return dopo ? query.gt("id", dopo) : query;
+  }, e => corrisponde(e.phone_whatsapp) || corrisponde(e.phone), "identity_employee_lookup_unavailable");
+  if (matches.length > 1) return unknownResult(companyId, true);
   const dip = matches[0];
+  if (dip?.is_active === false) return unknownResult(companyId, true);
+  const profileMatches = await trovaIdentitaTelefoniche(dopo => {
+    const query = supabase.from("profiles").select("id, phone, first_name, last_name, is_blocked")
+      .eq("company_id", companyId).not("phone", "is", null).order("id").limit(DIMENSIONE_PAGINA);
+    return dopo ? query.gt("id", dopo) : query;
+  }, p => corrisponde(p.phone), "identity_profile_lookup_unavailable");
+  if (profileMatches.length > 1) return unknownResult(companyId, true);
+  const prof = profileMatches[0];
+  if (prof?.is_blocked) return unknownResult(companyId, true);
   if (dip) {
-    const { data: owners, error: ownerError } = await supabase.from("profiles").select("id,phone")
-      .eq("company_id", companyId).not("phone", "is", null);
-    if (ownerError) throw new Error("identity_profile_lookup_unavailable");
-    if ((owners ?? []).some(p => stessoTelefono(p.phone, fromPhone) && p.id !== dip.user_id)) return unknownResult(companyId);
+    if (prof && prof.id !== dip.user_id) return unknownResult(companyId, true);
     const ruoli = dip.user_id ? await ruoliNellAzienda(supabase, dip.user_id, companyId) : [];
-    if (dip.user_id && !eUtenteInterno(ruoli)) return unknownResult(companyId);
-    return riconosciuto(companyId, tipoUtenteBot(ruoli, !!dip.user_id), {
+    if (dip.user_id && !eUtenteInterno(ruoli)) return unknownResult(companyId, true);
+    return riconosciuto(supabase, companyId, tipoUtenteBot(ruoli, !!dip.user_id), {
       user_id: dip.user_id,
       employee_id: dip.id,
       display_name: `${dip.first_name ?? ""} ${dip.last_name ?? ""}`.trim() || "Operaio",
@@ -140,24 +185,10 @@ export async function resolveIdentity(
     });
   }
 
-  // 2) Utente dell'app col telefono nel profilo (i clienti hanno un profilo
-  //    anche loro: senza un ruolo interno qui non entrano).
-  const { data: profili, error: profileError } = await supabase
-    .from("profiles")
-    // profiles non ha full_name: chiederla faceva fallire la lettura, e chi era
-    // solo utente dell'app (titolare, ufficio senza scheda dipendente) non
-    // riceveva nessuna risposta (19/10/2026).
-    .select("id, phone, first_name, last_name")
-    .eq("company_id", companyId)
-    .not("phone", "is", null);
-  if (profileError) throw new Error("identity_profile_lookup_unavailable");
-  const profileMatches = (profili ?? []).filter((p) => stessoTelefono(p.phone, fromPhone));
-  if (profileMatches.length > 1) return unknownResult(companyId);
-  const prof = profileMatches[0];
   if (prof) {
     const ruoli = await ruoliNellAzienda(supabase, prof.id, companyId);
     if (eUtenteInterno(ruoli)) {
-      return riconosciuto(companyId, tipoUtenteBot(ruoli, true), {
+      return riconosciuto(supabase, companyId, tipoUtenteBot(ruoli, true), {
         user_id: prof.id,
         employee_id: null,
         display_name: `${prof.first_name ?? ""} ${prof.last_name ?? ""}`.trim() || "Utente",

@@ -63,7 +63,10 @@ import { WHATSAPP_SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
 import { silvioHistoryContent, silvioToolResultForPrompt, silvioToolContextIsPartial, silvioCompletionNotice } from "../_shared/silvioAnswerQuality.ts";
 import { FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shared/chartRules.ts";
 import { SITE_HEALTH_TOOL, siteHealthPreflight, siteHealthDirectAnswer } from "../_shared/silvioSiteHealth.ts";
+import { MediaWhatsAppNonDisponibile } from "./metaMedia.ts";
 import { resolveIdentity } from "./identity.ts";
+import { aggiungiPaginaBolla, paginaDiBolla } from "./pagineBolla.ts";
+import { leggiDestinazioneBolla, trattaBollaInConversazione } from "./bolleInConversazione.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio, CreditoTrascrizioneEsaurito } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
@@ -194,12 +197,16 @@ Deno.serve(async (req) => {
   const { data: waNumberSettings, error: numberError } = msg.wa_number_id
     ? await supabase
       .from("ai_whatsapp_numbers")
-      .select("operational_settings, agent_id")
+      .select("operational_settings, agent_id, stato, purpose")
       .eq("id", msg.wa_number_id)
-      .eq("company_id", msg.company_id)
+      .eq("company_id", msg.company_id).is("deleted_at", null)
       .maybeSingle()
     : { data: null, error: null };
   if (numberError || !waNumberSettings) return json({ error: "number_settings_unavailable" }, 503);
+  if ((waNumberSettings.stato && waNumberSettings.stato !== "active") ||
+      (waNumberSettings.purpose && waNumberSettings.purpose !== "bot_operativo")) {
+    return markDone(supabase, msg.id, "processed", "canale_operativo_disabilitato");
+  }
   const operationalSettings = normalizeOperationalSettings(
     waNumberSettings?.operational_settings,
   );
@@ -259,7 +266,7 @@ Deno.serve(async (req) => {
       // commessa), risponde l'assistente clienti con gli strumenti condivisi
       // del canale voce — stato consegna, preventivi, appuntamenti, ticket.
       // Non è un cliente → flusso storico invariato (unknown worker).
-      const gestitoDaAssistenteClienti = await gestisciMessaggioCliente(supabase, msg, sendReply);
+      const gestitoDaAssistenteClienti = !identity.negata && await gestisciMessaggioCliente(supabase, msg, sendReply);
       if (gestitoDaAssistenteClienti) {
         return markDone(supabase, body.message_id, "processed");
       }
@@ -288,7 +295,7 @@ Deno.serve(async (req) => {
     // (numero non collegato a Silvio, nulla da fare, errore o timeout) ritorna
     // false e si PROSEGUE col bot operativo esistente — zero regressioni sul
     // webhook passato da Meta App Review.
-    if (msg.message_type === "text" && operationalTriage.intent === "unknown") {
+    if (!identity.solaLettura && msg.message_type === "text" && operationalTriage.intent === "unknown" && !leggiDestinazioneBolla(msg.content_text ?? "")) {
       const presoInCaricoDaSilvio = await forwardToSilvio(msg, msg.content_text ?? "");
       if (presoInCaricoDaSilvio) {
         return markDone(supabase, body.message_id, "processed");
@@ -301,6 +308,26 @@ Deno.serve(async (req) => {
       await sendReply(msg, budget.user_message);
       return markDone(supabase, body.message_id, "failed", "budget_exceeded");
     }
+
+    let configAgente: ConfigAgenteOperativo | null = null;
+    const agentId = (waNumberSettings as { agent_id?: string | null } | null)?.agent_id;
+    if (agentId) {
+      const { data: scheda, error } = await supabase
+        .from("ai_agents_v2")
+        .select("nome, stato, system_prompt, temperatura, tools_config, company_id")
+        .eq("id", agentId).eq("company_id", msg.company_id)
+        .maybeSingle();
+      if (error || !scheda) throw new Error("configurazione_agente_non_disponibile");
+      configAgente = leggiConfigOperativo(scheda);
+    }
+    const ruoloAgente: RuoloAgente = identity.kind === "ufficio" || identity.kind === "admin" ? identity.kind : "operaio";
+    const chiScrive = { ruolo: ruoloAgente, userId: identity.user_id };
+    const inizioTurno = new Date();
+    const vietatiOra = vietatiPer(configAgente, chiScrive, inizioTurno);
+    const sbloccatiOra = sbloccatiPer(configAgente, chiScrive, inizioTurno);
+    const strumentiAbilitati = filterOperationalTools(filterToolsByGrants(identity.role_grants), operationalSettings);
+    const acquisizioneConsentita = strumentiAbilitati.some(tool => tool.name === "carica_ddt")
+      && !vietatiOra.includes("carica_ddt") && !sbloccatiOra.includes("carica_ddt");
 
     // Media handling. Prima si scarica il file da Meta (foto, vocale,
     // documento): fino al 25/09/2026 non lo faceva nessuno, e il vocale
@@ -316,6 +343,11 @@ Deno.serve(async (req) => {
           mediaCorrente = { ...salvato, tipo: String(msg.message_type) };
         }
       } catch (e) {
+        if (e instanceof MediaWhatsAppNonDisponibile) {
+          await sendReply(msg, e.codice === "file_grande" ? "Il file supera il limite di questo canale del gestionale. Invia un file più piccolo."
+            : "Il file WhatsApp non è più disponibile. Invia di nuovo l’allegato originale.");
+          return markDone(supabase, msg.id, "failed", e.codice);
+        }
         console.error(JSON.stringify({ level: "error", fn: "scarica_media", error: String(e) }));
       }
       // Foto o documento non scaricati: lo si dice, invece di rispondere come se non ci fossero.
@@ -361,14 +393,21 @@ Deno.serve(async (req) => {
       );
       return markDone(supabase, body.message_id, "failed", "media_download_error");
     }
-    if (msg.message_type === "audio" && msg.media_storage_path) {
+    const paginaAggiuntiva = mediaCorrente && ["image", "document"].includes(String(msg.message_type)) && paginaDiBolla(msg.content_text ?? "");
+    const precedenteLettura = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data.testo_per_assistente : null;
+    if (typeof precedenteLettura === "string" && /^\[(?:Audio trascritto|Foto di un DDT|Documento PDF — DDT)/.test(precedenteLettura)) {
+      userContent = precedenteLettura;
+    } else if (msg.message_type === "audio" && msg.media_storage_path) {
       // Bias di dominio: migliora la resa di Whisper su gergo e sigle di cantiere.
       const promptCantiere =
         "Messaggio vocale di cantiere edile in italiano. Termini possibili: rapportino, " +
         "DDT, bolla, fornitore, commessa, cantiere, operai, ore, cappotto, ponteggio, " +
         "massetto, getto, armatura, intonaco, posa, mq, ml, mc.";
       try {
-        const transcript = (await transcribeAudio(supabase, msg.media_storage_path, promptCantiere, { companyId: msg.company_id ?? null, messageId: body.message_id })).trim();
+        const { testo: transcript } = await runWhatsAppTool(supabase, msg.company_id, `trascrivi:${msg.id}`, "trascrivi_vocale",
+          { path: msg.media_storage_path }, async () => ({
+            testo: (await transcribeAudio(supabase, msg.media_storage_path!, promptCantiere, { companyId: msg.company_id, messageId: msg.id })).trim(),
+          }));
         // Vocale vuoto/incomprensibile: rispondo subito invece di passare testo vuoto all'AI.
         if (transcript.length < 2) {
           await sendReply(
@@ -393,12 +432,14 @@ Deno.serve(async (req) => {
         );
         return markDone(supabase, body.message_id, "failed", "transcribe_error");
       }
-    } else if (msg.message_type === "image" && msg.media_storage_path) {
+    } else if (!paginaAggiuntiva && msg.message_type === "image" && msg.media_storage_path) {
       try {
         userContent = await leggiFotoOperativa(supabase, {
           storagePath: msg.media_storage_path,
           companyId: msg.company_id,
           userId: identity.user_id,
+          employeeId: identity.employee_id,
+          acquisizioneConsentita,
           didascalia: msg.content_text,
           messageId: msg.id,
         });
@@ -406,7 +447,7 @@ Deno.serve(async (req) => {
         console.error(JSON.stringify({ level: "error", fn: "analyze", error: String(e) }));
         userContent = `[Foto ricevuta — non sono riuscito a leggerla]\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
       }
-    } else if (msg.message_type === "document" && msg.media_storage_path) {
+    } else if (!paginaAggiuntiva && msg.message_type === "document" && msg.media_storage_path) {
       // Documenti PDF (DDT, fatture, computi): fino al 28/09/2026 venivano
       // scaricati e ignorati. Ora si leggono e si dice che tipo sono.
       try {
@@ -414,6 +455,8 @@ Deno.serve(async (req) => {
           storagePath: msg.media_storage_path,
           companyId: msg.company_id,
           userId: identity.user_id,
+          employeeId: identity.employee_id,
+          acquisizioneConsentita,
           didascalia: msg.content_text,
           messageId: msg.id,
           mime: String((isPlainRecord(msg.metadata) ? msg.metadata.mime_type : null) ?? "application/pdf"),
@@ -438,7 +481,7 @@ Deno.serve(async (req) => {
     operationalTriage = classifyOperationalMessage({
       contentText: msg.message_type === "audio" ? userContent
         : ["image", "document", "video"].includes(String(msg.message_type))
-          ? [msg.message_type === "document" ? "" : msg.content_text ?? "", tipoDocumentoLetto].join(" ").trim() || null
+          ? [msg.content_text ?? "", tipoDocumentoLetto].join(" ").trim() || null
           : userContent || msg.content_text,
       messageType: msg.message_type,
     });
@@ -493,8 +536,7 @@ Deno.serve(async (req) => {
     // Tool filter per role
     // Le impostazioni del numero (presenze, diario foto, sicurezza) valgono per
     // tutti: prima l'amministratore le scavalcava perché non aveva quegli strumenti.
-    const grantedTools = filterToolsByGrants(identity.role_grants);
-    const availableTools = filterOperationalTools(grantedTools, operationalSettings);
+    const availableTools = strumentiAbilitati;
 
     // Session — prima del prompt: serve sapere se c'è una domanda in attesa.
     let sessionId: string | null = null;
@@ -551,27 +593,6 @@ Deno.serve(async (req) => {
     // undefined = domanda in attesa invariata; null = da togliere; oggetto = nuova domanda.
     let confermaDopo: ConfermaAttesa | null | undefined = undefined;
 
-    // La scheda agente collegata al numero: istruzioni e regole dell'azienda,
-    // aree iniziali, strumenti vietati (27/09/2026). Senza scheda il bot usa i
-    // prompt di partenza.
-    let configAgente: ConfigAgenteOperativo | null = null;
-    const agentId = (waNumberSettings as { agent_id?: string | null } | null)?.agent_id ?? null;
-    if (agentId) {
-      const { data: scheda } = await supabase
-        .from("ai_agents_v2")
-        .select("nome, stato, system_prompt, temperatura, tools_config, company_id")
-        .eq("id", agentId)
-        .maybeSingle();
-      if (scheda && scheda.company_id === msg.company_id) configAgente = leggiConfigOperativo(scheda);
-    }
-    const ruoloAgente: RuoloAgente = identity.kind === "ufficio" || identity.kind === "admin" ? identity.kind : "operaio";
-    // Divieti della scheda per QUESTA persona ADESSO: alcuni possono essere
-    // sbloccati, ma solo per chi è autorizzato e nel contesto previsto.
-    const chiScrive = { ruolo: ruoloAgente, userId: identity.user_id };
-    const inizioTurno = new Date();
-    const vietatiOra = vietatiPer(configAgente, chiScrive, inizioTurno);
-    const sbloccatiOra = sbloccatiPer(configAgente, chiScrive, inizioTurno);
-
     // Che modello e quanti token per questo turno (28/09/2026): economico e
     // stringato per le azioni operative (rapportino, DDT, conferme), forte e
     // approfondito per le domande sui numeri. Prima ogni turno da admin usava
@@ -583,7 +604,7 @@ Deno.serve(async (req) => {
 
     // Fase 1 — ufficio e amministratore hanno anche gli strumenti di Silvio.
     let ponte: PonteSilvio | null = null;
-    if (apriSilvio && identity.kind !== "unknown" && usaStrumentiSilvio(identity.kind) && identity.user_id && identity.ruolo_silvio) {
+    if (apriSilvio && !identity.solaLettura && identity.kind !== "unknown" && usaStrumentiSilvio(identity.kind) && identity.user_id && identity.ruolo_silvio) {
       ponte = await apriPonteSilvio(supabase, {
         companyId: msg.company_id,
         userId: identity.user_id,
@@ -650,12 +671,35 @@ Deno.serve(async (req) => {
       phone: msg.from_phone,
       role_grants: identity.role_grants,
       locale: identity.locale,
+      soloMieiMagazzini: identity.soloMieiMagazzini,
       waNumberId: msg.wa_number_id ?? "",
       sessionId,
       kind: identity.kind,
       requestId: msg.id,
+      sourceMessageId: msg.id,
+      sentAt: isPlainRecord(msg.metadata) && typeof msg.metadata.sent_at === "string" ? msg.metadata.sent_at : msg.created_at ?? undefined,
+      transcript: msg.message_type === "audio" ? testoDellaRisposta : undefined,
       mediaCorrente,
     };
+
+    const isDdtLetto = tipoDocumentoLetto === "bolla ddt";
+    const relazione = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
+    if (paginaAggiuntiva && acquisizioneConsentita && nomiBot.has("carica_ddt")) {
+      const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-pagina:${msg.id}`, "aggiungi_pagina_ddt",
+        { riferimento: relazione }, () => aggiungiPaginaBolla(toolCtx, relazione));
+      await sendReply(msg, esito);
+      return markDone(supabase, msg.id, "processed");
+    }
+    const testoBolla = msg.message_type === "audio" ? testoDellaRisposta : msg.content_text ?? "";
+    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && (isDdtLetto || leggiDestinazioneBolla(testoBolla))) {
+      const inputBolla = { id: msg.id, tipo: msg.message_type, testo: testoBolla, riferimento: relazione, ddtLetto: isDdtLetto, ...(msg.wa_message_id ? { providerId: msg.wa_message_id } : {}) };
+      const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-destinazione:${msg.id}`, "destina_bolla",
+        inputBolla, async () => ({ ok: true, data: await trattaBollaInConversazione(toolCtx, inputBolla) }));
+      if (esito.data) {
+        await sendReply(msg, esito.data);
+        return markDone(supabase, msg.id, "processed");
+      }
+    }
 
     // Scelta del cantiere (18/10/2026): «Altro cantiere» mostra l'elenco;
     // toccare un cantiere dell'elenco conferma l'azione su quel cantiere.
@@ -686,10 +730,10 @@ Deno.serve(async (req) => {
       // Il cantiere scelto viene dall'elenco congelato nella conferma, mai dal testo libero.
       const parametri = cantiereScelto ? { ...pending.parametri!, order_id: cantiereScelto } : pending.parametri!;
       validateToolArguments(tool.parameters, parametri);
-      if (parametri.order_id) await requireSiteAccess(toolCtx, String(parametri.order_id));
+      if (parametri.order_id && tool.name !== "crea_rapportino") await requireSiteAccess(toolCtx, String(parametri.order_id));
       if (!await sessionState.consume()) throw new Error("confirmation_already_consumed");
       const result = await runWhatsAppTool(supabase, msg.company_id, `approval:${pending.id}`, tool.name,
-        parametri, () => tool.handler({ ...toolCtx, mediaCorrente: pending.media ?? undefined }, parametri));
+        parametri, () => tool.handler({ ...toolCtx, sourceMessageId: pending.source_message_id ?? msg.id, mediaCorrente: pending.media ?? undefined }, parametri));
       await logToolCall(supabase, { company_id: msg.company_id, wa_message_id: msg.id, tool_name: tool.name,
         role_kind: identity.kind, args: parametri, result, duration_ms: 0, model_used: "confirmed_payload" });
       // L'esito resta per il passo dopo (18/10/2026): dopo «salva la bozza» →
@@ -883,7 +927,7 @@ Deno.serve(async (req) => {
           let result;
           try {
             validateToolArguments(tool.parameters, args);
-            if (args.order_id) await requireSiteAccess(toolCtx, String(args.order_id));
+            if (args.order_id && tool.name !== "crea_rapportino") await requireSiteAccess(toolCtx, String(args.order_id));
             if (tool.name === "chiedi_conferma" && typeof args.azione === "string" && args.azione.trim()) {
               const action = args.azione.trim();
               const target = nomiBot.has(action) ? findTool(action) : undefined;

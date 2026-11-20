@@ -37,6 +37,7 @@ export interface IncomingWhatsAppMessage {
   };
   button?: { text?: string; payload?: string };
   timestamp?: string;
+  context?: { id?: string };
 }
 
 export interface ExtractedMessage {

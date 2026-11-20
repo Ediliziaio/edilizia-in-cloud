@@ -72,6 +72,10 @@ const PO_STATI_CHIUSI = new Set([
   "ricevuto",
 ]);
 
+function corrispondenzaEsatta(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
 // Parole funzionali dell'indirizzo da ignorare nel confronto a token.
 const ADDR_STOPWORDS = new Set([
   "via", "viale", "vle", "piazza", "pza", "corso", "cso", "strada", "str",
@@ -156,21 +160,21 @@ export async function resolveCantiere(
     const ref = (signals.riferimento_ordine ?? "").toString().trim().slice(0, 80);
     if (ref) {
       const sel = "id, order_id, status";
-      let po: PoRow | null = null;
+      const pattern = corrispondenzaEsatta(ref);
       const byOda = await ctx.supabase
         .from("purchase_orders").select(sel)
-        .eq("company_id", ctx.company_id).ilike("oda_number", `%${ref}%`)
-        .not("order_id", "is", null).limit(1).maybeSingle();
-      po = (byOda.data as PoRow | null) ?? null;
-      if (!po) {
+        .eq("company_id", ctx.company_id).ilike("oda_number", pattern)
+        .not("order_id", "is", null).limit(2);
+      let ordini = (byOda.data ?? []) as PoRow[];
+      if (!byOda.error && !ordini.length) {
         const bySup = await ctx.supabase
           .from("purchase_orders").select(sel)
-          .eq("company_id", ctx.company_id).ilike("supplier_reference", `%${ref}%`)
-          .not("order_id", "is", null).limit(1).maybeSingle();
-        po = (bySup.data as PoRow | null) ?? null;
+          .eq("company_id", ctx.company_id).ilike("supplier_reference", pattern)
+          .not("order_id", "is", null).limit(2);
+        if (!bySup.error) ordini = (bySup.data ?? []) as PoRow[];
       }
-      if (po?.order_id) {
-        const resolved = await loadCantiereById(ctx, po.order_id, assigned);
+      if (ordini.length === 1 && ordini[0].order_id) {
+        const resolved = await loadCantiereById(ctx, ordini[0].order_id, assigned);
         if (resolved) return resolved;
       }
     }
@@ -179,13 +183,13 @@ export async function resolveCantiere(
     if (signals.fornitore) {
       const nomeForn = signals.fornitore.toString().trim();
       if (nomeForn) {
-        const { data: sup } = await ctx.supabase
+        const { data: fornitori } = await ctx.supabase
           .from("suppliers").select("id")
-          .eq("company_id", ctx.company_id).ilike("name", nomeForn).limit(1).maybeSingle();
-        if (sup?.id) {
+          .eq("company_id", ctx.company_id).ilike("name", corrispondenzaEsatta(nomeForn)).limit(2);
+        if (fornitori?.length === 1) {
           const { data: pos } = await ctx.supabase
             .from("purchase_orders").select("order_id, status")
-            .eq("company_id", ctx.company_id).eq("supplier_id", sup.id).not("order_id", "is", null);
+            .eq("company_id", ctx.company_id).eq("supplier_id", fornitori[0].id).not("order_id", "is", null);
           const openOrderIds = Array.from(new Set(
             ((pos ?? []) as PoRow[])
               .filter((p) => !PO_STATI_CHIUSI.has((p.status || "").toLowerCase()))

@@ -17,6 +17,15 @@ export async function handleBotOperativo(
 ): Promise<void> {
   const { waNumber, phoneNumberId, msg, extracted, senderPhone, senderName } = ctx;
   const companyId = waNumber.company_id;
+  if (!msg.id || !/^\d{6,16}$/.test(senderPhone)) return;
+  const providerSeconds = Number(msg.timestamp);
+  const contextId = msg.context?.id;
+  const metadata = {
+    ...extracted.metadata,
+    ...(Number.isSafeInteger(providerSeconds) && providerSeconds > 0 && providerSeconds <= Date.now() / 1000 + 300
+      ? { sent_at: new Date(providerSeconds * 1000).toISOString() } : {}),
+    ...(typeof contextId === "string" && /^wamid\.[A-Za-z0-9_+\/=.-]{1,500}$/.test(contextId) ? { reply_to: contextId } : {}),
+  };
 
   // v8.6.74 (FIX B6) — IDEMPOTENCY ATOMICA via reserve-insert su
   // whatsapp_messages PRIMA di toccare messaging_conversations/messages.
@@ -46,7 +55,7 @@ export async function handleBotOperativo(
         message_type: placeholderMessageType,
         content_text: extracted.content,
         media_url: extracted.mediaId ? `wa-media://${extracted.mediaId}` : null,
-        metadata: extracted.metadata,
+        metadata,
         processing_status: "received",
       })
       .select("id")
@@ -142,7 +151,7 @@ export async function handleBotOperativo(
     message_type: extracted.messageType,
     content: extracted.content,
     media_url: mediaUrl,
-    metadata: extracted.metadata,
+    metadata,
   });
   if (msgErr) {
     console.error(
@@ -276,7 +285,7 @@ export async function handleBotOperativo(
         conversation_id: conversationId,
         channel: "whatsapp",
         message_type: extracted.messageType,
-        metadata: extracted.metadata,
+        metadata,
         wa_number_id: waNumber.id,
         purpose: waNumber.purpose,
         legacy_events: ["whatsapp_received", "customer_replied"],

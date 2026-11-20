@@ -63,10 +63,10 @@ export async function segnalaCanaleWhatsAppFermo(admin: any, p: {
       email: {
         testo: `Il canale WhatsApp di ${azienda} è fermo: ${motivo}. Nessun messaggio arriva ai clienti e l'assistente non può fissare appuntamenti.`,
         righe: [
-          ["Azienda", azienda],
-          ["Numero", p.numero || "—"],
-          ["Errore Meta", String(p.codice)],
-          ["Cosa deve fare il cliente", cosaFare],
+          { etichetta: "Azienda", valore: azienda },
+          { etichetta: "Numero", valore: p.numero || "—" },
+          { etichetta: "Errore Meta", valore: String(p.codice) },
+          { etichetta: "Cosa deve fare il cliente", valore: cosaFare },
         ],
       },
       url: "/admin/aziende",
