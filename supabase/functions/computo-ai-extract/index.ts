@@ -4,6 +4,7 @@
  * Prima i lettori deterministici (PDF di PriMus, XPWE), poi l'AI come ripiego
  * per PDF di altri programmi, Excel e foto.
  * Multi-strategy: pdf_text, pdf_vision, xlsx_parse, xpwe_parse
+ * Il lettore condiviso propone anche le fasi dei PDF senza capitoli sulle voci (19/11/2026).
  *
  * 11/11/2026: carta mancante, abbonamento sospeso o scaduto e credito finito rispondono
  * 402/503 col codice (erroreAiPerUtente) invece di un 500; l'OCR di _shared/pdfExtraction

@@ -18,7 +18,6 @@
  */
 import { MaterialiDaRegolarizzare } from "@/components/orders/materiali/MaterialiDaRegolarizzare";
 import { MaterialiDaConfermare, useMaterialiProposti } from "./MaterialiDaConfermare";
-import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
 import { RevisioneTecnico } from "./RevisioneTecnico";
 import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -26,7 +25,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { CalendarClock,
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, FileCheck, FileSearch, History,
-  Layers, Library, MoreHorizontal, Paperclip, PenLine, Pencil, Plus, Send, ShoppingCart, Sparkles, Trash2, Undo2, Warehouse,
+  Layers, Library, MoreHorizontal, Paperclip, PenLine, Pencil, Plus, Send, ShoppingCart, Sparkles, Trash2, Truck, Undo2, Warehouse,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,6 +56,14 @@ import {
 import { ETICHETTA_FONTE_PREZZO, prezzoAttuale, totaleStimato, type FontePrezzo, type PrezzoProposto } from "@/lib/distinta/prezziMateriali";
 import { siCompraAPezzi } from "@/lib/distinta/generaDistinta";
 import { VariazioniVariante } from "./VariazioniVariante";
+import { StrumentiComputo } from "./StrumentiComputo";
+import { NavigazioneArticoli } from "./NavigazioneArticoli";
+import { corrispondeRicercaArticolo, gruppiNavigazioneArticoli, type VistaArticoli } from "@/lib/distinta/navigazioneArticoli";
+import { usePianoAcquistiComputo } from "@/hooks/usePianoAcquistiComputo";
+import { verificaDelMateriale } from "@/lib/distinta/verificaAcquisto";
+import { ModificaMultiplaArticoli } from "./ModificaMultiplaArticoli";
+import { VerificaDatiMateriale } from "./VerificaDatiMateriale";
+import { RevisioneMateriali } from "./RevisioneMateriali";
 import {
   allegatoOda, dettaglioAccontoSaldo, eliminabile, eMateriale, ETICHETTA_ORDINAMENTO, filtraPerFonte, ordinaRighe, type FiltroFonte, type Ordinamento,
 } from "@/lib/distinta/elencoArticoli";
@@ -158,18 +165,19 @@ function Suggerimento({ testo, children, lato = "top" }: { testo: ReactNode; chi
 }
 
 function Provenienza({ m }: { m: MaterialeFase }) {
-  if (!m.origine_materiale || m.origine_materiale === "manuale") return null;
   const origini = m.origini ?? [];
+  const daContratto = origini.some(o => o.tipo === "contratto");
+  if ((!m.origine_materiale || m.origine_materiale === "manuale") && !daContratto) return null;
   const titolo = origini.map((o) =>
     o.tipo === "computo"
       ? `${o.codice ? o.codice + " · " : ""}${o.descrizione} (${numero(o.quantita_voce)} ${o.unita_voce ?? ""}) → ${numero(o.quantita)}`
-      : `${o.documento ?? "Tavola"} · ${o.simbolo}${o.locale ? " · " + o.locale : ""} (${numero(o.quantita_simbolo)}) → ${numero(o.quantita)}`,
+      : o.tipo === "contratto" ? `Documento · ${o.descrizione} → ${numero(o.quantita)}` : `${o.documento ?? "Tavola"} · ${o.simbolo}${o.locale ? " · " + o.locale : ""} (${numero(o.quantita_simbolo)}) → ${numero(o.quantita)}`,
   ).join("\n");
-  const etichetta = m.origine_materiale === "planimetria"
+  const etichetta = daContratto ? `Documento · ${origini.length} ${origini.length === 1 ? "posizione" : "posizioni"}` : m.origine_materiale === "planimetria"
     ? `Tavola${m.locale ? " · " + m.locale : ""}`
     : origini.length > 1 ? `Computo · ${origini.length} voci` : `Computo${origini[0]?.tipo === "computo" && origini[0].codice ? " · " + origini[0].codice : ""}`;
   const badge = (
-    <span tabIndex={titolo ? 0 : undefined} className="inline-flex max-w-full items-center gap-1 truncate rounded border border-violet-200 bg-violet-50 px-1 text-[11px] text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200">
+    <span tabIndex={titolo ? 0 : undefined} className="inline-flex max-w-44 items-center gap-1 truncate rounded border border-violet-200 bg-violet-50 px-1 text-[11px] text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200">
       {m.origine_materiale === "planimetria" ? <Layers className="h-3 w-3 shrink-0" aria-hidden /> : <FileSearch className="h-3 w-3 shrink-0" aria-hidden />}
       <span className="truncate">{etichetta}</span>
     </span>
@@ -462,7 +470,7 @@ function RigaMateriale({
             <Input
               // «decimal»: sul telefono la tastiera ha la virgola, per scrivere 12,4 kg.
               inputMode="decimal"
-              className="h-7 w-14 px-1.5 text-right tabular-nums"
+              className="h-8 w-20 rounded-md border-transparent bg-muted/30 px-2 text-right tabular-nums hover:border-input focus:border-primary focus:bg-background"
               value={bozza ?? String(Number(m.quantity)).replace(".", ",")}
               onChange={(e) => setBozza(e.target.value)}
               onBlur={salva}
@@ -481,7 +489,7 @@ function RigaMateriale({
         {materiale ? (
           <div className="flex flex-col items-start gap-1">
             <PillolaStato info={info} m={m} spiegazione={tooltipStato} onCambia={onCambiaStato} />
-            <ScalaMini stato={info.stato} />
+            {info.stato !== "da_ordinare" && <ScalaMini stato={info.stato} />}
             {info.dettaglio && <span className="text-[11px] text-muted-foreground">{info.dettaglio}</span>}
             {posa}
           </div>
@@ -508,6 +516,7 @@ interface SezioneProps {
   nomeFornitore: (id: string | null) => string | null;
   onAzione: (azione: AzioneFase) => void;
   onOrdina: () => void;
+  strumenti?: ReactNode;
   onQuantita: (m: MaterialeFase, q: number, tecnico: boolean) => void;
   aperta: boolean;
   onApri: () => void;
@@ -521,7 +530,7 @@ interface SezioneProps {
 
 function SezioneFase({
   fase, righe, colonne, permessi, canViewCosts, selezione, setSelezione, nomeFornitore, onAzione, onOrdina, onQuantita, aperta, onApri, proposte,
-  onAggiungi, azioniRiga, allegatoOdaDi, cambiaStatoDi, posaDi,
+  onAggiungi, azioniRiga, allegatoOdaDi, cambiaStatoDi, posaDi, strumenti,
 }: SezioneProps) {
   const stato = fase.validazione?.stato ?? null;
   // Conteggi, validazione e importi contano i materiali: lavorazioni e descrizioni no.
@@ -582,6 +591,7 @@ function SezioneFase({
         {riga(righe[0], (
           <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <span className="truncate">{fase.nome}</span>
+            {strumenti}
             {onAggiungi && (
               <button type="button" onClick={onAggiungi} aria-label={`Aggiungi un articolo in ${fase.nome}`}
                 className="tap-compact inline-flex h-4 w-4 items-center justify-center rounded hover:bg-muted hover:text-foreground">
@@ -627,6 +637,7 @@ function SezioneFase({
               <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", COLORE_PILLOLA[pillola])}>{ETICHETTA_PILLOLA[pillola]}</span>
             )}
             <div className="ml-auto flex items-center gap-1">
+              {strumenti}
               {principale && (
                 <Button size="sm" className="tap-compact h-8 px-2.5 text-xs sm:h-7" variant={principale === "rimanda" ? "outline" : "default"} onClick={() => esegui(principale)}>
                   {(() => { const I = ICONA_AZIONE[principale]; return <I className="mr-1 h-3.5 w-3.5" aria-hidden />; })()}
@@ -695,14 +706,19 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const azioni = useAzioniMateriali(orderId, orderCode);
   const { suppliers } = useOperationalSuppliers();
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
+  const [vista, setVista] = useState<VistaArticoli>("fasi");
+  const [gruppo, setGruppo] = useState("_tutti");
+  const [cercaArticoli, setCercaArticoli] = useState("");
   /** Aperta/chiusa scelta a mano; le altre seguono la regola (chiuse se tutto è arrivato). */
   const [aperte, setAperte] = useState<Map<string, boolean>>(new Map());
   const [mostraVuote, setMostraVuote] = useState(false);
   const [filtroStato, setFiltroStato] = useState<StatoMateriale | null>(null);
+  const [soloDaCompletare, setSoloDaCompletare] = useState(false);
   const [dettaglioUnita, setDettaglioUnita] = useState(false);
   const [rimando, setRimando] = useState<{ phaseId: string; nome: string } | null>(null);
   const [nota, setNota] = useState("");
   const [offerta, setOfferta] = useState(false);
+  const [modificaBulk, setModificaBulk] = useState(false);
   const [titoloOfferta, setTitoloOfferta] = useState("");
   const [fornitoriOfferta, setFornitoriOfferta] = useState<Set<string>>(new Set());
   const [genera, setGenera] = useState(false);
@@ -733,6 +749,19 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   // commesse in quattro mesi, 252 senza materiali e «Genera dal computo» mai usato.
   // Lo si dice dove si guarda, con il pulsante accanto.
   const { effectiveCompany } = useAuth();
+  const disponibilitaNavigazione = usePianoAcquistiComputo(effectiveCompany?.id ?? "", orderId, vista === "magazzino");
+  const gruppiNavigazione = useMemo(() => gruppiNavigazioneArticoli(fasi, vista, suppliers,
+    disponibilitaNavigazione.data?.magazzino, disponibilitaNavigazione.data?.codiciArticoli), [fasi, vista, suppliers, disponibilitaNavigazione.data]);
+  const gruppoScelto = gruppiNavigazione.find(g => g.id === gruppo);
+  const idGruppo = new Set(gruppoScelto?.articoli ?? []);
+  const cambiaVista = (v: VistaArticoli) => { setVista(v); setGruppo("_tutti"); setSelezione(new Set()); };
+  const scegliGruppo = (id: string) => {
+    setGruppo(id); setSelezione(new Set());
+    if (id !== "_tutti") {
+      const ids = new Set(gruppiNavigazione.find(g => g.id === id)?.articoli ?? []);
+      setAperte(new Map(fasi.filter(f => f.materiali.some(m => ids.has(m.id)) || (vista === "fasi" && f.id === id)).map(f => [f.id ?? "_senza", true])));
+    }
+  };
   const computiCommessa = useComputiCommessa(orderId, effectiveCompany?.id ?? "");
   const computoLettoCommessa = (computiCommessa.data ?? []).find(computoLetto) ?? null;
   const nomeComputo = computoLettoCommessa ? (computoLettoCommessa.titolo || computoLettoCommessa.file_name) : null;
@@ -743,8 +772,11 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const scelti = tutteRighe.filter((m) => selezione.has(m.id));
   const sceltiMateriali = scelti.filter(eMateriale);
   const faseDi = (m: MaterialeFase) => fasi.find((f) => f.materiali.includes(m));
-  const sceltiAcquistabili = sceltiMateriali.filter((m) => acquistabile(faseDi(m)?.validazione?.stato ?? null));
-  const bloccati = sceltiMateriali.length - sceltiAcquistabili.length;
+  const sceltiAcquistabili = sceltiMateriali.filter((m) => acquistabile(faseDi(m)?.validazione?.stato ?? null) && verificaDelMateriale(m)?.stato !== "da_verificare");
+  const sceltiModificabili = sceltiMateriali.filter(m => puoModificareMateriali(faseDi(m)?.validazione?.stato ?? null, permessi)
+    && infoStato(m).stato === "da_ordinare" && !infoStato(m).ordini.length && !m.stock_item_id && !m.supplier_rfq_item_id);
+  const sceltiDaCompletare = sceltiMateriali.filter(m => verificaDelMateriale(m)?.stato === "da_verificare");
+  const sceltiDaValidare = sceltiMateriali.filter(m => !acquistabile(faseDi(m)?.validazione?.stato ?? null));
   const conteggio = contaStati(tuttiMateriali.map((m) => infoStato(m).stato));
   const puoComprare = permessi.canEditOrders || permessi.canManagePurchasing;
   // Il su misura non prende l'«ultimo prezzo con lo stesso nome»: ogni finestra ha le sue misure.
@@ -801,6 +833,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
       ) : null;
     }
     return (
+      <div className="flex flex-wrap items-center justify-end gap-1">
+      {permessi.canEditOrders && <VerificaDatiMateriale m={m} />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Azioni su ${m.name}`}>
@@ -834,6 +868,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     );
   };
 
@@ -850,21 +885,38 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const allegatiItem = allegatiDi ? editor?.items.find((i) => i.id === allegatiDi.id) : undefined;
   const rangoStato = (m: MaterialeFase) => (eMateriale(m) ? SCALA_STATI.indexOf(infoStato(m).stato) : SCALA_STATI.length);
   const filtraStato = (righe: MaterialeFase[]) => (filtroStato ? righe.filter((m) => eMateriale(m) && infoStato(m).stato === filtroStato) : righe);
-  const filtrato = filtro !== "tutti" || !!filtroStato;
+  const filtriAttivi = filtro !== "tutti" || !!filtroStato || soloDaCompletare || gruppo !== "_tutti" || !!cercaArticoli.trim();
+  const filtrato = filtriAttivi || vista !== "fasi";
+  const azzeraFiltri = () => { setFiltro("tutti"); setFiltroStato(null); setSoloDaCompletare(false); setGruppo("_tutti"); setCercaArticoli(""); setSelezione(new Set()); };
+  const nellaVistaBase = (m: MaterialeFase) => (vista === "fasi" || eMateriale(m)) && (gruppo === "_tutti" || idGruppo.has(m.id))
+    && corrispondeRicercaArticolo(m, cercaArticoli);
+  const daCompletareNelGruppo = tuttiMateriali.filter(m => nellaVistaBase(m) && verificaDelMateriale(m)?.stato === "da_verificare").length;
+  const nellaVista = (m: MaterialeFase) => nellaVistaBase(m) && (!soloDaCompletare || verificaDelMateriale(m)?.stato === "da_verificare");
 
   const sezioni = fasi.map((f) => {
     const chiave = f.id ?? "_senza";
     const materiali = f.materiali.filter(eMateriale);
     const completa = faseCompleta(contaStati(materiali.map((m) => infoStato(m).stato)));
-    const righe = ordinaRighe(filtraStato(filtraPerFonte(f.materiali, filtro)), ordine, nomeFornitore, rangoStato);
-    return { f, chiave, righe, aperta: aperte.get(chiave) ?? !completa };
+    const righe = ordinaRighe(filtraStato(filtraPerFonte(f.materiali.filter(nellaVista), filtro)), ordine, nomeFornitore, rangoStato);
+    return { f, chiave, righe, aperta: cercaArticoli.trim() ? true : aperte.get(chiave) ?? !completa };
   });
   const vuote = sezioni.filter((s) => s.f.materiali.length === 0).length;
-  const visibili = sezioni.filter((s) => (s.f.materiali.length === 0 ? mostraVuote && !filtrato : !filtrato || s.righe.length > 0));
-  const tutteAperte = visibili.length > 0 && visibili.every((s) => s.aperta);
+  const visibili = sezioni.filter((s) => (s.f.materiali.length === 0 ? (mostraVuote && !filtrato) || (vista === "fasi" && gruppo === s.chiave) : !filtrato || s.righe.length > 0));
+  const articoliVisibili = visibili.flatMap(s => s.righe).filter(eMateriale);
+  const daOrdinareVisibili = articoliVisibili.filter(m => STATI_DA_ORDINARE.includes(infoStato(m).stato));
+  const gruppiInVista = gruppiNavigazione.map(g => ({ ...g, righe: ordinaRighe(articoliVisibili.filter(m => g.articoli.includes(m.id)), ordine, nomeFornitore, rangoStato),
+    chiave: vista + ":" + g.id })).filter(g => g.righe.length > 0);
+  const tutteAperte = vista === "fasi" ? visibili.length > 0 && visibili.every(s => s.aperta)
+    : gruppiInVista.length > 0 && gruppiInVista.every(g => aperte.get(g.chiave) ?? (gruppo !== "_tutti" || !!cercaArticoli.trim()));
+  const apriTutteLeViste = (valore: boolean) => setAperte(new Map([...visibili.map(s => [s.chiave, valore] as const), ...gruppiInVista.map(g => [g.chiave, valore] as const)]));
+  const gestisciDalPiano = (ids: string[]) => {
+    azzeraFiltri(); setSelezione(new Set(ids));
+    setAperte(new Map([...fasi.map(f => [f.id ?? "_senza", true] as const), ...gruppiNavigazione.map(g => [vista + ":" + g.id, true] as const)]));
+    requestAnimationFrame(() => document.getElementById("selezione-articoli")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }));
+  };
 
   const ordinaFase = (f: FaseMateriali, chiave: string) => {
-    const daOrdinare = f.materiali.filter((m) => eMateriale(m) && STATI_DA_ORDINARE.includes(infoStato(m).stato));
+    const daOrdinare = (sezioni.find(s => s.chiave === chiave)?.righe ?? []).filter((m) => eMateriale(m) && STATI_DA_ORDINARE.includes(infoStato(m).stato));
     setSelezione(new Set(daOrdinare.map((m) => m.id)));
     setAperte(new Map(aperte).set(chiave, true));
     toast.info(`${daOrdinare.length} materiali di «${f.nome}» selezionati: crea l'ordine o richiedi un'offerta dalla barra in alto.`);
@@ -882,15 +934,15 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         <MaterialiDaRegolarizzare orderId={orderId} />
         {permessi.canEditOrders && <MaterialiDaConfermare orderId={orderId} fasi={fasi.map((f) => ({ id: f.id, nome: f.nome }))} aperto={confermaProposti} onAperto={setConfermaProposti} />}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
-          <h3 className="text-sm font-semibold text-foreground">Articoli e materiali per fase</h3>
+          <h3 className="text-sm font-semibold text-foreground">Articoli e materiali</h3>
           {tuttiMateriali.length > 0 && (
             <div className="flex flex-wrap items-center gap-1 max-md:hidden" role="group" aria-label="Filtra per stato">
-              <button type="button" className={chip(filtroStato === null)} aria-pressed={filtroStato === null} onClick={() => setFiltroStato(null)}>
+              <button type="button" className={chip(filtroStato === null)} aria-pressed={filtroStato === null} onClick={() => { setFiltroStato(null); setSelezione(new Set()); }}>
                 {conteggio.totale} {conteggio.totale === 1 ? "materiale" : "materiali"}
               </button>
               {SCALA_STATI.filter((s) => conteggio[s] > 0).map((s) => (
                 <button key={s} type="button" className={chip(filtroStato === s)} aria-pressed={filtroStato === s}
-                  onClick={() => setFiltroStato(filtroStato === s ? null : s)}>
+                  onClick={() => { setFiltroStato(filtroStato === s ? null : s); setSelezione(new Set()); }}>
                   <span className={cn("h-2 w-2 rounded-full", COLORE_BARRA[s])} aria-hidden />
                   {conteggio[s]} {ETICHETTA_STATO_MATERIALE[s]}
                 </button>
@@ -898,7 +950,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             </div>
           )}
           <div className="flex flex-wrap gap-1.5 sm:ml-auto">
-            <ApriComputoCommessa orderId={orderId} orderLabel={orderCode} />
+            {effectiveCompany?.id && <StrumentiComputo key={"strumenti:" + orderId} companyId={effectiveCompany.id} orderId={orderId} leggiQuery nomeFase={id => fasi.find(f => f.id === id)?.nome ?? "Senza fase"} onSelezionaArticoli={puoComprare ? gestisciDalPiano : undefined} />}
             {/* Da telefono solo «Aggiungi articolo»: computo, tavole e filtri sono lavoro da scrivania. */}
             <span className="contents max-md:hidden">{silvio}</span>
             {puoScrivere && (
@@ -926,11 +978,31 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
           </div>
         </div>
 
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <NavigazioneArticoli vista={vista} onVista={cambiaVista} gruppi={gruppiNavigazione} scelto={gruppo} onGruppo={scegliGruppo}
+            totale={vista === "fasi" ? tutteRighe.length : tuttiMateriali.length} aggiornamento={vista === "magazzino" && disponibilitaNavigazione.isFetching} errore={vista === "magazzino" && disponibilitaNavigazione.isError} />
+          <div className="min-w-0 space-y-3 rounded-xl border border-border/60 bg-card p-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input aria-label="Cerca negli articoli della commessa" className="min-w-48 flex-1" placeholder="Cerca un articolo, una misura o un codice…" value={cercaArticoli}
+                onChange={e => { setCercaArticoli(e.target.value); setSelezione(new Set()); }} />
+              {(daCompletareNelGruppo > 0 || soloDaCompletare) && <Button type="button" size="sm" variant={soloDaCompletare ? "secondary" : "outline"} aria-pressed={soloDaCompletare}
+                onClick={() => { setSoloDaCompletare(v => !v); setFiltroStato(null); setFiltro("tutti"); setSelezione(new Set()); }}>
+                Solo da completare ({daCompletareNelGruppo})
+              </Button>}
+              {puoComprare && daOrdinareVisibili.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => {
+                setSelezione(new Set(daOrdinareVisibili.map(m => m.id)));
+                apriTutteLeViste(true);
+              }}>Seleziona da ordinare ({daOrdinareVisibili.length})</Button>}
+              {filtriAttivi && <Button type="button" size="sm" variant="ghost" onClick={azzeraFiltri}>Azzera filtri</Button>}
+            </div>
+            {permessi.canEditOrders && <RevisioneMateriali key={"revisione:" + orderId} materiali={articoliVisibili.filter(m => puoModificareMateriali(faseDi(m)?.validazione?.stato ?? null, permessi)
+              && infoStato(m).stato === "da_ordinare" && !infoStato(m).ordini.length && !m.stock_item_id && !m.supplier_rfq_item_id)} />}
+            {gruppoScelto && <p className="text-sm"><strong>{gruppoScelto.nome}</strong><span className="ml-2 text-xs text-muted-foreground">{articoliVisibili.length} articoli in vista</span></p>}
         {tutteRighe.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs max-md:hidden">
-            <div className="inline-flex rounded-md border bg-card p-0.5" role="group" aria-label="Provenienza">
+            <div className={cn("inline-flex rounded-md border bg-card p-0.5", vista !== "fasi" && "hidden")} role="group" aria-label="Provenienza">
               {([["tutti", "Tutti"], ["giacenza", "Da giacenza"], ["fornitore", "Da fornitore"]] as [FiltroFonte, string][]).map(([v, l]) => (
-                <button key={v} type="button" aria-pressed={filtro === v} className={cn("tap-compact rounded px-2.5 py-1", filtro === v && "bg-foreground text-background")} onClick={() => setFiltro(v)}>{l}</button>
+                <button key={v} type="button" aria-pressed={filtro === v} className={cn("tap-compact rounded px-2.5 py-1", filtro === v && "bg-foreground text-background")} onClick={() => { setFiltro(v); setSelezione(new Set()); }}>{l}</button>
               ))}
             </div>
             <label className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -943,7 +1015,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               </Select>
             </label>
             <Button size="sm" variant="ghost" className="tap-compact h-8 px-2 text-xs"
-              onClick={() => setAperte(new Map(sezioni.map((s) => [s.chiave, !tutteAperte])))}>
+              onClick={() => apriTutteLeViste(!tutteAperte)}>
               {tutteAperte ? <ChevronsDownUp className="mr-1 h-3.5 w-3.5" aria-hidden /> : <ChevronsUpDown className="mr-1 h-3.5 w-3.5" aria-hidden />}
               {tutteAperte ? "Chiudi tutte" : "Apri tutte"}
             </Button>
@@ -954,7 +1026,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             )}
             {canViewCosts && stima.totale > 0 && (
               <span className="text-muted-foreground tabular-nums sm:ml-auto">
-                {stima.proposto > 0 ? "Stima " : "Totale "}<strong className="font-semibold text-foreground">{formatCurrency(stima.totale)}</strong>
+                {stima.senzaPrezzo > 0 ? "Parziale " : stima.proposto > 0 ? "Stima " : "Totale "}<strong className="font-semibold text-foreground">{formatCurrency(stima.totale)}</strong>
                 {stima.senzaPrezzo > 0 ? ` · ${stima.senzaPrezzo} senza prezzo` : ""}
               </span>
             )}
@@ -1004,11 +1076,17 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         )}
 
         {scelti.length > 0 && (
-          <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/95 px-3 py-2 text-sm shadow-sm backdrop-blur dark:border-orange-800 dark:bg-orange-950/95">
+          <div id="selezione-articoli" className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/95 px-3 py-2 text-sm shadow-sm backdrop-blur dark:border-orange-800 dark:bg-orange-950/95">
             <strong className="tabular-nums">{scelti.length} selezionati</strong>
-            {bloccati > 0 && <span className="text-xs text-amber-800 dark:text-amber-300">{bloccati} di fasi non validate: non si ordinano</span>}
+            {sceltiDaCompletare.length > 0 && <span className="text-xs text-amber-800 dark:text-amber-300">{sceltiDaCompletare.length} con dati da completare</span>}
+            {sceltiDaValidare.length > 0 && <span className="text-xs text-amber-800 dark:text-amber-300">{sceltiDaValidare.length} con fase da validare</span>}
+            {sceltiDaCompletare.length > 0 && <Button type="button" size="sm" variant="outline" className="h-8 bg-card" onClick={() => {
+              setSoloDaCompletare(true); setFiltroStato(null); setFiltro("tutti"); setSelezione(new Set()); apriTutteLeViste(true);
+            }}>Mostra da completare</Button>}
+            {permessi.canEditOrders && <Button size="sm" variant="outline" className="h-8 gap-1 bg-card" disabled={!sceltiModificabili.length} onClick={() => setModificaBulk(true)}>
+              <Pencil className="h-3.5 w-3.5" aria-hidden />Modifica in blocco</Button>}
             {puoComprare && sceltiMateriali.length > 0 && (
-              <Select onValueChange={(v) => azioni.assegnaFornitore.mutate({ ids: sceltiMateriali.map((m) => m.id), supplierId: v === "_nessuno" ? null : v, diretto: permessi.canEditOrders })}>
+              <Select onValueChange={(v) => azioni.assegnaFornitore.mutate({ ids: sceltiMateriali.map((m) => m.id), supplierId: v === "_nessuno" ? null : v, diretto: permessi.canEditOrders }, { onSuccess: () => setSelezione(new Set()) })}>
                 <SelectTrigger className="h-8 w-48 bg-card" aria-label="Assegna fornitore"><SelectValue placeholder="Assegna fornitore" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_nessuno">Nessun fornitore</SelectItem>
@@ -1019,7 +1097,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               </Select>
             )}
             {permessi.canEditOrders && (
-              <Select onValueChange={(v) => azioni.spostaInFase.mutate({ ids: scelti.map((m) => m.id), phaseId: v === "_senza" ? null : v })}>
+              <Select onValueChange={(v) => azioni.spostaInFase.mutate({ ids: scelti.map((m) => m.id), phaseId: v === "_senza" ? null : v }, { onSuccess: () => setSelezione(new Set()) })}>
                 <SelectTrigger className="h-8 w-44 bg-card" aria-label="Sposta in fase"><SelectValue placeholder="Sposta in fase" /></SelectTrigger>
                 <SelectContent>
                   {fasi.filter((f) => f.id).map((f) => <SelectItem key={f.id!} value={f.id!}>{f.nome}</SelectItem>)}
@@ -1035,7 +1113,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
                     setFornitoriOfferta(new Set(sceltiAcquistabili.flatMap((m) => (m.supplier_id ? [m.supplier_id] : []))));
                     setOfferta(true);
                   }}>
-                  Richiedi offerta
+                  Confronta offerte
                 </Button>
                 <Button size="sm" className="h-8" disabled={!sceltiAcquistabili.some((m) => m.ordinabile) || azioni.creaOrdini.isPending}
                   onClick={() => azioni.creaOrdini.mutate({ materiali: sceltiAcquistabili.filter((m) => m.ordinabile) }, { onSuccess: () => setSelezione(new Set()) })}>
@@ -1057,6 +1135,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               if (!f) return;
               setFiltro("tutti");
               setFiltroStato(null);
+              setVista("fasi"); setGruppo(phaseId); setCercaArticoli(""); setSelezione(new Set());
               setAperte(new Map(aperte).set(phaseId, true));
               requestAnimationFrame(() => document.querySelector(`tbody[aria-label="${CSS.escape(`Fase ${f.nome}`)}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
             }}
@@ -1098,7 +1177,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         ) : (
           <div className="overflow-hidden rounded-lg border bg-card">
             <table className="block w-full text-sm lg:table lg:table-fixed">
-              <caption className="sr-only">Articoli della commessa divisi per fase</caption>
+              <caption className="sr-only">Articoli della commessa per {vista === "fasi" ? "fase" : vista === "fornitori" ? "fornitore" : "disponibilità di magazzino"}</caption>
               <thead className="hidden border-b bg-card text-[11px] uppercase tracking-wide text-muted-foreground lg:table-header-group">
                 <tr>
                   <th scope="col" className="w-9 py-1.5 pl-3"><span className="sr-only">Selezione</span></th>
@@ -1110,7 +1189,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
                   <th scope="col" className="w-10 py-1.5 pr-2"><span className="sr-only">Azioni</span></th>
                 </tr>
               </thead>
-              {visibili.map(({ f, chiave, righe, aperta }) => (
+              {vista === "fasi" ? visibili.map(({ f, chiave, righe, aperta }) => (
                 <SezioneFase
                   key={chiave}
                   fase={f}
@@ -1129,6 +1208,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
                     azioni.cambiaStato.mutate({ phaseId: f.id, azione: a });
                   }}
                   onOrdina={() => ordinaFase(f, chiave)}
+                  strumenti={effectiveCompany?.id && f.id ? <StrumentiComputo companyId={effectiveCompany.id} orderId={orderId}
+                    fase={{ id: f.id, nome: f.nome }} nomeFase={id => fasi.find(f => f.id === id)?.nome ?? "Senza fase"} onSelezionaArticoli={puoComprare ? gestisciDalPiano : undefined}
+                    voceIds={[...new Set(f.materiali.flatMap(m => m.origini?.flatMap(o => o.tipo === "computo" ? [o.voce_id] : []) ?? []))]} /> : undefined}
                   onQuantita={(m, q, tecnico) => azioni.aggiornaMateriale.mutate({ id: m.id, tecnico, modifica: { quantity: q } })}
                   proposte={proposte}
                   onAggiungi={puoScrivere && puoModificareMateriali(f.validazione?.stato ?? null, permessi) ? () => nuovo(f.id) : undefined}
@@ -1137,11 +1219,45 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
                   cambiaStatoDi={cambiaStatoDi}
                   posaDi={posaDi}
                 />
-              ))}
+              )) : gruppiInVista.map(g => {
+                const aperta = aperte.get(g.chiave) ?? (gruppo !== "_tutti" || !!cercaArticoli.trim());
+                const conteggioGruppo = contaStati(g.righe.map(m => infoStato(m).stato));
+                const daOrdinare = g.righe.filter(m => STATI_DA_ORDINARE.includes(infoStato(m).stato));
+                return <tbody key={g.chiave} aria-label={(vista === "fornitori" ? "Fornitore " : "Magazzino ") + g.nome} className="block border-t lg:table-row-group">
+                  <tr className="block bg-muted/35 lg:table-row"><td colSpan={colonne} className="px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Checkbox aria-label={"Seleziona tutte le righe di " + g.nome} checked={g.righe.every(m => selezione.has(m.id))}
+                        onCheckedChange={v => { const s = new Set(selezione); for (const m of g.righe) { if (v) s.add(m.id); else s.delete(m.id); } setSelezione(s); }} />
+                      <button type="button" className="flex min-w-0 items-center gap-2 text-left" aria-expanded={aperta}
+                        onClick={() => setAperte(new Map(aperte).set(g.chiave, !aperta))}>
+                        {aperta ? <ChevronDown className="h-4 w-4 shrink-0" aria-hidden /> : <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />}
+                        {vista === "fornitori" ? <Truck className="h-4 w-4 text-muted-foreground" aria-hidden /> : <Warehouse className="h-4 w-4 text-muted-foreground" aria-hidden />}
+                        <span className="font-semibold">{g.nome}</span>
+                      </button>
+                      <BarraFase conteggio={conteggioGruppo} /><span className="text-xs text-muted-foreground">{g.righe.length} materiali · {riassuntoStati(conteggioGruppo)}</span>
+                      {puoComprare && daOrdinare.length > 0 && <Button type="button" size="sm" className="ml-auto h-7 gap-1 text-xs"
+                        onClick={() => { setSelezione(new Set(daOrdinare.map(m => m.id))); setAperte(new Map(aperte).set(g.chiave, true)); }}>
+                        <ShoppingCart className="h-3.5 w-3.5" aria-hidden />Ordina</Button>}
+                    </div>
+                  </td></tr>
+                  {aperta && g.righe.map(m => {
+                    const fase = faseDi(m), stato = fase?.validazione?.stato ?? null;
+                    const tecnico = stato === "da_validare" && permessi.canValidateBom && !permessi.canEditOrders;
+                    return <RigaMateriale key={m.id} m={m} selezionato={selezione.has(m.id)}
+                      onSeleziona={v => { const s = new Set(selezione); if (v) s.add(m.id); else s.delete(m.id); setSelezione(s); }}
+                      modificabile={puoModificareMateriali(stato, permessi) && infoStato(m).stato === "da_ordinare"} tecnico={tecnico}
+                      nomeFornitore={nomeFornitore(m.supplier_id)} onQuantita={q => azioni.aggiornaMateriale.mutate({ id: m.id, tecnico, modifica: { quantity: q } })}
+                      canViewCosts={canViewCosts} proposto={proposte.get(m.id)} azioni={azioniRiga(m)} oda={allegatoOdaDi(m)} onCambiaStato={cambiaStatoDi(m)}
+                      etichettaFase={<p className="mb-0.5 text-[11px] text-muted-foreground">{fase?.nome ?? "Senza fase"}</p>} posa={posaDi(m)} />;
+                  })}
+                </tbody>;
+              })}
             </table>
           </div>
         )}
 
+          </div>
+        </div>
         <Dialog open={!!rimando} onOpenChange={(o) => !o && setRimando(null)}>
           <DialogContent>
             <DialogHeader>
@@ -1162,7 +1278,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         <Dialog open={offerta} onOpenChange={setOfferta}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Richiedi offerta ai fornitori</DialogTitle>
+              <DialogTitle>Confronta offerte dei fornitori</DialogTitle>
               <DialogDescription>{sceltiAcquistabili.length} materiali con quantità, unità e specifiche. Poi la mandi dalla richiesta d'offerta.</DialogDescription>
             </DialogHeader>
             <label className="space-y-1 text-sm">
@@ -1170,7 +1286,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
               <Input value={titoloOfferta} onChange={(e) => setTitoloOfferta(e.target.value)} />
             </label>
             <fieldset className="max-h-56 space-y-1 overflow-auto rounded border p-2">
-              <legend className="px-1 text-sm font-medium">Fornitori a cui chiederla</legend>
+              <legend className="px-1 text-sm font-medium">Scegli uno o più fornitori da confrontare</legend>
               {suppliers.filter((s: { is_active?: boolean | null }) => s.is_active !== false).map((s: { id: string; name: string }) => (
                 <label key={s.id} className="flex items-center gap-2 text-sm">
                   <Checkbox checked={fornitoriOfferta.has(s.id)} onCheckedChange={(v) => {
@@ -1184,7 +1300,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             </fieldset>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setOfferta(false)}>Annulla</Button>
-              <Button disabled={azioni.richiediOfferta.isPending}
+              <Button disabled={azioni.richiediOfferta.isPending || !fornitoriOfferta.size || !titoloOfferta.trim()}
                 onClick={() => azioni.richiediOfferta.mutate(
                   { ids: sceltiAcquistabili.map((m) => m.id), titolo: titoloOfferta, fornitori: [...fornitoriOfferta] },
                   { onSuccess: () => { setOfferta(false); setSelezione(new Set()); } },
@@ -1194,6 +1310,12 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {modificaBulk && <ModificaMultiplaArticoli aperto onAperto={setModificaBulk} quanti={sceltiModificabili.length}
+          esclusi={scelti.length - sceltiModificabili.length} fornitori={suppliers.filter(s => s.is_active !== false)}
+          fasi={fasi.flatMap(f => f.id ? [{ id: f.id, nome: f.nome }] : [])} salvando={azioni.modificaMultipla.isPending}
+          onApplica={modifica => azioni.modificaMultipla.mutate({ ids: sceltiModificabili.map(m => m.id), modifica },
+            { onSuccess: () => { setModificaBulk(false); setSelezione(new Set()); } })} />}
 
         <Dialog open={!!daTogliere} onOpenChange={(o) => !o && setDaTogliere(null)}>
           <DialogContent>
@@ -1250,13 +1372,13 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         <Suspense fallback={null}>
           {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
           {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} onProposti={() => setConfermaProposti(true)} />}
-          {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
+          {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} onGenera={() => setGenera(true)} />}
           {fabbisogno && (
             <Dialog open={fabbisogno} onOpenChange={setFabbisogno}>
               <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" aria-hidden />Fabbisogno materiali{orderCode ? ` · ${orderCode}` : ""}</DialogTitle>
-                  <DialogDescription>Cosa manca da ordinare in questa commessa, ed entro quando: l'inizio della fase (o la data scritta sul materiale) meno i giorni di consegna.</DialogDescription>
+                  <DialogDescription>Organizza fornitori e date della commessa. Le righe con dati da completare restano escluse dalle bozze d'ordine finché non le verifichi.</DialogDescription>
                 </DialogHeader>
                 <FabbisognoMateriali orderId={orderId} inFinestra />
               </DialogContent>

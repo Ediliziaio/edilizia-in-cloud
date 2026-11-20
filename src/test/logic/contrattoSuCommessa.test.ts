@@ -81,12 +81,13 @@ describe("pianoContrattoSuCommessa", () => {
     const p = pianoContrattoSuCommessa(contratto({
       voci: [
         { descrizione: "Demolizioni", quantita: 1, prezzo_unitario_eur: 2000 },
-        { descrizione: "Fornitura e posa di piastrelle in gres 60x60", quantita: 40, prezzo_unitario_eur: 60 },
+        { descrizione: "Fornitura di piastrelle in gres 60x60", unita: "mq", quantita: 40, prezzo_unitario_eur: 60 },
         { descrizione: "Trasporto e conferimento in discarica", quantita: 1, prezzo_unitario_eur: 300 },
-        { descrizione: "Piatto doccia in resina 80x120", quantita: 1, prezzo_unitario_eur: 450 },
+        { descrizione: "Piatto doccia in resina 80x120", unita: "cad", quantita: 1, prezzo_unitario_eur: 450 },
       ],
     }), commessa, []);
-    expect(p.voci.map((v) => v.name)).toEqual(["Fornitura e posa di piastrelle in gres 60x60", "Piatto doccia in resina 80x120"]);
+    expect(p.voci.map((v) => v.name)).toEqual(["Piastrelle in gres 60x60", "Piatto doccia in resina 80x120"]);
+    expect(p.voci.map(v => v.quantity)).toEqual([40, 1]);
     expect(p.voci.every((v) => v.vat_rate === 10)).toBe(true);
   });
 

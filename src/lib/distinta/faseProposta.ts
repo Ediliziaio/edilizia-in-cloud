@@ -75,7 +75,7 @@ export function fondiProposte(
 ): Record<string, string> {
   const out = { ...perParole };
   for (const s of suggerimenti) {
-    if (sicuri.has(s.capitolo)) continue;
+    if (sicuri.has(s.capitolo) || s.confidenza < 0.7) continue;
     out[s.capitolo] = valoreSuggerimento(s);
   }
   return { ...out, ...scelte };

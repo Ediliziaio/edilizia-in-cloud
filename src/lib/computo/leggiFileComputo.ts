@@ -3,6 +3,7 @@ import { eComputoPrimus, leggiComputoPrimus, type PdfPaginaPosizionata } from ".
 import { leggiComputoXpwe, MESSAGGIO_DCF } from "./xpwe";
 import { eFoglioDaConvertire, eFoglioXlsx, leggiComputoExcel, MESSAGGIO_XLS } from "./computoExcel";
 import type { ComputoStrutturato } from "./computoStrutturato";
+import { leggiPdfTabellare } from "./pdfTabellare";
 
 /**
  * Legge nel browser un computo: il PDF stampato da PriMus, l'XPWE o un foglio Excel.
@@ -71,6 +72,8 @@ export async function leggiFileComputo(file: File): Promise<ComputoStrutturato> 
     throw new PdfDaLeggereConAi("Il PDF non contiene testo: è una scansione. Serve il PDF stampato da PriMus o il file .xpwe.");
   }
   if (!eComputoPrimus(pagine)) {
+    const tabella = leggiPdfTabellare(pagine);
+    if (tabella) return tabella;
     throw new PdfDaLeggereConAi("Questo PDF non è un computo stampato da PriMus. Si importano i PDF di PriMus e i file .xpwe (in PriMus: File › Esporta › XPWE).");
   }
   return leggiComputoPrimus(pagine);

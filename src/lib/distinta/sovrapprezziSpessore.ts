@@ -12,7 +12,7 @@
  */
 import { normalizzaTesto, spessoreCm, type VoceComputo } from "./generaDistinta";
 
-export interface MisuraVoce { quantita?: number | null; parti_uguali?: number | null }
+export interface MisuraVoce { quantita?: number | null; parti_uguali?: number | null; lunghezza?: number | null; larghezza?: number | null; altezza_peso?: number | null }
 export type VoceConMisure = VoceComputo & { misure?: MisuraVoce[] | null };
 
 const PER_CM = /per ogni (?:cm|centimetro)/;
@@ -29,11 +29,15 @@ export function conSpessore(t: string, cm: number): string {
 
 /** La voce principale di un sovrapprezzo: la più vicina prima, in superficie, che non sia a sua volta un sovrapprezzo. */
 function principale(voci: VoceConMisure[], i: number): number | null {
-  for (let k = i - 1; k >= Math.max(0, i - 3); k--) {
+  const s = voci[i];
+  const firma = (v: VoceComputo) => normalizzaTesto(v.descrizione_breve).split(" ").slice(0, 12).join(" ");
+  const capitolo = (v: VoceComputo) => v.sotto_categoria || v.categoria || v.capitolo_nome || v.super_categoria || "";
+  for (let k = i - 1; k >= 0; k--) {
     const w = voci[k];
     if (!SUPERFICIE.test((w.unita_misura ?? "").trim())) continue;
     if (/sovrapprezz|maggiorazion/.test(normalizzaTesto(testo(w)))) continue;
-    if (spessoreCm(testo(w)) == null) return null;
+    if (firma(s) !== firma(w) || normalizzaTesto(capitolo(s)) !== normalizzaTesto(capitolo(w))) continue;
+    if (spessoreCm(testo(w)) == null) continue;
     return k;
   }
   return null;
@@ -55,20 +59,28 @@ export function applicaSovrapprezziSpessore<T extends VoceConMisure>(voci: T[]):
     let area = qB;
     let extra = qS / qB;
     const mS = (s.misure ?? []).filter((m) => Number(m.quantita) > 0);
-    if (mS.length === 1 && Number(mS[0].parti_uguali) > 1) {
-      const n = Number(mS[0].parti_uguali);
-      const porzione = Number(mS[0].quantita) / n;
-      const trovata = (b.misure ?? []).some((m) => m.quantita != null && vicini(Number(m.quantita), porzione)) || vicini(porzione, qB);
-      if (trovata) { area = porzione; extra = n; }
+    if (mS.length === 1) {
+      const dimensioni = [mS[0].parti_uguali, mS[0].lunghezza, mS[0].larghezza, mS[0].altezza_peso].map(Number);
+      const candidati = [...new Set(dimensioni.filter(n => n > 0 && n <= 30 && vicini(n * 2, Math.round(n * 2))))]
+        .map(n => ({ extra: n, area: qS / n })).filter(c => c.area > 0 && c.area <= qB + 0.011);
+      const intera = candidati.find(c => vicini(c.area, qB));
+      const scelto = intera ?? (candidati.length === 1 ? candidati[0] : undefined);
+      if (scelto) { area = scelto.area; extra = scelto.extra; }
     }
-    extra = Math.round(extra * 2) / 2; // a mezzo centimetro
+    // Non arrotondare un rapporto ambiguo per farlo sembrare uno spessore certo.
+    if (!vicini(extra * 2, Math.round(extra * 2))) return;
     if (!(extra > 0)) return;
     const totale = sp0 + extra;
+    const limite = /fino a\s*(\d+(?:[.,]\d+)?)\s*(mm|cm)/i.exec(testo(s));
+    const massimo = limite ? Number(limite[1].replace(",", ".")) / (limite[2].toLowerCase() === "mm" ? 10 : 1) : null;
+    const avvisi = massimo && totale > massimo + 0.001
+      ? [`Spessore ricostruito ${totale} cm oltre il limite tariffario ${massimo} cm: conferma la stratigrafia (voce ${s.numero_ordine ?? s.id}).`] : [];
     const nota = ` [spessore ${totale.toLocaleString("it-IT")} cm: ${sp0.toLocaleString("it-IT")} + ${extra.toLocaleString("it-IT")} dal sovrapprezzo${s.numero_ordine ? ` (voce ${s.numero_ordine})` : ""}]`;
     const conIlSovrapprezzo = {
       ...b, quantita: Math.round(area * 100) / 100,
       descrizione_breve: conSpessore(b.descrizione_breve, totale),
       descrizione_estesa: (b.descrizione_estesa ? conSpessore(b.descrizione_estesa, totale) : "") + nota,
+      avvisi_acquisto: [...(b.avvisi_acquisto ?? []), ...avvisi],
     } as T;
     const resto = Math.round((qB - area) * 100) / 100;
     sostituite.set(k, resto > 0.01 ? [conIlSovrapprezzo, { ...b, quantita: resto } as T] : [conIlSovrapprezzo]);

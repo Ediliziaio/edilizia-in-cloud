@@ -23,6 +23,7 @@ import { gruppiDaOrdinare, ordinabile } from "@/lib/acquisti/ordinaDalFabbisogno
 import { apertaFabbisogno, avanzamentoFasi, differenze, nomeBreve, suggerisciFornitori, ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type FornitoreStorico, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
 import { ETICHETTA_STATO_MATERIALE, type StatoMateriale } from "@/lib/distinta/statoMateriale";
 import { cn } from "@/lib/utils";
+import { VerificaDatiMaterialeDialog } from "@/components/orders/materiali/VerificaDatiMateriale";
 
 const COLORE: Record<Urgenza, string> = {
   ritardo: "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200",
@@ -113,9 +114,10 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
     },
     onSuccess: (_d, { ids, supplierId }) => {
       const nome = fornitoriAzienda.data?.find((f) => f.id === supplierId)?.name ?? "fornitore";
-      toast.success(`${nome}: assegnato a ${ids.length} ${ids.length === 1 ? "materiale" : "materiali"}`, { description: "Ora puoi creare la bozza d'ordine." });
+      toast.success(`${nome}: assegnato a ${ids.length} ${ids.length === 1 ? "materiale" : "materiali"}`, { description: "Le righe con dati confermati possono entrare nella bozza d'ordine." });
       void qc.invalidateQueries({ queryKey: ["fabbisogno-materiali"] });
       void qc.invalidateQueries({ queryKey: ["materiali-per-fase"] });
+      void qc.invalidateQueries({ queryKey: ["piano-acquisti-computo"] });
     },
     onError: (e) => toast.error("Fornitore non assegnato", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -156,6 +158,7 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
   const barraScelta = puoScegliere && tutteScelte.length > 0 ? (
     <div className={cn("flex flex-wrap items-center gap-2", !orderId && "ml-auto")}>
             <span className="text-sm text-muted-foreground">{tutteScelte.length} selezionati{senzaFornitoreScelte ? ` · ${senzaFornitoreScelte} senza fornitore` : ""}</span>
+            {tutteScelte.some(r => r.verifica_acquisto?.stato === "da_verificare") && <span className="text-xs text-amber-800">{tutteScelte.filter(r => r.verifica_acquisto?.stato === "da_verificare").length} da completare · escluse dall'ordine</span>}
             <Button size="sm" variant="ghost" onClick={() => setScelti(new Set())}>Togli</Button>
             <Select value="" onValueChange={(id) => assegna.mutate({ ids: tutteScelte.map((r) => r.order_item_id), supplierId: id })} disabled={assegna.isPending}>
               <SelectTrigger className="h-9 w-52" aria-label="Assegna il fornitore ai materiali selezionati">
@@ -167,7 +170,7 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
             </Select>
             {puoOrdinare && (
               <Button size="sm" onClick={() => setConferma(true)} disabled={ordina.isPending || righeScelte.length === 0}
-                title={righeScelte.length === 0 ? "Assegna prima il fornitore" : undefined}>
+                title={righeScelte.length === 0 ? "Completa i dati tecnici e assegna il fornitore alle righe da ordinare" : undefined}>
                 {ordina.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden /> : <ShoppingCart className="mr-1 h-4 w-4" aria-hidden />}
                 {righeScelte.length === 0 ? "Crea la bozza d'ordine" : bozze.length === 1 ? "Crea la bozza d'ordine" : `Crea ${bozze.length} bozze d'ordine`}
               </Button>
@@ -332,10 +335,12 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
   if (!attiva) return null;
   const primaScadenza = (rr: RigaFabbisogno[]) => rr.map((r) => r.ordina_entro).filter((d): d is string => !!d).sort()[0] ?? null;
   const sottotitolo = (f: typeof attiva) => {
-    if (f.ritardo) return { testo: `${f.ritardo} in ritardo · ${f.righe.length} da ordinare`, colore: "text-red-700 dark:text-red-300" };
+    const mancanti = f.righe.filter(r => r.verifica_acquisto?.stato === "da_verificare").length;
+    const quanti = (f.righe.length - mancanti) + " da ordinare" + (mancanti ? " · " + mancanti + " da completare" : "");
+    if (f.ritardo) return { testo: `${f.ritardo} in ritardo · ${quanti}`, colore: "text-red-700 dark:text-red-300" };
     const p = primaScadenza(f.righe);
     const quando = !p ? "senza data" : p <= oggi ? "entro oggi" : `entro ${data(p)}`;
-    return { testo: `${quando} · ${f.righe.length} da ordinare`, colore: f.settimana ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground" };
+    return { testo: `${quando} · ${quanti}`, colore: f.settimana ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground" };
   };
   const inizio = attiva.righe.map((r) => r.data_serve).filter((d): d is string => !!d).sort()[0] ?? null;
   const ritardo = attiva.righe.filter((r) => urgenza(r, oggi) === "ritardo");
@@ -364,7 +369,8 @@ function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoSce
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        <strong className="text-foreground">{righe.length} materiali</strong> da ordinare in {fasi.length} {fasi.length === 1 ? "fase" : "fasi"}
+        <strong className="text-foreground">{righe.length} materiali</strong> da gestire in {fasi.length} {fasi.length === 1 ? "fase" : "fasi"}
+        {righe.some(r => r.verifica_acquisto?.stato === "da_verificare") && <span className="ml-2 text-amber-800">· {righe.filter(r => r.verifica_acquisto?.stato === "da_verificare").length} da completare prima dell'acquisto</span>}
         {totRitardo > 0 && <> · <span className="text-red-700 dark:text-red-300">{totRitardo} in ritardo</span></>}
         {totSettimana > 0 && <> · <span className="text-amber-700 dark:text-amber-300">{totSettimana} entro 7 giorni</span></>}
         {complete.length > 0 && <> · <span className="text-emerald-700 dark:text-emerald-300">{complete.length} {complete.length === 1 ? "fase già ordinata" : "fasi già ordinate"}</span></>}
@@ -494,6 +500,7 @@ function RigaCompatta({ r, oggi, puoDatare, scelta, differenza, proposto }: {
             </span>
           )}
           {r.unita_diversa && <span className="flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"><AlertTriangle className="h-3 w-3" aria-hidden /> Ordine in un'altra unità</span>}
+          <VerificaNelFabbisogno r={r} />
         </span>
         <span className="whitespace-nowrap text-right tabular-nums text-xs">{r.residuo > 0 ? `${numero(r.residuo)} ${unita}` : r.eccedenza > 0 ? `+${numero(r.eccedenza)} ${unita}` : ""}</span>
         <button type="button" onClick={() => setAperta((v) => !v)} aria-expanded={aperta}
@@ -520,6 +527,17 @@ const BORDO_URGENZA: Record<Urgenza, string> = {
   senza_data: "border-l-transparent", da_verificare: "border-l-violet-300",
 };
 
+function VerificaNelFabbisogno({ r }: { r: RigaFabbisogno }) {
+  const [aperta, setAperta] = useState(false);
+  const { canEditOrders } = usePermissions();
+  if (r.verifica_acquisto?.stato !== "da_verificare") return null;
+  return <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-amber-800">
+    <span>Quantità o prodotto da confermare</span>
+    {canEditOrders && r.dati_verifica && <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[11px] text-amber-800" onClick={() => setAperta(true)} aria-label={"Completa dati di " + r.name}>Completa i dati</Button>}
+    {aperta && r.dati_verifica && <VerificaDatiMaterialeDialog m={r.dati_verifica} aperto onAperto={setAperta} />}
+  </span>;
+}
+
 function Riga({ r, oggi, puoDatare, scelta, inCommessa }: {
   r: RigaFabbisogno;
   oggi: string;
@@ -541,6 +559,7 @@ function Riga({ r, oggi, puoDatare, scelta, inCommessa }: {
           {scelta && <Checkbox className="mt-0.5 sm:hidden" checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${r.name}`} />}
           <span className="line-clamp-2" title={r.name}>{r.name}</span>
         </p>
+        <VerificaNelFabbisogno r={r} />
         <p className="truncate text-xs text-muted-foreground">
           {inCommessa ? "" : `${r.commessa ?? "—"}${r.fase ? ` · ${r.fase}` : ""} · `}
           {r.fornitore ? r.fornitore : <span className="text-amber-700 dark:text-amber-300">senza fornitore</span>}

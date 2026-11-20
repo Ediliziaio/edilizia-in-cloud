@@ -17,6 +17,7 @@ import { statoMateriale, type InfoStatoMateriale } from "@/lib/distinta/statoMat
 import { eliminabile, eMateriale } from "@/lib/distinta/elencoArticoli";
 import type { AzioneFase, StatoMaterialiFase } from "@/lib/distinta/statiFase";
 import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
+import { originiDopoCambioSpecifiche } from "@/lib/distinta/modificaMultiplaArticoli";
 
 export interface MaterialeFase {
   id: string;
@@ -251,6 +252,37 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
     onError: (e) => toast.error(messaggio(e)),
   });
 
+  const modificaMultipla = useMutation({
+    mutationFn: async (p: { ids: string[]; modifica: { supplier_id?: string | null; phase_id?: string | null; data_fabbisogno?: string | null; specifiche?: string | null } }) => {
+      if (!p.ids.length || !Object.keys(p.modifica).length) throw new Error("Seleziona gli articoli e i campi da modificare.");
+      const ids = [...new Set(p.ids)];
+      if (p.modifica.specifiche !== undefined) {
+        const { data: righe, error: lettura } = await supabase.from("order_items").select("id,origini,updated_at").eq("order_id", orderId).in("id", ids);
+        if (lettura) throw lettura;
+        let modificati = 0;
+        for (let n = 0; n < (righe?.length ?? 0); n += 6) {
+          const risultati = await Promise.all((righe ?? []).slice(n, n + 6).map(async r => {
+            const { data, error } = await supabase.from("order_items").update({ ...p.modifica, origini: originiDopoCambioSpecifiche(r.origini) })
+              .eq("order_id", orderId).eq("id", r.id).eq("updated_at", r.updated_at).select("id");
+            return error ? 0 : data?.length ?? 0;
+          }));
+          modificati += risultati.reduce((s, n) => s + n, 0);
+        }
+        return { richiesti: ids.length, modificati };
+      }
+      const { data, error } = await supabase.from("order_items").update(p.modifica).eq("order_id", orderId).in("id", ids).select("id");
+      if (error) throw error;
+      return { richiesti: ids.length, modificati: data?.length ?? 0 };
+    },
+    onSuccess: ({ richiesti, modificati }) => {
+      if (modificati === richiesti) toast.success(modificati + " articoli aggiornati");
+      else toast.warning(modificati + " articoli aggiornati su " + richiesti, { description: "Alcune righe non sono più modificabili: aggiorna la selezione." });
+      aggiorna();
+      void qc.invalidateQueries({ queryKey: ["piano-acquisti-computo", companyId, orderId] });
+    },
+    onError: e => toast.error(messaggio(e)),
+  });
+
   const richiediOfferta = useMutation({
     mutationFn: async (p: { ids: string[]; titolo: string; fornitori: string[]; scadenza?: string | null }) => {
       const { data, error } = await supabase.rpc("acquisti_richiedi_offerta", { p_items: p.ids, p_titolo: p.titolo, p_fornitori: p.fornitori, ...(p.scadenza ? { p_scadenza: p.scadenza } : {}) });
@@ -333,5 +365,5 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
     onError: (e) => toast.error(messaggio(e)),
   });
 
-  return { cambiaStato, validaFasi, aggiornaMateriale, spostaInFase, assegnaFornitore, richiediOfferta, creaOrdini, elimina, allineaUnita };
+  return { cambiaStato, validaFasi, aggiornaMateriale, spostaInFase, assegnaFornitore, modificaMultipla, richiediOfferta, creaOrdini, elimina, allineaUnita };
 }

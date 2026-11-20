@@ -541,6 +541,20 @@ jobs:
           src/test/logic/computo*.test.ts
           src/test/ui/computo*.test.tsx
 
+      - name: Verify PDF and DWG sources, quantities and procurement
+        if: matrix.group == 'worksite'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/confrontaTavole.test.ts
+          src/test/logic/conversioneDwg.test.ts
+          src/test/logic/distintaDisegniCad.test.ts
+          src/test/logic/distintaDisegniCadDatabase.test.ts
+          src/test/logic/pianoAcquistiComputo.test.ts
+          src/test/ui/tavolePdfFlusso.test.tsx
+          src/test/ui/confrontoTavoleAcquisti.test.tsx
+          src/test/ui/dwgCommessa.test.tsx
+          src/test/ui/sceltaTavola.test.tsx
+
       - name: Run conversational quote and native wizard regressions
         if: matrix.group == 'worksite'
         run: |

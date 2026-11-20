@@ -49,6 +49,16 @@ const campoData = (nome: string) => {
 
 describe("fabbisogno: ordinare e datare", () => {
   beforeEach(() => { ordina.mockReset(); imposta.mockReset(); permessi = { canManagePurchasing: true, canEditOrders: true }; });
+  it("una riga con dati tecnici pendenti resta assegnabile ma non entra nella bozza anche se ha il fornitore", () => {
+    righe[0].verifica_acquisto = { stato: "da_verificare", motivi: ["Resa da confermare"], campi_mancanti: ["resa"] };
+    try {
+      pagina();
+      fireEvent.click(screen.getByLabelText("Seleziona EPS 10 cm (C-001)"));
+      expect(screen.getByText("1 da completare · escluse dall'ordine")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Crea la bozza d'ordine" })).toBeDisabled();
+      expect(ordina).not.toHaveBeenCalled();
+    } finally { delete righe[0].verifica_acquisto; }
+  });
 
   it("due commesse selezionate = due bozze, e partono solo dopo la conferma", async () => {
     ordina.mockResolvedValue([{ ok: true, poId: "p1", n: 1 }, { ok: true, poId: "p2", n: 1 }]);

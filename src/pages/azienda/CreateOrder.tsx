@@ -98,6 +98,9 @@ import { dataValida, fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa 
 import { fasiColPiano, pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
 import { dateAlleFasiCreate } from "@/lib/orders/dateFasiCreate";
 import { calendarioCantiere } from "@/lib/orders/sottofasi";
+import { articoliDalPiano, pianoOperativoContratto } from "@/lib/orders/pianoOperativoContratto";
+import { salvaPianoOperativoContratto } from "@/lib/orders/salvaPianoOperativoContratto";
+import { collegaAnalisiAllaCommessa, verificaAnalisiPerNuovaCommessa } from "@/lib/orders/lettureContrattoSalvate";
 import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { PianificazioneCommessa } from "@/components/orders/PianificazioneCommessa";
 import { AnteprimaFasiCommessa } from "@/components/orders/AnteprimaFasiCommessa";
@@ -638,6 +641,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     // Da un computo gli articoli non si creano qui: i materiali da ordinare li calcola «Genera dal computo»
     // (scomposizioni, quantità, fasi), che troverà il computo già salvato nella commessa.
     if ((ex.voci.length > 0 || (ex.posizioni_allegato?.length ?? 0) > 0) && !contractNeedsAllocation(ex) && ex.origine_lettura !== "computo") {
+      if (ex.natura_documento !== "offerta_fornitore") {
+        setOrderItems(articoliDalPiano(pianoOperativoContratto(ex)).map(item => {
+          const match = mappaVoceSuListino(item.name);
+          return { ...item, vat_rate: ivaContratto ?? undefined, family_id: match?.fam.id ?? null,
+            supplier_id: match?.fam.supplier_id ?? undefined, standard_cost: match?.acquisto ?? undefined };
+        }));
+      } else {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
       // Solo i materiali (con o senza posa) diventano articoli: lavori, servizi, oneri e sconti restano nelle
@@ -702,6 +712,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         measure_status: null,
       }));
       setOrderItems([...itemsMerce, ...itemsAltriCosti]);
+      }
     }
     const insts = contractToInstallments(ex, imp ?? 0);
     setInstallments(insts);
@@ -1118,7 +1129,17 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (options?: {contractDraft?: boolean}) => {
-      if (createdOrderIdRef.current) return { id: createdOrderIdRef.current, success: true };
+      if (createdOrderIdRef.current) {
+        const id = createdOrderIdRef.current;
+        if (contractSource && effectiveCompany?.id) await collegaAnalisiAllaCommessa(effectiveCompany.id, id, contractSource);
+        if (contrattoImportato && effectiveCompany?.id && contrattoImportato.origine_lettura !== "computo" && contrattoImportato.natura_documento !== "offerta_fornitore" && !contractNeedsAllocation(contrattoImportato)) {
+          await salvaPianoOperativoContratto({ companyId: effectiveCompany.id, orderId: id, piano: pianoOperativoContratto(contrattoImportato),
+            fasi: fasiColPiano(fasiDaCreare, pianoFasi), articoli: orderItems.map((a, position) => ({ ...a, position })) });
+        }
+        const originaleInCommessa = contractSource && effectiveCompany?.id && user?.id
+          ? await collegaOriginaleAi(supabase, id, effectiveCompany.id, user.id, contractSource) : null;
+        return { id, success: true, originaleInCommessa };
+      }
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
       if (contrattoImportato && !workflowProfilo.data) throw new Error("Attendi il caricamento della configurazione aziendale prima di salvare.");
@@ -1130,6 +1151,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         const errore=verificaPipelineCreazione(sceltaPipeline,attuale.pipeline,statuses);
         if(errore)throw new Error(errore);
       } else if(values.status_id && !statuses.some(s=>s.id===values.status_id))throw new Error("Lo stato iniziale non è più disponibile. Scegli uno stato dall’elenco.");
+      if (contractSource) await verificaAnalisiPerNuovaCommessa(effectiveCompany.id, contractSource);
+
       if (options?.contractDraft) {
         if (!pianoContratto || pianoContratto.organizzazione !== "interventi_su_ordine" || values.description.trim().length < 3) throw new Error("Importa e verifica il contratto prima di salvarlo in bozza.");
         contractDraftIdRef.current ??= crypto.randomUUID();
@@ -1147,6 +1170,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         createdOrderIdRef.current=draftId; setCreatedOrderId(draftId);
         setPipelineDaCompletare(values.pipeline_id!==PIPELINE_PRINCIPALE);
         saveDraft({...datiBozza,commessaCreataId:draftId,pipelineDaCompletare:values.pipeline_id!==PIPELINE_PRINCIPALE});
+        if (contractSource) await collegaAnalisiAllaCommessa(effectiveCompany.id, draftId, contractSource);
+
         try { await saveContractOfficeTasks(effectiveCompany.id,draftId,user!.id,pianoContratto.ufficio,officeAssignments); }
         catch { toast.warning("Bozza salvata: verifica gli adempimenti d’ufficio nel dettaglio prima di proseguire."); }
         return {id:draftId,success:true};
@@ -1221,6 +1246,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         description: item.description || null,
         quantity: item.quantity,
         unita_misura: item.unita_misura?.trim() || null,
+        riferimento: item.riferimento ?? null,
+        specifiche: item.specifiche ?? null,
         status: item.status,
         position: index,
         supplier_id: item.supplier_id || null,
@@ -1319,6 +1346,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
       setPipelineDaCompletare(values.pipeline_id!==PIPELINE_PRINCIPALE);
       saveDraft({ ...datiBozza, commessaCreataId: result.id,pipelineDaCompletare:values.pipeline_id!==PIPELINE_PRINCIPALE });
+      if (contractSource) {
+        try { await collegaAnalisiAllaCommessa(effectiveCompany.id, result.id, contractSource); }
+        catch (e) { toast.warning("Commessa creata: analisi da collegare", { description: e instanceof Error ? e.message : "Riprova il completamento.", duration: 12000 }); return { ...result, fasiDaVerificare: true }; }
+      }
+
 
       // Collega il preventivo di origine alla commessa (se creata da un preventivo via
       // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato", il blocca prezzo la
@@ -1455,7 +1487,16 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           logger.error("Salvataggio adempimenti contratto", error);
         }
       }
-      if (fasiDalModello && fasiDaCreare.length && result.id) {
+      const pianoImportato = contrattoImportato && contrattoImportato.origine_lettura !== "computo" && contrattoImportato.natura_documento !== "offerta_fornitore" && !contractNeedsAllocation(contrattoImportato);
+      if (pianoImportato && contrattoImportato) {
+        try {
+          await salvaPianoOperativoContratto({ companyId: effectiveCompany.id, orderId: result.id, piano: pianoOperativoContratto(contrattoImportato),
+            fasi: fasiColPiano(fasiDaCreare, pianoFasi), articoli: orderItems.map((a, position) => ({ ...a, position })) });
+        } catch (e) {
+          toast.warning("Commessa creata: collegamenti del piano da completare", { description: e instanceof Error ? e.message : "Riprova dalla commessa già creata.", duration: 12000 });
+          return { ...result, fasiDaVerificare: true };
+        }
+      } else if (fasiDalModello && fasiDaCreare.length && result.id) {
         const fasiConDate = fasiColPiano(fasiDaCreare, pianoFasi);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiErr = await salvaFasiDiPartenza(result.id, fasiConDate, (nome, args) => (supabase as any).rpc(nome, args));
@@ -1527,6 +1568,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         else clearDraft();
       }
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["letture-contratto-salvate"] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
       queryClient.invalidateQueries({ queryKey: ["break-even"] });
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });
@@ -1617,6 +1659,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if(pipelineNonAssegnata)return;
 
       // Auto-navigate to the new order detail
+      if ("fasiDaVerificare" in order && order.fasiDaVerificare) return;
       if (computoDaCollegare) {
         // Il computo si aggancia alla commessa appena nata e si apre l'anteprima dei materiali.
         if (computoDaCollegare.id) {
@@ -1836,6 +1879,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         <CheckCircle2 className="h-4 w-4 text-blue-700" />
         <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-blue-900">Questa commessa è già stata creata. Aprila per verificare o completare i dettagli.</span>
+          <div className="flex flex-wrap gap-2">
           {pipelineDaCompletare && <Button type="button" size="sm" disabled={assegnazioneInCorso} onClick={async()=>{
             if(assegnazioneInCorso||!createdOrderId)return;
             setAssegnazioneInCorso(true);
@@ -1850,6 +1894,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             finally{setAssegnazioneInCorso(false);}
           }}>{assegnazioneInCorso?"Assegnazione…":"Riprova assegnazione pipeline"}</Button>}
           <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" onClick={() => navigate(`/azienda/ordini/${createdOrderId}?tab=cantiere&vista_cantiere=lavorazioni`)}>Apri commessa</Button>
+          {contrattoImportato && <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" disabled={createOrderMutation.isPending} onClick={() => createOrderMutation.mutate({})}>Completa collegamenti</Button>}
+          </div>
+
         </AlertDescription>
       </Alert>}
 

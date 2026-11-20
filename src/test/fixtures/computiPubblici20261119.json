@@ -1,0 +1,515 @@
+{
+  "siracusa-infissi": [
+    {
+      "id": "siracusa-infissi:4",
+      "numero_ordine": "4",
+      "codice_voce": "SIC24_08.03 .01.004",
+      "codice_prezzario": "SIC24_08.03 .01.004",
+      "descrizione_breve": "Fornitura e posa in opera di serramenti in legno douglas per finestre e porte-finestre, a vetri, ad una o più ante o a vasistas, costituiti da telaio maestro fisso murato a cemento ... tanza termica complessiva non superiore a 1,4 W/(m²/K) – Sezione 80 mm. con vetro camera 4- 6-4 alta efficienza con argon",
+      "descrizione_estesa": null,
+      "unita_misura": "m²",
+      "quantita": 43.21,
+      "super_categoria": "INFISSI",
+      "categoria": null,
+      "capitolo_nome": "INFISSI",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "PIANO TERRA 11T_Ex Hub - portafinestre ad arco (cortile interno)",
+          "parti_uguali": 2,
+          "lunghezza": null,
+          "larghezza": 1.32,
+          "altezza_peso": 3.22,
+          "quantita": 8.5,
+          "formula": null
+        },
+        {
+          "ordine": 1,
+          "descrizione": "12T_Ex Hub - finestra bassa+finestra alta (cortile interno)",
+          "parti_uguali": 2,
+          "lunghezza": null,
+          "larghezza": 1.32,
+          "altezza_peso": 1.94,
+          "quantita": 5.12,
+          "formula": null
+        },
+        {
+          "ordine": 2,
+          "descrizione": "13T_Ex Hub - finestre (cortile interno)",
+          "parti_uguali": 2,
+          "lunghezza": null,
+          "larghezza": 1.32,
+          "altezza_peso": 2.1,
+          "quantita": 5.54,
+          "formula": null
+        },
+        {
+          "ordine": 3,
+          "descrizione": "14T_Ex Hub - portafinestra disimpegno ascensore (cortile interno)",
+          "parti_uguali": 1,
+          "lunghezza": null,
+          "larghezza": 1.4,
+          "altezza_peso": 2.95,
+          "quantita": 4.13,
+          "formula": null
+        },
+        {
+          "ordine": 4,
+          "descrizione": "15T _EX Hub - portadisimpegno interno ascensore",
+          "parti_uguali": 1,
+          "lunghezza": null,
+          "larghezza": 1.2,
+          "altezza_peso": 2.6,
+          "quantita": 3.12,
+          "formula": null
+        },
+        {
+          "ordine": 5,
+          "descrizione": "18T_Ex Hub - finestre alte (cortile esterno)",
+          "parti_uguali": 2,
+          "lunghezza": null,
+          "larghezza": 2.8,
+          "altezza_peso": 3,
+          "quantita": 16.8,
+          "formula": null
+        }
+      ]
+    },
+    {
+      "id": "siracusa-infissi:6",
+      "numero_ordine": "6",
+      "codice_voce": "SIC24_08.03 .03.001",
+      "codice_prezzario": "SIC24_08.03 .03.001",
+      "descrizione_breve": "Fornitura e posa in opera di contro sportelli o scuretti, con marcatura CE secondo UNI EN 13659 riguardanti i requisiti prestazionali e oscuranti, costituiti da telaio di ... sorio per dare l'opera completa a perfetta regola d'arte. - Superficie minima di misurazione m² 1,20 cadauno. in douglas",
+      "descrizione_estesa": null,
+      "unita_misura": "m²",
+      "quantita": 43.21,
+      "super_categoria": "INFISSI",
+      "categoria": null,
+      "capitolo_nome": "INFISSI",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Vedi voce n° 4 [m² 43.21]",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 43.21,
+          "formula": "43,21"
+        }
+      ]
+    },
+    {
+      "id": "siracusa-infissi:7",
+      "numero_ordine": "7",
+      "codice_voce": "SIC24_08.03 .07",
+      "codice_prezzario": "SIC24_08.03 .07",
+      "descrizione_breve": "Fornitura e collocazione di portone esterno in legno castagno stagionato ad una o due ante, eseguito in conformità ai disegni o ai tipi esistenti, spessore finito non inferiore a 8 ... ura anch'essa all'antica con \"chiave\" e quanto altro occorrente, in opera compresi i lavori di falegnameria e murari.",
+      "descrizione_estesa": null,
+      "unita_misura": "m²",
+      "quantita": 3.12,
+      "super_categoria": "INFISSI",
+      "categoria": null,
+      "capitolo_nome": "INFISSI",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "1PT Ex Hub (cortile interno)",
+          "parti_uguali": 1,
+          "lunghezza": null,
+          "larghezza": 1.3,
+          "altezza_peso": 2.4,
+          "quantita": 3.12,
+          "formula": null
+        }
+      ]
+    },
+    {
+      "id": "siracusa-infissi:9",
+      "numero_ordine": "9",
+      "codice_voce": "SIC24_10.01 .09",
+      "codice_prezzario": "SIC24_10.01 .09",
+      "descrizione_breve": "Formazione di bisellatura fino a 10 mm eseguita a macchina su lastre di marmo di ottima qualità dello spessore di 2 o 3 cm, di cui agli artt. 10.1.1 – 10.1.2 – 10.1.3 – 10.1.4, compresi pulitura ed ogni altro onere e magistero per dare l'opera completa a perfetta regola d'arte.",
+      "descrizione_estesa": null,
+      "unita_misura": "m",
+      "quantita": 4.83,
+      "super_categoria": "INFISSI",
+      "categoria": null,
+      "capitolo_nome": "INFISSI",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Vedi voce n° 8 [m² 4.83]",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 4.83,
+          "formula": "4,83"
+        }
+      ]
+    },
+    {
+      "id": "siracusa-infissi:10",
+      "numero_ordine": "10",
+      "codice_voce": "SIC24_10.01 .13",
+      "codice_prezzario": "SIC24_10.01 .13",
+      "descrizione_breve": "Fornitura di incastri semplici retti superiori ai 3x3 cm eseguiti a macchina su lastre di marmo di ottima qualità dello spessore di 2 o 3 cm, di cui agli artt. 10.1.1 – 10 ... 10.1.4, compresi pulitura ed ogni altro onere e magistero per dare l'opera completa a perfetta regola d'arte.",
+      "descrizione_estesa": null,
+      "unita_misura": "cad",
+      "quantita": 4.83,
+      "super_categoria": "INFISSI",
+      "categoria": null,
+      "capitolo_nome": "INFISSI",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Vedi voce n° 8 [m² 4.83]",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 4.83,
+          "formula": "4,83"
+        }
+      ]
+    },
+    {
+      "id": "siracusa-infissi:11",
+      "numero_ordine": "11",
+      "codice_voce": "SIC24_10.01 .10",
+      "codice_prezzario": "SIC24_10.01 .10",
+      "descrizione_breve": "Formazione di gocciolatoio eseguito a macchina su lastre di marmo di ottima qualità dello spessore di 2 o 3 cm, di cui agli artt. 10.1.1 – 10.1.2 – 10.1.3 – 10.1.4, avente ... nferiore a 5x5 mm, compresa pulitura ed ogni altro onere e magistero per dare l'opera completa a perfetta regola d'arte.",
+      "descrizione_estesa": null,
+      "unita_misura": "m",
+      "quantita": 4.83,
+      "super_categoria": "INFISSI",
+      "categoria": null,
+      "capitolo_nome": "INFISSI",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Vedi voce n° 8 [m² 4.83]",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 4.83,
+          "formula": "4,83"
+        }
+      ]
+    }
+  ],
+  "notaresco-impianti": [
+    {
+      "id": "notaresco-impianti:142",
+      "numero_ordine": "142",
+      "codice_voce": "NP_IMP2",
+      "codice_prezzario": "NP_IMP2",
+      "descrizione_breve": "Pompa di calore inverter gas R32, reversibile aria-acqua monoblocco, potenza termica 22 kW, trifase, incluso kit antivib",
+      "descrizione_estesa": null,
+      "unita_misura": "cadauno",
+      "quantita": 1,
+      "super_categoria": "Fotovoltaico, accumulo e ricarica",
+      "categoria": null,
+      "capitolo_nome": "Fotovoltaico, accumulo e ricarica",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Pompa di calore reversibile aria-acqua per installazione esterna, in gas R32, con compressore inverter twin-rotary DC per la produzione di acqua in climatica fino a 65°C. Conforme alle direttive ErP (2009/125/CE) per la progettazione eco-compatibile e Labelling (2010/30/CE) sull'etichettatura (Efficienza energetica riscaldamento Classe ERP in riscaldamento / Efficienza stagionale media temperatura (acqua prodotta 55°C) Classe A++). Il compressore inoltre è equipaggiato di resistenza olio carter. Il circuito si completa di scambiatore a piastre in acciaio inox saldobrasate completo di resistenza antigelo, ventilatori assiali con motore brushless DC completi di griglie di protezione antinfortunistiche, batteria alettata costituita da tubi in rame e alette in alluminio. Tutte le unità sono equipaggiate con controllo a velocità variabile dei ventilatori che ne consente il funzionamento con basse temperature esterne in raffreddamento e alte temperature esterne in riscaldamento. L'unità è dotata di serie di circolatore a basso consumo con motore DC brushless, flussostato acqua, sfiato aria automatico, manometro acqua, vaso di espansione, valvola di sicurezza, filtro acqua a Y (montaggio a cura dell'installatore). Lo scambiatore a piastre e tutte le tubazioni del circuito idraulico sono isolate termicamente per evitare la formazione di condensa e ridurre le dispersioni termiche. Incluso Kit antivibranti in gomma Tensione di alimentazione [V/Hz] : 400V-50Hz Attacco Mandata/Ritorno [pollici] : 1\"1/4 Tipo refrigerante : R32 Tipo compressore : Twin Rotary DC Pot. termica A7W35 [kW] : 22.0 Pot. assorbita A7W35 k[W] : 5.0 COP A7W35 [W/W] : 4.4 Pot. termica A7W45 [kW] : 22.0 Pot. assorbita A7W45 [kW] : 6.47 COP A7W45 [W/W] : 3.4 Pot. frigorifera A35W18 [kW] : 23.0 Pot. assorbita A35W18 k[W] : 5.0 EER A35W18 [W/W] : 4.6 Pot. frigorifera A35W7 [kW] : 21.0 Pot. assorbita A35W7 [kW] : 7.12 EER A35W7 [W/W] : 2.95 Classe ERP in riscaldamento media temperatura (acqua prodotta 55°C) : A++ Classe ERP in riscaldamento bassa temperatura (acqua prodotta 35°C) : A+++ SCOP (bassa temperatura 35°C) : 4.53 SEER (acqua prodotta 7°C) : 4.7 Livello Potenza Sonora unità esterna [dB] : 73.0 WBS: 1.1.2.6.3 1.2.4.3 Impianto idrico ACS + Scarichi PDC dedicata per ACS",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        }
+      ]
+    },
+    {
+      "id": "notaresco-impianti:160",
+      "numero_ordine": "160",
+      "codice_voce": "NP.IMP.03",
+      "codice_prezzario": "NP.IMP.03",
+      "descrizione_breve": "Fornitura e posa in opera di degrassatore 15 AE. compreso lo scavo a sezione ristretta e i collegamenti idraulici",
+      "descrizione_estesa": null,
+      "unita_misura": "cad",
+      "quantita": 1,
+      "super_categoria": "Lavorazioni da verificare",
+      "categoria": null,
+      "capitolo_nome": "Lavorazioni da verificare",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Fornitura e posa in opera di degrassatore 15 AE. compreso lo scavo a sezione ristretta e i collegamenti idraulici WBS: 1.1.2.6.3 1.2.4.3 Impianto idrico ACS + Scarichi acque grigie",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        }
+      ]
+    },
+    {
+      "id": "notaresco-impianti:166",
+      "numero_ordine": "166",
+      "codice_voce": "IM.040.010.0 30.b",
+      "codice_prezzario": "IM.040.010.0 30.b",
+      "descrizione_breve": "VENTILCONVETTORE SENZA MOBILE A VISTA, MODELLO VERTICALE O ORIZZONTALE DA INCASSO - PT = 4,00 PF = 1,50 Ventilconvettore per installazione da incasso in posizione verticale oppure orizzontale, senza mobile di copertura, senza pannello di comando velocità, completo di bacinella di raccolta condensa, filtro aria, batteria per acqua calda o refrigerata, comprese le opere murarie per il fissaggio esclusi il collegamento elettrico e le linee elettriche. Potenzialità termica valutata alla velocità max con acqua entrante a 70 °C, DT = 10°C, aria entrante a 20°C. Potenzialità frigorifera totale valutata alla velocità max con acqua entrante a 7°C, DT = 5°C, aria entrante a 27°C b.s./19 °C b.u.. Potenzialità termica non inferiore a: PT (kW). Potenzialità frigorifera totale non inferiore a: PF (kW).- - PT = 4,00 PF = 1,50",
+      "descrizione_estesa": null,
+      "unita_misura": "cad",
+      "quantita": 12,
+      "super_categoria": "Impianti termici e ventilazione",
+      "categoria": null,
+      "capitolo_nome": "Impianti termici e ventilazione",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "WBS: 1.1.2.6.4 1.2.4.4 Impianto termico Aria - Acqua Ventilconvettore versione nuda (incassato in cartongesso) Sala principale - Terminali 2.5kW",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 5,
+          "formula": "5"
+        },
+        {
+          "ordine": 1,
+          "descrizione": "Bagni mensa",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 2,
+          "formula": "2"
+        },
+        {
+          "ordine": 2,
+          "descrizione": "Cucina",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        },
+        {
+          "ordine": 3,
+          "descrizione": "Lavaggio",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        },
+        {
+          "ordine": 4,
+          "descrizione": "Bagno Personale",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        },
+        {
+          "ordine": 5,
+          "descrizione": "Ingresso Personale",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        },
+        {
+          "ordine": 6,
+          "descrizione": "Dispensa",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        }
+      ]
+    },
+    {
+      "id": "notaresco-impianti:167",
+      "numero_ordine": "167",
+      "codice_voce": "IM.040.010.0 50.c",
+      "codice_prezzario": "IM.040.010.0 50.c",
+      "descrizione_breve": "ACCESSORI DEI VENTILCONVETTORI PER GRANDEZZE CON POTENZIA ... W 6,50 - Pannello comando velocità più termostato ambiente Accessori dei ventilconvettori per grandezze con potenzialità termica fino a kw 6,50, valutati come aggiunta al prezzo base dei ventilconvettori, comprensivi delle opere murarie esclusi i collegamenti elettrici le linee elettriche.- - Pannello comando velocità più termostato ambiente",
+      "descrizione_estesa": null,
+      "unita_misura": "cad",
+      "quantita": 12,
+      "super_categoria": "Impianti termici e ventilazione",
+      "categoria": null,
+      "capitolo_nome": "Impianti termici e ventilazione",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "WBS: 1.1.2.6.4 1.2.4.4 Impianto termico Aria - Acqua pannello comando fancoil ad iincasso- gestione rete master/slave",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 12,
+          "formula": "12"
+        }
+      ]
+    },
+    {
+      "id": "notaresco-impianti:168",
+      "numero_ordine": "168",
+      "codice_voce": "IM.170.010.0 90.f",
+      "codice_prezzario": "IM.170.010.0 90.f",
+      "descrizione_breve": "VALVOLA A SFERA A 3 VIE CON DEVIAZIONE A L, PASSAGGIO TOTALE, PN 16 - Diametro nominale 40 (1\"1/2), PN = 16",
+      "descrizione_estesa": null,
+      "unita_misura": "cad",
+      "quantita": 12,
+      "super_categoria": "Lavorazioni da verificare",
+      "categoria": null,
+      "capitolo_nome": "Lavorazioni da verificare",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Valvola a sfera a 3 vie, passaggio totale, tipo pesante, attacchi filettati, corpo e sfera in ottone con guarnizione in PTFE, costruzione con passaggio ad L tale da consentire il collegamento fra la via sempre aperta ed almeno una delle altre due vie, idonea per liquidi e gas da -20 °C a +190 °C.- - Diametro nominale 40 (1\"1/2), PN = 16 WBS: 1.1.2.6.4 1.2.4.4 Impianto termico Aria - Acqua Valvola a 3 vie per fancoil",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 12,
+          "formula": "12"
+        }
+      ]
+    },
+    {
+      "id": "notaresco-impianti:177",
+      "numero_ordine": "177",
+      "codice_voce": "NP_IMP2",
+      "codice_prezzario": "NP_IMP2",
+      "descrizione_breve": "Pompa di calore inverter gas R32, reversibile aria-acqua monoblocco, potenza termica 22 kW, trifase, incluso kit antivib",
+      "descrizione_estesa": null,
+      "unita_misura": "cadauno",
+      "quantita": 1,
+      "super_categoria": "Fotovoltaico, accumulo e ricarica",
+      "categoria": null,
+      "capitolo_nome": "Fotovoltaico, accumulo e ricarica",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": false,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Pompa di calore reversibile aria-acqua per installazione esterna, in gas R32, con compressore inverter twin-rotary DC per la produzione di acqua in climatica fino a 65°C. Conforme alle direttive ErP (2009/125/CE) per la progettazione eco-compatibile e Labelling (2010/30/CE) sull'etichettatura (Efficienza energetica riscaldamento Classe ERP in riscaldamento / Efficienza stagionale media temperatura (acqua prodotta 55°C) Classe A++). Il compressore inoltre è equipaggiato di resistenza olio carter. Il circuito si completa di scambiatore a piastre in acciaio inox saldobrasate completo di resistenza antigelo, ventilatori assiali con motore brushless DC completi di griglie di protezione antinfortunistiche, batteria alettata costituita da tubi in rame e alette in alluminio. Tutte le unità sono equipaggiate con controllo a velocità variabile dei ventilatori che ne consente il funzionamento con basse temperature esterne in raffreddamento e alte temperature esterne in riscaldamento. L'unità è dotata di serie di circolatore a basso consumo con motore DC brushless, flussostato acqua, sfiato aria automatico, manometro acqua, vaso di espansione, valvola di sicurezza, filtro acqua a Y (montaggio a cura dell'installatore). Lo scambiatore a piastre e tutte le tubazioni del circuito idraulico sono isolate termicamente per evitare la formazione di condensa e ridurre le dispersioni termiche. Incluso Kit antivibranti in gomma Tensione di alimentazione [V/Hz] : 400V-50Hz Attacco Mandata/Ritorno [pollici] : 1\"1/4 Tipo refrigerante : R32 Tipo compressore : Twin Rotary DC Pot. termica A7W35 [kW] : 22.0 Pot. assorbita A7W35 k[W] : 5.0 COP A7W35 [W/W] : 4.4 Pot. termica A7W45 [kW] : 22.0 Pot. assorbita A7W45 [kW] : 6.47 COP A7W45 [W/W] : 3.4 Pot. frigorifera A35W18 [kW] : 23.0 Pot. assorbita A35W18 k[W] : 5.0 EER A35W18 [W/W] : 4.6 Pot. frigorifera A35W7 [kW] : 21.0 Pot. assorbita A35W7 [kW] : 7.12 EER A35W7 [W/W] : 2.95 Classe ERP in riscaldamento media temperatura (acqua prodotta 55°C) : A++ Classe ERP in riscaldamento bassa temperatura (acqua prodotta 35°C) : A+++ SCOP (bassa temperatura 35°C) : 4.53 SEER (acqua prodotta 7°C) : 4.7 Livello Potenza Sonora unità esterna [dB] : 73.0 WBS: 1.1.2.6.4 1.2.4.4 Impianto termico Aria - Acqua PDC per Impianto fancoil",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 1,
+          "formula": "1"
+        }
+      ]
+    }
+  ],
+  "umberto-fotovoltaico": [
+    {
+      "id": "umberto-fotovoltaico:3",
+      "numero_ordine": "3",
+      "codice_voce": "59.2.QX1.01. D",
+      "codice_prezzario": "59.2.QX1.01. D",
+      "descrizione_breve": "Fornitura e posa in opera di impianto fotovoltaico costituito da pannelli utilizzanti celle al silicio policristallino caratteristiche del singolo pannello 250 Wp tolleranza solo positiva non inferiore al 5 %, con cornice in alluminio e vetro temperato antigrandine di protezione, montati sulla copertura degli edifici mediante supporti orientabili da 10° a 60° in acciaio zincato (max. 8 pannelli per supporto). L'articolo comprende e compensa inoltre la fornitura e posa in opera di inverter monofase/trifase per interno atti alla commutazione della tensione da continua ad alternata 230 Vca/400 Vca completi delle protezioni previste dalla Norma CEI 0-21 e dotati di elettronica con display per la visualizzazione dei dati caratteristici dell'impianto, la fornitura e posa in opera, nel caso di esecuzione trifase 400 Vca, di quadro elettrico di interfaccia tra gli inverter e la rete elettrica completo di protezioni di minima e massima frequenza e tensione in accordo con le Norme CEI 0-21 e con le Direttive tecniche dell'Ente distributore, i cablaggi, le prove di funzionalità, i collegamenti elettrici, gli accessori e quanto necessario. Impianto trifase con pannelli fotovoltaici, potenza di picco 20,00 kW",
+      "descrizione_estesa": null,
+      "unita_misura": "cad",
+      "quantita": 2.18,
+      "super_categoria": "IMPIANTO SOLARE FOTOVOLTAICO",
+      "categoria": null,
+      "capitolo_nome": "IMPIANTO SOLARE FOTOVOLTAICO",
+      "is_detrazione": false,
+      "is_sicurezza": false,
+      "is_included": true,
+      "a_corpo": true,
+      "misure": [
+        {
+          "ordine": 0,
+          "descrizione": "Fotovoltaico da 43.6 kW",
+          "parti_uguali": null,
+          "lunghezza": null,
+          "larghezza": null,
+          "altezza_peso": null,
+          "quantita": 2.18,
+          "formula": "2,18"
+        }
+      ]
+    }
+  ],
+  "fonti": [
+    {
+      "id": "siracusa-infissi",
+      "url": "https://static-www.comune.siracusa.it/wp-content/uploads/2024/04/6-Computo-metrico-sostituzione-infissi.pdf",
+      "sha256": "3efc4fda20e10f890859c8920ddc8d01581c2e11586e4725673e83a419cc0daf",
+      "pagine": 5
+    },
+    {
+      "id": "umberto-fotovoltaico",
+      "url": "https://www.umberto-primo.it/media/files/Asp_Umberto_I/attachment/G01.0__COMPUTO_METRICO_ESTIMATIVO_POR.PDF",
+      "sha256": "7886e03f3f56e556eae24704e52e81896c26148a473e3575ec55deed75c94fd7",
+      "pagine": 17
+    },
+    {
+      "id": "notaresco-impianti",
+      "url": "https://www.comune.notaresco.te.it/backend/media%2Fcustom_widgets%2Ffiles%2F10%2FComputo%20metrico%20estimativo.pdf",
+      "sha256": "256bce1a51ed00eda58ab6c70956d90fcfb7b1b95ed48d8de26dda408dffe1f7",
+      "pagine": 61
+    }
+  ]
+}

@@ -17,6 +17,7 @@ export async function caricaDocumentoCommessa(p: {
   userId: string;
   file: File;
   tipo?: string;
+  accessScope?: "operativo" | "riservato";
 }): Promise<{ id: string; percorso: string }> {
   const tipo = p.file.type || p.tipo || "application/octet-stream";
   // Cartella: quella proposta dal nome (un DXF va in «Progetto / Architettonico»).
@@ -33,6 +34,7 @@ export async function caricaDocumentoCommessa(p: {
   const { data, error: e2 } = await supabase.from("order_attachments").insert({
     order_id: p.orderId, file_name: p.file.name, file_url: percorso, file_type: tipo,
     file_size: p.file.size, uploaded_by: p.userId, visible_to_customer: false, folder_id: folderId,
+    ...(p.accessScope ? { access_scope: p.accessScope } : {}),
   } as never).select("id").single();
   if (e2 || !data) {
     await supabase.storage.from(ATTACHMENTS_BUCKET).remove([percorso]);

@@ -66,6 +66,7 @@ import { andamentoLavori } from "@/lib/orders/andamentoLavori";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
+import { StrumentiComputo } from "./materiali/StrumentiComputo";
 import { SilvioAiuto } from "@/components/silvio/SilvioAiuto";
 import { controlliFasi, type AzioneSilvio } from "@/lib/orders/silvioControlli";
 import { DocumentiDelGestionale, avvisaEsitoImport, importaFasiNelDatabase } from "@/components/orders/ImportaFasiDaComputo";
@@ -1112,6 +1113,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
       </CardHeader>
 
       <CardContent className={cn(telefono ? "space-y-2 px-0 pb-0" : "px-3 pb-3", !telefono && (view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6"))}>
+        {showWork && effectiveCompany?.id && <StrumentiComputo key={orderId} companyId={effectiveCompany.id} orderId={orderId}
+          iniziale="servizi" etichetta="Noleggi e servizi" nomeFase={id => phases.find(p => p.id === id)?.name ?? "Senza fase"} />}
         {/* I tempi del cronoprogramma del preventivo firmato diventano le date delle fasi (31/10/2026). */}
         {canEditOrders && !isLoading && !isError && <PianoDalPreventivo orderId={orderId} fasi={phases} />}
         {/* Dove si trova, quanta strada dalla sede, mezzi e attrezzi */}

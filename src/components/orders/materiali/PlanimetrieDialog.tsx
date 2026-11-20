@@ -9,11 +9,12 @@
  *      blocchi contati esattamente e lunghezze per layer (DisegnoCadPannello).
  * Tutto entra come bozza: diventa materiale solo il conteggio confermato.
  */
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileUp, Hash, ScanSearch, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
@@ -24,9 +25,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { attachmentStorage } from "@/components/orders/filePreviewUtils";
 import { caricaDocumentoCommessa } from "@/lib/commesse/caricaDocumentoCommessa";
 import { contaSigleDaTesto, type RisultatoConteggioTesto } from "@/lib/distinta/conteggioTesto";
-import { disegnaRiquadri, estraiTestoTavola, sommaRiquadri } from "@/lib/distinta/tavolePdf";
+import { disegnaRiquadri, estraiTestoTavola, immaginePaginaTavola, sommaRiquadri } from "@/lib/distinta/tavolePdf";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import DisegnoCadPannello from "./DisegnoCadPannello";
+import { sembraTavola } from "@/lib/distinta/sceltaTavola";
+import { ConfrontoTavoleAcquisti } from "./ConfrontoTavoleAcquisti";
+import type { ConteggioTavola } from "@/lib/distinta/confrontaTavole";
 
 interface Tavola { id: string; file_name: string; file_url: string }
 interface Conteggio {
@@ -34,7 +38,7 @@ interface Conteggio {
   descrizione_legenda: string | null; locale: string | null; quantita: number; metodo: string; confidenza: number | null; confermato: boolean;
 }
 /** Con l'unità: 'm' per le lunghezze dei disegni CAD, vuota = pezzi. */
-type ConteggioLetto = Conteggio & { unita?: string | null };
+type ConteggioLetto = Conteggio & ConteggioTavola & { dettaglio?: Json };
 
 const SENZA = "_senza";
 
@@ -45,21 +49,30 @@ async function scaricaTavola(t: Tavola): Promise<Uint8Array> {
   return new Uint8Array(await data.arrayBuffer());
 }
 
-export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { orderId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+type PropsTavole = { orderId: string; open: boolean; onOpenChange: (o: boolean) => void; onGenera?: () => void };
+export default function PlanimetrieDialog(props: PropsTavole) {
+  const { effectiveCompany } = useAuth();
+  return <TavoleCommessa key={`${effectiveCompany?.id}:${props.orderId}:${props.open}`} {...props} />;
+}
+function TavoleCommessa({ orderId, open, onOpenChange, onGenera }: PropsTavole) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
   const { canEditOrders, canValidateBom } = usePermissions();
   const puoScrivere = !!(canEditOrders || canValidateBom);
   const qc = useQueryClient();
-  const chiave = ["planimetrie-conteggi", orderId];
+  const chiave = ["planimetrie-conteggi", companyId, orderId];
   const inputFile = useRef<HTMLInputElement>(null);
+  const sessione = useRef(0);
+  const interruzione = useRef<AbortController | null>(null);
+  const inizia = () => { interruzione.current?.abort(); const ctrl = new AbortController(); interruzione.current = ctrl; return { token: ++sessione.current, ctrl }; };
+  const interrompi = () => { sessione.current++; interruzione.current?.abort(); setLavoro(null); };
 
   const dati = useQuery({
     queryKey: chiave,
     enabled: open,
     queryFn: async () => {
       const [tavole, conteggi, fasi] = await Promise.all([
-        supabase.from("order_attachments").select("id, file_name, file_url").eq("order_id", orderId).ilike("file_name", "%.pdf").order("created_at", { ascending: false }),
+        supabase.from("order_attachments").select("id, file_name, file_url").eq("order_id", orderId).or("file_name.ilike.%.pdf,file_name.ilike.%.dwg,file_name.ilike.%.dxf").order("created_at", { ascending: false }),
         // «*»: la colonna unita arriva con la migrazione dei disegni CAD.
         supabase.from("planimetrie_conteggi").select("*")
           .eq("order_id", orderId).order("documento_nome").order("simbolo").order("locale"),
@@ -67,11 +80,14 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
       ]);
       if (tavole.error) throw tavole.error;
       if (conteggi.error) throw conteggi.error;
+      if (fasi.error) throw fasi.error;
       return { tavole: (tavole.data ?? []) as Tavola[], conteggi: (conteggi.data ?? []) as unknown as ConteggioLetto[], fasi: fasi.data ?? [] };
     },
   });
   const aggiorna = () => {
     qc.invalidateQueries({ queryKey: chiave });
+    qc.invalidateQueries({ queryKey: ["piano-acquisti-computo"] });
+    qc.invalidateQueries({ queryKey: ["confronto-tavole-acquisti"] });
     qc.invalidateQueries({ queryKey: ["genera-materiali", orderId] });
     qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
   };
@@ -79,40 +95,56 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
   const carica = useMutation({
     mutationFn: async (file: File) => {
       if (!user) throw new Error("Accesso richiesto");
-      await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: "application/pdf" });
+      await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: "application/pdf", accessScope: scopeDocumento });
     },
     onSuccess: () => { toast.success("Tavola caricata tra i documenti della commessa"); aggiorna(); },
     onError: (e) => toast.error("Tavola non caricata", { description: e instanceof Error ? e.message : String(e) }),
   });
 
   const [tavolaId, setTavolaId] = useState<string | null>(null);
-  const tavola = dati.data?.tavole.find((t) => t.id === tavolaId) ?? dati.data?.tavole[0] ?? null;
-  const [lettura, setLettura] = useState<RisultatoConteggioTesto | null>(null);
+  const documenti = dati.data?.tavole ?? [];
+  const tavole = documenti.filter(t => /\.pdf$/i.test(t.file_name));
+  const consigliate = tavole.filter(t => sembraTavola(t.file_name));
+  const tavola = tavole.find(t => t.id === tavolaId) ?? (consigliate.length === 1 ? consigliate[0] : null);
+  const [pagina, setPagina] = useState(1);
+  const [risultatoLetto, setRisultatoLetto] = useState<{ documentoId: string; pagina: number; risultato: RisultatoConteggioTesto } | null>(null);
+  const lettura = risultatoLetto?.documentoId === tavola?.id && risultatoLetto?.pagina === pagina ? risultatoLetto.risultato : null;
+  const setLettura = (risultato: RisultatoConteggioTesto | null) => setRisultatoLetto(risultato && tavola ? { documentoId: tavola.id, pagina, risultato } : null);
   const [sceltaSigle, setSceltaSigle] = useState<Set<string>>(new Set());
   const [sceltaSimboli, setSceltaSimboli] = useState<Set<string>>(new Set());
   const [faseNuovi, setFaseNuovi] = useState<string>(SENZA);
+  const [legendaManuale, setLegendaManuale] = useState("");
   const [lavoro, setLavoro] = useState<string | null>(null);
+  const [pagine, setPagine] = useState(1);
+  const [impronta, setImpronta] = useState("");
+  const [confronto, setConfronto] = useState(false);
   const [vista, setVista] = useState<"pdf" | "cad">("pdf");
+  const [scopeDocumento, setScopeDocumento] = useState<"operativo" | "riservato">("operativo");
 
   const leggi = async () => {
     if (!tavola) return;
+    const { token } = inizia();
     setLavoro("Leggo il testo della tavola…");
     try {
-      const { testi } = await estraiTestoTavola(await scaricaTavola(tavola));
-      const r = contaSigleDaTesto(testi);
+      const byte = await scaricaTavola(tavola);
+      const { testi, pagine: elencoPagine } = await estraiTestoTavola(byte);
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(byte).buffer)), b => b.toString(16).padStart(2,"0")).join("");
+      if (token !== sessione.current) return;
+      setPagine(elencoPagine.length); setImpronta(hash);
+      const r = contaSigleDaTesto(testi.filter(t => t.pagina === pagina));
       setLettura(r);
       setSceltaSigle(new Set(r.sigle.filter((s) => s.quantita >= 3).map((s) => s.sigla)));
-      if (!r.sigle.length && !r.legenda.length) toast.info("Nessuna scritta leggibile: la tavola è probabilmente una scansione, usa i simboli con l'AI.");
+      if (!r.sigle.length && !r.legenda.length) toast.info("Non trovo sigle o legenda", { description: "Verifica che il PDF sia una planimetria. Per una scansione puoi usare il conteggio dei simboli dopo aver indicato la legenda." });
     } catch (e) {
-      toast.error("Tavola non letta", { description: e instanceof Error ? e.message : String(e) });
+      if (token === sessione.current) toast.error("Tavola non letta", { description: e instanceof Error ? e.message : String(e) });
     } finally {
-      setLavoro(null);
+      if (token === sessione.current) setLavoro(null);
     }
   };
 
   const salvaRighe = async (righe: Omit<Conteggio, "id" | "confermato">[]) => {
     if (!righe.length) return;
-    const { error } = await supabase.from("planimetrie_conteggi").insert(righe.map((r) => ({ ...r, company_id: companyId, order_id: orderId })));
+    const { error } = await supabase.rpc("planimetrie_salva_conteggi" as never, { p_order: orderId, p_documento: tavola?.id ?? null, p_nome: tavola?.file_name, p_sha256: impronta, p_righe: righe.map(r => ({ ...r, pagina })) } as never);
     if (error) throw error;
     aggiorna();
   };
@@ -137,23 +169,47 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
     }
   };
 
+  const legendaDisponibile = [...new Set([...(lettura?.legenda ?? []), ...legendaManuale.split(/[;\n]+/).map(s => s.trim()).filter(Boolean)])];
+  const rilevaLegenda = async () => {
+    if (!tavola || lavoro) return;
+    const { token, ctrl } = inizia();
+    setLavoro("Leggo la legenda con l’AI…");
+    try {
+      const byte = await scaricaTavola(tavola);
+      const immagine = await immaginePaginaTavola(byte, pagina);
+      if (token !== sessione.current) return;
+      const { data, error } = await supabase.functions.invoke("planimetria-conta-simboli", { body: { company_id: companyId, azione: "legenda", immagine }, signal: ctrl.signal });
+      if (token !== sessione.current) return;
+      if (error) throw error;
+      const legenda = Array.isArray(data?.legenda) ? data.legenda.filter((s: unknown): s is string => typeof s === "string") : [];
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(byte).buffer)), b => b.toString(16).padStart(2,"0")).join("");
+      if (token !== sessione.current) return;
+      setImpronta(hash);
+      setLettura(lettura ?? contaSigleDaTesto([])); setLegendaManuale(legenda.join("\n")); setSceltaSimboli(new Set(legenda));
+      toast.info(legenda.length ? "Legenda proposta dall’AI: controllala prima di contare" : "Nessuna legenda leggibile: puoi inserirla a mano");
+    } catch (e) { if (token === sessione.current) toast.error("Legenda non letta", { description: e instanceof Error ? e.message : String(e) }); }
+    finally { if (token === sessione.current) setLavoro(null); }
+  };
   const contaSimboli = async () => {
     if (!tavola || !lettura) return;
-    const legenda = lettura.legenda.filter((l) => sceltaSimboli.has(l));
+    const legenda = legendaDisponibile.filter((l) => sceltaSimboli.has(l));
     if (!legenda.length) return;
     const parziali: { simbolo: string; quantita: number; confidenza: number }[][] = [];
     let mandati = 0;
+    const { token, ctrl } = inizia();
     try {
-      await disegnaRiquadri(await scaricaTavola(tavola), {}, async (r, totale) => {
+      await disegnaRiquadri(await scaricaTavola(tavola), { pagina, segnale: ctrl.signal }, async (r, totale) => {
+        if (token !== sessione.current) throw new DOMException("Lettura annullata", "AbortError");
         setLavoro(`Riquadro ${r.riga}-${r.colonna} di ${totale}…`);
         if (r.pieno < 0.003) return;
         mandati++;
         const { data, error } = await supabase.functions.invoke("planimetria-conta-simboli", {
-          body: { company_id: companyId, immagine: r.immagine, legenda, riquadro: { riga: r.riga, colonna: r.colonna } },
+          body: { company_id: companyId, immagine: r.immagine, legenda, riquadro: { riga: r.riga, colonna: r.colonna } }, signal: ctrl.signal,
         });
         if (error) throw error;
         parziali.push(((data as { simboli?: { simbolo: string; quantita: number; confidenza: number }[] })?.simboli) ?? []);
       });
+      if (token !== sessione.current) return;
       const somma = sommaRiquadri(parziali);
       await salvaRighe(somma.map((s) => ({
         documento_id: tavola.id, documento_nome: tavola.file_name, phase_id: faseNuovi === SENZA ? null : faseNuovi,
@@ -161,15 +217,15 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
       })));
       toast.success(`Simboli contati su ${mandati} riquadri`, { description: "È una stima: controlla e conferma ogni conteggio." });
     } catch (e) {
-      toast.error("Conteggio dei simboli non riuscito", { description: e instanceof Error ? e.message : String(e) });
+      if (token === sessione.current) toast.error("Conteggio dei simboli non riuscito", { description: e instanceof Error ? e.message : String(e) });
     } finally {
-      setLavoro(null);
+      if (token === sessione.current) setLavoro(null);
     }
   };
 
   const modifica = useMutation({
-    mutationFn: async (p: { id: string; patch: Partial<Conteggio> }) => {
-      const { error } = await supabase.from("planimetrie_conteggi").update(p.patch).eq("id", p.id);
+    mutationFn: async (p: { id: string; patch: Partial<ConteggioLetto> }) => {
+      const { error } = await supabase.from("planimetrie_conteggi").update({ ...p.patch, ...(p.patch.quantita != null || p.patch.phase_id !== undefined ? { confermato: false } : {}) }).eq("id", p.id).eq("order_id", orderId).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: aggiorna,
@@ -177,51 +233,59 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
   });
   const elimina = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("planimetrie_conteggi").delete().eq("id", id);
+      const { error } = await supabase.from("planimetrie_conteggi").delete().eq("id", id).eq("order_id", orderId).eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: aggiorna,
   });
   const confermaTutti = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("planimetrie_conteggi").update({ confermato: true }).in("id", ids);
+      const { error } = await supabase.from("planimetrie_conteggi").update({ confermato: true }).eq("order_id", orderId).eq("company_id", companyId).in("id", ids);
       if (error) throw error;
     },
     onSuccess: aggiorna,
   });
 
-  const conteggiTavola = useMemo(() => (dati.data?.conteggi ?? []).filter((c) => vista === "cad"
+  const pulisciLettura = useCallback(() => { sessione.current++; interruzione.current?.abort(); }, []);
+  useEffect(() => pulisciLettura, [pulisciLettura]);
+
+  const conteggiTavola = (dati.data?.conteggi ?? []).filter((c) => vista === "cad"
     // I disegni CAD: col documento se l'utente ha scelto di salvarlo, altrimenti senza.
     ? c.metodo === "dwg"
-    : c.metodo !== "dwg" && (!tavola || c.documento_id === tavola.id)), [dati.data, tavola, vista]);
+    : c.metodo !== "dwg" && (!tavola || c.documento_id === tavola.id) && (c.pagina || 1) === pagina);
   const daConfermare = conteggiTavola.filter((c) => !c.confermato).map((c) => c.id);
   const fasi = dati.data?.fasi ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[92dvh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tavole e conteggi</DialogTitle>
           <DialogDescription>
-            Conta sigle e simboli sulle planimetrie della commessa. Ogni conteggio è una bozza: confermalo e diventa materiale quando generi dal computo e dalle tavole.
+            Scegli la planimetria, conta sigle o simboli e verifica le quantità. I conteggi confermati si possono usare per generare i materiali.
           </DialogDescription>
         </DialogHeader>
+        <ol className="grid gap-2 rounded-xl border bg-muted/20 p-3 text-xs sm:grid-cols-3" aria-label="Passi dei conteggi"><li><strong>1. Scegli la tavola</strong><p className="mt-1 text-muted-foreground">Planimetria PDF o disegno CAD.</p></li><li><strong>2. Leggi i conteggi</strong><p className="mt-1 text-muted-foreground">Sigle senza AI; simboli con AI.</p></li><li><strong>3. Controlla e conferma</strong><p className="mt-1 text-muted-foreground">Assegna locale e fase ai risultati.</p></li></ol>
+        {dati.isPending && <p role="status" className="text-sm text-muted-foreground">Carico tavole e conteggi…</p>}
+        {dati.isError && <p role="alert" className="text-sm text-destructive">Non riesco a caricare tavole e conteggi. <Button variant="link" onClick={() => void dati.refetch()}>Riprova</Button></p>}
 
-        <div className="flex gap-1 text-sm" role="tablist" aria-label="Tipo di tavola">
+        <div className="flex flex-wrap gap-1 text-sm" role="tablist" aria-label="Tipo di tavola">
           <Button size="sm" role="tab" aria-selected={vista === "pdf"} variant={vista === "pdf" ? "default" : "outline"} className="h-8" onClick={() => setVista("pdf")}>Tavole PDF</Button>
           <Button size="sm" role="tab" aria-selected={vista === "cad"} variant={vista === "cad" ? "default" : "outline"} className="h-8" onClick={() => setVista("cad")}>Disegno CAD (DWG / DXF)</Button>
         </div>
 
+        {canEditOrders && <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">Nuovi disegni visibili a<select aria-label="Visibilità dei nuovi disegni" className="h-8 rounded-md border bg-background px-2" value={scopeDocumento} onChange={e => setScopeDocumento(e.target.value as "operativo" | "riservato")}><option value="operativo">Uffici con accesso alla commessa</option><option value="riservato">Solo amministratori</option></select><span>I documenti già caricati conservano la loro riservatezza.</span></label>}
+
         {vista === "cad" && (
-          <DisegnoCadPannello orderId={orderId} companyId={companyId} fasi={fasi} puoScrivere={puoScrivere}
-            onSalvati={aggiorna} />
+          <DisegnoCadPannello key={`${companyId}:${orderId}`} orderId={orderId} companyId={companyId} fasi={fasi} puoScrivere={puoScrivere}
+            puoArchiviare={!!canEditOrders} scopeDocumento={scopeDocumento} onSalvati={aggiorna} documenti={documenti.filter(d => /\.(dwg|dxf)$/i.test(d.file_name))} />
         )}
 
         {vista === "pdf" && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Select value={tavola?.id} onValueChange={(v) => { setTavolaId(v); setLettura(null); }}>
-            <SelectTrigger className="h-8 w-80" aria-label="Tavola"><SelectValue placeholder="Nessuna tavola PDF nella commessa" /></SelectTrigger>
-            <SelectContent>{(dati.data?.tavole ?? []).map((t) => <SelectItem key={t.id} value={t.id}>{t.file_name}</SelectItem>)}</SelectContent>
+          <Select value={tavola?.id ?? ""} onValueChange={(v) => { interrompi(); setTavolaId(v); setLettura(null); setLegendaManuale(""); setSceltaSimboli(new Set()); setPagina(1); setPagine(1); }}>
+            <SelectTrigger className="h-9 w-full sm:w-80" aria-label="Tavola"><SelectValue placeholder="Scegli una planimetria PDF" /></SelectTrigger>
+            <SelectContent>{[...consigliate, ...tavole.filter(t => !sembraTavola(t.file_name))].map((t) => <SelectItem key={t.id} value={t.id}>{t.file_name}{sembraTavola(t.file_name) ? " · tavola suggerita" : ""}</SelectItem>)}</SelectContent>
           </Select>
           {puoScrivere && (
             <>
@@ -232,11 +296,15 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
               <Button size="sm" className="h-8" disabled={!tavola || !!lavoro} onClick={leggi}>
                 <Hash className="mr-1.5 h-3.5 w-3.5" /> Conta le sigle
               </Button>
+              <Button size="sm" variant="outline" className="h-8" disabled={!tavola || !!lavoro} onClick={() => void rilevaLegenda()}><ScanSearch className="mr-1.5 h-3.5 w-3.5" /> Leggi legenda con AI</Button>
             </>
           )}
-          {lavoro && <span role="status" className="text-xs text-slate-600">{lavoro}</span>}
+          {pagine > 1 && <label className="text-xs">Pagina<select aria-label="Pagina della tavola" className="ml-2 h-8 rounded border bg-background px-2" value={pagina} disabled={!!lavoro} onChange={e => { interrompi(); setPagina(Number(e.target.value)); setLettura(null); }}>{Array.from({length:pagine},(_,i) => <option key={i} value={i+1}>{i+1}</option>)}</select></label>}
+          {lavoro && <><span role="status" className="text-xs text-slate-600">{lavoro}</span><Button size="sm" variant="ghost" onClick={interrompi}>Annulla lettura</Button></>}
         </div>
         )}
+        {vista === "pdf" && !dati.isPending && !dati.isError && !tavola && <div className="rounded-xl border border-dashed p-5 text-sm"><p className="font-medium">Scegli o carica una planimetria</p><p className="mt-1 text-xs leading-5 text-muted-foreground">I preventivi, contratti e computi rimangono tra i documenti. Se un PDF dal nome generico contiene anche una tavola, selezionalo dall'elenco.</p></div>}
+        {vista === "pdf" && tavola && <p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">{!sembraTavola(tavola.file_name) ? "PDF selezionato manualmente: verifica che contenga la planimetria da contare. " : ""}La lettura delle sigle non usa AI. Legenda e simboli con AI consumano il credito della tua azienda e restano da controllare.</p>}
 
         {vista === "pdf" && lettura && puoScrivere && (
           <div className="grid gap-3 md:grid-cols-2">
@@ -264,8 +332,9 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
             <section aria-label="Simboli della legenda" className="rounded border p-2 text-sm">
               <h4 className="mb-1 font-semibold">Simboli disegnati (stima dell'AI)</h4>
               <p className="mb-1 text-xs text-slate-500">Scegli dalla legenda i simboli da contare. La tavola va all'AI a riquadri: richiede qualche minuto e consuma credito AI.</p>
+              <label className="mb-2 block text-xs">Legenda da integrare o correggere<textarea aria-label="Legenda della tavola" className="mt-1 min-h-16 w-full rounded-md border bg-background p-2" placeholder="Un simbolo o prodotto per riga, anche per PDF scansionati" value={legendaManuale} onChange={e => { setLegendaManuale(e.target.value); setSceltaSimboli(new Set(e.target.value.split(/[;\n]+/).map(s => s.trim()).filter(Boolean))); }} /></label>
               <ul className="max-h-48 space-y-1 overflow-auto">
-                {lettura.legenda.map((l) => (
+                {legendaDisponibile.map((l) => (
                   <li key={l} className="flex items-center gap-2 text-xs">
                     <Checkbox checked={sceltaSimboli.has(l)} aria-label={l} onCheckedChange={(v) => {
                       const n = new Set(sceltaSimboli); if (v) n.add(l); else n.delete(l); setSceltaSimboli(n);
@@ -313,7 +382,7 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
                       <td className="px-2 py-1 text-right">
                         {puoScrivere ? (
                           <Input className="ml-auto h-7 w-20 text-right tabular-nums" defaultValue={String(c.quantita)} aria-label={`Quantità ${c.simbolo}`}
-                            onBlur={(e) => { const q = Number(e.target.value.replace(",", ".")); if (Number.isFinite(q) && q >= 0 && q !== Number(c.quantita)) modifica.mutate({ id: c.id, patch: { quantita: q, metodo: c.metodo === "testo" ? "testo" : "manuale" } }); }} />
+                            onBlur={(e) => { const q = Number(e.target.value.replace(",", ".")); if (Number.isFinite(q) && q >= 0 && q !== Number(c.quantita)) modifica.mutate({ id: c.id, patch: { quantita: q, metodo: c.metodo, dettaglio: { ...(c.dettaglio && typeof c.dettaglio === "object" && !Array.isArray(c.dettaglio) ? c.dettaglio : {}), quantita_modificata_a_mano: true } } }); }} />
                         ) : c.quantita}
                         {c.unita === "m" && <span className="text-slate-500"> m</span>}
                       </td>
@@ -330,7 +399,7 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
                         </Select>
                       </td>
                       <td className="px-2 py-1">
-                        <Checkbox checked={c.confermato} disabled={!puoScrivere} aria-label={`Conferma ${c.simbolo}`} onCheckedChange={(v) => modifica.mutate({ id: c.id, patch: { confermato: !!v } })} />
+                        <Checkbox checked={c.confermato} disabled={!puoScrivere || modifica.isPending || confermaTutti.isPending} aria-label={`Conferma ${c.simbolo}`} onCheckedChange={(v) => modifica.mutate({ id: c.id, patch: { confermato: !!v } })} />
                       </td>
                       <td className="px-2 py-1">
                         {puoScrivere && <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Elimina ${c.simbolo}`} onClick={() => elimina.mutate(c.id)}><Trash2 className="h-3.5 w-3.5" /></Button>}
@@ -342,6 +411,8 @@ export default function PlanimetrieDialog({ orderId, open, onOpenChange }: { ord
             </div>
           ) : <p className="text-xs text-slate-500">Nessun conteggio per questa tavola.</p>}
         </section>
+        <div className="border-t pt-3"><Button type="button" variant={confronto ? "secondary" : "default"} onClick={() => setConfronto(v => !v)}>{confronto ? "Chiudi confronto acquisti" : "Confronta con gli acquisti"}</Button><p className="mt-2 text-xs text-muted-foreground">Usa i conteggi confermati per completare i materiali o correggere il fabbisogno.</p></div>
+        {confronto && <ConfrontoTavoleAcquisti companyId={companyId} orderId={orderId} conteggi={dati.data?.conteggi ?? []} puoScrivere={puoScrivere} onAggiornati={aggiorna} onGenera={onGenera ? () => { onOpenChange(false); onGenera(); } : undefined} />}
       </DialogContent>
     </Dialog>
   );

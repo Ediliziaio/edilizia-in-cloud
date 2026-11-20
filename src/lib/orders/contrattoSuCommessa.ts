@@ -20,6 +20,7 @@ import {
 } from "@/lib/orders/contractExtract";
 import { dateLavoriDalContratto, fasiDalContratto } from "@/lib/orders/contractPreparation";
 import type { FaseModello } from "@/lib/orders/modelliFasi";
+import { articoliDalPiano, pianoOperativoContratto } from "./pianoOperativoContratto";
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -122,7 +123,8 @@ export function pianoContrattoSuCommessa(
   }
 
   const ivaVoci = iva ?? commessa.vat_rate ?? 22;
-  const voci: VoceDaContratto[] = ripartire ? [] : [
+  const voci: VoceDaContratto[] = ripartire || ex.origine_lettura === "computo" ? [] : ex.natura_documento !== "offerta_fornitore" && commessa.order_type !== "appaltatore_lavoro"
+    ? articoliDalPiano(pianoOperativoContratto(ex)).map(a => ({ name: a.name, quantity: a.quantity, unit_price: 0, discount_percent: 0, vat_rate: ivaVoci })) : [
     // Solo i materiali diventano articoli; lavori, servizi e sconti no. Con l'allegato a posizioni (serramenti)
     // gli articoli sono le posizioni, prezzo compreso nel totale a corpo (17/11/2026).
     ...articoliDalContratto(ex).posizioni.map((p) => ({

@@ -1,12 +1,7 @@
 /**
  * Legge un file DXF nel Web Worker (la pagina non si blocca) e traduce gli
- * errori in parole: DWG da salvare come DXF, file troppo grande per il browser.
- *
- * DWG: nessuna libreria adatta da mettere nel prodotto. Le uniche capaci di
- * leggere i DWG nel browser (es. @mlightcad/libredwg-web) sono LibreDWG
- * compilata in WASM, con licenza GPL-3.0: inserirla nell'app distribuita ai
- * clienti chiede una decisione del titolare. Finché non c'è, il DWG si salva
- * come DXF dal CAD (o con un convertitore gratuito) e si carica quello.
+ * errori in parole. Il pannello converte prima i DWG attraverso il motore
+ * nativo locale, se disponibile. Il worker riceve sempre e solo un DXF.
  */
 import type { DisegnoCad } from "./leggiDxf";
 import type { MessaggioWorker } from "./leggiDisegno.worker";
@@ -15,7 +10,7 @@ import type { MessaggioWorker } from "./leggiDisegno.worker";
 export const LIMITE_DXF_BYTE = 900 * 1024 * 1024;
 
 export const ISTRUZIONI_DWG =
-  "Il file è un DWG: il gestionale legge il formato DXF, che contiene gli stessi dati. In AutoCAD (o BricsCAD, ZWCAD, progeCAD) apri il disegno e usa «Salva con nome» → tipo «DXF» (va bene la versione 2018), poi carica qui il DXF. Senza CAD: ODA File Converter, gratuito, converte DWG in DXF.";
+  "La conversione automatica DWG non è attiva in questo ambiente. Apri il disegno nel CAD e usa «Salva con nome» → DXF di testo (ASCII, versione 2018), poi carica il DXF. Controlla unità, scala e oggetti convertiti prima di usare i conteggi.";
 
 export class ErroreDisegno extends Error {
   constructor(public codice: string, messaggio: string) { super(messaggio); }

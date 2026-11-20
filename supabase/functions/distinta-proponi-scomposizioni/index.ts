@@ -16,7 +16,9 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { leggiJson, messaggioVoci, pulisciScomposizioni, PROMPT_SCOMPOSIZIONI, type VoceDaScomporre } from "../_shared/distintaAI.ts";
+import { leggiJson, messaggioVoci, pulisciScomposizioni, scomposizioniComplete, PROMPT_SCOMPOSIZIONI, type VoceDaScomporre } from "../_shared/distintaAI.ts";
+import { conRegoleProposte, incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
+import { MODELLO_LETTURA_BREVE } from "../_shared/sceltaModelloLettura.ts";
 
 const MAX_VOCI = 12;
 
@@ -53,30 +55,36 @@ Deno.serve(async (req) => {
     if (!voci?.length) return errorResponse("Voci non trovate", 404, cors);
 
     const idempotencyKey = await buildStableAiIdempotencyKey("distinta_proponi_scomposizioni", [
-      companyId, userId, ...ids.sort(),
+      companyId, userId, PROMPT_SCOMPOSIZIONI, messaggioVoci(voci as VoceDaScomporre[]), ...ids.sort(),
     ]);
     const ai = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
       taskKey: "preventivo_genera",
+      // Scelta limitata alla distinta: non cambia gli altri generatori di preventivi.
+      forceModel: MODELLO_LETTURA_BREVE,
       messages: [
-        { role: "system", content: PROMPT_SCOMPOSIZIONI },
-        { role: "user", content: messaggioVoci(voci as VoceDaScomporre[]) },
+        { role: "system", content: conRegoleProposte(PROMPT_SCOMPOSIZIONI) },
+        { role: "user", content: incorniciaTestoDocumento(messaggioVoci(voci as VoceDaScomporre[])) },
       ],
-      params: { temperature: 0.1, max_tokens: 6000 },
+      params: { temperature: 0.1, max_tokens: Math.min(16000, 2000 + voci.length * 1000) },
       responseFormat: { type: "json_object" },
       companyId,
       userId,
       idempotencyKey,
     });
 
-    const proposte = pulisciScomposizioni(leggiJson(ai.content ?? ""), voci.map((v: { id: string }) => v.id));
-    if (!proposte.length) return errorResponse("L'AI non ha restituito proposte leggibili: riprova", 502, cors);
+    if (["length", "max_tokens"].includes(ai.rawResponse?.choices?.[0]?.finish_reason)) return errorResponse("Risposta AI interrotta: nessuna proposta salvata. Riprova con meno voci.", 502, cors);
+    const richiesteId = voci.map((v: { id: string }) => v.id);
+    const proposte = pulisciScomposizioni(leggiJson(ai.content ?? ""), richiesteId);
+    if (!proposte.length || !scomposizioniComplete(proposte, richiesteId)) return errorResponse("L'AI non ha risposto a tutte le voci: nessuna proposta salvata. Riprova.", 502, cors);
 
     const create: { id: string; voce_id: string; nome: string; componenti: number }[] = [];
     const senzaMateriali: string[] = [];
+    const daVerificare: Array<{ voce_id: string; dati_mancanti: string[] }> = [];
     for (const p of proposte) {
-      if (!p.componenti.length) { senzaMateriali.push(p.voce_id); continue; }
+      if (p.stato === "dati_mancanti") { daVerificare.push({ voce_id: p.voce_id, dati_mancanti: p.dati_mancanti }); continue; }
+      if (p.stato === "senza_materiali") { senzaMateriali.push(p.voce_id); continue; }
       const voce = voci.find((v: { id: string }) => v.id === p.voce_id) as VoceDaScomporre;
       const codice = (voce.codice_prezzario ?? "").trim() || null;
       const parole = p.parole_chiave.length ? p.parole_chiave : [voce.descrizione_breve.slice(0, 40)];
@@ -91,7 +99,7 @@ Deno.serve(async (req) => {
           categoria: p.componenti.find((c) => c.categoria)?.categoria ?? null,
           attiva: false,
           origine: "ai",
-          note: [p.note, `Proposta dall'AI per «${voce.descrizione_breve.slice(0, 160)}»: da controllare prima di approvarla.`]
+          note: [p.tipo_quantita === "stima_tecnica" ? "Quantità da resa tecnica stimata: ipotesi da validare, non misure lette nel documento." : "Quantità ricavate dal documento: da verificare con la voce originale.", p.note, `Proposta dall'AI per «${voce.descrizione_breve.slice(0, 160)}»: da controllare prima di approvarla.`]
             .filter(Boolean).join("\n"),
           creata_da: userId,
         })
@@ -110,6 +118,7 @@ Deno.serve(async (req) => {
       create: create.length,
       scomposizioni: create,
       senza_materiali: senzaMateriali,
+      da_verificare: daVerificare,
       ai_meta: { model_used: ai.modelUsed, tokens: ai.totalTokens },
     }, 200, cors);
   } catch (err) {

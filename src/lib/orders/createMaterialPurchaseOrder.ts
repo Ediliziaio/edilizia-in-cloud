@@ -2,6 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { loadMaterialCoverage, loadUnmappedPurchaseOrders } from "@/hooks/useMaterialProcurement";
 import { pendingMaterials, procurementLines, prezzoAcquistoDaDefinire, type ProcurementItem } from "./materialProcurement";
 import { logger } from "@/utils/logger";
+import { verificaDelMateriale } from "@/lib/distinta/verificaAcquisto";
+import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
 
 export class IncompletePurchaseOrderError extends Error {
   constructor(public poId: string) {
@@ -45,9 +47,11 @@ export async function createMaterialPurchaseOrder(input: {
     const current: ProcurementItem[] = [];
     for (let start = 0; start < ids.length; start += 100) {
       const { data, error } = await supabase.from("order_items")
-        .select("id, name, quantity, purchase_price, prezzo_da_definire, prezzo_fonte, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, orders!inner(company_id)")
+        .select("id, name, quantity, purchase_price, prezzo_da_definire, prezzo_fonte, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, origini, orders!inner(company_id)")
         .eq("order_id", orderId).eq("orders.company_id", companyId).in("id", ids.slice(start, start + 100));
       if (error) throw error;
+      const incomplete = (data ?? []).filter(r => verificaDelMateriale({ name: r.name, origini: Array.isArray(r.origini) ? r.origini as unknown as OrigineRiga[] : [] })?.stato === "da_verificare");
+      if (incomplete.length) throw new Error(`Completa e verifica i dati tecnici prima di creare l'ordine: ${incomplete.map(r => r.name).join(", ")}.`);
       current.push(...(data ?? []) as unknown as ProcurementItem[]);
     }
     const coverage = await loadMaterialCoverage(companyId, ids);

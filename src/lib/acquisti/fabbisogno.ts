@@ -6,7 +6,12 @@
  * consegna del fornitore.
  */
 
+import type { VerificaAcquisto } from "@/lib/distinta/verificaAcquisto";
+import type { MaterialeDaVerificare } from "@/lib/distinta/bozzaVerificaMateriale";
+
 export interface RigaFabbisogno {
+  verifica_acquisto?: VerificaAcquisto;
+  dati_verifica?: MaterialeDaVerificare;
   order_item_id: string;
   order_id: string;
   commessa: string | null;
@@ -58,6 +63,7 @@ export function giorniAlLimite(ordinaEntro: string | null, oggi: string): number
  * ma qualcuno deve guardarla.
  */
 export function urgenza(r: RigaFabbisogno, oggi: string): Urgenza {
+  if (r.verifica_acquisto?.stato === "da_verificare") return "da_verificare";
   const daOrdinare = r.residuo > 0 && !["consegnato", "installato"].includes(r.stato);
   if (!daOrdinare) return "da_verificare";
   const g = giorniAlLimite(r.ordina_entro, oggi);

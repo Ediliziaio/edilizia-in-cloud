@@ -1,5 +1,5 @@
 /**
- * Conteggi da un disegno CAD (DXF; il DWG si salva come DXF dal CAD).
+ * Conteggi da un disegno CAD: DXF nel browser, DWG convertito dal motore locale.
  *   1. Il file si legge nel browser, in un Web Worker: la pagina non si
  *      blocca anche con disegni da centinaia di MB. Tra i documenti della
  *      commessa si salva solo se l'utente lo chiede (con un avviso per i file
@@ -11,7 +11,7 @@
  * I conteggi entrano come bozza (metodo «dwg»): diventano materiali solo
  * quando qualcuno li conferma, come gli altri.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileUp, X } from "lucide-react";
@@ -27,7 +27,10 @@ import type { DisegnoCad } from "@/lib/distinta/cad/leggiDxf";
 import { nomeVersione, riconosciFormato } from "@/lib/distinta/cad/leggiDxf";
 import { AVVISO_MB_DOCUMENTO, caricaDocumentoCommessa } from "@/lib/commesse/caricaDocumentoCommessa";
 import { MAX_BYTES_PER_FILE, MAX_MB_PER_FILE } from "@/lib/commesse/documentiCommessa";
+import { attachmentStorage } from "@/components/orders/filePreviewUtils";
 import { ISTRUZIONI_DWG, leggiDisegnoCad } from "@/lib/distinta/cad/leggiDisegnoCad";
+import { conversioneDwgLocaleDisponibile, convertiDwgLocale } from "@/lib/distinta/cad/convertiDwg";
+import type { ProvenienzaConversioneDwg } from "@/lib/distinta/cad/protocolloDwg";
 import { affidabilitaDisegno, fattoreScalaCad, misureCadPronte } from '@/lib/distinta/cad/affidabilitaDisegno';
 import {
   SENZA_LOCALE, UNITA_DISEGNO, contaSimboli, lunghezzePerLayer, metriPerUnita, misuraLunghezze, nomeUnita, trovaLocali,
@@ -47,13 +50,21 @@ interface Props {
   puoScrivere: boolean;
   /** Dopo il salvataggio, per ricaricare l'elenco dei conteggi. */
   onSalvati: () => void;
+  documenti?: { id: string; file_name: string; file_url: string }[];
+  puoArchiviare?: boolean;
+  scopeDocumento?: "operativo" | "riservato";
 }
 
-export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrivere, onSalvati }: Props) {
+export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrivere, onSalvati, documenti = [], puoArchiviare = puoScrivere, scopeDocumento }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const annulla = useRef<(() => void) | null>(null);
+  const generazione = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [avanzamento, setAvanzamento] = useState<number | null>(null);
+  const [stato, setStato] = useState<"conversione" | "lettura" | null>(null);
+  const [conversione, setConversione] = useState<ProvenienzaConversioneDwg | null>(null);
+  const [disegnoSalvatoId, setDisegnoSalvatoId] = useState("");
+  const [scaricando, setScaricando] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [disegno, setDisegno] = useState<DisegnoCad | null>(null);
 
@@ -74,6 +85,13 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
   const [confermaGrande, setConfermaGrande] = useState(false);
   const [caricoDocumento, setCaricoDocumento] = useState(false);
 
+  useEffect(() => () => { generazione.current++; annulla.current?.(); }, []);
+  const interrompi = () => {
+    generazione.current++; annulla.current?.(); annulla.current = null;
+    setStato(null); setAvanzamento(null); setConversione(null);
+    setErrore("Lettura annullata. Puoi aprire un altro disegno o riprovare.");
+  };
+
   const mappa = useQuery({
     queryKey: ["dwg-mappa-blocchi", companyId],
     enabled: !!companyId,
@@ -84,16 +102,30 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
     },
   });
 
-  const apri = async (f: File) => {
-    setFile(f); setDisegno(null); setErrore(null); setDocumento(null); setConfermaGrande(false);
+  const apri = async (f: File, salvato?: { id: string; nome: string }) => {
+    const corrente = ++generazione.current;
+    annulla.current?.();
+    const ctrl = new AbortController();
+    annulla.current = () => ctrl.abort();
+    setFile(f); setDisegno(null); setErrore(null); setDocumento(salvato ?? null); setConfermaGrande(false);
+    setConversione(null); setStato("lettura"); setAvanzamento(0);
     setScalaConfermata(false); setScelte({}); setCerchi(false); setLayerLunghezze(new Set()); setNomiLunghezze({});
-    const testa = new Uint8Array(await f.slice(0, 64).arrayBuffer());
-    if (riconosciFormato(testa) === "dwg") { setErrore(ISTRUZIONI_DWG); return; }
-    setAvanzamento(0);
-    const lettura = leggiDisegnoCad(f, (x) => setAvanzamento(x));
-    annulla.current = lettura.annulla;
     try {
+      const testa = new Uint8Array(await f.slice(0, 64).arrayBuffer());
+      if (corrente !== generazione.current) return;
+      let daLeggere = f;
+      if (riconosciFormato(testa) === "dwg") {
+        if (!conversioneDwgLocaleDisponibile() && !orderId) throw new Error(ISTRUZIONI_DWG);
+        setStato("conversione"); setAvanzamento(null);
+        const risultato = await convertiDwgLocale(f, companyId, ctrl.signal, orderId);
+        if (corrente !== generazione.current || ctrl.signal.aborted) return;
+        daLeggere = risultato.file; setConversione(risultato.provenienza);
+      }
+      setStato("lettura"); setAvanzamento(0);
+      const lettura = leggiDisegnoCad(daLeggere, x => { if (corrente === generazione.current) setAvanzamento(x); });
+      annulla.current = () => { ctrl.abort(); lettura.annulla(); };
       const d = await lettura.promessa;
+      if (corrente !== generazione.current || ctrl.signal.aborted) return;
       setDisegno(d);
       setUnita(metriPerUnita(d.insunits) ? d.insunits : 4);
       setScala("1");
@@ -106,16 +138,15 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
       setCerchi(false);
       setLayerLunghezze(new Set(lunghezzePerLayer(d).map((l) => l.layer).filter((l) => /CORRUG|CAVI|CAVO|TUBO|TUBAZ|CANAL|PASSER|LINEA|DORSAL/i.test(l))));
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : String(e));
+      if (corrente === generazione.current) { setConversione(null); setErrore(e instanceof Error ? e.message : String(e)); }
     } finally {
-      setAvanzamento(null);
-      annulla.current = null;
+      if (corrente === generazione.current) { setStato(null); setAvanzamento(null); annulla.current = null; }
     }
   };
 
   const qualita = useMemo(() => disegno ? affidabilitaDisegno(disegno) : null, [disegno]);
   const scalaValida = fattoreScalaCad(scala);
-  const misurePronte = !!disegno && misureCadPronte(disegno, scala, scalaConfermata);
+  const misurePronte = !!disegno && (!conversione || scalaConfermata) && misureCadPronte(disegno, scala, scalaConfermata);
   const metri = (metriPerUnita(unita) ?? 0.001) * (scalaValida ?? 0);
   const locali = useMemo(() => disegno ? trovaLocali(disegno, { layerLocali: layerLocali === NESSUNO ? [] : [layerLocali] }) : null, [disegno, layerLocali]);
   const simboli = useMemo(() => disegno && locali ? contaSimboli(disegno, locali, { cerchi }) : [], [disegno, locali, cerchi]);
@@ -132,7 +163,8 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
   const righe = useMemo(() => file && !qualita?.statiSovrapposti ? righeConteggio(simboli, scelteEffettive, lunghezze, nomiLunghezze, {
     file: file.name, unita_disegno: nomeUnita(unita), scala: scalaValida,
     maggiorazione_pct: Number(maggiorazione.replace(",", ".")) || 0, layer_locali: layerLocali === NESSUNO ? null : layerLocali,
-  }) : [], [file, simboli, scelteEffettive, lunghezze, nomiLunghezze, unita, scalaValida, maggiorazione, layerLocali, qualita]);
+    ...(conversione ? { conversione: { ...conversione, misure_calibrate: scalaConfermata } } : {}),
+  }) : [], [file, simboli, scelteEffettive, lunghezze, nomiLunghezze, unita, scalaValida, maggiorazione, layerLocali, qualita, conversione, scalaConfermata]);
 
   const cambia = (chiave: string, patch: Partial<SceltaSimbolo>) =>
     setScelte((s) => ({ ...s, [chiave]: { ...scelteEffettive[chiave], ...patch } }));
@@ -141,17 +173,20 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
     if (!file || !righe.length || qualita?.statiSovrapposti || !puoScrivere) return;
     setSalvo(true);
     try {
+      const riferimento = documento ?? (puoArchiviare && file.size <= MAX_BYTES_PER_FILE ? await salvaDocumento() : null);
+      if (!documento && puoArchiviare && file.size <= MAX_BYTES_PER_FILE && !riferimento) throw new Error("Salva il documento originale prima di registrare i conteggi.");
       const voci = vociDaSalvare(Object.values(scelteEffettive).filter((s) => s.origine !== "vuoto" || s.simbolo.trim()));
       if (voci.length) {
         const { error } = await supabase.from("dwg_mappa_blocchi").upsert(voci.map((v) => ({ ...v, company_id: companyId })), { onConflict: "company_id,nome_blocco" });
         if (error) throw error;
       }
-      const { error } = await supabase.from("planimetrie_conteggi").insert(righe.map((r) => ({
+      const sha = conversione?.sha256_originale ?? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())), b => b.toString(16).padStart(2,"0")).join("");
+      const { error } = await supabase.rpc("planimetrie_salva_conteggi" as never, { p_order: orderId, p_documento: riferimento?.id ?? null, p_nome: file.name, p_sha256: sha, p_righe: righe.map((r) => ({
         company_id: companyId, order_id: orderId, phase_id: fase === SENZA_FASE ? null : fase,
-        documento_id: documento?.id ?? null, documento_nome: file.name, simbolo: r.simbolo, descrizione_legenda: r.descrizione_legenda,
+        documento_id: riferimento?.id ?? null, documento_nome: file.name, simbolo: r.simbolo, descrizione_legenda: r.descrizione_legenda,
         locale: r.locale, quantita: r.quantita, unita: r.unita, metodo: "dwg", confidenza: 1,
         scomposizione_id: r.scomposizione_id, dettaglio: r.dettaglio as Json,
-      })));
+      })) } as never);
       if (error) throw error;
       toast.success(`${righe.length} conteggi salvati come bozza`, { description: "Controllali e confermali qui sotto: solo i confermati diventano materiali." });
       mappa.refetch();
@@ -167,52 +202,71 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
     if (!file || !user) return;
     setCaricoDocumento(true);
     try {
-      const d = await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: "application/dxf" });
+      const d = await caricaDocumentoCommessa({ orderId, companyId, userId: user.id, file, tipo: conversione ? "application/octet-stream" : "application/dxf", accessScope: scopeDocumento });
       setDocumento({ id: d.id, nome: file.name });
       setConfermaGrande(false);
       toast.success("Disegno salvato tra i documenti della commessa");
       onSalvati();
+      return { id: d.id, nome: file.name };
     } catch (e) {
       toast.error("Disegno non salvato tra i documenti", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setCaricoDocumento(false);
     }
   };
+  const apriSalvato = async () => {
+    const d = documenti.find(d => d.id === disegnoSalvatoId); if (!d || scaricando) return;
+    const token = ++generazione.current; annulla.current?.(); setScaricando(true); setErrore(null);
+    try {
+      const { bucket, path } = attachmentStorage(d.file_url);
+      const { data, error } = await supabase.storage.from(bucket).download(path);
+      if (token !== generazione.current) return;
+      if (error || !data) throw error ?? new Error("Documento non disponibile.");
+      await apri(new File([data], d.file_name, { type: d.file_name.toLowerCase().endsWith(".dwg") ? "application/octet-stream" : "application/dxf" }), { id: d.id, nome: d.file_name });
+    } catch (e) { if (token === generazione.current) setErrore(e instanceof Error ? e.message : "Non riesco a scaricare il disegno della commessa."); }
+    finally { setScaricando(false); }
+  };
   const mbFile = file ? file.size / 1_048_576 : 0;
   const troppoGrande = !!file && file.size > MAX_BYTES_PER_FILE;
   const grande = mbFile > AVVISO_MB_DOCUMENTO;
 
   const layerContorni = useMemo(() => disegno ? [...new Set(disegno.contorni.map((c) => c.layer))].sort() : [], [disegno]);
-  const daContare = simboli.filter((s) => !scelteEffettive[s.chiave]?.ignora);
+  const daContare = simboli.filter((s) => { const c = scelteEffettive[s.chiave]; return c && !c.ignora && c.simbolo.trim(); });
 
   return (
     <section aria-label="Disegno CAD" className="space-y-3 rounded border p-2 text-sm">
+      {documenti.length > 0 && <div className="flex flex-wrap items-end gap-2"><label className="min-w-0 flex-1 text-xs">Disegno tra i documenti della commessa<select aria-label="Disegno salvato" className="mt-1 h-9 w-full rounded-md border bg-background px-2" value={disegnoSalvatoId} disabled={stato !== null || scaricando || salvo} onChange={e => setDisegnoSalvatoId(e.target.value)}><option value="">Scegli un DWG o DXF già caricato</option>{documenti.map(d => <option key={d.id} value={d.id}>{d.file_name}</option>)}</select></label><Button size="sm" variant="outline" disabled={!disegnoSalvatoId || stato !== null || scaricando || salvo} onClick={() => void apriSalvato()}>{scaricando ? "Scarico…" : "Leggi disegno salvato"}</Button></div>}
       <div className="flex flex-wrap items-center gap-2">
         <input ref={input} type="file" accept=".dxf,.dwg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) apri(f); e.target.value = ""; }} />
-        <Button size="sm" className="h-8" disabled={avanzamento !== null} onClick={() => input.current?.click()}>
+        <Button size="sm" className="h-8" disabled={stato !== null || scaricando || salvo || caricoDocumento} onClick={() => input.current?.click()}>
           <FileUp className="mr-1.5 h-3.5 w-3.5" /> Apri un disegno DXF / DWG
         </Button>
         {file && <span className="text-xs text-slate-600">{file.name} · {fmt(file.size / 1_048_576, 1)} MB</span>}
       </div>
       <p className="text-xs text-slate-500">
-        Il disegno si legge nel tuo browser: tra i documenti si salva solo se lo scegli tu. I blocchi (prese, luci, rilevatori…) si contano esattamente, stanza per stanza.
-        Per un DWG: nel CAD «Salva con nome» → DXF, poi apri il DXF.
+        {conversioneDwgLocaleDisponibile() ? "Il DWG viene convertito sul tuo computer, poi letto nel browser. Puoi caricare anche un DXF." : "Il DWG viene inviato al servizio protetto del gestionale e convertito per questa commessa (massimo 4 MB). Il DXF si legge nel browser."}
+        {" "}Classifica i blocchi e verifica le misure. Salvando i conteggi, conservi anche l’originale nella commessa entro il limite dei documenti.
       </p>
 
-      {avanzamento !== null && (
+      {stato !== null && (
         <div className="flex items-center gap-2" role="status">
-          <Progress value={Math.round(avanzamento * 100)} className="h-2 w-64" />
-          <span className="text-xs text-slate-600">Leggo il disegno… {Math.round(avanzamento * 100)}%</span>
-          <Button size="sm" variant="ghost" className="h-7" onClick={() => annulla.current?.()}><X className="mr-1 h-3.5 w-3.5" /> Annulla</Button>
+          {stato === "lettura" && <Progress value={Math.round((avanzamento ?? 0) * 100)} className="h-2 w-64" />}
+          <span className="text-xs text-slate-600">{stato === "conversione" ? (conversioneDwgLocaleDisponibile() ? "Converto il DWG sul tuo computer…" : "Converto il DWG per questa commessa…") : `Leggo il disegno… ${Math.round((avanzamento ?? 0) * 100)}%`}</span>
+          <Button size="sm" variant="ghost" className="h-7" onClick={interrompi}><X className="mr-1 h-3.5 w-3.5" /> Annulla</Button>
         </div>
       )}
       {errore && <p role="alert" className="rounded bg-amber-50 p-2 text-xs text-amber-900">{errore}</p>}
 
       {disegno && locali && (
         <>
+          {conversione && <div aria-label="Conversione DWG" className="space-y-1 rounded border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+            <p><strong>DWG convertito e letto.</strong> L’originale resta il tuo file DWG. La conversione non consuma crediti AI.</p>
+            {conversione.segnalazioni && <p className="text-amber-900">Il convertitore ha segnalato oggetti CAD non completamente supportati. Confronta il risultato con la tavola originale prima di usare i conteggi.</p>}
+            <p>Gli elementi grafici non sono ancora articoli da comprare. Per le lunghezze, conferma unità e scala su una quota nota.</p>
+          </div>}
           {qualita?.statiSovrapposti && <p role="alert" className="rounded border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">Il file contiene sia «Stato di fatto» sia «Stato di progetto»: non sommo tavole, piani o alternative. Per salvare conteggi carica un DXF separato con il solo stato e intervento da computare. Puoi comunque ispezionare questo disegno.</p>}
           {qualita?.pdfImportato && <p className="rounded bg-blue-50 p-2 text-xs text-blue-900">Layer riconducibili a PDF importati: curve e cerchi non sono automaticamente serramenti, luci o materiali. L’unità dichiarata dal file può non coincidere con la scala delle tavole.</p>}
-          {puoScrivere && (
+          {puoArchiviare && (
             <div aria-label="Disegno tra i documenti" className="flex flex-wrap items-center gap-2 rounded bg-slate-50 p-2 text-xs">
               {documento ? (
                 <span className="text-emerald-700">Salvato tra i documenti della commessa: i conteggi che salvi lo riferiscono.</span>
@@ -256,7 +310,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
               </div>
               <span className="text-slate-500">Disegno nativo in scala reale: 1. Per tavole reimportate verifica unità e fattore su una quota nota: «1:200» da solo non basta.</span>
               {scalaValida === null && <span role="alert" className="block text-orange-800">Indica un fattore di scala positivo e finito.</span>}
-              {qualita?.richiedeCalibrazione && <span className="flex items-start gap-1"><Checkbox aria-label="Conferma calibrazione CAD" checked={scalaConfermata} disabled={scalaValida === null || qualita.statiSovrapposti} onCheckedChange={v => setScalaConfermata(v === true)} />Ho verificato unità e scala su una quota nota dello stato da computare.</span>}
+              {(conversione || qualita?.richiedeCalibrazione) && <span className="flex items-start gap-1"><Checkbox aria-label="Conferma calibrazione CAD" checked={scalaConfermata} disabled={scalaValida === null || qualita?.statiSovrapposti} onCheckedChange={v => setScalaConfermata(v === true)} />Ho verificato unità e scala su una quota nota dello stato da computare.</span>}
             </label>
             <label className="space-y-1 text-xs">
               <span>Stanze</span>
@@ -296,7 +350,7 @@ export default function DisegnoCadPannello({ orderId, companyId, fasi, puoScrive
                               <Input className="h-7" value={c?.simbolo ?? ""} placeholder="es. Punto presa 10/16A" disabled={c?.ignora}
                                 aria-label={`Simbolo di ${s.nome}`} onChange={(e) => cambia(s.chiave, { simbolo: e.target.value })} />
                               {c?.origine === "mappa" && <span className="text-[10px] text-emerald-700">salvato per l'azienda</span>}
-                              {c?.origine === "suggerito" && <span className="text-[10px] text-slate-500">suggerito dal nome</span>}
+                              {c?.origine === "suggerito" && <span className="text-[10px] text-slate-500">{c.ignora ? "escluso dal conteggio: puoi classificarlo" : "suggerito dal nome"}</span>}
                             </td>
                           </tr>
                         );

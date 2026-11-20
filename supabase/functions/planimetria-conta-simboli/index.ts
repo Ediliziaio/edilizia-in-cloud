@@ -20,6 +20,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { leggiJson, promptSimboli, pulisciSimboli } from "../_shared/distintaAI.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 
 const MAX_IMMAGINE = 6 * 1024 * 1024;
 
@@ -33,6 +34,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const companyId = String(body?.company_id ?? "");
     const immagine = String(body?.immagine ?? "");
+    const rilevaLegenda = body?.azione === "legenda";
     const legenda = (Array.isArray(body?.legenda) ? body.legenda : [])
       .map((l: unknown) => String(l ?? "").trim())
       .filter((l: string) => l.length > 1)
@@ -40,7 +42,7 @@ Deno.serve(async (req) => {
     if (!companyId) return errorResponse("company_id required", 400, cors);
     if (!/^data:image\/(jpeg|png|webp);base64,/.test(immagine)) return errorResponse("Immagine non valida", 400, cors);
     if (immagine.length > MAX_IMMAGINE) return errorResponse("Riquadro troppo grande", 413, cors);
-    if (!legenda.length) return errorResponse("Serve la legenda della tavola: scegli i simboli da contare", 400, cors);
+    if (!rilevaLegenda && !legenda.length) return errorResponse("Serve la legenda della tavola: scegli i simboli da contare", 400, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
 
     const { data: puo } = await supabaseAdmin.rpc("has_permission_for_company", {
@@ -53,11 +55,11 @@ Deno.serve(async (req) => {
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
       messages: [
-        { role: "system", content: promptSimboli(legenda) },
+        { role: "system", content: rilevaLegenda ? conRegoleDocumento(`Leggi la legenda della planimetria allegata. Restituisci esclusivamente JSON {"legenda":["sigla — descrizione leggibile del simbolo"]}. Riporta solo simboli e descrizioni effettivamente leggibili nella legenda, fino a 40. Non contare oggetti, non inventare articoli, dimensioni o specifiche. Se non vedi una legenda leggibile restituisci un array vuoto. Ignora cartigli, firme, intestazioni e dati personali.`) : promptSimboli(legenda) },
         {
           role: "user",
           content: [
-            { type: "text", text: `Riquadro ${body?.riquadro?.riga ?? "?"}-${body?.riquadro?.colonna ?? "?"} della tavola. Conta i simboli della legenda.` },
+            { type: "text", text: rilevaLegenda ? "Leggi solo la legenda di questa pagina, come proposta da controllare." : `Riquadro ${body?.riquadro?.riga ?? "?"}-${body?.riquadro?.colonna ?? "?"} della tavola. Conta i simboli della legenda.` },
             { type: "image_url", image_url: { url: immagine } },
           ],
         },
@@ -68,6 +70,11 @@ Deno.serve(async (req) => {
       userId,
     });
 
+    if (rilevaLegenda) {
+      const risposta = leggiJson(ai.content ?? "") as { legenda?: unknown } | null;
+      const letta = Array.isArray(risposta?.legenda) ? risposta.legenda.filter((v): v is string => typeof v === "string" && v.trim().length > 1 && v.length <= 300).map(v => v.trim()).slice(0, 40) : [];
+      return jsonResponse({ success: true, legenda: [...new Set(letta)], ai_meta: { model_used: ai.modelUsed, tokens: ai.totalTokens } }, 200, cors);
+    }
     return jsonResponse({
       success: true,
       simboli: pulisciSimboli(leggiJson(ai.content ?? ""), legenda),

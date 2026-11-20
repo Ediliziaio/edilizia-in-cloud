@@ -28,7 +28,7 @@ export async function computoInCommessa(
   const file = new File([blob], originale.name, { type: originale.mime || blob.type });
   const computo = await leggiFileComputo(file);
   const { esito, voci } = daComputoStrutturato(computo, originale.name);
-  const formato = computo.formato === "primus_pdf" ? "PDF PriMus" : computo.formato === "xpwe" ? "XPWE" : "Excel";
+  const formato = computo.formato === "primus_pdf" ? "PDF PriMus" : computo.formato === "tabellare_pdf" ? "PDF tabellare" : computo.formato === "xpwe" ? "XPWE" : "Excel";
   const salvato = await salvaComputoImportato(orderId, companyId, userId, {
     voci, file: [{ file, formato, via: "browser" }], totaleDocumento: esito.totaleDocumento ?? computo.totale_dichiarato,
     origine: "carica-contratto",

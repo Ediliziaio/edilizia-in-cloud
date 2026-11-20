@@ -53,9 +53,16 @@ export function naturaVoce(
   descrizione: string | null | undefined,
   opts: { sicurezza?: boolean; capitolo?: string | null; detrazione?: boolean } = {},
 ): NaturaVoce {
-  const d = (descrizione ?? "").replace(/\s+/g, " ").trim();
+  // I preventivi riportano spesso il codice all'inizio della descrizione:
+  // «DEM_1.1 Demolizione…» deve restare lavoro, «AL_1.4 Trasporto…» servizio.
+  const d = (descrizione ?? "").replace(/\s+/g, " ").trim()
+    .replace(/^nr\.?\s*\d+\s*[-–:]\s*/i, "")
+    .replace(/^\d+\s+(?=rimozion|demolizion|spicconatur|fornitur|posa|manodopera|operaio|oneri|trasport)/i, "")
+    .replace(/^[a-z]{2,8}_\d+(?:\.\d+)+\s*(?:[-–—:]\s*)?/i, "");
   if (opts.detrazione || SCONTO.test(d)) return "sconto";
   if (opts.sicurezza || /oneri (della |per la )?sicurezza|apprestamenti/i.test(opts.capitolo ?? "")) return "servizio";
+  if (/^(?:informazione dei lavoratori|accertamenti sanitari|sorveglianza sanitaria)/i.test(d)) return "servizio";
+  if (/^(?:installazione|montaggio)\b/i.test(d) && !/\bfornitur/i.test(d)) return "lavorazione";
   if (SOLA_POSA.test(d)) return "lavorazione";
   if (SERVIZIO.test(d)) return "servizio";
   if (LAVORAZIONE.test(d)) return "lavorazione";

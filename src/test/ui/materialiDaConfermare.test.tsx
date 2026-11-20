@@ -35,7 +35,7 @@ import { MaterialiDaConfermare, type MaterialeProposto } from "@/components/orde
 
 const proposte: (MaterialeProposto & { origini: unknown[] })[] = [
   { id: "p1", chiave: "k1", phase_id: "f1", descrizione: "Pannello isolante per cappotto", specifiche: null, quantita: 120, unita_misura: "mq", supplier_id: null, fornitore: null, consigliata: true, origine: "computo", origini: [] },
-  { id: "p2", chiave: "k2", phase_id: "f1", descrizione: "Tasselli a percussione", specifiche: null, quantita: 600, unita_misura: "pz", supplier_id: null, fornitore: null, consigliata: false, origine: "computo", origini: [] },
+  { id: "p2", chiave: "k2", phase_id: "f1", descrizione: "Tasselli a percussione", specifiche: "Lunghezza da verificare con lo spessore dell'isolante", quantita: 600, unita_misura: "pz", supplier_id: null, fornitore: null, consigliata: false, origine: "computo", origini: [] },
   { id: "p3", chiave: "k3", phase_id: "f2", descrizione: "Ventilconvettore a parete", specifiche: null, quantita: 4, unita_misura: "pz", supplier_id: "s1", fornitore: "Termo Srl", consigliata: true, origine: "computo", origini: [] },
 ];
 const fasi = [{ id: "f1", nome: "Cappotto" }, { id: "f2", nome: "Impianto termico" }];
@@ -60,12 +60,14 @@ describe("Materiali dal computo da confermare", () => {
 
   it("una riga nella pagina, la scelta nel popup per fasi; si inseriscono solo gli spuntati", async () => {
     monta();
-    expect(await screen.findByText("Dal computo: 3 materiali da confermare")).toBeInTheDocument();
+    expect(await screen.findByText("Dal computo: 3 proposte da inserire")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Scegli e inserisci" }));
     const finestra = await screen.findByRole("dialog");
     // La prima fase: la proposta dell'AI parte senza spunta.
     expect(within(finestra).getByText("1 su 2 da inserire")).toBeInTheDocument();
     expect(within(finestra).getByRole("checkbox", { name: "Seleziona Tasselli a percussione" })).not.toBeChecked();
+    expect(within(finestra).getByText(/quantità e rese stimate/)).toHaveTextContent("restano escluse dagli acquisti");
+    expect(within(finestra).getByText("Lunghezza da verificare con lo spessore dell'isolante")).toBeVisible();
     fireEvent.click(within(finestra).getByRole("button", { name: /Impianto termico/ }));
     expect(within(finestra).getByText("Termo Srl")).toBeInTheDocument();
     fireEvent.click(within(finestra).getByRole("button", { name: "Inserisci 2 negli articoli" }));

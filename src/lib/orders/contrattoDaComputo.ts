@@ -32,7 +32,7 @@ function capitoloFase(v: ComputoVoceStrutturata): string | null {
   return v.sotto_categoria?.nome?.trim() || v.categoria?.nome?.trim() || v.super_categoria?.nome?.trim() || null;
 }
 
-const SUPER_FORMATO: Record<ComputoStrutturato["formato"], string> = { primus_pdf: "PDF di PriMus", xpwe: "file XPWE", excel: "foglio Excel" };
+const SUPER_FORMATO: Record<ComputoStrutturato["formato"], string> = { primus_pdf: "PDF di PriMus", tabellare_pdf: "PDF con tabella di quantità e prezzi", xpwe: "file XPWE", excel: "foglio Excel" };
 
 export function contrattoDaComputo(c: ComputoStrutturato): ContractExtract {
   const controllo = controllaTotali(c);
@@ -43,9 +43,9 @@ export function contrattoDaComputo(c: ComputoStrutturato): ContractExtract {
 
   const voci = lavori.map((v) => {
     const importo = v.importo ?? 0;
-    // Quantità e prezzo come stampati; se non tornano col totale riga (arrotondamenti, voci a corpo) vale il totale.
-    const q = v.quantita && v.quantita !== 0 ? v.quantita : 1;
-    const p = v.prezzo_unitario != null && Math.abs(q * v.prezzo_unitario - importo) <= 0.05 ? v.prezzo_unitario : arrotonda(importo / q);
+    // Quantità, prezzo e importo restano quelli stampati, anche in caso di incongruenza.
+    const q = v.quantita ?? 1;
+    const p = v.prezzo_unitario ?? arrotonda(importo / q);
     const segno = v.is_detrazione && importo > 0 ? -1 : 1;
     return {
       codice: v.codice_tariffa || v.numero_ordine,
@@ -60,6 +60,7 @@ export function contrattoDaComputo(c: ComputoStrutturato): ContractExtract {
   });
 
   const avvisi: string[] = [];
+  avvisi.push(...controllo.voci.filter(v => v.tipo === "importo").slice(0, 5).map(v => "Voce " + v.numero_ordine + ": " + v.messaggio));
   if (esclusi.length) {
     const perCapitolo = new Map<string, number>();
     for (const v of esclusi) {
@@ -89,7 +90,7 @@ export function contrattoDaComputo(c: ComputoStrutturato): ContractExtract {
     importo_totale_eur: totaleLavori || null,
     iva_pct: null,
     voci,
-    fasi_lavoro: fasiDaCapitoli(voci),
+    fasi_lavoro: fasiDaCapitoli(voci, 80, 1000),
     data_documento: c.metadata.data_computo ?? null,
     dati_appalto: {
       valorizzazione: "a_misura",

@@ -20,7 +20,7 @@ export interface VoceStrutturata {
 }
 
 export interface Strutturato {
-  formato: "xpwe" | "excel" | "primus_pdf";
+  formato: "xpwe" | "excel" | "primus_pdf" | "tabellare_pdf";
   /** Quale documento è nella lettura: decide in quale totale va. */
   documento: string;
   totale: number;
@@ -31,7 +31,7 @@ export interface Strutturato {
 
 export type Strutturati = Record<string, Strutturato>;
 
-const FORMATO: Record<Strutturato["formato"], string> = { xpwe: "file XPWE", excel: "foglio Excel", primus_pdf: "PDF di PriMus" };
+const FORMATO: Record<Strutturato["formato"], string> = { xpwe: "file XPWE", excel: "foglio Excel", primus_pdf: "PDF di PriMus", tabellare_pdf: "PDF tabellare" };
 
 export function datiDaStrutturati(strutturati: unknown, file: { id: string; nome: string }[]): DatiLetti {
   const dati: DatiLetti = {};

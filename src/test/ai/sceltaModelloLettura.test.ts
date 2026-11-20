@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  contaPaginePdf, MODELLO_LETTURA_ACCURATA as SONNET, MODELLO_LETTURA_BREVE as HAIKU,
+  contaPaginePdf, contaPaginePdfCompleto, MODELLO_LETTURA_ACCURATA as SONNET, MODELLO_LETTURA_BREVE as HAIKU,
   primoModelloLettura, serveLetturaAccurata,
 } from "../../../supabase/functions/_shared/sceltaModelloLettura";
+import { PDFDocument } from "pdf-lib";
 
 const pdfFinto = (pagine: number) =>
   new TextEncoder().encode(`%PDF-1.4\n1 0 obj << /Type /Pages /Count ${pagine} >> endobj\n` +
@@ -30,8 +31,8 @@ describe("scelta del modello che legge i contratti (banco del 17/11/2026)", () =
     expect(primoModelloLettura({ mime: "text/plain", byte: 4_000, pagine: null })).toBe(HAIKU);
   });
 
-  it("pagine ignote: decide il peso", () => {
-    expect(primoModelloLettura({ mime: "application/pdf", byte: 900_000, pagine: null })).toBe(HAIKU);
+  it("pagine ignote: il peso non prova che un PDF compresso sia breve", () => {
+    expect(primoModelloLettura({ mime: "application/pdf", byte: 900_000, pagine: null })).toBe(SONNET);
     expect(primoModelloLettura({ mime: "application/pdf", byte: 3_000_000, pagine: null })).toBe(SONNET);
   });
 
@@ -40,5 +41,21 @@ describe("scelta del modello che legge i contratti (banco del 17/11/2026)", () =
     expect(serveLetturaAccurata({ importo_totale_eur: 28800, voci: [] })).toBe(true);
     expect(serveLetturaAccurata({ importo_totale_eur: 28800, voci: [{ descrizione: "x" }] })).toBe(false);
     expect(serveLetturaAccurata({ importo_totale_eur: null, voci: [] })).toBe(false);
+    expect(serveLetturaAccurata({ dati_appalto: { stima_eur: 202018.97 } })).toBe(true);
+    expect(serveLetturaAccurata({ dati_appalto: { stima_eur: 202018.97 }, voci: [] })).toBe(true);
+  });
+  it.each([1, 14])("legge %i pagine compresse senza scambiare un preventivo breve per un PDF di lunghezza ignota", async pagine => {
+    const pdf = await PDFDocument.create();
+    for (let i = 0; i < pagine; i++) pdf.addPage();
+    const bytes = await pdf.save({ useObjectStreams: true });
+    expect(contaPaginePdf(bytes)).toBeNull();
+    const n = await contaPaginePdfCompleto(bytes, async b => (await PDFDocument.load(b)).getPageCount());
+    expect(n).toBe(pagine);
+    expect(primoModelloLettura({ mime: "application/pdf", byte: bytes.length, pagine: n })).toBe(pagine === 1 ? HAIKU : SONNET);
+  });
+  it("un conteggio strutturale fallito conserva il modello accurato, senza indovinare dal peso", async () => {
+    const n = await contaPaginePdfCompleto(new Uint8Array(2), async () => { throw new Error("PDF non leggibile"); });
+    expect(n).toBeNull();
+    expect(primoModelloLettura({ mime: "application/pdf", byte: 2, pagine: n })).toBe(SONNET);
   });
 });

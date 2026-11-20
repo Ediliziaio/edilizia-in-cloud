@@ -4,10 +4,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
+import { REGOLA_VOCI } from "@/lib/orders/avvisiContratto";
+import type { ContestoAcquisti } from "@/lib/distinta/pianoAcquisti";
 
-const mocks=vi.hoisted(()=>({invoke:vi.fn(),upload:vi.fn(),download:vi.fn(),maybeSingle:vi.fn(),toastError:vi.fn()}));
+const mocks=vi.hoisted(()=>({invoke:vi.fn(),upload:vi.fn(),download:vi.fn(),maybeSingle:vi.fn(),toastError:vi.fn(),leggiComputo:vi.fn(),cerca:vi.fn(),recenti:vi.fn(),salva:vi.fn()}));
+vi.mock("@/lib/orders/lettureContrattoSalvate",async(importOriginal)=>({
+  ...await importOriginal<typeof import("@/lib/orders/lettureContrattoSalvate")>(),
+  cercaLetturaContratto:mocks.cerca,elencaLettureContratto:mocks.recenti,salvaLetturaContratto:mocks.salva,
+}));
+vi.mock("@/lib/orders/contrattoDaComputo",()=>({leggiComputoSenzaAi:mocks.leggiComputo}));
 vi.mock("@/hooks/useContractWorkflowProfile",()=>({useContractWorkflowProfile:()=>({data:"standard"})}));
 vi.mock("@/hooks/useFasiDiPartenza",()=>({useFasiDiPartenza:()=>({perContratto:[] as unknown[]})}));
+vi.mock("@/hooks/usePianoAcquistiComputo",()=>({usePianoAcquistiComputo:(): {data: ContestoAcquisti; isPending: boolean; isError: boolean}=>({data:{magazzino:[],esistenti:[],coperture:[],fasi:[],fornitori:[]},isPending:false,isError:false})}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"demo",name:"Demo Azienda S.r.l."}})}));
 const testo=vi.hoisted(()=>({pagine:[] as string[]}));
 vi.mock("@/lib/orders/testoPaginePdf",()=>({testoPaginePdf:async()=>testo.pagine}));
@@ -26,6 +34,9 @@ beforeEach(()=>{
   mocks.download.mockResolvedValue({data:new Blob(["PDF"]),error:null});
   mocks.maybeSingle.mockResolvedValue({data:null,error:null});
   mocks.invoke.mockResolvedValue({data:{extracted},error:null});
+  mocks.leggiComputo.mockResolvedValue(null);
+  mocks.cerca.mockResolvedValue(null);mocks.recenti.mockResolvedValue([]);
+  mocks.salva.mockImplementation(async(input)=>({versione:1,contesto:input.contesto,salvata_il:"2026-11-19T15:00:00Z",estratto:input.estratto,originale:input.originale}));
   testo.pagine=[];
 });
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
@@ -40,8 +51,53 @@ async function leggi(){
   fireEvent.change(screen.getByLabelText("File contratto"),{target:{files:[file]}});
   fireEvent.click(screen.getByRole("button",{name:"Analizza con l'AI"}));
   await screen.findByRole("button",{name:"Applica alla commessa"});
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Applica alla commessa"})).not.toBeDisabled());
 }
 describe("import contratto dalla lettura all'applicazione",()=>{
+  it("stesso file rinominato: riprende l'analisi senza upload o AI",async()=>{
+    const {parseContractExtract}=await import("@/lib/orders/contractExtract");
+    mocks.cerca.mockResolvedValue({versione:1,contesto:"contesto",salvata_il:"2026-11-19T15:00:00Z",estratto:parseContractExtract(extracted),originale:{bucket:"documenti-smart",path:"demo/ai-contratti/originale.pdf",name:"originale.pdf",mime:"application/pdf"}});
+    const onApply=apri();await leggi();
+    expect(mocks.invoke).not.toHaveBeenCalled();expect(mocks.upload).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Lettura recuperata/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Applica alla commessa"}));
+    expect(onApply).toHaveBeenCalledOnce();
+  });
+  it("riapre una lettura recente senza riselezionare il documento",async()=>{
+    const {parseContractExtract}=await import("@/lib/orders/contractExtract");
+    mocks.recenti.mockResolvedValue([{versione:1,contesto:"contesto",salvata_il:"2026-11-19T15:00:00Z",estratto:parseContractExtract(extracted),originale:{bucket:"documenti-smart",path:"demo/ai-contratti/originale.pdf",name:"originale.pdf",mime:"application/pdf"}}]);
+    apri();fireEvent.click(await screen.findByRole("button",{name:/originale.pdf ·/}));
+    expect(await screen.findByRole("button",{name:"Applica alla commessa"})).toBeInTheDocument();
+    expect(mocks.invoke).not.toHaveBeenCalled();expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.download).not.toHaveBeenCalled();
+  });
+  it("ripristina anche le indicazioni usate per una lettura recente",async()=>{
+    const {parseContractExtract}=await import("@/lib/orders/contractExtract");
+    const {contestoLetturaContratto}=await import("@/lib/orders/lettureContrattoSalvate");
+    mocks.recenti.mockResolvedValue([{versione:1,contesto:contestoLetturaContratto("cliente","Demo Azienda S.r.l.","IVA da verificare"),salvata_il:"2026-11-19T15:00:00Z",estratto:parseContractExtract(extracted),originale:{bucket:"documenti-smart",path:"demo/ai-contratti/originale.pdf",name:"originale.pdf",mime:"application/pdf"}}]);
+    apri();fireEvent.click(await screen.findByRole("button",{name:/originale.pdf ·/}));
+    fireEvent.click(screen.getByRole("button",{name:"Ricarica un altro"}));
+    expect(screen.getByLabelText("Indicazioni per l'AI (facoltative)")).toHaveValue("IVA da verificare");
+  });
+  it("un guasto dell'archivio non viene scambiato per assenza di letture già pagate",async()=>{
+    mocks.cerca.mockRejectedValue(new Error("Archivio non disponibile"));
+    apri();
+    fireEvent.change(screen.getByLabelText("File contratto"),{target:{files:[new File(["PDF"],"contratto.pdf",{type:"application/pdf"})]}});
+    fireEvent.click(screen.getByRole("button",{name:"Analizza con l'AI"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Archivio non disponibile");
+    expect(mocks.invoke).not.toHaveBeenCalled();expect(mocks.upload).not.toHaveBeenCalled();
+  });
+  it("un computo strutturato si analizza sul dispositivo e si carica solo alla conferma",async()=>{
+    const {parseContractExtract}=await import("@/lib/orders/contractExtract");
+    mocks.leggiComputo.mockResolvedValue(parseContractExtract({...extracted,origine_lettura:"computo",fasi_lavoro:[{nome:"Fondazioni",sottofasi:["Armature"]}]}));
+    const onApply=apri();await leggi();
+    expect(mocks.invoke).not.toHaveBeenCalled();expect(mocks.upload).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab",{name:/Voci di lavoro/})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Applica alla commessa"}));
+    await waitFor(()=>expect(onApply).toHaveBeenCalledOnce());
+    expect(mocks.upload).toHaveBeenCalledOnce();
+    expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"documenti-smart",name:"contratto.pdf"});
+  });
   it("rifiuta un file vuoto prima di chiamare l'AI",()=>{
     apri();fireEvent.change(screen.getByLabelText("File contratto"),{target:{files:[new File([],"vuoto.pdf",{type:"application/pdf"})]}});
     expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining("file è vuoto"));
@@ -81,7 +137,9 @@ describe("import contratto dalla lettura all'applicazione",()=>{
     const onApply=apri("analisi-demo");
     await screen.findByText("file.pdf",{exact:true});
     fireEvent.click(screen.getByRole("button",{name:"Analizza con l'AI"}));
-    fireEvent.click(await screen.findByRole("button",{name:"Applica alla commessa"}));
+    await screen.findByRole("button",{name:"Applica alla commessa"});
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Applica alla commessa"})).toBeEnabled());
+    fireEvent.click(screen.getByRole("button",{name:"Applica alla commessa"}));
     expect(onApply).not.toHaveBeenCalled();
     await waitFor(()=>expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining("documento originale")));
   });
@@ -90,7 +148,9 @@ describe("import contratto dalla lettura all'applicazione",()=>{
     const onApply=apri("analisi-demo");
     await screen.findByText("file.pdf",{exact:true});
     fireEvent.click(screen.getByRole("button",{name:"Analizza con l'AI"}));
-    fireEvent.click(await screen.findByRole("button",{name:"Applica alla commessa"}));
+    await screen.findByRole("button",{name:"Applica alla commessa"});
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Applica alla commessa"})).toBeEnabled());
+    fireEvent.click(screen.getByRole("button",{name:"Applica alla commessa"}));
     await waitFor(()=>expect(onApply).toHaveBeenCalledOnce());
     expect(mocks.upload).toHaveBeenCalledOnce();
     expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"documenti-smart",path:expect.stringMatching(/^demo\/ai-contratti\/[a-f0-9]+-file\.pdf$/)});
@@ -104,8 +164,10 @@ describe("import contratto dalla lettura all'applicazione",()=>{
       .mockResolvedValueOnce({data:{extracted:{...extracted,voci:dettaglio}},error:null});
     apri();await leggi();
     expect(mocks.invoke).toHaveBeenCalledTimes(2);
-    expect(mocks.invoke.mock.calls[0][1].body.user_hint).toContain("le voci sono le righe del dettaglio");
+    expect(mocks.invoke.mock.calls[0][1].body.user_hint).toContain(REGOLA_VOCI);
     expect(mocks.invoke.mock.calls[1][1].body.user_hint).toContain("estrai OGNI riga");
-    expect(await screen.findByRole("tab",{name:/Articoli20/})).toBeInTheDocument();
+    // Le venti righe del documento sono lavorazioni ancora da scomporre, non venti prodotti.
+    fireEvent.click(await screen.findByRole("tab",{name:/Articoli0/}));
+    expect(screen.getByText(/20 voci senza unità dichiarata/)).toBeInTheDocument();
   });
 });

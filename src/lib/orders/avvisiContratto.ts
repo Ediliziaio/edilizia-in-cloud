@@ -41,7 +41,7 @@ export function avvisiDaControllare(extract: ContractExtract, verifica: Verifica
  * La regola delle voci, mandata con ogni lettura (17/11/2026). Misura su 4 preventivi veri, 3 letture
  * ciascuno: senza, 11 letture complete su 12 (e nella finestra una volta 1 riga su 56); con, 12 su 12.
  */
-export const REGOLA_VOCI = "Riga a corpo + dettaglio con codici e prezzi: le voci sono le righe del dettaglio (col capitolo), non la riga a corpo. Le tappe degli acconti non sono fasi.";
+export const REGOLA_VOCI = "Ogni voce: codice,unita,quantita,prezzo_unitario_eur,tipo,capitolo; null se assenti. Lotto+righe: estrai il dettaglio senza duplicare il lotto. Quantita fisiche esplicite anche nelle tabelle tecniche. Le tappe degli acconti non sono fasi.";
 
 /** L'indicazione per la seconda lettura: entra nella chiave della cache, quindi è una lettura nuova. */
 export const RILEGGI_VOCI = "Il documento ha il dettaglio: estrai OGNI riga con codice, quantita e prezzo come voce, non solo la riga del totale a corpo.";

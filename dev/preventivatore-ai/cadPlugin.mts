@@ -2,10 +2,15 @@ import type { Plugin } from 'vite';
 import { localPlanRequestAllowed } from './planOcrPlugin.mts';
 import { CAD_MAX_BYTES } from '../../src/lib/preventivi/quoteCad.ts';
 import { convertCad } from '../../services/cad/converter.mts';
+import { createLocalDxfHandler } from './cadDxfHandler.mts';
+import { ENDPOINT_DWG_LOCALE } from '../../src/lib/distinta/cad/protocolloDwg.ts';
 /** Loopback-only prototype; production uses the authenticated dedicated service. */
 export function localCadPlugin(): Plugin {
   let active = false;
   return { name: 'local-private-cad', apply: 'serve', configureServer(server) {
+    server.middlewares.use(ENDPOINT_DWG_LOCALE, createLocalDxfHandler({
+      acquire: () => { if (active) return false; active = true; return true; }, release: () => { active = false; },
+    }));
     server.middlewares.use('/__quote-lab/cad', async (req, res) => {
       const reply = (status: number, value: unknown) => { if (res.destroyed) return; res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(value)); };
       if (!localPlanRequestAllowed(req)) return reply(403, { error: 'Conversione solo dalla pagina locale.' });
