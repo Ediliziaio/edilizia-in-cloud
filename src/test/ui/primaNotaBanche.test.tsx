@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 const banche = [
-  { valore:"banca:alfa", etichetta:"Banca Alfa · …1234", account_label:"Banca Alfa", bank_account_id:"alfa", conto_liquidita_id:"piano-alfa" },
+  { valore:"banca:alfa", etichetta:"Banca Alfa · …1234", account_label:"Banca Alfa", bank_account_id:"alfa", conto_liquidita_id:"piano-alfa", bancaCollegata:true },
   { valore:"banca:beta", etichetta:"Banca Beta · …5678", account_label:"Banca Beta", bank_account_id:"beta", conto_liquidita_id:"piano-beta" },
 ];
 vi.mock("@/hooks/useContiPrimaNota", () => ({useContiPrimaNota:()=>({data:banche,isError:false,isPending:false})}));
@@ -28,4 +28,5 @@ it("chiede la banca effettiva e salva il conto scelto con la sua identità e il 
   fireEvent.click(screen.getByRole("button",{name:"Registra"}));
   await waitFor(()=>expect(confirm).toHaveBeenCalledWith(expect.objectContaining({bank_account_id:"beta",conto_liquidita_id:"piano-beta",account_label:"Banca Beta",amount:123,payment_method:"POS SumUp"})));
   expect(screen.getByRole("link",{name:"Apri scrittura con più conti"})).toHaveAttribute("href",expect.stringContaining("nuova=scrittura"));
+  expect(screen.getByRole("link",{name:"Conti collegati in Tesoreria"})).toHaveAttribute("href","/azienda/tesoreria?tab=conti");
 });

@@ -7,6 +7,7 @@ export interface ContoPrimaNota {
   bank_account_id: string | null;
   conto_liquidita_id: string | null;
   cassa?: boolean;
+  bancaCollegata?: boolean;
 }
 
 interface Banca {
@@ -15,6 +16,8 @@ interface Banca {
   account_name?: string | null;
   iban?: string | null;
   currency?: string | null;
+  connection_id?: string | null;
+  is_manual?: boolean | null;
 }
 
 /** Il ruolo del piano, anche ereditato dal mastro, prevale sulla descrizione. */
@@ -55,7 +58,8 @@ export function mappaContiPrimaNota(bancheGrezze: readonly Banca[], piano: reado
     ...banche.map((b): ContoPrimaNota => {
       const nome = nomeBanca(b), corrispondenti = delPiano(nome);
       return { valore: `banca:${b.id}`, etichetta: `${nome}${b.iban ? ` · …${b.iban.slice(-4)}` : ""}`, account_label: nome,
-        bank_account_id: b.id!, conto_liquidita_id: corrispondenti.length === 1 ? corrispondenti[0].id : null, cassa: false };
+        bank_account_id: b.id!, conto_liquidita_id: corrispondenti.length === 1 ? corrispondenti[0].id : null, cassa: false,
+        bancaCollegata: Boolean(b.connection_id && !b.is_manual) };
     }),
     ...conti.map((c): ContoPrimaNota => {
       const corrispondenti = banche.filter(b => chiave(nomeBanca(b)) === chiave(c.descrizione));

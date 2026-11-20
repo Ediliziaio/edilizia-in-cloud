@@ -63,6 +63,11 @@ export function useManualTreasury() {
     qc.invalidateQueries({ queryKey: ["treasury"] });
   };
 
+  const invalidateAccounts = () => {
+    invalidate();
+    qc.invalidateQueries({ queryKey: ["prima-nota-conti", companyId] });
+  };
+
   const createAccount = useMutation({
     mutationFn: async (params: { name: string; iban?: string; opening_balance: number; currency?: string }) => {
       const opening = Number(params.opening_balance) || 0;
@@ -90,7 +95,7 @@ export function useManualTreasury() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => { toast.success("Conto/cassa creato"); invalidate(); },
+    onSuccess: () => { toast.success("Conto/cassa creato"); invalidateAccounts(); },
     onError: (e) => toast.error("Errore creazione conto", { description: String((e as Error).message) }),
   });
 
@@ -111,10 +116,11 @@ export function useManualTreasury() {
         patch.current_balance = opening + sum;
         patch.balance_updated_at = new Date().toISOString();
       }
-      const { error } = await supabase.from("bank_accounts").update(patch as never).eq("id", params.id).eq("company_id", companyId!);
+      const { error } = await supabase.from("bank_accounts").update(patch as never)
+        .eq("id", params.id).eq("company_id", companyId!).eq("is_manual", true).select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Conto aggiornato"); invalidate(); },
+    onSuccess: () => { toast.success("Conto aggiornato"); invalidateAccounts(); },
     onError: (e) => toast.error("Errore", { description: String((e as Error).message) }),
   });
 
@@ -218,6 +224,8 @@ export function useManualTreasury() {
   return {
     accounts: accountsQuery.data ?? [],
     isLoading: accountsQuery.isLoading,
+    accountsError: accountsQuery.error,
+    refetchAccounts: accountsQuery.refetch,
     createAccount, updateAccount, upsertTx, deleteTx, bulkInsert,
   };
 }
