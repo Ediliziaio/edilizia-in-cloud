@@ -1,4 +1,5 @@
 import { scadenzaDaFonte } from "@/lib/finance/fontiScadenzario";
+import { commesseScadenza } from "@/lib/finance/commesseScadenza";
 import { Fragment, useMemo } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -209,6 +210,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             const rowStyle = isCancelled ? "opacity-50" : isPaid ? "opacity-70" : isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : isDueSoon ? "bg-orange-50/50 dark:bg-orange-950/10" : "";
             const controparte = controparteScadenza(s);
             const documento = s.invoices?.invoice_number ? `Fatt. ${s.invoices.invoice_number}` : s.company_costs?.name ? "Costo" : null;
+            const commesse = commesseScadenza(s);
             return (
               <Fragment key={s.id}>
                 {showMonthHeader && (() => {
@@ -257,8 +259,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                 <td><span className="block max-w-[130px] truncate xl:max-w-[180px] 2xl:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
                 <td><span className="block max-w-[170px] truncate font-medium xl:max-w-[280px] 2xl:max-w-[360px]" title={s.description}>{s.description}</span></td>
                 <td className="hidden lg:table-cell">
-                  <span className="block max-w-[120px] truncate font-mono text-xs 2xl:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, s.orders?.order_code ? `Commessa ${s.orders.order_code}` : null].filter(Boolean).join(" · ") || undefined}>
-                    {[documento, s.orders?.order_code].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
+                  <span className="block max-w-[180px] truncate font-mono text-xs 2xl:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, commesse ? `Commesse ${commesse}` : null].filter(Boolean).join(" · ") || undefined}>
+                    {[commesse, documento].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </span>
                 </td>
                 <td className="text-xs" title={s.payment_method ?? undefined}>

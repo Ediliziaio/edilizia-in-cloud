@@ -8,6 +8,7 @@ export interface DdtCollegabile {
   supplier_id: string | null;
   suppliers: { name: string } | null;
   destinazione: string | null;
+  orders?: { order_code: string } | null;
 }
 
 export async function salvaCollegamentoDdt({

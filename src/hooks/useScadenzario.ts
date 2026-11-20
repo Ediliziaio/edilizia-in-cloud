@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { percheScadenzaNonModificabile, type ModificaScadenza } from "@/lib/finance/modificaScadenza";
 import { eseguiPerRiga, messaggioErroreOperazione } from "@/lib/operazioniPerRiga";
+import { completaCommesseScadenze } from "@/lib/finance/commesseScadenza";
 
 export interface Scadenza {
   id: string;
@@ -41,7 +42,8 @@ export interface Scadenza {
   suppliers?: { name: string } | null;
   invoices?: { invoice_number: string; client_company_name: string; issue_date?: string | null } | null;
   orders?: { order_code: string; client_name?: string | null; client_company?: string | null } | null;
-  company_costs?: { name: string | null } | null;
+  company_costs?: { name: string | null; order_id?: string | null; allocations?: unknown; notes?: string | null } | null;
+  commesse?: Array<{ id: string; codice: string }>;
   marketing_contacts?: { first_name: string; last_name: string; company_name: string | null } | null;
 }
 
@@ -113,7 +115,7 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     queryFn: async () => {
       const query = filtraScadenzario(queryFontiScadenzario(companyId!)
         .select(`*, suppliers(name), invoices(invoice_number, client_company_name, issue_date),
-          orders(order_code, client_name, client_company), company_costs(name),
+          orders(order_code, client_name, client_company), company_costs(name, order_id, allocations, notes),
           marketing_contacts(first_name, last_name, company_name)`), filters)
         .order("due_date", { ascending: true, nullsFirst: false }).order("id");
 
@@ -121,7 +123,7 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
         .range((page - 1) * pageSize, page * pageSize - 1);
 
       if (error) throw error;
-      return { data: data as unknown as Scadenza[], totalCount: count ?? 0 };
+      return { data: await completaCommesseScadenze(companyId!, (data ?? []) as unknown as Scadenza[]), totalCount: count ?? 0 };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
