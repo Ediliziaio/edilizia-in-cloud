@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Stripe from "npm:stripe@14";
+import { catchUpReferralStripe } from "../_shared/referralStripe.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from '../_shared/headers.ts';
 
 Deno.serve(async (req) => {
@@ -25,13 +28,20 @@ Deno.serve(async (req) => {
   console.log(`[referral-monthly-cycle] Calcolo ${prevMonth}/${prevYear}`);
 
   try {
-    // Step 1: Calcola commissioni
+    const body = await req.json().catch(() => ({}));
+    const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
+    if (!stripeKey) throw new Error("Stripe non configurato");
+    const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as Stripe.LatestApiVersion });
+    await catchUpReferralStripe(stripe, supabase);
+    if (body.sync_only === true) return jsonResponse({ success: true, reconciled: true });
+
+    // Step 1: Leggi le commissioni contabilizzate
     const { data: commCount, error: calcErr } = await supabase.rpc(
       'calculate_monthly_commissions',
       { p_month: prevMonth, p_year: prevYear }
     );
     if (calcErr) throw calcErr;
-    console.log(`[cycle] Calcolate ${commCount} voci commissione`);
+    console.log(`[cycle] ${commCount} movimenti commissione già contabilizzati`);
 
     // Step 2: Genera payout pending
     const { data: payoutCount, error: payErr } = await supabase.rpc(

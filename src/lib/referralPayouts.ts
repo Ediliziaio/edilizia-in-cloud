@@ -8,6 +8,8 @@ export type ReferralBalance = {
   paid: number;
   reserved: number;
   available: number;
+  unvested?: number;
+  shortfall?: number;
 };
 
 export type PaymentInstruction = {
@@ -48,7 +50,9 @@ export async function transitionReferralPayout(
 export async function transitionReferralPayout(
   payoutId: string, action: Exclude<PayoutAction, "prepare">, reference?: string,
 ): Promise<void>;
-export async function transitionReferralPayout(payoutId: string, action: PayoutAction, reference?: string) {
+export async function transitionReferralPayout(
+  payoutId: string, action: PayoutAction, reference?: string,
+): Promise<PaymentInstruction | void> {
   const { data, error } = await supabase.rpc("referral_payout_transition", {
     p_payout_id: payoutId, p_action: action, p_reference: reference,
   });

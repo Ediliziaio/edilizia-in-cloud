@@ -53,6 +53,7 @@ type PreviewPayout = {
 type PayoutRow = PreviewPayout & {
   created_at?: string | null;
   notes?: string | null;
+  rejection_reason?: string | null;
 };
 
 export type PartnerPayoutPreviewData = {
@@ -329,6 +330,16 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
                 {formatCurrency(payoutBalance.reserved)} riservati · {formatCurrency(payoutBalance.paid)} pagati
               </p>
             )}
+            {!!payoutBalance?.unvested && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(payoutBalance.unvested)} disponibili dopo la chiusura del mese
+              </p>
+            )}
+            {!!payoutBalance?.shortfall && (
+              <p className="mt-1 text-sm font-medium text-amber-800">
+                {formatCurrency(payoutBalance.shortfall)} da compensare con le prossime commissioni
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -416,6 +427,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
                       </div>
                     </div>
                     <p className="mt-3 text-xs text-muted-foreground">Rif. {p.transaction_reference || "—"}</p>
+                    {p.rejection_reason && <p className="mt-1 text-sm text-muted-foreground">{p.rejection_reason}</p>}
                   </div>
                 ))}
               </div>
@@ -442,7 +454,10 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
                         <TableCell className="text-sm text-muted-foreground">
                           {formatSafeDate(p.paid_at || p.created_at, "dd MMM yyyy")}
                         </TableCell>
-                        <TableCell>{statusBadge(p.status || "pending")}</TableCell>
+                        <TableCell className="max-w-xs">
+                          {statusBadge(p.status || "pending")}
+                          {p.rejection_reason && <p className="mt-1 text-xs text-muted-foreground">{p.rejection_reason}</p>}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{p.transaction_reference || "—"}</TableCell>
                       </TableRow>
                     ))}

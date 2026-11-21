@@ -105,12 +105,12 @@ export default function PartnerCommissions() {
     const monthName = MONTHS[month - 1];
     const esc = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
     const csv = [
-      ["Piano/Azienda", "MRR", "Tipo", "Aliquota", "Moltipl.", "Commissione", "Stato"].join(","),
+      ["Movimento", "Base netta", "Tipo", "Aliquota", "Moltipl.", "Commissione", "Stato"].join(","),
       ...ledger.map((l) => [
         esc(l.subscription_plan_name || "---"),
         esc(l.plan_mrr?.toFixed(2) || "0"),
         esc(l.commission_type || "---"),
-        esc(l.commission_type === "percentage" ? `${l.commission_rate}%` : `${l.commission_rate} €`),
+        esc(l.commission_type === "percentage" || l.commission_type?.startsWith("stripe_") ? `${l.commission_rate}%` : `${l.commission_rate} €`),
         esc(`x${l.tier_multiplier}`),
         esc(l.commission_amount?.toFixed(2) || "0"),
         esc(l.status || "pending"),
@@ -128,8 +128,13 @@ export default function PartnerCommissions() {
   };
   const { data: payoutBalance } = useReferralBalance(referrer?.id);
 
-  const statusBadge = (status: string) => {
-    switch (status) {
+  const statusBadge = (row: CommissionLedgerRow) => {
+    if (row.commission_type === "stripe_refund") return <Badge variant="outline">Storno</Badge>;
+    if (row.commission_type === "stripe_refund_reversal") return <Badge variant="outline">Rettifica</Badge>;
+    if (row.commission_type === "stripe_receipt" && row.status === "pending") {
+      return <Badge variant="secondary">Incassato</Badge>;
+    }
+    switch (row.status) {
       case "paid": return <Badge variant="default">Pagato</Badge>;
       case "approved": return <Badge className="bg-blue-500/10 text-blue-700 border-blue-200">Approvato</Badge>;
       case "cancelled": return <Badge variant="destructive">Annullato</Badge>;
@@ -171,7 +176,7 @@ export default function PartnerCommissions() {
           <CardHeader className="pb-2">
             <span className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Totale Storico</span>
           </CardHeader>
-          <CardContent><p className="text-xl font-bold">{payoutBalance ? formatCurrency(payoutBalance.earned) : "—"}</p></CardContent>
+          <CardContent><p className="text-xl font-bold">{payoutBalance ? formatCurrency(payoutBalance.earned + (payoutBalance.unvested ?? 0)) : "—"}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -222,9 +227,9 @@ export default function PartnerCommissions() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Piano</TableHead>
-                  <TableHead className="text-right">MRR</TableHead>
-                  <TableHead className="text-right">Rate</TableHead>
+                  <TableHead>Movimento</TableHead>
+                  <TableHead className="text-right">Base netta</TableHead>
+                  <TableHead className="text-right">Aliquota</TableHead>
                   <TableHead className="text-right">Moltipl.</TableHead>
                   <TableHead className="text-right">Commissione</TableHead>
                   <TableHead>Stato</TableHead>
@@ -236,11 +241,11 @@ export default function PartnerCommissions() {
                     <TableCell className="font-medium">{l.subscription_plan_name || "—"}</TableCell>
                     <TableCell className="text-right">{formatCurrency(l.plan_mrr)}</TableCell>
                     <TableCell className="text-right">
-                      {l.commission_type === "percentage" ? `${l.commission_rate}%` : formatCurrency(l.commission_rate)}
+                      {l.commission_type === "percentage" || l.commission_type?.startsWith("stripe_") ? `${l.commission_rate}%` : formatCurrency(l.commission_rate)}
                     </TableCell>
                     <TableCell className="text-right">×{l.tier_multiplier}</TableCell>
                     <TableCell className="text-right font-bold">{formatCurrency(l.commission_amount)}</TableCell>
-                    <TableCell>{statusBadge(l.status)}</TableCell>
+                    <TableCell>{statusBadge(l)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow className="bg-muted/50">

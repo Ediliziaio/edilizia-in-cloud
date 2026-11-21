@@ -1,5 +1,37 @@
-import type Stripe from "https://esm.sh/stripe@18.5.0";
 import type { WholesaleItem } from "./produttoreWholesale.ts";
+
+type WholesaleInvoice = {
+  id: string;
+  status: string | null;
+  currency: string;
+  total: number;
+  amount_remaining: number;
+  metadata?: Record<string, string | undefined> | null;
+};
+
+type Idempotency = { idempotencyKey: string };
+type WholesaleInvoiceProvider = {
+  invoices: {
+    retrieve: (id: string) => PromiseLike<WholesaleInvoice>;
+    list: (params: { customer: string; limit: number; created: { gte: number } }) => AsyncIterable<WholesaleInvoice>;
+    create: (params: {
+      customer: string; collection_method: "charge_automatically"; auto_advance: false;
+      pending_invoice_items_behavior: "exclude"; default_payment_method: string;
+      description: string; metadata: Record<string, string>;
+    }, options: Idempotency) => PromiseLike<WholesaleInvoice>;
+    listLineItems: (id: string, params: { limit: number }) => AsyncIterable<{
+      amount: number; metadata?: Record<string, string | undefined> | null;
+    }>;
+    finalizeInvoice: (id: string, params: { auto_advance: false }, options: Idempotency) => PromiseLike<WholesaleInvoice>;
+    pay: (id: string, params: { payment_method: string }, options: Idempotency) => PromiseLike<WholesaleInvoice>;
+  };
+  invoiceItems: {
+    create: (params: {
+      customer: string; invoice: string; currency: "eur"; amount: number;
+      description: string; metadata: Record<string, string>; discountable: false;
+    }, options: Idempotency) => PromiseLike<unknown>;
+  };
+};
 
 export type WholesaleAccount = {
   produttore_id: string;
@@ -15,14 +47,14 @@ export type WholesaleAccount = {
 };
 
 export async function settleWholesaleInvoice(
-  stripe: Pick<Stripe, "invoices" | "invoiceItems">,
+  stripe: WholesaleInvoiceProvider,
   account: WholesaleAccount,
-  saveInvoice: (invoice: Stripe.Invoice) => Promise<void>,
+  saveInvoice: (invoice: WholesaleInvoice) => Promise<void>,
   retryPaymentMethod?: string,
 ) {
   const { produttore_id, period, stripe_customer_id } = account;
   const key = `wholesale:${produttore_id}:${period}`;
-  let invoice: Stripe.Invoice | undefined;
+  let invoice: WholesaleInvoice | undefined;
   if (account.stripe_invoice_id) {
     invoice = await stripe.invoices.retrieve(account.stripe_invoice_id);
   } else {

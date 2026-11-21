@@ -5,8 +5,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import AccountantDashboard from "@/pages/accountant/AccountantDashboard";
 import AccountantRequests from "@/pages/accountant/AccountantRequests";
 
+import type { AccountantCompanyAccessRow, AccountantNotificationRow } from "@/hooks/accountant/useAccountantPortalData";
+
 const demo = vi.hoisted(() => {
-  const company = { id: "impresa-alfa", name: "Impresa Alfa", vat_number: null, fiscal_code: null, legal_city: null };
+  const company: NonNullable<AccountantCompanyAccessRow["company"]> = { id: "impresa-alfa", name: "Impresa Alfa", vat_number: null, fiscal_code: null, legal_city: null };
   const request = { firm_id: "studio-alfa", company_id: company.id, requested_by: "contabile-demo", status: "pending",
     resource_type: "proposta", operation: "update", created_at: "2026-11-01T10:00:00Z", expires_at: "2099-12-31T00:00:00Z" };
   return {
@@ -27,12 +29,12 @@ const demo = vi.hoisted(() => {
 
 vi.mock("@/hooks/useSEO", () => ({ useSEO: vi.fn() }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "contabile-demo" } }) }));
-vi.mock("@/components/accountant/CreateAziendaDialog", () => ({ CreateAziendaDialog: () => null }));
-vi.mock("@/components/accountant/NuovaRichiestaStudio", () => ({ NuovaRichiestaStudio: () => null }));
+vi.mock("@/components/accountant/CreateAziendaDialog", () => ({ CreateAziendaDialog: (): null => null }));
+vi.mock("@/components/accountant/NuovaRichiestaStudio", () => ({ NuovaRichiestaStudio: (): null => null }));
 vi.mock("@/hooks/accountant/useAccountantPortalData", () => ({
   useAccountantFirm: () => ({ data: demo.firm }),
   useAccountantCompanies: () => ({ data: demo.companies, isSuccess: true }),
-  useAccountantNotifications: () => ({ data: [] }),
+  useAccountantNotifications: () => ({ data: [] as AccountantNotificationRow[] }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {

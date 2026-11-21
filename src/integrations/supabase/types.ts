@@ -99891,6 +99891,8 @@ export type Database = {
       }
       referral_commission_ledger: {
         Row: {
+          cash_paid_at: string | null
+          source_key: string | null
           calculated_at: string | null
           commission_amount: number | null
           commission_rate: number | null
@@ -99908,6 +99910,8 @@ export type Database = {
           tier_multiplier: number | null
         }
         Insert: {
+          cash_paid_at?: string | null
+          source_key?: string | null
           calculated_at?: string | null
           commission_amount?: number | null
           commission_rate?: number | null
@@ -99925,6 +99929,8 @@ export type Database = {
           tier_multiplier?: number | null
         }
         Update: {
+          cash_paid_at?: string | null
+          source_key?: string | null
           calculated_at?: string | null
           commission_amount?: number | null
           commission_rate?: number | null
@@ -152634,6 +152640,23 @@ export type Database = {
           invoice_number: string
           progressive_number: number
         }[]
+      }
+      referral_record_stripe_receipt: {
+        Args: {
+          p_invoice_id: string
+          p_charge_id: string
+          p_company_id: string | null
+          p_paid_at: string
+          p_kind: string
+          p_gross_cents: number
+          p_net_cents: number
+          p_refunds?: Json
+        }
+        Returns: Json
+      }
+      referral_stripe_sync_cursor: {
+        Args: { p_synced_through?: string }
+        Returns: string
       }
       referral_payout_balance: {
         Args: { p_referrer_id: string }

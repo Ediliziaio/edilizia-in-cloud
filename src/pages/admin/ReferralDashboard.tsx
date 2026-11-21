@@ -393,7 +393,7 @@ export default function ReferralDashboard() {
       <IntestazioneArea
         icona={Gift}
         titolo="Programma referral"
-        spiegazione="Partner, aziende portate, commissioni e pagamenti · commissioni calcolate sul prezzo di listino"
+        spiegazione="Partner, aziende segnalate, commissioni sugli incassi e pagamenti"
         azioni={
           <Button onClick={() => setReferrerDialogOpen(true)} className="gap-2" aria-label="Nuovo partner">
             <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nuovo partner</span>

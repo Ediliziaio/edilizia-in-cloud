@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Stripe from "npm:stripe@14";
+import { catchUpReferralStripe } from "../_shared/referralStripe.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from '../_shared/headers.ts';
 
 Deno.serve(async (req) => {
@@ -10,6 +13,16 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  try {
+    const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
+    if (!stripeKey) throw new Error("Stripe non configurato");
+    const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as Stripe.LatestApiVersion });
+    await catchUpReferralStripe(stripe, supabase);
+  } catch (error) {
+    console.error("[referral-payout-executor] Riconciliazione incassi non disponibile", error);
+    return errorResponse("Riconciliazione incassi non disponibile", 503);
+  }
+
   const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(new Date());
   const { data: duePayouts, error } = await supabase
     .from('referral_payouts')

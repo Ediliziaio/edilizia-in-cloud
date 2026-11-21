@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "npm:stripe@14";
+import { ReferralStripeSchemaUnavailable, syncReferralStripeEvent } from "../_shared/referralStripe.ts";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
@@ -1596,40 +1597,48 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
     try {
       if (wholesaleInvoice) {
         await syncWholesaleInvoice(supabase, stripe, wholesaleInvoice);
-      } else switch (event.type) {
-        case "checkout.session.completed":
-          await handleCheckoutCompleted(supabase, event.data.object, stripeSecretKey);
-          break;
-        case "checkout.session.async_payment_succeeded":
-          if (event.data.object.metadata?.type === SMS_CHECKOUT_TYPE) {
+      } else {
+        switch (event.type) {
+          case "checkout.session.completed":
             await handleCheckoutCompleted(supabase, event.data.object, stripeSecretKey);
+            break;
+          case "checkout.session.async_payment_succeeded":
+            if (event.data.object.metadata?.type === SMS_CHECKOUT_TYPE) {
+              await handleCheckoutCompleted(supabase, event.data.object, stripeSecretKey);
+            }
+            break;
+          case "invoice.paid":
+            await handleInvoicePaid(supabase, event.data.object, stripeSecretKey);
+            break;
+          case "invoice.payment_failed":
+            await handleInvoicePaymentFailed(supabase, event.data.object, stripeSecretKey);
+            break;
+          case "customer.subscription.deleted":
+            await handleSubscriptionDeleted(supabase, event.data.object);
+            break;
+          case "customer.subscription.created": {
+            const subscription = event.data.object;
+            // Attribuisce il referral al primo abbonamento attivo: quello del
+            // piano, non l'add-on WhatsApp o gli Agenti AI comprati dopo.
+            if (customerId && subscription.metadata?.type !== ADDON_WHATSAPP && subscription.metadata?.type !== ABBONAMENTO_AGENTI_AI) {
+              await handleReferralAttribution(supabase, customerId);
+            }
+            await handleSubscriptionUpdated(supabase, subscription);
+            break;
           }
-          break;
-        case "invoice.paid":
-          await handleInvoicePaid(supabase, event.data.object, stripeSecretKey);
-          break;
-        case "invoice.payment_failed":
-          await handleInvoicePaymentFailed(supabase, event.data.object, stripeSecretKey);
-          break;
-        case "customer.subscription.deleted":
-          await handleSubscriptionDeleted(supabase, event.data.object);
-          break;
-        case "customer.subscription.created": {
-          const subscription = event.data.object;
-          // Attribuisce il referral al primo abbonamento attivo: quello del
-          // piano, non l'add-on WhatsApp o gli Agenti AI comprati dopo.
-          if (customerId && subscription.metadata?.type !== ADDON_WHATSAPP && subscription.metadata?.type !== ABBONAMENTO_AGENTI_AI) {
-            await handleReferralAttribution(supabase, customerId);
-          }
-          await handleSubscriptionUpdated(supabase, subscription);
-          break;
+          case "customer.subscription.updated":
+            await handleSubscriptionUpdated(supabase, event.data.object);
+            break;
+          case "invoice.created":
+            await handleInvoiceCreated(supabase, event.data.object);
+            break;
         }
-        case "customer.subscription.updated":
-          await handleSubscriptionUpdated(supabase, event.data.object);
-          break;
-        case "invoice.created":
-          await handleInvoiceCreated(supabase, event.data.object);
-          break;
+        try {
+          await syncReferralStripeEvent(stripe, supabase, event);
+        } catch (error) {
+          if (!(error instanceof ReferralStripeSchemaUnavailable)) throw error;
+          console.warn("[stripe-webhook] Registro incassi referral non ancora disponibile", event.id);
+        }
       }
 
       await logStripeEvent(supabase, event.id, event.type, companyId, event.data, "processed");
