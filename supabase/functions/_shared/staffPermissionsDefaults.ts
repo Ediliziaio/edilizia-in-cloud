@@ -11,8 +11,6 @@
 // parità di chiavi con DEFAULT_PERMISSIONS lato client (drift = test rosso).
 // NB: must_change_password NON è un permesso e resta fuori (default DB: true).
 
-import { livelloMagazzinoCampo } from "../../../shared/campo-magazzino.ts";
-
 export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[] | string | null> = {
   // Cruscotto
   can_view_cruscotto: false, can_view_controllo_gestione: false,
@@ -196,8 +194,7 @@ export function buildStaffPermissionsRecord(
       if (key === "office_profile") {
         if (value === null || (typeof value === "string" && ["tecnico","ordini","amministrazione","responsabile","hr","commerciale"].includes(value))) record[key] = value;
       } else if (key === "magazzino_campo") {
-        const livello = livelloMagazzinoCampo(value);
-        if (livello || value === null) record[key] = livello;
+        if (value === "nessuno" || value === "inventario" || value === "prelievi" || value === null) record[key] = value;
       } else if (key === "visible_areas") {
         if (Array.isArray(value)) record[key] = value.filter((v) => typeof v === "string");
       } else if (key === "pipeline_visibili") {
