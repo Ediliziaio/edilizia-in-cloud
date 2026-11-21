@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   tables: {} as Record<string, Record<string, unknown>[]>,
   peso: "uguale",
   ranges: [] as { table: string; from: number }[],
+  lettureCosti: [] as { nome: string; ids: string[]; colonne: string; azienda: string }[],
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: (o: unknown) => o }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => state.company }));
@@ -16,7 +17,7 @@ vi.mock("@/integrations/supabase/client", () => {
     let ids: string[] = [];
     let col = "";
     const b = {
-      select: () => b, order: () => b, eq: () => b,
+      select: () => b, order: () => b, eq: () => b, abortSignal: () => b,
       in: (c: string, v: string[]) => { col = c; ids = v; return b; },
       maybeSingle: async () => ({ data: { peso_media: state.peso }, error: null as unknown }),
       range: async (from: number, to: number) => {
@@ -27,11 +28,24 @@ vi.mock("@/integrations/supabase/client", () => {
     };
     return b;
   };
-  return { supabase: { from: builder } };
+  return { supabase: { from: builder, rpc: (nome: string, { p_ids }: { p_ids: string[] }) => {
+    const lettura = { nome, ids: p_ids, colonne: "", azienda: "" };
+    state.lettureCosti.push(lettura);
+    const q = {
+      filter: (_colonna: string, _operatore: string, azienda: string) => { lettura.azienda = azienda; return q; },
+      select: (colonne: string) => { lettura.colonne = colonne; return q; },
+      abortSignal: () => q,
+      then: (resolve: (result: unknown) => unknown) => Promise.resolve({
+        data: (state.tables.economia_commesse ?? []).filter(r => p_ids.includes(r.id as string)), error: null,
+      }).then(resolve),
+    };
+    return q;
+  } } };
 });
 import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalitaCommesse";
 
-type Opts = { queryFn: () => Promise<{ righe: { id: string; pct_avanzamento: number; costo_manodopera: number; ore_manodopera: number; margine_atteso: number | null }[]; kpi: { n_in_perdita: number } }> };
+type Opts = { queryFn: (ctx: { signal: AbortSignal }) => Promise<{ righe: { id: string; pct_avanzamento: number; costo_manodopera: number; ore_manodopera: number; margine_atteso: number | null }[]; kpi: { n_in_perdita: number } }> };
+const leggi = () => (useMarginalitaCommesse(2026) as unknown as Opts).queryFn({ signal: new AbortController().signal });
 const riga = (over: Record<string, unknown> = {}) => ({
   id: "job", order_code: "C1", description: "Bagno", cliente: null as unknown, status: null as unknown, work_state: "open", creation_year: 2026,
   pct_avanzamento: 40, work_start: null as unknown, work_end: null as unknown, preventivo: 1000, consuntivo: 450, costo_acquisti: 0, costo_errori: 0,
@@ -43,9 +57,10 @@ beforeEach(() => {
   state.company = "demo";
   state.peso = "uguale";
   state.ranges = [];
+  state.lettureCosti = [];
   state.rpc = { meta: { company_id: "demo", anno: 2026, status_filter: null, generato_il: "" }, kpi: { n_commesse: 1 }, righe: [riga()] };
   state.tables = {
-    v_ordine_marginalita: [{ id: "job", costo_manodopera: 300 }],
+    economia_commesse: [{ id: "job", costo_manodopera: 300 }],
     order_employees: Array.from({ length: 1200 }, (_, i) => ({ id: `e${i}`, order_id: "job", hours_worked: 1 })),
     order_work_phases: [
       { id: "f1", order_id: "job", status: "completata", percentuale: 0 },
@@ -56,7 +71,7 @@ beforeEach(() => {
 
 describe("marginalità commesse del Controllo di gestione", () => {
   it("usa l'avanzamento delle fasi come la scheda commessa (alla pari)", async () => {
-    const r = await (useMarginalitaCommesse(2026) as unknown as Opts).queryFn();
+    const r = await leggi();
     // fasi 100% e 50% → 75%; costi 450 ÷ 0,75 = 600 → margine a fine lavori 400
     expect(r.righe[0].pct_avanzamento).toBe(0.75);
     expect(r.righe[0].margine_atteso).toBe(400);
@@ -64,12 +79,13 @@ describe("marginalità commesse del Controllo di gestione", () => {
 
   it("con un peso diverso da «alla pari» tiene il numero del database", async () => {
     state.peso = "durata";
-    const r = await (useMarginalitaCommesse(2026) as unknown as Opts).queryFn();
+    const r = await leggi();
     expect(r.righe[0].pct_avanzamento).toBe(0.4);
   });
 
-  it("prende la manodopera dalla vista e conta le ore oltre le mille righe", async () => {
-    const r = await (useMarginalitaCommesse(2026) as unknown as Opts).queryFn();
+  it("legge il costo di manodopera per gli ID richiesti e conta le ore oltre le mille righe", async () => {
+    const r = await leggi();
+    expect(state.lettureCosti).toEqual([{ nome: "economia_commesse", ids: ["job"], colonne: "id,costo_manodopera", azienda: "demo" }]);
     expect(r.righe[0].costo_manodopera).toBe(300);
     expect(r.righe[0].ore_manodopera).toBe(1200);
     expect(state.ranges.filter((x) => x.table === "order_employees").map((x) => x.from)).toEqual([0, 500, 1000]);
@@ -77,7 +93,8 @@ describe("marginalità commesse del Controllo di gestione", () => {
 
   it("rifiuta i dati arrivati per un'altra azienda invece di salvarli sotto quella scelta", async () => {
     state.rpc = { ...(state.rpc as object), meta: { company_id: "altra" } };
-    await expect((useMarginalitaCommesse(2026) as unknown as Opts).queryFn()).rejects.toThrow(/altra azienda/);
+    await expect(leggi()).rejects.toThrow(/altra azienda/);
+    expect(state.lettureCosti).toHaveLength(0);
   });
 });
 

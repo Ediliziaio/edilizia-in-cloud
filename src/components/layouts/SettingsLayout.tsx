@@ -128,3 +128,5 @@ export function SettingsLayout() {
     </div>
   );
 }
+
+export default SettingsLayout;

@@ -11,6 +11,25 @@ export type DriveFileRow = { id: string; company_id: string; folder_id: string |
 type Account = Database["public"]["Tables"]["bank_accounts"];
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
+    Functions: Database["public"]["Functions"] & {
+      prima_nota_riepilogo_filtrato: {
+        Args: {
+          p_company_id: string;
+          p_from_date?: string;
+          p_to_date?: string;
+          p_direction?: string;
+          p_category?: string;
+          p_is_auto?: boolean;
+          p_auto_source?: string;
+          p_description_pattern?: string;
+          p_bank_account_id?: string;
+          p_conto_liquidita_id?: string;
+          p_account_label_pattern?: string;
+          p_monthly?: boolean;
+        };
+        Returns: { mese: string | null; entrate: number; uscite: number; saldo: number; entry_count: number }[];
+      };
+    };
     Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "order_attachments" | "media_library_folders"> & {
       media_library_folders: Omit<MediaFolder, "Row" | "Insert" | "Update"> & {
         Row: MediaFolder["Row"] & { mode: DriveFolderMode };

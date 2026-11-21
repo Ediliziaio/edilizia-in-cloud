@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 import { isModelloGenerale, leggiRiepilogo, modelliValidi, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { leggiPrerequisiti, type PrerequisitiGenerale } from "@/lib/orders/generali/prerequisiti";
 
@@ -499,11 +500,10 @@ export function useCostiSullaGenerale(generaleId: string | undefined, enabled = 
     enabled: !!generaleId && enabled,
     staleTime: 30_000,
     meta: { silent: true },
-    queryFn: async (): Promise<number | null> => {
+    queryFn: async ({ signal }): Promise<number | null> => {
       try {
-        const { data, error } = await db.from("v_ordine_marginalita").select("consuntivo").eq("id", generaleId!).maybeSingle();
-        if (error) return null;
-        const n = Number((data as { consuntivo?: unknown } | null)?.consuntivo ?? 0);
+        const [dati] = await leggiEconomiaCommesse<{ consuntivo: number | null }>([generaleId!], { colonne: "consuntivo", signal });
+        const n = Number(dati?.consuntivo ?? 0);
         return Number.isFinite(n) ? n : 0;
       } catch {
         return null;

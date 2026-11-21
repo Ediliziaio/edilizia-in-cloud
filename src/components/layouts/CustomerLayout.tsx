@@ -250,3 +250,5 @@ export function CustomerLayout() {
     </SidebarProvider>
   );
 }
+
+export default CustomerLayout;

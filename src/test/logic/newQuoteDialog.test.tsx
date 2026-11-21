@@ -9,7 +9,7 @@ import Preventivi from "@/pages/azienda/marketing/Preventivi";
 import type { SalesArea } from "@/lib/moduli-vendita/areas";
 
 const state = vi.hoisted(() => ({ views: [] as ModuloVenditaView[], hidden: new Set<string>(), loading: false, error: false, visibleLoading: false, isMobile: false,
-  company: "A", support: { supported: true, isLoading: false, isError: false }, permissions: { canEditPreventivi: true, canEditMarketingOpportunities: true } }));
+  company: "A", support: { supported: true, isLoading: false, isError: false }, permissions: { canEditPreventivi: true, canEditMarketingOpportunities: true }, montaImportazione: vi.fn() }));
 vi.mock("@/lib/moduli-vendita", () => ({ useModuliVendita: () => ({ moduli: state.views, isLoading: state.loading, isError: state.error }), useModuliVisibilita: () => ({ isAreaVisibile: (area: SalesArea) => !state.hidden.has(`area:${area.id}`) && !state.hidden.has(area.sourceModule), isLoading: state.visibleLoading }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/useSerramentiModelSupport", () => ({ useSerramentiModelSupport: () => state.support }));
@@ -20,7 +20,12 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => state.isMobile }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: 0 }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/components/marketing/preventivi/UnifiedPreventiviList", () => ({ UnifiedPreventiviList: () => <p data-testid="unified-list">Offerte di tutti i moduli</p> }));
-vi.mock("@/components/computo/ComputoUploadModal", () => ({ ComputoUploadModal: ({ open }: { open: boolean }) => open ? <h2>Importa computo metrico</h2> : null }));
+vi.mock("@/components/computo/ComputoUploadModal", () => ({
+  ComputoUploadModal: ({ open, initialComputoId }: { open: boolean; initialComputoId: string | null }) => {
+    state.montaImportazione(open, initialComputoId);
+    return open ? <button>Seleziona il file del computo</button> : null;
+  },
+}));
 vi.mock("@/components/quotes/QuoteFromCaptureDialog", () => ({ QuoteFromCaptureDialog: () : null => null }));
 vi.mock("@/components/documenti/SmartDocumentInboxDialog", () => ({ SmartDocumentInboxDialog: () : null => null }));
 vi.mock("@/components/documenti/SmartDocumentImportModal", () => ({ SmartDocumentImportModal: () : null => null }));
@@ -60,6 +65,7 @@ describe("ingresso unificato preventivo / computo", () => {
 });
 const mount = (initial = "") => { render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Harness initial={initial} /></MemoryRouter>); fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" })); };
 beforeEach(() => {
+  state.montaImportazione.mockClear();
   state.company = "A";
   state.views = MODULI_VENDITA.map(modulo => ({ modulo, stato: deriveModuloStato(modulo, true), isEnabled: true, isLoading: false, isError: false, errorMessage: null as null, source: "plan" }));
   state.hidden.clear(); state.loading = false; state.visibleLoading = false; state.error = false; state.isMobile = false;
@@ -68,12 +74,21 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it("da telefono apre l'importazione del computo dalla lista dei preventivi", () => {
+it("da telefono carica la finestra d'importazione solo quando viene aperta", async () => {
   state.isMobile = true;
   render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Preventivi /></MemoryRouter>);
+  expect(screen.getByTestId("unified-list")).toBeVisible();
+  expect(state.montaImportazione).not.toHaveBeenCalled();
   fireEvent.keyDown(screen.getByRole("button", { name: "Azioni preventivi" }), { key: "Enter" });
   fireEvent.click(screen.getByRole("menuitem", { name: "Computo metrico" }));
-  expect(screen.getByRole("heading", { name: "Importa computo metrico" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Seleziona il file del computo" })).toBeVisible();
+  expect(state.montaImportazione).toHaveBeenCalledWith(true, null);
+});
+
+it("riprende il computo indicato nel collegamento diretto alla finestra d'importazione", async () => {
+  render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi?action=import-computo&computo_id=computo-da-riprendere"]}><Preventivi /></MemoryRouter>);
+  await screen.findByRole("button", { name: "Seleziona il file del computo" });
+  expect(state.montaImportazione).toHaveBeenCalledWith(true, "computo-da-riprendere");
 });
 
 describe("popup unico di creazione preventivi", () => {

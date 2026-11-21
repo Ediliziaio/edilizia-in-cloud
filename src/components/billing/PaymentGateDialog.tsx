@@ -202,3 +202,5 @@ export function PaymentGateDialog() {
     </>
   );
 }
+
+export default PaymentGateDialog;

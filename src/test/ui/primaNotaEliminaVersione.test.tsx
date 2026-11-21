@@ -5,12 +5,15 @@ import { usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
 const state = vi.hoisted(() => ({ rpc: vi.fn(), rows: [] as PrimaNotaEntry[] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: state.rpc,
+  rpc: (...args: unknown[]) => {
+    const risposta = state.rpc(...args);
+    return Object.assign(risposta, { abortSignal: () => risposta });
+  },
   from: () => {
     let reversals = false;
     const q: Record<string, unknown> = {};
     q.select = (s: string) => { reversals = s === "reversal_of"; return q; };
-    for (const key of ["eq", "in", "gte", "lte", "order", "range", "limit"]) q[key] = () => q;
+    for (const key of ["eq", "in", "gte", "lte", "order", "range", "limit", "abortSignal"]) q[key] = () => q;
     q.then = (resolve: (data: unknown) => unknown) => Promise.resolve({ data: reversals ? [] : state.rows, count: state.rows.length, error: null }).then(resolve);
     return q;
   },
@@ -21,7 +24,7 @@ let client: QueryClient;
 const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } }); state.rows = [payment];
-  state.rpc.mockReset().mockImplementation(async (name: string) => ({ data: name === "prima_nota_elimina_registrazione" ? { eliminati_ids: ["p1", "storno"] } : {}, error: null }));
+  state.rpc.mockReset().mockImplementation(async (name: string) => ({ data: name === "prima_nota_elimina_registrazione" ? { eliminati_ids: ["p1", "storno"] } : [], error: null }));
 });
 afterEach(() => { cleanup(); client.clear(); });
 async function open() { const h = renderHook(() => usePrimaNota(), { wrapper }); await waitFor(() => expect(h.result.current.entries).toHaveLength(state.rows.length)); return h; }
@@ -39,7 +42,7 @@ it("selezionare originale e storno non invoca due volte il pagamento già elimin
 it("elabora l'originale prima dello storno selezionato per primo, anche se il costo è annullato", async () => {
   state.rows.unshift({ ...payment, id: "storno", direction: "entrata", reversal_of: "p1", auto_source: "storno_pagamento" });
   state.rpc.mockImplementation(async (name: string, args?: { p_id?: string }) => ({
-    data: name === "prima_nota_elimina_registrazione" ? { eliminati_ids: ["p1", "storno"] } : {},
+    data: name === "prima_nota_elimina_registrazione" ? { eliminati_ids: ["p1", "storno"] } : [],
     error: name === "prima_nota_elimina_registrazione" && args?.p_id === "storno" ? { code: "P0001", message: "Il costo è annullato: elimina il pagamento originale insieme al relativo storno." } : null,
   }));
   const { result } = await open();
@@ -49,7 +52,7 @@ it("elabora l'originale prima dello storno selezionato per primo, anche se il co
 });
 it("mostra il conflitto di versione come riga non eliminata e permette di conservare la selezione", async () => {
   const { result } = await open();
-  state.rpc.mockImplementation(async (name: string) => ({ data: {}, error: name === "prima_nota_elimina_registrazione" ? { code: "PT409", message: "La registrazione è cambiata. Ricaricala prima di eliminarla." } : null }));
+  state.rpc.mockImplementation(async (name: string) => ({ data: [], error: name === "prima_nota_elimina_registrazione" ? { code: "PT409", message: "La registrazione è cambiata. Ricaricala prima di eliminarla." } : null }));
   const esito = await act(async () => result.current.removeMany.mutateAsync([payment]));
   expect(esito.completate).toEqual([]); expect(esito.errori[0].riga.id).toBe("p1"); expect(esito.errori[0].motivo).toContain("cambiata");
 });

@@ -23,9 +23,23 @@ export function leggiCreditiMisura(raw:unknown):CreditiMisura|null {
   return {fatturato:numero(r.fatturato),incassato:numero(r.incassato),residuo:numero(r.residuo),scaduto:numero(r.scaduto),
     documenti:r.documenti.map(d=>({...d,totale:numero(d.totale),incassato:numero(d.incassato),residuo:numero(d.residuo)}))};
 }
-export async function caricaImportiFinanziari<T extends {id:string}>(companyId:string,rows:T[],signal?: AbortSignal):Promise<Array<T & ImportiFinanziari>> {
+export async function caricaImportiFinanziari<T extends {id:string}>(
+  companyId: string,
+  rows: T[],
+  signal?: AbortSignal,
+  importiGiaLetti?: ReadonlyMap<string, ImportiFinanziari>,
+): Promise<Array<T & ImportiFinanziari>> {
+  signal?.throwIfAborted();
   const map=new Map<string,ImportiFinanziari>();
-  const ids=[...new Set(rows.map(r=>r.id))];
+  const ids = [...new Set(rows.map(r => r.id))].filter(id => {
+    const letti = importiGiaLetti?.get(id);
+    if (!letti) return true;
+    // Si riusano solo i campi della RPC. Le altre colonne sono quelle appena
+    // lette nella pagina, anche se la riga del riepilogo ne contiene altre.
+    const { order_type, valorizzazione, crediti_misura, incasso_unita_lordo, coperto_unita_netto, permuta_unita_netto } = letti;
+    map.set(id, { order_type, valorizzazione, crediti_misura, incasso_unita_lordo, coperto_unita_netto, permuta_unita_netto });
+    return false;
+  });
   for(let offset=0;offset<ids.length;offset+=200) {
     const batch=ids.slice(offset,offset+200);
     const query=supabase.rpc('commesse_importi_finanziari' as never,{p_company_id:companyId,p_ids:batch} as never);

@@ -449,3 +449,5 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     </CommandDialog>
   );
 }
+
+export default CommandPalette;

@@ -408,27 +408,17 @@ export default defineConfig(({ command, mode }) => ({
     // bundle a clean URL.
     assetsDir: "assets-cb3",
     chunkSizeWarningLimit: 1500,
-    // ─────────────────────────────────────────────────────────────
-    // modulePreload filtrato (Velocity V3, Sprint 1.A)
-    // Senza questo, Rolldown mette nel <head> dell'index.html un
-    // `<link rel="modulepreload">` per OGNI dipendenza transitiva
-    // dei chunk lazy — incluso vendor-pdf (≈740 KB gzip!),
-    // vendor-charts (≈127 KB), vendor-flow (≈65 KB), vendor-excel
-    // (≈256 KB). Risultato: al primo paint il browser mobile
-    // scarica ~1 MB gzip EXTRA di JS che l'utente non userà mai
-    // al login. Qui escludiamo i vendor "di feature" dal preload:
-    // verranno comunque caricati on-demand quando la route che
-    // li importa viene montata (lazy(() => import(...))).
-    // ─────────────────────────────────────────────────────────────
     modulePreload: {
-      // v8.6.101 — WHITELIST strict modulePreload.
-      // Solo i chunk strettamente necessari al first paint della Home.
-      resolveDependencies: (_filename, deps) => {
+      resolveDependencies: (_filename, deps, { hostType }) => {
+        // Quando viene aperta una pagina, Vite conosce già le sue dipendenze.
+        // Scaricarle insieme evita attese in serie mentre il browser scopre gli import.
+        if (hostType === "js") return deps;
+        // Nell'HTML iniziale anticipiamo solo i chunk condivisi di avvio.
         const KEEP_PATTERNS = [
+          /\/vendor-(?:react-core|supabase|ui-misc|shared|dates)-/,
           /\/rolldown-runtime-/,
           /\/client-/,
           /\/AuthContext-/,
-          /\/vendor-shared-/,
           /\/utils-/,
           /\/createLucideIcon-/,
           /\/Home-/,

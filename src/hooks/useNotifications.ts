@@ -144,7 +144,7 @@ function daQuando(iso: string): string {
   return `${giorni} giorni`;
 }
 
-export function useNotifications() {
+export function useNotifications(enabled = true) {
   const { profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -164,7 +164,7 @@ export function useNotifications() {
       if (error) throw error;
       return data as Notification[];
     },
-    enabled: !!companyId && !!userId,
+    enabled: enabled && !!companyId && !!userId,
     // 2026-05-27: alzato da 30s a 2min — il realtime push tiene la cache
     // fresca, il polling era solo safety-net per eventi persi (raro).
     staleTime: 2 * 60_000,
@@ -173,7 +173,7 @@ export function useNotifications() {
   });
 
   // ── Avvisi lifecycle (azienda) → stessa lista della campanella ──
-  const { data: righeLifecycle = [] } = useQuery<LifecycleRow[]>({
+  const { data: righeLifecycle = [], isLoading: lifecycleLoading } = useQuery<LifecycleRow[]>({
     queryKey: queryKeys.lifecycleNotifications.byCompany(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -186,7 +186,7 @@ export function useNotifications() {
       if (error) throw error;
       return data as LifecycleRow[];
     },
-    enabled: !!companyId,
+    enabled: enabled && !!companyId,
     staleTime: 2 * 60_000,
     gcTime: 5 * 60_000,
   });
@@ -341,7 +341,7 @@ export function useNotifications() {
     notifications: notificheUnificate,
     unreadCount,
     unreadMessagesCount,
-    isLoading,
+    isLoading: isLoading || lifecycleLoading,
     markAsRead: markAsRead.mutate,
     markAllAsRead: markAllAsRead.mutate,
     dismiss: dismiss.mutate,

@@ -18,7 +18,7 @@
  * rimosso (KPI dedicati, charts, bulk select, columns picker, advanced
  * filters sheet). Le feature equivalenti sono ora dentro UnifiedPreventiviList.
  */
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,21 +55,32 @@ import {
   QuotePageHeader,
   type HubTab,
 } from "@/components/marketing/preventivi/ui/builderUI";
-import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
-import { QuoteFromCaptureDialog } from "@/components/quotes/QuoteFromCaptureDialog";
-import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
-import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
 
-import AnalisiPreventivi from "./AnalisiPreventivi";
-import QuoteApprovals from "./QuoteApprovals";
+const AnalisiPreventivi = lazy(() => import("./AnalisiPreventivi"));
+const QuoteApprovals = lazy(() => import("./QuoteApprovals"));
+const ComputoUploadModal = lazy(() => import("@/components/computo/ComputoUploadModal").then(m => ({ default: m.ComputoUploadModal })));
+const QuoteFromCaptureDialog = lazy(() => import("@/components/quotes/QuoteFromCaptureDialog").then(m => ({ default: m.QuoteFromCaptureDialog })));
+const SmartDocumentInboxDialog = lazy(() => import("@/components/documenti/SmartDocumentInboxDialog").then(m => ({ default: m.SmartDocumentInboxDialog })));
+const SmartDocumentImportModal = lazy(() => import("@/components/documenti/SmartDocumentImportModal").then(m => ({ default: m.SmartDocumentImportModal })));
 
 // I moduli con un «Listino lavorazioni» dedicato (rotta /azienda/<modulo>/listino).
 const LISTINO_SLUGS = new Set(["ristrutturazione", "bagni", "tetti", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine"]);
 const ALLOWED_USER_TABS = new Set(["lista"]);
+
+function AttesaImportazione({ open, onOpenChange, titolo }: { open: boolean; onOpenChange: (open: boolean) => void; titolo: string }) {
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle>{titolo}</DialogTitle>
+        <DialogDescription role="status">Apertura in corso…</DialogDescription>
+      </DialogHeader>
+    </DialogContent>
+  </Dialog>;
+}
 
 export default function Preventivi() {
   const { effectiveCompany } = useAuth();
@@ -154,10 +166,11 @@ export default function Preventivi() {
   });
 
   // ─── Modal AI import (deep-link via ?action=...) ─────────────────────────
-  const [showComputoModal, setShowComputoModal] = useState(false);
-  const [showFotoModal, setShowFotoModal] = useState(false);
-  const [showSmartInbox, setShowSmartInbox] = useState(false);
-  const [showSmartImportModal, setShowSmartImportModal] = useState(false);
+  // Dopo la prima apertura la finestra resta montata per conservare il flusso di importazione.
+  const [showComputoModal, setShowComputoModal] = useState<boolean | null>(null);
+  const [showFotoModal, setShowFotoModal] = useState<boolean | null>(null);
+  const [showSmartInbox, setShowSmartInbox] = useState<boolean | null>(null);
+  const [showSmartImportModal, setShowSmartImportModal] = useState<boolean | null>(null);
   const [smartComputoId, setSmartComputoId] = useState<string | null>(null);
 
   const handleComputoModalOpenChange = (open: boolean) => {
@@ -335,44 +348,62 @@ export default function Preventivi() {
         </>
       )}
 
-      {activeTab === "approvazioni" && canSeeApprovazioni && <QuoteApprovals />}
-      {activeTab === "analisi" && canSeeAnalisi && <AnalisiPreventivi />}
+      <Suspense fallback={<p role="status" className="py-8 text-sm text-muted-foreground">Caricamento della scheda…</p>}>
+        {activeTab === "approvazioni" && canSeeApprovazioni && <QuoteApprovals />}
+        {activeTab === "analisi" && canSeeAnalisi && <AnalisiPreventivi />}
+      </Suspense>
 
       {/* Modal AI: Computo metrico → Preventivo */}
-      <ComputoUploadModal
-        open={showComputoModal}
-        onOpenChange={handleComputoModalOpenChange}
-        initialComputoId={smartComputoId}
-        onComplete={(quoteId) => navigate(`${routePrefix}/preventivi/${quoteId}`)}
-      />
+      {showComputoModal !== null && (
+        <Suspense fallback={<AttesaImportazione open={showComputoModal} onOpenChange={handleComputoModalOpenChange} titolo="Importa computo metrico" />}>
+          <ComputoUploadModal
+            open={showComputoModal}
+            onOpenChange={handleComputoModalOpenChange}
+            initialComputoId={smartComputoId}
+            onComplete={(quoteId) => navigate(`${routePrefix}/preventivi/${quoteId}`)}
+          />
+        </Suspense>
+      )}
 
       {/* Modal AI: Foto/audio/testo → Preventivo (multi-foto, audio 3min) */}
-      <QuoteFromCaptureDialog
-        open={showFotoModal}
-        onOpenChange={setShowFotoModal}
-        onQuoteCreated={(quoteId) => navigate(`${routePrefix}/preventivi/${quoteId}`)}
-      />
+      {showFotoModal !== null && (
+        <Suspense fallback={<AttesaImportazione open={showFotoModal} onOpenChange={setShowFotoModal} titolo="Importa foto, schizzi o audio" />}>
+          <QuoteFromCaptureDialog
+            open={showFotoModal}
+            onOpenChange={setShowFotoModal}
+            onQuoteCreated={(quoteId) => navigate(`${routePrefix}/preventivi/${quoteId}`)}
+          />
+        </Suspense>
+      )}
 
       {/* Storico operativo degli import AI: riprende computi/listini/fatture senza perderli. */}
-      <SmartDocumentInboxDialog
-        open={showSmartInbox}
-        onOpenChange={setShowSmartInbox}
-        onImportNew={() => setShowSmartImportModal(true)}
-        onComputoReady={(computoId) => {
-          setSmartComputoId(computoId);
-          setShowComputoModal(true);
-        }}
-      />
+      {showSmartInbox !== null && (
+        <Suspense fallback={<AttesaImportazione open={showSmartInbox} onOpenChange={setShowSmartInbox} titolo="Importazioni recenti" />}>
+          <SmartDocumentInboxDialog
+            open={showSmartInbox}
+            onOpenChange={setShowSmartInbox}
+            onImportNew={() => setShowSmartImportModal(true)}
+            onComputoReady={(computoId) => {
+              setSmartComputoId(computoId);
+              setShowComputoModal(true);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Smart Document Router — AI classifica e smista al modulo giusto */}
-      <SmartDocumentImportModal
-        open={showSmartImportModal}
-        onOpenChange={setShowSmartImportModal}
-        onComputoReady={(computoId) => {
-          setSmartComputoId(computoId);
-          setShowComputoModal(true);
-        }}
-      />
+      {showSmartImportModal !== null && (
+        <Suspense fallback={<AttesaImportazione open={showSmartImportModal} onOpenChange={setShowSmartImportModal} titolo="Importa documento" />}>
+          <SmartDocumentImportModal
+            open={showSmartImportModal}
+            onOpenChange={setShowSmartImportModal}
+            onComputoReady={(computoId) => {
+              setSmartComputoId(computoId);
+              setShowComputoModal(true);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

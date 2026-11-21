@@ -15,24 +15,29 @@ const VISTA = [
   { id: "o1", preventivo_totale: 250267.38, consuntivo: 185669.67, margine: 64597.71, margine_perc: 25.8 },
   { id: "o2", preventivo_totale: 18000, consuntivo: 0, margine: 18000, margine_perc: 100 },
 ];
-const tabelleLette: string[] = [];
+const leggi = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: (tabella: string) => {
-      tabelleLette.push(tabella);
-      const dati = tabella === "orders" ? COMMESSE : VISTA;
+    from: () => {
       const q = {
         select: () => q, eq: () => q, or: () => q, is: () => q, gte: () => q, lte: () => q, order: () => q,
-        limit: () => Promise.resolve({ data: dati, error: null }),
-        in: () => Promise.resolve({ data: dati, error: null }),
+        limit: () => q,
+        abortSignal: () => Promise.resolve({ data: COMMESSE, error: null }),
       };
       return q;
     },
+    rpc: leggi.rpc.mockImplementation(() => {
+      const q = {
+        filter: () => q, abortSignal: () => q,
+        select: () => Promise.resolve({ data: VISTA, error: null }),
+      };
+      return q;
+    }),
   },
 }));
 
 describe("Dettaglio «Margine» del cruscotto", () => {
-  it("mostra i numeri della scheda commessa, dalla stessa vista", async () => {
+  it("mostra i numeri della scheda commessa e richiede soltanto le commesse del dettaglio", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>
@@ -40,7 +45,7 @@ describe("Dettaglio «Margine» del cruscotto", () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByText("25.8%")).toBeTruthy();
-    expect(tabelleLette).toContain("v_ordine_marginalita");
+    expect(leggi.rpc).toHaveBeenCalledWith("economia_commesse", { p_ids: ["o1", "o2"] });
     expect(screen.queryByText("22.0%")).toBeNull();
   });
 

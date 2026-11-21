@@ -150,10 +150,10 @@ import { FeatureRoute } from "@/components/auth/FeatureRoute";
 // RequireCompanyPermission + CompanyPermissionKey usati via ./company/_shared
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
-import { SettingsLayout } from "@/components/layouts/SettingsLayout";
 import { SoloTabletDesktop } from "@/components/layouts/SoloTabletDesktop";
 
 // Company pages
+const SettingsLayout = lazy(() => import("@/components/layouts/SettingsLayout"));
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
 const DemoPreviewShowcase = lazy(() => import("@/pages/azienda/DemoPreviewShowcase"));
@@ -199,7 +199,7 @@ const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/Setti
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCreditsRedirect = lazy(() => import("@/pages/azienda/settings/SettingsCreditsRedirect"));
 const SettingsModelliPdf = lazy(() => import("@/pages/azienda/settings/SettingsModelliPdf"));
-const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
+const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates/ModelliPreventivi"));
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));

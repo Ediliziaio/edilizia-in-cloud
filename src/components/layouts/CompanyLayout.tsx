@@ -72,8 +72,7 @@ import { filtraGruppiDelMenu } from "@/lib/impostazioni/indiceImpostazioni";
 import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Suspense, useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
-import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
-import { SupportChannelDialog } from "@/components/layouts/SupportChannelDialog";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { useUnreadSupportCount } from "@/hooks/useUnreadSupportCount";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -106,17 +105,64 @@ import { useUnreadEmailCount } from "@/hooks/useUnreadEmailCount";
 import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
 import { useConversazioniNonLette } from "@/hooks/useConversazioniNonLette";
 
-import { CommandPalette } from "@/components/CommandPalette";
 import { TimbraHeaderButton } from "@/components/layouts/TimbraHeaderButton";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
-import { NpsModal } from "@/components/onboarding/NpsModal";
-import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 import { useAuditAccountantPageView } from "@/hooks/accountant/useAccountantAudit";
 import { useAccountantRevocationWatch } from "@/hooks/accountant/useAccountantRevocationWatch";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import { accountingHome, isCompanyPathAvailable } from "@/lib/companyManagementMode";
+
+const SupportChatSheet = lazyWithRetry(() => import("./SupportChatSheet"));
+const SupportChannelDialog = lazyWithRetry(() => import("./SupportChannelDialog"));
+const CommandPalette = lazyWithRetry(() => import("@/components/CommandPalette"));
+const NpsModal = lazyWithRetry(() => import("@/components/onboarding/NpsModal"));
+const SilvioFAB = lazyWithRetry(() => import("@/components/silvio/SilvioFAB"));
+
+const aperturaPannello = (
+  <div role="status" className="fixed inset-x-4 top-4 z-50 mx-auto w-fit rounded-lg border bg-background px-4 py-2 text-sm shadow">
+    Apertura in corso…
+  </div>
+);
+
+/** Attiva i servizi accessori dopo il primo contenuto della pagina e il suo effetto di lettura. */
+function DopoPrimaPagina({ onReady }: { onReady: () => void }): null {
+  useEffect(() => {
+    if (window.requestIdleCallback) {
+      const idleId = window.requestIdleCallback(onReady, { timeout: 1_200 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(onReady, 700);
+    return () => window.clearTimeout(timer);
+  }, [onReady]);
+  return null;
+}
+
+function AssistenteAzienda({ mostraPulsante }: { mostraPulsante: boolean }) {
+  const [pulsanteCaricato, setPulsanteCaricato] = useState(false);
+  const [richiestaChat, setRichiestaChat] = useState<{ draft?: string } | null>(null);
+  useEffect(() => {
+    if (mostraPulsante) setPulsanteCaricato(true);
+  }, [mostraPulsante]);
+  useEffect(() => {
+    const apri = (evento: Event) => {
+      const dettaglio = (evento as CustomEvent<{ draft?: string }>).detail;
+      setRichiestaChat({ draft: dettaglio?.draft });
+    };
+    window.addEventListener("silvio:open-chat", apri);
+    return () => window.removeEventListener("silvio:open-chat", apri);
+  }, []);
+
+  if (!pulsanteCaricato && !richiestaChat) return null;
+  return (
+    <ErrorBoundary title="Silvio non è al momento disponibile">
+      <Suspense fallback={richiestaChat ? aperturaPannello : null}>
+        <SilvioFAB richiestaChat={richiestaChat} />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
 
 const CompanyBrandHeader = memo(function CompanyBrandHeader({
   isCollapsed,
@@ -667,16 +713,20 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   );
 }
 
-function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
-  const { data: taskCounts } = useMyTaskCount();
-  const { data: emailCounts } = useUnreadEmailCount();
+function CruscottoNavItems({ filterNavItems, badgePronti }: {
+  filterNavItems: (items: NavItem[]) => NavItem[];
+  badgePronti: boolean;
+}) {
+  const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
+  const leggiChat = badgePronti && items.some(item => item.url === "/azienda/chat");
+  const { data: taskCounts } = useMyTaskCount(badgePronti && items.some(item => item.url === "/azienda/attivita"));
+  const { data: emailCounts } = useUnreadEmailCount(badgePronti && items.some(item => item.url === "/azienda/email"));
   // Due conteggi per la voce «Chat»: la chat interna del team e le conversazioni
   // esterne (WhatsApp/email/IG…). Due badge di colore diverso nella sidebar.
-  const internalChatUnread = useInternalChatUnreadTotal();
-  const conversazioniUnread = useConversazioniNonLette();
+  const internalChatUnread = useInternalChatUnreadTotal(leggiChat);
+  const conversazioniUnread = useConversazioniNonLette(leggiChat);
   const permissions = usePermissions();
   const { role } = useAuth();
-  const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
 
   return (
     <SidebarGroup className="py-2">
@@ -876,7 +926,7 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   );
 });
 
-const CompanySidebar = memo(function CompanySidebar() {
+const CompanySidebar = memo(function CompanySidebar({ badgePronti }: { badgePronti: boolean }) {
   const isMobile = useIsMobile();
   const { signOut, effectiveCompany, profile, isImpersonating, exitImpersonation, role, userRoles, multiCompanyAccesses } = useAuth();
   const hasMultipleCompanies = (multiCompanyAccesses?.length ?? 0) > 1;
@@ -1187,7 +1237,7 @@ const CompanySidebar = memo(function CompanySidebar() {
               </div>
             )}
             {/* Cruscotto — standalone items */}
-            {!isCommercialistaMode && <CruscottoNavItems filterNavItems={filterNavItems} />}
+            {!isCommercialistaMode && <CruscottoNavItems filterNavItems={filterNavItems} badgePronti={badgePronti} />}
 
             {/* Separator: divide top-level items from collapsible sections */}
             {!isCommercialistaMode && <div className="mx-4 border-t border-sidebar-border/60" />}
@@ -1385,6 +1435,7 @@ const CompanySidebar = memo(function CompanySidebar() {
 
 export function CompanyLayout() {
   const {
+    user,
     effectiveCompany,
     isImpersonating,
     multiCompanyAccesses,
@@ -1395,13 +1446,18 @@ export function CompanyLayout() {
   } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
+  const isMobile = useIsMobile();
+  const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
   useCustomCSS();
   const navigate = useNavigate();
-  const [supportOpen, setSupportOpen] = useState(false);
-  const [channelDialogOpen, setChannelDialogOpen] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
+  // null indica che l'utente non ha ancora aperto il pannello. Dopo il primo
+  // utilizzo restano montati per conservare i dati locali e il focus dei dialog.
+  const [supportOpen, setSupportOpen] = useState<boolean | null>(null);
+  const [channelDialogOpen, setChannelDialogOpen] = useState<boolean | null>(null);
+  const [commandOpen, setCommandOpen] = useState<boolean | null>(null);
   const [deferredRealtimeReady, setDeferredRealtimeReady] = useState(false);
-  const { unreadCount, markAsRead } = useUnreadSupportCount({ enabled: deferredRealtimeReady });
+  const attivaServiziSecondari = useCallback(() => setDeferredRealtimeReady(true), []);
+  const { unreadCount, markAsRead } = useUnreadSupportCount({ enabled: deferredRealtimeReady && !isMobile && showSupport });
   const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
   const location = useLocation();
   const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -1555,24 +1611,6 @@ export function CompanyLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Evita che badge realtime, polling e widget accessori competano con la
-  // prima renderizzazione della pagina. Restano disponibili subito dopo il
-  // primo idle frame, senza cambiare il comportamento utente.
-  useEffect(() => {
-    const win = window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-
-    if (win.requestIdleCallback) {
-      const idleId = win.requestIdleCallback(() => setDeferredRealtimeReady(true), { timeout: 1_200 });
-      return () => win.cancelIdleCallback?.(idleId);
-    }
-
-    const timeoutId = window.setTimeout(() => setDeferredRealtimeReady(true), 700);
-    return () => window.clearTimeout(timeoutId);
-  }, []);
-
   // Preventivatore Verticalizzato — FASE 1.4
   // Gate onboarding vertical: se l'azienda corrente non ha ancora completato la
   // scelta del settore (onboarding_vertical_completed=false) forziamo il redirect
@@ -1630,8 +1668,6 @@ export function CompanyLayout() {
       ? "p-0 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0"
       : "p-3 md:p-6 pb-28 md:pb-6";
 
-  const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
-
   const handleOpenChat = () => {
     markAsRead();
     setSupportOpen(true);
@@ -1646,7 +1682,7 @@ export function CompanyLayout() {
         alle pagine 480px su 768: diventa un pannello che si apre dal ☰. */}
     <SidebarProvider pannelloSotto={1024}>
       <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
-        <CompanySidebar />
+        <CompanySidebar badgePronti={deferredRealtimeReady} />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
             padding-top del body (html.capacitor body). Aggiungerlo qui lo
             raddoppierebbe → grande spazio bianco in alto su notch/Dynamic Island.
@@ -1727,7 +1763,7 @@ export function CompanyLayout() {
                 v8.6.69 — Nascoste su mobile (icona inbox+badge); restano su md+.
                 Motivazione UX: header mobile sovraffollato, l'utente accede
                 alle proposte da pagina dedicata. */}
-            {deferredRealtimeReady && (
+            {deferredRealtimeReady && !isMobile && (
               <div className="hidden md:block">
                 <ActionProposalsBadge />
               </div>
@@ -1735,9 +1771,11 @@ export function CompanyLayout() {
             {/* v8.6.90 — Changelog "Cosa c'è di nuovo" con badge non-letti
                 v8.6.72 — Nascosto su mobile per liberare header.
                 Resta accessibile dalle impostazioni / drawer admin. */}
-            <div className="hidden md:block">
-              <ChangelogDrawer />
-            </div>
+            {!isMobile && (
+              <div className="hidden md:block">
+                <ChangelogDrawer />
+              </div>
+            )}
             {/* 29/10/2026 — Via anche il cervello di Silvio dall'intestazione:
                 sul telefono Silvio e' gia' il bottone grande al centro della
                 barra in basso, dove il pollice arriva. Due porte per la stessa
@@ -1746,22 +1784,18 @@ export function CompanyLayout() {
                 Sostituisce SilvioBellPopover su mobile (che resta su desktop
                 accanto alla campanella notifiche). Mostra badge con il numero
                 di messaggi chat non letti. Tap → /azienda/chat. */}
-            {deferredRealtimeReady && (
-              <MobileChatTeamButton />
+            {isMobile && (
+              <MobileChatTeamButton badgePronti={deferredRealtimeReady} />
             )}
             {/* Silvio: cose da sapere proattive — NASCOSTA su mobile (v8.6.71)
                 per liberare spazio header. Resta su desktop dove c'è più posto. */}
-            {deferredRealtimeReady && (
+            {deferredRealtimeReady && !isMobile && (
               <div className="hidden md:block">
                 <SilvioBellPopover />
               </div>
             )}
-            {deferredRealtimeReady && (
-              <>
-                <NotificationsRealtime />
-                <NotificationsBellPopover />
-              </>
-            )}
+            {deferredRealtimeReady && <NotificationsRealtime />}
+            <NotificationsBellPopover badgePronti={deferredRealtimeReady} />
             {/* Da 768px: tra 640 e 767 la testata è quella del telefono, dove
                 il bottone verde da 150px spingeva fuori le icone. */}
             {showSupport && (
@@ -1802,6 +1836,7 @@ export function CompanyLayout() {
                       {contenutoAzienda}
                     </DelegatedCompanyContent>
                   ) : contenutoAzienda}
+                  {!deferredRealtimeReady && <DopoPrimaPagina onReady={attivaServiziSecondari} />}
                 </SoftphoneProvider>
               </Suspense>
             </ErrorBoundary>
@@ -1813,9 +1848,11 @@ export function CompanyLayout() {
               Su Safari iOS position:fixed non funziona in certi contesti.
               Con h-[100dvh] + overflow-hidden sul container e overflow-y-auto
               sul main, la nav resta sempre visibile senza fixed. */}
-          <ErrorBoundary key={location.pathname} title="Errore navigazione mobile">
-            <MobileBottomNav />
-          </ErrorBoundary>
+          {isMobile && (
+            <ErrorBoundary key={location.pathname} title="Errore navigazione mobile">
+              <MobileBottomNav badgePronti={deferredRealtimeReady} />
+            </ErrorBoundary>
+          )}
         </div>
       </div>
       {/* La chiamata passata dall'assistente arriva mentre lavori, non mentre
@@ -1823,27 +1860,39 @@ export function CompanyLayout() {
       <ErrorBoundary title="Errore scheda chiamata">
         <SchedaPassaggioChiamata />
       </ErrorBoundary>
-      {showSupport && (
-        <>
-          <SupportChannelDialog
-            open={channelDialogOpen}
-            onOpenChange={setChannelDialogOpen}
-            onOpenChat={handleOpenChat}
-          />
-          <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />
-        </>
-      )}
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
-      {deferredRealtimeReady && <PWAInstallBanner />}
-      <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
-      {/* Silvio FAB — visibile da tablet/desktop; su mobile si usa la voce Chat */}
-      {/* Boundary dedicato: un errore dentro Silvio (FAB/chat sheet) non deve più
-          buttare giù l'INTERA area azienda con la pagina "Errore nell'area azienda" */}
-      {deferredRealtimeReady && (
-        <ErrorBoundary title="Silvio non è al momento disponibile">
-          <SilvioFAB />
+      {showSupport && (channelDialogOpen !== null || supportOpen !== null) && (
+        <ErrorBoundary title="Errore nell’apertura dell’assistenza">
+          <Suspense fallback={aperturaPannello}>
+            {channelDialogOpen !== null && (
+              <SupportChannelDialog
+                open={channelDialogOpen}
+                onOpenChange={setChannelDialogOpen}
+                onOpenChat={handleOpenChat}
+              />
+            )}
+            {supportOpen !== null && <SupportChatSheet open={supportOpen} onOpenChange={setSupportOpen} />}
+          </Suspense>
         </ErrorBoundary>
       )}
+      {commandOpen !== null && (
+        <ErrorBoundary title="Errore nell’apertura della ricerca">
+          <Suspense fallback={commandOpen ? aperturaPannello : null}>
+            <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {deferredRealtimeReady && <PWAInstallBanner />}
+      {npsOpen && (
+        <ErrorBoundary title="Errore nell’apertura del questionario">
+          <Suspense fallback={aperturaPannello}>
+            <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      <AssistenteAzienda
+        key={`${user?.id ?? ""}:${effectiveCompany?.id ?? ""}`}
+        mostraPulsante={deferredRealtimeReady && !isMobile}
+      />
     </SidebarProvider>
     </>
   );

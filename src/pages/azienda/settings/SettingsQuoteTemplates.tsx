@@ -1,6 +1,6 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import React, { useId, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
@@ -23,7 +23,7 @@ import type {
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useSettingsDraftGuard, confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,9 +44,7 @@ import {
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag, FileSpreadsheet } from "lucide-react";
-import ComputoModelloPanel from "@/components/computo/ComputoModelloPanel";
+import { TabsContent } from "@/components/ui/tabs";
 // MP-IMP-001 Fase 3 — sezioni estratte in cartella dedicata
 import {
   FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES, SEZIONI_EDITOR_OFFERTA,
@@ -60,8 +58,7 @@ import { useVaiAlRiquadro } from "./SettingsQuoteTemplates/useVaiAlRiquadro";
 import type {
   TemplateFormPayload, TemplateVisibilityKey,
 } from "./SettingsQuoteTemplates/helpers";
-import { ModuliVenditaPanel } from "./SettingsQuoteTemplates/ModuliVenditaPanel";
-import { VariationTemplatesPanel } from "./SettingsQuoteTemplates/VariationTemplatesPanel";
+import ModelliPreventivi, { SchedeModelliPreventivi } from "./SettingsQuoteTemplates/ModelliPreventivi";
 import { CONDIZIONI_STANDARD_MD } from "@/lib/condizioniStandard";
 import { markdownSempliceToHtml, sembraMarkdown } from "@/lib/markdownSemplice";
 import DOMPurify from "dompurify";
@@ -72,12 +69,6 @@ const FONT_CSS: Record<FontFamily, string> = {
   times: "'Times New Roman', Times, serif",
   courier: "'Courier New', Courier, monospace",
 };
-import {
-  buildQuoteTemplatesTabParams,
-  normalizeQuoteTemplatesParams,
-  resolveQuoteTemplatesTopTab,
-  type QuoteTemplatesTopTab,
-} from "@/lib/settingsQuoteTemplatesRoute";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 // MP-IMP-001 Fase 3: LAYOUTS / FONTS / DESIGN_PRESETS / TEMPLATE_ASSET_BUCKET /
@@ -584,7 +575,7 @@ function RigaInterruttoreModello({
 }
 
 export default function SettingsQuoteTemplates() {
-  return <QuoteTemplatesLegacy unificato />;
+  return <ModelliPreventivi />;
 }
 
 /** La libreria resta leggibile dalle versioni precedenti; il percorso pubblico usa un solo builder. */
@@ -595,30 +586,11 @@ export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolea
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
   const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
-  const canView = isAdmin || permissions.canViewSettingsPricing;
   // Chi può solo consultare: i modelli si aprono ma non si cambiano (la regola del database è la stessa,
   // `quote_templates_scrittura`). L'avviso lo dice, e i pulsanti spenti rimandano a lui con aria-describedby.
   const puoModificare = isAdmin;
   const mostraAvvisoSolaLettura = !puoModificare && !permissions.isLoading;
   const { templates, isLoading, fetchError, upsertTemplate, deleteTemplate } = useQuoteTemplates();
-
-  // Deeplink: ?tab=moduli-vendita | documenti, ?modulo=serramenti
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get("tab");
-  // Se ?modulo non è specificato → undefined → landing con grid card.
-  // Solo se l'URL contiene un modulo esplicito apre l'editor di quel modulo.
-  const moduloFromUrl = searchParams.get("modulo") ?? undefined;
-  const tabRisolta = resolveQuoteTemplatesTopTab(tabFromUrl, moduloFromUrl);
-  const topTab = unificato && tabRisolta === "documenti" ? "computo" : tabRisolta;
-
-  useEffect(() => {
-    const normalized = unificato && tabRisolta === "documenti"
-      ? buildQuoteTemplatesTabParams(searchParams, "computo")
-      : normalizeQuoteTemplatesParams(searchParams);
-    if (normalized) {
-      setSearchParams(normalized, { replace: true });
-    }
-  }, [searchParams, setSearchParams, unificato, tabRisolta]);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
@@ -994,45 +966,8 @@ export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolea
     });
   };
 
-  if (isLoading && topTab === "documenti") {
-    return (
-      <div role="status" aria-label="Caricamento dei modelli" className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
-      </div>
-    );
-  }
-
   return (
-    <Tabs
-      value={topTab}
-      onValueChange={(v) => { if (confermaNavigazioneImpostazioni())
-        setSearchParams((prev) => buildQuoteTemplatesTabParams(prev, v as QuoteTemplatesTopTab), { replace: true });
-      }}
-      className="space-y-4"
-    >
-      <TabsList className={`h-auto max-w-full flex-wrap bg-slate-100 max-sm:grid max-sm:w-full max-sm:gap-1 max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal max-sm:[&>button]:px-1.5 max-sm:[&>button]:text-xs max-sm:[&_svg]:hidden ${unificato ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
-        {!unificato && <TabsTrigger value="documenti" className="gap-1.5">
-          <FileText className="h-3.5 w-3.5" />
-          Libreria modelli
-        </TabsTrigger>}
-        <TabsTrigger value="computo" className="gap-1.5">
-          <FileSpreadsheet className="h-3.5 w-3.5" />
-          {unificato ? "Preventivo / computo metrico" : "Builder preventivo"}
-        </TabsTrigger>
-        <TabsTrigger value="moduli-vendita" className="gap-1.5">
-          <ShoppingBag className="h-3.5 w-3.5" />
-          Moduli<span className="max-sm:hidden"> (serramenti, fotovoltaico…)</span>
-        </TabsTrigger>
-        <TabsTrigger value="varianti" className="gap-1.5">Varianti e lavori extra</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="computo"><ComputoModelloPanel key={effectiveCompany?.id} canEdit={puoModificare} /></TabsContent>
-      <TabsContent value="varianti"><VariationTemplatesPanel key={effectiveCompany?.id} companyId={effectiveCompany?.id} canEdit={puoModificare} /></TabsContent>
-
-      <TabsContent value="moduli-vendita" className="space-y-4">
-        <ModuliVenditaPanel initialModulo={moduloFromUrl} />
-      </TabsContent>
-
+    <SchedeModelliPreventivi companyId={effectiveCompany?.id} puoModificare={puoModificare} unificato={unificato} caricamentoLibreria={isLoading}>
       <TabsContent value="documenti" className="space-y-6 mt-0">
       {mostraAvvisoSolaLettura && (
         <Alert id={ID_AVVISO_SOLA_LETTURA}>
@@ -2523,6 +2458,6 @@ export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolea
         </AlertDialogContent>
       </AlertDialog>
       </TabsContent>
-    </Tabs>
+    </SchedeModelliPreventivi>
   );
 }

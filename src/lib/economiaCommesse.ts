@@ -11,12 +11,22 @@ import { supabase } from "@/integrations/supabase/client";
 
 const BLOCCO = 100;
 
-export async function leggiEconomiaCommesse<T = Record<string, unknown>>(ids: ReadonlyArray<string>): Promise<T[]> {
+export const COLONNE_MARGINI_COMMESSE = "id, preventivo_totale, consuntivo, margine, margine_perc";
+
+export async function leggiEconomiaCommesse<T = Record<string, unknown>>(
+  ids: ReadonlyArray<string>,
+  { signal, companyId, colonne }: { signal?: AbortSignal; companyId?: string; colonne?: string } = {},
+): Promise<T[]> {
   const unici = [...new Set(ids.filter(Boolean))];
   const righe: T[] = [];
   for (let i = 0; i < unici.length; i += BLOCCO) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc("economia_commesse", { p_ids: unici.slice(i, i + BLOCCO) });
+    signal?.throwIfAborted();
+    let richiesta = supabase.rpc("economia_commesse", { p_ids: unici.slice(i, i + BLOCCO) });
+    // Il tipo generato non descrive le colonne della vista privata restituita dalla RPC.
+    if (companyId) richiesta = richiesta.filter("company_id", "eq", companyId);
+    if (signal) richiesta = richiesta.abortSignal(signal);
+    const { data, error } = await (colonne ? richiesta.select(colonne) : richiesta);
+    signal?.throwIfAborted();
     if (error) throw error;
     righe.push(...((data ?? []) as T[]));
   }

@@ -37,13 +37,13 @@ interface ConteggioNonLette {
   durataMs: number;
 }
 
-export function useConversazioniNonLette(): number {
+export function useConversazioniNonLette(enabled = true): number {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const { data = 0 } = useQuery({
     queryKey: ["conversazioni-non-lette", companyId],
-    enabled: !!companyId,
+    enabled: enabled && !!companyId,
     // Anche il ritorno sulla scheda aspetta lo stesso tempo del giro.
     staleTime: (query) => attesaNonLette(query.state.data?.durataMs ?? 0),
     refetchInterval: (query) => attesaNonLette(query.state.data?.durataMs ?? 0),

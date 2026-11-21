@@ -187,3 +187,5 @@ export function NpsModal({ open, onClose }: NpsModalProps) {
     </Dialog>
   );
 }
+
+export default NpsModal;
