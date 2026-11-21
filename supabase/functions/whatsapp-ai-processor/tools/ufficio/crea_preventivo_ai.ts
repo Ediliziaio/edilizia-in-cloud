@@ -2,7 +2,7 @@
 //
 // Generate a proposal first; save only after the exact priced lines are confirmed.
 
-import { errResult, okResult, type ToolCtx, type ToolResult } from "../shared/types.ts";
+import { errResult, okResult, type ToolCtx } from "../shared/types.ts";
 import { quoteDraftIssue } from "../../../_shared/operationalDraftValidation.ts";
 
 interface Args {
@@ -48,7 +48,7 @@ export const creaPreventivoAiDef = {
   requires_confirmation: false,
 };
 
-export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolResult> {
+export async function creaPreventivoAi(ctx: ToolCtx, args: Args) {
   const descrizione = typeof args.descrizione === "string" ? args.descrizione.trim().slice(0, 24_000) : "";
   const clienteNome = typeof args.cliente_nome === "string" ? args.cliente_nome.trim() : "";
   if (descrizione.length < 5) return errResult("descrizione_corta", "Dimmi cosa devo preventivare, un po' più nel dettaglio.");

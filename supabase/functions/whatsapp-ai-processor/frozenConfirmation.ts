@@ -103,6 +103,7 @@ function riepilogoOperativo(action: string, args: Record<string, unknown>, voci:
   }
   if (action === "crea_attivita_ufficio") return [
     testo(args.titolo, 160), `Ufficio: ${testo(args.ufficio, 100)}`,
+    ...(args.responsabile ? [`Responsabile ${testo(args.responsabile, 120)}`] : []),
     ...(args.note ? [testo(args.note, 300)] : []),
     ...(args.scadenza ? [`Entro il ${dataIt(args.scadenza)}`] : []),
   ];
@@ -188,6 +189,12 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
       args.ufficio = attivita.ufficio;
       args.ufficio_id = attivita.ufficio_id;
       args.titolo = attivita.titolo;
+      delete args.responsabile;
+      delete args.assegnatario_id;
+      if (attivita.assegnatario_id) {
+        args.responsabile = attivita.responsabile;
+        args.assegnatario_id = attivita.assegnatario_id;
+      }
       if (attivita.note) args.note = attivita.note;
       if (attivita.scadenza) args.scadenza = attivita.scadenza;
     } catch (e) {

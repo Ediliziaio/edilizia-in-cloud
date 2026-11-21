@@ -33,6 +33,7 @@ export class DbMinimo {
 class Interrogazione {
   private filtri: Filtro[] = [];
   private verbo: "select" | "insert" | "update" | "upsert" = "select";
+  private ignoraDuplicati = false;
   private colonne: string | null = null;
   private dati: unknown;
   private ordine: { colonna: string; crescente: boolean }[] = [];
@@ -50,7 +51,9 @@ class Interrogazione {
   }
   insert(dati: unknown) { this.verbo = "insert"; this.dati = dati; return this; }
   update(dati: unknown) { this.verbo = "update"; this.dati = dati; return this; }
-  upsert(dati: Riga) { this.verbo = "upsert"; this.dati = dati; return this; }
+  upsert(dati: Riga, opzioni?: { ignoreDuplicates?: boolean }) {
+    this.verbo = "upsert"; this.dati = dati; this.ignoraDuplicati = opzioni?.ignoreDuplicates === true; return this;
+  }
   abortSignal(_signal: AbortSignal) { return this; }
   eq(c: string, v: unknown) {
     this.filtri.push((r) => r[c] === v || (r[c] != null && typeof r[c] === "object" && JSON.stringify(r[c]) === v));
@@ -142,9 +145,12 @@ class Interrogazione {
       const dati = this.dati as Riga;
       this.db.scritture.push({ tabella: this.tabella, tipo: "upsert", dati });
       const esistente = righe.find(r => r.id === dati.id);
-      if (esistente) Object.assign(esistente, dati);
-      else righe.push({ ...dati });
-      risultato = [esistente ?? dati];
+      if (esistente && this.ignoraDuplicati) risultato = [];
+      else {
+        if (esistente) Object.assign(esistente, dati);
+        else righe.push({ ...dati });
+        risultato = [esistente ?? dati];
+      }
     } else {
       risultato = righe.filter((r) => this.corrisponde(r));
     }

@@ -74,6 +74,8 @@ import { linguaItaliana, traduciVocaleInItaliano } from "./traduzioneVocale.ts";
 import { chiedeAiutoOperativo, chiedeCantieriDiOggi, guidaOperativa } from "./aiutoOperativo.ts";
 import { elencaMieiCantieriOggi } from "./tools/operaio/elenca_miei_cantieri_oggi.ts";
 import { applicaRitardo, AZIONE_RITARDO, leggiRitardoCronoprogramma, preparaRitardo, puoRipianificare } from "./ritardoCronoprogramma.ts";
+import { seguiTicket, ticketDaCitazione } from "./tools/operaio/segui_ticket.ts";
+import { nuovaRichiestaPreventivo, preventivoInConversazione, riguardaBozzaPreventivo } from "./preventiviInConversazione.ts";
 import { avviaProssimoMessaggio, posticipaDomandaBolla } from "./codaConversazione.ts";
 import { avviaLetturaBolla } from "./letturaBollaInCoda.ts";
 import { cercaInvioBolle, destinaInvioBolle, destinazioneDettaPerInvio, type EsitoInvioBolle, messaggioPerTutteLeBolle, posticipaInvioBolle, preletturaInvio, raccogliInvioBolle, recuperaAllegatoInRitardo } from "./invioBolle.ts";
@@ -332,7 +334,15 @@ Deno.serve(async (req) => {
       return termina("processed");
     }
 
-    const ritardoScritto = msg.message_type === "text" ? leggiRitardoCronoprogramma(msg.content_text ?? "") : null;
+    const citazioneRicevuta = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
+    const ticketCitato = identity.role_grants.includes("segnalazione.write") && citazioneRicevuta && msg.wa_number_id
+      ? await ticketDaCitazione(supabase, msg.company_id, msg.wa_number_id, msg.from_phone, citazioneRicevuta) : null;
+    const ritardoScritto = msg.message_type === "text" && !ticketCitato ? leggiRitardoCronoprogramma(msg.content_text ?? "") : null;
+    const allegatoSegnalazione = !!ticketCitato || (identity.role_grants.includes("segnalazione.write") &&
+      !!segnalazioneEsplicita(msg.content_text ?? ""));
+    const pdfPerPreventivo = msg.message_type === "document" && identity.role_grants.includes("preventivi.ai") &&
+      nuovaRichiestaPreventivo(msg.content_text ?? "");
+
     // Prima conserviamo l'originale. Il credito AI serve solo alla lettura.
     let mediaCorrente: { storagePath: string; url: string; tipo: string } | null = null;
     let mediaOriginale: Blob | undefined;
@@ -368,7 +378,9 @@ Deno.serve(async (req) => {
       .eq("wa_number_id", msg.wa_number_id)
       .maybeSingle();
     if (sessionError) throw new Error("bot_session_lookup_unavailable");
-    if (!identity.solaLettura && !ritardoScritto && msg.message_type === "text" && operationalTriage.intent === "unknown" &&
+    const riguardaBozza = identity.role_grants.includes("preventivi.ai") && riguardaBozzaPreventivo(msg.content_text ?? "", citazioneRicevuta);
+    if (!identity.solaLettura && !ticketCitato && !riguardaBozza && !ritardoScritto &&
+        msg.message_type === "text" && operationalTriage.intent === "unknown" &&
         !chiedeAiutoOperativo(msg.content_text ?? "") && !leggiDestinazioneBolla(msg.content_text ?? "") &&
         !messaggioPerTutteLeBolle(msg.content_text ?? "") &&
         !paganteScontrino(msg.content_text ?? "") && !importoScontrinoDetto(msg.content_text ?? "") && !tipoAllegatoDetto(msg.content_text ?? "")) {
@@ -522,7 +534,7 @@ Deno.serve(async (req) => {
         );
         return termina("failed", originaleSalvato ? "traduzione_vocale_da_verificare" : "transcribe_error");
       }
-    } else if (!paginaAggiuntiva && msg.message_type === "image" && msg.media_storage_path) {
+    } else if (!allegatoSegnalazione && !paginaAggiuntiva && msg.message_type === "image" && msg.media_storage_path) {
       try {
         userContent = await attivita.misura("riconosce_allegato", () => leggiFotoOperativa(supabase, {
           storagePath: msg.media_storage_path,
@@ -541,7 +553,7 @@ Deno.serve(async (req) => {
         console.error(JSON.stringify({ level: "error", fn: "analyze", error: String(e) }));
         userContent = `[Foto ricevuta — non sono riuscito a leggerla]\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
       }
-    } else if (!paginaAggiuntiva && msg.message_type === "document" && msg.media_storage_path) {
+    } else if (!pdfPerPreventivo && !allegatoSegnalazione && !paginaAggiuntiva && msg.message_type === "document" && msg.media_storage_path) {
       // Documenti PDF (DDT, fatture, computi): fino al 28/09/2026 venivano
       // scaricati e ignorati. Ora si leggono e si dice che tipo sono.
       try {
@@ -728,7 +740,7 @@ Deno.serve(async (req) => {
       mediaCorrente,
     };
 
-    const relazione = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
+    const relazione = citazioneRicevuta;
     const testoOperativo = msg.message_type === "audio" ? testoDellaRisposta : msg.content_text ?? "";
     const pdfQuiDisponibile = nomiBot.has("invia_pdf_preventivo") && !sbloccatiOra.includes("invia_pdf_preventivo");
     const modelloDedicatoRichiesto = /\b(?:modello|facsimile|layout|impaginazione)\b/i.test(testoOperativo) &&
@@ -1019,7 +1031,44 @@ Deno.serve(async (req) => {
         if (!(e instanceof ConfirmationReviewError)) throw e;
       }
     }
-    const segnalazione = ["text", "audio", "image"].includes(msg.message_type) ? segnalazioneEsplicita(testoOperativo) : null;
+    if (!ticketCitato && nomiBot.has("crea_preventivo_ai") && nomiBot.has("salva_preventivo_bozza") &&
+      !sbloccatiOra.includes("crea_preventivo_ai") && !modelloDedicatoRichiesto) {
+      const esito = await preventivoInConversazione(toolCtx, { testo: testoOperativo, tipo: msg.message_type,
+        citazione: relazione, metadata: msg.metadata });
+      if (esito) {
+        if (esito.id) attivita.collegaRichiesta({ tipo: "preventivo", id: esito.id });
+        if (esito.conferma && esito.id) {
+          try {
+            const frozen = await preparaConferma("salva_preventivo_bozza", esito.conferma, { id: esito.id, media: null });
+            await inviaPreambolo(msg, frozen.preambolo);
+            await sessionState.save({ conferma: frozen.pending });
+            await sendInteractiveReply(msg, frozen.interactive as unknown as Record<string, unknown>);
+          } catch (e) {
+            if (!(e instanceof ConfirmationReviewError)) throw e;
+            await sendReply(msg, e.message);
+          }
+        } else if (esito.menu) await sendInteractiveReply(msg, esito.menu as unknown as Record<string, unknown>);
+        else if (esito.messaggio) await sendReply(msg, esito.messaggio);
+        if (esito.elabora) {
+          const lettura = esito.elabora().catch(() => console.warn("[preventivi] Esito della lettura WhatsApp non disponibile"));
+          const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+          if (runtime) runtime.waitUntil(lettura);
+          else await lettura;
+        }
+        return termina("processed");
+      }
+    }
+    if (ticketCitato && nomiBot.has("crea_segnalazione") && !sbloccatiOra.includes("crea_segnalazione") &&
+      ["text", "image", "audio", "document"].includes(msg.message_type)) {
+      const esito = await runWhatsAppTool(supabase, msg.company_id, `segui-ticket:${msg.id}`, "segui_ticket",
+        { ticket: ticketCitato, tipo: msg.message_type, testo: testoOperativo },
+        () => seguiTicket(toolCtx, ticketCitato, msg.message_type, testoOperativo));
+      if (esito) {
+        await sendReply(msg, esito, true);
+        return termina("processed");
+      }
+    }
+    const segnalazione = ["text", "audio", "image", "document"].includes(msg.message_type) ? segnalazioneEsplicita(testoOperativo) : null;
     if (segnalazione) {
       const nome = segnalazione.mezzo ? "segnala_mezzo" : "crea_segnalazione";
       if (nomiBot.has(nome) && !sbloccatiOra.includes(nome)) {
@@ -1037,13 +1086,14 @@ Deno.serve(async (req) => {
           }).eq("id", msg.id).eq("company_id", msg.company_id).eq("wa_number_id", msg.wa_number_id);
           attivita.passo(segnalazione.mezzo ? "problema_mezzo_salvato" : "ticket_aperto");
         }
-        await sendReply(msg, esito.user_message ?? (esito.ok ? "Segnalazione salvata." : "La segnalazione è disponibile nella chat del gestionale."));
+        await sendReply(msg, esito.user_message ?? (esito.ok ? "Segnalazione salvata." : "La segnalazione è disponibile nella chat del gestionale."),
+          esito.ok && !segnalazione.mezzo);
         return termina("processed");
       }
     }
 
     const inAttesa = statoSessione.conferma && !statoSessione.conferma.proposta_id ? statoSessione.conferma : null;
-    const ritardo = msg.message_type === "audio" ? leggiRitardoCronoprogramma(testoOperativo) : ritardoScritto;
+    const ritardo = msg.message_type === "audio" && !ticketCitato ? leggiRitardoCronoprogramma(testoOperativo) : ritardoScritto;
     const ritardoInAttesa = inAttesa?.azione === AZIONE_RITARDO ? inAttesa : null;
     const sceltaRitardo = rispostaCantiere(ritardoInAttesa, msg.metadata, msg.message_type, testoDellaRisposta);
     if (ritardo || (ritardoInAttesa && (sceltaRitardo?.tipo === "cantiere" || userJustConfirmed))) {

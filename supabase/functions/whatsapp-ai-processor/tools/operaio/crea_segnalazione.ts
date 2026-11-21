@@ -10,6 +10,8 @@ import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { sceltaCantiere } from "../shared/sceltaCantiere.ts";
 import { requireSiteAccess } from "../shared/siteAccess.ts";
+import { allegatoOperativo } from "../shared/allegatoOperativo.ts";
+import { collegaMessaggioTicket, linkTicket } from "./segui_ticket.ts";
 
 export const creaSegnalazioneDef: Omit<ToolDef, "handler"> = {
   name: "crea_segnalazione",
@@ -51,7 +53,7 @@ export async function creaSegnalazione(
   ctx: ToolCtx,
   args: Args,
 ): Promise<ToolResult<{ id: string; urgenza: string }>> {
-  const descrizione = (args.descrizione ?? "").trim();
+  const descrizione = (args.descrizione ?? "").trim().slice(0, 5000);
   if (descrizione.length < 3) {
     return errResult(
       "descrizione_troppo_breve",
@@ -86,12 +88,12 @@ export async function creaSegnalazione(
   const chi = [dip?.first_name, dip?.last_name].filter(Boolean).join(" ") || "un operaio";
   const breve = descrizione.length > 80 ? `${descrizione.slice(0, 79)}…` : descrizione;
   const titolo = `${cantiere ? `${ordine?.order_code ?? cantiere}: ` : ""}${breve}`.slice(0, 200);
-  const fotoNote = ctx.mediaCorrente?.tipo === "image" ? "\nFoto: allegata al messaggio WhatsApp (in Conversazioni)." : "";
+  const origine = ctx.sourceMessageId ?? ctx.requestId;
 
   const { data: ticket, error } = await ctx.supabase
     .from("tickets")
     .insert({
-      ...(ctx.sourceMessageId ? { id: ctx.sourceMessageId } : {}),
+      ...(origine ? { id: origine } : {}),
       company_id: ctx.company_id,
       order_id: orderId,
       created_by: ctx.user_id,
@@ -105,23 +107,38 @@ export async function creaSegnalazione(
       status: "aperto",
       fonte: "campo",
       ...(args.tipo_problema ? { category: args.tipo_problema.slice(0, 60) } : {}),
-      internal_notes: `Arrivato su WhatsApp da ${chi} (${ctx.phone}).${fotoNote}`,
+      internal_notes: `Arrivato su WhatsApp da ${chi} (${ctx.phone}).`,
     })
     .select("id")
     .single();
 
-  if (error || !ticket?.id) return errResult("ticket_non_creato", "Non sono riuscito ad aprire la segnalazione. Riprova, oppure chiama l'ufficio se è urgente.");
+  let ticketId = ticket?.id;
+  if (error?.code === "23505" && origine) {
+    const precedente = await ctx.supabase.from("tickets").select("id, descrizione, order_id, created_by")
+      .eq("company_id", ctx.company_id).eq("id", origine).eq("fonte", "campo").maybeSingle();
+    if (!precedente.error && precedente.data?.descrizione === descrizione && precedente.data.order_id === orderId &&
+      precedente.data.created_by === ctx.user_id) ticketId = precedente.data.id;
+  }
+  if (!ticketId) return errResult("ticket_non_creato", "Non sono riuscito ad aprire la segnalazione. Riprova, oppure chiama l'ufficio se è urgente.");
+  let allegato = "";
+  try {
+    const file = await allegatoOperativo(ctx, "ticket", ticketId);
+    if (file) allegato = ` ${file.tipoMedia} allegato.`;
+  } catch { allegato = " Il file resta disponibile nella chat WhatsApp del gestionale."; }
+  let rispostaDiretta = " Rispondi qui per aggiungere dettagli o chiedere lo stato.";
+  try { await collegaMessaggioTicket(ctx, origine, ticketId); }
+  catch { rispostaDiretta = ""; }
 
-  const avviso = avvisaUfficio(ctx, ticket.id, `${urgenza === "alta" ? "Urgente: " : ""}problema dal cantiere`,
-    `${chi}${cantiere ? ` su ${cantiere}` : ""}: ${breve}`).catch((): undefined => undefined);
+  const avviso = ticket?.id ? avvisaUfficio(ctx, ticketId, `${urgenza === "alta" ? "Urgente: " : ""}problema dal cantiere`,
+    `${chi}${cantiere ? ` su ${cantiere}` : ""}: ${breve}`).catch((): undefined => undefined) : Promise.resolve();
   const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void } }).EdgeRuntime;
   if (runtime) runtime.waitUntil(avviso);
   else await avviso;
 
   const emoji = urgenza === "alta" ? "🔴" : urgenza === "media" ? "🟠" : "🟡";
   const dove = cantiere ? ` su ${cantiere}${motivo ? ` (${motivo})` : ""}` : " con cantiere da abbinare";
-  return okResult({ id: ticket.id, urgenza },
-    `${emoji} Ticket aperto in Assistenza${dove}.`);
+  return okResult({ id: ticketId, urgenza },
+    `${emoji} Ticket aperto in Assistenza${dove}.${allegato}${rispostaDiretta}\n${linkTicket(ticketId)}`);
 }
 
 /**

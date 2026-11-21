@@ -70,7 +70,7 @@ async function registra(msg: Omit<IncomingWhatsAppMessage, "from">, file?: Blob)
   riga.id = randomUUID();
   riga.created_at = new Date().toISOString();
   if (file) {
-    const estensione = msg.type === "audio" ? "ogg" : "jpg";
+    const estensione = msg.type === "audio" ? "ogg" : file.type === "application/pdf" ? "pdf" : "jpg";
     const path = [azienda, "2026-11", riga.id + "." + estensione].join("/");
     originali.set("whatsapp-media/" + path, file);
     riga.media_storage_path = path;
@@ -117,8 +117,8 @@ beforeEach(() => {
   const magazzinoFile = (bucket: string, path: string) => bucket + "/" + path;
   Object.assign(db, { storage: { from: (bucket: string) => ({
     download: async (path: string) => ({ data: originali.get(magazzinoFile(bucket, path)), error: null as null }),
-    upload: async (path: string, data: Uint8Array, options: { contentType: string }) => {
-      originali.set(magazzinoFile(bucket, path), new Blob([new Uint8Array(data)], { type: options.contentType }));
+    upload: async (path: string, data: Uint8Array | Blob, options: { contentType: string }) => {
+      originali.set(magazzinoFile(bucket, path), new Blob([data instanceof Blob ? data : new Uint8Array(data)], { type: options.contentType }));
       return { data: { path }, error: null as null };
     },
   }) } });
@@ -128,8 +128,15 @@ beforeEach(() => {
       return evento.headers.has("x-cron-secret") ? new Response(null, { status: 202 }) : gestore(evento);
     }
     if (url.endsWith("/whatsapp-send")) {
-      consegne.push(JSON.parse(String(init?.body)));
-      return rispostaJson({ success: true, meta_message_id: "wamid.risposta" + consegne.length });
+      const body = JSON.parse(String(init?.body)) as Riga;
+      consegne.push(body);
+      const providerId = "wamid.risposta" + consegne.length;
+      const origine = db.tabelle.whatsapp_messages?.find(r => r.id === body.reply_to_id && r.direction === "inbound");
+      if (origine?.linked_record_type === "tickets") db.tabelle.whatsapp_messages.push({
+        id: randomUUID(), wa_message_id: providerId, company_id: azienda, wa_number_id: linea.id, direction: "outbound",
+        to_phone: mittente, linked_record_type: "tickets", linked_record_id: origine.linked_record_id, processing_status: "processed",
+      });
+      return rispostaJson({ success: true, meta_message_id: providerId });
     }
     if (url.endsWith("/ddt-documenti-processa")) {
       const id = JSON.parse(String(init?.body)).id;
@@ -758,7 +765,46 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
       id: vocale.id, category: "manutenzione", order_id: cantiere, descrizione: expect.stringContaining("serratura"), status: "aperto",
     })]);
     expect(consegne[0].text).toContain("Ticket aperto in Assistenza");
+    expect(consegne[0].text).toContain("Vocale allegato");
+    expect(originali.get(`ticket-attachments/${vocale.id}/wa-${vocale.id}.ogg`)?.size).toBe(6);
+    const foto = await registra({ id: "wamid.ticket-foto", type: "image", image: { id: "345692" }, context: { id: "wamid.risposta1" } },
+      new Blob(["FOTO"], { type: "image/jpeg" }));
+    await elabora(foto);
+    expect(originali.get(`ticket-attachments/${vocale.id}/wa-${foto.id}.jpg`)?.size).toBe(4);
+    expect(db.tabelle.ticket_messages).toEqual([expect.objectContaining({ id: foto.id, ticket_id: vocale.id })]);
+    expect(db.tabelle.tickets).toHaveLength(1);
+    db.tabelle.tickets[0].status = "in_lavorazione";
+    await elabora(await registra({ id: "wamid.ticket-stato", type: "text", context: { id: "wamid.risposta2" },
+      text: { body: "A che punto è?" } }));
+    expect(consegne.at(-1)?.text).toContain("è in lavorazione");
+    expect(db.tabelle.ticket_messages).toHaveLength(1);
     expect(m.ai).not.toHaveBeenCalled();
+  });
+
+  it("assegna alla persona dell’ufficio e conserva il vocale dopo la conferma", async () => {
+    const laura = randomUUID();
+    db.tabelle.profiles.push({ id: laura, company_id: azienda, first_name: "Laura", last_name: "Verdi", deleted_at: null });
+    db.tabelle.ufficio_membri = [{ company_id: azienda, ufficio_id: acquisti, profile_id: laura }];
+    db.rpcs.silvio_commesse_visibili = () => [{ id: cantiere }];
+    m.transcribe.mockResolvedValueOnce({ testo: "Chiedi a Laura di chiamare il fornitore domani per PROVA-SIMULA", lingua: "italian", durata: 6 });
+    m.ai.mockResolvedValue(chiediConferma("crea_attivita_ufficio", { responsabile: "Laura",
+      titolo: "Chiamare il fornitore", scadenza: "2026-11-21", cantiere_hint: "PROVA-SIMULA" }));
+    const vocale = await registra({ id: "wamid.attivita-laura", type: "audio", audio: { id: "345695" } }, new Blob(["vocale"]));
+    await elabora(vocale);
+    const proposta = consegne[0].interactive as InteractivePayload;
+    expect(proposta.body.text).toContain("Responsabile Laura Verdi");
+    expect(proposta.body.text).toContain("Vocale allegato");
+    if (proposta.type !== "button") throw new Error("Attesa conferma attività");
+    const conferma = proposta.action.buttons[0].reply;
+    await elabora(await registra({ id: "wamid.laura-si", type: "interactive", interactive: { button_reply: conferma } }));
+    expect(db.tabelle.tasks).toEqual([expect.objectContaining({
+      id: vocale.id, assigned_to: laura, ufficio_id: acquisti, due_date: "2026-11-21", order_id: cantiere,
+    })]);
+    expect(db.tabelle.task_attachments).toEqual([expect.objectContaining({ task_id: vocale.id, mime_type: "audio/ogg" })]);
+    expect(consegne.at(-1)?.text).toContain("Laura Verdi");
+    await elabora(await registra({ id: "wamid.laura-si-due", type: "interactive", interactive: { button_reply: conferma } }));
+    expect(db.tabelle.tasks).toHaveLength(1);
+    expect(db.tabelle.task_attachments).toHaveLength(1);
   });
 
   it("registra il guasto sul mezzo in carico e lascia in chat quello riferito a un altro mezzo", async () => {
@@ -795,13 +841,17 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
   });
 
-  it("passa dal computo dettato al preventivo verificabile e consegna il PDF alla stessa chat dopo il bottone", async () => {
+  it("riprende il preventivo dettato dopo giorni e consegna il PDF alla stessa chat dopo il bottone", async () => {
     const quoteId = randomUUID();
     const path = azienda + "/" + quoteId + ".pdf";
     db.tabelle.user_roles = [{ user_id: "utente-a", role: "company_admin" }];
     db.rpcs.silvio_context_actor_roles = () => ["company_admin"];
-    db.rpcs.silvio_create_quote_draft = args => {
-      db.tabelle.quotes = [{ id: quoteId, company_id: azienda, client_name: args.p_client_name, quote_number: "OFF-DEMO", source: "silvio" }];
+    db.rpcs.whatsapp_salva_bozza_preventivo = args => {
+      const b = db.tabelle.whatsapp_preventivi_bozze.find(r => r.id === args.p_id && r.revisione === args.p_revisione)!;
+      expect(args.p_anteprima).toEqual(b.anteprima);
+      Object.assign(b, { stato: "salvata", quote_id: quoteId });
+      db.tabelle.quotes = [{ id: quoteId, company_id: azienda, client_name: b.cliente, quote_number: "OFF-DEMO",
+        source: "silvio", ai_richiesta_id: b.id }];
       return { success: true, quote_id: quoteId, quote_number: "OFF-DEMO", status: "bozza",
         items_count: 1, subtotal_eur: 1000, vat_eur: 220, total_eur: 1220 };
     };
@@ -810,7 +860,7 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (String(url).endsWith("/ai-genera-preventivo-v2")) {
         expect(JSON.parse(String(init?.body))).toMatchObject({
-          company_id: azienda, per_utente: "utente-a", descrizione: "Posa di 40 mq di pavimento",
+          company_id: azienda, per_utente: "utente-a", descrizione: expect.stringContaining("posa di 40 metri quadrati"),
           ai_richiesta_id: messaggio.id,
         });
         return rispostaJson({ success: true, sezioni: [{ righe: [{
@@ -826,12 +876,13 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     }));
     m.transcribe.mockResolvedValueOnce({ testo: "Fammi un preventivo per Rossi, posa di 40 metri quadrati, IVA 22 per cento e mandami qui il PDF.",
       lingua: "italian", durata: 10 });
-    m.ai.mockResolvedValueOnce({ choices: [{ message: { content: null, tool_calls: [{
-      id: "richiesta-computo", type: "function", function: { name: "crea_preventivo_ai",
-        arguments: JSON.stringify({ cliente_nome: "Rossi", descrizione: "Posa di 40 mq di pavimento", iva: 22 }) },
-    }] } }] });
     await elabora(messaggio);
-    const proposta = consegne[0].interactive as InteractivePayload;
+    expect(consegne[0].text).toContain("Sto preparando le voci");
+    expect(db.tabelle.whatsapp_preventivi_bozze[0]).toMatchObject({ id: messaggio.id, stato: "pronta", invia_pdf_qui: true });
+    vi.setSystemTime(new Date("2026-11-23T10:00:00Z"));
+    db.tabelle.whatsapp_sessions[0].state_data = null;
+    await elabora(await registra({ id: "wamid.computo-riprendi", type: "text", text: { body: "Riprendi preventivo" } }));
+    const proposta = consegne.at(-1)?.interactive as InteractivePayload;
     expect(proposta.body.text).toContain("40 mq ×");
     expect(proposta.body.text).toContain("ti mando il PDF in questa chat");
     expect(db.tabelle.quotes ?? []).toHaveLength(0);
@@ -839,13 +890,14 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     await elabora(await registra({ id: "wamid.computo-si", type: "interactive", interactive: {
       button_reply: proposta.action.buttons[0].reply,
     } }));
-    expect(db.rpcs.silvio_create_quote_draft).toBeDefined();
-    expect(db.rpcChiamate.filter(r => r.nome === "silvio_create_quote_draft")).toEqual([expect.objectContaining({
-      args: expect.objectContaining({ p_items: [expect.objectContaining({ quantity: 40, unit_of_measure: "mq", unit_price: 25, item_type: "labor" })] }),
+    expect(db.rpcChiamate.filter(r => r.nome === "whatsapp_salva_bozza_preventivo")).toEqual([expect.objectContaining({
+      args: expect.objectContaining({ p_id: messaggio.id, p_anteprima: expect.objectContaining({
+        items: [expect.objectContaining({ quantity: 40, unit_of_measure: "mq", unit_price: 25, item_type: "labor" })],
+      }) }),
     })]);
     expect(consegne.filter(r => r.type === "document")).toEqual([expect.objectContaining({ to: mittente, wa_number_id: linea.id })]);
     expect(db.tabelle.quotes[0]).toMatchObject({ id: quoteId, ai_richiesta_id: messaggio.id, pdf_storage_path: path });
-    expect(m.ai).toHaveBeenCalledTimes(1);
+    expect(m.ai).not.toHaveBeenCalled();
     expect(db.tabelle.ai_attivita_live).toContainEqual(expect.objectContaining({
       flusso: "preventivo", assistente: "WhatsApp", stato: "completata", fase: "pdf_inviato",
       richiesta: { tipo: "preventivo", id: messaggio.id, risorsa_id: quoteId },
@@ -855,6 +907,44 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
         expect.objectContaining({ fase: "invio_risposta", durata_ms: expect.any(Number) }),
       ]),
     }));
+  });
+
+  it("conserva il PDF in una bozza e genera le voci dopo aver ricevuto cliente e IVA", async () => {
+    db.tabelle.user_roles = [{ user_id: "utente-a", role: "company_admin" }];
+    db.rpcs.silvio_context_actor_roles = () => ["company_admin"];
+    const original = fetch;
+    let letture = 0;
+    let generazioni = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).endsWith("/silvio-extract-pdf")) {
+        letture++;
+        return rispostaJson({ text: "Posa ceramica\t12,50\tmq", coverage: { complete: true } });
+      }
+      if (String(url).endsWith("/ai-genera-preventivo-v2")) {
+        generazioni++;
+        expect(JSON.parse(String(init?.body)).descrizione).toContain("Posa ceramica\t12,50\tmq");
+        return rispostaJson({ success: true, sezioni: [{ righe: [{
+          nome: "Posa ceramica", quantita: 12.5, unita_misura: "mq", unit_price: 32, item_category: "posa",
+        }] }] });
+      }
+      return original(url, init);
+    }));
+    const pdf = await registra({ id: "wamid.computo-pdf", type: "document", document: {
+      id: "349980", mime_type: "application/pdf", filename: "Computo.pdf", caption: "Prepara un preventivo da questo computo",
+    } }, new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+    await elabora(pdf);
+    expect(db.tabelle.whatsapp_preventivi_bozze[0]).toMatchObject({ id: pdf.id, stato: "da_completare", cliente: null, iva: null });
+    expect(letture).toBe(1);
+    expect(generazioni).toBe(0);
+    await elabora(await registra({ id: "wamid.preventivo-dati", type: "text", text: { body: "Cliente Bianchi, IVA 10%" } }));
+    expect(db.tabelle.whatsapp_preventivi_bozze).toHaveLength(1);
+    expect(db.tabelle.whatsapp_preventivi_bozze[0]).toMatchObject({ id: pdf.id, revisione: 2, stato: "pronta", cliente: "Bianchi", iva: 10 });
+    expect(db.tabelle.whatsapp_preventivi_bozze[0].anteprima).not.toHaveProperty("description");
+    expect(letture).toBe(1);
+    expect(generazioni).toBe(1);
+    await elabora(await registra({ id: "wamid.preventivo-riapri", type: "text", text: { body: "Riprendi preventivo" } }));
+    expect(consegne.at(-1)?.interactive).toMatchObject({ body: { text: expect.stringContaining("12,5 mq") } });
+    expect(db.tabelle.quotes ?? []).toHaveLength(0);
   });
 
   it("presenta all'operaio le funzioni abilitate e legge le assegnazioni di oggi senza AI", async () => {

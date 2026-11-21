@@ -13,3 +13,9 @@ Chi lavora in cantiere manda un vocale, una foto o un PDF come fa già oggi. Il 
 | Inizio giornata | L’operaio può chiedere i cantieri assegnati e gestire la timbratura. | Un riepilogo facoltativo dà cantiere, orario, incarico e link all’indirizzo. Verificare un operaio con due assegnazioni e un cambio di cantiere prima della partenza. |
 
 Affronterei prima attività e assistenza, perché oggi l’ufficio deve riprendere e smistare la richiesta. Poi la bozza di preventivo da vocale e PDF, con avanzamento in **Attività AI**. Per il titolare aggiungerei un riepilogo mensile in un solo messaggio, con accesso diretto ai dati. Per ogni flusso misurerei tempo al primo riscontro, quante domande servono prima di chiuderlo, risultati senza correzioni e duplicati dopo un reinvio.
+
+## Prove dei tre flussi in locale
+
+- **Attività.** Detta «Chiedi a Laura di chiamare il fornitore domani per PROVA-SIMULA». Il riepilogo mostra ufficio, responsabile, scadenza e vocale. La conferma crea una sola attività con l’allegato.
+- **Ticket.** Detta «Apri un ticket di manutenzione, la serratura del cantiere PROVA-SIMULA è bloccata». Rispondi al messaggio del ticket con una foto e poi chiedi «A che punto è?». La foto si aggiunge alla stessa scheda e la risposta usa lo stato del gestionale.
+- **Preventivo.** Allega un computo con «Prepara un preventivo da questo PDF» oppure detta lavori, cliente e IVA. La bozza viene conservata subito. Scrivi «Riprendi preventivo» per ritrovarla, anche dopo la scadenza della sessione. Se mancano cliente e IVA puoi aggiungerli alla bozza. Il passaggio in Preventivi usa il riepilogo esatto della versione confermata.

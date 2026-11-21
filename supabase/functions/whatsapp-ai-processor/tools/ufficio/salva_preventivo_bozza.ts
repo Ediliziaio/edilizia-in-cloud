@@ -9,6 +9,8 @@ export const salvaPreventivoBozzaDef: Omit<ToolDef, "handler"> = {
     properties: {
       ...SILVIO_TOOLS.create_quote_draft.schema.function.parameters.properties,
       invia_pdf_qui: { type: "boolean", description: "Attiva solo su richiesta esplicita di ricevere il PDF in questa chat." },
+      bozza_whatsapp_id: { type: "string", description: "Identificativo della bozza ripresa, inserito dal gestionale." },
+      revisione_whatsapp: { type: "integer", minimum: 1, description: "Revisione congelata nel riepilogo dal gestionale." },
     },
     additionalProperties: false,
   },
@@ -16,12 +18,24 @@ export const salvaPreventivoBozzaDef: Omit<ToolDef, "handler"> = {
 };
 export async function salvaPreventivoBozza(ctx: ToolCtx, args: Record<string, unknown>): Promise<ToolResult> {
   if (!ctx.user_id || !["ufficio", "admin"].includes(ctx.kind)) return errResult("no_user", "Questo salvataggio richiede un utente dell’ufficio autorizzato.");
-  const result = await SILVIO_TOOLS.create_quote_draft.executor(args, {
+  const { bozza_whatsapp_id: bozza, revisione_whatsapp: revisione, invia_pdf_qui: _inviaQui, ...anteprima } = args;
+  let result;
+  if (bozza !== undefined || revisione !== undefined) {
+    if (!idAttivitaValido(bozza) || !Number.isInteger(revisione) || bozza !== ctx.sourceMessageId) {
+      return errResult("bozza_da_riprendere", "Riprendi la bozza WhatsApp e conferma il riepilogo aggiornato.");
+    }
+    const { data, error } = await ctx.supabase.rpc("whatsapp_salva_bozza_preventivo", { p_id: bozza, p_company: ctx.company_id,
+      p_utente: ctx.user_id, p_revisione: revisione, p_anteprima: anteprima });
+    if (error || data?.success !== true || !idAttivitaValido(data.quote_id)) {
+      return errResult("bozza_da_riprendere", "Riprendi la bozza WhatsApp per vedere il riepilogo o il preventivo già salvato.");
+    }
+    result = data;
+  } else result = await SILVIO_TOOLS.create_quote_draft.executor(anteprima, {
     supabase: ctx.supabase, companyId: ctx.company_id, userId: ctx.user_id,
     primaryRole: ctx.kind === "admin" ? "company_admin" : "company_staff", channel: "whatsapp",
   } as ToolContext);
   if (result?.error) return errResult("quote_save_unconfirmed", result.error);
-  if (idAttivitaValido(result.quote_id) && idAttivitaValido(ctx.sourceMessageId)) {
+  if (!bozza && idAttivitaValido(result.quote_id) && idAttivitaValido(ctx.sourceMessageId)) {
     try {
       const { error } = await ctx.supabase.from("quotes").update({ ai_richiesta_id: ctx.sourceMessageId })
         .eq("company_id", ctx.company_id).eq("id", result.quote_id).is("ai_richiesta_id", null);
