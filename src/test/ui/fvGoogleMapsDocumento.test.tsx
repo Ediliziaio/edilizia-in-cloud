@@ -10,6 +10,26 @@ beforeEach(()=>{
 afterEach(()=>{vi.useRealTimers();document.body.innerHTML="";});
 function documento(){const d=document.implementation.createHTMLDocument("PDF");d.body.innerHTML=`<div data-fv-google-pdf="${encodeURIComponent(JSON.stringify({centro:{lat:45.46378,lng:9.18983},zoom:20,w:640,h:440}))}"><div data-fv-google-frame><div data-fv-google-map></div><svg data-overlay><polygon points="1,2 3,4 5,6"/></svg></div><p data-fv-google-status>Attendi</p></div>`;return d;}
 describe("Google nel documento: caricamento reale prima della stampa",()=>{
+  it("usa il massimo locale e riproietta l'overlay invece di stampare tile grigie",async()=>{
+    const api=await mocks.load();
+    api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string;zoom:number})=>void){cb({status:"OK",zoom:20});}};
+    const d=documento(),host=d.querySelector<HTMLElement>('[data-fv-google-pdf]')!;
+    host.dataset.fvGooglePdf=encodeURIComponent(JSON.stringify({centro:{lat:45.46378,lng:9.18983},zoom:21,w:640,h:440}));
+    const p=preparaMappeDocumentoFv(d);await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.maps[0].options).toMatchObject({zoom:20,minZoom:20,maxZoom:20});
+    expect(d.querySelector('[data-fv-google-scale]')?.getAttribute('transform')).toBe('translate(320 220) scale(0.5) translate(-320 -220)');
+    mocks.maps[0].events.tilesloaded();const cleanup=await p;
+    expect(host.dataset.fvGoogleZoom).toBe('20');
+    expect(d.querySelector('[data-overlay] polygon')?.getAttribute('points')).toBe('1,2 3,4 5,6');
+    cleanup();expect(d.querySelector('[data-fv-google-scale]')).toBeNull();
+    expect(d.querySelector('[data-overlay] polygon')?.getAttribute('points')).toBe('1,2 3,4 5,6');
+  });
+  it("non dichiara pronta la foto quando Google non conferma la disponibilità",async()=>{
+    const api=await mocks.load();
+    api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string})=>void){cb({status:"ERROR"});}};
+    const d=documento();await expect(preparaMappeDocumentoFv(d)).rejects.toThrow('dettaglio satellitare');
+    expect(mocks.maps).toHaveLength(0);expect(d.querySelector('[data-fv-google-ready]')).toBeNull();
+  });
   it("non carica Google se la vista non è nel documento",async()=>{await preparaMappeDocumentoFv(document);expect(mocks.load).not.toHaveBeenCalled();});
   it("usa lo stesso SDK e la camera salvata, conserva overlay e attribuzioni e attende tilesloaded",async()=>{
     const d=documento(),done=vi.fn();const p=preparaMappeDocumentoFv(d).then(fn=>{done();return fn;});

@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { INITIAL } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
+import { creaDisegnoTetto } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
 
 const { stato, NESSUNO, aggiorna, invoca, vista, atomicSave, legacyRows } = vi.hoisted(() => ({
   stato: {
@@ -353,6 +354,19 @@ function progettoCon12ModuliDa450() {
 const potenzaMostrata = () => screen.getByText("Potenza", { selector: "div" }).parentElement?.textContent;
 
 describe("Fase 5: la potenza dell'impianto alla riapertura del progetto", () => {
+  it("riapre la posa con le dimensioni confermate, anche quando il catalogo ha solo misure stimate", async () => {
+    progettoCon12ModuliDa450();
+    const layout = creaDisegnoTetto("singola", 12, 8, { corto: 1.134, lungo: 2.278, stimato: false });
+    stato.progetto = riga({ layout_overlay: layout, numero_pannelli_scelti: 0, potenza_kwp: 0 });
+    apriAllaFase(5, { layout_overlay: layout, pannello_id: "pan-1" });
+    monta();
+    fireEvent.click(await screen.findByRole("button", { name: "Modifica disposizione pannelli" }));
+    expect(await screen.findByText("450 Wp · 1,13 × 2,28 m")).toBeInTheDocument();
+    expect(screen.getByText("Dimensioni dalla scheda del pannello.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modifica disposizione pannelli" }));
+    expect(await screen.findByText("450 Wp · 1,13 × 2,28 m")).toBeInTheDocument();
+  });
   it('blocca gli extra incompleti prima di consentire il salvataggio della configurazione', async () => {
     apriAllaFase(5, { pannello_id: 'pan-1', inverter_id: 'inv-1', prodotti_extra: [{ uid: 'extra', listino_id: null, descrizione: '', quantita: 0, prezzo_vendita: 0, prezzo_acquisto: null }] });
     monta(); await screen.findByText(/Prezzo di vendita e IVA/);

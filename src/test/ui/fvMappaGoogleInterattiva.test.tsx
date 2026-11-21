@@ -82,6 +82,26 @@ describe("mappa nativa del tetto", () => {
     onStato: vi.fn(),
     onDimensioni: vi.fn(),
   });
+  it("limita lo zoom al dettaglio disponibile e riallinea la camera del disegno", async () => {
+    const api=await mocks.carica();
+    api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string;zoom:number})=>void){cb({status:"OK",zoom:20});}};
+    const p={...props(),zoom:21};const r=render(<MappaGoogleFv {...p}/>);
+    await waitFor(()=>expect(p.onVista).toHaveBeenCalledWith(p.centro,20));
+    const map=mocks.istanze[0] as unknown as {zoom:number;setOptions:ReturnType<typeof vi.fn>;setZoom:ReturnType<typeof vi.fn>};
+    expect(map.setOptions).toHaveBeenCalledWith({maxZoom:20,minZoom:17});expect(map.zoom).toBe(20);
+    p.onVista.mockClear();r.rerender(<MappaGoogleFv {...p} comandoVista={1}/>);
+    await waitFor(()=>expect(p.onVista).toHaveBeenCalledWith(p.centro,20));expect(map.zoom).toBe(20);
+  });
+  it("una risposta sullo zoom arrivata tardi non annulla un pan nativo",async()=>{
+    const api=await mocks.carica();let rispondi!: (r:{status:string;zoom:number})=>void;
+    api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:typeof rispondi){rispondi=cb;}};
+    const p=props();render(<MappaGoogleFv {...p}/>);
+    await waitFor(()=>expect(mocks.istanze).toHaveLength(1));
+    const map=mocks.istanze[0] as unknown as {centro:{lat:number;lng:number};callbacks:Record<string,()=>void>;setCenter:ReturnType<typeof vi.fn>};
+    const nuovo={lat:45.002,lng:9.002};
+    await act(async()=>{map.centro=nuovo;map.callbacks.bounds_changed();rispondi({status:"OK",zoom:20});await Promise.resolve();});
+    expect(map.centro).toEqual(nuovo);expect(map.setCenter).not.toHaveBeenCalled();
+  });
   it("conserva l’ultima camera nativa quando React riceve in ritardo la vista precedente", async () => {
     const p = props(), r = render(<MappaGoogleFv {...p} />);
     await waitFor(() => expect(mocks.istanze).toHaveLength(1));

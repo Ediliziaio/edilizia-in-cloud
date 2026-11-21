@@ -12,6 +12,9 @@ export type MappaGoogleFvApi = {
   unbindAll: () => void;
 };
 export type LibreriaMapsFv = {
+  MaxZoomService?: new () => {
+    getMaxZoomAtLatLng: (centro: PosizioneMappaFv, callback: (result: {status?: string; zoom?: number}) => void) => void;
+  };
   Map: new (
     host: HTMLElement,
     opzioni: Record<string, unknown>,
