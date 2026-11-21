@@ -62,7 +62,7 @@ beforeEach(() => {
         superficie_tetto_disponibile_mq: 100,
       }
       : body.azione === "layers"
-      ? { imagery_date: "2025-06-15", qualitaGoogle: "HIGH" }
+      ? { imagery_date: "2025-06-15", qualitaGoogle: "HIGH", disponibile: true }
       : body.azione === "salva_foto"
       ? { path: "foto-salvata.jpg" }
       : { contenuto: "QUJD" },
@@ -108,6 +108,11 @@ describe("Analisi Solar esplicita e protezione della posa", () => {
     );
     await screen.findByAltText("Anteprima della foto Google Solar del tetto");
     expect(p.onFoto).not.toHaveBeenCalled();
+    expect(
+      mocks.invoke.mock.calls.some(([, options]) =>
+        options.body.azione === "insights"
+      ),
+    ).toBe(false);
     fireEvent.click(
       screen.getByRole("button", { name: "Usa la foto Google Solar" }),
     );

@@ -6,18 +6,16 @@ import type {
 } from "../../../../supabase/functions/_shared/fvMappa";
 import type {
   FotoSolarFv,
-  QualitaSolarFv,
-  RisultatoSolarFv,
 } from "../../../../supabase/functions/_shared/fvGoogleSolar";
 import type {
   MisureTettoSolarFv,
   RasterSolarFv,
 } from "@/lib/fotovoltaico/solarRaster";
+import { qualitaSolarValida } from "../../../../supabase/functions/_shared/fvGoogleSolar";
 import { Button } from "@/components/ui/button";
 const qualitaFoto = { HIGH: "alta", MEDIUM: "media", BASE: "base" };
 type Analisi = {
   chiave: string;
-  risultato: RisultatoSolarFv;
   foto: Omit<FotoSolarFv, "path">;
   jpeg: string;
   dsm: RasterSolarFv;
@@ -85,12 +83,14 @@ export function FvGoogleSolarPanel({
     setOccupato(true);
     setErrore("");
     try {
-      const risultato = await invoca("insights") as RisultatoSolarFv;
-      if (
-        (risultato as unknown as { _mock?: boolean })._mock ||
-        risultato.fonte !== "solar_api"
-      ) throw Error("Google non ha restituito dati reali del tetto");
+      // Foto e DSM possono esserci anche senza un edificio classificato in Building Insights.
       const layers = await invoca("layers");
+      const quality = layers.qualitaGoogle === "LOW"
+        ? "BASE"
+        : layers.qualitaGoogle;
+      if (layers.disponibile !== true || !qualitaSolarValida(quality)) {
+        throw Error("Google non ha restituito una foto verificabile del tetto");
+      }
       const [rgb, dsm, mask] = await Promise.all(
         ["rgb", "dsm", "mask"].map((livello) => invoca("raster", { livello })),
       );
@@ -107,13 +107,9 @@ export function FvGoogleSolarPanel({
           "Google non ha indicato la data della foto: riprova o continua con la mappa",
         );
       }
-      const quality: QualitaSolarFv = layers.qualitaGoogle === "LOW"
-        ? "BASE"
-        : layers.qualitaGoogle;
       if (corrente.current !== chiave) return;
       setAnalisi({
         chiave,
-        risultato,
         foto: {
           larghezza: r.w,
           altezza: r.h,
@@ -225,13 +221,6 @@ export function FvGoogleSolarPanel({
             Google Solar · {attuale.foto.data} · qualità{" "}
             {qualitaFoto[attuale.foto.qualita]} ·{" "}
             {Math.round(attuale.foto.risoluzione * 100)} cm/pixel
-          </p>
-          <p className="text-xs">
-            {attuale.risultato.segmenti.length} falde rilevate da Google ·{" "}
-            {attuale.risultato.superficie_tetto_disponibile_mq?.toLocaleString(
-              "it-IT",
-              { maximumFractionDigits: 1 },
-            ) ?? "—"} m²
           </p>
           <Button
             type="button"
