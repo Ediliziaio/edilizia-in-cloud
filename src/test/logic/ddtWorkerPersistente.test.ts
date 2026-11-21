@@ -121,11 +121,11 @@ it("se il riferimento si legge dopo la scelta WhatsApp, evidenzia il cantiere di
   const queryBase = db.from.getMockImplementation();
   const corrente = {
     eq: () => corrente,
-    maybeSingle: async () => ({ data: { destinazione: "cantiere", order_id: "primo" }, error: null }),
+    maybeSingle: async () => ({ data: { destinazione: "cantiere", order_id: "primo" }, error: null as null }),
   };
   const odA = {
     eq: () => odA, ilike: () => odA, not: () => odA,
-    limit: async () => ({ data: [{ order_id: "secondo" }], error: null }),
+    limit: async () => ({ data: [{ order_id: "secondo" }], error: null as null }),
   };
   db.from.mockImplementation((tabella: string) => {
     if (tabella === "ddt_document_jobs") return { ...queryBase(tabella), select: () => corrente };

@@ -62,12 +62,12 @@ async function intestazioniDaScansione(db: SupabaseClient, job: DocumentoJob, pa
 export async function preparaPdfWhatsApp(db: SupabaseClient, job: DocumentoJob, bytes: Uint8Array) {
   // @ts-ignore -- dipendenza della edge, già usata da pdfExtraction
   const { PDFDocument } = await import(/* @vite-ignore */ "https://esm.sh/pdf-lib@1.17.1");
-  const pdf = await PDFDocument.load(bytes, { updateMetadata: false }).catch(() => null);
+  const pdf = await PDFDocument.load(bytes, { updateMetadata: false }).catch((): null => null);
   if (!pdf) return "da_controllare";
   const numeroPagine = pdf.getPageCount();
   if (numeroPagine === 1) return "singola";
   if (numeroPagine > LIMITE_PAGINE) return "da_controllare";
-  const testo = await estraiPagineTestoPdf(bytes, LIMITE_PAGINE, 180_000).catch(() => null);
+  const testo = await estraiPagineTestoPdf(bytes, LIMITE_PAGINE, 180_000).catch((): null => null);
   const pagine = Array<string>(numeroPagine).fill("");
   for (const riga of testo?.pagine ?? []) pagine[riga.pagina - 1] = riga.testo;
   const daLeggere = pagine.flatMap((p, i) => numeroBollaDaTesto(p) || paginaDiTotale(p) ? [] : [i]);
