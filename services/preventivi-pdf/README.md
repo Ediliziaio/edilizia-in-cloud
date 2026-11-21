@@ -49,6 +49,13 @@ non e configurato o non risponde, la richiesta di firma NON viene creata.
 Un file FV senza PDF originale non viene piu spacciato per un preventivo
 firmato completo con il solo certificato.
 
+I documenti con la vista satellitare Google si stampano dall’app, che carica
+Maps JavaScript e attende le immagini. Questo renderer con JavaScript spento
+non prepara quella vista: rifiuta il documento invece di congelare una pagina
+vuota. Anche la funzione di firma richiede la conferma `X-EIC-Google-Maps: ready`
+da un servizio compatibile. Fino all’aggiornamento del servizio, per la firma
+si può escludere la sola vista satellitare, mantenendo disegni 2D e 3D.
+
 Nessuna configurazione, credenziale o distribuzione remota e inclusa in questa
 verifica locale. Prima di un'eventuale pubblicazione serve configurare il
 servizio server e le sue origini autorizzate nell'ambiente di destinazione.

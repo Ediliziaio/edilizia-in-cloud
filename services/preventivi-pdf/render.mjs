@@ -32,6 +32,7 @@ export async function renderOriginalHtml(html, { assetBaseUrl, allowedOrigins, s
     const layout = await page.evaluate(() => ({
       pages: document.querySelectorAll(".page").length,
       broken: [...document.images].some(img => img.src && (!img.complete || !img.naturalWidth)),
+      mappaGoogleDaCaricare: !!document.querySelector("[data-fv-google-pdf]:not([data-fv-google-ready])"),
       // Match the app's insertion point without changing any original page.
       allegatiPrimaDi: (() => {
         const pages = [...document.querySelectorAll(".page")];
@@ -42,6 +43,7 @@ export async function renderOriginalHtml(html, { assetBaseUrl, allowedOrigins, s
         return pages.length;
       })(),
     }));
+    if (layout.mappaGoogleDaCaricare) throw new Error("La vista Google richiede un renderer che carichi Maps JavaScript. Il PDF incompleto non viene congelato per la firma.");
     if (failures.length || layout.broken) throw new Error("Immagini o caratteri del preventivo non disponibili. Riprova la generazione.");
     const bytes = await page.pdf({ printBackground: true, preferCSSPageSize: true, displayHeaderFooter: false });
     const pdf = await PDFDocument.load(bytes);
