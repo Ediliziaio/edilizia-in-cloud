@@ -148727,6 +148727,16 @@ export type Database = {
         }
         Returns: Json
       }
+      campo_materiali_cantiere: {
+        Args: { p_azienda: string; p_cantiere: string; p_offset: number }
+        Returns: {
+          stock_item_id: string
+          nome: string
+          unita_misura: string | null
+          consegnato: number
+          residuo: number | null
+        }[]
+      }
       campo_mie_squadre: { Args: never; Returns: string[] }
       campo_mie_squadre_capo: { Args: never; Returns: string[] }
       campo_mie_squadre_esterne: { Args: never; Returns: string[] }
