@@ -422,7 +422,7 @@ export default function FeatureFlags() {
       setRolloutConfirm(null);
       if ("code" in error && error.code === "PGRST202") {
         toast.error("La distribuzione richiede l’aggiornamento del database.");
-      } else if ("code" in error && error.code === "40001") {
+      } else if ("code" in error && (error.code === "PT409" || error.code === "40001")) {
         toast.error("Le eccezioni sono cambiate. Apri una nuova anteprima.");
       } else {
         toast.error("Impossibile confermare la distribuzione. Verifica gli accessi aggiornati.");

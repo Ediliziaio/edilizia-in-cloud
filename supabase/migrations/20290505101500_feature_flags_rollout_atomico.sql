@@ -64,7 +64,7 @@ BEGIN
   GET DIAGNOSTICS v_removed = ROW_COUNT;
 
   IF v_enabled <> cardinality(p_enable) OR v_removed <> jsonb_array_length(p_remove) THEN
-    RAISE EXCEPTION 'Anteprima della distribuzione da aggiornare' USING ERRCODE = '40001';
+    RAISE EXCEPTION 'Anteprima della distribuzione da aggiornare' USING ERRCODE = 'PT409';
   END IF;
 END;
 $$;

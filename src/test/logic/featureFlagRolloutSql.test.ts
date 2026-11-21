@@ -100,7 +100,7 @@ it("abilita e rimuove nella stessa transazione conservando le eccezioni fuori da
 it("annulla anche le abilitazioni se un'eccezione è stata modificata dopo l'anteprima", async () => {
   const removal = await picture(companyC);
   await db.query("UPDATE company_feature_overrides SET price_override = 25 WHERE company_id = $1", [companyC]);
-  await expect(apply([companyA, companyB], [removal])).rejects.toMatchObject({ code: "40001" });
+  await expect(apply([companyA, companyB], [removal])).rejects.toMatchObject({ code: "PT409" });
   expect(await picture(companyA)).toMatchObject({ access_level: "disabled", expires_at: expect.stringContaining("2000-01-01") });
   expect(await picture(companyB)).toMatchObject({ access_level: "preview" });
   expect(await picture(companyC)).toMatchObject({ access_level: "preview", price_override: 25 });
@@ -111,4 +111,18 @@ it("nega l'operazione a utenti non amministratori e anonimi", async () => {
   await expect(apply([companyA], [])).rejects.toMatchObject({ code: "42501" });
   await db.exec("SET ROLE anon");
   await expect(apply([companyA], [])).rejects.toMatchObject({ code: "42501" });
+});
+
+it("aggiorna senza retry il conflitto delle installazioni che hanno già la prima migrazione", async () => {
+  await db.exec("RESET ROLE");
+  await db.exec(rollout.replace("'PT409'", "'40001'"));
+  const fix = readFileSync("supabase/migrations/20290506133500_feature_flags_rollout_conflitto.sql", "utf8");
+  await db.exec(fix);
+  await db.exec(fix);
+  await db.exec("SET ROLE authenticated");
+
+  const removal = await picture(companyC);
+  await db.query("UPDATE company_feature_overrides SET limit_value = 9 WHERE company_id = $1", [companyC]);
+  await expect(apply([companyA], [removal])).rejects.toMatchObject({ code: "PT409" });
+  expect(await picture(companyA)).toMatchObject({ access_level: "disabled" });
 });
