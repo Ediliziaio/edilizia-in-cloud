@@ -13,7 +13,7 @@ vi.mock("@/lib/orders/archivedOrderScope", () => ({ loadArchivedOrderIds: async 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: string) => {
   let range = [0, 249]; let isField = false; let userLeave = false;
   const b: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "gte", "lte", "is", "not", "or", "order", "range", "in"]) b[method] = (...args: unknown[]) => {
+  for (const method of ["select", "eq", "neq", "gte", "lte", "is", "not", "or", "order", "range", "in"]) b[method] = (...args: unknown[]) => {
     state.calls.push({ table, method, args }); if (method === "range") range = args as number[]; if (method === "in") isField = true; if (method === "eq" && table === "hr_richieste" && args[0] === "user_id") userLeave = true; return b;
   };
   b.then = (ok: (value: unknown) => unknown) => {
@@ -35,12 +35,16 @@ const layers = () => new Set<"task" | "order" | "appointment" | "leave">(["task"
 describe("Dashboard: agenda personale e team autorizzato", () => {
   it("legge tutte le attività personali, con identificativo commessa e ordine stabile", async () => {
     useDashboardTasks(); const rows = await state.options[0].queryFn(); expect(rows).toHaveLength(1101);
-    called("tasks", "eq", ["company_id", "company"]); called("tasks", "eq", ["assigned_to", "me"]);
-    called("tasks", "order", ["id"]); called("tasks", "range", [1000, 1249]);
-    expect(state.calls.find(c => c.method === "select")?.args[0]).toContain("order_id, stock_item_id");
+    called("tasks_personali_e_aree", "eq", ["company_id", "company"]);
+    called("tasks_personali_e_aree", "order", ["id"]); called("tasks_personali_e_aree", "range", [1000, 1249]);
+    expect(state.calls.some(c => c.method === "neq")).toBe(false);
+    const campi = state.calls.find(c => c.method === "select")?.args[0];
+    expect(campi).toContain("order_id, stock_item_id");
+    expect(campi).toContain("area_mia");
   });
   it.each(["admin", "team", "teamCalendar", "people"] as const)("il permesso %s non allarga le attività personali", async permission => {
-    state[permission] = true; useDashboardTasks(); await state.options[0].queryFn(); called("tasks", "eq", ["assigned_to", "me"]);
+    state[permission] = true; useDashboardTasks(); await state.options[0].queryFn();
+    expect(state.calls.every(c => c.table === "tasks_personali_e_aree")).toBe(true);
   });
   it("personale e team hanno cache separate e la Regia le invalida entrambe", async () => {
     state.team = true; useDashboardTasks(); useDashboardTasks("team");
@@ -63,7 +67,10 @@ describe("Dashboard: agenda personale e team autorizzato", () => {
   it.each(["admin", "team"] as const)("%s può leggere le priorità team, sempre nella propria azienda", async permission => {
     state[permission] = true; useDashboardTasks("team"); expect(state.options[0].enabled).toBe(true);
     await state.options[0].queryFn(); called("tasks", "eq", ["company_id", "company"]);
+    called("tasks", "neq", ["status", "completata"]);
     expect(state.calls.some(c => c.method === "eq" && c.args[0] === "assigned_to")).toBe(false);
+    const campi = state.calls.find(c => c.method === "select")?.args[0];
+    expect(campi).toBe("id, title, status, priority, due_date, category, assigned_to, assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)");
   });
   it.each(["company", "user", "loading"] as const)("non carica attività con %s mancante/non pronto", async condition => {
     if (condition === "loading") state.loading = true; else state[condition] = null;

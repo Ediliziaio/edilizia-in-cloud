@@ -80,7 +80,7 @@ import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
 import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { useDashboardTasks } from "@/hooks/useDashboardTasks";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
-import { dashboardTasksForAssignee, dashboardTaskStats, dashboardTaskDateGroup, filterDashboardTasks, type DashboardTaskFilter } from "@/lib/attivita/dashboardTasks";
+import { dashboardDateKey, dashboardTasksForAssignee, dashboardTaskStats, dashboardTaskDateGroup, filterDashboardTasks, type DashboardTaskFilter } from "@/lib/attivita/dashboardTasks";
 import { buildTaskStatusUpdate, getNextTaskStatusForQuickAction, getTaskStatusDefinition, getTaskStatusLabel, isTaskDoneStatus, isTaskBlockedStatus, TASK_STATUS_TONE_CLASSES } from "@/lib/taskStatuses";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
@@ -1383,24 +1383,17 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
   const { data: pulseTasks = [], isLoading, isError, error, refetch } = useDashboardTasks("team");
   const observed = useMemo(() => [...new Set(pulseTasks.map(t => t.status))], [pulseTasks]);
   const { statuses } = useTaskStatuses(companyId, observed);
-  const tasks = pulseTasks.filter(t => !isTaskDoneStatus(t.status, statuses) && !isTaskBlockedStatus(t.status, statuses));
-
+  const oggi = format(new Date(), "yyyy-MM-dd");
   const pulse = useMemo(() => {
-    const today = startOfDay(new Date());
-    const openTasks = tasks.filter((task: any) => task.status !== "completata");
-    const getDueDate = (task: any) => task.due_date ? parseISO(task.due_date) : null;
-    const overdue = openTasks.filter((task: any) => {
-      const dueDate = getDueDate(task);
-      return dueDate && isBefore(dueDate, today) && !isToday(dueDate);
+    const openTasks = pulseTasks.filter(task => task.status !== "completata" && !isTaskDoneStatus(task.status, statuses) && !isTaskBlockedStatus(task.status, statuses));
+    const overdue = openTasks.filter(task => {
+      const scadenza = dashboardDateKey(task.due_date);
+      return scadenza && scadenza < oggi;
     });
-    const dueToday = openTasks.filter((task: any) => {
-      const dueDate = getDueDate(task);
-      return dueDate && isToday(dueDate);
-    });
-    const urgent = openTasks.filter((task: any) => task.priority === "urgente");
-    const unassigned = openTasks.filter((task: any) => !task.assigned_to);
-    const unique = new Map<string, any>();
-    [...overdue, ...urgent, ...dueToday, ...unassigned].forEach((task: any) => unique.set(task.id, task));
+    const dueToday = openTasks.filter(task => dashboardDateKey(task.due_date) === oggi);
+    const urgent = openTasks.filter(task => task.priority === "urgente");
+    const unassigned = openTasks.filter(task => !task.assigned_to);
+    const unique = new Map([...overdue, ...urgent, ...dueToday, ...unassigned].map(task => [task.id, task]));
 
     return {
       overdue,
@@ -1410,7 +1403,7 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
       priorities: Array.from(unique.values()).slice(0, 6),
       openCount: openTasks.length,
     };
-  }, [tasks]);
+  }, [pulseTasks, statuses, oggi]);
 
   const metrics = [
     { label: "Scadute", value: pulse.overdue.length, className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300" },
@@ -1473,8 +1466,8 @@ export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
                 <p className="py-3 text-sm text-muted-foreground">Nessuna criticità immediata.</p>
               ) : (
                 <div className="divide-y border-y">
-                  {pulse.priorities.slice(0, compact ? 3 : 6).map((task: any) => {
-                    const priority = PRIORITY_CONFIG[task.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                  {pulse.priorities.slice(0, compact ? 3 : 6).map(task => {
+                    const priority = PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG] ?? PRIORITY_CONFIG.normale;
                     const dueDate = task.due_date ? parseISO(task.due_date) : null;
                     const scaduta = dueDate && isBefore(dueDate, startOfDay(new Date())) && !isToday(dueDate);
                     const assigneeName = [task.assignee?.first_name, task.assignee?.last_name].filter(Boolean).join(" ") || "Non assegnata";

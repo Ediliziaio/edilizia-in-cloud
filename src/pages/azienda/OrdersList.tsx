@@ -13,6 +13,7 @@ import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { matchesOrderPayment } from "@/lib/orders/listPayments";
 import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABELS, type OrderFocus, type OrderMarginRow } from "@/lib/orders/listScope";
+import { leggiEconomiaCommesse, COLONNE_MARGINI_COMMESSE } from "@/lib/economiaCommesse";
 import "./OrdersList/orders-list.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -346,17 +347,11 @@ function OrdersListInner() {
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!gestione && (orderPerms.canViewMargins || orderPerms.canViewCosts),
-    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
-      const rows: OrderMarginRow[] = [];
-      for (let from = 0; from < scopeOrderIds.length; from += 100) {
-        const {data, error} = await supabase.from("v_ordine_marginalita")
-          .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-          .eq("company_id", effectiveCompany!.id).in("id", scopeOrderIds.slice(from, from + 100)).abortSignal(readSignal);
-        if (error) throw error;
-        rows.push(...(data ?? []));
-      }
-      return rows;
-    }, "Margini commesse", 20_000, signal),
+    queryFn: ({ signal }) => withAbortableClientTimeout(readSignal => leggiEconomiaCommesse<OrderMarginRow>(scopeOrderIds, {
+      companyId: effectiveCompany!.id,
+      colonne: COLONNE_MARGINI_COMMESSE,
+      signal: readSignal,
+    }), "Margini commesse", 20_000, signal),
     staleTime: 2 * 60 * 1000,
   });
   const marginGroups = useMemo(() => orderMarginGroups(isYearCorrente ? listScopeIds : scopeOrderIds, scopeMargins ?? []), [scopeOrderIds, listScopeIds, isYearCorrente, scopeMargins]);
@@ -437,6 +432,11 @@ function OrdersListInner() {
       .map(([figlia]) => figlia)
       .sort();
   }, [rawOrders, mappaGenerali]);
+  const idFiglieSenzaMargini = useMemo(() => {
+    if (scopeMarginsError) return idFiglieFuoriPagina;
+    const giaRichieste = new Set(scopeOrderIds);
+    return idFiglieFuoriPagina.filter(id => !giaRichieste.has(id));
+  }, [idFiglieFuoriPagina, scopeOrderIds, scopeMarginsError]);
   // Le commesse scelte possono stare in altre pagine: si leggono tutte, non solo quelle che si vedono ora.
   const { data: righeDaRaggruppare } = useQuery({
     queryKey: ["orders", "da-raggruppare", effectiveCompany?.id, daRaggruppare],
@@ -444,21 +444,15 @@ function OrdersListInner() {
     queryFn: async () => (await readOrdersPage(soloQuesteCommesse(effectiveCompany!.id, daRaggruppare!), 0, Infinity)).orders,
   });
   const { data: marginiFuoriPagina = [] } = useQuery({
-    queryKey: ["orders-margin-fuori-pagina", effectiveCompany?.id, idFiglieFuoriPagina],
-    enabled: !!effectiveCompany?.id && idFiglieFuoriPagina.length > 0 && (orderPerms.canViewMargins || orderPerms.canViewCosts),
+    queryKey: ["orders-margin-fuori-pagina", effectiveCompany?.id, idFiglieSenzaMargini],
+    enabled: !!effectiveCompany?.id && idFiglieSenzaMargini.length > 0 && (orderPerms.canViewMargins || orderPerms.canViewCosts),
     staleTime: 2 * 60 * 1000,
     meta: { silent: true },
-    queryFn: async () => {
-      const righe: OrderMarginRow[] = [];
-      for (let from = 0; from < idFiglieFuoriPagina.length; from += 100) {
-        const { data, error } = await supabase.from("v_ordine_marginalita")
-          .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-          .eq("company_id", effectiveCompany!.id).in("id", idFiglieFuoriPagina.slice(from, from + 100));
-        if (error) throw error;
-        righe.push(...(data ?? []));
-      }
-      return righe;
-    },
+    queryFn: ({ signal }) => leggiEconomiaCommesse<OrderMarginRow>(idFiglieSenzaMargini, {
+      companyId: effectiveCompany!.id,
+      colonne: COLONNE_MARGINI_COMMESSE,
+      signal,
+    }),
   });
   const { data: figlieFuoriPagina = EMPTY_ORDERS } = useQuery({
     queryKey: ["orders", "figlie-fuori-pagina", effectiveCompany?.id, idFiglieFuoriPagina],
@@ -1146,14 +1140,11 @@ function OrdersListInner() {
 
     const exportCostsMap = new Map<string, {variableCosts:number;grossMargin:number;marginPercent:number;marginReliable:boolean}>();
     if (orderPerms.canViewMargins || orderPerms.canViewCosts) {
-      const marginRows: OrderMarginRow[] = [];
-      for (let from=0;from<allOrders.length;from+=100) {
-        const {data,error} = await supabase.from("v_ordine_marginalita").select("id, preventivo_totale, consuntivo, margine, margine_perc")
-          .eq("company_id",effectiveCompany.id).in("id",allOrders.slice(from,from+100).map(order=>order.id));
-        if (error) throw error;
-        marginRows.push(...(data??[]));
-      }
-      for (const row of marginRows || []) {
+      const marginRows = await leggiEconomiaCommesse<OrderMarginRow>(allOrders.map(order => order.id), {
+        companyId: effectiveCompany.id,
+        colonne: COLONNE_MARGINI_COMMESSE,
+      });
+      for (const row of marginRows) {
         if (!row.id) continue;
         const variableCosts = Number(row.consuntivo || 0);
         exportCostsMap.set(row.id, {

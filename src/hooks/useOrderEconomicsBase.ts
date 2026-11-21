@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 import {
   assessOrderEconomicsQuality,
   calculateOrderEconomics,
@@ -22,15 +23,10 @@ export function useOrderEconomicsBase(orderId: string, totalAmount: number, item
     queryKey: ["order-economics-canonical", orderId],
     enabled: enabled && !!orderId,
     staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("v_ordine_marginalita")
-        .select(ORDER_ECONOMICS_COLUMNS)
-        .eq("id", orderId)
-        .maybeSingle();
-      if (error) throw error;
-      return (data ?? null) as CanonicalEconomicsRow | null;
-    },
+    queryFn: async ({ signal }) => (await leggiEconomiaCommesse<CanonicalEconomicsRow>([orderId], {
+      signal,
+      colonne: ORDER_ECONOMICS_COLUMNS,
+    }))[0] ?? null,
   });
 
   const {

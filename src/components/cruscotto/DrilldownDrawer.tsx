@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { fmtCur } from "@/components/marketing/dashboard/utils";
 import { safeNumber } from "@/hooks/useCruscottoData";
 import { agreedContractValue } from "@/lib/orders/contractValue";
+import { leggiEconomiaCommesse, COLONNE_MARGINI_COMMESSE } from "@/lib/economiaCommesse";
+import type { OrderMarginRow } from "@/lib/orders/listScope";
 
 export type DrilldownType = "revenue" | "margin" | "late-orders" | "tickets" | null;
 
@@ -102,9 +104,8 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { effectiveCompany } = useAuth();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["drill-margin", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
-    queryFn: async () => {
-      // Le commesse come il dettaglio del venduto (non nel cestino); i numeri dalla
-      // vista v_ordine_marginalita, la stessa della scheda commessa e del riquadro.
+    queryFn: async ({ signal }) => {
+      // Le commesse come nel dettaglio del venduto; gli stessi numeri della scheda commessa.
       const { data: orders, error } = await supabase.from("orders")
         .select("id, order_code, description")
         .eq("company_id", effectiveCompany!.id)
@@ -113,15 +114,16 @@ function MarginDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
         .order("total_amount", { ascending: false })
-        .limit(50);
+        .limit(50)
+        .abortSignal(signal);
       if (error) throw error;
       if (!orders?.length) return [];
-      const { data: margini, error: marginiError } = await supabase.from("v_ordine_marginalita")
-        .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-        .eq("company_id", effectiveCompany!.id)
-        .in("id", orders.map((o) => o.id));
-      if (marginiError) throw marginiError;
-      const perId = new Map((margini ?? []).map((m) => [m.id, m]));
+      const margini = await leggiEconomiaCommesse<OrderMarginRow>(orders.map(o => o.id), {
+        companyId: effectiveCompany!.id,
+        colonne: COLONNE_MARGINI_COMMESSE,
+        signal,
+      });
+      const perId = new Map(margini.map(m => [m.id, m]));
       return orders.map((o) => ({ ...o, economia: perId.get(o.id) }));
     },
     enabled: !!effectiveCompany?.id,
