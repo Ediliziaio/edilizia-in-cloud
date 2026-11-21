@@ -139,6 +139,7 @@ try {
   console.log(
     "PASS: schema completo, permessi, equivalenze, conversioni, ripartizione quantità e limiti. Tutto annullato.",
   );
+  await import("./test-ddt-prezzi-automatici.mjs");
 } catch (e) {
   console.error(e.stderr?.toString() ?? e.message);
   process.exitCode = 1;

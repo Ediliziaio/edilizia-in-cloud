@@ -37260,6 +37260,7 @@ export type Database = {
           status: string
           updated_at: string
           warehouse_id: string | null
+          whatsapp_voice_message_id: string | null
         }
         Insert: {
           attempts?: number
@@ -37284,6 +37285,7 @@ export type Database = {
           status?: string
           updated_at?: string
           warehouse_id?: string | null
+          whatsapp_voice_message_id?: string | null
         }
         Update: {
           attempts?: number
@@ -37308,6 +37310,7 @@ export type Database = {
           status?: string
           updated_at?: string
           warehouse_id?: string | null
+          whatsapp_voice_message_id?: string | null
         }
         Relationships: [
           {
@@ -37434,6 +37437,13 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ddt_document_jobs_whatsapp_voice_message_id_fkey"
+            columns: ["whatsapp_voice_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
             referencedColumns: ["id"]
           },
         ]

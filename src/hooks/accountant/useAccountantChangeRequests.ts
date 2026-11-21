@@ -1,4 +1,3 @@
-import { jsonPayload } from "@/lib/jsonPayload";
 /**
  * Hook per gestire le richieste di modifica del commercialista (workflow
  * approval_required).
@@ -53,11 +52,12 @@ export function useMyChangeRequests() {
         .eq("requested_by", userId!)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (error) {
-        console.error("[useMyChangeRequests]", error);
-        return [];
-      }
-      return (data || []) as ChangeRequestRow[];
+      if (error) throw new Error(error.message);
+      return ((data ?? []) as ChangeRequestRow[]).map(riga =>
+        riga.status === "pending" && Date.parse(riga.expires_at) <= Date.now()
+          ? { ...riga, status: "expired" as const }
+          : riga,
+      );
     },
   });
 }
@@ -75,55 +75,29 @@ export function useCompanyPendingChangeRequests(companyId: string | null | undef
         .select("*")
         .eq("company_id", companyId)
         .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
-      if (error) {
-        console.error("[useCompanyPendingChangeRequests]", error);
-        return [];
-      }
+      if (error) throw new Error(error.message);
       return (data || []) as ChangeRequestRow[];
     },
   });
 }
 
-/** Submit di una richiesta dal commercialista */
+/** Propone una modifica per una delega Con approvazione. */
 export function useSubmitChangeRequest() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   return useMutation({
     mutationFn: async (input: {
-      companyId: string;
-      resourceType: string;
-      resourceId?: string | null;
-      operation: ChangeRequestOperation;
-      payload: Record<string, unknown>;
+      studioId: string; companyId: string; orderId: string | null; precedente: string | null;
+      testo: string; motivo: string;
     }) => {
-      if (!user?.id) throw new Error("Non autenticato");
-      const { data, error } = await supabase
-        .from("accountant_change_requests")
-        .insert({
-          company_id: input.companyId,
-          requested_by: user.id,
-          resource_type: input.resourceType,
-          resource_id: input.resourceId ?? null,
-          operation: input.operation,
-          payload: jsonPayload(input.payload),
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as ChangeRequestRow;
+      const { error } = await supabase.rpc("studio_invia_richiesta" as never, {
+        p_studio: input.studioId, p_azienda: input.companyId, p_commessa: input.orderId,
+        p_testo: input.testo, p_motivo: input.motivo, p_precedente: input.precedente,
+      } as never);
+      if (error) throw new Error(error.message);
     },
-    onSuccess: () => {
-      toast.success("Richiesta inviata", {
-        description: "L'azienda riceverà notifica e potrà approvare entro 7 giorni.",
-      });
-      queryClient.invalidateQueries({ queryKey: [KEY] });
-    },
-    onError: (error: Error) => {
-      toast.error("Impossibile inviare la richiesta", {
-        description: error.message,
-      });
-    },
+    onSuccess: () => { toast.success("Richiesta inviata"); void queryClient.invalidateQueries({ queryKey: [KEY] }); },
   });
 }
 
@@ -138,23 +112,10 @@ export function useDecideChangeRequest() {
       note?: string;
     }) => {
       if (!user?.id) throw new Error("Non autenticato");
-      const { data, error } = await supabase
-        .from("accountant_change_requests")
-        .update({
-          status: input.decision,
-          decided_by: user.id,
-          decided_at: new Date().toISOString(),
-          decision_note: input.note ?? null,
-        })
-        .eq("id", input.requestId)
-        .eq("status", "pending")
-        .select("id");
-      if (error) throw error;
-      // Nessuna riga toccata = la richiesta non era più 'pending' (già decisa,
-      // scaduta o gestita da un collega): evita un toast di successo ingannevole.
-      if (!data || data.length === 0) {
-        throw new Error("Richiesta non più disponibile: potrebbe essere già stata gestita o scaduta.");
-      }
+      const { error } = await supabase.rpc("studio_decidi_richiesta" as never, {
+        p_id: input.requestId, p_decisione: input.decision, p_nota: input.note ?? null,
+      } as never);
+      if (error) throw new Error(error.message);
       return { requestId: input.requestId, decision: input.decision };
     },
     onSuccess: ({ decision }) => {

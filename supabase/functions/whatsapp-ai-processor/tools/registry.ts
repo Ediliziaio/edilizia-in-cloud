@@ -5,6 +5,7 @@ import { errResult, type ToolDef } from "./shared/types.ts";
 
 // Operaio
 import { creaRapportino, creaRapportinoDef } from "./operaio/crea_rapportino.ts";
+import { creaAttivitaUfficio, creaAttivitaUfficioDef } from "./operaio/crea_attivita_ufficio.ts";
 import {
   aggiungiAttivitaRapportino,
   aggiungiAttivitaRapportinoDef,
@@ -67,6 +68,7 @@ import { generaPdfModelloBagno, generaPdfModelloBagnoDef } from "./ufficio/gener
 import { inviaPdfModelloBagno, inviaPdfModelloBagnoDef } from "./ufficio/invia_pdf_modello_bagno.ts";
 import { preparaPreventivoModello, preparaPreventivoModelloDef } from "./ufficio/prepara_preventivo_modello.ts";
 import { assegnaFattura, assegnaFatturaDef, cercaFattura, cercaFatturaDef } from "./ufficio/assegna_fattura.ts";
+import { apriFattureCliente, apriFattureClienteDef } from "./ufficio/apri_fatture_cliente.ts";
 
 // Shared (cross-ruolo)
 import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
@@ -77,6 +79,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
 
   // Operaio (8)
   { ...creaRapportinoDef, handler: creaRapportino as ToolDef["handler"] },
+  { ...creaAttivitaUfficioDef, handler: creaAttivitaUfficio },
   { ...aggiungiAttivitaRapportinoDef, handler: aggiungiAttivitaRapportino as ToolDef["handler"] },
   { ...caricaDDTDef, handler: async (ctx, args) => {
     if (typeof args.numero_ddt !== "string" || typeof args.fornitore !== "string") return errResult("invalid_args", "Indica numero DDT e fornitore.");
@@ -121,6 +124,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...preparaPreventivoModelloDef, handler: preparaPreventivoModello },
   { ...cercaFatturaDef, handler: cercaFattura },
   { ...assegnaFatturaDef, handler: assegnaFattura },
+  { ...apriFattureClienteDef, handler: apriFattureCliente },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

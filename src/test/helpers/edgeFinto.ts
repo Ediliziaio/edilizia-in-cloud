@@ -50,9 +50,19 @@ class Interrogazione {
   }
   insert(dati: unknown) { this.verbo = "insert"; this.dati = dati; return this; }
   update(dati: unknown) { this.verbo = "update"; this.dati = dati; return this; }
-  eq(c: string, v: unknown) { this.filtri.push((r) => r[c] === v); return this; }
+  eq(c: string, v: unknown) {
+    this.filtri.push((r) => r[c] === v || (r[c] != null && typeof r[c] === "object" && JSON.stringify(r[c]) === v));
+    return this;
+  }
   neq(c: string, v: unknown) { this.filtri.push((r) => r[c] !== v); return this; }
   in(c: string, v: unknown[]) { this.filtri.push((r) => v.includes(r[c])); return this; }
+  contains(c: string, v: Record<string, unknown>) {
+    this.filtri.push(r => {
+      const campo = r[c] as Record<string, unknown> | null;
+      return campo != null && Object.entries(v).every(([chiave, valore]) => campo[chiave] === valore);
+    });
+    return this;
+  }
   gte(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") >= String(v)); return this; }
   gt(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") > String(v)); return this; }
   lte(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") <= String(v)); return this; }
@@ -82,7 +92,13 @@ class Interrogazione {
   }
   is(c: string, v: unknown) { this.filtri.push((r) => (v === null ? r[c] == null : r[c] === v)); return this; }
   not(c: string, op: string, v: unknown) {
-    if (op === "is") this.filtri.push((r) => (v === null ? r[c] != null : r[c] !== v));
+    if (op === "is") {
+      const [colonna, chiave] = c.split("->>");
+      this.filtri.push(r => {
+        const valore = chiave ? (r[colonna] as Riga | null)?.[chiave] : r[colonna];
+        return v === null ? valore != null : valore !== v;
+      });
+    }
     if (op === "in") {
       const esclusi = String(v).replace(/^\(|\)$/g, "").split(",").map((x) => x.trim().replace(/^"|"$/g, ""));
       this.filtri.push((r) => !esclusi.includes(String(r[c])));

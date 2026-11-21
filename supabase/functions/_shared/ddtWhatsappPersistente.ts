@@ -57,6 +57,9 @@ export async function acquisisciDdtWhatsapp(
     messageId: string;
     orderId?: string | null;
     result?: Record<string, unknown>;
+    primaDellaLettura?: boolean;
+    accodaLettura?: boolean;
+    file?: Blob;
   },
 ) {
   if (
@@ -64,9 +67,9 @@ export async function acquisisciDdtWhatsapp(
     !opts.storagePath.startsWith(`${opts.companyId}/`)
   )
     throw new Error("Documento fuori dall’azienda");
-  const { data: file, error } = await db.storage
-    .from("whatsapp-media")
-    .download(opts.storagePath);
+  const { data: file, error } = opts.file
+    ? { data: opts.file, error: null as unknown }
+    : await db.storage.from("whatsapp-media").download(opts.storagePath);
   if (error || !file || !file.size || file.size > 18 * 1024 * 1024)
     throw new Error("Originale non disponibile o superiore a 18 MB");
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -77,7 +80,7 @@ export async function acquisisciDdtWhatsapp(
   const lookup = async () => {
     const r = await db
       .from("ddt_document_jobs")
-      .select("id,created_by,order_id,status,result")
+      .select("id,created_by,employee_id,source_key,order_id,destinazione,status,result")
       .eq("company_id", opts.companyId)
       .eq("file_hash", fileHash)
       .maybeSingle();
@@ -114,6 +117,7 @@ export async function acquisisciDdtWhatsapp(
         created_by: opts.userId,
         employee_id: opts.employeeId ?? null,
         order_id: opts.orderId ?? null,
+        ...(opts.orderId ? { destinazione: "cantiere" } : {}),
         source: "whatsapp",
         source_key: opts.messageId,
         file_hash: fileHash,
@@ -127,10 +131,10 @@ export async function acquisisciDdtWhatsapp(
             sha256: paginaHash,
           },
         ],
-        status: opts.result ? "review" : "queued",
+        status: opts.result ? "review" : opts.primaDellaLettura ? "da_leggere" : "queued",
         result: opts.result ? ddtWhatsappRicco(opts.result) : null,
       })
-      .select("id,created_by,order_id,status,result")
+      .select("id,created_by,employee_id,source_key,order_id,destinazione,status,result")
       .single();
     if (insertError && insertError.code !== "23505") throw insertError;
     if (insertError) {
@@ -140,21 +144,32 @@ export async function acquisisciDdtWhatsapp(
     } else j = data;
   }
   if (!j) throw new Error("Manca la conferma del salvataggio");
+  const stessoOperatore = opts.userId ? j.created_by === opts.userId
+    : !j.created_by && !!opts.employeeId && j.employee_id === opts.employeeId;
+  if (stessoOperatore && (opts.result || opts.accodaLettura) && j.source_key === opts.messageId && j.status === "da_leggere" && !j.result) {
+    const status = opts.result ? "review" : "queued";
+    const { data: aggiornata, error: letturaError } = await db.from("ddt_document_jobs")
+      .update({ ...(opts.result ? { result: ddtWhatsappRicco(opts.result) } : {}), status, updated_at: new Date().toISOString() })
+      .eq("company_id", opts.companyId).eq("id", j.id).eq("status", "da_leggere").is("result", null)
+      .select("id").maybeSingle();
+    if (letturaError) throw letturaError;
+    if (aggiornata) j.status = status;
+  }
   // Un duplicato di un collega non si riassegna: il documento viene confrontato dall'ufficio.
   if (
     opts.orderId &&
     !j.order_id &&
-    j.status !== "registered" &&
-    j.created_by === opts.userId &&
-    opts.userId
+    !j.destinazione &&
+    ["queued", "review", "da_leggere", "error"].includes(j.status) &&
+    stessoOperatore
   ) {
     const { error: updateError } = await db
       .from("ddt_document_jobs")
-      .update({ order_id: opts.orderId, updated_at: new Date().toISOString() })
+      .update({ order_id: opts.orderId, destinazione: "cantiere", updated_at: new Date().toISOString() })
       .eq("company_id", opts.companyId)
       .eq("id", j.id)
-      .is("order_id", null);
+      .is("order_id", null).is("destinazione", null).eq("status", j.status);
     if (updateError) throw updateError;
   }
-  return { id: j.id as string, status: j.status as string };
+  return { id: j.id as string, status: j.status as string, stessoOperatore };
 }

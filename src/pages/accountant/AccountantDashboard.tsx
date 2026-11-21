@@ -353,6 +353,11 @@ export default function AccountantDashboard() {
                           <ArrowRight className="h-3.5 w-3.5" />
                         </Button>
                       )}
+                      {isActive && access.access_mode === "approval_required" && (
+                        <Button asChild variant="outline" className="w-full">
+                          <Link to={`/commercialista/richieste?azienda=${access.company_id}`}>Proponi modifica</Link>
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 );

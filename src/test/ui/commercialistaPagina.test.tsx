@@ -11,6 +11,7 @@
  *  - La coda delle richieste non dice più che l'approvazione «applica
  *    immediatamente al sistema»: non applica niente da sola.
  */
+import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -139,7 +140,7 @@ describe("Commercialista: invito", () => {
   // di Radix all'infinito (vedi anche modelliPermessiEControlloAccessi.test.tsx).
   it("«Con approvazione» dice che per ora il portale non manda richieste; «Operativo» dice cosa sblocca", () => {
     const descrizione = (valore: string) => ACCESS_MODE_OPTIONS.find((o) => o.value === valore)?.description;
-    expect(descrizione("approval_required")).toMatch(/Per ora guarda soltanto, come in «Solo lettura»/);
+    expect(descrizione("approval_required")).toMatch(/invia proposte di modifica/);
     expect(descrizione("operational")).toMatch(/commesse, magazzino, clienti e ticket/);
     expect(descrizione("read_only")).toMatch(/non cambia niente/);
     expect(ACCESS_MODE_OPTIONS.map((o) => o.label)).toEqual(["Solo lettura", "Operativo", "Con approvazione"]);
@@ -263,7 +264,7 @@ describe("Coda delle richieste del commercialista", () => {
     expect(screen.queryByText(/due_date/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Approva: Crea costo" }));
     const dialogo = await screen.findByRole("dialog");
-    expect(within(dialogo).getByText(/La modifica non si applica da sola/)).toBeVisible();
+    expect(within(dialogo).getByText(/Registra poi la modifica nei dati dell’azienda/)).toBeVisible();
     expect(within(dialogo).queryByText(/immediatamente al sistema/)).toBeNull();
     fireEvent.click(within(dialogo).getByRole("button", { name: "Approva la richiesta" }));
     await waitFor(() => expect(stato.decisioni).toHaveLength(1));

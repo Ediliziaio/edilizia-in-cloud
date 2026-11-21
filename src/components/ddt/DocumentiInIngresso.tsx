@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, Mic } from "lucide-react";
 import { ProgressiveFluxLoader } from "@/components/ui/progressive-flux-loader";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,6 +129,46 @@ export function RevisioneDocumento({
   );
 }
 
+function VocaleDocumento({ companyId, messageId }: { companyId: string; messageId: string }) {
+  const { user } = useAuth();
+  const [aperto, setAperto] = useState(false);
+  const { data, isFetching, isError } = useQuery({
+    queryKey: ["ddt-vocale-whatsapp", companyId, messageId, user?.id],
+    enabled: aperto && !!user?.id,
+    queryFn: async () => {
+      const { data: messaggio, error } = await supabase.from("whatsapp_messages")
+        .select("media_storage_path, ai_extracted_data")
+        .eq("id", messageId).eq("company_id", companyId)
+        .eq("direction", "inbound").eq("message_type", "audio").maybeSingle();
+      if (error || !messaggio) throw new Error("Vocale non disponibile");
+      const path = messaggio.media_storage_path;
+      const link = path?.startsWith(companyId + "/")
+        ? await supabase.storage.from("whatsapp-media").createSignedUrl(path, 300)
+        : null;
+      const estratto = messaggio.ai_extracted_data;
+      const testo = estratto && typeof estratto === "object" && !Array.isArray(estratto)
+        ? estratto.trascrizione_italiana ?? estratto.trascrizione_originale : null;
+      return { url: link?.data?.signedUrl, trascrizione: typeof testo === "string" ? testo : null };
+    },
+  });
+  return (
+    <details className="mt-1 text-xs text-muted-foreground" onToggle={e => setAperto(e.currentTarget.open)}>
+      <summary className="cursor-pointer text-primary">
+        <Mic className="mr-1 inline h-3 w-3" aria-hidden="true" />
+        Destinazione indicata a voce
+      </summary>
+      {aperto && (
+        <div className="mt-2 space-y-1.5">
+          {data?.url && <audio controls preload="none" src={data.url} className="h-8 w-full" aria-label="Vocale WhatsApp originale" />}
+          {data?.trascrizione && <p className="whitespace-pre-wrap">{data.trascrizione}</p>}
+          {isFetching && !data && <p>Caricamento del vocale…</p>}
+          {(isError || (data && !data.url && !data.trascrizione)) && <p>Vocale non disponibile su questa utenza.</p>}
+        </div>
+      )}
+    </details>
+  );
+}
+
 /** Le letture non ancora registrate condividono l’elenco con i DDT, senza duplicare i registrati. */
 export function RigaDocumentoInIngresso({
   documento: j,
@@ -192,6 +233,9 @@ export function RigaDocumentoInIngresso({
                   ? "WhatsApp"
                   : "Caricamento ufficio"}
             </p>
+            {j.whatsapp_voice_message_id && (
+              <VocaleDocumento companyId={j.company_id} messageId={j.whatsapp_voice_message_id} />
+            )}
             {j.last_error && (
               <p className="mt-1 whitespace-normal text-xs text-rose-700">
                 {j.last_error}

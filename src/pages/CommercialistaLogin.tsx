@@ -77,7 +77,7 @@ async function getLoggedUserHasAccountantAccess() {
 }
 
 export default function CommercialistaLogin() {
-  const { user, role, isLoading, signIn, signOut } = useAuth();
+  const { user, role, userRoles, isLoading, signIn, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   useSEO({ title: "Portale Commercialista", noindex: true });
@@ -100,7 +100,7 @@ export default function CommercialistaLogin() {
   const [signupTermsAccepted, setSignupTermsAccepted] = useState(false);
   const [signupSuccessMessage, setSignupSuccessMessage] = useState<string | null>(null);
 
-  if (!isLoading && user && role && allowedAccountantRoles.has(role)) {
+  if (!isLoading && user && role && (allowedAccountantRoles.has(role) || userRoles?.includes("accountant"))) {
     return <Navigate to="/commercialista" replace />;
   }
 

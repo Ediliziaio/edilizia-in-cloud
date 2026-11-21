@@ -16,6 +16,7 @@ import { appuntamentiImminenti, type AppuntamentoRow, componiPromemoriaAppuntame
 import { messaggioProattivoAI } from "../_shared/messaggioProattivoAI.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { commessaAperta } from "../whatsapp-ai-processor/tools/shared/cantieriAperti.ts";
+import { numeroWhatsAppOperativo as cleanPhone } from "../_shared/telefonoE164.ts";
 
 /** L'AqI scrive il messaggio, se non è stata disattivata nella routine. */
 function usaAI(r: RoutineRow): boolean {
@@ -40,12 +41,6 @@ interface RoutineRow {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   regole: Record<string, any> | null;
   template_nome: string | null;
-}
-
-function cleanPhone(phone: string | null | undefined): string | null {
-  const d = (phone ?? "").replace(/[^0-9]/g, "");
-  if (d.length < 9) return null;
-  return d.startsWith("39") ? d : `39${d}`;
 }
 
 function dataOggiRoma(now: Date): string {
@@ -86,6 +81,7 @@ async function invia(
   phone: string,
   testo: string,
   templateNome: string | null,
+  idempotencyKey?: string,
 ): Promise<{ ok: boolean; detail?: string }> {
   const base = Deno.env.get("SUPABASE_URL")!;
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -93,7 +89,7 @@ async function invia(
   const testoRes = await fetch(`${base}/functions/v1/whatsapp-send`, {
     method: "POST",
     headers: intest,
-    body: JSON.stringify({ wa_number_id: waNumberId, company_id: companyId, to: phone, text: testo }),
+    body: JSON.stringify({ wa_number_id: waNumberId, company_id: companyId, to: phone, text: testo, idempotency_key: idempotencyKey }),
   });
   if (testoRes.ok) return { ok: true };
   const j = await testoRes.json().catch(() => null) as { code?: string } | null;
@@ -107,6 +103,7 @@ async function invia(
         company_id: companyId,
         to: phone,
         type: "template",
+        idempotency_key: idempotencyKey,
         // Meta rifiuta i parametri con a capo, tabulazioni o più di 4 spazi di fila
         // (errore #132018): il testo va su una riga sola. Prima ogni invio fuori
         // dalla finestra delle 24 ore falliva così.
@@ -280,7 +277,7 @@ async function pianoDelGiorno(supabase: DB, r: RoutineRow, oggi: string): Promis
   // I cantieri: aperti, non cancellati.
   const ordiniIds = [...new Set([...lavoro.values()].flatMap((m) => [...m.keys()]))];
   const { data: ordini } = await supabase.from("orders")
-    .select("id, order_code, description, work_description, tipo_lavoro, indirizzo_lavori, work_address, client_address, client_name, status, deleted_at, work_end_date")
+    .select("id, order_code, description, work_description, tipo_lavoro, indirizzo_lavori, work_address, client_address, client_name, status, deleted_at, work_start_date, work_end_date")
     .eq("company_id", r.company_id).in("id", ordiniIds);
   const infoOrdine = new Map<string, OrdineInfo>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -288,6 +285,7 @@ async function pianoDelGiorno(supabase: DB, r: RoutineRow, oggi: string): Promis
     // Gli stessi cantieri aperti del bot. Le commesse restano spesso «confermato»
     // per sempre: quelle con la fine lavori passata da più di due settimane no.
     if (o.deleted_at || !commessaAperta(o.status)) continue;
+    if (o.work_start_date && o.work_start_date > oggi) continue;
     if (o.work_end_date && o.work_end_date < giorniPrimaDi(oggi, 14)) continue;
     const titolo = [o.order_code, o.description || o.client_name || o.tipo_lavoro].filter(Boolean).join(" — ") || "cantiere";
     infoOrdine.set(o.id, { titolo, indirizzo: o.indirizzo_lavori || o.work_address || o.client_address || null, descrizione: null });
@@ -306,11 +304,17 @@ async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, forc
   const { lavoro, empById, infoOrdine, chiSuOrdine } = await pianoDelGiorno(supabase, r, oggi);
   if (lavoro.size === 0) { e.skipped++; return e; }
   const nomeBreve = (x: { first_name?: string | null; last_name?: string | null }) => (x.first_name ?? "").trim() || (x.last_name ?? "").trim() || "collega";
+  const utentiPerNumero = new Map<string, number>();
+  for (const employee of empById.values()) {
+    for (const numero of new Set([cleanPhone(employee.phone_whatsapp), cleanPhone(employee.phone)])) {
+      if (numero) utentiPerNumero.set(numero, (utentiPerNumero.get(numero) ?? 0) + 1);
+    }
+  }
 
   for (const [empId, perOrdine] of lavoro) {
     const x = empById.get(empId);
     const phone = cleanPhone(x?.phone_whatsapp || x?.phone);
-    if (!x || !phone) { e.skipped++; continue; }
+    if (!x || !phone || utentiPerNumero.get(phone) !== 1) { e.skipped++; continue; }
     // Prova a un solo numero, o solo ai numeri ammessi della routine (operai pilota).
     if (!ammesso(r, phone, prova)) continue;
     const chiave = x.user_id ?? null;
@@ -331,7 +335,7 @@ async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, forc
     }
     const nome = `${x.first_name ?? ""} ${x.last_name ?? ""}`.trim() || null;
     let testo = componiTodoOperaio(nome, cantieri, attivita);
-    if (usaAI(r)) {
+    if (usaAI(r) && !prova.anteprima) {
       testo = await messaggioProattivoAI({
         supabase,
         taskKey: "bot_operativo_operaio",
@@ -343,7 +347,8 @@ async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, forc
       });
     }
     if (prova.anteprima) { prova.messaggi.push({ a: phone, nome, testo }); e.sent++; continue; }
-    const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
+    const chiaveInvio = prova.soloTelefono ? undefined : ["todo_operaio", oggi, phone].join(":");
+    const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome, chiaveInvio);
     // Un invio di prova non conta come mandato: il messaggio vero parte lo stesso.
     if (!prova.soloTelefono) await logga(supabase, r, oggi, "todo_operaio", chiave, phone, esito);
     esito.ok ? e.sent++ : e.failed++;
@@ -382,7 +387,7 @@ async function eseguiRapportinoSera(supabase: DB, r: RoutineRow, oggi: string, f
     const chiave = x.user_id ?? null;
     if (!force && await giaMandato(supabase, r.company_id, oggi, "rapportino_sera", chiave, phone)) { e.skipped++; continue; }
     let testo = `Ciao ${(x.first_name ?? "").trim() || nome}, oggi eri su ${cantieri.join(" e ")}. Non mi è ancora arrivato il rapportino: mandamelo qui, anche a voce (ore e cosa hai fatto).`;
-    if (usaAI(r)) {
+    if (usaAI(r) && !prova.anteprima) {
       testo = await messaggioProattivoAI({
         supabase, taskKey: "bot_operativo_operaio", companyId: r.company_id,
         istruzioni: "È il promemoria della sera a un operaio che non ha mandato il rapportino. Una o due righe, gentile e pratico: digli che può mandarlo qui anche a voce con ore e lavori. Non inventare cantieri.",
@@ -511,6 +516,12 @@ serveConMetricheRapida("bot-routine-dispatch", async (req) => {
   // registrarli; «solo_telefono» manda solo a quel numero. Servono a provare una
   // routine su un'azienda vera senza scrivere a tutti gli operai.
   const prova: Prova = { anteprima: body?.anteprima === true, soloTelefono: cleanPhone(body?.solo_telefono ?? null), messaggi: [] };
+  if ((body?.solo_telefono != null && !prova.soloTelefono) ||
+      ((prova.anteprima || prova.soloTelefono) && !body?.company_id)) {
+    return new Response(JSON.stringify({ error: "azienda_o_numero_di_prova_non_valido" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
   const now = new Date();
   const oggi = dataOggiRoma(now);
 

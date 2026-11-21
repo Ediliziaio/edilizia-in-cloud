@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
+import { numeroWhatsAppOperativo } from "../_shared/telefonoE164.ts";
 import {
   eUtenteInterno,
   tipoUtenteBot,
@@ -39,6 +40,7 @@ const GRANTS_OPERAIO = [
   "foto.write",
   "presenze.write",
   "segnalazione.write",
+  "attivita_ufficio.write",
   "cantieri.list_assigned",
   "cantieri.read_assigned",
   "spese.write",
@@ -84,15 +86,6 @@ function unknownResult(companyId: string, negata = false): ResolvedIdentity {
   };
 }
 
-function numeroAnagrafica(telefono: string | null | undefined): string | null {
-  const testo = telefono?.trim() ?? "";
-  if (!/^\+?[\d ().-]+$/.test(testo)) return null;
-  const cifre = testo.replace(/\D/g, "");
-  const normalizzato = testo.startsWith("+") ? cifre : cifre.startsWith("00") ? cifre.slice(2)
-    : /^(?:3\d{8,9}|0\d{6,10})$/.test(cifre) ? `39${cifre}` : cifre;
-  return /^[1-9]\d{7,14}$/.test(normalizzato) ? normalizzato : null;
-}
-
 const DIMENSIONE_PAGINA = 250;
 
 async function trovaIdentitaTelefoniche<T extends { id: string }>(
@@ -120,12 +113,14 @@ async function riconosciuto(
 ): Promise<ResolvedIdentity> {
   let solaLettura = false;
   let soloMieiMagazzini = false;
+  const grants = grantsPer(tipo);
   if (tipo !== "admin" && dati.user_id) {
-    const { data, error } = await db.from("staff_permissions").select("sola_lettura, only_my_warehouse")
+    const { data, error } = await db.from("staff_permissions").select("sola_lettura, only_my_warehouse, can_view_billing")
       .eq("user_id", dati.user_id).eq("company_id", companyId).maybeSingle();
     if (error) throw new Error("identity_permissions_lookup_unavailable");
     solaLettura = data?.sola_lettura === true;
     soloMieiMagazzini = data?.only_my_warehouse === true;
+    if (tipo === "ufficio" && data?.can_view_billing === true) grants.push("fatture.read");
   }
   if (tipo === "admin") {
     console.warn(
@@ -139,7 +134,8 @@ async function riconosciuto(
     user_id: dati.user_id,
     employee_id: dati.employee_id,
     display_name: dati.display_name,
-    role_grants: grantsPer(tipo).filter(g => !solaLettura || !/\.write$|\.assegna$|^preventivi\./.test(g)),
+    role_grants: grants.filter(g => (g !== "attivita_ufficio.write" || !!dati.user_id) &&
+      (!solaLettura || !/\.write$|\.assegna$|^preventivi\./.test(g))),
     solaLettura,
     soloMieiMagazzini,
     ruolo_silvio: dati.ruoli.length > 0 ? ruoloPrincipaleSilvio(dati.ruoli) : null,
@@ -155,7 +151,7 @@ export async function resolveIdentity(
 ): Promise<ResolvedIdentity> {
   const mittente = fromPhone.replace(/^\+/, "");
   if (!/^[1-9]\d{7,14}$/.test(mittente)) return unknownResult(companyId);
-  const corrisponde = (telefono: string | null | undefined) => numeroAnagrafica(telefono) === mittente;
+  const corrisponde = (telefono: string | null | undefined) => numeroWhatsAppOperativo(telefono) === mittente;
 
   const matches = await trovaIdentitaTelefoniche(dopo => {
     const query = supabase.from("employees").select("id, user_id, first_name, last_name, phone_whatsapp, phone, is_active")

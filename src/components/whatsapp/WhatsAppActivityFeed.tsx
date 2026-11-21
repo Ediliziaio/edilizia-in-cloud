@@ -27,6 +27,7 @@ const intentIcons: Record<string, LucideIcon> = {
   foto_cantiere: Camera,
   presenze: Clock,
   segnalazione: AlertTriangle,
+  attivita_ufficio: CheckCircle2,
   domanda: HelpCircle,
   unknown: MessageSquare,
 };
@@ -37,6 +38,7 @@ const intentLabels: Record<string, string> = {
   foto_cantiere: "Foto",
   presenze: "Presenze",
   segnalazione: "Segnalazione",
+  attivita_ufficio: "Attività ufficio",
   domanda: "Domanda",
   conferma: "Conferma",
   annulla: "Annulla",

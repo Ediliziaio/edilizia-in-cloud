@@ -27,3 +27,13 @@ export function mascheraTelefono(e164: string | null | undefined): string | null
   if (!e164 || !/^\+\d{8,15}$/.test(e164)) return null;
   return `${e164.slice(0, 3)}${"*".repeat(Math.max(3, e164.length - 6))}${e164.slice(-3)}`;
 }
+
+/** Accetta il numero della rubrica e l'identificativo WhatsApp già internazionale. */
+export function numeroWhatsAppOperativo(telefono: string | null | undefined): string | null {
+  const testo = typeof telefono === "string" ? telefono.trim() : "";
+  if (!/^\+?[\d ().-]+$/.test(testo)) return null;
+  const cifre = testo.replace(/\D/g, "");
+  const normalizzato = testo.startsWith("+") ? cifre : cifre.startsWith("00") ? cifre.slice(2)
+    : /^(?:3\d{8,9}|0\d{6,10})$/.test(cifre) ? "39" + cifre : cifre;
+  return /^[1-9]\d{7,14}$/.test(normalizzato) ? normalizzato : null;
+}

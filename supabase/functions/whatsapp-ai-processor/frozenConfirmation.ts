@@ -5,6 +5,7 @@ import { sceltaCantiere, cantiereDalTesto } from "./tools/shared/sceltaCantiere.
 import { cantieriInOrdine, cercaCommesseUfficio } from "./tools/shared/cantieriAperti.ts";
 import { descriviFattura } from "./tools/ufficio/assegna_fattura.ts";
 import { giornoRapportinoWhatsapp, verificaContestoRapportino, type OrePersona } from "./tools/operaio/rapportinoSquadra.ts";
+import { preparaAttivitaUfficio } from "./tools/operaio/crea_attivita_ufficio.ts";
 import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 import { isEdileDraftModel, validEdileReview } from "../_shared/edileQuoteDraft.ts";
@@ -32,6 +33,7 @@ export function confirmationHash(action: string, args: Record<string, unknown>, 
 const names: Record<string, string> = {
   crea_rapportino: "Inviare il rapportino all’ufficio", aggiungi_attivita_rapportino: "Aggiungere attività al rapportino",
   registra_presenza: "Registrare la presenza", carica_ddt: "Registrare la bolla", carica_scontrino: "Registrare la spesa",
+  crea_attivita_ufficio: "Inviare l’attività all’ufficio",
   segna_fase: "Segnare la fase come completata", assegna_fattura: "Assegnare la fattura alla commessa",
   approva_richiesta: "Gestire la richiesta", invia_pdf_preventivo: "Inviare il preventivo", crea_preventivo_ai: "Creare il preventivo",
   salva_preventivo_bozza: "Salvare le voci approvate del preventivo",
@@ -98,6 +100,11 @@ function riepilogoOperativo(action: string, args: Record<string, unknown>, voci:
       ...(args.meteo && args.meteo !== "non_specificato" ? [`Meteo: ${testo(args.meteo, 20)}`] : []),
       ...(args.note ? [`Note: ${testo(args.note)}`] : [])];
   }
+  if (action === "crea_attivita_ufficio") return [
+    testo(args.titolo, 160), `Ufficio: ${testo(args.ufficio, 100)}`,
+    ...(args.note ? [testo(args.note, 300)] : []),
+    ...(args.scadenza ? [`Entro il ${dataIt(args.scadenza)}`] : []),
+  ];
   if (action === "carica_scontrino") {
     return [`Spesa di ${euro(args.importo)}`, ...(args.esercente ? [`Negozio: ${testo(args.esercente, 80)}`] : []),
       `Data: ${dataIt(args.data)}`,
@@ -151,7 +158,7 @@ export function confirmationPreview(action: string, args: Record<string, unknown
     if (preview.length > 1024) throw new ConfirmationReviewError("confirmation_requires_app", "Computo troppo lungo per una conferma WhatsApp completa: verifica e salva nell’app.");
     return preview;
   }
-  const coda = [...(siteName ? [`${action === "assegna_fattura" ? "Commessa" : "Cantiere"}: ${siteName}`] : []), ...(media ? ["Foto allegata"] : [])];
+  const coda = [...(siteName ? [`${action === "assegna_fattura" ? "Commessa" : "Cantiere"}: ${siteName}`] : []), ...descrizioneAllegato(media)];
   const leggibile = riepilogoConCantiere(action, args, coda, "Confermi?");
   if (leggibile) return leggibile;
   const lines = [names[action] ?? action.replace(/_/g, " ")];
@@ -165,8 +172,27 @@ export function confirmationPreview(action: string, args: Record<string, unknown
   return preview;
 }
 
+function descrizioneAllegato(media?: ToolCtx["mediaCorrente"]): string[] {
+  if (!media) return [];
+  if (media.tipo === "audio") return ["Vocale allegato"];
+  if (media.tipo === "image") return ["Foto allegata"];
+  return ["Documento allegato"];
+}
+
 export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Record<string, unknown>, sourceMessageId: string, now = new Date()) {
   const args = JSON.parse(canonicalJson(input)) as Record<string, unknown>;
+  if (action === "crea_attivita_ufficio") {
+    try {
+      const attivita = await preparaAttivitaUfficio(ctx, args);
+      args.ufficio = attivita.ufficio;
+      args.ufficio_id = attivita.ufficio_id;
+      args.titolo = attivita.titolo;
+      if (attivita.note) args.note = attivita.note;
+      if (attivita.scadenza) args.scadenza = attivita.scadenza;
+    } catch (e) {
+      throw new ConfirmationReviewError("attivita_ufficio_da_chiarire", e instanceof Error ? e.message : "Verifica i dati della richiesta all’ufficio.");
+    }
+  }
   let quoteReview: Record<string, unknown> | undefined;
   if (action === "prepara_preventivo_modello") {
     if (!ctx.user_id || !["admin", "ufficio"].includes(ctx.kind) || !isEdileDraftModel(args.modulo, args.modello) || typeof args.quote_id !== "string") {
@@ -208,7 +234,8 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
       if (trovate.length === 1) { args.order_id = trovate[0].id; motivoCantiere = "come mi hai scritto"; }
       delete args.cantiere_hint;
     }
-  } else if (AZIONI_CON_CANTIERE.has(action) && !args.order_id) {
+  } else if (AZIONI_CON_CANTIERE.has(action) && !args.order_id &&
+    (action !== "crea_attivita_ufficio" || !!args.cantiere_hint)) {
     // L'operaio non deve conoscere il codice: si propone il cantiere più
     // probabile, oppure si offre l'elenco dei suoi cantieri aperti (18/10/2026).
     const hint = args.cantiere_hint ?? args.cantiere;
@@ -294,7 +321,7 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
   // Cantiere da scegliere: l'elenco stesso è la domanda, toccare un cantiere conferma.
   if (!args.order_id && cantieri?.length) {
     return { pending: { ...pending, lista_mostrata: true }, interactive: elencoCantieri(pending,
-      riepilogoConCantiere(action, args, media ? ["Foto allegata"] : [], "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.")
+      riepilogoConCantiere(action, args, descrizioneAllegato(media), "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.")
         ?? confirmationPreview(action, args, undefined, media, quoteReview)) };
   }
   // Preventivo (18/10/2026): tutte le voci, anche quando sono tante. Se non
@@ -323,7 +350,7 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
 }
 
 /** Le azioni che vanno su un cantiere. */
-export const AZIONI_CON_CANTIERE = new Set(["crea_rapportino", "carica_ddt", "carica_scontrino", "segna_fase", "assegna_fattura"]);
+export const AZIONI_CON_CANTIERE = new Set(["crea_rapportino", "carica_ddt", "carica_scontrino", "segna_fase", "assegna_fattura", "crea_attivita_ufficio"]);
 /** Nove cantieri più la riga «Annulla»: il massimo di una lista WhatsApp è dieci. */
 export const MAX_CANTIERI_IN_ELENCO = 9;
 

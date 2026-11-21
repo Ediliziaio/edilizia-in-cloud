@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RiepilogoDdtFattura, type RiepilogoDdt } from "@/components/fatturazione/RiepilogoDdtFattura";
@@ -8,9 +8,9 @@ import { RiepilogoDdtFattura, type RiepilogoDdt } from "@/components/fatturazion
 const stato=vi.hoisted(()=>({data:null as RiepilogoDdt|null,error:null as {message:string}|null}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{rpc:async()=>stato}}));
 const bolla=(n:number,esito:RiepilogoDdt['ddt'][number]['esito']='collegato'):RiepilogoDdt['ddt'][number]=>({id:`l${n}`,numero:`DDT-${n}`,data:null,ddt_id:esito==='mancante'?null:`d${n}`,esito,destinazioni:esito==='collegato'?[{tipo:'commessa',id:`c${n}`,codice:`C-${n}`,valida:true}]:[]});
-const monta=(p:Partial<RiepilogoDdt>)=>{
+const monta=(p:Partial<RiepilogoDdt>,onCollegaDdt?:()=>void)=>{
   stato.data={ddt:[],completo:false,motivo:'Verifica le quote',automatico:true,senza_costo:false,allineata:false,manuale:false,gestita_altrove:false,...p};stato.error=null;
-  return render(<MemoryRouter><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><RiepilogoDdtFattura companyId="azienda" fatturaId="fattura" puoModificare /></QueryClientProvider></MemoryRouter>);
+  return render(<MemoryRouter><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><RiepilogoDdtFattura companyId="azienda" fatturaId="fattura" puoModificare onCollegaDdt={onCollegaDdt} /></QueryClientProvider></MemoryRouter>);
 };
 afterEach(cleanup);
 describe('Avvisi DDT della fattura',()=>{
@@ -36,5 +36,17 @@ describe('Avvisi DDT della fattura',()=>{
     monta({});stato.error={message:'Permesso negato'};
     expect(await screen.findByText(/Verifica DDT non disponibile/)).toBeVisible();
     expect(screen.queryByText(/DDT collegati/)).toBeNull();
+  });
+  it('mostra il DDT mancante anche quando la fattura non ha ancora collegamenti',async()=>{
+    const collega=vi.fn();
+    monta({prezzi:{stato:"da_verificare",motivo:"ddt_mancante",riferimento:"107/A"}},collega);
+    expect(await screen.findByText(/Il DDT citato va registrato o collegato/)).toHaveTextContent("DDT 107/A");
+    fireEvent.click(screen.getByRole("button",{name:"Collega DDT"}));
+    expect(collega).toHaveBeenCalledOnce();
+  });
+  it('porta alla conferma del prezzo sulla bolla della riga ambigua',async()=>{
+    monta({ddt:[bolla(1),bolla(2)],prezzi:{stato:"da_verificare",motivo:"articolo",ddt_id:"d2",riga:5}});
+    expect(await screen.findByText(/Conferma quale articolo/)).toHaveTextContent("riga 5 della fattura");
+    expect(screen.getByRole("link",{name:"Verifica prezzi sul DDT"})).toHaveAttribute("href","/azienda/ddt/d2?fatturaPrezzi=fattura");
   });
 });
