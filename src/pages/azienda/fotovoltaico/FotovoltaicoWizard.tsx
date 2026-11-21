@@ -2333,7 +2333,7 @@ function FotovoltaicoWizard() {
               onEmetti={() => void handleGeneraEdEmetti()}
               salvando={salvando}
               readOnly={readOnlyMode}
-              analisiDisponibile={!!modelloSalvato.snapshot && !!data.analisi_consumi && (modelloSalvato.snapshot.template?.pdf_blocchi as Record<string, unknown> | undefined)?.modulo_intervento === "nuovo"}
+              analisiDisponibile={!!modelloSalvato.snapshot && !!data.analisi_consumi && (modelloSalvato.snapshot.template as { pdf_blocchi?: { modulo_intervento?: string } })?.pdf_blocchi?.modulo_intervento === "nuovo"}
               analisiAttiva={analisiNelPdfFv((modelloSalvato.snapshot?.template ?? fvTemplate ?? {}) as Record<string, unknown>)}
               onAnalisi={async (attiva) => {
                 if (!progettoId || !modelloSalvato.snapshot || readOnlyMode) return;
