@@ -73,7 +73,7 @@ function SidebarItem({ to, label, icon: Icon, end, badge }: SidebarItemDef) {
 export default function AccountantLayout({ children }: { children?: ReactNode }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { data: firm, isLoading: isLoadingFirm } = useAccountantFirm();
+  const { data: firm, isLoading: isLoadingFirm, isError: firmError, refetch: refetchFirm } = useAccountantFirm();
   const { data: companies = [] } = useAccountantCompanies();
   useAccountantNotificationsRealtime();
   const { data: notifications = [] } = useAccountantNotifications();
@@ -118,7 +118,10 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
       <div className="flex min-h-dvh items-center justify-center bg-[#07111f] p-6">
         <div className="max-w-md rounded-2xl border border-white/10 bg-white p-8 text-center shadow-2xl">
           <Building2 className="mx-auto h-14 w-14 text-amber-500" />
-          <h2 className="mt-4 text-xl font-bold text-slate-950">Nessuno studio collegato</h2>
+          <h2 className="mt-4 text-xl font-bold text-slate-950">{firmError ? "Impossibile caricare lo studio" : "Nessuno studio collegato"}</h2>
+          {firmError ? (
+            <Button className="mt-6 w-full" onClick={() => void refetchFirm()}>Riprova</Button>
+          ) : <>
           <p className="mt-2 text-sm text-slate-600">
             Il tuo account non è associato ad alcuno studio commercialista. Contatta il
             super admin di Edilizia in Cloud per essere assegnato a uno studio esistente,
@@ -130,6 +133,7 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
           >
             Registra il tuo studio
           </Button>
+          </>}
           <Button
             variant="ghost"
             className="mt-2 w-full text-slate-600 hover:text-slate-900"

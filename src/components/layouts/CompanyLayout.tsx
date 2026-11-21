@@ -2,6 +2,7 @@ import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
 import { useSidebarOpenArea } from "@/hooks/useSidebarOpenArea";
 import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { CompanyPageOutlet } from "./CompanyPageOutlet";
+import { DelegatedCompanyContent } from "@/components/accountant/DelegatedCompanyContent";
 import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
 // Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
@@ -1417,6 +1418,8 @@ export function CompanyLayout() {
     null;
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
 
+  const verificareDelega = isCommercialistaMode && (role === "accountant" || userRoles?.includes("accountant"));
+
   // AUTO-SWITCH: se l'URL contiene commercialistaMode=1 + commercialistaCompany=X,
   // assicuriamoci che effectiveCompany sia X (non l'azienda di sessione del commercialista).
   // Senza questo, il cruscotto mostra i dati sbagliati.
@@ -1440,7 +1443,7 @@ export function CompanyLayout() {
       return;
     }
     const hasAccessUrl = multiCompanyAccesses.some(
-      (a) => a.company_id === commercialistaCompanyId,
+      (a) => a.company_id === commercialistaCompanyId && (!verificareDelega || a.access_role === "accountant"),
     );
     // Aspetta il caricamento degli accessi SENZA aggiornare il ref: altrimenti
     // al giro con accessi vuoti segneremmo l'URL come "già visto" e il giro
@@ -1474,6 +1477,7 @@ export function CompanyLayout() {
     switchMultiCompany(commercialistaCompanyId);
   }, [
     isCommercialistaMode,
+    verificareDelega,
     commercialistaCompanyId,
     selectedMultiCompanyId,
     multiCompanyAccesses,
@@ -1632,6 +1636,9 @@ export function CompanyLayout() {
     markAsRead();
     setSupportOpen(true);
   };
+  const contenutoAzienda = effectiveCompany?.management_mode === "accounting" && !isCompanyPathAvailable("accounting", location.pathname)
+    ? <Navigate to={verificareDelega ? appendSearchToAziendaUrl(accountingHome(permissions), location.search) : accountingHome(permissions)} replace />
+    : <CompanyPageOutlet />;
   
   return (
     <>
@@ -1790,9 +1797,11 @@ export function CompanyLayout() {
                 </div>
               }>
                 <SoftphoneProvider>
-                  {effectiveCompany?.management_mode === "accounting" && !isCompanyPathAvailable("accounting", location.pathname)
-                    ? <Navigate to={accountingHome(permissions)} replace />
-                    : <CompanyPageOutlet />}
+                  {verificareDelega ? (
+                    <DelegatedCompanyContent companyId={commercialistaCompanyId} effectiveCompanyId={effectiveCompany?.id}>
+                      {contenutoAzienda}
+                    </DelegatedCompanyContent>
+                  ) : contenutoAzienda}
                 </SoftphoneProvider>
               </Suspense>
             </ErrorBoundary>

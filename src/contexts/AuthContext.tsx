@@ -72,6 +72,7 @@ interface AuthContextType extends AuthState {
   // Multi-company
   multiCompanyAccesses: MultiCompanyAccess[];
   multiCompanyLoaded: boolean;
+  refreshMultiCompanyAccesses: () => void;
   selectedMultiCompanyId: string | null;
   switchMultiCompany: (companyId: string) => void;
   /** TUTTI i ruoli dell'utente, non solo quello effettivo. */
@@ -377,6 +378,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // true quando il fetch degli accessi multi-azienda è completato almeno una volta
   // (necessario a RoleBasedRedirect per decidere se mostrare il selettore d'ingresso).
   const [multiCompanyLoaded, setMultiCompanyLoaded] = useState(false);
+  const [multiCompanyRevision, setMultiCompanyRevision] = useState(0);
+  const refreshMultiCompanyAccesses = useCallback(() => {
+    setMultiCompanyLoaded(false);
+    setMultiCompanyRevision(revision => revision + 1);
+  }, []);
   const multiCompanyObj = multiCompanyState.selectedCompany;
 
   const recoverInvalidAuthSession = useCallback((source: string, error?: unknown) => {
@@ -1850,7 +1856,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       controller.abort();
     };
-  }, [state.isLoading, state.role, state.user, state.profile?.company_id, state.profile?.created_at, state.company]);
+  }, [state.isLoading, state.role, state.user, state.profile?.company_id, state.profile?.created_at, state.company, multiCompanyRevision]);
 
   // Backstop di affidabilità: l'effect di fetch sopra si auto-aborta ad ogni cambio
   // di dipendenza durante l'inizializzazione auth, quindi il set di multiCompanyLoaded
@@ -2060,13 +2066,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       effectiveCompany,
       multiCompanyAccesses,
       multiCompanyLoaded,
+      refreshMultiCompanyAccesses,
       selectedMultiCompanyId,
       switchMultiCompany,
       viewAsRole,
       viewAsUserId,
       setViewAsRole,
     }),
-    [state, impersonationRelayPending, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, riportaServerSuAzienda, passaAdAziendaDelServer, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
+    [state, impersonationRelayPending, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, riportaServerSuAzienda, passaAdAziendaDelServer, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, refreshMultiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (

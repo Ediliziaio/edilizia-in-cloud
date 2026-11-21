@@ -191,7 +191,9 @@ function DatiStudio({ studio }: { studio: Studio }) {
             <Building2 className="size-4 text-muted-foreground" aria-hidden="true" /> Deleghe aziendali
             <span className="text-xs font-normal text-muted-foreground">{deleghe.length}</span>
           </h3>
-          {!deleghe.length ? <p className="px-3 py-4 text-sm text-muted-foreground">Nessuna delega associata.</p> : (
+          {!deleghe.length ? <p className="px-3 py-4 text-sm text-muted-foreground">
+            L’azienda può invitare lo studio da Impostazioni → Persone e accessi → Commercialista.
+          </p> : (
             <ul className="divide-y">
               {deleghe.map(delega => (
                 <li key={delega.id}>

@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export interface AccountantCompanyAccessRow {
   invited_at: string | null;
   accepted_at: string | null;
   notes: string | null;
+  puo_rispondere: boolean;
   // Joined company info
   company: {
     id: string;
@@ -79,8 +81,6 @@ export const accountantKeys = {
   firm: (userId: string | null | undefined) => ["accountant", "firm", userId] as const,
   companies: (firmId: string | null | undefined) =>
     ["accountant", "companies", firmId] as const,
-  company: (firmId: string | null | undefined, companyId: string | undefined) =>
-    ["accountant", "company", firmId, companyId] as const,
   notifications: (userId: string | null | undefined) =>
     ["accountant", "notifications", userId] as const,
 };
@@ -99,7 +99,7 @@ export function useAccountantFirm() {
       if (!userId) return null;
 
       // 1. Cerca firm dove è owner
-      const { data: ownedFirms } = await supabase
+      const { data: ownedFirms, error: ownerError } = await supabase
         .from("accountant_firms")
         .select("*")
         .eq("owner_user_id", userId)
@@ -107,18 +107,20 @@ export function useAccountantFirm() {
         .order("created_at", { ascending: true })
         .limit(1);
 
+      if (ownerError) throw ownerError;
       if (ownedFirms && ownedFirms.length > 0) {
         return ownedFirms[0] as AccountantFirmRow;
       }
 
       // 2. Altrimenti cerca firm dove è member attivo
-      const { data: memberships } = await supabase
+      const { data: memberships, error: memberError } = await supabase
         .from("accountant_firm_members")
         .select("firm_id, role, status, accountant_firms!inner(*)")
         .eq("user_id", userId)
         .eq("status", "active")
         .limit(1);
 
+      if (memberError) throw memberError;
       if (memberships && memberships.length > 0) {
         const m = memberships[0] as { accountant_firms: AccountantFirmRow };
         return m.accountant_firms;
@@ -139,63 +141,21 @@ export function useAccountantCompanies() {
     queryKey: accountantKeys.companies(firmId),
     enabled: !!firmId,
     staleTime: 30_000,
+    retry: retryAuthorizedRead,
     queryFn: async (): Promise<AccountantCompanyAccessRow[]> => {
-      if (!firmId) return [];
-      const { data, error } = await supabase
-        .from("accountant_company_access")
-        .select(
-          `
-          id, firm_id, company_id, status, access_mode, permissions,
-          invited_email, invited_at, accepted_at, notes,
-          company:companies!inner(id, name, vat_number, fiscal_code, legal_city)
-        `,
-        )
-        .eq("firm_id", firmId)
-        .in("status", ["invited", "active", "suspended"])
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("[useAccountantCompanies]", error);
-        return [];
-      }
-
-      return (data || []) as unknown as AccountantCompanyAccessRow[];
+      const { data, error } = await supabase.rpc("studio_elenca_deleghe" as never, { p_studio: firmId } as never);
+      if (error) throw error;
+      return (data ?? []) as AccountantCompanyAccessRow[];
     },
   });
 }
 
-// ─── useAccountantCompanyAccess ────────────────────────────────────────────
-
 export function useAccountantCompanyAccess(companyId: string | undefined) {
-  const { data: firm } = useAccountantFirm();
-  const firmId = firm?.id ?? null;
-
-  return useQuery({
-    queryKey: accountantKeys.company(firmId, companyId),
-    enabled: !!firmId && !!companyId,
-    staleTime: 30_000,
-    queryFn: async (): Promise<AccountantCompanyAccessRow | null> => {
-      if (!firmId || !companyId) return null;
-      const { data, error } = await supabase
-        .from("accountant_company_access")
-        .select(
-          `
-          id, firm_id, company_id, status, access_mode, permissions,
-          invited_email, invited_at, accepted_at, notes,
-          company:companies!inner(id, name, vat_number, fiscal_code, legal_city)
-        `,
-        )
-        .eq("firm_id", firmId)
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("[useAccountantCompanyAccess]", error);
-        return null;
-      }
-      return (data as unknown as AccountantCompanyAccessRow) || null;
-    },
-  });
+  const query = useAccountantCompanies();
+  return {
+    ...query,
+    data: query.data?.find(access => access.company_id === companyId) ?? null,
+  };
 }
 
 // ─── useAccountantNotifications ────────────────────────────────────────────
@@ -269,60 +229,34 @@ export function useAccountantNotifications() {
 
 // ─── Mutations ─────────────────────────────────────────────────────────────
 
-/** Accetta un invito da azienda → cambia status a 'active' */
-export function useAcceptCompanyInvite() {
+function useRispondiInvito(accetta: boolean) {
   const queryClient = useQueryClient();
+  const { refreshMultiCompanyAccesses } = useAuth();
   const { data: firm } = useAccountantFirm();
   const firmId = firm?.id ?? null;
 
   return useMutation({
     mutationFn: async (accessId: string) => {
-      // Solo un invito ANCORA pending può essere accettato: il filtro su
-      // status='invited' evita di riattivare un accesso revocato/sospeso.
-      const { data, error } = await supabase
-        .from("accountant_company_access")
-        .update({
-          status: "active",
-          accepted_at: new Date().toISOString(),
-        })
-        .eq("id", accessId)
-        .eq("status", "invited")
-        .select("id");
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error("Invito non più disponibile: potrebbe essere stato revocato o già gestito.");
-      }
+      if (!firmId) throw new Error("Studio non disponibile.");
+      const { error } = await supabase.rpc("studio_rispondi_invito" as never, {
+        p_studio: firmId, p_invito: accessId, p_accetta: accetta,
+      } as never);
+      if (error) throw new Error(error.message);
       return accessId;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountantKeys.companies(firmId) });
+    onSuccess: async () => {
+      if (accetta) refreshMultiCompanyAccesses();
+      await queryClient.invalidateQueries({ queryKey: accountantKeys.companies(firmId) });
     },
   });
 }
 
-/** Rifiuta un invito (solo finché status = 'invited') */
-export function useRejectCompanyInvite() {
-  const queryClient = useQueryClient();
-  const { data: firm } = useAccountantFirm();
-  const firmId = firm?.id ?? null;
+export function useAcceptCompanyInvite() {
+  return useRispondiInvito(true);
+}
 
-  return useMutation({
-    mutationFn: async (accessId: string) => {
-      const { error } = await supabase
-        .from("accountant_company_access")
-        .update({
-          status: "revoked",
-          revoked_at: new Date().toISOString(),
-        })
-        .eq("id", accessId)
-        .eq("status", "invited");
-      if (error) throw error;
-      return accessId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountantKeys.companies(firmId) });
-    },
-  });
+export function useRejectCompanyInvite() {
+  return useRispondiInvito(false);
 }
 
 /** Marca notifica come letta */
@@ -378,6 +312,7 @@ export function useDismissNotification() {
 
 export function useCurrentCommercialistaAccessMode(
   companyId: string | null | undefined,
+  controllaRevoca = false,
 ) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -385,15 +320,18 @@ export function useCurrentCommercialistaAccessMode(
   return useQuery({
     queryKey: ["accountant-current-access-mode", userId, companyId] as const,
     enabled: !!userId && !!companyId,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: controllaRevoca ? 30_000 : false,
+    retry: retryAuthorizedRead,
     queryFn: async (): Promise<AccountantAccessMode | null> => {
       if (!userId || !companyId) return null;
-      const { data: members } = await supabase
+      const { data: members, error: memberError } = await supabase
         .from("accountant_firm_members")
         .select("firm_id")
         .eq("user_id", userId)
         .eq("status", "active");
 
+      if (memberError) throw memberError;
       const firmIds = (members ?? [])
         .map((r: { firm_id: string | null }) => r.firm_id)
         .filter((id): id is string => !!id);
@@ -404,14 +342,12 @@ export function useCurrentCommercialistaAccessMode(
         .select("access_mode")
         .in("firm_id", firmIds)
         .eq("company_id", companyId)
-        .eq("status", "active")
-        .maybeSingle();
+        .eq("status", "active");
 
-      if (error) {
-        console.error("[useCurrentCommercialistaAccessMode]", error);
-        return null;
-      }
-      return (access?.access_mode as AccountantAccessMode | undefined) ?? null;
+      if (error) throw error;
+      const modalita = access?.map(riga => riga.access_mode) ?? [];
+      const priorita: AccountantAccessMode[] = ["operational", "approval_required", "read_only"];
+      return priorita.find(modo => modalita.includes(modo)) ?? null;
     },
   });
 }

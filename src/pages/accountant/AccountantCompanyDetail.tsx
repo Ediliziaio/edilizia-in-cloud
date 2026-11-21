@@ -22,7 +22,7 @@ import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation
 
 export default function AccountantCompanyDetail() {
   const { companyId } = useParams<{ companyId: string }>();
-  const { data: access, isLoading } = useAccountantCompanyAccess(companyId);
+  const { data: access, isLoading, isError, refetch } = useAccountantCompanyAccess(companyId);
 
   useSEO({
     title: access?.company?.name
@@ -38,6 +38,12 @@ export default function AccountantCompanyDetail() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+  if (isError) {
+    return <Card><CardContent role="alert" className="flex flex-wrap items-center gap-2 p-4 text-sm">
+      Impossibile verificare la delega.
+      <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+    </CardContent></Card>;
   }
 
   // Accesso non trovato

@@ -44,6 +44,7 @@ import {
 } from "@/hooks/accountant/useAccountantPortalData";
 import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
 import { CreateAziendaDialog } from "@/components/accountant/CreateAziendaDialog";
+import { ACCESS_MODE_OPTIONS } from "@/lib/commercialista/livelliAccesso";
 
 function companyInitials(name: string) {
   return (
@@ -59,7 +60,7 @@ function companyInitials(name: string) {
 const STATUS_FILTERS: Array<{ value: "all" | AccountantAccessStatus; label: string }> = [
   { value: "all", label: "Tutte" },
   { value: "active", label: "Attive" },
-  { value: "invited", label: "Inviti pending" },
+  { value: "invited", label: "Inviti in attesa" },
   { value: "suspended", label: "Sospese" },
 ];
 
@@ -76,19 +77,12 @@ function statusBadge(status: AccountantAccessStatus) {
   }
 }
 
-function modeLabel(mode: string) {
-  if (mode === "read_only") return "Sola lettura";
-  if (mode === "operational") return "Operativo";
-  if (mode === "approval_required") return "Con approvazione";
-  return mode;
-}
-
 export default function AccountantDashboard() {
   useSEO({ title: "Cruscotto studio", noindex: true });
 
   const navigate = useNavigate();
   const { data: firm } = useAccountantFirm();
-  const { data: companies = [], isLoading: companiesLoading } = useAccountantCompanies();
+  const { data: companies = [], isLoading: companiesLoading, isError: companiesError, refetch: refetchCompanies } = useAccountantCompanies();
   const { data: notifications = [] } = useAccountantNotifications();
 
   const [search, setSearch] = useState("");
@@ -142,8 +136,7 @@ export default function AccountantDashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Cruscotto studio</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Benvenuto in <span className="font-semibold">{firm?.name}</span>. Apri il portale
-            di un cliente per operare nella sua piattaforma con vista commercialista.
+            <span className="font-semibold">{firm?.name}</span> · Aziende in delega e inviti da gestire.
           </p>
         </div>
         <Button className="gap-1.5 self-start sm:self-auto" disabled={!firm?.id} onClick={openCreate}>
@@ -210,7 +203,11 @@ export default function AccountantDashboard() {
       </div>
 
       {/* Hint primo accesso */}
-      {!companiesLoading && stats.total === 0 && (
+      {companiesError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm">
+        Impossibile aggiornare le deleghe.
+        <Button variant="outline" size="sm" onClick={() => void refetchCompanies()}>Riprova</Button>
+      </div>}
+      {!companiesError && !companiesLoading && stats.total === 0 && (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="flex items-start gap-3 p-4">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
@@ -218,7 +215,7 @@ export default function AccountantDashboard() {
               <p className="font-medium text-blue-900">Come collegare la tua prima azienda</p>
               <p className="mt-1 text-blue-700">
                 Le aziende ti invitano dal loro pannello{" "}
-                <span className="font-mono text-xs">Impostazioni → Utenti e permessi → Commercialista</span>{" "}
+                <span className="font-medium">Impostazioni → Persone e accessi → Commercialista</span>{" "}
                 inserendo la tua email. Riceverai notifica qui appena qualcuno ti invita.
               </p>
             </div>
@@ -290,6 +287,7 @@ export default function AccountantDashboard() {
                 const company = access.company;
                 const isActive = access.status === "active";
                 const isInvited = access.status === "invited";
+                const modalita = ACCESS_MODE_OPTIONS.find(option => option.value === access.access_mode);
 
                 return (
                   <Card
@@ -322,7 +320,7 @@ export default function AccountantDashboard() {
                         </Badge>
                         <Badge variant="outline" className="gap-1 font-normal">
                           <Eye className="h-3 w-3" />
-                          {modeLabel(access.access_mode)}
+                          {modalita?.label ?? access.access_mode}
                         </Badge>
                       </div>
 
@@ -342,6 +340,7 @@ export default function AccountantDashboard() {
                         </div>
                       )}
 
+                      {isActive && modalita && <p className="text-xs text-muted-foreground">{modalita.description}</p>}
                       {isActive && (
                         <Button
                           className="w-full gap-2 bg-blue-600 hover:bg-blue-700"

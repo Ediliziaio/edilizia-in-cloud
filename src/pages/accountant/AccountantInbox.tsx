@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSEO } from "@/hooks/useSEO";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ACCESS_MODE_OPTIONS } from "@/lib/commercialista/livelliAccesso";
 import {
   useAccountantCompanies,
   useAccountantNotifications,
@@ -32,7 +34,8 @@ export default function AccountantInbox() {
   useSEO({ title: "Inbox — Studio", noindex: true });
 
   const { toast } = useToast();
-  const { data: companies = [], isLoading: companiesLoading } = useAccountantCompanies();
+  const confirm = useConfirm();
+  const { data: companies = [], isLoading: companiesLoading, isError: companiesError, refetch: refetchCompanies } = useAccountantCompanies();
   const { data: notifications = [], isLoading: notificationsLoading } =
     useAccountantNotifications();
 
@@ -67,7 +70,7 @@ export default function AccountantInbox() {
   }
 
   async function handleReject(accessId: string, companyName?: string) {
-    if (!confirm(`Rifiutare l'invito di ${companyName ?? "questa azienda"}?`)) return;
+    if (!await confirm({ title: `Rifiutare l’invito di ${companyName ?? "questa azienda"}?`, confirmLabel: "Rifiuta", variant: "destructive" })) return;
     try {
       await rejectInvite.mutateAsync(accessId);
       toast({ title: "Invito rifiutato" });
@@ -110,7 +113,11 @@ export default function AccountantInbox() {
               Caricamento...
             </div>
           )}
-          {!companiesLoading && pendingInvites.length === 0 && (
+          {companiesError && <div role="alert" className="flex flex-wrap items-center gap-2 p-4 text-sm">
+            Impossibile aggiornare gli inviti.
+            <Button variant="outline" size="sm" onClick={() => void refetchCompanies()}>Riprova</Button>
+          </div>}
+          {!companiesError && !companiesLoading && pendingInvites.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">
               Nessun invito in attesa.
             </div>
@@ -128,7 +135,7 @@ export default function AccountantInbox() {
                       {invite.company?.vat_number && (
                         <span>P.IVA {invite.company.vat_number}</span>
                       )}
-                      <span>Mode: {invite.access_mode}</span>
+                      <span>{ACCESS_MODE_OPTIONS.find(option => option.value === invite.access_mode)?.label ?? invite.access_mode}</span>
                       {invite.invited_at && (
                         <span>
                           Invitato {new Date(invite.invited_at).toLocaleDateString("it-IT")}
@@ -141,7 +148,7 @@ export default function AccountantInbox() {
                       </p>
                     )}
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  {invite.puo_rispondere ? <div className="flex shrink-0 flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -169,7 +176,7 @@ export default function AccountantInbox() {
                       )}
                       Accetta
                     </Button>
-                  </div>
+                  </div> : <p className="text-xs text-muted-foreground">In attesa di una risposta dello studio.</p>}
                 </div>
               ))}
             </div>
