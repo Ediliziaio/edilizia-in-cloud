@@ -14,10 +14,12 @@ create table staff_permissions(
 );
 create table warehouses(id uuid primary key, company_id uuid, name text, is_active boolean default true);
 create table warehouse_assignments(warehouse_id uuid, user_id uuid, active boolean default true);
+create table warehouse_sections(id uuid primary key, company_id uuid, warehouse_id uuid, name text);
 create table warehouse_stock (
   id uuid primary key, company_id uuid, warehouse_id uuid, name text, description text, internal_code text, barcode text,
   unita_misura text, unit_cost numeric, quantity numeric, quantity_reserved numeric default 0,
-  quantity_available numeric generated always as (greatest(0, quantity - quantity_reserved)) stored, updated_at timestamptz
+  quantity_available numeric generated always as (greatest(0, quantity - quantity_reserved)) stored,
+  updated_at timestamptz, section_id uuid
 );
 create table warehouse_movements(
   stock_item_id uuid, movement_type text, quantity numeric, performed_by uuid,
