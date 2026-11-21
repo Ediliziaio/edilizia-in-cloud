@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, HardHat, Loader2, Minus, Plus, Search, ShoppingCart, Warehouse, X } from "lucide-react";
+import { Check, HardHat, Loader2, MapPin, Minus, Plus, Search, ShoppingCart, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,12 +38,13 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const [erroreBozza, setErroreBozza] = useState<string | null>(null);
   const [ripristinata, setRipristinata] = useState(righe.length > 0);
   const [ricerca, setRicerca] = useState("");
+  const [soloDisponibili, setSoloDisponibili] = useState(true);
   const inputRicerca = useRef<HTMLInputElement>(null);
   const cerca = useDebounce(ricerca.trim(), 250);
   const [aperto, setAperto] = useState(() => !!apriBozza && righe.length > 0);
   const inInvio = useRef(false);
   const online = useOnlineStatus();
-  const inventario = useCampoInventario(companyId, cerca, attivo);
+  const inventario = useCampoInventario(companyId, cerca, soloDisponibili, attivo);
   const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare && (aperto || !!cantiereIniziale || !!orderId));
   const prelievo = usePrelievoRegistra(companyId);
 
@@ -111,10 +112,10 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
     ...bozza, righe: righe.map((riga) => riga.articolo.id === id ? { ...riga, quantita } : riga),
   });
 
-  const aggiungi = ({ id, name, warehouse_id, magazzino, unita_misura, disponibile }: StockCampo) => {
+  const aggiungi = ({ id, name, warehouse_id, magazzino, ubicazione, unita_misura, disponibile }: StockCampo) => {
     if (inVerifica || righe.length >= 100 || carrello.has(id) || (primaRiga && warehouse_id !== warehouseId)) return;
     aggiornaBozza({ ...bozza, orderId: orderId || cantiere?.id || "", righe: [...righe, {
-      articolo: { id, name, warehouse_id, magazzino, unita_misura, disponibile },
+      articolo: { id, name, warehouse_id, magazzino, ubicazione, unita_misura, disponibile },
       quantita: formatoInputQuantita.format(Math.min(1, disponibile)),
     }] });
   };
@@ -185,7 +186,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
           aria-label="Cerca nell’inventario"
           value={ricerca}
           onChange={(e) => setRicerca(e.target.value)}
-          placeholder="Cerca materiale o codice"
+          placeholder="Materiale, codice o ubicazione"
           className="min-h-12 rounded-xl pl-9 pr-12 text-base [&::-webkit-search-cancel-button]:hidden"
         />
         {ricerca && (
@@ -198,6 +199,16 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
           </Button>
         )}
       </div>
+      <div role="group" aria-label="Disponibilità dei materiali" className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+        <Button type="button" variant="ghost" aria-pressed={soloDisponibili} onClick={() => setSoloDisponibili(true)}
+          className={cn("min-h-11 rounded-lg", soloDisponibili && "bg-background font-semibold shadow-sm")}>
+          Disponibili
+        </Button>
+        <Button type="button" variant="ghost" aria-pressed={!soloDisponibili} onClick={() => setSoloDisponibili(false)}
+          className={cn("min-h-11 rounded-lg", !soloDisponibili && "bg-background font-semibold shadow-sm")}>
+          Tutti
+        </Button>
+      </div>
 
       {inventario.isLoading ? (
         <div role="status" className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">Carico l’inventario</span></div>
@@ -209,7 +220,12 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       ) : articoli.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
           <Warehouse aria-hidden="true" className="mx-auto mb-2 h-7 w-7" />
-          <p className="text-sm">{cerca ? "Nessun materiale trovato." : "Nessun articolo disponibile nei magazzini visibili."}</p>
+          <p className="text-sm">{soloDisponibili ? "Nessun materiale disponibile." : "Nessun materiale trovato."}</p>
+          {soloDisponibili && (
+            <Button type="button" variant="outline" size="sm" className="mt-3 min-h-11" onClick={() => setSoloDisponibili(false)}>
+              Mostra tutti i materiali
+            </Button>
+          )}
         </div>
       ) : (
         <ul className="space-y-2.5">
@@ -218,56 +234,37 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
             const errore = erroriQuantita.get(articolo.id);
             const stessaUbicazione = !primaRiga || articolo.warehouse_id === warehouseId;
             const puoAggiungere = puoPrelevare && !inVerifica && articolo.disponibile > 0 && stessaUbicazione;
-            const quantita = quantitaPrelievo(riga?.quantita ?? "");
-            const meno = Number((quantita - 1).toFixed(8));
-            const piu = Math.min(articolo.disponibile, Number((quantita + 1).toFixed(8)));
             return (
               <li key={articolo.id} className={cn("rounded-xl border bg-card p-3.5", riga && "border-primary")}>
                 <div className="flex justify-between gap-4">
                   <div className="min-w-0">
                     <p className="break-words font-semibold">{articolo.name}</p>
-                    <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-                      {articolo.internal_code && <span>{articolo.internal_code}</span>}
-                      <span>{articolo.magazzino ?? "Senza ubicazione"}</span>
+                    {articolo.internal_code && <p className="mt-1 text-xs text-muted-foreground">{articolo.internal_code}</p>}
+                    <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
+                      <MapPin aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span className="min-w-0 break-words">
+                        {articolo.magazzino ?? "Magazzino non indicato"}
+                        {articolo.ubicazione && <span className="block font-medium text-foreground">{articolo.ubicazione}</span>}
+                      </span>
                     </p>
                   </div>
                   <div className="max-w-[42%] shrink-0 text-right">
                     <p className="break-words font-bold tabular-nums">{formatoQuantitaMagazzino.format(articolo.disponibile)} {articolo.unita_misura}</p>
-                    <p className="text-xs text-muted-foreground">Disponibili</p>
+                    <p className="text-xs text-muted-foreground">{articolo.disponibile > 0 ? "Disponibili" : "Esaurito"}</p>
                   </div>
                 </div>
                 {puoAggiungere && !riga && (
                   <Button type="button" variant="outline" className="mt-2 min-h-11 w-full" disabled={righe.length >= 100}
                     onClick={() => aggiungi(articolo)} aria-label={`Aggiungi ${articolo.name} al prelievo`}>
-                    Aggiungi al prelievo
+                    <Plus aria-hidden="true" className="h-4 w-4" /> Aggiungi
                   </Button>
                 )}
                 {puoPrelevare && riga && (
                   <div className="mt-2 rounded-xl bg-primary/5 px-2.5 py-1.5">
                     <Label htmlFor={`qta-${articolo.id}`} className="mb-1 block text-xs">Da prelevare</Label>
-                    <div className="flex items-center gap-1.5">
-                      <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
-                        disabled={inVerifica || !(meno > 0)} aria-label={`Diminuisci quantità di ${articolo.name}`}
-                        onClick={() => aggiorna(articolo.id, formatoInputQuantita.format(meno))}>
-                        <Minus aria-hidden="true" className="h-4 w-4" />
-                      </Button>
-                      <Input id={`qta-${articolo.id}`} inputMode="decimal"
-                        aria-label={`Quantità di ${articolo.name}`} aria-invalid={!!errore}
-                        aria-describedby={errore ? `errore-qta-${articolo.id}` : undefined}
-                        value={riga.quantita} disabled={inVerifica} onChange={(e) => aggiorna(articolo.id, e.target.value)}
-                        className="min-h-11 min-w-12 max-w-24 flex-1 px-1 text-center text-base tabular-nums" />
-                      {articolo.unita_misura && <span className="min-w-0 max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
-                      <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
-                        disabled={inVerifica || !(piu > quantita)} aria-label={`Aumenta quantità di ${articolo.name}`}
-                        onClick={() => aggiorna(articolo.id, formatoInputQuantita.format(piu))}>
-                        <Plus aria-hidden="true" className="h-4 w-4" />
-                      </Button>
-                      <Button type="button" variant="ghost" size="icon" className="ml-auto h-11 w-11 shrink-0" disabled={inVerifica}
-                        aria-label={`Rimuovi ${articolo.name}`} onClick={() => rimuovi(articolo.id)}>
-                        <X aria-hidden="true" className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {errore && <p id={`errore-qta-${articolo.id}`} className="mt-1 text-xs font-medium text-destructive">{errore}</p>}
+                    <QuantitaMateriale id={`qta-${articolo.id}`} articolo={articolo} valore={riga.quantita}
+                      disponibile={articolo.disponibile} errore={errore} bloccata={inVerifica}
+                      onChange={(valore) => aggiorna(articolo.id, valore)} onRemove={() => rimuovi(articolo.id)} />
                   </div>
                 )}
                 {puoPrelevare && !stessaUbicazione && articolo.disponibile > 0 &&
@@ -288,7 +285,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
         <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl px-4 md:bottom-4">
           <Button type="button" className="h-12 w-full gap-2 rounded-xl text-sm font-semibold shadow-lg" onClick={apriRiepilogo}>
             <ShoppingCart className="h-4 w-4 shrink-0" />
-            {inVerifica ? "Verifica prelievo" : ripristinata ? "Riprendi prelievo" : "Rivedi prelievo"} · {righe.length} {righe.length === 1 ? "articolo" : "articoli"}
+            {inVerifica ? "Verifica prelievo" : ripristinata ? "Riprendi prelievo" : "Preleva"} · {righe.length} {righe.length === 1 ? "materiale" : "materiali"}
           </Button>
         </div>
       )}
@@ -337,23 +334,23 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
               ) : (
                 <ul className="divide-y rounded-xl border">
                   {righe.map(({ articolo, quantita }) => {
-                    const errore = erroriQuantita.get(articolo.id);
+                    const corrente = articoliVisibili.get(articolo.id) ?? articolo;
                     return (
-                      <li key={articolo.id} className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <span className="min-w-0 flex-1 break-words text-sm font-medium">{articolo.name}</span>
-                          <Input aria-label={`Verifica quantità di ${articolo.name}`} inputMode="decimal"
-                            aria-invalid={!!errore} aria-describedby={errore ? `riepilogo-errore-${articolo.id}` : undefined}
-                            value={quantita} disabled={inVerifica} onChange={(e) => aggiorna(articolo.id, e.target.value)}
-                            className="min-h-11 w-16 text-right text-base tabular-nums" />
-                          {articolo.unita_misura && <span className="max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
-                          <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-                            disabled={inVerifica}
-                            aria-label={`Togli ${articolo.name} dal riepilogo`} onClick={() => rimuovi(articolo.id)}>
-                            <X aria-hidden="true" className="h-4 w-4" />
-                          </Button>
+                      <li key={articolo.id} className="space-y-2 px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 break-words">
+                            <Label htmlFor={`riepilogo-qta-${articolo.id}`}>{articolo.name}</Label>
+                            {corrente.ubicazione && <p className="mt-0.5 text-xs text-muted-foreground">{corrente.ubicazione}</p>}
+                          </div>
+                          {!inVerifica && (
+                            <p className="max-w-[45%] shrink-0 break-words text-right text-xs text-muted-foreground">
+                              {formatoQuantitaMagazzino.format(corrente.disponibile)} {articolo.unita_misura} disponibili
+                            </p>
+                          )}
                         </div>
-                        {errore && <p id={`riepilogo-errore-${articolo.id}`} className="mt-1 text-xs font-medium text-destructive">{errore}</p>}
+                        <QuantitaMateriale id={`riepilogo-qta-${articolo.id}`} articolo={articolo} valore={quantita}
+                          disponibile={corrente.disponibile} errore={erroriQuantita.get(articolo.id)} bloccata={inVerifica}
+                          inRiepilogo onChange={(valore) => aggiorna(articolo.id, valore)} onRemove={() => rimuovi(articolo.id)} />
                       </li>
                     );
                   })}
@@ -376,6 +373,11 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                 {inVerifica ? "L’app è in attesa dell’esito del prelievo." : prelievo.error.message}
               </p>
             )}
+            {!inVerifica && righe.length > 0 && righe.length < 100 && (
+              <Button type="button" variant="ghost" className="h-11 w-full gap-2" onClick={() => setAperto(false)}>
+                <Plus aria-hidden="true" className="h-4 w-4" /> Aggiungi altri materiali
+              </Button>
+            )}
             {righe.length ? (
               <Button className="h-12 w-full gap-2 text-base" onClick={() => void registra()}
                 disabled={!puoInviare}>
@@ -388,6 +390,50 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
           </div>
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+function QuantitaMateriale({ id, articolo, valore, disponibile, errore, bloccata, inRiepilogo, onChange, onRemove }: {
+  id: string;
+  articolo: Pick<StockCampo, "name" | "unita_misura">;
+  valore: string;
+  disponibile: number;
+  errore?: string;
+  bloccata: boolean;
+  inRiepilogo?: boolean;
+  onChange: (valore: string) => void;
+  onRemove: () => void;
+}) {
+  const quantita = quantitaPrelievo(valore);
+  const meno = Number((quantita - 1).toFixed(8));
+  const piu = Math.min(disponibile, Number((quantita + 1).toFixed(8)));
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">
+        <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
+          disabled={bloccata || !(meno > 0)} aria-label={`Diminuisci quantità di ${articolo.name}`}
+          onClick={() => onChange(formatoInputQuantita.format(meno))}>
+          <Minus aria-hidden="true" className="h-4 w-4" />
+        </Button>
+        <Input id={id} inputMode="decimal"
+          aria-label={`${inRiepilogo ? "Verifica quantità" : "Quantità"} di ${articolo.name}`} aria-invalid={!!errore}
+          aria-describedby={errore ? `${id}-errore` : undefined}
+          value={valore} disabled={bloccata} onChange={(e) => onChange(e.target.value)}
+          className="min-h-11 min-w-12 max-w-24 flex-1 px-1 text-center text-base tabular-nums" />
+        {articolo.unita_misura && <span className="min-w-0 max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
+        <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
+          disabled={bloccata || !(piu > quantita)} aria-label={`Aumenta quantità di ${articolo.name}`}
+          onClick={() => onChange(formatoInputQuantita.format(piu))}>
+          <Plus aria-hidden="true" className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon" className="ml-auto h-11 w-11 shrink-0" disabled={bloccata}
+          aria-label={inRiepilogo ? `Togli ${articolo.name} dal riepilogo` : `Rimuovi ${articolo.name}`} onClick={onRemove}>
+          <X aria-hidden="true" className="h-4 w-4" />
+        </Button>
+      </div>
+      {errore && <p id={`${id}-errore`} className="mt-1 text-xs font-medium text-destructive">{errore}</p>}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import sorgenteAssegnazioni from "../../../supabase/migrations/20281019130000_te
 import migrazione from "../../../supabase/migrations/20290504125650_magazzino_campo_permessi_e_prelievi.sql?raw";
 import definizioneUnita from "../../../supabase/migrations/20281030180000_rientro_e_contratti_correzioni.sql?raw";
 import riepilogoMateriali from "../../../supabase/migrations/20290506134200_campo_materiali_cantiere_unita.sql?raw";
+import inventarioDettaglio from "../../../supabase/migrations/20290506141000_campo_magazzino_ubicazioni_disponibilita.sql?raw";
 
 const db = new PGlite();
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -63,6 +64,8 @@ beforeAll(async () => {
   await db.transaction(async (tx) => {
     await tx.exec(riepilogoMateriali);
     await tx.exec(riepilogoMateriali);
+    await tx.exec(inventarioDettaglio);
+    await tx.exec(inventarioDettaglio);
   });
   await db.exec("grant select, insert, update, delete on prelievi_campo to authenticated");
 }, 30_000);
@@ -71,7 +74,7 @@ afterAll(async () => { await db.close(); });
 
 beforeEach(async () => {
   await db.exec(`
-    truncate companies, profiles, staff_permissions, warehouses, warehouse_assignments, warehouse_stock,
+    truncate companies, profiles, staff_permissions, warehouses, warehouse_assignments, warehouse_stock, warehouse_sections,
       warehouse_movements, orders, prelievi_campo, order_campo_assignments, squadre_commesse, squadre_test,
       order_items, campo_rapportini;
     insert into companies values ('${azienda}', true), ('${esterna}', false);
@@ -98,6 +101,32 @@ beforeEach(async () => {
 });
 
 describe("app operaio — autorizzazioni, inventario e prelievi", () => {
+  it("trova la zona visibile e filtra la giacenza disponibile prima di paginare", async () => {
+    await db.query("insert into warehouse_assignments values ($1, $2, true)", [deposito, operaio]);
+    const corsia = uuid(501), zonaEsterna = uuid(502);
+    await db.query("insert into warehouse_sections values ($1,$2,$3,'Corsia A · Scaffale 4'), ($4,$5,$6,'Zona riservata')",
+      [corsia, azienda, deposito, zonaEsterna, esterna, depositoEsterno]);
+    await db.query("update warehouse_stock set section_id=$1 where id=$2", [corsia, tubo]);
+    await db.query("update warehouse_stock set section_id=$1 where id=$2", [zonaEsterna, cemento]);
+    await db.query(`insert into warehouse_stock(id,company_id,warehouse_id,name,quantity,quantity_reserved,section_id)
+      select ('00000000-0000-4000-8000-' || lpad((600+i)::text,12,'0'))::uuid, $1, $2,
+        'Articolo riservato ' || i, 2, 2, $3 from generate_series(1,62) i`, [azienda, deposito, corsia]);
+
+    const rows = await come(operaio, "select * from campo_magazzino_inventario_dettaglio($1,'scaffale 4',0,true)", [azienda]);
+    expect(rows).toEqual([{
+      id: tubo, name: "Tubo", description: null, internal_code: "TB-12", unita_misura: "m", disponibile: "8",
+      warehouse_id: deposito, magazzino: "Deposito nord", ubicazione: "Corsia A · Scaffale 4",
+    }]);
+    expect(await come(operaio, "select id from campo_magazzino_inventario_dettaglio($1,'deposito nord',0,false)", [azienda])).toHaveLength(60);
+    expect(await come(operaio, "select id from campo_magazzino_inventario_dettaglio($1,'deposito sud',0,false)", [azienda])).toEqual([]);
+    expect(await come(collega, "select ubicazione from campo_magazzino_inventario_dettaglio($1,'cemento',0,true)", [azienda]))
+      .toEqual([{ ubicazione: null }]);
+    await expect(come(operaio, "select * from campo_magazzino_inventario_dettaglio($1,'',0,true)", [esterna]))
+      .rejects.toThrow(/non autorizzato/i);
+    expect(await db.query("select has_function_privilege('anon','public.campo_magazzino_inventario_dettaglio(uuid,text,integer,boolean)','execute') as esposto"))
+      .toMatchObject({ rows: [{ esposto: false }] });
+  });
+
   it("espone i dati dell'inventario senza costi e applica assegnazioni e ricerca", async () => {
     await db.query("insert into warehouse_assignments values ($1, $2, true)", [deposito, operaio]);
     const rows = await come(operaio, "select * from campo_magazzino_inventario($1,'tb-12',0)", [azienda]);
@@ -153,6 +182,20 @@ describe("app operaio — autorizzazioni, inventario e prelievi", () => {
     const { rows } = await db.query("select warehouse_id, order_id, stock_item_id, quantity, movement_type from warehouse_movements");
     expect(rows).toEqual([{ warehouse_id: deposito, order_id: cantiere, stock_item_id: tubo, quantity: "8", movement_type: "scarico" }]);
     await expect(registra({ requestId: uuid(300) })).rejects.toThrow(/quantità disponibili/);
+  });
+
+  it("conferma più materiali con un unico prelievo anche dopo il reinvio", async () => {
+    const viti = uuid(530);
+    await db.query("update companies set magazzino_prelievo_conferma=false where id=$1", [azienda]);
+    await db.query("insert into warehouse_stock(id,company_id,warehouse_id,name,quantity,unita_misura) values($1,$2,$3,'Viti',12,'pz')",
+      [viti, azienda, deposito]);
+    const righe = [{ stock_item_id: tubo, quantita: 1.25 }, { stock_item_id: viti, quantita: 3 }];
+    expect(await registra({ righe })).toEqual({ id: richiesta, stato: "consegnato" });
+    expect(await registra({ righe })).toEqual({ id: richiesta, stato: "consegnato" });
+    expect(await giacenza(tubo)).toBe(8.75);
+    expect(await giacenza(viti)).toBe(9);
+    expect(await db.query("select stock_item_id, quantity from warehouse_movements order by stock_item_id"))
+      .toMatchObject({ rows: [{ stock_item_id: tubo, quantity: "1.25" }, { stock_item_id: viti, quantity: "3" }] });
   });
 
   it("ricontrolla la giacenza in approvazione e la lascia integra se insufficiente", async () => {

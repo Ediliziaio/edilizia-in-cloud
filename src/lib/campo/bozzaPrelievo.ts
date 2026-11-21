@@ -1,6 +1,7 @@
 import type { StockCampo } from "@/hooks/campo/useCampoPrelievo";
 
-type ArticoloBozza = Pick<StockCampo, "id" | "name" | "warehouse_id" | "magazzino" | "unita_misura" | "disponibile">;
+type ArticoloBozza = Pick<StockCampo, "id" | "name" | "warehouse_id" | "magazzino" | "unita_misura" | "disponibile">
+  & Partial<Pick<StockCampo, "ubicazione">>;
 
 export interface BozzaPrelievo {
   id: string;
@@ -30,7 +31,8 @@ function decodificaBozza(contenuto: string): BozzaPrelievo | null {
       && bozza.righe.every((riga) => riga?.articolo && typeof riga.quantita === "string"
         && typeof riga.articolo.id === "string" && typeof riga.articolo.name === "string"
         && Number.isFinite(riga.articolo.disponibile) && testoONull(riga.articolo.warehouse_id)
-        && testoONull(riga.articolo.magazzino) && testoONull(riga.articolo.unita_misura))) {
+        && testoONull(riga.articolo.magazzino) && testoONull(riga.articolo.unita_misura)
+        && (riga.articolo.ubicazione === undefined || testoONull(riga.articolo.ubicazione)))) {
       const idPrecedente = typeof bozza.richiestaId === "string" ? bozza.richiestaId : "";
       const inVerifica = bozza.inVerifica === true || !!idPrecedente;
       const id = typeof bozza.id === "string" && bozza.id ? bozza.id : idPrecedente;

@@ -8,7 +8,7 @@ import { livelloMagazzinoCampo } from "../../../shared/campo-magazzino";
 
 type CampoRpc = Database["public"]["Functions"];
 
-export type StockCampo = CampoRpc["campo_magazzino_inventario"]["Returns"][number];
+export type StockCampo = CampoRpc["campo_magazzino_inventario_dettaglio"]["Returns"][number];
 export type CantierePrelievo = CampoRpc["campo_magazzino_cantieri"]["Returns"][number];
 
 export interface RigaPrelievo {
@@ -46,18 +46,19 @@ export function useCampoMagazzinoConfig() {
   return { ...query, companyId, userId: user?.id };
 }
 
-export function useCampoInventario(companyId: string, search: string, enabled: boolean) {
+export function useCampoInventario(companyId: string, search: string, soloDisponibili: boolean, enabled: boolean) {
   const { user } = useAuth();
   return useInfiniteQuery({
-    queryKey: ["campo-warehouse-stock", companyId, user?.id, search],
+    queryKey: ["campo-warehouse-stock", companyId, user?.id, search, soloDisponibili],
     enabled: !!user?.id && enabled,
     staleTime: 30_000,
     initialPageParam: 0,
     queryFn: async ({ pageParam, signal }): Promise<StockCampo[]> => {
-      const { data, error } = await supabase.rpc("campo_magazzino_inventario", {
+      const { data, error } = await supabase.rpc("campo_magazzino_inventario_dettaglio", {
         p_azienda: companyId,
         p_cerca: search,
         p_offset: pageParam,
+        p_solo_disponibili: soloDisponibili,
       }).abortSignal(signal);
       if (error) throw error;
       return data ?? [];

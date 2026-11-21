@@ -13,9 +13,14 @@ const state = vi.hoisted(() => ({ mutate: vi.fn(), refetch: vi.fn(), disponibile
 
 vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
   PrelievoNonRegistrato: class extends Error {},
-  useCampoInventario: () => ({ data: { pages: [[{
-    id: "tubo", warehouse_id: "deposito", name: "Tubo corrugato", unita_misura: "m", disponibile: state.disponibile, magazzino: "Deposito nord",
-  }]] }, refetch: state.refetch }),
+  useCampoInventario: (_azienda: string, _cerca: string, soloDisponibili: boolean) => ({
+    data: { pages: [[
+      { id: "tubo", warehouse_id: "deposito", name: "Tubo corrugato", unita_misura: "m", disponibile: state.disponibile, magazzino: "Deposito nord", ubicazione: "Corsia A · Scaffale 4" },
+      { id: "viti", warehouse_id: "deposito", name: "Viti zincate", unita_misura: "pz", disponibile: 12, magazzino: "Deposito nord", ubicazione: "Corsia B · Ripiano 1" },
+      { id: "nastro", warehouse_id: "deposito", name: "Nastro isolante", unita_misura: "pz", disponibile: 0, magazzino: "Deposito nord", ubicazione: null },
+    ].filter((articolo) => !soloDisponibili || articolo.disponibile > 0)] },
+    refetch: state.refetch,
+  }),
   useCampoCantieriPrelievo: () => ({ data: state.cantieri, refetch: state.refetch }),
   usePrelievoRegistra: () => ({ reset: vi.fn(), mutateAsync: state.mutate }),
 }));
@@ -59,7 +64,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     fireEvent.change(campo, { target: { value: "2,25" } });
     expect(campo).toHaveAttribute("aria-invalid", "false");
 
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     const dialogo = await screen.findByRole("dialog", { name: "Materiale per il cantiere" });
     expect(within(dialogo).getByRole("combobox", { name: "Cantiere di destinazione" })).toHaveTextContent("C-065 · Scuola via Milano");
     fireEvent.click(within(dialogo).getByRole("button", { name: "Registra prelievo" }));
@@ -73,7 +78,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     state.cantieri = [cantieriAssegnati[0]];
     apriDaCantiere("estraneo");
     expect(screen.getByText("Scegli il cantiere nel riepilogo")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     const dialogo = await screen.findByRole("dialog");
     expect(within(dialogo).getByRole("combobox", { name: "Cantiere di destinazione" })).toHaveTextContent("Scegli un cantiere");
     expect(within(dialogo).getByRole("button", { name: "Registra prelievo" })).toBeDisabled();
@@ -93,7 +98,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     expect(campo).toHaveValue("10");
     expect(aumenta).toBeDisabled();
     fireEvent.change(campo, { target: { value: "2,25" } });
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     const dialogo = await screen.findByRole("dialog");
     fireEvent.change(within(dialogo).getByLabelText("Note facoltative"), { target: { value: "Per il montaggio" } });
     cleanup();
@@ -120,7 +125,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     state.mutate.mockRejectedValueOnce(new Error("Connessione interrotta"));
     const campo = apriDaCantiere("C065");
     fireEvent.change(campo, { target: { value: "10" } });
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Registra prelievo" }));
     await screen.findByRole("button", { name: "Verifica invio" });
     cleanup();
@@ -144,7 +149,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
   it("permette di correggere la bozza se il magazzino respinge la registrazione", async () => {
     state.mutate.mockRejectedValueOnce(new PrelievoNonRegistrato("Giacenza insufficiente"));
     apriDaCantiere("C065");
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Registra prelievo" }));
     await waitFor(() => expect(state.refetch).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("textbox", { name: "Verifica quantità di Tubo corrugato" })).toBeEnabled();
@@ -171,7 +176,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
   it("impedisce a una scheda rimasta aperta di inviare una bozza già conclusa altrove", async () => {
     apriDaCantiere("C065");
     const bozza = leggiBozzaPrelievo(chiave);
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     const registra = await screen.findByRole("button", { name: "Registra prelievo" });
     expect(salvaBozzaPrelievo(chiave, bozza, BOZZA_PRELIEVO_VUOTA)).toEqual({ stato: "salvata" });
     fireEvent.click(registra);
@@ -181,7 +186,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
 
   it("attende un salvataggio locale riuscito prima di inviare il prelievo", async () => {
     apriDaCantiere("C065");
-    fireEvent.click(screen.getByRole("button", { name: /Rivedi prelievo/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     const registra = await screen.findByRole("button", { name: "Registra prelievo" });
     vi.spyOn(localStorage, "setItem").mockImplementationOnce(() => { throw new Error("Spazio esaurito"); });
     fireEvent.click(registra);
@@ -189,5 +194,33 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     expect(await screen.findByText("Non riesco a salvare il prelievo su questo dispositivo. Riprova.")).toBeInTheDocument();
     fireEvent.click(registra);
     await waitFor(() => expect(state.mutate).toHaveBeenCalledOnce());
+  });
+
+  it("mostra dove prendere i materiali e conferma più articoli insieme", async () => {
+    inventario("C065");
+    expect(screen.getByText("Corsia A · Scaffale 4")).toBeInTheDocument();
+    expect(screen.queryByText("Nastro isolante")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tutti" }));
+    expect(screen.getByText("Nastro isolante")).toBeInTheDocument();
+    expect(screen.getByText("Esaurito")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aggiungi Nastro isolante al prelievo" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi Tubo corrugato al prelievo" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preleva · 1 materiale" }));
+    const primo = await screen.findByRole("dialog");
+    fireEvent.click(within(primo).getByRole("button", { name: "Aggiungi altri materiali" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Aggiungi Viti zincate al prelievo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preleva · 2 materiali" }));
+
+    const riepilogo = within(await screen.findByRole("dialog"));
+    expect(riepilogo.getByText("Corsia B · Ripiano 1")).toBeInTheDocument();
+    fireEvent.click(riepilogo.getByRole("button", { name: "Aumenta quantità di Viti zincate" }));
+    fireEvent.change(riepilogo.getByRole("textbox", { name: "Verifica quantità di Tubo corrugato" }), { target: { value: "2,25" } });
+    fireEvent.click(riepilogo.getByRole("button", { name: "Registra prelievo" }));
+    await waitFor(() => expect(state.mutate).toHaveBeenCalledOnce());
+    expect(state.mutate.mock.calls[0][0]).toMatchObject({ orderId: "C065", righe: [
+      { stock_item_id: "tubo", quantita: 2.25 }, { stock_item_id: "viti", quantita: 2 },
+    ] });
   });
 });
