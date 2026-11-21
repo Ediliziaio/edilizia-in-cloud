@@ -1,5 +1,25 @@
 # Disegno commerciale del tetto — anteprima locale
 
+## Satellite Google e viste selezionate, 21 novembre 2026
+
+La vista satellitare usa l'SDK JavaScript ufficiale già collegato alla mappa
+dell'app. Nel documento si salvano inquadratura e pannelli georeferenziati;
+anteprima e stampa caricano Google direttamente prima dell'esportazione.
+Non si scaricano tile, non si conservano fotografie Google e non si inseriscono
+chiavi nell'HTML del preventivo. Il servizio Static Maps, che nell'account SEE
+risponde con un rifiuto per satellite e hybrid, non viene usato per queste tavole.
+
+Le viste si selezionano nell'editor del tetto. Satellite e 2D richiedono il
+relativo disegno; il 3D non compare automaticamente quando si traccia una falda
+sulla mappa. Va selezionato dopo aver verificato la ricostruzione, oppure deve
+esserci una configurazione 3D già salvata. La scelta esplicita prevale sui dati
+precedenti e rimane nel JSON del disegno, senza migrazioni.
+
+Il PDF attende il caricamento Google e verifica centro e zoom dell'overlay.
+Se manca la foto, la stampa si ferma con un errore e l'anteprima permette di
+riprovare. I documenti HTML con queste viste si aprono e stampano dall'app:
+il pulsante del file isolato non stampa una pagina con una mappa vuota.
+
 ## Tavole PDF da mappa, 21 novembre 2026
 
 Quando il disegno contiene falde georeferenziate, la sezione «Piano del tetto»

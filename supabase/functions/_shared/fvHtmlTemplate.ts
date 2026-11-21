@@ -25,6 +25,8 @@ import {sezioniEconomiaAzienda,capitoliEconomiaAzienda} from "./fvEconomiaAziend
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
 import { leggiDisegnoCommerciale, svgDisegnoCommerciale } from "./fvDisegnoCommerciale.ts";
 import { geometriaTettoDocumento, svgTettoDocumento, tabellaFaldeDocumento } from "./fvTettoDocumento.ts";
+import { vistePdfTetto } from "./fvVistePdf.ts";
+import { inquadraturaSatellitePdf, svgSatelliteDocumento, type SatelliteDocumentoFv } from "./fvSatelliteDocumento.ts";
 import { preventivoSenzaMappa } from "./fvModalitaProgettazione.ts";
 import { substituteMergeTags } from './quoteTemplateComposer.ts';
 import { contrattoInHtml, leggiTestoRiccoContratto, separaFirmeContratto, segmentaRigaContratto } from './testoRiccoContratto.ts';
@@ -249,6 +251,7 @@ export interface FvPdfTemplateData {
     moduli: number;
     kwp?: number | null;
   } | null;
+  satellite_tetto?: SatelliteDocumentoFv | null;
   map_images?: {
     close?: string;    // zoom 20 — zenitale ravvicinata
     medium?: string;   // zoom 18 — vista aerea
@@ -955,7 +958,7 @@ function renderPdfActionBar(d: FvPdfTemplateData): string {
     </div>
     <div class="pdf-action-links">
       ${contatti}
-      <button type="button" onclick="window.print()">Stampa / Salva PDF</button>
+      <button type="button" onclick="if(document.querySelector('[data-fv-google-pdf]:not([data-fv-google-ready])')){alert('Apri il preventivo dall’app e attendi il caricamento della mappa Google prima di stampare.')}else{window.print()}">Stampa / Salva PDF</button>
     </div>
   </div>`;
 }
@@ -1452,7 +1455,7 @@ function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): str
       <p class="page-subtitle">${escHtml(indirizzoCompleto(d.cliente))} · ${tetto.falde.length} ${tetto.falde.length === 1 ? "falda" : "falde"} · ${commerciale!.pannelli.length} moduli · ${fmtNum(d.progetto.potenza_kwp, 2)} kWp.</p>
       <div style="border:1px solid #DCE5EB;border-radius:12px;overflow:hidden;height:125mm;margin:4mm 0">${svgTettoDocumento(tetto, "pianta")}</div>
       <div style="display:flex;gap:5mm;font-size:9pt;color:#475569;margin:3mm 0"><span><b style="color:#182f43">■</b> Moduli</span><span><b style="color:#9aaeb9">■</b> Falde</span><span><b style="color:#c18643">■</b> Ostacoli inseriti</span></div>
-      <div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il contorno salvato nel progetto.</strong>Posizione e orientamento delle falde provengono dal disegno sulla mappa. Le quote di questa vista sono in pianta; la pagina successiva riporta superficie inclinata e vista 3D. Misure e posa da confermare nel sopralluogo; questa tavola non costituisce un progetto tecnico dell’impianto.</div></div>
+      <div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il contorno salvato nel progetto.</strong>Posizione e orientamento delle falde provengono dal disegno sulla mappa. Le quote di questa vista sono in pianta. Misure e posa da confermare nel sopralluogo; questa tavola non costituisce un progetto tecnico dell’impianto.</div></div>
     </div>${footer(d, pageN, total)}</div>`;
   if (commerciale) return `<div class="page">
     ${header(d.progetto.numero, d.azienda.name)}
@@ -1503,9 +1506,33 @@ function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): str
 }
 
 function quantePagineTetto(d: FvPdfTemplateData) {
+  return visteTettoDocumento(d).length;
+}
+
+function visteTettoDocumento(d: FvPdfTemplateData): Array<{ tipo: "satellite" | "pianta" | "3d"; da: number }> {
   const piano = leggiDisegnoCommerciale(d.progetto.layout_overlay);
   const tetto = piano && geometriaTettoDocumento(piano);
-  return tetto ? 1 + Math.ceil(tetto.falde.length / 6) : 1;
+  if (!piano) return [{ tipo: "pianta", da: 0 }];
+  const v = vistePdfTetto(piano);
+  return [
+    ...(tetto && v.satellite ? [{ tipo: "satellite" as const, da: 0 }] : []),
+    ...(v.pianta ? [{ tipo: "pianta" as const, da: 0 }] : []),
+    ...(tetto && v.treD ? Array.from({length:Math.ceil(tetto.falde.length / 6)}, (_, i) => ({tipo:"3d" as const, da:i*6})) : []),
+  ];
+}
+
+function pageSatelliteTetto(d: FvPdfTemplateData, pageN: number, total: number) {
+  const piano = leggiDisegnoCommerciale(d.progetto.layout_overlay)!;
+  const foto: SatelliteDocumentoFv = d.satellite_tetto ?? { ...inquadraturaSatellitePdf(piano)!, provider: "google" };
+  return `<div class="page">${header(d.progetto.numero, d.azienda.name)}<div class="content">
+    <div class="eyebrow">Il tuo tetto · vista satellitare</div><h1 class="page-title">I pannelli,<br/>sul tuo tetto.</h1>
+    <p class="page-subtitle">${escHtml(indirizzoCompleto(d.cliente))} · ${piano.pannelli.length} moduli · ${fmtNum(d.progetto.potenza_kwp,2)} kWp.</p>
+    <div style="height:130mm;position:relative;border:1px solid #DCE5EB;border-radius:10px;overflow:hidden;margin:3mm 0" ${!foto.img ? `data-fv-google-pdf="${escHtml(encodeURIComponent(JSON.stringify({centro:foto.centro,zoom:foto.zoom,w:foto.w,h:foto.h})))}"` : ""}>
+      ${foto.img ? svgSatelliteDocumento(piano,foto) : `<div data-fv-google-frame style="position:absolute;width:${foto.w}px;height:${foto.h}px;left:50%;top:50%;transform:translate(-50%,-50%)"><div data-fv-google-map style="position:absolute;inset:0;width:100%;height:100%"></div><div style="position:absolute;inset:0;pointer-events:none">${svgSatelliteDocumento(piano,foto)}</div></div><p data-fv-google-status style="position:absolute;left:4mm;top:4mm;right:4mm;padding:3mm;background:white;font-size:9pt">Apri questo documento dall’app per caricare la vista Google prima di stampare.</p>`}
+    </div>
+    <p style="font-size:8pt;color:#64748b">Vista satellitare Google Maps. Contorni e pannelli nella posizione geografica salvata nel progetto.</p>
+    <div class="callout callout-info"><span class="callout-icon">i</span><div><strong>La disposizione salvata sulla mappa.</strong>Foto e disegno condividono coordinate, orientamento e scala. Le immagini aeree possono essere precedenti allo stato attuale: misure, ostacoli e posa si confermano nel sopralluogo.</div></div>
+  </div>${footer(d,pageN,total)}</div>`;
 }
 
 function pageTetto3D(d: FvPdfTemplateData, pageN: number, total: number, da: number): string {
@@ -1514,7 +1541,7 @@ function pageTetto3D(d: FvPdfTemplateData, pageN: number, total: number, da: num
   return `<div class="page">${header(d.progetto.numero, d.azienda.name)}<div class="content">
     <div class="eyebrow">Il tuo tetto · volume e misure</div>
     <h1 class="page-title">Le tue falde,<br/>anche in 3D.</h1>
-    <p class="page-subtitle">Stessi contorni e stessi ${tetto.pannelli.length} pannelli della pianta. ${da ? `Dettaglio falde ${da + 1}–${Math.min(da + 6, tetto.falde.length)}.` : ""}</p>
+    <p class="page-subtitle">Stessi contorni e stessi ${tetto.pannelli.length} pannelli del progetto. ${da ? `Dettaglio falde ${da + 1}–${Math.min(da + 6, tetto.falde.length)}.` : ""}</p>
     <div style="border:1px solid #DCE5EB;border-radius:12px;overflow:hidden;height:96mm;margin:3mm 0">${svgTettoDocumento(tetto, "3d")}</div>
     <style>.fv-roof-table{width:100%;border-collapse:collapse;font-size:8pt;line-height:1.3;table-layout:fixed;margin:3mm 0}.fv-roof-table th,.fv-roof-table td{padding:2mm 1.5mm;text-align:left;border-bottom:1px solid #dce5eb;overflow-wrap:anywhere}.fv-roof-table th{color:#fff;font-size:7.5pt}.fv-roof-table th:first-child{width:29%}</style>
     ${tabellaFaldeDocumento(tetto, da)}
@@ -2718,6 +2745,7 @@ function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
     if (page.id === "anteprima" && (!hasMap || commerciale)) return false;
     // Il piano di posa esce solo se è stato disegnato e la vista satellitare è arrivata.
     if (page.id === "piano_tetto" && !(commerciale?.pannelli.length || (d.piano_tetto?.img && d.piano_tetto.moduli > 0))) return false;
+    if (page.id === "piano_tetto" && commerciale && !quantePagineTetto(d)) return false;
     // Rata, TAN e TAEG esistono solo con un finanziamento vero.
     if (page.id === "piano_pagamento" && (!d.finanziamento||d.modalita_pagamento?.tipo==="diretto"||d.modalita_pagamento?.tipo==="noleggio")) return false;
     // Senza cassa calcolata non c'è niente da proiettare sui 25 anni.
@@ -2849,8 +2877,7 @@ function renderFvPdfHtmlBase(d: FvPdfTemplateData): string {
         append(page.id, pageAnteprima(d, ++pageN, TOTAL));
         break;
       case "piano_tetto":
-        append(page.id, pagePianoTetto(d, ++pageN, TOTAL));
-        for (let i = 1; i < quantePagineTetto(d); i++) append(page.id, pageTetto3D(d, ++pageN, TOTAL, (i - 1) * 6));
+        for (const vista of visteTettoDocumento(d)) append(page.id, vista.tipo === "satellite" ? pageSatelliteTetto(d, ++pageN, TOTAL) : vista.tipo === "3d" ? pageTetto3D(d, ++pageN, TOTAL, vista.da) : pagePianoTetto(d, ++pageN, TOTAL));
         break;
       case "componenti":
         // Pagina tabellare «Composizione della fornitura» (foto prodotto,
@@ -2958,7 +2985,7 @@ ${d.configurationOnly ? '' : renderPdfActionBar(d)}
 ${pages.join("\n")}
 <script>
   // Auto-print se ?print=1 (per "Stampa PDF" automatica)
-  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1') {
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1' && !document.querySelector('[data-fv-google-pdf]')) {
     window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 600); });
   }
 </script>

@@ -13,6 +13,7 @@
 // titolo del documento diventa il nome file suggerito.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { preparaMappeDocumentoFv } from "./googleMapsDocumento";
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
@@ -39,7 +40,10 @@ export async function stampaPreventivoNativo(
   iframe.setAttribute("aria-hidden", "true");
   document.body.appendChild(iframe);
 
+  const mappeAbort = new AbortController();
+  let pulisciMappe: (() => void) | undefined;
   const cleanup = () => {
+    mappeAbort.abort(); pulisciMappe?.();
     if (iframe.parentNode) document.body.removeChild(iframe);
   };
   let attesa: ReturnType<typeof setTimeout> | undefined;
@@ -59,6 +63,7 @@ export async function stampaPreventivoNativo(
         else iframe.addEventListener("load", () => resolve(), { once: true });
       });
       doc.title = titolo.replace(/[^\w.\- ]+/g, "_");
+      pulisciMappe = await preparaMappeDocumentoFv(doc, mappeAbort.signal);
       // Avvia il layout e attendi i caratteri e le immagini prima della stampa.
       void doc.body?.offsetHeight;
       try {
@@ -79,7 +84,7 @@ export async function stampaPreventivoNativo(
     await Promise.race([
       prepara(),
       new Promise<never>((_, reject) => {
-        attesa = setTimeout(() => reject(new Error("Le immagini o i caratteri del preventivo non si caricano. Riprova la stampa.")), 30_000);
+        attesa = setTimeout(() => reject(new Error("Le immagini o i caratteri del preventivo non si caricano. Riprova la stampa.")), doc.querySelector?.("[data-fv-google-pdf]") ? 60_000 : 30_000);
       }),
     ]);
     clearTimeout(attesa);

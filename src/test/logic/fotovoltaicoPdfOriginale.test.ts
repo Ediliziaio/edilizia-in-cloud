@@ -33,6 +33,15 @@ describe("FV: conversione del PDF originale prima della firma", () => {
     await expect(fotovoltaicoPdfOriginale(html)).rejects.toThrow("non è configurata");
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it("non congela una foto Google vuota da un renderer precedente", async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage([595, 842]);
+    const bytes = await pdf.save();
+    const fetcher = vi.fn(async () => new Response(bytes as Uint8Array<ArrayBuffer>, { headers: { "Content-Type": "application/pdf" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const conGoogle = new TextEncoder().encode('<html><div data-fv-google-pdf="camera"></div></html>');
+    await expect(fotovoltaicoPdfOriginale(conGoogle)).rejects.toThrow("vista Google non è disponibile nel servizio di firma");
+    expect(fetcher).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ body: JSON.stringify({ html: new TextDecoder().decode(conGoogle), richiede_mappa_google: true }) }));
+  });
   it("non invia documenti o token su HTTP pubblico", async () => {
     env.PREVENTIVI_PDF_RENDER_URL = "http://example.test/render";
     const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);

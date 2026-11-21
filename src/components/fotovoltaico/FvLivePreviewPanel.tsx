@@ -1,4 +1,5 @@
 import type {CampioneEditorFv} from "./FvPersonalizzazionePagine";
+import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
 /**
  * FvLivePreviewPanel — Anteprima preventivo Fotovoltaico LIVE persistente, a lato
  * dell'editor template (parità concettuale col pannello Serramenti).
@@ -53,6 +54,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
   const form = useImmaginiModelloFirmate(formSalvato, CAMPI_IMMAGINE_FOTOVOLTAICO);
   const logoUrl = useFileRiservato(logoSalvato) || null;
   const [html, setHtml] = useState("");
+  const mappe = useGoogleMapsDocumentoFv(html);
   const [pagineFuoriBordo,setPagineFuoriBordo]=useState<number[]>([]);
   const [sectionNotice, setSectionNotice] = useState<{ section: string; text: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -140,6 +142,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
     try { iframeRef.current?.contentWindow?.scrollTo(0, savedScrollRef.current); } catch { /* noop */ }
     syncSection();
     const doc=iframeRef.current?.contentDocument;
+    mappe.carica(doc);
     if(doc)setPagineFuoriBordo(Array.from(doc.querySelectorAll<HTMLElement>(".page")).flatMap((p,i)=>{if(p.querySelector(".cover"))return[];const limite=p.querySelector(".page-footer")?.getBoundingClientRect().top??p.getBoundingClientRect().bottom;return Array.from(p.querySelectorAll(".content h1,.content h2,.content h3,.content p,.content img,.content table")).some(e=>e.getBoundingClientRect().bottom>limite-2)?[i+1]:[];}));
   };
 
@@ -197,6 +200,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
       <p className="px-3 py-1.5 text-[10px] text-muted-foreground border-b shrink-0">
         Vista HTML del modello. Verifica l'impaginazione nel PDF esportato.
       </p>
+      {mappe.errore && <p role="alert" className="border-b bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
       {pagineFuoriBordo.length>0&&<p role="alert" className="shrink-0 border-b bg-amber-50 px-3 py-2 text-xs text-amber-900">Contenuto oltre il margine nelle pagine {pagineFuoriBordo.join(", ")}. Riduci il testo o rivedi le immagini prima di esportare.</p>}
       {sectionNotice?.section === activeSection && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionNotice.text}</p>}
       <div ref={fit.ref} className="flex-1 overflow-auto bg-muted/40">

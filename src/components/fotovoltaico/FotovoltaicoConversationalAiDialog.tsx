@@ -20,6 +20,7 @@ import type { WizardData } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard
 import type { FvPdfTemplateData } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { nativeCatalogueCandidates } from "../../../supabase/functions/_shared/quoteNative";
 import { useAziendaPerPdf } from "@/lib/serramenti/queries";
+import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
 
 function Preview({
   data,
@@ -45,6 +46,7 @@ function Preview({
       null,
     ),
     [error, setError] = useState("");
+  const mappe = useGoogleMapsDocumentoFv(view?.html);
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
@@ -88,6 +90,7 @@ function Preview({
           detrazioni e risparmi verranno ricalcolati nel passo finanziario.
         </p>
       </header>
+      {mappe.errore && <p role="alert" className="bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
       {error || rules.isError ? (
         <p role="alert" className="p-3 text-orange-800">
           {error ||
@@ -103,6 +106,7 @@ function Preview({
               sandbox="allow-same-origin"
               title="Anteprima modello fotovoltaico"
               srcDoc={view.html}
+              onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
               className="border-0"
               style={{
                 width: LARGHEZZA_A4_PX,
