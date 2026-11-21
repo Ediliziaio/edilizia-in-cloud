@@ -12,7 +12,7 @@
 
 import { ReactNode, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import {
   Bell,
   Building2,
@@ -150,9 +150,9 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
   }
 
   return (
-    <div className="flex min-h-dvh bg-slate-50">
+    <div className="flex min-h-dvh bg-slate-50 dark:bg-background">
       {/* Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col bg-[#07111f] lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col self-start bg-[#07111f] lg:flex">
         <div className="border-b border-white/10 px-5 py-5">
           <img
             src={ediliziaLogo}
@@ -170,7 +170,7 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav aria-label="Menu dello studio" className="flex-1 space-y-1 overflow-y-auto p-3">
           {sidebarItems.map((item) => (
             <SidebarItem key={item.to} {...item} />
           ))}
@@ -195,89 +195,93 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
         </div>
       </aside>
 
-      {/* Mobile top bar (sidebar sostituita da menu drawer in futuro) */}
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
-          <div className="flex items-center gap-2">
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Apri il menu dello studio"
-                  className="rounded-lg p-2 hover:bg-slate-100"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-72 border-0 bg-[#07111f] p-0 text-white">
-                <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
-                  <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto" />
-                  <span className="truncate text-sm font-semibold">{firm.name}</span>
-                </div>
-                <nav className="flex flex-col gap-1 p-3">
-                  {sidebarItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <SheetClose asChild key={item.to}>
-                        <NavLink
-                          to={item.to}
-                          end={item.end}
-                          className={({ isActive }) =>
-                            cn(
-                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
-                              isActive
-                                ? "bg-white/10 text-white"
-                                : "text-white/70 hover:bg-white/10 hover:text-white",
-                            )
-                          }
-                        >
-                          <Icon className="h-4 w-4 shrink-0" />
-                          <span className="flex-1">{item.label}</span>
-                          {item.badge !== undefined && item.badge > 0 && (
-                            <Badge className="bg-red-500 text-white">
-                              {item.badge > 99 ? "99+" : item.badge}
-                            </Badge>
-                          )}
-                        </NavLink>
-                      </SheetClose>
-                    );
-                  })}
-                  <SheetClose asChild>
-                    <Button
-                      variant="ghost"
-                      onClick={async () => {
-                        await signOut();
-                      }}
-                      className="mt-2 w-full justify-start gap-2 text-white/70 hover:bg-white/10 hover:text-white"
-                    >
-                      <LogOut className="h-4 w-4" /> Esci
-                    </Button>
-                  </SheetClose>
-                </nav>
-              </SheetContent>
-            </Sheet>
-            <Link to="/commercialista" className="flex items-center gap-2">
-              <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto" />
-              <span className="text-sm font-semibold">{firm.name}</span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="sticky top-0 z-20">
+          <header className="flex items-center justify-between gap-3 border-b bg-card px-3 py-2 lg:hidden">
+            <div className="flex min-w-0 items-center gap-2">
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Apri il menu dello studio"
+                    className="shrink-0 rounded-lg p-2 hover:bg-muted"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-72 overflow-y-auto border-0 bg-[#07111f] p-0 text-white">
+                  <SheetTitle className="sr-only">Menu dello studio</SheetTitle>
+                  <SheetDescription className="sr-only">Vai alle sezioni del portale commercialista.</SheetDescription>
+                  <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4 pr-10">
+                    <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto shrink-0 brightness-0 invert" />
+                    <span className="truncate text-sm font-semibold">{firm.name}</span>
+                  </div>
+                  <nav aria-label="Menu dello studio" className="flex flex-col gap-1 p-3">
+                    {sidebarItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <SheetClose asChild key={item.to}>
+                          <NavLink
+                            to={item.to}
+                            end={item.end}
+                            className={({ isActive }) =>
+                              cn(
+                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                                isActive
+                                  ? "bg-white/10 text-white"
+                                  : "text-white/70 hover:bg-white/10 hover:text-white",
+                              )
+                            }
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="flex-1">{item.label}</span>
+                            {item.badge !== undefined && item.badge > 0 && (
+                              <Badge className="bg-red-500 text-white">
+                                {item.badge > 99 ? "99+" : item.badge}
+                              </Badge>
+                            )}
+                          </NavLink>
+                        </SheetClose>
+                      );
+                    })}
+                    <SheetClose asChild>
+                      <Button
+                        variant="ghost"
+                        onClick={async () => {
+                          await signOut();
+                          navigate("/commercialista-login");
+                        }}
+                        className="mt-2 w-full justify-start gap-2 text-white/70 hover:bg-white/10 hover:text-white"
+                      >
+                        <LogOut className="h-4 w-4" /> Esci
+                      </Button>
+                    </SheetClose>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+              <Link to="/commercialista" className="min-w-0 truncate text-sm font-semibold">
+                {firm.name}
+              </Link>
+            </div>
+            <Link
+              to="/commercialista/inbox"
+              aria-label={inboxBadge > 0 ? `Inbox, ${inboxBadge} novità` : "Inbox"}
+              className="relative shrink-0 rounded-lg p-2 hover:bg-muted"
+            >
+              <Bell className="h-5 w-5" />
+              {inboxBadge > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {inboxBadge > 9 ? "9+" : inboxBadge}
+                </span>
+              )}
             </Link>
-          </div>
-          <Link
-            to="/commercialista/inbox"
-            className="relative rounded-lg p-2 hover:bg-slate-100"
-          >
-            <Bell className="h-5 w-5" />
-            {inboxBadge > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                {inboxBadge > 9 ? "9+" : inboxBadge}
-              </span>
-            )}
-          </Link>
-        </header>
+          </header>
 
-        {/* Ritorno a admin dopo "Accedi come utente" su un commercialista. */}
-        <QuickLoginReturnBanner />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
+          {/* Ritorno a admin dopo "Accedi come utente" su un commercialista. */}
+          <QuickLoginReturnBanner />
+        </div>
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
             {children ?? <Outlet />}
           </div>
         </main>

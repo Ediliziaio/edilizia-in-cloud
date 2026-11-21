@@ -3,6 +3,7 @@
  * Permette accept/reject invito + mark as read / dismiss per ogni notifica.
  */
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Bell,
@@ -14,6 +15,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import { StudioPageHeader } from "@/components/accountant/StudioPageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,8 +38,11 @@ export default function AccountantInbox() {
   const { toast } = useToast();
   const confirm = useConfirm();
   const { data: companies = [], isLoading: companiesLoading, isError: companiesError, refetch: refetchCompanies } = useAccountantCompanies();
-  const { data: notifications = [], isLoading: notificationsLoading } =
+  const { data: notifications = [], isLoading: notificationsLoading, isError: notificationsError, refetch: refetchNotifications } =
     useAccountantNotifications();
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const unread = notifications.filter((row) => !row.is_read);
+  const visibleNotifications = unreadOnly ? unread : notifications;
 
   const acceptInvite = useAcceptCompanyInvite();
   const rejectInvite = useRejectCompanyInvite();
@@ -85,16 +90,11 @@ export default function AccountantInbox() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Inviti dalle aziende e notifiche dello studio.
-        </p>
-      </header>
+      <StudioPageHeader title="Inbox" icon={Bell} description="Inviti dalle aziende e notifiche dello studio." />
 
       {/* Inviti pending */}
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-1 px-4 py-3 sm:px-5">
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-4 w-4 text-amber-500" />
             Inviti da accettare
@@ -186,12 +186,21 @@ export default function AccountantInbox() {
 
       {/* Notifiche */}
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-1 px-4 py-3 sm:px-5">
           <CardTitle className="flex items-center gap-2 text-base">
             <Bell className="h-4 w-4 text-blue-500" />
             Notifiche
           </CardTitle>
-          <CardDescription>Eventi recenti relativi al tuo studio.</CardDescription>
+          {notifications.length > 0 && (
+            <div role="group" aria-label="Filtra le notifiche" className="flex flex-wrap gap-1.5 pt-2">
+              <Button type="button" size="sm" variant={unreadOnly ? "outline" : "default"}
+                aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>Tutte</Button>
+              <Button type="button" size="sm" variant={unreadOnly ? "default" : "outline"}
+                aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>
+                Da leggere <span className="ml-1.5 tabular-nums opacity-70">{unread.length}</span>
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {notificationsLoading && (
@@ -200,18 +209,21 @@ export default function AccountantInbox() {
               Caricamento...
             </div>
           )}
-          {!notificationsLoading && notifications.length === 0 && (
-            <div className="flex flex-col items-center gap-2 p-8 text-center">
-              <Mail className="h-10 w-10 text-muted-foreground/40" />
-              <p className="text-sm font-medium">Nessuna notifica</p>
-              <p className="text-xs text-muted-foreground">
-                Le notifiche degli eventi appariranno qui.
-              </p>
+          {notificationsError && (
+            <div role="alert" className="flex flex-wrap items-center gap-2 p-4 text-sm">
+              Impossibile aggiornare le notifiche.
+              <Button variant="outline" size="sm" onClick={() => void refetchNotifications()}>Riprova</Button>
             </div>
           )}
-          {notifications.length > 0 && (
-            <div className="divide-y">
-              {notifications.map((n) => {
+          {!notificationsError && !notificationsLoading && visibleNotifications.length === 0 && (
+            <div className="flex flex-col items-center gap-2 p-8 text-center">
+              <Mail className="h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium">{unreadOnly ? "Nessuna notifica da leggere" : "Nessuna notifica"}</p>
+            </div>
+          )}
+          {visibleNotifications.length > 0 && (
+            <div className="divide-y border-t">
+              {visibleNotifications.map((n) => {
                 const Icon = n.type === "company_invite" ? Clock : Bell;
                 return (
                   <div
@@ -230,7 +242,7 @@ export default function AccountantInbox() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <p
-                          className={`text-sm ${
+                          className={`min-w-0 break-words text-sm ${
                             !n.is_read ? "font-semibold" : "font-medium text-muted-foreground"
                           }`}
                         >
@@ -246,7 +258,7 @@ export default function AccountantInbox() {
                         </button>
                       </div>
                       {n.body && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
+                        <p className="mt-0.5 break-words text-xs text-muted-foreground">{n.body}</p>
                       )}
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
                         <span>

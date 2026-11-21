@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import { StudioPageHeader } from "@/components/accountant/StudioPageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   Mail,
   Phone,
   Save,
+  Settings,
   ShieldCheck,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -132,12 +134,7 @@ export default function AccountantSettings() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Profilo studio</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Dati dello studio commercialista, contratti e branding.
-        </p>
-      </header>
+      <StudioPageHeader title="Profilo studio" icon={Settings} description="Anagrafica, contratti e identità dello studio." />
 
       <Card>
         <CardHeader>

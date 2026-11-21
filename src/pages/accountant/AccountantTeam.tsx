@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ShieldCheck, User } from "lucide-react";
+import { Loader2, ShieldCheck, User, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useSEO } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
 import { caricaProfiliPerId } from "@/lib/profilesLookup";
 import { useAccountantFirm } from "@/hooks/accountant/useAccountantPortalData";
+import { StudioPageHeader } from "@/components/accountant/StudioPageHeader";
 import { InvitiTeamStudio } from "@/components/accountant/InvitiTeamStudio";
 import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 
@@ -66,14 +67,7 @@ export default function AccountantTeam() {
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Team studio</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Collaboratori che hanno accesso ai dati di {firm?.name}.
-          </p>
-        </div>
-      </header>
+      <StudioPageHeader title="Team studio" icon={Users} description="Collaboratori e inviti dello studio." />
       {firmId && <InvitiTeamStudio key={firmId} studioId={firmId} />}
 
       <Card>

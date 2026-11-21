@@ -1,41 +1,12 @@
-/**
- * /commercialista — Cruscotto unificato dello studio.
- *
- * KPI aggregate in alto + lista aziende clienti filtrabile (era una pagina
- * separata, ora integrata qui per evitare duplicazione).
- *
- * Da ogni card: pulsante "Accedi piattaforma cliente" → entra in
- * /azienda/cruscotto?commercialistaMode=1&... con sidebar filtrata.
- */
-
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  AlertCircle,
-  ArrowRight,
-  Bell,
-  Building2,
-  CheckCircle2,
-  Clock,
-  Eye,
-  LogIn,
-  ListChecks,
-  Pause,
-  Plus,
-  Search,
-  Shield,
+  ArrowRight, Bell, Building2, CheckCircle2, Clock, LayoutDashboard, ListChecks,
+  Loader2, LogIn, Pause, Plus, Search,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useSEO } from "@/hooks/useSEO";
 import {
   useAccountantCompanies,
@@ -45,360 +16,254 @@ import {
 } from "@/hooks/accountant/useAccountantPortalData";
 import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
 import { CreateAziendaDialog } from "@/components/accountant/CreateAziendaDialog";
+import { StudioPageHeader } from "@/components/accountant/StudioPageHeader";
 import { useMyChangeRequests } from "@/hooks/accountant/useAccountantChangeRequests";
 import { ACCESS_MODE_OPTIONS } from "@/lib/commercialista/livelliAccesso";
+import { cn } from "@/lib/utils";
 
-function companyInitials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase())
-      .join("") || "?"
-  );
-}
+const STATUS_FILTERS = [
+  { value: "all", label: "Tutte le aziende", icon: Building2, tone: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300" },
+  { value: "active", label: "Attive", icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" },
+  { value: "invited", label: "Inviti in attesa", icon: Clock, tone: "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" },
+  { value: "suspended", label: "Sospese", icon: Pause, tone: "bg-muted text-muted-foreground" },
+] as const;
 
-const STATUS_FILTERS: Array<{ value: "all" | AccountantAccessStatus; label: string }> = [
-  { value: "all", label: "Tutte" },
-  { value: "active", label: "Attive" },
-  { value: "invited", label: "Inviti in attesa" },
-  { value: "suspended", label: "Sospese" },
-];
+const STATUS_LABELS: Record<AccountantAccessStatus, string> = {
+  active: "Attiva", invited: "In attesa", suspended: "Sospesa", revoked: "Revocata",
+};
 
-function statusBadge(status: AccountantAccessStatus) {
-  switch (status) {
-    case "active":
-      return { variant: "default" as const, label: "Attivo", icon: CheckCircle2 };
-    case "invited":
-      return { variant: "secondary" as const, label: "Invitato", icon: Clock };
-    case "suspended":
-      return { variant: "outline" as const, label: "Sospeso", icon: Pause };
-    default:
-      return { variant: "destructive" as const, label: status, icon: Shield };
-  }
-}
+const STATUS_BADGES: Record<AccountantAccessStatus, string> = {
+  active: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300",
+  invited: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
+  suspended: "bg-muted text-muted-foreground",
+  revoked: "bg-muted text-muted-foreground",
+};
+
+const normalizeSearch = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const collator = new Intl.Collator("it", { sensitivity: "base", numeric: true });
 
 export default function AccountantDashboard() {
   useSEO({ title: "Cruscotto studio", noindex: true });
 
-  const navigate = useNavigate();
   const { data: firm } = useAccountantFirm();
   const { data: companies = [], isLoading: companiesLoading, isError: companiesError, refetch: refetchCompanies } = useAccountantCompanies();
-  const { data: notifications = [] } = useAccountantNotifications();
+  const { data: notifications = [], isLoading: notificationsLoading, isError: notificationsError } = useAccountantNotifications();
   const { data: requests, isError: requestsError } = useMyChangeRequests(firm?.id);
-
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | AccountantAccessStatus>("all");
+  const [params, setParams] = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [createKey, setCreateKey] = useState(0);
-  const openCreate = () => { setCreateKey((k) => k + 1); setCreateOpen(true); };
 
-  const stats = useMemo(() => {
-    const active = companies.filter((c) => c.status === "active");
-    const invited = companies.filter((c) => c.status === "invited");
-    const suspended = companies.filter((c) => c.status === "suspended");
-    return {
-      total: companies.length,
-      active: active.length,
-      invited: invited.length,
-      approvalRequired: active.filter((item) => item.access_mode === "approval_required").length,
-      suspended: suspended.length,
-    };
-  }, [companies]);
+  const search = params.get("q") ?? "";
+  const statusFilter = STATUS_FILTERS.find((item) => item.value === params.get("stato"))?.value ?? "all";
+  const modeFilter = ACCESS_MODE_OPTIONS.find((item) => item.value === params.get("delega"))?.value ?? "all";
+  const hasFilters = Boolean(search || statusFilter !== "all" || modeFilter !== "all");
+  const returnTo = params.size ? `/commercialista?${params.toString()}` : "/commercialista";
 
-  const unreadNotifications = notifications.filter((item) => !item.is_read);
-  const pendingRequests = requests?.filter((item) => item.status === "pending").length;
-  const requestsHint = requestsError ? "Apri lo storico per riprovare"
-    : pendingRequests === undefined ? "Caricamento delle richieste…" :
-      pendingRequests === 0 ? "Nessuna risposta in attesa" : `${pendingRequests} in attesa nelle richieste recenti`;
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return companies.filter((c) => {
-      if (statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (!q) return true;
-      const name = c.company?.name?.toLowerCase() || "";
-      const vat = c.company?.vat_number?.toLowerCase() || "";
-      const city = c.company?.legal_city?.toLowerCase() || "";
-      return name.includes(q) || vat.includes(q) || city.includes(q);
-    });
-  }, [companies, search, statusFilter]);
-
-  function enterCompany(companyId: string, companyName: string) {
-    navigate(
-      buildCommercialistaCompanyUrl({
-        companyId,
-        companyName,
-        returnTo: "/commercialista",
-      }),
-    );
+  function updateFilter(key: string, value: string) {
+    setParams((old) => {
+      const next = new URLSearchParams(old);
+      if (!value || value === "all") next.delete(key);
+      else next.set(key, value);
+      return next;
+    }, { replace: true });
   }
 
-  return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cruscotto studio</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            <span className="font-semibold">{firm?.name}</span> · Aziende in delega e inviti da gestire.
-          </p>
-        </div>
-        <Button className="gap-1.5 self-start sm:self-auto" disabled={!firm?.id} onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Crea azienda
-        </Button>
-      </header>
+  function clearFilters() {
+    setParams((old) => {
+      const next = new URLSearchParams(old);
+      for (const key of ["q", "stato", "delega"]) next.delete(key);
+      return next;
+    }, { replace: true });
+  }
 
+  const stats = useMemo(() => ({
+    all: companies.length,
+    active: companies.filter((row) => row.status === "active").length,
+    invited: companies.filter((row) => row.status === "invited").length,
+    suspended: companies.filter((row) => row.status === "suspended").length,
+  }), [companies]);
+
+  const filtered = useMemo(() => {
+    const terms = normalizeSearch(search).trim().split(/\s+/).filter(Boolean);
+    return companies.filter((row) => {
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      if (modeFilter !== "all" && row.access_mode !== modeFilter) return false;
+      const company = row.company;
+      const searchable = normalizeSearch([company?.name, company?.vat_number, company?.legal_city].join(" "));
+      return terms.every((term) => searchable.includes(term));
+    }).sort((a, b) => collator.compare(a.company?.name ?? "", b.company?.name ?? ""));
+  }, [companies, modeFilter, search, statusFilter]);
+
+  const pendingByCompany = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!requestsError) {
+      for (const row of requests ?? []) {
+        if (row.status === "pending") counts.set(row.company_id, (counts.get(row.company_id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [requests, requestsError]);
+  const pendingRequests = [...pendingByCompany.values()].reduce((sum, count) => sum + count, 0);
+  const unread = notifications.filter((row) => !row.is_read).length;
+  const companiesReady = !companiesLoading && !companiesError;
+  const requestsHint = requestsError ? "Storico da aggiornare"
+    : requests === undefined ? "Caricamento dello storico…"
+    : pendingRequests > 0 ? `${pendingRequests} in attesa nelle richieste recenti` : "Nessuna risposta in attesa";
+  const inboxHint = [
+    companiesReady ? `${stats.invited} ${stats.invited === 1 ? "invito" : "inviti"}` : "",
+    !notificationsLoading && !notificationsError ? `${unread} ${unread === 1 ? "notifica nuova" : "notifiche nuove"}` : "",
+  ].filter(Boolean).join(" · ") || "Apri la posta dello studio";
+
+  return (
+    <div className="space-y-5">
+      <StudioPageHeader title="Cruscotto studio" icon={LayoutDashboard} description={firm?.name} action={
+        <Button className="gap-1.5" disabled={!firm?.id} onClick={() => { setCreateKey((key) => key + 1); setCreateOpen(true); }}>
+          <Plus aria-hidden="true" className="size-4" /> Crea azienda
+        </Button>
+      } />
       <CreateAziendaDialog key={createKey} open={createOpen} onOpenChange={setCreateOpen} firmId={firm?.id ?? null} />
 
-      {/* KPI cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Aziende totali
-                </p>
-                <p className="mt-1 text-2xl font-bold">{stats.total}</p>
-              </div>
-              <Building2 className="h-6 w-6 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Attive
-                </p>
-                <p className="mt-1 text-2xl font-bold text-emerald-600">{stats.active}</p>
-              </div>
-              <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Inviti in attesa
-                </p>
-                <p className="mt-1 text-2xl font-bold text-amber-600">{stats.invited}</p>
-              </div>
-              <Clock className="h-6 w-6 text-amber-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Deleghe sospese
-                </p>
-                <p className="mt-1 text-2xl font-bold">{stats.suspended}</p>
-              </div>
-              <Pause className="h-6 w-6 text-slate-500" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4" role="group" aria-label="Stato delle deleghe">
+        {STATUS_FILTERS.map(({ value, label, icon: Icon, tone }) => (
+          <button type="button" key={value} aria-pressed={statusFilter === value}
+            onClick={() => updateFilter("stato", value)}
+            className={cn(
+              "flex min-w-0 items-center gap-2 rounded-xl border bg-card p-2.5 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3 sm:p-3.5",
+              statusFilter === value && "border-blue-500/60 bg-blue-50/50 dark:bg-blue-950/20",
+            )}>
+            <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg sm:size-9", tone)}>
+              <Icon aria-hidden="true" className="size-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-xl font-semibold leading-tight tabular-nums">{companiesReady ? stats[value] : "—"}</span>
+              <span className="block text-xs text-muted-foreground">{label}</span>
+            </span>
+          </button>
+        ))}
       </div>
 
-      <section aria-labelledby="studio-work">
-        <h2 id="studio-work" className="mb-2 text-lg font-semibold">Da gestire</h2>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Link to="/commercialista/inbox" className="flex items-center gap-3 rounded-lg border bg-card p-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Bell className="h-5 w-5 shrink-0 text-primary" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Apri gli inviti e le notifiche</span>
-              <span className="block text-xs text-muted-foreground">
-                {companiesLoading || companiesError ? "Verifica lo stato nella posta dello studio"
-                  : `${stats.invited} ${stats.invited === 1 ? "invito" : "inviti"} · ${unreadNotifications.length} notifiche nuove`}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_15rem] xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <aside aria-labelledby="studio-work" className="min-w-0 space-y-2 lg:order-2">
+          <h2 id="studio-work" className="text-sm font-semibold">Da gestire</h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <Link to="/commercialista/inbox" className="group flex min-w-0 items-center gap-2 rounded-xl border bg-card p-3 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Bell aria-hidden="true" className="size-4 shrink-0 text-blue-700 dark:text-blue-300" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Apri gli inviti e le notifiche</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{inboxHint}</span>
               </span>
-            </span>
-            <ArrowRight className="h-4 w-4 shrink-0" />
-          </Link>
-          <Link to="/commercialista/richieste" className="flex items-center gap-3 rounded-lg border bg-card p-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <ListChecks className="h-5 w-5 shrink-0 text-primary" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Segui le richieste di modifica</span>
-              <span className="block text-xs text-muted-foreground">
-                {requestsHint}{!companiesLoading && !companiesError && ` · ${stats.approvalRequired} con approvazione`}
+              <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
+            </Link>
+            <Link to="/commercialista/richieste" className="group flex min-w-0 items-center gap-2 rounded-xl border bg-card p-3 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <ListChecks aria-hidden="true" className="size-4 shrink-0 text-blue-700 dark:text-blue-300" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Segui le richieste di modifica</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{requestsHint}</span>
               </span>
-            </span>
-            <ArrowRight className="h-4 w-4 shrink-0" />
-          </Link>
-        </div>
-      </section>
+              <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
+            </Link>
+          </div>
+          {pendingRequests > 0 && (
+            <Link to="/commercialista/richieste?stato=pending" className="inline-flex min-h-9 items-center gap-1 px-1 text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">
+              Vedi le richieste in attesa <ArrowRight aria-hidden="true" className="size-3" />
+            </Link>
+          )}
+        </aside>
 
-      {/* Hint primo accesso */}
-      {companiesError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm">
-        Impossibile aggiornare le deleghe.
-        <Button variant="outline" size="sm" onClick={() => void refetchCompanies()}>Riprova</Button>
-      </div>}
-      {!companiesError && !companiesLoading && stats.total === 0 && (
-        <Card className="border-blue-200 bg-blue-50/50">
-          <CardContent className="flex items-start gap-3 p-4">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-            <div className="text-sm">
-              <p className="font-medium text-blue-900">Come collegare la tua prima azienda</p>
-              <p className="mt-1 text-blue-700">
-                Le aziende ti invitano dal loro pannello{" "}
-                <span className="font-medium">Impostazioni → Persone e accessi → Commercialista</span>{" "}
-                inserendo la tua email. Riceverai notifica qui appena qualcuno ti invita.
-              </p>
+        <section aria-labelledby="studio-companies" className="min-w-0 rounded-xl border bg-card lg:order-1">
+          <div className="border-b p-3 sm:p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="studio-companies" className="text-base font-semibold">Aziende in delega</h2>
+              {companiesReady && <span aria-live="polite" className="text-xs text-muted-foreground">{filtered.length} di {stats.all}</span>}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Filtri lista aziende */}
-      {stats.total > 0 && (
-        <>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">Le tue aziende clienti</h2>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  aria-label="Cerca azienda per nome o partita IVA"
-                  placeholder="Cerca per nome o P.IVA"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="w-full pl-9 sm:w-64"
-                />
+            {(stats.all > 0 || hasFilters) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-[1_1_13rem]">
+                  <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="search" className="pl-9" aria-label="Cerca per azienda, partita IVA o città"
+                    placeholder="Cerca azienda, P.IVA o città" value={search} onChange={(event) => updateFilter("q", event.target.value)} />
+                </div>
+                <select aria-label="Livello di accesso" value={modeFilter}
+                  onChange={(event) => updateFilter("delega", event.target.value)}
+                  className="h-10 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring">
+                  <option value="all">Tutti i livelli</option>
+                  {ACCESS_MODE_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                {hasFilters && <Button type="button" variant="ghost" onClick={clearFilters}>Azzera filtri</Button>}
               </div>
-              <Select
-                value={statusFilter}
-                onValueChange={(value: "all" | AccountantAccessStatus) => setStatusFilter(value)}
-              >
-                <SelectTrigger className="sm:w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_FILTERS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            )}
           </div>
 
-          {companiesLoading && (
-            <Card>
-              <CardContent className="p-12 text-center text-sm text-muted-foreground">
-                Caricamento aziende...
-              </CardContent>
-            </Card>
-          )}
-
-          {!companiesLoading && filtered.length === 0 && (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
-                <Building2 className="h-12 w-12 text-muted-foreground/40" />
-                <div>
-                  <p className="text-sm font-medium">Nessuna azienda trovata</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Modifica i filtri o la ricerca.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {!companiesLoading && filtered.length > 0 && (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((access) => {
-                const status = statusBadge(access.status);
-                const StatusIcon = status.icon;
-                const company = access.company;
-                const isActive = access.status === "active";
-                const isInvited = access.status === "invited";
-                const modalita = ACCESS_MODE_OPTIONS.find(option => option.value === access.access_mode);
-
-                return (
-                  <Card
-                    key={access.id}
-                    className="overflow-hidden transition-shadow hover:shadow-md"
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-bold text-blue-700">
-                          {companyInitials(company?.name ?? "")}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="truncate text-base">
-                            {company?.name ?? "Azienda"}
-                          </CardTitle>
-                          <CardDescription className="truncate text-xs">
-                            {company?.vat_number
-                              ? `P.IVA ${company.vat_number}`
-                              : company?.legal_city || "—"}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant={status.variant} className="gap-1">
-                          <StatusIcon className="h-3 w-3" />
-                          {status.label}
-                        </Badge>
-                        <Badge variant="outline" className="gap-1 font-normal">
-                          <Eye className="h-3 w-3" />
-                          {modalita?.label ?? access.access_mode}
-                        </Badge>
-                      </div>
-
-                      {isInvited && (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                          Invito ricevuto — apri{" "}
-                          <Link to="/commercialista/inbox" className="font-medium underline">
-                            Inbox
-                          </Link>{" "}
-                          per accettare.
-                        </div>
-                      )}
-
-                      {access.status === "suspended" && (
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
-                          Accesso temporaneamente sospeso dall'azienda.
-                        </div>
-                      )}
-
-                      {isActive && modalita && <p className="text-xs text-muted-foreground">{modalita.description}</p>}
-                      {isActive && (
-                        <Button
-                          className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
-                          onClick={() =>
-                            enterCompany(access.company_id, company?.name ?? "Azienda")
-                          }
-                        >
-                          <LogIn className="h-4 w-4" />
-                          Accedi piattaforma cliente
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      {isActive && access.access_mode === "approval_required" && (
-                        <Button asChild variant="outline" className="w-full">
-                          <Link to={`/commercialista/richieste?azienda=${access.company_id}`}>Proponi modifica</Link>
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+          {companiesError && <div role="alert" className="flex flex-wrap items-center gap-2 p-4 text-sm">
+            Impossibile aggiornare le deleghe.
+            <Button variant="outline" size="sm" onClick={() => void refetchCompanies()}>Riprova</Button>
+          </div>}
+          {companiesLoading && <div role="status" className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" /> Caricamento aziende…
+          </div>}
+          {companiesReady && filtered.length === 0 && (
+            <div className="p-5 text-sm">
+              <p className="font-medium">{hasFilters ? "Nessuna azienda corrisponde ai filtri" : "Nessuna azienda collegata"}</p>
+              {!hasFilters && <p className="mt-1 text-muted-foreground">
+                L’azienda può invitarti da Impostazioni → Persone → Commercialista usando la tua email.
+                Trovi l’invito nella <Link to="/commercialista/inbox" className="font-medium text-blue-700 underline dark:text-blue-300">Inbox</Link>.
+              </p>}
             </div>
           )}
-        </>
-      )}
+          {!companiesLoading && filtered.length > 0 && (
+            <ul aria-label="Elenco aziende in delega" className="divide-y">
+              {filtered.map((access) => {
+                const company = access.company;
+                const name = company?.name || "Azienda";
+                const metadata = [company?.legal_city, company?.vat_number && `P.IVA ${company.vat_number}`].filter(Boolean).join(" · ");
+                const mode = ACCESS_MODE_OPTIONS.find((item) => item.value === access.access_mode);
+                const active = access.status === "active";
+                const pending = pendingByCompany.get(access.company_id) ?? 0;
+                return (
+                  <li key={access.id} className="grid min-w-0 gap-2.5 px-3 py-3 sm:px-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                        <Building2 aria-hidden="true" className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="break-words text-sm font-semibold">{name}</h3>
+                        {metadata && <p className="mt-0.5 break-words text-xs text-muted-foreground">{metadata}</p>}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className={cn("font-medium", STATUS_BADGES[access.status])}>{STATUS_LABELS[access.status]}</Badge>
+                          {mode && <Badge variant="outline" className="font-normal text-muted-foreground">{mode.label}</Badge>}
+                          {pending > 0 && (
+                            <Link to={`/commercialista/richieste?stato=pending&filtroAzienda=${encodeURIComponent(access.company_id)}`}
+                              className="rounded px-1 text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">
+                              {pending} {pending === 1 ? "richiesta" : "richieste"} in attesa
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 pl-12 xl:justify-end xl:pl-0">
+                      {active && access.access_mode === "approval_required" && (
+                        <Button asChild size="sm" variant="outline">
+                          <Link to={`/commercialista/richieste?azienda=${encodeURIComponent(access.company_id)}`}>Proponi modifica</Link>
+                        </Button>
+                      )}
+                      {active && (
+                        <Button asChild size="sm" className="gap-1.5">
+                          <Link aria-label={`Apri ${name}`} to={buildCommercialistaCompanyUrl({ companyId: access.company_id, companyName: name, returnTo })}>
+                            <LogIn aria-hidden="true" className="size-3.5" /> Apri azienda
+                          </Link>
+                        </Button>
+                      )}
+                      {access.status === "invited" && (
+                        <Button asChild size="sm" variant="outline"><Link to="/commercialista/inbox">Vedi invito</Link></Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

@@ -5,9 +5,10 @@
  * Mostra status badge, payload preview, decision_note se rifiutate.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { StudioPageHeader } from "@/components/accountant/StudioPageHeader";
 import { NuovaRichiestaStudio } from "@/components/accountant/NuovaRichiestaStudio";
 import { RichiestaStudioDettagli } from "@/components/accountant/RichiestaStudioDettagli";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import {
   Hourglass,
   ListChecks,
   Loader2,
+  Plus,
   XCircle,
 } from "lucide-react";
 import { useSEO } from "@/hooks/useSEO";
@@ -76,115 +78,126 @@ function resourceLabel(t: string) {
   return map[t] ?? t;
 }
 
+const REQUEST_FILTERS = [
+  { value: "pending", label: "In attesa", title: "In attesa di risposta", description: "In attesa di una decisione da parte dell’azienda." },
+  { value: "approved", label: "Approvate", title: "Approvate" },
+  { value: "rejected", label: "Rifiutate", title: "Rifiutate" },
+  { value: "expired", label: "Scadute", title: "Scadute", description: "L’azienda non ha risposto entro la scadenza." },
+] as const;
+
 export default function AccountantRequests() {
   useSEO({ title: "Le mie richieste — Studio", noindex: true });
 
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { data: firm } = useAccountantFirm();
   const { data: requests = [], isLoading, isError, refetch } = useMyChangeRequests(firm?.id);
-  const [status, setStatus] = useState<"all" | ChangeRequestRow["status"]>("all");
-  const { data: companies = [], isSuccess: deleghePronte } = useAccountantCompanies();
-  const aziendeApprovazione = companies.filter(riga => riga.status === "active" && riga.access_mode === "approval_required");
+  const { data: companies = [], isSuccess: deleghePronte, isError: delegheError, refetch: refetchDeleghe } = useAccountantCompanies();
+  const aziendeApprovazione = companies.filter((row) => row.status === "active" && row.access_mode === "approval_required");
 
-  const companyById = useMemo(() => {
-    const m = new Map<string, string>();
-    companies.forEach((c) => m.set(c.company_id, c.company?.name ?? "Azienda"));
-    return m;
-  }, [companies]);
+  const status = REQUEST_FILTERS.find((item) => item.value === params.get("stato"))?.value ?? "all";
+  const companyFilter = params.get("filtroAzienda") || "all";
+  const aziendaIniziale = params.get("azienda") ?? "";
+  const commessaIniziale = params.get("commessa") ?? "";
+  const [composerOverride, setComposerOverride] = useState<boolean | null>(null);
+  const composerOpen = composerOverride ?? Boolean(aziendaIniziale || commessaIniziale);
 
-  const grouped = useMemo(() => {
-    const visible = status === "all" ? requests : requests.filter((request) => request.status === status);
-    return {
-      pending: visible.filter((request) => request.status === "pending"),
-      approved: visible.filter((request) => request.status === "approved"),
-      rejected: visible.filter((request) => request.status === "rejected"),
-      expired: visible.filter((request) => request.status === "expired"),
-    };
-  }, [requests, status]);
+  const companyById = new Map(companies.map((row) => [row.company_id, row.company?.name ?? "Azienda"]));
+  const historyCompanies = [...new Set(requests.map((row) => row.company_id))];
+  if (companyFilter !== "all" && !historyCompanies.includes(companyFilter)) historyCompanies.push(companyFilter);
+  historyCompanies.sort((a, b) => (companyById.get(a) ?? "").localeCompare(companyById.get(b) ?? "", "it"));
+
+  const companyRequests = companyFilter === "all" ? requests : requests.filter((row) => row.company_id === companyFilter);
+  const sections = REQUEST_FILTERS.map((filter) => ({
+    ...filter, requests: companyRequests.filter((row) => row.status === filter.value),
+  }));
+  const visibleSections = sections.filter((section) => section.requests.length > 0 && (status === "all" || status === section.value));
+
+  function updateFilter(name: string, value: string) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (value === "all") next.delete(name);
+      else next.set(name, value);
+      return next;
+    }, { replace: true });
+  }
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Le mie richieste</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Proponi una modifica alle aziende che ti hanno dato accesso «Con approvazione» e segui l’esito.
-        </p>
-      </header>
-      {firm && deleghePronte && <NuovaRichiestaStudio key={params.toString()} studioId={firm.id} aziende={aziendeApprovazione}
-        aziendaIniziale={params.get("azienda") ?? ""} commessaIniziale={params.get("commessa") ?? ""} />}
-      {isError && <div role="alert" className="flex items-center gap-2 text-sm">Impossibile caricare lo storico.
-        <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>}
-
-      {isLoading && (
-        <Card>
-          <CardContent className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Caricamento richieste...
-          </CardContent>
-        </Card>
-      )}
-
-      {!isError && !isLoading && requests.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
-            <ListChecks className="h-12 w-12 text-muted-foreground/40" />
-            <div>
-              <p className="text-sm font-medium">Nessuna richiesta inviata</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Le richieste di modifica che invii per aziende con accesso
-                "approvazione richiesta" appariranno qui.
-              </p>
+      <StudioPageHeader title="Le mie richieste" icon={ListChecks}
+        description="Proposte inviate alle aziende con accesso «Con approvazione»." action={
+          <Button type="button" variant={composerOpen ? "outline" : "default"} aria-expanded={composerOpen}
+            aria-controls={composerOpen ? "studio-request-composer" : undefined}
+            onClick={() => setComposerOverride(!composerOpen)}>
+            {!composerOpen && <Plus aria-hidden="true" className="mr-1.5 size-4" />}
+            {composerOpen ? "Chiudi proposta" : "Nuova richiesta"}
+          </Button>
+        } />
+      {composerOpen && (
+        <div id="studio-request-composer">
+          {firm && deleghePronte ? (
+            <NuovaRichiestaStudio key={JSON.stringify([aziendaIniziale, commessaIniziale])} studioId={firm.id}
+              aziende={aziendeApprovazione} aziendaIniziale={aziendaIniziale} commessaIniziale={commessaIniziale} />
+          ) : delegheError ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-4 text-sm">
+              Impossibile verificare le deleghe.
+              <Button variant="outline" size="sm" onClick={() => void refetchDeleghe()}>Riprova</Button>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <p role="status" className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Caricamento deleghe…</p>
+          )}
+        </div>
       )}
 
-      {!isLoading && requests.length > 0 && (
-        <>
-          <div role="group" aria-label="Filtra lo storico per stato" className="flex flex-wrap gap-1.5">
-            {([
-              ["all", "Tutte"], ["pending", "In attesa"], ["approved", "Approvate"],
-              ["rejected", "Rifiutate"], ["expired", "Scadute"],
-            ] as const).map(([value, label]) => (
-              <Button key={value} size="sm" variant={status === value ? "default" : "outline"}
-                aria-pressed={status === value} onClick={() => setStatus(value)}>{label}</Button>
-            ))}
+      <section aria-labelledby="studio-request-history" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="studio-request-history" className="text-base font-semibold">Storico richieste</h2>
+          {historyCompanies.length > 0 && (
+            <select aria-label="Filtra richieste per azienda" value={companyFilter}
+              onChange={(event) => updateFilter("filtroAzienda", event.target.value)}
+              className="h-9 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring">
+              <option value="all">Tutte le aziende</option>
+              {historyCompanies.map((id) => <option key={id} value={id}>{companyById.get(id) ?? "Azienda"}</option>)}
+            </select>
+          )}
+        </div>
+        {isError && (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-4 text-sm">
+            Impossibile caricare lo storico.
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
           </div>
-          {status !== "all" && grouped[status].length === 0 && (
-            <p role="status" className="rounded-lg border p-4 text-sm text-muted-foreground">Nessuna richiesta con questo stato.</p>
-          )}
-          {grouped.pending.length > 0 && (
-            <RequestsSection
-              title="In attesa di risposta"
-              description="L'azienda non ha ancora approvato o rifiutato."
-              requests={grouped.pending}
-              companyById={companyById}
-            />
-          )}
-          {grouped.approved.length > 0 && (
-            <RequestsSection
-              title="Approvate"
-              requests={grouped.approved}
-              companyById={companyById}
-            />
-          )}
-          {grouped.rejected.length > 0 && (
-            <RequestsSection
-              title="Rifiutate"
-              requests={grouped.rejected}
-              companyById={companyById}
-            />
-          )}
-          {grouped.expired.length > 0 && (
-            <RequestsSection
-              title="Scadute"
-              description="L'azienda non ha risposto entro 7 giorni — la richiesta è automaticamente annullata."
-              requests={grouped.expired}
-              companyById={companyById}
-            />
-          )}
-        </>
-      )}
+        )}
+        {isLoading && (
+          <p role="status" className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" /> Caricamento richieste…
+          </p>
+        )}
+        {!isError && !isLoading && requests.length === 0 && (
+          <div className="rounded-xl border bg-card p-5 text-sm">
+            <p className="font-medium">Nessuna richiesta inviata</p>
+            <p className="mt-1 text-muted-foreground">Qui vedrai le proposte inviate e le decisioni delle aziende.</p>
+          </div>
+        )}
+        {requests.length > 0 && (
+          <>
+            <div role="group" aria-label="Filtra lo storico per stato" className="flex flex-wrap gap-1.5">
+              {[{ value: "all", label: "Tutte", requests: companyRequests }, ...sections].map(({ value, label, requests: rows }) => (
+                <Button type="button" key={value} size="sm" variant={status === value ? "default" : "outline"}
+                  aria-pressed={status === value} onClick={() => updateFilter("stato", value)}>
+                  {label} <span aria-hidden="true" className="ml-1.5 tabular-nums opacity-70">{rows.length}</span>
+                </Button>
+              ))}
+            </div>
+            {visibleSections.length === 0 && (
+              <p role="status" className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Nessuna richiesta corrisponde ai filtri.</p>
+            )}
+            {visibleSections.map((section) => (
+              <RequestsSection key={section.value} title={section.title}
+                description={"description" in section ? section.description : undefined}
+                requests={section.requests} companyById={companyById} />
+            ))}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -202,15 +215,15 @@ function RequestsSection({
 }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-1 px-4 py-3">
         <CardTitle className="text-base">{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="divide-y border-t p-0">
         {requests.map((req) => (
           <div
             key={req.id}
-            className="rounded-lg border bg-card p-3 shadow-sm"
+            className="min-w-0 break-words px-4 py-3"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">

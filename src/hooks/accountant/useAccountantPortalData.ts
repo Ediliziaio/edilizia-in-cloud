@@ -227,10 +227,7 @@ export function useAccountantNotifications() {
         .order("created_at", { ascending: false })
         .limit(50);
 
-      if (error) {
-        console.error("[useAccountantNotifications]", error);
-        return [];
-      }
+      if (error) throw error;
       return (data || []) as AccountantNotificationRow[];
     },
   });
