@@ -1,534 +1,256 @@
-import { RenderAiChiavi } from "@/components/admin/RenderAiChiavi";
-import { useQuery } from "@tanstack/react-query";
-import { format, formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
-  Activity, AlertTriangle, CheckCircle2, Clock, Gauge, RefreshCw,
+  Activity, AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Clock, Gauge, KeyRound,
+  RefreshCw, ShieldAlert,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
+import { AdminHubTabs } from "@/components/admin/AdminHubTabs";
+import { RenderAiChiavi } from "@/components/admin/RenderAiChiavi";
+import { ErroriRecenti, FunzioniMisurate, JobPianificati } from "@/components/admin/platform-health/HealthLists";
+import { dataSalute, formattaPercentuale, latenzaSalute, segnalazioniKey, statoJob, type Salute } from "@/components/admin/platform-health/data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
-interface JobRiga {
-  job: string;
-  schedule?: string;
-  attivo?: boolean;
-  esecuzioni: number;
-  falliti: number;
-  ultima: string | null;
-  ultimo_errore?: string | null;
-  errore?: string | null;
-  ultimo_esito?: string | null;
-  guasto?: boolean;
-}
+export { ErroriRecenti } from "@/components/admin/platform-health/HealthLists";
 
-interface FunzioneRiga {
-  funzione: string;
-  chiamate: number;
-  errori: number;
-  latenza_media_ms: number | null;
-  latenza_max_ms: number | null;
-  ultima: string | null;
-}
+const sezioni = [
+  { id: "panoramica", label: "Panoramica", icon: Activity },
+  { id: "segnalazioni", label: "Segnalazioni", icon: AlertTriangle },
+  { id: "job", label: "Job", icon: Clock },
+  { id: "funzioni", label: "Funzioni", icon: Gauge },
+  { id: "diagnostica", label: "Diagnostica AI", icon: KeyRound },
+] as const;
+type Sezione = typeof sezioni[number]["id"];
 
-interface Salute {
-  riepilogo: {
-    job_totali: number;
-    job_attivi: number;
-    job_con_errori: number;
-    job_singhiozzi: number;
-    funzioni_strumentate: number;
-    funzioni_totali_stimate: number;
-    errori_edge_24h: number;
-    aziende_attive_24h: number;
-    trial_scaduti_da_gestire: number;
-    insoluti_aperti: number;
-    aziende_cancellate_in_attesa: number;
-    disponibilita_24h_pct: number | null;
-    segreti_cron_in_chiaro: number;
-  };
-  job_falliti: JobRiga[];
-  job: JobRiga[];
-  funzioni: FunzioneRiga[];
-  battito?: {
-    stato: {
-      ultimo_esito: string | null;
-      ultimo_controllo: string | null;
-      ultima_durata_ms: number | null;
-      falliti_di_fila: number;
-      controlli_24h: number;
-      falliti_24h: number;
-      disponibilita_24h_pct: number | null;
-    } | null;
-    interruzioni: Array<{ inizio: string; fine: string; controlli_falliti: number }>;
-  };
-  calcolato_il: string;
-}
+const colori = {
+  neutro: "text-foreground",
+  buono: "text-emerald-700 dark:text-emerald-400",
+  attenzione: "text-amber-800 dark:text-amber-400",
+  critico: "text-destructive",
+} as const;
 
-function Tessera({
-  etichetta, valore, dettaglio, tono = "neutro",
-}: {
-  etichetta: string; valore: string | number; dettaglio?: string;
-  tono?: "neutro" | "buono" | "attenzione" | "critico";
+function Misura({ etichetta, valore, dettaglio, tono = "neutro" }: {
+  etichetta: string;
+  valore: string | number;
+  dettaglio?: string;
+  tono?: keyof typeof colori;
 }) {
-  const colori = {
-    neutro: "text-foreground",
-    buono: "text-emerald-600 dark:text-emerald-400",
-    attenzione: "text-amber-600 dark:text-amber-400",
-    critico: "text-destructive",
-  }[tono];
   return (
-    <div className="rounded-lg border bg-card p-3">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{etichetta}</p>
-      <p className={`text-2xl font-semibold tabular-nums leading-tight ${colori}`}>{valore}</p>
-      {dettaglio && <p className="text-xs text-muted-foreground mt-0.5">{dettaglio}</p>}
+    <div className="min-w-0 px-3 py-3 sm:px-5">
+      <dt className="text-xs font-medium text-muted-foreground">{etichetta}</dt>
+      <dd className={cn("mt-0.5 text-2xl font-semibold tracking-tight tabular-nums", colori[tono])}>{valore}</dd>
+      {dettaglio && <dd className="mt-0.5 text-xs text-muted-foreground">{dettaglio}</dd>}
     </div>
   );
 }
 
-/**
- * Salute della piattaforma (F3-02).
- *
- * Prima nessuna schermata mostrava uptime, job falliti, latenza o errori: un
- * guasto si scopriva quando chiamava il cliente. Il job che svuota il cestino
- * documenti ha fallito ogni notte per giorni senza che nessuno lo sapesse.
- */
-export default function PlatformHealthPage() {
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["admin-platform-health"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_platform_health" as never);
-      if (error) throw error;
-      return data as unknown as Salute;
-    },
-    staleTime: 60_000,
-    refetchInterval: 120_000,
-  });
-
-  const r = data?.riepilogo;
-  const battito = data?.battito?.stato ?? null;
-  const interruzioni = data?.battito?.interruzioni ?? [];
-  const jobFalliti = data?.job_falliti ?? [];
-  // Un giro fallito su mille con i successivi a posto è un singhiozzo, non un
-  // guasto: lo si elenca a parte, senza allarme.
-  const guasti = jobFalliti.filter((j) => j.guasto !== false);
-  const singhiozzi = jobFalliti.filter((j) => j.guasto === false);
-  const funzioni = data?.funzioni ?? [];
+function Panoramica({ salute, vai }: { salute: Salute; vai: (tab: Sezione, filtro?: string) => void }) {
+  const { riepilogo, battito } = salute;
+  const sonda = battito?.stato;
+  const interruzioni = battito?.interruzioni ?? [];
+  const storicoJob = new Map(salute.job_falliti.map((job) => [job.job, job]));
+  const jobDaVerificare = salute.job.filter((job) => statoJob(job, storicoJob.get(job.job)) === "guasti").length;
+  const rilevato = sonda?.ultimo_esito === "ok" || sonda?.ultimo_esito === "fallito";
+  const nonRaggiungibile = sonda?.ultimo_esito === "fallito";
+  const IconaSonda = nonRaggiungibile ? AlertTriangle : rilevato ? CheckCircle2 : Activity;
+  const copertura = riepilogo.funzioni_totali_stimate > 0 ? riepilogo.funzioni_strumentate / riepilogo.funzioni_totali_stimate * 100 : null;
+  const anomalie = [
+    ...(jobDaVerificare > 0 ? [{
+      titolo: "Job da verificare",
+      dettaglio: jobDaVerificare + (jobDaVerificare === 1 ? " job attivo con anomalie nelle ultime 48 ore." : " job attivi con anomalie nelle ultime 48 ore."),
+      azione: "Apri job",
+      onClick: () => vai("job", "guasti"),
+      icon: Clock,
+    }] : []),
+    ...(riepilogo.errori_edge_24h > 0 ? [{
+      titolo: "Risposte HTTP con errore",
+      dettaglio: riepilogo.errori_edge_24h + " rilevate nelle ultime 24 ore sulle funzioni misurate.",
+      azione: "Apri segnalazioni",
+      onClick: () => vai("segnalazioni"),
+      icon: AlertTriangle,
+    }] : []),
+    ...(riepilogo.segreti_cron_in_chiaro > 0 ? [{
+      titolo: "Credenziali delle pianificazioni",
+      dettaglio: riepilogo.segreti_cron_in_chiaro + " comandi rilevati con un segreto in chiaro da spostare nel Vault.",
+      azione: null,
+      onClick: undefined,
+      icon: ShieldAlert,
+    }] : []),
+  ];
 
   return (
-    <div className="p-3 md:p-6 space-y-4 max-w-[1600px]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="hidden md:flex items-center gap-3">
-          <Activity className="h-6 w-6 text-blue-500" />
-          <div>
-            <h1 className="text-xl font-semibold">Salute della piattaforma</h1>
-            <p className="text-sm text-muted-foreground">
-              Job pianificati, errori e latenza delle funzioni, cose che richiedono attenzione
-            </p>
+    <div className="space-y-3">
+      <section aria-labelledby="verifica-esterna" className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className={cn("rounded-lg p-2", nonRaggiungibile ? "bg-destructive/10 text-destructive" : rilevato
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-muted text-muted-foreground")}>
+              <IconaSonda aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 id="verifica-esterna" className="text-base font-semibold tracking-tight sm:text-lg">
+                {nonRaggiungibile ? "Ultimo controllo fallito" : rilevato ? "Ultimo controllo riuscito" : "Controllo esterno non disponibile"}
+              </h2>
+              {sonda?.ultimo_controllo && <p className="mt-0.5 text-xs text-muted-foreground">Sonda esterna · {dataSalute(sonda.ultimo_controllo)}</p>}
+            </div>
           </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-4 w-4 md:mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
-          <span className="hidden md:inline">Aggiorna</span>
-        </Button>
-      </div>
-
-      <RenderAiChiavi />
-
-      {error && (
-        <Card><CardContent className="p-6">
-          <p className="text-sm text-destructive">Errore: {(error as Error).message}</p>
-        </CardContent></Card>
-      )}
-
-      {isLoading && (
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-          {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
-        </div>
-      )}
-
-      {r && (
-        <>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <Tessera
-              etichetta="Job guasti"
-              valore={r.job_con_errori}
-              dettaglio={`${r.job_singhiozzi ?? 0} con singhiozzi isolati · ${r.job_attivi} attivi su ${r.job_totali}`}
-              tono={r.job_con_errori > 0 ? "critico" : "buono"}
-            />
-            <Tessera
-              etichetta="Errori funzioni 24h"
-              valore={r.errori_edge_24h}
-              dettaglio={`${r.funzioni_strumentate} funzioni su ${r.funzioni_totali_stimate} misurate`}
-              tono={r.errori_edge_24h > 0 ? "attenzione" : "buono"}
-            />
-            <Tessera
-              etichetta="Aziende attive oggi"
-              valore={r.aziende_attive_24h}
-              dettaglio="sessioni nelle ultime 24 ore"
-            />
-            <Tessera
-              etichetta="Trial da chiudere"
-              valore={r.trial_scaduti_da_gestire}
-              dettaglio="scaduti, in attesa del job notturno"
-              tono={r.trial_scaduti_da_gestire > 0 ? "attenzione" : "buono"}
-            />
-            <Tessera
-              etichetta="Insoluti aperti"
-              valore={r.insoluti_aperti}
-              dettaglio="aziende con pagamento fallito"
-              tono={r.insoluti_aperti > 0 ? "attenzione" : "buono"}
-            />
-            <Tessera
-              etichetta="Cancellate da purgare"
-              valore={r.aziende_cancellate_in_attesa}
-              dettaglio="ripristinabili entro 30 giorni"
-            />
-            <Tessera
-              etichetta="Raggiungibilità 24h"
-              valore={r.disponibilita_24h_pct === null ? "—" : `${r.disponibilita_24h_pct}%`}
-              dettaglio={
-                battito?.ultimo_esito === "fallito"
-                  ? `non risponde da ${battito.falliti_di_fila} controlli`
-                  : `sonda esterna ogni 2 minuti · ${battito?.controlli_24h ?? 0} controlli`
-              }
-              tono={
-                battito?.ultimo_esito === "fallito"
-                  ? "critico"
-                  : (r.disponibilita_24h_pct ?? 100) < 100
-                    ? "attenzione"
-                    : "buono"
-              }
-            />
-            <Tessera
-              etichetta="Segreti cron in chiaro"
-              valore={r.segreti_cron_in_chiaro}
-              dettaglio="devono stare nel Vault, non nel comando"
-              tono={r.segreti_cron_in_chiaro > 0 ? "critico" : "buono"}
-            />
-            <Tessera
-              etichetta="Copertura misurazione"
-              valore={`${Math.round((r.funzioni_strumentate / Math.max(r.funzioni_totali_stimate, 1)) * 100)}%`}
-              dettaglio="funzioni che registrano metriche"
-              tono={r.funzioni_strumentate < 50 ? "attenzione" : "buono"}
-            />
-            <Tessera
-              etichetta="Ultimo calcolo"
-              valore={data?.calcolato_il ? format(new Date(data.calcolato_il), "HH:mm") : "—"}
-              dettaglio="si aggiorna ogni 2 minuti"
-            />
-          </div>
-
-          {interruzioni.length > 0 && (
-            <Card className="border-destructive/40">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-destructive" />
-                  Quando la piattaforma non ha risposto (48 ore)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-muted/40">
-                    <tr className="text-left">
-                      <th className="p-2 font-medium">Inizio</th>
-                      <th className="p-2 font-medium">Fine</th>
-                      <th className="p-2 font-medium text-right">Durata</th>
-                      <th className="p-2 font-medium text-right">Falliti</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {interruzioni.map((i) => {
-                      const minuti = Math.max(
-                        1,
-                        Math.round((new Date(i.fine).getTime() - new Date(i.inizio).getTime()) / 60000),
-                      );
-                      return (
-                        <tr key={i.inizio} className="border-b last:border-0">
-                          <td className="p-2 whitespace-nowrap">{format(new Date(i.inizio), "d MMM HH:mm")}</td>
-                          <td className="p-2 whitespace-nowrap">{format(new Date(i.fine), "d MMM HH:mm")}</td>
-                          <td className="p-2 text-right whitespace-nowrap">{minuti} min</td>
-                          <td className="p-2 text-right">{i.controlli_falliti}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+          {nonRaggiungibile && sonda && <Badge variant="destructive">{sonda.falliti_di_fila} {sonda.falliti_di_fila === 1 ? "controllo fallito" : "controlli falliti di fila"}</Badge>}
+          {sonda && !nonRaggiungibile && sonda.ultima_durata_ms != null && (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">Risposta in {latenzaSalute(sonda.ultima_durata_ms)}</span>
           )}
+        </div>
+        <dl className="grid grid-cols-2 gap-px border-t bg-border [&>div]:bg-card lg:grid-cols-4">
+          <Misura etichetta="Disponibilità · 24 ore" valore={formattaPercentuale(riepilogo.disponibilita_24h_pct)}
+            dettaglio={sonda ? sonda.controlli_24h + " controlli esterni" : undefined} />
+          <Misura etichetta="Job attivi da verificare" valore={jobDaVerificare}
+            dettaglio={riepilogo.job_attivi + " attivi su " + riepilogo.job_totali} tono={jobDaVerificare ? "critico" : "buono"} />
+          <Misura etichetta="Errori HTTP · 24 ore" valore={riepilogo.errori_edge_24h}
+            dettaglio="Sulle funzioni misurate" tono={riepilogo.errori_edge_24h ? "attenzione" : "neutro"} />
+          <Misura etichetta="Copertura delle misure" valore={formattaPercentuale(copertura)}
+            dettaglio={riepilogo.funzioni_strumentate + " su circa " + riepilogo.funzioni_totali_stimate + " funzioni"} />
+        </dl>
+      </section>
 
-          {/* Job e funzioni affiancati su schermo largo. */}
-          <div className="grid gap-4 2xl:grid-cols-2 items-start">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                {guasti.length > 0
-                  ? <AlertTriangle className="h-4 w-4 text-destructive" />
-                  : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-                Job guasti nelle ultime 48 ore
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
-              {guasti.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-6 pb-6">
-                  Nessun job sta fallendo. Se qualcosa si rompe, comparirà qui.
-                </p>
-              ) : (
-                <Table className="min-w-[600px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Job</TableHead>
-                      <TableHead className="text-right">Falliti</TableHead>
-                      <TableHead className="text-right">Esecuzioni</TableHead>
-                      <TableHead>Ultima</TableHead>
-                      <TableHead>Errore</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {guasti.map((j) => (
-                      <TableRow key={j.job}>
-                        <TableCell className="font-mono text-xs font-medium">{j.job}</TableCell>
-                        <TableCell className="text-right tabular-nums text-destructive font-semibold">
-                          {j.falliti}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {j.esecuzioni}
-                        </TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">
-                          {j.ultima ? formatDistanceToNow(new Date(j.ultima), { addSuffix: true, locale: it }) : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs max-w-sm truncate" title={j.errore ?? ""}>
-                          {j.errore ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-              {singhiozzi.length > 0 && (
-                <p className="text-xs text-muted-foreground px-6 pb-5">
-                  Singhiozzi isolati (ultimo giro andato a buon fine, niente da fare):{" "}
-                  {singhiozzi.map((j) => `${j.job} (${j.falliti}/${j.esecuzioni})`).join(", ")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Gauge className="h-4 w-4 text-blue-500" />
-                Funzioni misurate nelle ultime 24 ore
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
-              {funzioni.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-6 pb-6">
-                  Nessuna chiamata registrata. Solo poche funzioni scrivono metriche:
-                  estendere la misurazione è l'intervento F3-01 del piano.
-                </p>
-              ) : (
-                <Table className="min-w-[560px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Funzione</TableHead>
-                      <TableHead className="text-right">Chiamate</TableHead>
-                      <TableHead className="text-right">Errori</TableHead>
-                      <TableHead className="text-right">Latenza media</TableHead>
-                      <TableHead className="text-right">Picco</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {funzioni.map((f) => (
-                      <TableRow key={f.funzione}>
-                        <TableCell className="font-mono text-xs font-medium">{f.funzione}</TableCell>
-                        <TableCell className="text-right tabular-nums">{f.chiamate}</TableCell>
-                        <TableCell className={`text-right tabular-nums ${f.errori > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                          {f.errori}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">
-                          {f.latenza_media_ms ? `${f.latenza_media_ms} ms` : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
-                          {f.latenza_max_ms ? `${f.latenza_max_ms} ms` : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-          </div>
-
-          <ErroriRecenti />
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                Tutti i job pianificati
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
-              <Table className="min-w-[600px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Job</TableHead>
-                    <TableHead>Frequenza</TableHead>
-                    <TableHead className="text-right">24h</TableHead>
-                    <TableHead>Ultima</TableHead>
-                    <TableHead>Stato</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data?.job ?? []).map((j) => (
-                    <TableRow key={j.job}>
-                      <TableCell className="font-mono text-xs">{j.job}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{j.schedule}</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">{j.esecuzioni}</TableCell>
-                      <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-                        {j.ultima ? formatDistanceToNow(new Date(j.ultima), { addSuffix: true, locale: it }) : "mai"}
-                      </TableCell>
-                      <TableCell>
-                        {!j.attivo ? (
-                          <Badge variant="outline" className="text-[10px]">disattivo</Badge>
-                        ) : j.falliti > 0 && j.ultimo_esito !== "succeeded" ? (
-                          <Badge variant="destructive" className="text-[10px]">{j.falliti} errori</Badge>
-                        ) : j.falliti > 0 ? (
-                          <Badge variant="outline" className="text-[10px]">{j.falliti} su {j.esecuzioni}, ultimo ok</Badge>
-                        ) : j.esecuzioni === 0 ? (
-                          <Badge variant="outline" className="text-[10px]">nessuna esecuzione</Badge>
-                        ) : (
-                          <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                            regolare
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </>
-      )}
-    </div>
-  );
-}
-
-interface RigaErrore {
-  origine: string;
-  id: string;
-  avvenuto_il: string;
-  componente: string | null;
-  messaggio: string | null;
-  codice: number | null;
-  azienda_nome: string | null;
-  gravita: string;
-  categoria: "azione_richiesta" | "errore_tecnico";
-  numero_eventi: number;
-  primo_evento: string;
-}
-
-/**
- * Registro errori (F3-04).
- *
- * Gli errori esistevano, ma in Sentry e nei log Supabase: fuori dal prodotto.
- * Dalla segnalazione di un cliente non c'era modo di arrivare all'errore
- * corrispondente senza uscire dalla piattaforma.
- */
-export function ErroriRecenti() {
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["admin-errori-raggruppati"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_errori_raggruppati" as never, {
-        p_ore: 48,
-        p_limit: 100,
-      } as never);
-      if (error) throw error;
-      return (data ?? []) as unknown as RigaErrore[];
-    },
-    staleTime: 60_000,
-    refetchInterval: 120_000,
-  });
-
-  const righe = data ?? [];
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Segnalazioni nelle ultime 48 ore
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Segnalazioni raggruppate per causa. Crediti, carta e abbonamento richiedono un intervento sull’account;
-          gli errori tecnici sono indicati separatamente. Il conteggio conserva tutti gli eventi del gruppo.
-        </p>
-      </CardHeader>
-      <CardContent className="p-0 overflow-x-auto">
-        {isLoading && <div className="p-4"><Skeleton className="h-16 w-full" /></div>}
-        {error && <div role="alert" className="px-6 pb-4 text-sm text-destructive">
-          Non riesco a caricare le segnalazioni.
-          <Button variant="outline" size="sm" className="ml-2" onClick={() => refetch()}>Riprova</Button>
-        </div>}
-        {!isLoading && !error && righe.length === 0 && (
-          <p className="text-sm text-muted-foreground px-6 pb-6">
-            Nessun errore registrato. Man mano che la misurazione si estende alle
-            altre funzioni, questa lista diventerà più rappresentativa.
+      <section aria-labelledby="da-verificare" className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="border-b px-4 py-3 sm:px-5">
+          <h2 id="da-verificare" className="text-base font-semibold">Da verificare</h2>
+        </div>
+        {anomalie.length ? (
+          <ul className="divide-y">
+            {anomalie.map(({ titolo, dettaglio, azione, onClick, icon: Icon }) => (
+              <li key={titolo} className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
+                <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+                <div className="min-w-0 flex-1 basis-48">
+                  <p className="text-sm font-medium">{titolo}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{dettaglio}</p>
+                </div>
+                {azione && <Button type="button" size="sm" variant="outline" onClick={onClick} className="gap-1.5">{azione}<ArrowRight aria-hidden="true" className="h-4 w-4" /></Button>}
+              </li>
+            ))}
+          </ul>
+        ) : <p className="px-4 py-3 text-sm text-muted-foreground sm:px-5">Nessuna anomalia segnalata dai controlli di job e funzioni.</p>}
+        {(riepilogo.job_singhiozzi ?? 0) > 0 && (
+          <p className="border-t px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
+            {riepilogo.job_singhiozzi} {riepilogo.job_singhiozzi === 1 ? "job con un errore isolato ha ripreso a funzionare" : "job con errori isolati hanno ripreso a funzionare"}.
           </p>
         )}
-        {righe.length > 0 && (
-          <Table className="min-w-[640px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ultimo evento</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Occorrenze</TableHead>
-                <TableHead>Origine</TableHead>
-                <TableHead>Componente</TableHead>
-                <TableHead>Messaggio</TableHead>
-                <TableHead>Azienda</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {righe.map((e) => (
-                <TableRow key={`${e.origine}-${e.id}`}>
-                  <TableCell className="text-xs whitespace-nowrap">
-                    {formatDistanceToNow(new Date(e.avvenuto_il), { addSuffix: true, locale: it })}
-                  </TableCell>
-                  <TableCell><Badge variant={e.categoria === "azione_richiesta" ? "outline" : "destructive"}>
-                    {e.categoria === "azione_richiesta" ? "Azione richiesta" : "Errore tecnico"}
-                  </Badge></TableCell>
-                  <TableCell className="tabular-nums" title={`Primo evento: ${format(new Date(e.primo_evento), "dd/MM/yyyy HH:mm", { locale: it })}`}>
-                    {e.numero_eventi}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={e.gravita === "grave" ? "destructive" : "outline"}
-                      className="text-[10px]"
-                    >
-                      {e.origine}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{e.componente ?? "—"}</TableCell>
-                  <TableCell className="text-xs max-w-md truncate" title={e.messaggio ?? ""}>
-                    {e.messaggio ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-xs">{e.azienda_nome ?? "—"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      </section>
+
+      <DettagliPanoramica titolo="Interruzioni rilevate nelle ultime 48 ore" numero={interruzioni.length || undefined}>
+        {interruzioni.length ? (
+          <ul className="divide-y">
+            {interruzioni.map((evento) => (
+              <li key={evento.inizio} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
+                <div>
+                  <span>{dataSalute(evento.inizio)}</span>
+                  {evento.fine !== evento.inizio && <span className="text-muted-foreground"> → {dataSalute(evento.fine)}</span>}
+                </div>
+                <Badge variant="outline">{evento.controlli_falliti} {evento.controlli_falliti === 1 ? "controllo fallito" : "controlli falliti"}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-sm text-muted-foreground">{rilevato ? "Nessuna interruzione rilevata." : "Storico dei controlli non disponibile."}</p>}
+      </DettagliPanoramica>
+
+      <DettagliPanoramica titolo="Aziende e pagamenti">
+        <dl className="grid grid-cols-2 gap-2 rounded-lg border bg-card lg:grid-cols-4">
+          <Misura etichetta="Aziende con accessi" valore={riepilogo.aziende_attive_24h} dettaglio="Ultime 24 ore" />
+          <Misura etichetta="Prove scadute" valore={riepilogo.trial_scaduti_da_gestire} />
+          <Misura etichetta="Insoluti aperti" valore={riepilogo.insoluti_aperti} />
+          <Misura etichetta="Cancellazioni in attesa" valore={riepilogo.aziende_cancellate_in_attesa} dettaglio="Ripristinabili entro 30 giorni" />
+        </dl>
+      </DettagliPanoramica>
+    </div>
+  );
+}
+
+function DettagliPanoramica({ titolo, numero, children }: { titolo: string; numero?: number; children: React.ReactNode }) {
+  return (
+    <details className="group overflow-hidden rounded-xl border bg-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium hover:bg-muted/30 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <span>{titolo} {numero != null && <Badge variant="secondary" className="ml-1 tabular-nums">{numero}</Badge>}</span>
+        <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t bg-muted/20 p-4 sm:px-5">{children}</div>
+    </details>
+  );
+}
+
+export default function PlatformHealthPage() {
+  const [params, setParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+    queryKey: ["admin-platform-health"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_platform_health");
+      if (error) throw error;
+      const salute = data as unknown as Salute | null;
+      if (!salute?.riepilogo || !Array.isArray(salute.job) || !Array.isArray(salute.job_falliti) || !Array.isArray(salute.funzioni)) {
+        throw new Error("Verifica della piattaforma incompleta");
+      }
+      return salute;
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+  const fetchingSegnalazioni = useIsFetching({ queryKey: segnalazioniKey });
+  const isUpdating = isFetching || fetchingSegnalazioni > 0;
+  const tab = sezioni.find((section) => section.id === params.get("tab"))?.id ?? "panoramica";
+
+  function vai(sezione: Sezione, filtro?: string) {
+    setParams((old) => {
+      const next = new URLSearchParams(old);
+      if (sezione === "panoramica") next.delete("tab");
+      else next.set("tab", sezione);
+      if (filtro) next.set("filtro", filtro);
+      else next.delete("filtro");
+      return next;
+    }, { replace: true });
+  }
+
+  function aggiorna() {
+    void refetch();
+    void queryClient.invalidateQueries({ queryKey: segnalazioniKey });
+  }
+
+  return (
+    <div className="mx-auto max-w-[1500px] space-y-3 p-3 pb-20 sm:p-5 md:pb-5">
+      <AdminHeroHeader
+        icon={Activity}
+        title="Salute piattaforma"
+        actions={<>
+          {data?.calcolato_il && (
+            <span className="text-xs text-blue-50/85">Dati del {dataSalute(data.calcolato_il, "d MMM · HH:mm")}</span>
+          )}
+          <Button type="button" variant="outline" size="sm" disabled={isUpdating} onClick={aggiorna}>
+            <RefreshCw aria-hidden="true" className={cn("mr-1.5 h-4 w-4", isUpdating && "animate-spin")} /> Aggiorna
+          </Button>
+        </>}
+      />
+      <AdminHubTabs activeTab={tab} onChange={vai} tabs={[...sezioni]} ariaLabel="Sezioni salute piattaforma" className="[&>nav]:flex-wrap sm:[&>nav]:flex-nowrap" />
+
+      {isError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-card p-3 text-sm">
+          <span>{data ? "Aggiornamento non riuscito. Sono visibili i dati dell’ultimo controllo disponibile." : "Impossibile caricare la panoramica della piattaforma."}</span>
+          <Button type="button" size="sm" variant="outline" onClick={aggiorna}>Riprova</Button>
+        </div>
+      )}
+
+      <section role="tabpanel" id={"hub-panel-" + tab} aria-labelledby={"hub-tab-" + tab}>
+        {tab !== "segnalazioni" && tab !== "diagnostica" && isLoading && (
+          <div role="status" aria-label="Caricamento della salute della piattaforma" className="space-y-3"><Skeleton className="h-36 w-full" /><Skeleton className="h-24 w-full" /></div>
         )}
-      </CardContent>
-    </Card>
+        {tab === "panoramica" && data && <Panoramica salute={data} vai={vai} />}
+        {tab === "segnalazioni" && <ErroriRecenti />}
+        {tab === "job" && data && <JobPianificati key={params.get("filtro")} job={data.job} jobFalliti={data.job_falliti}
+          riferimento={data.calcolato_il} filtroIniziale={params.get("filtro") === "guasti" ? "guasti" : "tutti"} />}
+        {tab === "funzioni" && data && <FunzioniMisurate funzioni={data.funzioni} />}
+        <div hidden={tab !== "diagnostica"}><RenderAiChiavi /></div>
+      </section>
+    </div>
   );
 }
