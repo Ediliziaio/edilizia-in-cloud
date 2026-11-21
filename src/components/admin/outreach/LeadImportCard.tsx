@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
 import Papa from "papaparse";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { outreachRpc } from "./outreachRpc";
+import { numeroWhatsAppOperativo } from "../../../../supabase/functions/_shared/telefonoE164";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,11 +63,12 @@ function autoMap(headers: string[]): Mapping {
 }
 
 type Result = {
-  total: number; imported: number; errors: number;
-  skippedNoContact: number; skippedDupFile: number; skippedDupDb: number; skippedLowQuality: number;
+  total: number; imported: number; reused: number; conflicts: number; errors: number;
+  skippedNoContact: number; skippedDupFile: number; skippedLowQuality: number;
 };
 
 export function LeadImportCard({ companyId, onImported }: { companyId: string; onImported?: () => void }) {
+  const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<"idle" | "mapping" | "importing" | "done">("idle");
   const [fileName, setFileName] = useState("");
@@ -133,86 +136,82 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
 
   function buildContacts() {
     const seen = new Set<string>();
-    const contacts: Record<string, unknown>[] = [];
+    const phonesByEmail = new Map<string, Set<string>>();
+    const emailsByPhone = new Map<string, Set<string>>();
+    const contacts: Array<Record<string, string | null> & { email: string | null; phone: string | null }> = [];
     let skippedNoContact = 0, skippedDupFile = 0, skippedLowQuality = 0;
-    const nowIso = new Date().toISOString();
-    const tag = listTag.trim() || "import";
 
     for (const row of rows) {
       const get = (f: Field) => (mapping[f] ? String(row[mapping[f] as string] ?? "").trim() : "");
       const email = get("email").toLowerCase();
-      const phone = get("phone");
+      const phone = numeroWhatsAppOperativo(get("phone"));
       if (!email && !phone) { skippedNoContact++; continue; }
       if (excludeLowQuality && email && isLowQuality(classifyEmail(email))) { skippedLowQuality++; continue; }
-      const key = email || phone;
+      const key = JSON.stringify([email || null, phone]);
       if (seen.has(key)) { skippedDupFile++; continue; }
       seen.add(key);
+      if (email && phone) {
+        const phones = phonesByEmail.get(email) ?? new Set<string>();
+        phones.add(phone);
+        phonesByEmail.set(email, phones);
+        const emails = emailsByPhone.get(phone) ?? new Set<string>();
+        emails.add(email);
+        emailsByPhone.set(phone, emails);
+      }
       const firstName = get("first_name") || (email ? email.split("@")[0] : "") || get("company_name") || "Lead";
       contacts.push({
-        company_id: companyId,
         first_name: firstName,
         last_name: get("last_name") || null,
         email: email || null,
-        phone: phone || null,
+        phone: phone ? `+${phone}` : null,
         company_name: get("company_name") || null,
         city: get("city") || null,
         province: get("province").toUpperCase().slice(0, 4) || null,
         website: get("website") || null,
         vat_number: get("vat_number").replace(/\s+/g, "") || null,
         notes: get("notes") || null,
-        tags: [tag],
-        source: "csv_import",
-        last_activity_at: nowIso,
       });
     }
-    return { contacts, skippedNoContact, skippedDupFile, skippedLowQuality };
-  }
-
-  /** Quali email esistono già nel DB per questa company (chunk di .in() per non scaricare l'intera tabella). */
-  async function existingEmails(emails: string[]): Promise<Set<string>> {
-    const set = new Set<string>();
-    const uniq = [...new Set(emails)];
-    for (let i = 0; i < uniq.length; i += BATCH) {
-      const chunk = uniq.slice(i, i + BATCH);
-      const { data, error } = await supabase
-        .from("marketing_contacts").select("email").eq("company_id", companyId).in("email", chunk);
-      // Se la query dedup fallisce (rete/RLS) NON proseguire: prima l'errore veniva
-      // ingoiato e il set restava vuoto → tutte le righe risultavano "nuove" e
-      // venivano reimportate come duplicati. Meglio abortire con errore chiaro.
-      if (error) throw new Error(`Verifica duplicati fallita: ${error.message}`);
-      data?.forEach((r) => r.email && set.add(r.email.toLowerCase()));
-    }
-    return set;
+    const puliti = contacts.filter((c) => (!c.email || (phonesByEmail.get(c.email)?.size ?? 0) <= 1)
+      && (!c.phone || (emailsByPhone.get(c.phone)?.size ?? 0) <= 1));
+    // Le righe che hanno un solo recapito seguono quelle con entrambi, così la
+    // rubrica può riusare il contatto appena creato senza perderne il recapito.
+    puliti.sort((a, b) => Number(!!b.email && !!b.phone) - Number(!!a.email && !!a.phone));
+    return { contacts: puliti, skippedNoContact, skippedDupFile, skippedLowQuality, conflicts: contacts.length - puliti.length };
   }
 
   async function runImport() {
-    setPhase("importing"); setProgress(0);
-    try {
-      const { contacts, skippedNoContact, skippedDupFile, skippedLowQuality } = buildContacts();
-      if (!contacts.length) {
-        toast.error("Nessun contatto valido: serve almeno email o telefono mappati.");
-        setPhase("mapping"); return;
+    setPhase("importing");
+    setProgress(0);
+    const prepared = buildContacts();
+    const { contacts } = prepared;
+    const tag = listTag.trim() || "import";
+    const report: Result = {
+      total: rows.length, imported: 0, reused: 0, conflicts: prepared.conflicts, errors: 0,
+      skippedNoContact: prepared.skippedNoContact, skippedDupFile: prepared.skippedDupFile, skippedLowQuality: prepared.skippedLowQuality,
+    };
+    for (let i = 0; i < contacts.length; i += BATCH) {
+      const batch = contacts.slice(i, i + BATCH);
+      try {
+        const saved = await outreachRpc<{ importati: number; riusati: number; conflitti: number; non_validi: number }>(
+          "outreach_importa_contatti", { p_company: companyId, p_tag: tag, p_rows: batch },
+        );
+        report.imported += saved.importati;
+        report.reused += saved.riusati;
+        report.conflicts += saved.conflitti;
+        report.errors += saved.non_validi;
+      } catch {
+        report.errors += batch.length;
       }
-      const withEmail = contacts.map((c) => c.email as string | null).filter((e): e is string => !!e);
-      const dbExisting = await existingEmails(withEmail);
-      const toInsert = contacts.filter((c) => !c.email || !dbExisting.has(c.email as string));
-      const skippedDupDb = contacts.length - toInsert.length;
-
-      let imported = 0, errors = 0;
-      for (let i = 0; i < toInsert.length; i += BATCH) {
-        const batch = toInsert.slice(i, i + BATCH);
-        const { error } = await supabase.from("marketing_contacts").insert(batch as never);
-        if (error) errors += batch.length; else imported += batch.length;
-        setProgress(Math.round(((i + batch.length) / toInsert.length) * 100));
-      }
-
-      setResult({ total: rows.length, imported, errors, skippedNoContact, skippedDupFile, skippedDupDb, skippedLowQuality });
-      setPhase("done");
-      if (imported > 0) { toast.success(`${imported} contatti importati nella lista "${listTag.trim() || "import"}"`); onImported?.(); }
-      else toast.info("Nessun nuovo contatto importato (tutti duplicati o senza recapito).");
-    } catch (e) {
-      toast.error(`Import fallito: ${e instanceof Error ? e.message : "errore sconosciuto"}`);
-      setPhase("mapping");
+      setProgress(Math.round(((i + batch.length) / contacts.length) * 100));
+    }
+    setResult(report);
+    setPhase("done");
+    if (report.imported > 0 || report.reused > 0) {
+      void qc.invalidateQueries({ queryKey: ["outreach-lists", companyId] });
+      void qc.invalidateQueries({ queryKey: ["outreach-count"] });
+      void qc.invalidateQueries({ queryKey: ["enroll-facets", companyId] });
+      onImported?.();
     }
   }
 
@@ -313,7 +312,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
               <Label className="flex items-center gap-1.5 text-xs" htmlFor="list-tag">
                 <Tag className="h-3 w-3 text-muted-foreground" /> Tag di lista (applicato a tutti i contatti)
               </Label>
-              <Input id="list-tag" value={listTag} onChange={(e) => setListTag(e.target.value)} className="h-9" placeholder="es. import-fiere-2026" />
+              <Input id="list-tag" value={listTag} maxLength={200} onChange={(e) => setListTag(e.target.value)} className="h-9" placeholder="es. import-fiere-2026" />
             </div>
 
             <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-muted/30 p-2.5 text-xs text-muted-foreground">
@@ -358,7 +357,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
                 <CheckCircle2 className="h-5 w-5" />
               </span>
               <div>
-                <div className="text-sm font-semibold text-emerald-700">{result.imported.toLocaleString("it-IT")} contatti importati</div>
+                <div className="text-sm font-semibold text-emerald-700">{result.imported.toLocaleString("it-IT")} nuovi · {result.reused.toLocaleString("it-IT")} dalla rubrica</div>
                 <div className="text-xs text-emerald-600/80">nella lista "{listTag.trim() || "import"}"</div>
               </div>
             </div>
@@ -369,8 +368,11 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
               <Stat label="Senza recapito" value={result.skippedNoContact} />
               <Stat label="Bassa qualità" value={result.skippedLowQuality} />
               <Stat label="Duplicati nel file" value={result.skippedDupFile} />
-              <Stat label="Già in rubrica" value={result.skippedDupDb} />
+              <Stat label="Riutilizzati dalla rubrica" value={result.reused} />
+              <Stat label="Recapiti in conflitto" value={result.conflicts} tone={result.conflicts ? "bad" : "default"} />
             </div>
+            {result.errors > 0 && <p role="alert" className="text-sm text-destructive">Alcune righe non sono state importate. Puoi riprovare con lo stesso file.</p>}
+            {result.conflicts > 0 && <p className="text-sm text-muted-foreground">Controlla le righe con email o telefono associati a recapiti diversi.</p>}
             <Button onClick={reset} variant="outline" className="gap-2"><RotateCcw className="h-4 w-4" /> Importa un'altra lista</Button>
           </div>
         )}

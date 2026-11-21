@@ -1,3 +1,4 @@
+import { arruolaPagine } from "@/components/admin/outreach/enrollPages";
 /**
  * CrmMapTab — tab "Mappa" della dashboard commerciale CRM.
  *
@@ -424,13 +425,14 @@ export function CrmMapTab({ companyId }: { companyId: string }) {
     mutationFn: async () => {
       if (!sequenceId) throw new Error("Scegli una sequenza");
       if (!selProspectIds.length) throw new Error("Nessun prospect selezionato");
-      const { data, error } = await supabase.functions.invoke("outreach-enroll", {
-        body: { sequence_id: sequenceId, contact_ids: selProspectIds },
-      });
-      if (error) throw error;
-      return Number((data as { enrolled?: number } | null)?.enrolled ?? selProspectIds.length);
+      return arruolaPagine({ sequence_id: sequenceId, contact_ids: selProspectIds }, { quanti: selProspectIds.length });
     },
-    onSuccess: (n) => { toast.success(`${n} contatti iscritti alla sequenza`); setEnrollOpen(false); setSelectedIds(new Set()); },
+    onSuccess: (report) => {
+      toast.success(`${report.enrolled} contatti iscritti alla sequenza`, {
+        description: report.altri ? "Ci sono ancora contatti da esaminare. Ripeti l'iscrizione." : undefined,
+      });
+      if (!report.altri) { setEnrollOpen(false); setSelectedIds(new Set()); }
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
   });
 

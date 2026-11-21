@@ -136,11 +136,11 @@ function Sonda(): null {
   return null;
 }
 
-function mostra() {
+function mostra(url = "/admin/marketing") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/admin/marketing"]}>
+      <MemoryRouter initialEntries={[url]}>
         <Sonda />
         <OutreachMailClient companyId="00000000-0000-0000-0000-000000000001" />
       </MemoryRouter>
@@ -172,6 +172,22 @@ beforeEach(() => {
   markRead.mutate.mockReset();
 });
 afterEach(cleanup);
+
+it("il link da Oggi apre la risposta esatta e lascia la lettura sotto controllo dell'operatore", () => {
+  const id = "00000000-0000-4000-8000-000000000121";
+  dati.conversations = [conv({
+    key: "vecchia", nome: "Risposta puntuale", tipo: "risposta", unread: true, replyIds: [id], unreadReplyIds: [id],
+    messages: [{ id: `r:${id}`, direction: "in", subject: "Richiesta precedente", body: "Risposta collegata",
+      at: "2026-06-22T12:00:00Z", intent: "interested", senderAccountId: null }],
+  })];
+  mostra(`/admin/marketing?tab=posta&risposta=${id}`);
+  expect(within(lettura()).getByText("Risposta collegata")).toBeInTheDocument();
+  expect(markRead.mutate).not.toHaveBeenCalled();
+  fireEvent.click(within(lettura()).getByRole("button", { name: "Segna come letta" }));
+  expect(markRead.mutate).toHaveBeenCalledWith({ replyIds: [id] });
+  fireEvent.click(within(lettura()).getByRole("button", { name: "Indietro" }));
+  expect(screen.queryByText("Risposta collegata")).toBeNull();
+});
 
 describe("dividere la posta per brand", () => {
   it("in alto i brand attivi; quelli in pausa senza posta restano fuori", () => {

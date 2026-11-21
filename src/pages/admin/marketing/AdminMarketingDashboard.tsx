@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
@@ -16,7 +16,7 @@ import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueSt
 import { OutreachPilotPulse } from "@/components/admin/outreach/OutreachPilotPulse";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachMailClient, PostaUnreadBadge } from "@/components/admin/outreach/OutreachMailClient";
-import { OutreachHotQueue } from "@/components/admin/outreach/OutreachHotQueue";
+import { OutreachTodayTasks } from "@/components/admin/outreach/OutreachTodayTasks";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
 import { OutreachCallTasks } from "@/components/admin/outreach/OutreachCallTasks";
 import { OutreachRubricaCard } from "@/components/admin/outreach/OutreachRubricaCard";
@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Reveal } from "@/components/admin/Reveal";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import { CrmChannelResultsCard } from "@/components/admin/crm-dashboard/CrmChannelResultsCard";
+import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
   Radar, Mail, MessageSquare, Smartphone, Phone, Workflow, ArrowRight, Inbox, BarChart3,
@@ -83,7 +84,8 @@ function Shortcut({ to, icon: Icon, label, desc }: { to: string; icon: typeof Ma
 
 function OutreachCockpit() {
   const { companyId } = useAdminMarketing();
-  const [tab, setTab] = useState("oggi");
+  const [params, setParams] = useSearchParams();
+  const chiamata = params.get("chiamata");
   // La campagna scelta è la stessa in Pipeline e Statistiche.
   const campagne = useCampagnaScelta(companyId);
 
@@ -105,6 +107,16 @@ function OutreachCockpit() {
     { value: "statistiche", icon: BarChart3, label: "Statistiche" },
     { value: "deliverability", icon: ShieldCheck, label: "Deliverability" },
   ];
+  const tab = tabs.find((entry) => entry.value === params.get("tab"))?.value ?? "oggi";
+  const setTab = (value: string) => {
+    if (value === tab) return;
+    const next = new URLSearchParams(params);
+    if (value === "oggi") next.delete("tab");
+    else next.set("tab", value);
+    if (value !== "posta") next.delete("risposta");
+    if (value !== "lead") next.delete("chiamata");
+    setParams(next);
+  };
 
   return (
     <div className="min-h-full bg-muted/30">
@@ -137,19 +149,16 @@ function OutreachCockpit() {
             </TabsList>
           </div>
 
-          {/* ── OGGI ──
-              Gerarchia "cockpit vivo": prima il motore in funzione (invii,
-              pilota, funnel), poi ciò che richiede AZIONE oggi (posta+attività),
-              infine la rubrica come contesto e le scorciatoie. La rubrica
-              (89k contatti, statica) prima stava in cima e spingeva giù i dati
-              live. A motore avviato il setup è un banner slim. */}
           <TabsContent value="oggi" className="mt-5 space-y-6">
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(21rem,26rem)]">
+              <OutreachTodayTasks companyId={companyId} />
+              <OutreachQueueStatus companyId={companyId} />
+            </div>
             <OutreachSetupChecklist companyId={companyId} />
             <OutreachLaunchReadiness companyId={companyId} />
 
             <Reveal className="space-y-3">
               <SectionLabel>Motore &amp; performance</SectionLabel>
-              <OutreachQueueStatus companyId={companyId} />
               <OutreachPilotPulse companyId={companyId} />
               {/* Il funnel completo (aperture/clic/risposte + trend) vive nella
                   tab Statistiche: qui basta il polso del motore (coda + pilota). */}
@@ -164,19 +173,10 @@ function OutreachCockpit() {
               </button>
             </Reveal>
 
-            {/* Da computer due colonne: risposte da lavorare accanto ai numeri
-                per canale (prima una sotto l'altra, metà schermo vuoto). */}
-            <div className="grid items-start gap-6 xl:grid-cols-2">
-              <Reveal className="space-y-3" delay={0.06}>
-                <SectionLabel>Risposte calde</SectionLabel>
-                <OutreachHotQueue companyId={companyId} onOpenMailbox={() => setTab("posta")} />
-              </Reveal>
-
-              <Reveal className="space-y-3" delay={0.09}>
-                <SectionLabel>Per canale</SectionLabel>
-                <CrmChannelResultsCard companyId={companyId} days={7} />
-              </Reveal>
-            </div>
+            <Reveal className="space-y-3" delay={0.09}>
+              <SectionLabel>Per canale</SectionLabel>
+              <CrmChannelResultsCard companyId={companyId} days={7} />
+            </Reveal>
 
             <Reveal className="space-y-3" delay={0.12}>
               <SectionLabel>Rubrica &amp; deliverability</SectionLabel>
@@ -221,6 +221,7 @@ function OutreachCockpit() {
             contatti" (import + scraper/CRM) compatto, infine strumenti
             secondari (playground AI, conformità) sotto una loro sezione. */}
         <TabsContent value="lead" className="mt-4 space-y-6">
+          {chiamata && <OutreachCallTasks companyId={companyId} focusId={chiamata} />}
           {/* Layout denso stile Instantly: liste protagoniste a sinistra,
               operatività (chiamate da fare, import, scorciatoie) a destra.
               Sotto xl le sezioni tornano impilate nello stesso ordine. */}
@@ -231,10 +232,10 @@ function OutreachCockpit() {
             </Reveal>
 
             <div className="space-y-6">
-              <Reveal className="space-y-3" delay={0.03}>
+              {!chiamata && <Reveal className="space-y-3" delay={0.03}>
                 <SectionLabel>Chiamate da fare</SectionLabel>
                 <OutreachCallTasks companyId={companyId} />
-              </Reveal>
+              </Reveal>}
 
               <Reveal className="space-y-3" delay={0.06}>
                 <SectionLabel>Aggiungi contatti</SectionLabel>
@@ -283,8 +284,9 @@ function OutreachCockpit() {
         </TabsContent>
 
         {/* ── STATISTICHE ── per campagna, o la panoramica di tutte. */}
-        <TabsContent value="statistiche" className="mt-4">
+        <TabsContent value="statistiche" className="mt-4 space-y-6">
           <StatisticheCampagne companyId={companyId} sc={campagne} onVaiSequenze={() => setTab("sequenze")} />
+          <CrmSpeedToLead companyId={companyId} days={30} />
         </TabsContent>
 
         {/* ── DELIVERABILITY ──

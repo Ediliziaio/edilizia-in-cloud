@@ -35,11 +35,13 @@ describe("I link restano sul dominio di chi scrive", () => {
 describe("Il tetto dei nuovi contatti è separato dai follow-up", () => {
   const dispatch = leggi("supabase/functions/outreach-dispatch/index.ts");
   const enroll = leggi("supabase/functions/outreach-enroll/index.ts");
+  const liste = leggi("supabase/migrations/20290506131000_outreach_liste_operabili.sql");
   const singolo = leggi("supabase/functions/outreach-send-single/index.ts");
   const migrazione = leggi("supabase/migrations/20280914000004_outreach_link_brand_e_nuovi_al_giorno.sql");
 
   it("chi accoda dice se è un primo contatto", () => {
-    expect(enroll).toContain("primo_contatto: true");
+    expect(enroll).toContain('admin.rpc("outreach_accoda_iscrizioni"');
+    expect(liste).toMatch(/scheduled_for,primo_contatto\)[\s\S]*?n\.next_action_at,true/);
     expect(singolo).toContain("primo_contatto: true");
     // i follow-up no
     expect(dispatch).toContain("scheduled_for: whenJ,\n    primo_contatto: false,");
@@ -74,7 +76,8 @@ describe("Il tetto dei nuovi contatti è separato dai follow-up", () => {
   });
 
   it("l'arruolamento lavora a ondate, anche da una lista automatica, e non salta la blocklist in silenzio", () => {
-    expect(enroll).toContain('.from("marketing_contact_list_members")');
+    expect(enroll).toContain('admin.rpc("outreach_candidati_lista"');
+    expect(liste).toContain("public.marketing_contact_list_members");
     expect(enroll).toContain("for (let i = 0; i < puliti.length && eligible.length < quanti; i += GRUPPO_MX)");
     expect(enroll).toContain("if (supErr) throw supErr;");
     expect(enroll).toContain("BUDGET_VALUTAZIONE_MS");

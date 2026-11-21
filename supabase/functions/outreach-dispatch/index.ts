@@ -477,12 +477,8 @@ async function processAdvanceQueue(
   result: { processed: number; deferred: number; skipped: number },
 ): Promise<void> {
   const { data: rows, error } = await supabase
-    .from("outreach_send_queue")
-    .select("id, enrollment_id, contact_id, brand_id, node_id")
-    .eq("status", "queued").eq("kind", "advance")
-    .lte("scheduled_for", now.toISOString())
-    .order("scheduled_for", { ascending: true })
-    .limit(BATCH);
+    .rpc("outreach_coda_multicanale", { p_kind: "advance", p_channels: null, p_limit: BATCH })
+    .select("id, enrollment_id, contact_id, brand_id, node_id");
   if (error) throw error; // 'kind' assente → gestito dal chiamante
   if (!rows || rows.length === 0) return;
 
@@ -568,13 +564,8 @@ async function processMessageChannelQueue(
   result: { processed: number; sent: number; failed: number; skipped: number; deferred: number },
 ): Promise<void> {
   const { data: rows, error } = await supabase
-    .from("outreach_send_queue")
-    .select("id, channel, to_phone, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, node_id")
-    .eq("status", "queued").eq("kind", "send")
-    .in("channel", ["whatsapp", "sms"])
-    .lte("scheduled_for", now.toISOString())
-    .order("scheduled_for", { ascending: true })
-    .limit(BATCH);
+    .rpc("outreach_coda_multicanale", { p_kind: "send", p_channels: ["whatsapp", "sms"], p_limit: BATCH })
+    .select("id, channel, to_phone, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, node_id");
   if (error) throw error; // colonna assente (pre-migrazione) → gestito dal chiamante
   if (!rows || rows.length === 0) return;
 
@@ -722,12 +713,8 @@ async function processCallQueue(
   result: { processed: number; sent: number; failed: number; skipped: number; deferred: number },
 ): Promise<void> {
   const { data: rows, error } = await supabase
-    .from("outreach_send_queue")
-    .select("id, to_phone, body, contact_id, enrollment_id, brand_id, node_id")
-    .eq("status", "queued").eq("kind", "send").eq("channel", "call")
-    .lte("scheduled_for", now.toISOString())
-    .order("scheduled_for", { ascending: true })
-    .limit(BATCH);
+    .rpc("outreach_coda_multicanale", { p_kind: "send", p_channels: ["call"], p_limit: BATCH })
+    .select("id, to_phone, body, contact_id, enrollment_id, brand_id, node_id");
   if (error) throw error;
   if (!rows || rows.length === 0) return;
 
@@ -1424,7 +1411,7 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
         // "In pausa" sulla SEQUENZA: prima il dispatcher non la leggeva e
         // continuava a spedire; le righe restano in coda finche' si riprende.
         const st = statoSequenza.get(enr.sequence_id);
-        if (st === "paused" || st === "archived") { result.deferred++; return; }
+        if (st !== "active") { result.deferred++; return; }
         if (TERMINAL_ENROLLMENT.has(enr.status)) {
           await supabase.from("outreach_send_queue")
             .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", item.id);

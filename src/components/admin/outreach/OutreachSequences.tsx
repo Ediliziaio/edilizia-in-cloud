@@ -15,6 +15,7 @@ import {
   Sparkles, Eye, Copy, LayoutTemplate, Info, Network, Pencil, Check, X, Trash2, ListPlus, CheckCircle2 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { OutreachEnrollDialog } from "./OutreachEnrollDialog";
+import { OutreachLaunchPreview } from "./OutreachLaunchPreview";
 import { OutreachSequenceFlowBuilder } from "./OutreachSequenceFlowBuilder";
 import { OutreachSequenceStats } from "./OutreachSequenceStats";
 import { OutreachAbzPanel } from "./OutreachAbzPanel";
@@ -83,6 +84,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   // Sequenza aperta nel builder visuale a nodi (dialog fullscreen).
   const [flowSeq, setFlowSeq] = useState<Seq | null>(null);
+  const [launchSeq, setLaunchSeq] = useState<Seq | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -103,7 +105,10 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
     },
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["outreach-sequences", companyId] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["outreach-sequences", companyId] });
+    void qc.invalidateQueries({ queryKey: ["outreach-queue-status", companyId] });
+  };
 
   const brands = useQuery({
     queryKey: ["outreach-brands", companyId],
@@ -171,7 +176,8 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
 
   const setStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await db.from(T_SEQ).update({ status }).eq("id", id);
+      if (status === "active") throw new Error("Apri l’anteprima per attivare la sequenza.");
+      const { error } = await db.from(T_SEQ).update({ status }).eq("company_id", companyId).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => invalidate(),
@@ -363,7 +369,10 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
               onRename={(name) => renameSeq.mutate({ id: seq.id, name })}
               brands={brands.data ?? []}
               onSetBrand={(brandId) => setBrand.mutate({ id: seq.id, brandId })}
-              onSetStatus={(status) => setStatus.mutate({ id: seq.id, status })}
+              onSetStatus={(status) => {
+                if (status === "active" && seq.status !== "active") setLaunchSeq(seq);
+                else if (status !== seq.status) setStatus.mutate({ id: seq.id, status });
+              }}
               onOpenFlow={() => setFlowSeq(seq)}
               onDuplicate={() => dupSeq.mutate(seq)}
               onDelete={() => delSeq.mutate(seq.id)}
@@ -401,6 +410,14 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
           trackOpens={flowSeq.track_opens === true}
         />
       )}
+      {launchSeq && <OutreachLaunchPreview
+        companyId={companyId} sequenceId={launchSeq.id} sequenceName={launchSeq.name} resume={launchSeq.status === "paused"}
+        onClose={() => setLaunchSeq(null)} onLaunched={() => {
+          setLaunchSeq(null);
+          invalidate();
+          toast.success("Sequenza attiva");
+        }}
+      />}
     </div>
   );
 }
@@ -483,13 +500,14 @@ function SequenceHeader({
           companyId={companyId}
           sequenceId={seq.id}
           sequenceName={seq.name}
+          sequenceStatus={seq.status}
           emailStepCount={steps.filter((s) => s.channel === "email").length}
           onEnrolled={onEnrolled}
         />
         <Select value={seq.status} onValueChange={onSetStatus}>
           <SelectTrigger className="h-8 w-[104px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="draft">Bozza</SelectItem><SelectItem value="active">Attiva</SelectItem>
+            <SelectItem value="draft">Bozza</SelectItem><SelectItem value="active">{seq.status === "paused" ? "Riprendi" : "Attiva"}</SelectItem>
             <SelectItem value="paused">In pausa</SelectItem><SelectItem value="archived">Archiviata</SelectItem>
           </SelectContent>
         </Select>
