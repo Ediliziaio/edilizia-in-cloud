@@ -166,7 +166,7 @@ describe("Google Solar autentico e misura delle falde", () => {
     expect(solar).toContain("Source: Includes solar data from Google");
   });
   it("stima un piano robusto senza usare il comignolo come pendenza del tetto", () => {
-    const ps = [];
+    const ps: Array<{ x: number; y: number; z: number }> = [];
     for (let y = -5; y <= 5; y++) {
       for (let x = -5; x <= 5; x++) {
         ps.push({
