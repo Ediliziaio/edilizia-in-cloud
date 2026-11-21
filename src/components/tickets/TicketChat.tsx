@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,34 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon, MessageSquare, Upload, Sparkles, BookOpen } from "lucide-react";
+import { Send, Loader2, User, Paperclip, X, FileText, Image as ImageIcon, MessageSquare, Upload, Sparkles, BookOpen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/formatters";
 import type { TicketMessage } from "@/types/tickets";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { LinkAllegatoTicket } from "./LinkAllegatoTicket";
+import { TICKET_ATTACHMENTS_BUCKET } from "@/lib/tickets/allegato";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_TYPES = "image/*,.pdf,.doc,.docx,.xls,.xlsx";
 
-function isImageUrl(url: string) {
-  return /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(url);
-}
-
-function getFileName(url: string) {
-  try {
-    const parts = url.split("/");
-    const last = parts[parts.length - 1];
-    // Remove UUID prefix if present (format: uuid-filename)
-    const match = last.match(/^[0-9a-f-]{36}-(.+)$/i);
-    return match ? decodeURIComponent(match[1]) : decodeURIComponent(last);
-  } catch {
-    return "file";
-  }
-}
-
 interface TicketChatProps {
   ticketId: string;
   messages: TicketMessage[];
+  olderMessages?: {
+    load: () => Promise<unknown>;
+    loading: boolean;
+    refreshing: boolean;
+    error: boolean;
+  };
   customerId?: string;
   disabled?: boolean;
   disabledMessage?: string;
@@ -81,6 +73,7 @@ function ToolbarIconButton({
 export function TicketChat({
   ticketId,
   messages,
+  olderMessages,
   customerId: _customerId,
   disabled = false,
   disabledMessage,
@@ -90,7 +83,9 @@ export function TicketChat({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const previousLastMessage = useRef<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
@@ -128,9 +123,14 @@ export function TicketChat({
     setSelectedFile(file);
   };
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const lastMessageId = messages.at(-1)?.id;
+  useLayoutEffect(() => {
+    const list = messageListRef.current;
+    if (!list) return;
+    // Il browser mantiene l'ancoraggio sul messaggio visibile mentre si apre lo storico.
+    if (previousLastMessage.current !== lastMessageId && followLatest.current) list.scrollTop = list.scrollHeight;
+    previousLastMessage.current = lastMessageId;
+  }, [lastMessageId]);
 
   useEffect(() => {
     const channel = supabase
@@ -178,18 +178,11 @@ export function TicketChat({
     }
     const path = `${ticketId}/${crypto.randomUUID()}-${file.name}`;
     const { error } = await supabase.storage
-      .from("ticket-attachments")
+      .from(TICKET_ATTACHMENTS_BUCKET)
       .upload(path, file, { contentType: file.type });
     if (error) throw error;
 
-    const { data: signedData, error: signedErr } = await supabase.storage
-      .from("ticket-attachments")
-      .createSignedUrl(path, 60 * 60 * 24); // 24 hours
-
-    if (signedErr || !signedData?.signedUrl) {
-      return path;
-    }
-    return signedData.signedUrl;
+    return path;
   };
 
   const sendMessageMutation = useMutation({
@@ -223,6 +216,7 @@ export function TicketChat({
       if (error) throw error;
     },
     onSuccess: () => {
+      followLatest.current = true;
       setNewMessage("");
       setSelectedFile(null);
       setUploading(false);
@@ -343,37 +337,6 @@ export function TicketChat({
     }
   };
 
-  const renderAttachment = (url: string, isSelf: boolean) => {
-    if (isImageUrl(url)) {
-      return (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-          <img
-            src={url}
-            alt="Allegato"
-            className="max-w-[240px] max-h-[180px] rounded-md object-cover border"
-            loading="lazy"
-          />
-        </a>
-      );
-    }
-    const fileName = getFileName(url);
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`flex items-center gap-2 mt-2 px-3 py-2 rounded-md text-xs font-medium ${
-          isSelf
-            ? "bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
-            : "bg-muted-foreground/10 text-foreground hover:bg-muted-foreground/20"
-        }`}
-      >
-        <FileText className="h-4 w-4 flex-shrink-0" />
-        <span className="truncate max-w-[180px]">{fileName}</span>
-        <Download className="h-3.5 w-3.5 flex-shrink-0" />
-      </a>
-    );
-  };
 
   return (
     <Card
@@ -393,7 +356,22 @@ export function TicketChat({
       <CardHeader className="border-b flex-shrink-0 max-sm:px-3 max-sm:py-2.5">
         <CardTitle className="text-lg max-sm:text-sm">Conversazione</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+      <CardContent
+        ref={messageListRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        onScroll={({ currentTarget }) => {
+          followLatest.current = currentTarget.scrollHeight - currentTarget.scrollTop - currentTarget.clientHeight < 80;
+        }}
+      >
+        {olderMessages && (
+          <div className="flex flex-col items-center gap-1 [overflow-anchor:none]">
+            <Button size="sm" variant="outline" disabled={olderMessages.refreshing}
+                    onClick={() => void olderMessages.load()}>
+              {olderMessages.loading ? "Caricamento…" : olderMessages.error ? "Riprova a caricare" : "Carica messaggi precedenti"}
+            </Button>
+            {olderMessages.error && <p role="alert" className="text-xs text-destructive">Impossibile caricare i messaggi precedenti.</p>}
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 max-sm:py-6">
             <MessageSquare className="h-12 w-12 text-muted-foreground/40 mb-3" />
@@ -426,7 +404,10 @@ export function TicketChat({
                   </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                {msg.attachment_url && renderAttachment(msg.attachment_url, isSelf)}
+                {msg.attachment_url && (
+                  <LinkAllegatoTicket ticketId={ticketId} riferimento={msg.attachment_url} inChat
+                    className={`mt-2 px-3 py-2 ${isSelf ? "bg-primary-foreground/10 hover:bg-primary-foreground/20" : "bg-muted-foreground/10 hover:bg-muted-foreground/20"}`} />
+                )}
                 <p
                   className={`text-xs mt-1 ${
                     isSelf
@@ -440,7 +421,6 @@ export function TicketChat({
             </div>
           );
         })}
-        <div ref={messagesEndRef} />
       </CardContent>
 
       {disabled ? (
@@ -524,6 +504,7 @@ export function TicketChat({
             <Button
               type="submit"
               size="icon"
+              aria-label="Invia messaggio"
               disabled={(!newMessage.trim() && !selectedFile) || sendMessageMutation.isPending || uploading}
               className="tap-compact flex-shrink-0 h-auto max-sm:h-9 max-sm:w-9 max-sm:rounded-full"
             >

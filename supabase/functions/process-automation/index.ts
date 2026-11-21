@@ -789,23 +789,32 @@ async function processQueue(supabase: any) {
       if (passo.errore) console.error(`Queue item ${item.id}: presa in carico fallita:`, passo.errore);
       if (!passo.presa) continue; // l'ha già preso un altro giro (o l'UPDATE è fallito)
 
-      // Get the node — distingue errore DB (transiente) da nodo davvero inesistente
+      // Ripete solo la lettura. Nessuna azione è stata ancora eseguita.
       const { data: node, error: nodeErr } = await supabase
         .from("automation_nodes")
         .select("*")
         .eq("id", item.current_node_id)
+        .eq("flow_id", item.flow_id)
+        .eq("company_id", item.company_id)
         .maybeSingle();
 
       if (nodeErr) {
-        console.error(`Queue item ${item.id}: errore DB nel fetch del nodo ${item.current_node_id}:`, nodeErr.message);
-        await markQueueItem(supabase, item.id, "failed", `Errore DB: ${nodeErr.message}`);
+        const message = `Lettura del nodo temporaneamente indisponibile: ${nodeErr.message}`;
+        const attempts = (item.attempts ?? 0) + 1;
+        if (attempts >= (item.max_attempts ?? 3)) throw new Error(message);
+
+        const { error } = await supabase.from("automation_queue").update({
+          status: "pending",
+          attempts,
+          execute_at: new Date(Date.now() + attempts * 60000).toISOString(),
+          last_error: message,
+          updated_at: new Date().toISOString(),
+        }).eq("id", item.id).eq("status", "processing");
+        if (error) console.error(`Queue item ${item.id}: rinvio non confermato:`, error.message);
         continue;
       }
 
-      if (!node) {
-        await markQueueItem(supabase, item.id, "failed", "Node not found");
-        continue;
-      }
+      if (!node) throw new Error("Nodo dell’automazione non trovato");
 
       // Execute the node
       if (node.node_type === "action") {

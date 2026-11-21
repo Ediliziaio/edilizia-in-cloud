@@ -55,6 +55,7 @@ export function righeRiepilogoIva(input: {
   discount_amount: unknown;
   total: unknown;
   discount_percent: unknown;
+  aliquotaManuale?: number;
 }): { subTotShown: number; scontoShown: number; totShown: number; ivaToShow: number; righeIva: RigaIva[] } {
   const subTotShown = arrotondaComePostgres(numero(input.subtotal));
   const totShown = arrotondaComePostgres(numero(input.total));
@@ -66,6 +67,10 @@ export function righeRiepilogoIva(input: {
     // resta ≥ 0 e il documento torna comunque.
     scontoShown = arrotondaComePostgres(scontoShown - ivaToShow);
     ivaToShow = 0;
+  }
+
+  if (input.aliquotaManuale !== undefined) {
+    return { subTotShown, scontoShown, totShown, ivaToShow, righeIva: [{ aliquota: input.aliquotaManuale, valore: ivaToShow }] };
   }
 
   const basePerAliquota: Record<string, number> = {};

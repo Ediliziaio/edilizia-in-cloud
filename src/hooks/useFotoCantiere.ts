@@ -101,13 +101,13 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
       files,
       descrizione,
       nomeCantiere,
-    }: { files: FileList; descrizione?: string; nomeCantiere?: string }) => {
+    }: { files: ArrayLike<File>; descrizione?: string; nomeCantiere?: string }) => {
       const immagini = Array.from(files).filter((f) => {
         if (f.type.startsWith('image/')) return true;
         toast.error(`${f.name}: solo immagini supportate`);
         return false;
       });
-      if (immagini.length === 0) return [];
+      if (immagini.length === 0) return { conservate: 0, mancanti: [] as File[] };
 
       // Una sola lettura del GPS per l'intera infornata: chiederla per ogni
       // foto costa secondi e batteria, e la posizione è la stessa.
@@ -147,8 +147,10 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
         }
 
         const nomePulito = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const path = `${companyId}/${orderId ?? 'senza-ordine'}/${Date.now()}-${nomePulito}`;
+        const idFoto = crypto.randomUUID();
+        const path = `${companyId}/${orderId ?? 'senza-ordine'}/${idFoto}-${nomePulito}`;
         const riga = {
+          id: idFoto,
           company_id: companyId!,
           order_id: orderId ?? null,
           uploaded_by: user!.id,
@@ -182,8 +184,10 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
 
         const { error: dbErr } = await supabase.from('foto_cantiere').insert({ ...riga, storage_path: path });
         if (dbErr) {
-          // Riga fallita: si toglie il file, altrimenti resta a occupare
-          // spazio senza comparire in nessuna galleria.
+          // Il file resta disponibile per completare lo stesso invio se manca
+          // la conferma della scrittura. I rifiuti espliciti ripuliscono il file.
+          const rifiuto = /^(22|23)/.test(dbErr.code ?? "") || dbErr.code === "42501";
+          if (!rifiuto || dbErr.code === "23505") return mettiInCoda();
           await supabase.storage.from('foto-cantiere').remove([path]);
           throw new Error(dbErr.message);
         }
@@ -192,7 +196,8 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
 
       const caricate = esiti.filter((e) => e.status === 'fulfilled');
       const inCoda = caricate.filter((e) => (e as PromiseFulfilledResult<{ inCoda: boolean }>).value.inCoda).length;
-      const falliti = esiti.length - caricate.length;
+      const mancanti = immagini.filter((_, i) => esiti[i].status === "rejected");
+      const falliti = mancanti.length;
 
       if (inCoda > 0) {
         toast.success(`${inCoda} foto in attesa di rete`, {
@@ -207,7 +212,7 @@ export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolea
         toast.error(`${falliti} foto non caricate`, { description: 'Riprova: le altre sono salve.' });
       }
 
-      return caricate.map((e) => (e as PromiseFulfilledResult<{ path: string }>).value.path);
+      return { conservate: caricate.length, mancanti };
     },
     onSuccess: () => {
       if (orderId) void refreshCommessaCampoQueries(qc, orderId, companyId);

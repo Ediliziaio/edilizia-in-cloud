@@ -483,6 +483,9 @@ function RigaMateriale({
           <span>{qta.numero}{qta.numero ? " " : ""}<span className="text-xs text-muted-foreground">{qta.unita}</span></span>
         )}
         {calcolata != null && <span className="block text-[11px] text-muted-foreground">calcolata {numero(calcolata)}</span>}
+        {materiale && m.ordinabile && m.quantitaResidua != null && m.quantitaResidua < m.quantity && (
+          <span className="block text-[11px] text-muted-foreground">Da ordinare {numero(m.quantitaResidua)} {qta.unita}</span>
+        )}
       </td>
       <td className="min-w-0">{materiale ? <OrdineArrivo m={m} info={info} oda={oda} /> : null}</td>
       <td>

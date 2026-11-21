@@ -11,6 +11,15 @@
 // decisioni che servono per usarlo con tutte: chi va a blocchi, e quanto è
 // grande un blocco.
 
+// La cartella nuova ha un orario UTC e un ID univoco. Le copie giornaliere restano leggibili.
+const GIORNO_BACKUP = "\\d{4}-\\d{2}-\\d{2}";
+const ID_BACKUP = "[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}";
+const GENERAZIONE_BACKUP = `${GIORNO_BACKUP}-\\d{9}-${ID_BACKUP}`;
+export const CARTELLA_BACKUP_BLOCCHI = new RegExp(`^(?:${GIORNO_BACKUP}|${GENERAZIONE_BACKUP})$`);
+export const TOKEN_RIPRESA_BACKUP = new RegExp(
+  `^(?:${GIORNO_BACKUP}|(${GENERAZIONE_BACKUP})/ripresa-${ID_BACKUP}\\.json)$`,
+);
+
 /** Oltre queste righe il dump unico non si tenta nemmeno: si va a blocchi. */
 export const SOGLIA_RIGHE_A_BLOCCHI = 25_000;
 

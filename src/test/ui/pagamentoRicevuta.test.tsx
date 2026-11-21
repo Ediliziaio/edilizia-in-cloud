@@ -5,11 +5,11 @@ import "@testing-library/jest-dom/vitest";
 import sorgentePagina from "@/pages/azienda/fatturazione/FattureRicevutePage.tsx?raw";
 
 // «L'ho pagata» sulle fatture dei fornitori: un clic, e si annulla dal messaggio.
-const s = vi.hoisted(() => ({ chiamate: [] as unknown[][], toast: [] as string[] }));
+const s = vi.hoisted(() => ({ chiamate: [] as unknown[][], toast: [] as string[], annulla: undefined as (() => void) | undefined }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: async (...a: unknown[]) => { s.chiamate.push(a); return { data: "2026-10-30", error: null as null }; } },
+  supabase: { rpc: async (...a: unknown[]) => { s.chiamate.push(a); return { data: a[0] === "registra_saldo_fattura_ricevuta" ? { annullamento: "saldo-appena-registrato" } : true, error: null as null }; } },
 }));
-vi.mock("sonner", () => ({ toast: { success: (m: string) => s.toast.push(m), error: (m: string) => s.toast.push(m) } }));
+vi.mock("sonner", () => ({ toast: { success: (m: string, opzioni?: { action?: { onClick: () => void } }) => { s.toast.push(m); s.annulla = opzioni?.action?.onClick; }, error: (m: string) => s.toast.push(m) } }));
 
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
 
@@ -19,7 +19,7 @@ const monta = (pagataIl: string | null, tipo = "expense", forma: "chip" | "icona
   </QueryClientProvider>,
 );
 
-beforeEach(() => { s.chiamate = []; s.toast = []; });
+beforeEach(() => { s.chiamate = []; s.toast = []; s.annulla = undefined; });
 afterEach(cleanup);
 
 describe("Pagamento delle fatture ricevute", () => {
@@ -27,8 +27,12 @@ describe("Pagamento delle fatture ricevute", () => {
     monta(null);
     fireEvent.click(screen.getByRole("button", { name: /Segna pagata/ }));
     await waitFor(() => expect(s.chiamate).toHaveLength(1));
-    expect(s.chiamate[0]).toEqual(["segna_fattura_ricevuta_pagata", { p_id: "r1", p_pagata: true, p_data: null }]);
+    expect(s.chiamate[0]).toEqual(["registra_saldo_fattura_ricevuta", { p_id: "r1", p_richiesta: expect.any(String), p_data: null }]);
     await waitFor(() => expect(s.toast[0]).toContain("pagata"));
+    s.annulla?.();
+    await waitFor(() => expect(s.chiamate[1]).toEqual(["annulla_saldo_fattura_ricevuta", {
+      p_id: "r1", p_richiesta: "saldo-appena-registrato",
+    }]));
   });
 
   it("nell'elenco: da pagare solo un'icona tra le azioni, pagata solo il chip nello stato", () => {
@@ -46,7 +50,7 @@ describe("Pagamento delle fatture ricevute", () => {
     monta("2026-10-15");
     const badge = screen.getByRole("button", { name: /Pagata/ });
     fireEvent.click(badge);
-    await waitFor(() => expect(s.chiamate[0]).toEqual(["segna_fattura_ricevuta_pagata", { p_id: "r1", p_pagata: false, p_data: null }]));
+    await waitFor(() => expect(s.chiamate[0]).toEqual(["annulla_saldo_fattura_ricevuta", { p_id: "r1", p_richiesta: null }]));
   });
 
   it("una nota di credito del fornitore non si paga", () => {

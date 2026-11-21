@@ -369,6 +369,7 @@ export function NotificationsBellPopover({ badgePronti = true }: { badgePronti?:
     unreadCount,
     unreadMessagesCount,
     isLoading,
+    tutteLeNonLetteVisibili,
     markAsRead,
     markAllAsRead,
     dismiss,
@@ -390,10 +391,10 @@ export function NotificationsBellPopover({ badgePronti = true }: { badgePronti?:
   // Solo i MESSAGGI si auto-segnano letti: gli avvisi azienda restano
   // accesi finché non li chiudi (guardarli non li risolve).
   useEffect(() => {
-    if (!open || unreadMessagesCount === 0) return;
+    if (!open || unreadMessagesCount === 0 || !tutteLeNonLetteVisibili) return;
     const timer = setTimeout(() => markAllAsRead(), 1500);
     return () => clearTimeout(timer);
-  }, [open, unreadMessagesCount, markAllAsRead]);
+  }, [open, unreadMessagesCount, tutteLeNonLetteVisibili, markAllAsRead]);
 
   const handleClick = (n: Notification) => {
     if (!n.is_read) markAsRead(n.id);

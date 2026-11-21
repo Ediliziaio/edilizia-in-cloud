@@ -15,7 +15,7 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
   const { data: g } = useGeneraleDellaCommessa(orderId);
   const navigate = useNavigate();
   const { data: r } = useRiepilogoGenerale(g?.id);
-  const quote = useQuoteCostiComuni(r);
+  const { quote, errore, ricarica, riprova } = useQuoteCostiComuni(r);
   if (!g) return null;
   const figlia = r?.figlie.find((f) => f.id === orderId) ?? null;
   const quota = quote?.perFiglia.get(orderId) ?? null;
@@ -84,6 +84,12 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
           </div>
         )}
       </div>
+      {errore && r?.permessi.margini && !figlia?.divisa && (
+        <div role="alert" className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+          <p>Costi comuni non disponibili. Il margine pieno sarà visibile dopo l’aggiornamento.</p>
+          <Button size="sm" variant="outline" disabled={ricarica} onClick={() => void riprova()}>Riprova</Button>
+        </div>
+      )}
       {mostraQuota && (
         // La parte dei costi registrati sulla generale (terreno, oneri, costi di cantiere) che tocca a questa commessa.
         <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border border-dashed bg-muted/30 px-3 py-1.5 text-xs">

@@ -20,7 +20,7 @@ async function setup() {
     insert into hr_richieste(id,company_id,profilo_id,tipo,data_inizio,data_fine,stato) values('${req}','${company}','${profile}','ferie','2026-04-03','2026-04-07','in_attesa');
     insert into hr_festivita values('${company}','2026-04-06',false);`);
   await db.exec(readFileSync("src/test/fixtures/hr-request-before-calendar.sql","utf8"));
-  await db.exec(readFileSync("supabase/migrations/20261026200117_hr_richieste_calendario_verificato.sql","utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290430150800_ripristina_calendario_ferie_nel_replay.sql","utf8"));
   return db;
 }
 it("uses workdays, holidays and snapshots; retries and later calendar changes cannot alter the refund",async()=>{

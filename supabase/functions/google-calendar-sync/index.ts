@@ -1094,7 +1094,8 @@ async function processOrderQueue(companyId: string | null): Promise<{ processed:
     .order("created_at")
     .limit(100);
   if (companyId) q = q.eq("company_id", companyId);
-  const { data: righe } = await q;
+  const { data: righe, error: erroreCoda } = await q;
+  if (erroreCoda) throw erroreCoda;
   const perCommessa = new Map<string, { ids: number[]; attempts: number }>();
   for (const r of righe ?? []) {
     const acc = perCommessa.get(r.entity_id) ?? { ids: [], attempts: 0 };
@@ -1106,14 +1107,16 @@ async function processOrderQueue(companyId: string | null): Promise<{ processed:
   for (const [orderId, acc] of perCommessa) {
     try {
       await syncOrderToGoogle(orderId);
-      await admin.from("google_calendar_sync_queue").update({ processed_at: new Date().toISOString() }).in("id", acc.ids);
+      const { error } = await admin.from("google_calendar_sync_queue")
+        .update({ processed_at: new Date().toISOString(), last_error: null }).in("id", acc.ids);
+      if (error) throw error;
       processed++;
     } catch (e) {
       failed++;
       await admin
         .from("google_calendar_sync_queue")
         .update({ attempts: acc.attempts + 1, last_error: String((e as Error).message).slice(0, 300) })
-        .in("id", acc.ids);
+        .in("id", acc.ids).is("processed_at", null);
     }
   }
   return { processed, failed };
@@ -1126,23 +1129,27 @@ const GCAL = "https://www.googleapis.com/calendar/v3/calendars";
 /** La commessa raggiunge tutti i suoi calendari: squadre assegnate + Posa aziendale. */
 async function syncOrderToGoogle(orderId: string): Promise<{ created: number; updated: number; removed: number }> {
   const admin = getSupabaseAdmin();
-  const { data: order } = await admin
+  const { data: order, error: erroreOrdine } = await admin
     .from("orders")
     .select("id, company_id, order_code, client_name, client_phone, description, work_description, tipo_lavoro, indirizzo_lavori, work_address, client_address, work_start_date, work_end_date, work_start_time, work_end_time")
     .eq("id", orderId)
     .maybeSingle();
+  if (erroreOrdine) throw erroreOrdine;
   if (!order) return { created: 0, updated: 0, removed: 0 };
 
-  const { data: squadre } = await admin
+  const { data: squadre, error: erroreSquadre } = await admin
     .from("order_external_teams")
     .select("external_team:external_teams(id, google_connection_id, google_calendar_id, google_sync_enabled)")
     .eq("order_id", orderId);
-  const { data: link } = await admin
+  if (erroreSquadre) throw erroreSquadre;
+  const { data: link, error: erroreLink } = await admin
     .from("company_calendar_links")
     .select("google_connection_id, google_calendar_id, enabled")
     .eq("company_id", order.company_id)
     .eq("kind", "posa")
     .maybeSingle();
+
+  if (erroreLink) throw erroreLink;
 
   const bersagli: Bersaglio[] = [];
   for (const r of (squadre ?? []) as any[]) {
@@ -1159,7 +1166,9 @@ async function syncOrderToGoogle(orderId: string): Promise<{ created: number; up
   // Senza data di inizio non c'è evento: si toglie quello che c'era.
   const bersagliAttivi = order.work_start_date ? bersagli : [];
 
-  const { data: mappe } = await admin.from("google_calendar_order_events").select("*").eq("order_id", orderId);
+  const { data: mappe, error: erroreMappe } = await admin.from("google_calendar_order_events")
+    .select("*").eq("order_id", orderId).eq("company_id", order.company_id);
+  if (erroreMappe) throw erroreMappe;
   let created = 0, updated = 0, removed = 0;
 
   // 1) via gli eventi dei calendari non più bersaglio
@@ -1167,14 +1176,18 @@ async function syncOrderToGoogle(orderId: string): Promise<{ created: number; up
     if (bersagliAttivi.some((b) => b.google_calendar_id === m.google_calendar_id)) continue;
     const conn = await getConnectionById(admin, m.google_connection_id);
     const token = conn ? await getValidAccessToken(admin, conn) : null;
-    if (token) {
-      await fetch(`${GCAL}/${encodeURIComponent(m.google_calendar_id)}/events/${encodeURIComponent(m.google_event_id)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(15000),
-      }).catch(() => {});
+    if (!token) throw new Error("Account Google indisponibile per rimuovere l’evento della commessa.");
+    const risposta = await fetch(`${GCAL}/${encodeURIComponent(m.google_calendar_id)}/events/${encodeURIComponent(m.google_event_id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!risposta.ok && risposta.status !== 404 && risposta.status !== 410) {
+      throw new Error(`Google ${risposta.status}: cancellazione dell’evento non confermata.`);
     }
-    await admin.from("google_calendar_order_events").delete().eq("id", m.id);
+    const { error } = await admin.from("google_calendar_order_events").delete()
+      .eq("id", m.id).eq("company_id", order.company_id).eq("google_event_id", m.google_event_id);
+    if (error) throw error;
     removed++;
   }
 

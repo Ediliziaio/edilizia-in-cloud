@@ -5,6 +5,22 @@ export const TRASPORTO_LABELS: Record<string, string> = {
   extra: "Extra",
   ritiro: "Ritiro a cura dell’impresa",
 };
+
+export function coperturaOfferta(
+  totaleDocumento: number | null,
+  righe: { somma: number; quotate: number; indisponibili: number },
+  numeroVoci: number,
+) {
+  const daRighe = righe.quotate > 0;
+  const senzaVociDisponibili = !daRighe && righe.indisponibili > 0;
+  return {
+    daRighe,
+    senzaVociDisponibili,
+    totale: daRighe ? righe.somma : totaleDocumento == null ? null : Number(totaleDocumento),
+    righeCoperte: !daRighe && !senzaVociDisponibili && totaleDocumento != null ? numeroVoci : righe.quotate,
+  };
+}
+
 /** Totale documento = complessivo netto, già comprensivo del trasporto. Non sommarlo due volte. */
 export function confrontoOfferta(
   f: Pick<

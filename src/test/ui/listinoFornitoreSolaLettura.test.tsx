@@ -21,10 +21,10 @@ const finto = vi.hoisted(() => {
       Promise.resolve({ data: tabella === "listino_fornitore_voci" ? voci : listini, error: null as null }).then(ok, ko);
     return c;
   };
-  return { catena, permessi: {} as Record<string, boolean> };
+  return { catena, voci, permessi: {} as Record<string, boolean> };
 });
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (t: string) => finto.catena(t) } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (t: string) => finto.catena(t), rpc: async () => ({ data: { revisione: 0, voci: finto.voci }, error: null as null }) } }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "company-demo" }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => finto.permessi }));
 

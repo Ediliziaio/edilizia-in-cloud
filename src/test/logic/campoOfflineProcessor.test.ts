@@ -1,16 +1,42 @@
+import { Blob as BlobNode } from "node:buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { processCampoOffline } from "@/lib/campo/offlineProcessor";
 import { SyncDeferredError, SyncPermanentError, type SyncItem } from "@/lib/campo/sync-queue";
-const state = vi.hoisted(() => ({ owner: "u", insert: vi.fn(), select: vi.fn(), filters: vi.fn(), upload: vi.fn(), error: null as null | { code: string; message: string }, existing: null as null | { id: string } }));
+const state = vi.hoisted(() => ({ owner: "u", insert: vi.fn(), upsert: vi.fn(), update: vi.fn(), select: vi.fn(), filters: vi.fn(), upload: vi.fn(), download: vi.fn(), error: null as null | { code: string; message: string }, existing: null as null | { id: string } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   auth: { getSession: async () => ({ data: { session: { user: { id: state.owner } } }, error: null as null }) },
-  from: () => { const q = { insert: (p: unknown) => { state.insert(p); return Promise.resolve({ error: state.error }); }, select: (p: string) => { state.select(p); return q; }, eq: (...p: unknown[]) => { state.filters(...p); return q; }, maybeSingle: async () => ({ data: state.existing, error: null as null }) }; return q; },
-  storage: { from: () => ({ upload: state.upload }) },
+  from: () => { const q = { insert: (p: unknown) => { state.insert(p); return Promise.resolve({ error: state.error }); }, upsert: async (p: unknown) => { state.upsert(p); return { error: state.error }; }, update: (p: unknown) => { state.update(p); return q; }, select: (p: string) => { state.select(p); return q; }, eq: (...p: unknown[]) => { state.filters(...p); return q; }, maybeSingle: async () => ({ data: state.existing, error: null as null }) }; return q; },
+  storage: { from: () => ({ upload: state.upload, download: state.download }) },
 } }));
 const id = "11111111-1111-4111-a111-111111111111";
 const item = (patch: Partial<SyncItem> = {}): SyncItem => ({ id, operationId: id, type: "timbratura", payload: { user_id: "u", company_id: "c", order_id: "o", tipo: "entrata" }, createdAt: 0, updatedAt: 0, retryCount: 0, status: "pending", ...patch });
-beforeEach(() => { vi.clearAllMocks(); state.owner = "u"; state.error = null; state.existing = null; state.upload.mockResolvedValue({ error: null }); });
+beforeEach(() => { vi.clearAllMocks(); state.owner = "u"; state.error = null; state.existing = null; state.upload.mockResolvedValue({ error: null }); state.download.mockResolvedValue({ data: new BlobNode(["foto"]), error: null }); });
 describe("Sincronizzazione con API simulate", () => {
+  const checklist = { company_id: "c", operaio_id: "u", data: "2026-11-20", turno: "mattina", note: "Copia offline", risposte: [{ itemId: "dpi", checked: true }] };
+
+  it("mantiene in coda la checklist con revisione superata, senza sovrascrivere quella remota", async () => {
+    const revisione_base = "2026-11-20T07:00:00+00:00";
+    await expect(processCampoOffline(item({ type: "checklist", payload: { ...checklist, revisione_base } })))
+      .rejects.toBeInstanceOf(SyncPermanentError);
+    expect(state.filters).toHaveBeenCalledWith("updated_at", revisione_base);
+    expect(state.upsert).not.toHaveBeenCalled();
+  });
+
+  it("conserva la checklist pregressa senza revisione quando esiste già il turno sul server", async () => {
+    state.error = { code: "23505", message: "duplicato" };
+    await expect(processCampoOffline(item({ type: "checklist", payload: checklist })))
+      .rejects.toThrow("La checklist locale è ancora in coda");
+    expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ id, note: "Copia offline" }));
+    expect(state.update).not.toHaveBeenCalled();
+  });
+
+  it("riconosce il reinvio della stessa nuova checklist dopo una risposta persa", async () => {
+    state.error = { code: "23505", message: "duplicato" };
+    state.existing = { id };
+    await expect(processCampoOffline(item({ type: "checklist", payload: checklist }))).resolves.toBeUndefined();
+    expect(state.filters).toHaveBeenCalledWith("id", id);
+    expect(state.filters).toHaveBeenCalledWith("operaio_id", "u");
+  });
   it.each(["22023", "22P02", "23503", "23505", "23514", "42501", "40001", "40P01", "53300", "57014", "08006", "PGRST000"])("classifica errore %s senza dichiarare l'invio riuscito", async code => {
     state.error = { code, message: "Errore simulato" };
     const result = processCampoOffline(item());
@@ -44,7 +70,30 @@ describe("Sincronizzazione con API simulate", () => {
   });
   it("una foto già caricata ritenta solo la riga con identità stabile", async () => {
     state.upload.mockResolvedValue({ error: { message: "The resource already exists" } });
-    await processCampoOffline(item({ type: "foto", payload: { bucket: "campo-rapportini", path: "c/o/foto.jpg", blob: new Blob(["foto"]), contentType: "image/jpeg", riga: { uploaded_by: "u", company_id: "c", order_id: "o" } } }));
+    await processCampoOffline(item({ type: "foto", payload: { bucket: "campo-rapportini", path: "c/o/foto.jpg", blob: new BlobNode(["foto"]), contentType: "image/jpeg", riga: { uploaded_by: "u", company_id: "c", order_id: "o" } } }));
     expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ id, storage_path: "c/o/foto.jpg" }));
+  });
+  it("mantiene l'UUID originale della foto anche al passaggio dalla rete alla coda", async () => {
+    const idFoto = "22222222-2222-4222-a222-222222222222";
+    state.upload.mockResolvedValue({ error: { statusCode: "409", message: "File presente" } });
+    state.error = { code: "23505", message: "duplicato" };
+    state.existing = { id: idFoto };
+    const path = `c/o/${idFoto}-foto.jpg`;
+    await processCampoOffline(item({ type: "foto", payload: {
+      bucket: "foto-cantiere", path, blob: new BlobNode(["foto"]), contentType: "image/jpeg",
+      riga: { id: idFoto, uploaded_by: "u", company_id: "c", order_id: "o" },
+    }}));
+    expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ id: idFoto, storage_path: path }));
+    expect(state.filters).toHaveBeenCalledWith("storage_path", path);
+  });
+
+  it("conserva la foto in coda se il percorso è occupato da un file diverso", async () => {
+    state.upload.mockResolvedValue({ error: { statusCode: "409", message: "File presente" } });
+    state.download.mockResolvedValue({ data: new BlobNode(["altr"]), error: null });
+    await expect(processCampoOffline(item({ type: "foto", payload: {
+      bucket: "foto-cantiere", path: "c/o/legacy-foto.jpg", blob: new BlobNode(["foto"]), contentType: "image/jpeg",
+      riga: { uploaded_by: "u", company_id: "c", order_id: "o" },
+    }}))).rejects.toBeInstanceOf(SyncPermanentError);
+    expect(state.insert).not.toHaveBeenCalled();
   });
 });

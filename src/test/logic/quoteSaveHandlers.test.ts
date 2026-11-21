@@ -106,7 +106,7 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
     existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
     partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
     persistLocalDraft: noop, saveInFlightRef: { current: false }, versioneCaricataRef: versionRef,
-    setSaving: noop, setAutosaveFailed: noop, setLastSavedHash: noop, draftSerialized: '{"notes":"snapshot"}',
+    setSaving: noop, setErroreBozza: noop, setLastSavedHash: noop, draftSerialized: '{"notes":"snapshot"}',
     latestDraftSerializedRef: { current: '{"notes":"snapshot"}' }, lastCloudSavedSnapshotRef: { current: '{"notes":"snapshot"}' },
     createdQuoteRef: { current: null as string | null }, quoteDraftInputHash,
     setPartialQuoteId: (value: string | null) => { context.partialQuoteId = value; }, setPendingEditNavId: noop, newQuoteCompletedRef: { current: false },
@@ -115,7 +115,7 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
     subtotal: 100, discountAmt: 0, vatAmount: 22, total: 122,
     templateValues: {}, contractFields: [], tipoCliente: "privato",
     financingProposal: null, validityDays: 30, discountPercent: 0,
-    clearQuoteDraft: vi.fn(), assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia, isConflittoModifica,
+    clearQuoteDraft: vi.fn(), assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia, isConflittoModifica, erroreAttuale: null, ambitoSalvataggio: "azienda:preventivo",
     queryClient: { invalidateQueries: noop }, queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } },
     navigate: vi.fn(), toast,
     supabase: { rpc, from(table: string) {

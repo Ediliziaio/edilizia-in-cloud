@@ -118,7 +118,8 @@ describe("Nell'app: chi vede il cantiere", () => {
     const anna = righe.find((r) => r.textContent?.includes("Anna"))!;
     expect(anna).toHaveTextContent("aggiunto a mano");
     fireEvent.click(within(anna).getByRole("button", { name: "Togli" }));
-    fireEvent.click(screen.getByRole("button", { name: "Togli" }));
+    expect(screen.getByText(/da lavorazioni o squadre restano attive/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi accesso manuale" }));
     expect(state.togli).toHaveBeenCalledWith("a-u3", expect.any(Object));
   });
 

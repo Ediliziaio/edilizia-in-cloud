@@ -21,11 +21,8 @@
 // tabella, un JSON unico non sta nella memoria di una edge function. Il
 // 19/09 sono state cancellate per sbaglio 20 sue automazioni e non c'era
 // nessuna copia. Ora, con { piattaforma: true }, si salva a pezzi:
-//   <id>/<data>/indice.json           cosa c'è, quante righe, quali file
-//   <id>/<data>/azienda.json          la riga dell'azienda
-//   <id>/<data>/<tabella>/NNN.json    blocchi di righe, in ordine di id
-// Il lavoro gira in sottofondo (la risposta è subito 202) con un tetto di
-// tempo: se non basta, l'indice lo dice («completo: false»).
+// Ogni esportazione scrive in una cartella propria. Le interruzioni lasciano
+// un checkpoint interno. L'indice pubblico compare solo con la copia completa.
 //
 // LE AZIENDE GRANDI (20/09/2026)
 // Il dump unico (admin_esporta_azienda) è una sola istruzione, e PostgREST la
@@ -42,7 +39,7 @@
 //     il corpo HTML sono 137 MB (regole in _shared/backupBlocchi.ts).
 // Chi resta senza backup compare nel rapporto del mattino («backup_mancanti»).
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireInternalSecret } from "../_shared/auth.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
@@ -53,6 +50,7 @@ import {
   MASSIMO_CHIAMATE,
   prossimoLimite,
   TETTO_TESTO_PER_CHIAMATA,
+  TOKEN_RIPRESA_BACKUP,
   vaABlocchi,
 } from "../_shared/backupBlocchi.ts";
 import { BYTE_PER_GIRO, comprimiFile, type EsitoCompressione, type FileDaComprimere } from "../_shared/backupCompressi.ts";
@@ -94,7 +92,7 @@ async function bloccoComeTesto(
 /** Oltre questo tempo non si parte con un blocco nuovo: il limite della funzione è 400 s. */
 const TETTO_MS = 330_000;
 
-type Admin = ReturnType<typeof createClient>;
+type Admin = SupabaseClient;
 
 /**
  * I backup più vecchi di 90 giorni si cancellano (DPA e Termini, 30/10/2026).
@@ -141,33 +139,44 @@ async function giroDiCompressione(admin: any, azienda: string | null): Promise<E
 
 /**
  * Il backup di un'azienda a blocchi: l'area super admin, e dal 20/09 ogni
- * azienda troppo grande per il dump unico. Scrive sempre l'indice, anche se si
- * ferma a metà.
- *
- * Una chiamata scrive al massimo TETTO_TESTO_PER_CHIAMATA: dal 27/09 al 08/11 l'area super admin (480 MB) finiva
- * la CPU dopo due minuti, senza arrivare all'indice. Ora a metà strada l'indice dice dov'è arrivato (`ripresa`,
- * `in_corso`) e la chiamata dopo riparte da lì; se una chiamata muore, resta un indice con `completo: false`.
+ * azienda troppo grande per il dump unico. La ripresa usa un checkpoint
+ * immutabile, separato dall'indice che il ripristino può aprire.
  */
 async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>, riprendi: string | null = null): Promise<Record<string, unknown>> {
   const inizio = Date.now();
   const id = String(azienda.id);
-  const data = riprendi ?? new Date().toISOString().slice(0, 10);
-  const base = `${id}/${data}`;
+  const invocazione = crypto.randomUUID();
+  const segmenti = riprendi ? TOKEN_RIPRESA_BACKUP.exec(riprendi) : null;
+  if (riprendi && !segmenti) throw new Error("Percorso di ripresa non valido");
+  const orario = new Date(inizio).toISOString().slice(11, 23).replace(/\D/g, "");
+  // Un vecchio token giornaliero fa ripartire il lavoro in una cartella isolata.
+  const giorno = riprendi?.slice(0, 10) ?? new Date(inizio).toISOString().slice(0, 10);
+  const cartella = segmenti?.[1] ?? `${giorno}-${orario}-${invocazione}`;
+  const base = `${id}/${cartella}`;
+  const percorsoIndice = `${base}/indice.json`;
   type RigaTabella = { tabella: string; righe_attese: number; righe_salvate: number; file: string[]; errore?: string };
   type Voce = { tabella: string; righe: number };
-  type Ripresa = { data: string; elenco: Voce[]; tabella: number; n: number; dopo: string | null; limite: number; chiamata: number };
+  type Ripresa = { token: string; elenco: Voce[]; tabella: number; n: number; dopo: string | null; limite: number; chiamata: number };
   let precedente: { tabelle: RigaTabella[]; durata_s: number; ripresa: Ripresa } | null = null;
-  if (riprendi) {
-    const { data: file, error: errIndice } = await admin.storage.from(BUCKET).download(`${base}/indice.json`);
-    if (errIndice || !file) throw new Error(`ripresa ${base}: indice non trovato`);
+  const indiceCompleto = async (): Promise<Record<string, unknown> | null> => {
+    const { data: file } = await admin.storage.from(BUCKET).download(percorsoIndice);
+    if (!file) return null;
+    const indice = JSON.parse(await file.text());
+    return indice?.completo === true ? indice : null;
+  };
+  if (segmenti?.[1]) {
+    const giaFinito = await indiceCompleto();
+    if (giaFinito) return giaFinito;
+    const { data: file, error: errIndice } = await admin.storage.from(BUCKET).download(`${id}/${riprendi}`);
+    if (errIndice || !file) throw new Error(`ripresa ${base}: checkpoint non trovato`);
     precedente = JSON.parse(await file.text());
-    if (!precedente?.ripresa) throw new Error(`ripresa ${base}: backup già chiuso`);
+    if (precedente?.ripresa?.token !== riprendi) throw new Error(`ripresa ${base}: checkpoint non valido`);
   }
   const tabelle: RigaTabella[] = precedente?.tabelle ?? [];
   const chiamata = precedente?.ripresa.chiamata ?? 1;
   let completo = true;
   let testoScritto = 0;
-  let sospeso: Omit<Ripresa, "data" | "elenco" | "chiamata"> | null = null;
+  let sospeso: Omit<Ripresa, "token" | "elenco" | "chiamata"> | null = null;
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -175,7 +184,7 @@ async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>, ri
     const { error } = await admin.storage
       .from(BUCKET)
       .upload(percorso, new Blob([testo], { type: "application/json" }), {
-        upsert: true,
+        upsert: false,
         contentType: "application/json",
       });
     if (error) throw new Error(`${percorso}: ${error.message}`);
@@ -227,7 +236,7 @@ async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>, ri
         }
         if (b.n > 0) {
           // Il file è il blocco intero: { n, righe: [...], finito, ultimo }.
-          const nome = `${base}/${voce.tabella}/${String(n).padStart(3, "0")}.json`;
+          const nome = `${base}/${voce.tabella}/${String(n).padStart(3, "0")}-${invocazione}.json`;
           await caricaTesto(nome, b.testo);
           riga.file.push(nome);
           riga.righe_salvate += b.n;
@@ -256,15 +265,27 @@ async function backupABlocchi(admin: Admin, azienda: Record<string, unknown>, ri
   };
   if (sospeso) {
     indice.in_corso = true;
-    indice.ripresa = { ...sospeso, data, elenco: voci, chiamata: chiamata + 1 } satisfies Ripresa;
+    const token = `${cartella}/ripresa-${invocazione}.json`;
+    indice.ripresa = { ...sospeso, token, elenco: voci, chiamata: chiamata + 1 } satisfies Ripresa;
+    await carica(`${id}/${token}`, indice);
+  } else if (indice.completo === true) {
+    try {
+      await carica(percorsoIndice, indice);
+    } catch (errore) {
+      // Due riprese dello stesso checkpoint possono arrivare alla fine insieme.
+      const giaFinito = await indiceCompleto();
+      if (giaFinito) return giaFinito;
+      throw errore;
+    }
+  } else {
+    await carica(`${base}/incompleto-${invocazione}.json`, indice);
   }
-  await carica(`${base}/indice.json`, indice);
   return indice;
 }
 
-/** La data del backup da far ripartire, se la chiamata si è fermata a metà strada. */
-function dataDaRiprendere(indice: Record<string, unknown>): string | null {
-  return indice.in_corso === true ? String((indice.ripresa as { data: string }).data) : null;
+/** Il checkpoint del backup da far ripartire, se la chiamata si è fermata a metà strada. */
+function tokenDaRiprendere(indice: Record<string, unknown>): string | null {
+  return indice.in_corso === true ? String((indice.ripresa as { token: string }).token) : null;
 }
 
 /** Fa partire il lavoro in sottofondo, se il runtime lo permette; altrimenti lo aspetta. */
@@ -343,7 +364,7 @@ serveConMetricheRapida("company-backup", async (req) => {
       }
       const lavoro = backupABlocchi(admin, piattaforma as Record<string, unknown>)
         .then(async (indice) => {
-          const riprendi = dataDaRiprendere(indice);
+          const riprendi = tokenDaRiprendere(indice);
           if (riprendi) return await avviaBackupABlocchi(String(piattaforma.id), [], riprendi);
           console.log(JSON.stringify({ fn: "company-backup", piattaforma: true, completo: indice.completo, durata_s: indice.durata_s }));
         })
@@ -371,12 +392,12 @@ serveConMetricheRapida("company-backup", async (req) => {
         });
       }
       const poi: string[] = Array.isArray(body?.poi) ? body.poi.filter((v: unknown) => typeof v === "string") : [];
-      const riprendi = typeof body?.riprendi === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.riprendi) ? body.riprendi : null;
+      const riprendi = typeof body?.riprendi === "string" && TOKEN_RIPRESA_BACKUP.test(body.riprendi) ? body.riprendi : null;
       // Se questa azienda continua in un'altra chiamata, la prossima dell'elenco la farà partire quella.
       let prosegue = false;
       const lavoro = backupABlocchi(admin, azienda as Record<string, unknown>, riprendi)
         .then(async (indice) => {
-          const daRiprendere = dataDaRiprendere(indice);
+          const daRiprendere = tokenDaRiprendere(indice);
           if (daRiprendere) {
             await avviaBackupABlocchi(soloUna, poi, daRiprendere);
             prosegue = true;

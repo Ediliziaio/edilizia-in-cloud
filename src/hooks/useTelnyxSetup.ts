@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import type {
   SmsTelnyxAccount,
   SmsTelnyxNumber,
@@ -69,10 +70,9 @@ export function useTelnyxSetup() {
         "telnyx-cerca-numeri",
         { body: { company_id: companyId, ...params } satisfies TelnyxCercaNumeriRequest }
       );
-      if (error) throw new Error(error.message || "Errore nella ricerca dei numeri");
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore nella ricerca dei numeri"));
       return data?.numeri ?? [];
     },
-    onError: (err: Error) => toast.error(err.message),
   });
 
   // ─── Acquisto numero ──────────────────────────────────────

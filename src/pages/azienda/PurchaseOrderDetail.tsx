@@ -579,7 +579,7 @@ function ContenutoPurchaseOrderDetail() {
                       <th className="text-left p-2 pl-4 font-medium">Descrizione</th>
                       <th className="text-right p-2 font-medium w-20">Ordinato</th>
                       <th className="text-left p-2 font-medium w-16">UM</th>
-                      {mostraRicezione && <><th className="p-2 text-right font-medium">Ricevuto</th><th className="p-2 text-right font-medium">Da ricevere</th></>}
+                      {mostraRicezione && <><th className="p-2 text-right font-medium"><a href="#ddt-ricezione-oda" className="hover:underline" title="Apri le ricezioni per registrare o rettificare la merce">Ricevuto</a></th><th className="p-2 text-right font-medium">Da ricevere</th></>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Prezzo acquisto</th>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">Sc.%</th>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">IVA%</th>}
@@ -721,7 +721,7 @@ function ContenutoPurchaseOrderDetail() {
         </div>
       </div>
 
-      <section aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2">
+      <section id="ddt-ricezione-oda" aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2">
           {/* M4 — DDT Ricezione card */}
           <QuoteCard
             title={

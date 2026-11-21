@@ -59,4 +59,17 @@ describe("timbrare senza campo", () => {
     expect(erroreDiRete({ code: "23505", message: "network" })).toBe(false);
     expect(erroreDiRete(null)).toBe(false);
   });
+  it("usa gli stessi due ID nella richiesta del cambio e nel suo recupero offline", async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: "Failed to fetch" } });
+    await cambiaLuogoTimbratura({ companyId: "c", userId: "u", da: { orderId: "a", sedeId: null }, a: { orderId: "b", sedeId: null }, quando: base.quando });
+
+    const [, args] = mocks.rpc.mock.calls[0];
+    expect(args.p_id_uscita).not.toBe(args.p_id_entrata);
+    expect(mocks.enqueue).toHaveBeenNthCalledWith(1, {
+      type: "timbratura", payload: expect.objectContaining({ id: args.p_id_uscita, tipo: "uscita" }),
+    });
+    expect(mocks.enqueue).toHaveBeenNthCalledWith(2, {
+      type: "timbratura", payload: expect.objectContaining({ id: args.p_id_entrata, tipo: "entrata" }),
+    });
+  });
 });

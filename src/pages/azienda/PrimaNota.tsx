@@ -142,6 +142,7 @@ function PrimaNotaInner() {
       ? riga.reversal_of
         ? "Eliminando questo storno si ripristina l’effetto del pagamento originale sul costo."
         : "Il costo e le sue scadenze seguiranno il saldo dei pagamenti rimasti. Verrà eliminato anche l’eventuale storno di questo movimento."
+      : riga.installment_id && !riga.invoice_id ? "La rata della commessa tornerà da incassare."
       : riga.invoice_id ? "La fattura collegata verrà ricalcolata sul saldo degli incassi rimasti." : "";
     if (await confirm({ title: "Eliminare il movimento?", description: `${riga.description}: ${formatCurrency(riga.amount)}. La registrazione verrà rimossa dalla prima nota. ${effetto} L’eliminazione è definitiva.`, confirmLabel: "Elimina", variant: "destructive" })) {
       remove.mutate(riga.id, { onSuccess: () => setDettaglioId(null) });

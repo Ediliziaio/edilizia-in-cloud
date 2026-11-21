@@ -18,8 +18,7 @@ export interface QuoteCostiComuni {
   perFiglia: Map<string, { importo: number; parte: number; base: number }>;
 }
 
-/** null = chi guarda non vede i costi, o la lettura non è riuscita. */
-export function useQuoteCostiComuni(r: RiepilogoGenerale | null | undefined): QuoteCostiComuni | null {
+export function useQuoteCostiComuni(r: RiepilogoGenerale | null | undefined) {
   const attivo = !!r && r.permessi.costi;
   const generaleId = r?.generale.id;
   const costi = useCostiSullaGenerale(generaleId, attivo);
@@ -27,8 +26,9 @@ export function useQuoteCostiComuni(r: RiepilogoGenerale | null | undefined): Qu
   const figlieIds = useMemo(() => (r?.figlie ?? []).filter((f) => !f.divisa).map((f) => f.id), [r]);
   const unita = useUnitaGenerale(generaleId, figlieIds, attivo);
 
-  return useMemo(() => {
-    if (!r || !attivo || costi.data === null || costi.data === undefined) return null;
+  const quote = useMemo((): QuoteCostiComuni | null => {
+    if (!r || !attivo || costi.isError || costi.data === undefined) return null;
+    if (costi.data !== 0 && (unita.isLoading || criterio.isLoading)) return null;
     const vive = r.figlie.filter((f) => !f.divisa);
     const rip = ripartisciCostiComuni(
       vive.map((f) => ({ id: f.id, nome: f.codice ?? f.nome, importo: f.importo })),
@@ -42,7 +42,15 @@ export function useQuoteCostiComuni(r: RiepilogoGenerale | null | undefined): Qu
       motivo: rip.motivo,
       perFiglia: new Map(rip.quote.map((q) => [q.figliaId, { importo: q.importo, parte: q.quota, base: q.base }])),
     };
-  }, [r, attivo, costi.data, unita.data, criterio.data]);
+  }, [r, attivo, costi.data, costi.isError, unita.data, unita.isLoading, criterio.data, criterio.isLoading]);
+
+  return {
+    quote,
+    inAttesa: attivo && !quote && !costi.isError,
+    errore: attivo && costi.isError,
+    riprova: costi.refetch,
+    ricarica: costi.isFetching,
+  };
 }
 
 export { nomeCriterio };

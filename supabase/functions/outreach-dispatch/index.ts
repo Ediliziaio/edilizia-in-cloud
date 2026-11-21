@@ -736,14 +736,16 @@ async function processCallQueue(
   if (enrIds.length) {
     const r = await supabase.from("outreach_enrollments")
       .select("id,status,sequence_id,current_step,current_node_id").in("id", enrIds);
-    for (const e of (r.error ? [] : r.data) || []) enrById.set(e.id, e);
+    if (r.error) throw r.error;
+    for (const e of r.data || []) enrById.set(e.id, e);
   }
 
   const contactIds = [...new Set(rows.map((r: any) => r.contact_id).filter(Boolean))];
   const contactById = new Map<string, any>();
   if (contactIds.length) {
-    const { data: cs } = await supabase.from("marketing_contacts")
+    const { data: cs, error: contactError } = await supabase.from("marketing_contacts")
       .select("id,first_name,last_name,company_name,email,phone,optout_call").in("id", contactIds);
+    if (contactError) throw contactError;
     for (const c of cs || []) contactById.set(c.id, c);
   }
 
@@ -775,8 +777,9 @@ async function processCallQueue(
     }
 
     // claim atomico (idempotenza anti-doppio task)
-    const { data: claimed } = await supabase.from("outreach_send_queue")
+    const { data: claimed, error: claimError } = await supabase.from("outreach_send_queue")
       .update({ status: "sending" }).eq("id", item.id).eq("status", "queued").select("id");
+    if (claimError) { result.failed++; continue; }
     if (!claimed || claimed.length === 0) { result.skipped++; continue; }
     try {
       const vars = contact ? contactToVars(contact) : {};
@@ -785,7 +788,9 @@ async function processCallQueue(
       const contactName = contact
         ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null
         : null;
-      await supabase.from("outreach_call_tasks").insert({
+      // Lo stesso messaggio conserva la stessa attività anche dopo una risposta persa.
+      const { error: taskError } = await supabase.from("outreach_call_tasks").upsert({
+        id: item.id,
         company_id: PLATFORM_COMPANY,
         enrollment_id: item.enrollment_id ?? null,
         contact_id: item.contact_id ?? null,
@@ -797,18 +802,31 @@ async function processCallQueue(
         note: note || null,
         status: "pending",
         due_at: now.toISOString(),
-      });
-      await supabase.from("outreach_send_queue")
-        .update({ status: "sent", sent_at: now.toISOString(), to_phone: plan.phone }).eq("id", item.id);
+      }, { onConflict: "id", ignoreDuplicates: true });
+      if (taskError) throw new Error(taskError.message);
+
+      const { data: confermate, error: confermaError } = await supabase.from("outreach_send_queue")
+        .update({ status: "sent", sent_at: now.toISOString(), to_phone: plan.phone, last_error: null })
+        .eq("id", item.id).eq("status", "sending").select("id");
+      if (confermaError) {
+        const { data: corrente, error: letturaError } = await supabase.from("outreach_send_queue")
+          .select("status").eq("id", item.id).maybeSingle();
+        if (letturaError || corrente?.status !== "sent") throw new Error(confermaError.message);
+      } else if (!confermate?.length) {
+        result.skipped++;
+        continue;
+      }
       result.sent++;
       if (enr) {
         try { await advanceEnrollment(supabase, enr, contact, now, item.brand_id ?? null); }
         catch (e) { console.warn("[outreach-dispatch] advance post-call fallito:", e instanceof Error ? e.message : e); }
       }
     } catch (e) {
-      // il task non è stato creato: rimetti in coda (retry al prossimo tick).
-      await supabase.from("outreach_send_queue")
-        .update({ status: "queued", last_error: e instanceof Error ? e.message : String(e) }).eq("id", item.id);
+      // Il prossimo tentativo trova la stessa attività se la scrittura era già arrivata.
+      const { error: retryError } = await supabase.from("outreach_send_queue")
+        .update({ status: "queued", last_error: e instanceof Error ? e.message : String(e) })
+        .eq("id", item.id).eq("status", "sending");
+      if (retryError) console.warn("[outreach-dispatch] richiamata rimasta in attesa del retry:", item.id, retryError.message);
       result.failed++;
     }
   }

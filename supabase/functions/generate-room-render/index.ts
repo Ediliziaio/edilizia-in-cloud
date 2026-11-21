@@ -8,10 +8,8 @@ import { caricaTavoleMateriali } from "./materiali.ts";
 // Prompt Engine stanza-v1.0.0
 // Dalla pianta arrivano anche le finiture della stanza (pavimento, pareti, rivestimento): vedi righeFiniture.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
-import { deductRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import {
@@ -129,24 +127,18 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  let refundableSessionId: string | null = null;
-  let refundableCompanyId: string | null = null;
-  let refundableUserId: string | null = null;
-  let creditDeducted = false;
-  let sessionAutorizzata = false;
+  let terminaLavoro: ((message: string | null) => Promise<void>) | undefined;
   const requestStartedAt = Date.now();
 
   try {
     const auth = await requireAuth(req, corsHeaders);
     const supabase = auth.supabaseAdmin;
     const user = { id: auth.userId };
-    refundableUserId = user.id;
 
     const body = await req.json();
     const { session_id, target_width, target_height } = body;
     let config = body.config;
     if (!session_id) throw new Error("session_id required");
-    refundableSessionId = session_id;
 
     // Get session
     const { data: session, error: sessErr } = await supabase
@@ -157,7 +149,6 @@ Deno.serve(async (req: Request) => {
     if (sessErr || !session) throw new Error("Session not found");
 
     const companyId = session.company_id;
-    refundableCompanyId = companyId as string;
 
     // FIX P1.3: ownership check impersonation-aware. In precedenza il file
     // assumeva che chiunque con il session_id potesse avviare il render: una
@@ -172,7 +163,6 @@ Deno.serve(async (req: Request) => {
       throw new Error("forbidden: accesso negato alla sessione render stanza");
     }
 
-    sessionAutorizzata = true;
     const existingResults = Array.isArray(session.result_urls)
       ? session.result_urls
       : [];
@@ -204,49 +194,38 @@ Deno.serve(async (req: Request) => {
     // Il guard read-then-act ("status === processing → accepted") lasciava
     // passare due invocation simultanee → doppio addebito. Il claim generico
     // (whitelist tabelle verticali) serializza con FOR UPDATE.
-    const { data: claimRaw, error: claimErr } = await supabase.rpc(
-      "claim_render_vertical_session",
-      {
-        _table: "render_stanza_sessions",
-        _session_id: session_id,
-        _stale_seconds: 170,
-      },
-    );
-    if (claimErr) {
-      throw new Error(`claim_render_vertical_session failed: ${claimErr.message}`);
-    }
-    const claim = claimRaw as {
-      claimed: boolean;
-      reason?: string;
-      stale_takeover?: boolean;
-    };
-    if (!claim?.claimed) {
-      return acceptedRenderResponse(session_id);
-    }
-    if (claim.stale_takeover) {
-      // Tentativo morto: rimborsa il consume orfano PRIMA del nuovo deduct.
-      await supabase.rpc("refund_render_credit_all", {
+    const { data: claim, error: claimErr } = await supabase.rpc("claim_render_stanza_lavoro", {
+      _company_id: companyId,
+      _session_id: session_id,
+    });
+    if (claimErr) throw new Error(`Presa in carico non riuscita: ${claimErr.message}`);
+    if (!claim?.claimed) return acceptedRenderResponse(session_id);
+    const presoIl = claim.preso_il;
+    if (typeof presoIl !== "string") throw new Error("Presa in carico del render incompleta");
+
+    terminaLavoro = async (message) => {
+      const { error } = await supabase.rpc("termina_render_stanza_lavoro", {
         _company_id: companyId,
         _session_id: session_id,
-        _reason_meta: { source: "stale_takeover", edge_fn: "generate-room-render" },
+        _preso_il: presoIl,
+        _errore: message,
       });
-    }
+      if (error) console.error("Chiusura del tentativo stanza non confermata:", error.message);
+    };
 
-    const deductResult = await deductRenderCreditSafe(supabase, {
-      companyId: companyId as string,
-      sessionId: session_id,
-      userId: user.id,
-      reasonMeta: { vertical: "stanza", edge_fn: "generate-room-render" },
-      logTag: "generate-room-render",
+    const aggiornaTentativo = (patch: Record<string, unknown>) => supabase
+      .from("render_stanza_sessions").update(patch)
+      .eq("id", session_id).eq("company_id", companyId)
+      .eq("status", "processing").eq("processing_started_at", presoIl);
+
+    const { data: addebito, error: erroreAddebito } = await supabase.rpc("addebita_render_stanza_lavoro", {
+      _company_id: companyId,
+      _session_id: session_id,
+      _preso_il: presoIl,
+      _user_id: user.id,
     });
-    if (deductResult.status === "insufficient") {
-      await supabase.rpc("release_render_vertical_session", {
-        _table: "render_stanza_sessions",
-        _session_id: session_id,
-      });
-      throw new Error("insufficient_credits");
-    }
-    creditDeducted = true;
+    if (addebito?.status === "insufficient") throw new Error("insufficient_credits");
+    if (erroreAddebito || addebito?.status !== "ok") throw new Error("Addebito del credito render non confermato.");
 
     const renderJob = (async () => {
       const prepared = await prepareInputImage({
@@ -430,21 +409,20 @@ Deno.serve(async (req: Request) => {
       if (pianta?.materiali.pavimento || pianta?.materiali.infissi) fullPrompt += "\n\nPROJECT MATERIALS TAKE PRIORITY over ready-made style descriptions. Keep the selected common floor and window material/finish identical across rooms; never replace them to match a style example.";
 
       // Store prompt
-      await supabase
-        .from("render_stanza_sessions")
-        .update({
-          prompt_used: fullPrompt,
-          prompt_version: promptVersion,
-          prompt_char_count: fullPrompt.length,
-          prompt_blocks: blocks,
-          config_snapshot: {
-            ...normalizedConfig,
-            prompt_validation: validation,
-            input_image_meta: prepared.meta,
-            ...(pianta ? { planimetria: pianta.traccia } : {}),
-          },
-        })
-        .eq("id", session_id);
+      const { data: promptSalvato, error: errorePrompt } = await aggiornaTentativo({
+        prompt_used: fullPrompt,
+        prompt_version: promptVersion,
+        prompt_char_count: fullPrompt.length,
+        prompt_blocks: blocks,
+        config_snapshot: {
+          ...normalizedConfig,
+          prompt_validation: validation,
+          input_image_meta: prepared.meta,
+          ...(pianta ? { planimetria: pianta.traccia } : {}),
+        },
+      })
+        .select("id").maybeSingle();
+      if (errorePrompt || !promptSalvato) throw new Error("Il tentativo del render non è più attivo.");
 
       // ── Call provider unificato ──────────────────────────────────────────────
       const imgResp = await fetchWithTimeout(imageUrl, {}, 30_000);
@@ -702,7 +680,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
           if (!error) rejectedPath = path;
         } catch { /* La diagnostica non deve impedire il rimborso. */ }
         const { data: current } = await supabase.from("render_stanza_sessions").select("config_snapshot").eq("id", session_id).eq("company_id", companyId).single();
-        await supabase.from("render_stanza_sessions").update({ config_snapshot: { ...(current?.config_snapshot ?? {}), qa_audit: qaAudit, qa_rejected_path: rejectedPath } }).eq("id", session_id).eq("company_id", companyId);
+        await aggiornaTentativo({ config_snapshot: { ...(current?.config_snapshot ?? {}), qa_audit: qaAudit, qa_rejected_path: rejectedPath } });
         throw new Error(pianta ? (!qaAudit?.checked ? "Il controllo di porte, finestre e materiali non è disponibile: il render non è stato consegnato. Il credito viene restituito." : "Il render non rispetta la pianta o i materiali scelti: riprova. Il credito viene restituito.") : "Il render non ha rispettato i campioni o gli arredi richiesti: riprova. Il credito viene restituito.");
       }
       const providerKey = providerResult.providerUsed === "openrouter"
@@ -754,30 +732,33 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
       const costBilled = Number(providerConfig?.cost_billed_per_render ?? 0.10);
 
       // ── Update session as completed ──────────────────────────────────────────
-      await supabase
-        .from("render_stanza_sessions")
-        .update({
-          status: "completed",
-          result_urls: [resultImageUrl],
-          processing_completed_at: new Date().toISOString(),
-          provider_key: providerKey,
-          cost_real: costReal,
-          cost_billed: costBilled,
-          config_snapshot: {
-            ...normalizedConfig,
-            prompt_validation: validation,
-            input_image_meta: prepared.meta,
-            provider_model_used: modelUsed,
-            qa_audit: qaAudit,
-            provider_attempts: providerResult.attempts,
-            generation_attempts: generationAttempts,
-            ...(pianta ? { planimetria: pianta.traccia } : {}),
-          },
-        })
-        .eq("id", session_id);
+      const { data: completato, error: erroreSalvataggio } = await aggiornaTentativo({
+        status: "completed",
+        error_message: null,
+        result_urls: [resultImageUrl],
+        processing_completed_at: new Date().toISOString(),
+        provider_key: providerKey,
+        cost_real: costReal,
+        cost_billed: costBilled,
+        config_snapshot: {
+          ...normalizedConfig,
+          prompt_validation: validation,
+          input_image_meta: prepared.meta,
+          provider_model_used: modelUsed,
+          qa_audit: qaAudit,
+          provider_attempts: providerResult.attempts,
+          generation_attempts: generationAttempts,
+          ...(pianta ? { planimetria: pianta.traccia } : {}),
+        },
+      })
+        .select("id").maybeSingle();
+      if (erroreSalvataggio) throw new Error("Il risultato del render non è stato confermato. Riprova.");
+      if (!completato) {
+        await supabase.storage.from("stanza-results").remove([resultPath]);
+        throw new Error("Il risultato appartiene a un tentativo ormai sostituito.");
+      }
 
-      // Credit già dedotto pre-flight via deductRenderCreditSafe (atomico + audit).
-      // NON chiamare decrement_render_credits qui: causerebbe doppio addebito.
+      // Il credito è già associato al tentativo nel ledger.
 
       // Update provider stats
       if (providerConfig?.id) {
@@ -805,26 +786,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
     })().catch(async (jobErr: unknown) => {
       const message = jobErr instanceof Error ? jobErr.message : String(jobErr);
       console.error("generate-room-render background error:", message);
-      // F1-parity — refund_all: rimborsa TUTTI i consume scoperti (v1 si
-      // bloccava se esisteva già un refund di un ciclo precedente).
-      await supabase.rpc("refund_render_credit_all", {
-        _company_id: companyId,
-        _session_id: session_id,
-        _reason_meta: {
-          vertical: "stanza",
-          edge_fn: "generate-room-render",
-          error: message.substring(0, 500),
-          background_failure: true,
-        },
-      });
-      await supabase
-        .from("render_stanza_sessions")
-        .update({
-          status: "failed",
-          error_message: message,
-          processing_completed_at: new Date().toISOString(),
-        })
-        .eq("id", session_id);
+      await terminaLavoro?.(message);
     });
 
     runInBackground(renderJob);
@@ -834,34 +796,11 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
     const message = err instanceof Error ? err.message : String(err);
     console.error("generate-room-render error:", message);
 
-    // Try to mark session as failed
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, serviceKey);
-      if (sessionAutorizzata && refundableSessionId && refundableCompanyId) {
-        if (creditDeducted && refundableCompanyId && refundableSessionId) {
-          await supabase.rpc("refund_render_credit_all", {
-            _company_id: refundableCompanyId,
-            _session_id: refundableSessionId,
-            _reason_meta: {
-              vertical: "stanza",
-              edge_fn: "generate-room-render",
-              error: message.substring(0, 500),
-            },
-          });
-        }
-        await supabase
-          .from("render_stanza_sessions")
-          .update({
-            status: "failed",
-            error_message: message,
-            processing_completed_at: new Date().toISOString(),
-          })
-          .eq("id", refundableSessionId)
-          .eq("company_id", refundableCompanyId);
-      }
-    } catch { /* best effort */ }
+      await terminaLavoro?.(message === "insufficient_credits" ? null : message);
+    } catch (chiusura) {
+      console.error("Chiusura del tentativo stanza non riuscita:", chiusura);
+    }
 
     return new Response(
       JSON.stringify({ error: message }),

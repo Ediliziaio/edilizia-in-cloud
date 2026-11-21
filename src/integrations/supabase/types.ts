@@ -12644,6 +12644,7 @@ export type Database = {
           calendar_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
+          cancelled_reason: string | null
           capi_schedule_sent_at: string | null
           company_id: string
           conferma_inviata_at: string | null
@@ -12687,6 +12688,7 @@ export type Database = {
           reminder_sent: boolean | null
           riprogrammato_at: string | null
           status: string
+          ticket_id: string | null
           title: string
           updated_at: string
           wbraid: string | null
@@ -12709,6 +12711,7 @@ export type Database = {
           calendar_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          cancelled_reason?: string | null
           capi_schedule_sent_at?: string | null
           company_id: string
           conferma_inviata_at?: string | null
@@ -12752,6 +12755,7 @@ export type Database = {
           reminder_sent?: boolean | null
           riprogrammato_at?: string | null
           status?: string
+          ticket_id?: string | null
           title?: string
           updated_at?: string
           wbraid?: string | null
@@ -12774,6 +12778,7 @@ export type Database = {
           calendar_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          cancelled_reason?: string | null
           capi_schedule_sent_at?: string | null
           company_id?: string
           conferma_inviata_at?: string | null
@@ -12817,11 +12822,19 @@ export type Database = {
           reminder_sent?: boolean | null
           riprogrammato_at?: string | null
           status?: string
+          ticket_id?: string | null
           title?: string
           updated_at?: string
           wbraid?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_booking_member_calendar_id_fkey"
             columns: ["booking_member_calendar_id"]
@@ -46958,6 +46971,12 @@ export type Database = {
           notes: string | null
           period_from: string | null
           period_to: string | null
+          reimbursed_at: string | null
+          reimbursed_by: string | null
+          reimbursement_transaction_id: string | null
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string
           title: string
           total_amount: number
@@ -46976,6 +46995,12 @@ export type Database = {
           notes?: string | null
           period_from?: string | null
           period_to?: string | null
+          reimbursed_at?: string | null
+          reimbursed_by?: string | null
+          reimbursement_transaction_id?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           title: string
           total_amount?: number
@@ -46994,6 +47019,12 @@ export type Database = {
           notes?: string | null
           period_from?: string | null
           period_to?: string | null
+          reimbursed_at?: string | null
+          reimbursed_by?: string | null
+          reimbursement_transaction_id?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           title?: string
           total_amount?: number
@@ -47034,6 +47065,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "expense_reports_reimbursement_transaction_id_fkey"
+            columns: ["reimbursement_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -89681,6 +89719,7 @@ export type Database = {
           frequenza_giorni: number | null
           frequenza_tipo: string
           id: string
+          impianto_id: string | null
           prossima_scadenza: string | null
           tecnico_preferito: string | null
           titolo: string
@@ -89694,6 +89733,7 @@ export type Database = {
           frequenza_giorni?: number | null
           frequenza_tipo: string
           id?: string
+          impianto_id?: string | null
           prossima_scadenza?: string | null
           tecnico_preferito?: string | null
           titolo: string
@@ -89707,6 +89747,7 @@ export type Database = {
           frequenza_giorni?: number | null
           frequenza_tipo?: string
           id?: string
+          impianto_id?: string | null
           prossima_scadenza?: string | null
           tecnico_preferito?: string | null
           titolo?: string
@@ -89754,6 +89795,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contratti_manutenzione"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piani_manutenzione_impianto_company_fkey"
+            columns: ["impianto_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "impianti_cliente"
+            referencedColumns: ["id", "company_id"]
           },
           {
             foreignKeyName: "piani_manutenzione_tecnico_preferito_fkey"
@@ -106237,6 +106285,7 @@ export type Database = {
           payment_method: string | null
           payment_reference: string | null
           ritenuta_importo: number | null
+          revisione: number
           ritenuta_pct: number | null
           stato: string | null
           subappaltatore_id: string
@@ -106261,6 +106310,7 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           ritenuta_importo?: number | null
+          revisione?: number
           ritenuta_pct?: number | null
           stato?: string | null
           subappaltatore_id?: string
@@ -106285,6 +106335,7 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           ritenuta_importo?: number | null
+          revisione?: number
           ritenuta_pct?: number | null
           stato?: string | null
           subappaltatore_id?: string
@@ -116131,6 +116182,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      sms_checkout_receipts: {
+        Row: {
+          amount_cents: number
+          checkout_id: string
+          company_id: string
+          credit_cents: number
+          credited_at: string
+          payment_intent_id: string
+        }
+        Insert: {
+          amount_cents: number
+          checkout_id: string
+          company_id: string
+          credit_cents: number
+          credited_at?: string
+          payment_intent_id: string
+        }
+        Update: {
+          amount_cents?: number
+          checkout_id?: string
+          company_id?: string
+          credit_cents?: number
+          credited_at?: string
+          payment_intent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_checkout_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -147634,6 +147720,15 @@ export type Database = {
         Args: { p_scadenza_id: string }
         Returns: Json
       }
+      annulla_stato_attivita: {
+        Args: {
+          p_completata_il: string | null
+          p_id: string
+          p_stato: string
+          p_versione: string
+        }
+        Returns: Json
+      }
       annulla_pagamento_importata: {
         Args: { p_payment_id: string }
         Returns: Json
@@ -148651,6 +148746,14 @@ export type Database = {
         Args: { p_id: string; p_motivo: string; p_updated_at: string }
         Returns: undefined
       }
+      campo_rapportino_anteprima_annullo: {
+        Args: { p_id: string; p_updated_at: string }
+        Returns: Json
+      }
+      campo_rapportino_conferma_annullo: {
+        Args: { p_anteprima: string; p_id: string; p_motivo: string; p_updated_at: string }
+        Returns: undefined
+      }
       campo_rapportino_conflitto_ore: {
         Args: { p_rapportino_id: string }
         Returns: string
@@ -148708,6 +148811,8 @@ export type Database = {
       campo_timbra_cambio_luogo: {
         Args: {
           p_accuracy?: number
+          p_id_entrata?: string
+          p_id_uscita?: string
           p_lat?: number
           p_lng?: number
           p_note?: string
@@ -149537,6 +149642,10 @@ export type Database = {
       commessa_capocantiere: {
         Args: { p_order_id: string; p_user_id: string }
         Returns: undefined
+      }
+      commessa_togli_accesso_manuale: {
+        Args: { p_accesso_id: string; p_order_id: string }
+        Returns: string
       }
       commessa_codici_committente_salva: {
         Args: { p_codici: string[]; p_order: string }
@@ -151120,6 +151229,14 @@ export type Database = {
         Args: { p_company_id: string; p_dati: Json }
         Returns: Json
       }
+      documento_duplica_bozza: {
+        Args: { p_company_id: string; p_dati: Json; p_origine_id: string; p_richiesta_id: string }
+        Returns: Json
+      }
+      documento_fattura_da_ddt: {
+        Args: { p_company_id: string; p_dati: Json; p_ddt_id: string }
+        Returns: Json
+      }
       documento_elimina_bozza: {
         Args: { p_documento_id: string }
         Returns: Json
@@ -151174,6 +151291,10 @@ export type Database = {
           p_tipo: string
         }
         Returns: Json
+      }
+      duplica_modello_onboarding: {
+        Args: { p_descrizione: string | null; p_nome: string; p_origine: string }
+        Returns: string
       }
       e_amministratore_di: { Args: { p_azienda: string }; Returns: boolean }
       e_autofattura_ricevuta: { Args: { p_tipo: string }; Returns: boolean }
@@ -154658,6 +154779,20 @@ export type Database = {
               order_id: string
             }[]
           }
+      manutenzione_registra_esecuzione: {
+        Args: {
+          p_piano_id: string
+          p_impianto_id: string
+          p_operazione: string
+          p_data: string
+          p_esito?: string
+          p_note?: string | null
+          p_da_elenco?: boolean
+          p_ultima_attesa?: string | null
+          p_scadenza_attesa?: string | null
+        }
+        Returns: string
+      }
       mark_all_notifications_read: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -158147,6 +158282,22 @@ export type Database = {
       seed_tipi_documento_operaio: {
         Args: { p_company_id: string }
         Returns: undefined
+      }
+      leggi_voci_listino_fornitore: {
+        Args: { p_listino: string; p_fornitore: string; p_azienda: string }
+        Returns: Json
+      }
+      salva_voci_listino_fornitore: {
+        Args: { p_azienda: string; p_fornitore: string; p_listino: string | null; p_revisione: number | null; p_voci: Json }
+        Returns: Json
+      }
+      registra_saldo_fattura_ricevuta: {
+        Args: { p_id: string; p_richiesta: string; p_data?: string | null }
+        Returns: Json
+      }
+      annulla_saldo_fattura_ricevuta: {
+        Args: { p_id: string; p_richiesta?: string | null }
+        Returns: boolean
       }
       segna_fattura_ricevuta_pagata: {
         Args: { p_data?: string; p_id: string; p_pagata: boolean }

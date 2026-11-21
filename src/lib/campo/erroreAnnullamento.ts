@@ -7,7 +7,7 @@ export function messaggioAnnullamento(error: unknown): string {
     return "Connessione interrotta. Aggiorna il rapportino e riprova prima di annullarlo.";
   if (code === "PGRST301" || code === "PGRST303" || /jwt expired|invalid jwt/i.test(message))
     return "Sessione scaduta. Accedi di nuovo prima di annullare il rapportino.";
-  if (/^(Non si può annullare:|Non hai il permesso di annullare|Rapportino non disponibile\.|Il rapportino è cambiato:|Scrivi il motivo dell'annullamento\.|Accesso non autorizzato a questa azienda)/.test(message))
+  if (/^(Non si può annullare:|Non hai il permesso di annullare|Rapportino non disponibile\.|Il rapportino è cambiato[:.]|L’avanzamento è cambiato\.|Questo rapportino è già stato annullato\.|Scrivi il motivo dell'annullamento\.|Accesso non autorizzato a questa azienda)/.test(message))
     return message;
   if (code === "PT409") return "Il rapportino è cambiato: aggiorna la pagina prima di annullarlo.";
   if (code === "42501") return "Non hai il permesso di annullare questo rapportino.";

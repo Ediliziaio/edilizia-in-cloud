@@ -69,9 +69,9 @@ export function TabBudget({ anno }: Props) {
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <RiquadroConfronto titolo="Ricavi" budget={ricavi.budget} previsione={ricavi.previsione} piuEMeglio annoChiuso={annoChiuso} />
-          <RiquadroConfronto titolo="Costi" budget={costi.budget} previsione={costi.previsione} piuEMeglio={false} annoChiuso={annoChiuso} />
-          <RiquadroConfronto titolo="Utile netto" budget={utile.budget} previsione={utile.previsione} piuEMeglio annoChiuso={annoChiuso} incompleto={!utileConfrontabile} />
+          <RiquadroConfronto titolo="Ricavi" budget={ricavi.budget} definito={ricavi.definito} incompleto={ricavi.incompleto} previsione={ricavi.previsione} piuEMeglio annoChiuso={annoChiuso} />
+          <RiquadroConfronto titolo="Costi" budget={costi.budget} definito={costi.definito} incompleto={costi.incompleto} previsione={costi.previsione} piuEMeglio={false} annoChiuso={annoChiuso} />
+          <RiquadroConfronto titolo="Utile netto" budget={utile.budget} definito={utile.definito} previsione={utile.previsione} piuEMeglio annoChiuso={annoChiuso} incompleto={!utileConfrontabile} />
         </div>
       )}
       {budgetSospetto && (
@@ -110,11 +110,12 @@ export function TabBudget({ anno }: Props) {
                   ],
                   rows: righe.map((v) => ({
                     ...v,
+                    budget: v.budgetDefinito ? v.budget : null,
+                    scostamento: v.confrontoDisponibile ? v.scostamento : null,
                     scostamento_pct: formatPct(v.scostamentoPct, 1, true),
                   })),
                   rowStyle: (row) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const t = (row as any).tipo as string;
+                    const t = (row as Pick<RigaBudget, "tipo">).tipo;
                     if (t === "subtot_grasso") return "total";
                     if (t === "subtot") return "subtot";
                     return "normal";
@@ -152,7 +153,7 @@ export function TabBudget({ anno }: Props) {
                     >
                       <td className="px-3 py-2">{v.label}</td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {v.budget !== 0 ? formatCurrency(v.budget) : "—"}
+                        {v.budgetDefinito ? formatCurrency(v.budget) : <span className="text-muted-foreground">Da definire</span>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {v.consuntivo !== 0 ? formatCurrency(v.consuntivo) : "—"}
@@ -161,7 +162,12 @@ export function TabBudget({ anno }: Props) {
                         {v.previsione !== 0 ? formatCurrency(v.previsione) : "—"}
                       </td>
                       <td className={cn("px-3 py-2 text-right tabular-nums", coloreScostamento(v))}>
-                        {v.scostamentoPct !== null ? formatCurrency(v.scostamento) : v.budgetIncompleto && v.budget !== 0
+                        {v.confrontoDisponibile ? (
+                          <span className={cn(v.budget === 0 && v.semaforo === "rosso" && "rounded-md px-2 py-0.5", v.budget === 0 && v.semaforo === "rosso" && SEM_BG.rosso)}>
+                            {formatCurrency(v.scostamento)}
+                            {v.budget === 0 && v.semaforo === "rosso" && !v.piuEMeglio && <span className="ml-1 text-xs">non previsti</span>}
+                          </span>
+                        ) : v.budgetIncompleto && v.budgetDefinito
                           ? <span className="text-xs text-muted-foreground" title="Alcune voci di questo totale hanno un consuntivo ma nessun budget">budget incompleto</span>
                           : "—"}
                       </td>
@@ -210,10 +216,11 @@ export function TabBudget({ anno }: Props) {
 }
 
 function RiquadroConfronto({
-  titolo, budget, previsione, piuEMeglio, annoChiuso, incompleto = false,
+  titolo, budget, definito, previsione, piuEMeglio, annoChiuso, incompleto = false,
 }: {
   titolo: string;
   budget: number;
+  definito: boolean;
   previsione: number;
   piuEMeglio: boolean;
   annoChiuso: boolean;
@@ -238,7 +245,7 @@ function RiquadroConfronto({
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground" title={formatCurrency(budget)}>
-          {annoChiuso ? "Consuntivo" : "Previsione fine anno"} · {incompleto ? "budget incompleto" : <>budget {formatEuroRiquadro(budget)}</>}
+          {annoChiuso ? "Consuntivo" : "Previsione fine anno"} · {incompleto && definito ? "budget incompleto" : definito ? <>budget {formatEuroRiquadro(budget)}</> : "budget da definire"}
         </p>
       </CardContent>
     </Card>
@@ -256,23 +263,23 @@ function BudgetEditor({
   const upsert = useUpsertBudget();
   const { toast } = useToast();
   // Montato con key = voce: lo stato parte già dai valori della voce.
-  const [importo, setImporto] = useState(() => (voce.budget ? String(voce.budget).replace(".", ",") : ""));
+  const [importo, setImporto] = useState(() => (voce.budgetDefinito ? String(voce.budget).replace(".", ",") : ""));
   const [note, setNote] = useState(() => notaIniziale ?? "");
 
-  const handleSave = async () => {
+  const handleSave = async (rimuovi = false) => {
     const num = leggiImporto(importo);
-    if (num === null || num < 0) {
-      toast({ title: "Importo non valido", description: "Scrivi un numero, ad esempio 120.000", variant: "destructive" });
+    if (!rimuovi && (importo.trim() === "" || num === null || num < 0)) {
+      toast({ title: "Importo non valido", description: "Scrivi l’importo annuo. Inserisci 0 per confermare un budget pari a zero.", variant: "destructive" });
       return;
     }
     try {
       await upsert.mutateAsync({
         anno,
         codice: voce.codice,
-        importo: num,
+        importo: rimuovi ? null : num,
         note: note.trim() || null,
       });
-      toast({ title: "Budget salvato" });
+      toast({ title: rimuovi ? "Budget da definire" : "Budget salvato" });
       onClose();
     } catch (e) {
       toast({ title: "Budget non salvato", description: messaggioErrore(e), variant: "destructive" });
@@ -312,9 +319,12 @@ function BudgetEditor({
               placeholder="es. +12% sul 2025"
             />
           </div>
-          <Button className="w-full" onClick={handleSave} disabled={upsert.isPending}>
+          <Button className="w-full" onClick={() => void handleSave()} disabled={upsert.isPending}>
             Salva budget
           </Button>
+          {voce.budgetDefinito && <Button className="w-full" variant="ghost" onClick={() => void handleSave(true)} disabled={upsert.isPending}>
+            Rimuovi budget e nota
+          </Button>}
         </div>
       </SheetContent>
     </Sheet>

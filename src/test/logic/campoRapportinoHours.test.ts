@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { validateRapportinoHours } from "@/lib/campo/rapportinoHours";
+import { correggiPresenzeRapportino, validateRapportinoHours } from "@/lib/campo/rapportinoHours";
+
+describe("presenze del rapportino rimandato dall'ufficio", () => {
+  const originali = [
+    { employee_id: "a", nome: "Anna", ore: 8, tariffa_salvata: 25 },
+    { employee_id: "b", nome: "Bruno", ore: 8, tariffa_salvata: 28 },
+  ];
+  const squadra = [
+    { key: "emp-a", employee_id: "a", nome: "Anna" },
+    { key: "emp-c", employee_id: "c", nome: "Carla" },
+  ];
+
+  it("omette il campo per una correzione del solo testo, anche con una squadra parziale", () => {
+    expect(correggiPresenzeRapportino(originali, squadra, { "emp-a": 8 }, {})).toBeUndefined();
+  });
+
+  it("modifica solo i nominativi toccati e conserva il lavoratore uscito dalla squadra", () => {
+    expect(correggiPresenzeRapportino(originali, squadra, { "emp-c": 6 }, { "emp-a": true, "emp-c": true }))
+      .toEqual([originali[1], { employee_id: "c", nome: "Carla", ore: 6 }]);
+  });
+
+  it("omette il campo se la squadra non è ancora disponibile e permette di rimuovere l'ultima presenza", () => {
+    expect(correggiPresenzeRapportino(originali, [], {}, { "emp-a": true })).toBeUndefined();
+    expect(correggiPresenzeRapportino([originali[0]], squadra, {}, { "emp-a": true })).toEqual([]);
+  });
+});
 
 describe("Contratto delle ore del rapportino", () => {
   it("distingue ore mancanti da zero esplicito per foto o note", () => {

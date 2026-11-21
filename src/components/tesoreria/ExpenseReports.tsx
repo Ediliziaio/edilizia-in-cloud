@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Receipt, Plus, Trash2, CheckCircle2, XCircle, Clock, Send } from "lucide-react";
+import { Receipt, Plus, Trash2, CheckCircle2, XCircle, Clock, Send, type LucideIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 import { formatTreasuryCurrency, isChronologicalDateRange, parsePositiveAmount, toFiniteAmount } from "@/lib/treasury";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
@@ -22,7 +25,7 @@ const todayIso = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+const statusConfig: Record<string, { label: string; color: string; icon: LucideIcon }> = {
   draft: { label: "Bozza", color: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200", icon: Clock },
   submitted: { label: "Inviata", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: Send },
   approved: { label: "Approvata", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
@@ -30,54 +33,85 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
   reimbursed: { label: "Rimborsata", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200", icon: CheckCircle2 },
 };
 
+type Report = Tables<"expense_reports">;
+type Transizione = "submitted" | "approved" | "rejected" | "reimbursed" | "draft";
+const descrizioneEsito: Record<Transizione, string> = {
+  submitted: "Nota spese inviata per approvazione",
+  approved: "Nota spese approvata",
+  rejected: "Nota spese rifiutata",
+  reimbursed: "Rimborso associato al movimento",
+  draft: "Nota spese riaperta",
+};
+const dataOra = (data: string) => new Date(data).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+
 interface Props {
   companyId: string;
   refreshKey?: number;
 }
 
-export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
-  const [reports, setReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+export default function ExpenseReports(props: Props) {
+  return <NoteSpeseAzienda key={props.companyId} {...props} />;
+}
+
+function NoteSpeseAzienda({ companyId, refreshKey = 0 }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [newReport, setNewReport] = useState({ title: "", description: "", period_from: "", period_to: "" });
 
   // Detail view
-  const [selectedReport, setSelectedReport] = useState<any>(null);
-  const [reportItems, setReportItems] = useState<any[]>([]);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [reportItems, setReportItems] = useState<Tables<"expense_report_items">[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
   const [newItem, setNewItem] = useState({ description: "", amount: "", category: "Trasferte", expense_date: todayIso() });
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
-
-  useEffect(() => {
-    if (companyId) void loadReports();
-    else {
-      setReports([]);
-      setLoading(false);
-    }
-  }, [companyId, refreshKey]);
-
-  async function loadReports() {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const { data, error } = await supabase
-        .from("expense_reports")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
+  const aggiuntaInCorso = useRef(false);
+  const transizioneInCorso = useRef(false);
+  const { isAdmin } = usePermissions();
+  const [revisione, setRevisione] = useState<"approved" | "rejected" | "reimbursed" | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [movimento, setMovimento] = useState("");
+  const importoRimborso = toFiniteAmount(selectedReport?.total_amount);
+  const valutaRimborso = selectedReport?.currency || "EUR";
+  const movimenti = useQuery({
+    queryKey: ["movimenti-rimborso-nota-spese", companyId, importoRimborso, valutaRimborso],
+    enabled: revisione === "reimbursed" && isAdmin && !!companyId && importoRimborso > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bank_transactions").select("id, booking_date, description")
+        .eq("company_id", companyId).eq("status", "booked").eq("currency", valutaRimborso)
+        .eq("amount", -importoRimborso).not("booking_date", "is", null)
+        .order("booking_date", { ascending: false }).limit(50);
       if (error) throw error;
-      setReports(data || []);
-    } catch (e: any) {
-      setLoadError(e.message || "Impossibile caricare le note spese");
-      toast.error("Errore caricamento note spese");
-    } finally {
-      setLoading(false);
-    }
-  }
+      return data ?? [];
+    },
+  });
+  const autori = [selectedReport?.reviewed_by, selectedReport?.reimbursed_by].filter((id): id is string => !!id);
+  const { data: profili } = useQuery({
+    queryKey: ["autori-nota-spese", companyId, autori],
+    enabled: autori.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", autori);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ")]));
+    },
+  });
+  const tentativoVoce = useRef<{ id: string; reportId: string; companyId: string } | null>(null);
+
+  const lista = useQuery({
+    queryKey: ["note-spese", companyId, refreshKey],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("expense_reports").select("*")
+        .eq("company_id", companyId).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const reports = lista.data ?? [];
+  const loading = lista.isLoading;
+  const loadError = lista.isError ? (lista.error?.message || "Impossibile caricare le note spese") : null;
+  const loadReports = lista.refetch;
 
   async function handleCreate() {
     if (!newReport.title.trim()) { toast.error("Inserisci il titolo della nota spese"); return; }
@@ -105,7 +139,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
     }
   }
 
-  async function openDetail(report: any) {
+  async function openDetail(report: Report) {
     setSelectedReport(report);
     try {
       const [{ data: itemsData, error: itemsError }, { data: freshReport, error: reportError }] = await Promise.all([
@@ -126,60 +160,115 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
       if (reportError) throw reportError;
       if (freshReport) setSelectedReport(freshReport);
       setReportItems(itemsData || []);
-    } catch (e: any) {
-      toast.error("Errore caricamento dettaglio nota spese: " + e.message);
+    } catch (errore) {
+      const descrizione = typeof errore === "object" && errore && "message" in errore ? String(errore.message) : undefined;
+      toast.error("Errore caricamento dettaglio nota spese", { description: descrizione });
       setReportItems([]);
     }
   }
 
   async function handleAddItem() {
+    if (aggiuntaInCorso.current) return;
     if (!selectedReport?.id) { toast.error("Nota spese non disponibile"); return; }
     if (!newItem.description.trim()) { toast.error("Inserisci la descrizione della spesa"); return; }
     const amount = parsePositiveAmount(newItem.amount);
     if (!amount) { toast.error("Inserisci un importo maggiore di zero"); return; }
     if (!newItem.expense_date) { toast.error("Inserisci la data della spesa"); return; }
+
+    if (tentativoVoce.current?.reportId !== selectedReport.id || tentativoVoce.current.companyId !== companyId) {
+      tentativoVoce.current = { id: crypto.randomUUID(), reportId: selectedReport.id, companyId };
+    }
+    const riga = {
+      id: tentativoVoce.current.id,
+      report_id: selectedReport.id,
+      company_id: companyId,
+      description: newItem.description.trim(),
+      amount,
+      category: newItem.category,
+      expense_date: newItem.expense_date,
+    };
+
+    aggiuntaInCorso.current = true;
     setIsAddingItem(true);
     try {
-      const { error } = await supabase.from("expense_report_items").insert({
-        report_id: selectedReport.id,
-        company_id: companyId,
-        description: newItem.description,
-        amount,
-        category: newItem.category,
-        expense_date: newItem.expense_date,
-      });
-      if (error) { toast.error(error.message); return; }
+      const { error } = await supabase.from("expense_report_items").insert(riga);
+      if (error?.code === "23505") {
+        const { data: registrata, error: lettura } = await supabase.from("expense_report_items")
+          .select("description, amount, category, expense_date")
+          .eq("company_id", companyId).eq("report_id", selectedReport.id).eq("id", riga.id).maybeSingle();
+        if (lettura || !registrata) throw lettura ?? error;
+        if (registrata.description !== riga.description || Number(registrata.amount) !== riga.amount
+          || registrata.category !== riga.category || registrata.expense_date !== riga.expense_date) {
+          tentativoVoce.current = null;
+          await openDetail(selectedReport);
+          await loadReports();
+          toast.error("Il primo invio è già registrato. Controlla la voce prima di aggiungerne un’altra.");
+          return;
+        }
+      } else if (error) {
+        throw error;
+      }
+
+      tentativoVoce.current = null;
       toast.success("Voce aggiunta");
       setShowAddItem(false);
       setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: todayIso() });
       await openDetail(selectedReport);
       await loadReports();
+    } catch (errore) {
+      toast.error("Impossibile confermare il salvataggio della voce", {
+        description: typeof errore === "object" && errore !== null && "message" in errore
+          ? String(errore.message) : "Riprova dallo stesso modulo.",
+      });
     } finally {
+      aggiuntaInCorso.current = false;
       setIsAddingItem(false);
     }
   }
 
-  async function handleSubmit(reportId: string) {
-    const targetReport = reports.find((report) => report.id === reportId) || selectedReport;
-    if (toFiniteAmount(targetReport?.total_amount) <= 0) {
+  async function cambiaStato(report: Report, stato: Transizione) {
+    if (transizioneInCorso.current) return;
+    if (stato === "submitted" && toFiniteAmount(report.total_amount) <= 0) {
       toast.error("Aggiungi almeno una voce prima di inviare la nota spese");
       return;
     }
+    if (stato === "rejected" && !motivo.trim()) return;
+    if (stato === "reimbursed" && !movimento) return;
 
-    setSubmittingId(reportId);
+    transizioneInCorso.current = true;
+    setSubmittingId(report.id);
     try {
-      const { error } = await supabase
-        .from("expense_reports")
-        .update({ status: "submitted" })
-        .eq("id", reportId)
-        .eq("company_id", companyId);
-      if (error) { toast.error("Errore nell'invio: " + error.message); return; }
-      toast.success("Nota spese inviata per approvazione");
+      const patch = {
+        status: stato,
+        ...(stato === "approved" || stato === "rejected" ? { review_reason: motivo.trim() || null } : {}),
+        ...(stato === "reimbursed" ? { reimbursement_transaction_id: movimento } : {}),
+      };
+      const { data, error } = await supabase.from("expense_reports").update(patch)
+        .eq("company_id", companyId).eq("id", report.id).eq("status", report.status)
+        .eq("updated_at", report.updated_at).select("*").maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast.warning("Nota spese aggiornata da un’altra scheda", { description: "Controlla lo stato corrente prima di procedere." });
+        if (selectedReport?.id === report.id) await openDetail(report);
+      } else {
+        toast.success(descrizioneEsito[stato]);
+        if (selectedReport?.id === report.id) setSelectedReport(data);
+      }
+      setRevisione(null);
       await loadReports();
-      if (selectedReport?.id === reportId) setSelectedReport({ ...selectedReport, status: "submitted" });
+    } catch (errore) {
+      const descrizione = typeof errore === "object" && errore && "message" in errore ? String(errore.message) : undefined;
+      toast.error("Aggiornamento della nota spese non confermato", { description: descrizione });
     } finally {
+      transizioneInCorso.current = false;
       setSubmittingId(null);
     }
+  }
+
+  function apriRevisione(stato: "approved" | "rejected" | "reimbursed") {
+    setMotivo("");
+    setMovimento("");
+    setRevisione(stato);
   }
 
   async function handleDelete() {
@@ -200,6 +289,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
   }
 
   async function handleDeleteItem(itemId: string) {
+    if (!selectedReport) return;
     const { error } = await supabase
       .from("expense_report_items")
       .delete()
@@ -280,7 +370,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
                           variant="outline"
                           size="sm"
                           disabled={submittingId === report.id}
-                          onClick={(e) => { e.stopPropagation(); handleSubmit(report.id); }}
+                          onClick={(e) => { e.stopPropagation(); cambiaStato(report, "submitted"); }}
                         >
                           {submittingId === report.id ? (
                             <span className="h-3 w-3 mr-1 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />
@@ -325,7 +415,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
       </Dialog>
 
       {/* Detail Dialog */}
-      <Dialog open={!!selectedReport} onOpenChange={() => setSelectedReport(null)}>
+      <Dialog open={!!selectedReport} onOpenChange={(open) => { if (!open && !submittingId) { setSelectedReport(null); setRevisione(null); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -344,6 +434,21 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
                 <Button size="sm" onClick={() => setShowAddItem(true)}><Plus className="h-4 w-4 mr-1" /> Aggiungi Voce</Button>
               )}
             </div>
+            {selectedReport?.reviewed_at && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <p>Ultima revisione · {dataOra(selectedReport.reviewed_at)}</p>
+                {selectedReport.reviewed_by && <p className="text-muted-foreground">{profili?.[selectedReport.reviewed_by] || selectedReport.reviewed_by}</p>}
+                {selectedReport.review_reason && <p className="mt-1 whitespace-pre-wrap">{selectedReport.review_reason}</p>}
+                {selectedReport.status === "rejected" && <p className="mt-2 text-muted-foreground">Riapri la nota per correggere le voci e inviarla di nuovo.</p>}
+              </div>
+            )}
+            {selectedReport?.reimbursed_at && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <p>Rimborso registrato · {dataOra(selectedReport.reimbursed_at)}</p>
+                {selectedReport.reimbursed_by && <p className="text-muted-foreground">{profili?.[selectedReport.reimbursed_by] || selectedReport.reimbursed_by}</p>}
+                <p className="break-all text-muted-foreground">Movimento {selectedReport.reimbursement_transaction_id}</p>
+              </div>
+            )}
             {reportItems.length === 0 ? (
               <p className="text-muted-foreground text-center py-6">Nessuna voce. Aggiungi le spese alla nota.</p>
             ) : (
@@ -370,6 +475,57 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
               </div>
             )}
           </div>
+          {selectedReport && (
+            <DialogFooter className="flex-wrap">
+              {selectedReport.status === "rejected" && (
+                <Button variant="outline" disabled={!!submittingId} onClick={() => void cambiaStato(selectedReport, "draft")}>Riapri per correggere</Button>
+              )}
+              {isAdmin && selectedReport.status === "submitted" && (
+                <>
+                  <Button variant="outline" onClick={() => apriRevisione("rejected")}>Rifiuta</Button>
+                  <Button onClick={() => apriRevisione("approved")}>Approva</Button>
+                </>
+              )}
+              {isAdmin && selectedReport.status === "approved" && (
+                <Button onClick={() => apriRevisione("reimbursed")}>Registra rimborso</Button>
+              )}
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!revisione} onOpenChange={(open) => { if (!open && !submittingId) setRevisione(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{revisione === "approved" ? "Approva nota spese" : revisione === "rejected" ? "Rifiuta nota spese" : "Registra rimborso"}</DialogTitle>
+          </DialogHeader>
+          {revisione === "reimbursed" ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Associa l’uscita già contabilizzata per {formatEur(importoRimborso)}.</p>
+              <Label htmlFor="rimborso-nota-movimento">Movimento bancario</Label>
+              <Select value={movimento} onValueChange={setMovimento}>
+                <SelectTrigger id="rimborso-nota-movimento"><SelectValue placeholder="Scegli il movimento" /></SelectTrigger>
+                <SelectContent>
+                  {movimenti.data?.map((m) => <SelectItem key={m.id} value={m.id}>{m.booking_date} · {m.description || m.id}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {movimenti.isLoading && <p role="status" className="text-sm">Caricamento movimenti…</p>}
+              {movimenti.isError && <Button variant="link" onClick={() => void movimenti.refetch()}>Riprova lettura movimenti</Button>}
+              {movimenti.isSuccess && movimenti.data.length === 0 && <p className="text-sm">Nessuna uscita contabilizzata con lo stesso importo e valuta.</p>}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="nota-spese-motivo">{revisione === "rejected" ? "Motivo del rifiuto" : "Nota di approvazione (facoltativa)"}</Label>
+              <Textarea id="nota-spese-motivo" maxLength={2000} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={!!submittingId} onClick={() => setRevisione(null)}>Annulla</Button>
+            <Button disabled={!!submittingId || (revisione === "rejected" && !motivo.trim()) || (revisione === "reimbursed" && !movimento)}
+              onClick={() => { if (revisione && selectedReport) void cambiaStato(selectedReport, revisione); }}>
+              Conferma
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

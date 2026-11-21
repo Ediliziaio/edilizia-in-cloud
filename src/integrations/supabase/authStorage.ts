@@ -1,3 +1,5 @@
+import { idAccessoDalToken } from "../../lib/auth/accessoRevocato";
+
 /**
  * Dove vive la sessione: un cookie sul dominio comune, non la memoria del
  * singolo sito.
@@ -27,6 +29,8 @@
  * In lettura il cookie ha la precedenza; se manca, si legge la memoria locale e
  * — quando il dominio lo permette — la sessione trovata lì viene copiata nel
  * cookie, così chi era già dentro non deve rifare login nemmeno una volta.
+ * La revoca condivisa conserva gli ID delle sessioni chiuse: una vecchia copia
+ * locale o un rinnovo in volo non possono rimetterle nel cookie.
  */
 
 const DOMINIO_CONDIVISO = ".ediliziaincloud.com";
@@ -41,6 +45,37 @@ const DOMINIO_CONDIVISO = ".ediliziaincloud.com";
 const MAX_PER_COOKIE = 3_000;
 const MAX_PEZZI = 3;
 const GIORNI = 45;
+const SUFFISSO_REVOCHE = ".revoche";
+
+function idSessioneDaValore(valore: string | null): string | null {
+  try { return idAccessoDalToken(valore ? JSON.parse(valore).access_token : null); } catch { return null; }
+}
+
+function revoche(chiave: string): string[] {
+  return (leggiCookie(chiave + SUFFISSO_REVOCHE) ?? "").split(",").filter(Boolean);
+}
+
+function letturaLocale(chiave: string): string | null {
+  try { return localStorage.getItem(chiave); } catch { return null; }
+}
+
+function pulisciLocale(chiave: string): void {
+  try { localStorage.removeItem(chiave); } catch { /* storage negato */ }
+}
+
+function scriviLocale(chiave: string, valore: string): void {
+  try { localStorage.setItem(chiave, valore); } catch { /* storage negato */ }
+}
+
+export function sessioneCondivisaRevocata(token: string | null): boolean {
+  if (!dominioPerCookie() || !token) return false;
+  const id = idAccessoDalToken(token);
+  return !!id && document.cookie.split("; ").some((pezzo) => {
+    const [nome, valore] = pezzo.split("=", 2);
+    if (!nome.startsWith("sb-") || !nome.endsWith(SUFFISSO_REVOCHE)) return false;
+    try { return decodeURIComponent(valore).split(",").includes(id); } catch { return false; }
+  });
+}
 
 function dominioPerCookie(): string | null {
   if (typeof window === "undefined") return null;
@@ -57,7 +92,9 @@ function leggiCookie(nome: string): string | null {
   if (typeof document === "undefined") return null;
   const cercato = `${encodeURIComponent(nome)}=`;
   for (const pezzo of document.cookie.split("; ")) {
-    if (pezzo.startsWith(cercato)) return decodeURIComponent(pezzo.slice(cercato.length));
+    if (pezzo.startsWith(cercato)) {
+      try { return decodeURIComponent(pezzo.slice(cercato.length)); } catch { return null; }
+    }
   }
   return null;
 }
@@ -122,14 +159,19 @@ function cancellaDaCookie(chiave: string, dominio: string): void {
 export const authStorage = {
   getItem(chiave: string): string | null {
     const dominio = dominioPerCookie();
+    const revocate = dominio ? revoche(chiave) : [];
+    const daLocale = letturaLocale(chiave);
+    const localeRevocata = revocate.includes(idSessioneDaValore(daLocale) ?? "");
+    if (localeRevocata) pulisciLocale(chiave);
     if (dominio) {
       const daCookie = leggiDaCookie(chiave);
-      if (daCookie !== null) return daCookie;
+      if (daCookie !== null) {
+        if (revocate.includes(idSessioneDaValore(daCookie) ?? "")) return null;
+        if (daCookie !== daLocale) scriviLocale(chiave, daCookie);
+        return daCookie;
+      }
     }
-    let daLocale: string | null = null;
-    try {
-      daLocale = localStorage.getItem(chiave);
-    } catch { /* storage negato: si prosegue senza */ }
+    if (localeRevocata) return null;
     // Chi era già dentro prima di questa modifica: la sessione passa nel
     // cookie senza che debba rifare login.
     if (daLocale !== null && dominio) scriviSuCookie(chiave, daLocale, dominio);
@@ -139,25 +181,29 @@ export const authStorage = {
   setItem(chiave: string, valore: string): void {
     const dominio = dominioPerCookie();
     if (dominio) {
+      if (revoche(chiave).includes(idSessioneDaValore(valore) ?? "")) return;
       try {
         scriviSuCookie(chiave, valore, dominio);
       } catch { /* cookie negati: resta la memoria locale */ }
     }
-    try {
-      localStorage.setItem(chiave, valore);
-    } catch { /* ignore */ }
+    scriviLocale(chiave, valore);
   },
 
   removeItem(chiave: string): void {
     const dominio = dominioPerCookie();
     if (dominio) {
       try {
-        cancellaDaCookie(chiave, dominio);
+        const condivisa = idSessioneDaValore(leggiDaCookie(chiave));
+        const locale = idSessioneDaValore(letturaLocale(chiave));
+        const chiusa = locale ?? condivisa;
+        if (chiusa) {
+          const ultime = [chiusa, ...revoche(chiave).filter((id) => id !== chiusa)].slice(0, 12);
+          scriviCookie(chiave + SUFFISSO_REVOCHE, ultime.join(","), dominio);
+        }
+        if (!condivisa || condivisa === chiusa) cancellaDaCookie(chiave, dominio);
       } catch { /* ignore */ }
     }
-    try {
-      localStorage.removeItem(chiave);
-    } catch { /* ignore */ }
+    pulisciLocale(chiave);
   },
 };
 
@@ -175,7 +221,7 @@ function chiaviSessione(): string[] {
       const nome = decodeURIComponent(pezzo.split("=")[0] ?? "");
       if (nome.startsWith("sb-") && nome.includes("auth-token")) {
         // "sb-xxx-auth-token.1" → "sb-xxx-auth-token"
-        chiavi.add(nome.replace(/\.\d+$/, ""));
+        chiavi.add(nome.replace(/\.\d+$|\.revoche$/, ""));
       }
     }
   }

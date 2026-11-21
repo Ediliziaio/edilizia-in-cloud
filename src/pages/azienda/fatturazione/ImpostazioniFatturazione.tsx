@@ -206,14 +206,23 @@ export default function ImpostazioniFatturazione() {
     // Testo pulito: l'IBAN incollato dall'home banking porta spazi e tabulazioni, e il nome
     // della banca uno spazio in fondo (Renova: «IT39…6098<tab>», «BANCA DELLA MARCA »).
     const pulito: Record<string, unknown> = { ...form };
-    if (typeof pulito.iban_principale === "string") pulito.iban_principale = pulito.iban_principale.replace(/\s+/g, "").toUpperCase() || null;
+    if (typeof pulito.iban_principale === "string") pulito.iban_principale = pulisciIbanConto(pulito.iban_principale) || null;
     for (const k of ["nome_banca", "intestatario_conto", "bic_swift"]) {
       if (typeof pulito[k] === "string") pulito[k] = (pulito[k] as string).trim() || null;
     }
     const iban = pulito.iban_principale;
-    if (typeof iban === "string" && !/^IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}$/.test(iban)) {
-      toast.error("IBAN non valido", { description: "Un IBAN italiano ha 27 caratteri: IT, 2 cifre, una lettera e 22 tra cifre e lettere." });
+    if (typeof iban === "string" && !ibanValido(iban)) {
+      toast.error("IBAN principale non valido", { description: "Controlla il formato italiano e le cifre di controllo con la tua banca." });
       return;
+    }
+    if (Array.isArray(form.conti_fatturazione)) {
+      const conti = form.conti_fatturazione.map(conto => ({ ...conto, iban: pulisciIbanConto(conto.iban) }));
+      const nonValido = conti.findIndex(conto => conto.iban && !ibanValido(conto.iban));
+      if (nonValido >= 0) {
+        toast.error(`IBAN del conto ${nonValido + 1} non valido`, { description: "Controlla il formato italiano e le cifre di controllo con la tua banca." });
+        return;
+      }
+      pulito.conti_fatturazione = conti;
     }
 
     // Senza la scheda si crea qui, mai in silenzio: se manca qualcosa che il database vuole si dice cosa e non si

@@ -372,33 +372,22 @@ serveConMetriche("manage-super-admins", async (req) => {
 
       // 1. Export prima di toccare qualsiasi cosa. Se l'export fallisce la
       //    cancellazione non parte: meglio non cancellare che cancellare al buio.
-      let exportPath: string | null = null;
+      const exportPath = `${company.id}/${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID()}-pre-delete.json`;
       try {
-        const [profiles, orders, quotes, invoices, customers] = await Promise.all([
-          supabaseAdmin.from("profiles").select("*").eq("company_id", companyId),
-          supabaseAdmin.from("orders").select("*").eq("company_id", companyId),
-          supabaseAdmin.from("quotes").select("*").eq("company_id", companyId),
-          supabaseAdmin.from("invoices").select("*").eq("company_id", companyId),
-          supabaseAdmin.from("customers").select("*").eq("company_id", companyId),
-        ]);
+        const { data: dump, error: exportError } = await supabaseAdmin.rpc("admin_esporta_azienda", {
+          p_company_id: company.id,
+        });
+        if (exportError) throw new Error(exportError.message);
+        if (dump?.azienda?.id !== company.id || dump?.elenco_da_catalogo !== true) {
+          throw new Error("Il formato dell’export non è valido per il ripristino.");
+        }
+        const tabelleNonEsportate = Object.keys(dump).filter((key) => key.endsWith("__errore"));
+        if (tabelleNonEsportate.length) throw new Error(`Export incompleto (${tabelleNonEsportate.length} tabelle).`);
 
-        const dump = {
-          exported_at: new Date().toISOString(),
-          exported_by: callerId,
-          reason: reason ?? null,
-          company,
-          profiles: profiles.data ?? [],
-          orders: orders.data ?? [],
-          quotes: quotes.data ?? [],
-          invoices: invoices.data ?? [],
-          customers: customers.data ?? [],
-        };
-
-        exportPath = `${companyId}/${new Date().toISOString().slice(0, 10)}-pre-delete.json`;
         const { error: upErr } = await supabaseAdmin.storage
           .from("company-exports")
-          .upload(exportPath, new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" }), {
-            upsert: true,
+          .upload(exportPath, new Blob([JSON.stringify(dump)], { type: "application/json" }), {
+            upsert: false,
             contentType: "application/json",
           });
         if (upErr) throw new Error(upErr.message);
@@ -415,7 +404,7 @@ serveConMetriche("manage-super-admins", async (req) => {
 
       // 2. Cancellazione logica: nasconde l'azienda e blocca i suoi utenti.
       const { data: soft, error: softErr } = await supabaseAdmin.rpc("soft_delete_company", {
-        p_company_id: companyId,
+        p_company_id: company.id,
         p_actor_id: callerId,
         p_reason: reason ?? null,
         p_export_path: exportPath,

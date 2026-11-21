@@ -66,12 +66,13 @@ export function useUserNotifPrefs(userId: string | undefined) {
     queryKey: ["user-notif-prefs", userId],
     queryFn: async (): Promise<NotifPrefs> => {
       if (!userId) return DEFAULT_NOTIF_PREFS;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_notification_preferences")
         .select(PREF_COLUMNS)
         .eq("user_id", userId)
         .maybeSingle();
-      return (data as unknown as NotifPrefs) || DEFAULT_NOTIF_PREFS;
+      if (error) throw error;
+      return (data as unknown as NotifPrefs | null) ?? DEFAULT_NOTIF_PREFS;
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,

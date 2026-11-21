@@ -37,26 +37,6 @@ function formattaNumero(e164: string): string {
   return `+39 ${n}`;
 }
 
-// Numeri mock per sviluppo/demo
-function generaNumeriMock(prefisso: string, count = 8): TelnyxNumeroDisponibile[] {
-  const cittaMap: Record<string, string> = {
-    "02": "Milano", "06": "Roma", "011": "Torino", "051": "Bologna",
-    "055": "Firenze", "081": "Napoli", "049": "Padova", "045": "Verona",
-  };
-  const citta = cittaMap[prefisso] ?? null;
-  return Array.from({ length: count }, (_, i) => {
-    const suffix = String(Math.floor(Math.random() * 9000000) + 1000000);
-    const e164 = `+390${prefisso}${suffix}`.slice(0, 13);
-    return {
-      numero_e164: e164,
-      numero_display: formattaNumero(e164),
-      prefisso_area: prefisso,
-      citta,
-      features: ["sms", "voice"],
-    };
-  });
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -88,50 +68,36 @@ Deno.serve(async (req: Request) => {
     }
 
     // Verifica account Telnyx per questa azienda
-    const { data: account } = await adminClient
+    const { data: account, error: accountError } = await adminClient
       .from("sms_telnyx_accounts")
-      .select("telnyx_api_key_secret_name, stato")
+      .select("stato")
       .eq("company_id", company_id)
       .maybeSingle();
-
-    // Se API key reale disponibile — usa Telnyx
-    let numeri: TelnyxNumeroDisponibile[] = [];
-
-    if (masterApiKey && account?.stato === "attivo") {
-      try {
-        const params = new URLSearchParams({
-          country_code: "IT",
-          phone_number_type: "long-code",
-          limit: "10",
-        });
-        if (prefisso_area) params.set("national_destination_code", prefisso_area);
-
-        const res = await fetch(`https://api.telnyx.com/v2/available_phone_numbers?${params}`, {
-          headers: { "Authorization": `Bearer ${masterApiKey}` },
-        });
-
-        if (res.ok) {
-          const body = await res.json() as { data: Array<{ phone_number: string; features: Array<{ name: string }> }> };
-          numeri = body.data.map((n) => ({
-            numero_e164: n.phone_number,
-            numero_display: formattaNumero(n.phone_number),
-            prefisso_area: prefisso_area ?? null,
-            citta: null,
-            features: n.features.map((f) => f.name),
-          }));
-        }
-      } catch {
-        // Fallback a mock
-      }
+    if (accountError) return json({ error: "Impossibile verificare l’account telefonico. Riprova." }, 503);
+    if (!masterApiKey || account?.stato !== "attivo") {
+      return json({ error: "Completa l’attivazione dell’account telefonico per cercare un numero." }, 503);
     }
 
-    // Fallback mock per sviluppo
-    if (numeri.length === 0) {
-      numeri = generaNumeriMock(prefisso_area ?? "02");
+    try {
+      const params = new URLSearchParams({ country_code: "IT", phone_number_type: "long-code", limit: "10" });
+      if (prefisso_area) params.set("national_destination_code", prefisso_area);
+      const res = await fetch(`https://api.telnyx.com/v2/available_phone_numbers?${params}`, {
+        headers: { Authorization: `Bearer ${masterApiKey}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return json({ error: "La ricerca dei numeri è temporaneamente indisponibile. Riprova." }, 502);
+      const body = await res.json() as { data: Array<{ phone_number: string; features?: Array<{ name: string }> }> };
+      const numeri = body.data.slice(0, 10).map((n) => ({
+        numero_e164: n.phone_number,
+        numero_display: formattaNumero(n.phone_number),
+        prefisso_area: prefisso_area ?? null,
+        citta: null,
+        features: (n.features ?? []).map((f) => f.name),
+      }));
+      return json({ numeri } satisfies TelnyxCercaResponse);
+    } catch {
+      return json({ error: "La ricerca dei numeri è temporaneamente indisponibile. Riprova." }, 502);
     }
-
-    const response: TelnyxCercaResponse = { numeri: numeri.slice(0, 10) };
-    return json(response);
 
   } catch (err) {
     const message = err instanceof Error ? err.message : "Errore interno";

@@ -1,4 +1,4 @@
-import { confrontoOfferta } from "@/lib/acquisti/confronto";
+import { confrontoOfferta, coperturaOfferta } from "@/lib/acquisti/confronto";
 import { oggiLocale } from "@/lib/acquisti/attivita";
 import type {TablesUpdate} from "@/integrations/supabase/types";
 /**
@@ -189,12 +189,15 @@ export function useSupplierRfqs() {
       // Come nel dettaglio: migliore solo tra offerte complete, valide e confrontabili.
       const vociPerRichiesta = new Map<string, number>();
       for (const v of voci) vociPerRichiesta.set(v.rfq_id, (vociPerRichiesta.get(v.rfq_id) ?? 0) + 1);
-      const sommaRighe = new Map<string, { totale: number; coperte: number }>();
+      const sommaRighe = new Map<string, { somma: number; quotate: number; indisponibili: number }>();
       for (const q of righe) {
+        const r = sommaRighe.get(q.rfq_supplier_id) ?? { somma: 0, quotate: 0, indisponibili: 0 };
+        if (q.disponibile === false) r.indisponibili += 1;
         const t = totaleRigaOfferta(q, Number(q.supplier_rfq_items?.quantita ?? 0));
-        if (t == null) continue;
-        const r = sommaRighe.get(q.rfq_supplier_id) ?? { totale: 0, coperte: 0 };
-        r.totale += t; r.coperte += 1;
+        if (t != null) {
+          r.somma += t;
+          r.quotate += 1;
+        }
         sommaRighe.set(q.rfq_supplier_id, r);
       }
 
@@ -211,13 +214,9 @@ export function useSupplierRfqs() {
         }
         if (r.status === "risposta") {
           m.risposte += 1;
-          const daRighe = sommaRighe.get(r.id);
+          const righe = sommaRighe.get(r.id) ?? { somma: 0, quotate: 0, indisponibili: 0 };
           const numeroVoci=vociPerRichiesta.get(r.rfq_id)??0;
-          const offerta=confrontoOfferta(r,{
-            totale:daRighe?.totale??(r.totale_offerto==null?null:Number(r.totale_offerto)),
-            righeCoperte:daRighe?.coperte??(r.totale_offerto==null?0:numeroVoci),
-            daRighe:!!daRighe,
-          },numeroVoci,oggiLocale());
+          const offerta = confrontoOfferta(r, coperturaOfferta(r.totale_offerto, righe, numeroVoci), numeroVoci, oggiLocale());
           if (offerta.confrontabile && offerta.totale!=null) offerte.set(r.rfq_id,[...(offerte.get(r.rfq_id)??[]),{totale:offerta.totale,coperte:numeroVoci}]);
         }
       }

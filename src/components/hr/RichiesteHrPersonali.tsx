@@ -24,7 +24,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useCreateRichiesta } from "@/hooks/useRichieste";
+import { annullaRichiestaPersonale, useCreateRichiesta } from "@/hooks/useRichieste";
 import type { RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -97,19 +97,12 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
 
   // Annulla una richiesta ancora in attesa (RLS: hr_richieste_self_update)
   const annullaMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("hr_richieste")
-        .update({ stato: "annullata", updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("profilo_id", profiloId)
-        .eq("stato", "in_attesa");
-      if (error) throw error;
-    },
-    onSuccess: () => {
+    mutationFn: (id: string) => annullaRichiestaPersonale(id, profiloId, companyId),
+    onSuccess: (annullata) => {
       qc.invalidateQueries({ queryKey: ["my-richieste", profiloId] });
       qc.invalidateQueries({ queryKey: ["hr-richieste"] });
-      toast.success("Richiesta annullata");
+      if (annullata) toast.success("Richiesta annullata");
+      else toast.info("La richiesta è già stata aggiornata. Controlla il nuovo stato.");
     },
     onError: (e: unknown) => toast.error("Errore: " + (e instanceof Error ? e.message : "riprova")),
   });

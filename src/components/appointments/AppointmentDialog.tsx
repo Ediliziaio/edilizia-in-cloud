@@ -29,12 +29,14 @@ export interface AppointmentData {
   id?: string;
   title: string;
   description: string | null;
+  cancelled_reason?: string | null;
   appointment_date: string;
   appointment_time: string | null;
   appointment_end_time?: string | null;
   appointment_type: string;
   assigned_to: string | null;
   order_id: string | null;
+  ticket_id?: string | null;
   is_completed: boolean;
   calendar_id?: string | null;
   contact_id?: string | null;
@@ -106,7 +108,6 @@ interface AppointmentTicketReference {
   tipo: string | null;
   order_id: string | null;
   assigned_to: string | null;
-  data_intervento_prevista: string | null;
   indirizzo_intervento: string | null;
 }
 
@@ -148,6 +149,7 @@ type AppointmentPayload = {
   appointment_type: string;
   assigned_to: string | null;
   order_id: string | null;
+  ticket_id: string | null;
   calendar_id: string | null;
   contact_id: string | null;
   status: string;
@@ -437,6 +439,8 @@ export function AppointmentDialog({
   const queryClient = useQueryClient();
   const currentAppointment = appointment ?? initialData ?? null;
   const isEditing = !!currentAppointment?.id;
+  const savedTicketId = currentAppointment?.ticket_id;
+  const savedTicketLabel = currentAppointment?.description?.match(/^\[Riferimento\] (Assistenza: .+)$/m)?.[1];
   const { onlyAssigned: onlyAssignedCrm, solaLettura: accountReadOnly } = usePermissions();
   const solaLettura = accountReadOnly || readOnly;
   // Con «Solo i propri» l'appuntamento è di chi lo crea; il responsabile di una
@@ -490,8 +494,8 @@ export function AppointmentDialog({
       setAppointmentType(currentAppointment.appointment_type);
       setAssignedTo(currentAppointment.assigned_to || "");
       setOrderId(currentAppointment.order_id || "");
-      setReferenceType(currentAppointment.order_id ? "order" : "none");
-      setTicketId("");
+      setReferenceType(savedTicketId || savedTicketLabel ? "ticket" : currentAppointment.order_id ? "order" : "none");
+      setTicketId(savedTicketId ?? "");
       setMaintenancePlanId("");
       setCalendarId(currentAppointment.calendar_id || "");
       setContactId(currentAppointment.contact_id || "");
@@ -531,6 +535,8 @@ export function AppointmentDialog({
     }
   }, [
     currentAppointment,
+    savedTicketId,
+    savedTicketLabel,
     open,
     defaultOrderId,
     onlyAssigned,
@@ -686,17 +692,26 @@ export function AppointmentDialog({
   });
 
   const { data: tickets = [] } = useQuery({
-    queryKey: ["appointment-ticket-references", companyId],
+    queryKey: ["appointment-ticket-references", companyId, savedTicketId],
     queryFn: async () => {
       if (!companyId) return [];
+      const selezione = "id, subject, status, priority, tipo, order_id, assigned_to, indirizzo_intervento";
       const { data, error } = await supabase
         .from("tickets")
-        .select("id, subject, status, priority, tipo, order_id, assigned_to, data_intervento_prevista, indirizzo_intervento")
+        .select(selezione)
         .eq("company_id", companyId)
         .order("updated_at", { ascending: false })
         .limit(150);
       if (error) throw error;
-      return (data || []) as AppointmentTicketReference[];
+      const recenti = data ?? [];
+      if (!savedTicketId || recenti.some((ticket) => ticket.id === savedTicketId)) return recenti;
+      const { data: collegato } = await supabase
+        .from("tickets")
+        .select(selezione)
+        .eq("company_id", companyId)
+        .eq("id", savedTicketId)
+        .maybeSingle();
+      return collegato ? [collegato, ...recenti] : recenti;
     },
     enabled: open && !!companyId && showOrderSelect,
     staleTime: 60 * 1000,
@@ -810,17 +825,21 @@ export function AppointmentDialog({
     })),
   ], [maintenancePlans]);
 
-  useEffect(() => {
-    if (!open || referenceType !== "ticket" || !selectedTicket) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Prefill from the asynchronously loaded ticket selected by the user.
-    if (selectedTicket.order_id) setOrderId(selectedTicket.order_id);
-    if (selectedTicket.assigned_to && !assignedTo) setAssignedTo(selectedTicket.assigned_to);
-    if (selectedTicket.indirizzo_intervento && !addressData.formatted_address) {
-      setAddressData(inferAddressParts(selectedTicket.indirizzo_intervento));
+  const handleTicketChange = (value: string) => {
+    const ticket = tickets.find((option) => option.id === value);
+    setTicketId(ticket?.id ?? "");
+    setOrderId(ticket?.order_id ?? "");
+    if (!ticket) {
+      setReferenceType("none");
+      return;
     }
-    if (!title.trim()) setTitle(`Assistenza · ${selectedTicket.subject}`);
+    if (ticket.assigned_to && !assignedTo) setAssignedTo(ticket.assigned_to);
+    if (ticket.indirizzo_intervento && !addressData.formatted_address) {
+      setAddressData(inferAddressParts(ticket.indirizzo_intervento));
+    }
+    if (!title.trim()) setTitle(`Assistenza · ${ticket.subject}`);
     if (appointmentType === "generico") setAppointmentType("assistenza");
-  }, [addressData.formatted_address, appointmentType, assignedTo, open, referenceType, selectedTicket, title]);
+  };
 
   useEffect(() => {
     if (!open || referenceType !== "maintenance" || !selectedMaintenancePlan) return;
@@ -893,7 +912,8 @@ export function AppointmentDialog({
     setSaving(true);
     try {
       const effectiveOrderId = referenceType === "maintenance" ? "" : orderId;
-      const referenceLabel = getReferenceLabel(referenceType, effectiveOrderId, selectedTicket, selectedMaintenancePlan);
+      const referenceLabel = getReferenceLabel(referenceType, effectiveOrderId, selectedTicket, selectedMaintenancePlan)
+        || (referenceType === "ticket" ? savedTicketLabel ?? "" : "");
       const finalDescription = withReferenceNote(description, referenceLabel);
       const appointmentDateValue = format(appointmentDate, "yyyy-MM-dd");
       const effectiveEndTime = appointmentEndTime || (appointmentTime ? addMinutesToTime(appointmentTime, Number(durationMinutes) || DEFAULT_DURATION_MINUTES) : null);
@@ -910,6 +930,7 @@ export function AppointmentDialog({
         // assegnatario: gli sparirebbe dalla vista appena salvato.
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : (onlyAssigned ? (user?.id ?? null) : null),
         order_id: effectiveOrderId && effectiveOrderId !== "none" ? effectiveOrderId : null,
+        ticket_id: referenceType === "ticket" && ticketId ? ticketId : null,
         calendar_id: hideMarketingFields ? null : (calendarId && calendarId !== "none" ? calendarId : null),
         contact_id: hideMarketingFields ? null : (contactId && contactId !== "none" ? contactId : null),
         status: status,
@@ -959,27 +980,6 @@ export function AppointmentDialog({
         if (hasAnyCompanyGoogleConnection && inserted?.id) {
           gcalPush(inserted.id).catch(() => {});
         }
-      }
-
-      if (referenceType === "ticket" && ticketId) {
-        const scheduledAt = `${appointmentDateValue}T${appointmentTime || "09:00"}:00`;
-        const duration = appointmentTime && effectiveEndTime
-          ? Math.max((timeToMinutes(effectiveEndTime) ?? 0) - (timeToMinutes(appointmentTime) ?? 0), 0) / 60
-          : null;
-        const ticketUpdate = {
-          data_intervento_prevista: scheduledAt,
-          assigned_to: payload.assigned_to,
-          durata_ore: duration,
-          ...(payload.formatted_address ? { indirizzo_intervento: payload.formatted_address } : {}),
-          ...(payload.lat != null ? { lat_intervento: payload.lat } : {}),
-          ...(payload.lng != null ? { lng_intervento: payload.lng } : {}),
-        };
-        const { error: ticketError } = await supabase
-          .from("tickets")
-          .update(ticketUpdate)
-          .eq("id", ticketId)
-          .eq("company_id", companyId);
-        if (ticketError) throw ticketError;
       }
 
       if (payload.order_id) {
@@ -1286,11 +1286,14 @@ export function AppointmentDialog({
                       id="apt-ticket"
                       value={ticketId || "none"}
                       options={ticketOptions}
-                      placeholder="Nessuna assistenza"
+                      placeholder={savedTicketLabel ?? (ticketId ? "Ticket collegato" : "Nessuna assistenza")}
                       searchPlaceholder="Cerca assistenza, stato o priorità..."
                       emptyLabel="Nessuna assistenza trovata"
-                      onChange={(value) => setTicketId(value === "none" ? "" : value)}
+                      onChange={handleTicketChange}
                     />
+                    {savedTicketLabel && !ticketId && (
+                      <p className="text-xs text-muted-foreground">Seleziona il ticket per ripristinare il collegamento.</p>
+                    )}
                     {selectedTicket?.order_id && (
                       <p className="text-xs text-muted-foreground">La commessa del ticket viene collegata automaticamente.</p>
                     )}
@@ -1348,6 +1351,12 @@ export function AppointmentDialog({
             <Label htmlFor="apt-desc" className="text-xs">Note</Label>
             <Textarea id="apt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={2} />
           </div>
+          {currentAppointment?.cancelled_reason && (
+            <div className="space-y-1 text-sm">
+              <p className="text-xs font-medium text-muted-foreground">Motivo della disdetta</p>
+              <p className="whitespace-pre-wrap break-words">{currentAppointment.cancelled_reason}</p>
+            </div>
+          )}
 
           <details className="group/altri" open={isEditing || undefined}>
             <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">

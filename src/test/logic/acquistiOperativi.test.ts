@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { attivitaOda, attivitaRdo } from "@/lib/acquisti/attivita";
-import { confrontoOfferta } from "@/lib/acquisti/confronto";
+import { confrontoOfferta, coperturaOfferta } from "@/lib/acquisti/confronto";
 import { modificheEvento, serializeProcurement } from "@/lib/acquisti/storico";
 const f = {
   status: "risposta",
@@ -48,6 +48,14 @@ describe("confronto economico RDO", () => {
         "2026-11-06",
       ),
     ).toMatchObject({ totale: 120, coerente: true, confrontabile: true }));
+  it("distingue le righe indisponibili da un’offerta a corpo e da una mista", () => {
+    const offerta = { ...f, totale_offerto: 120 };
+    const completamenteIndisponibile = coperturaOfferta(120, { somma: 0, quotate: 0, indisponibili: 2 }, 2);
+    expect(completamenteIndisponibile).toMatchObject({ senzaVociDisponibili: true, righeCoperte: 0 });
+    expect(confrontoOfferta(offerta, completamenteIndisponibile, 2, "2026-11-06").confrontabile).toBe(false);
+    expect(coperturaOfferta(120, { somma: 0, quotate: 0, indisponibili: 0 }, 2)).toMatchObject({ senzaVociDisponibili: false, righeCoperte: 2 });
+    expect(coperturaOfferta(120, { somma: 100, quotate: 1, indisponibili: 1 }, 2)).toMatchObject({ senzaVociDisponibili: false, righeCoperte: 1 });
+  });
 });
 describe("attività da completare", () => {
   it("non chiama scaduta una consegna prevista per oggi", () =>

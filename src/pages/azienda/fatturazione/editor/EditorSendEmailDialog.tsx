@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { ClienteSnapshot } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
 
 const TIPO_LABELS: Record<string, string> = {
@@ -35,7 +36,7 @@ interface Props {
 
 export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Props) {
   const docLabel = TIPO_LABELS[state.tipo] || "Documento";
-  const cliente = state.cliente_snapshot as Record<string, any> | null;
+  const cliente = state.cliente_snapshot as (ClienteSnapshot & { email?: string }) | null | undefined;
   // Una bozza ha già il suo numero (01/10/2026) ma non è emessa: inviarla al
   // cliente significa mandargli un documento non emesso. Si emette prima.
   const isBozza = state.stato === "bozza";
@@ -45,13 +46,13 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
     queryKey: ["anagrafica-email", state.anagrafica_id],
     enabled: open && !!state.anagrafica_id,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("anagrafiche_native")
         .select("email, pec")
         .eq("id", state.anagrafica_id!)
         .maybeSingle();
       if (error) throw error;
-      return data as { email?: string; pec?: string } | null;
+      return data;
     },
   });
 
@@ -62,6 +63,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const richiesteInCorso = useRef(new Map<string, string>());
   const sendingRef = useRef(false);
   const openedDocument = useRef<string | null>(null);
   const recipientEdited = useRef(false);
@@ -113,6 +115,16 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
       return;
     }
     try {
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(
+        JSON.stringify([toEmail.trim().toLowerCase(), subject, message]),
+      ));
+      const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const chiave = `eic:documento-email:${state.id}:${hash}`;
+      let id = richiesteInCorso.current.get(chiave);
+      try { id ??= sessionStorage.getItem(chiave) ?? undefined; } catch { /* solo memoria */ }
+      id ??= crypto.randomUUID();
+      richiesteInCorso.current.set(chiave, id);
+      try { sessionStorage.setItem(chiave, id); } catch { /* solo memoria */ }
       const { data: { session } } = await supabase.auth.getSession();
       const resp = await supabase.functions.invoke("send-documento-email", {
         body: {
@@ -120,22 +132,35 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
           to_email: toEmail,
           subject: subject || undefined,
           message: message || undefined,
+          request_id: id,
         },
         headers: session?.access_token
           ? { Authorization: `Bearer ${session.access_token}` }
           : undefined,
       });
 
-      if (resp.error) throw new Error(resp.error.message);
-      const result = resp.data as { success?: boolean; error?: string };
+      if (resp.error) {
+        const ctx = (resp.error as { context?: Response }).context;
+        const corpo = ctx instanceof Response ? await ctx.clone().json().catch((): null => null) : null;
+        throw new Error(corpo?.error ?? "Risposta dell’invio non disponibile. Premi «Invia» per verificare la stessa richiesta.");
+      }
+      const result = resp.data as { success?: boolean; error?: string; stato?: string };
+      if (result.stato === "in_corso" || result.stato === "incerto") {
+        toast.warning(result.stato === "in_corso" ? "Invio in corso" : "Esito dell’invio da verificare", {
+          description: "Premi «Invia» per controllare questa richiesta nel registro. Il controllo non spedisce una seconda email.",
+        });
+        return;
+      }
       if (!result.success) {
         throw new Error(result.error || "Errore sconosciuto");
       }
 
       toast.success("Email inviata", { description: `Inviata a ${toEmail}` });
+      richiesteInCorso.current.delete(chiave);
+      try { sessionStorage.removeItem(chiave); } catch { /* solo memoria */ }
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error("Errore invio email", { description: err.message });
+    } catch (err) {
+      toast.error("Errore invio email", { description: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsSending(false);
       sendingRef.current = false;

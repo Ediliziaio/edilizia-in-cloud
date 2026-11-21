@@ -195,27 +195,29 @@ export function useCEMensileDettaglio(anno: number) {
  * Confronto multi-anno: ritorna le voci del CE per N anni consecutivi.
  * Usata per la vista "Confronto" del tab CE/SP.
  */
-export interface CEMultiAnnoRow {
-  anno: number;
-  voci: VoceCE[];
-}
+type CEMultiAnnoRow =
+  | { anno: number; stato: "letto"; voci: VoceCE[] }
+  | { anno: number; stato: "errore" };
 
 export function useCEMultiAnno(anniDaConfrontare: number[]) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "ce-multi-anno", anniDaConfrontare, "reconciled-v1", companyId],
+    queryKey: ["cg", "ce-multi-anno", anniDaConfrontare, "reconciled-v2", companyId],
     enabled: !!companyId,
     queryFn: async (): Promise<CEMultiAnnoRow[]> => {
-      const results = await Promise.all(
-        anniDaConfrontare.map(async (anno) => {
-          const { data, error } = await cgRpc<CEriclassificato>("cg_get_ce_safe", {
-            p_anno: anno, p_mese_da: 1, p_mese_a: 12,
-          });
-          if (error || !data) return { anno, voci: [] as VoceCE[] };
-          return { anno, voci: data.voci };
+      return Promise.all(
+        anniDaConfrontare.map(async (anno): Promise<CEMultiAnnoRow> => {
+          try {
+            const { data, error } = await cgRpc<CEriclassificato>("cg_get_ce_safe", {
+              p_anno: anno, p_mese_da: 1, p_mese_a: 12,
+            });
+            if (!error && Array.isArray(data?.voci)) return { anno, stato: "letto", voci: data.voci };
+          } catch {
+            // Anche una richiesta interrotta riguarda soltanto questo anno.
+          }
+          return { anno, stato: "errore" };
         })
       );
-      return results;
     },
     staleTime: 5 * 60_000,
   });

@@ -201,6 +201,13 @@ export default function Tesoreria() {
     );
   }
 
+  if (!hasConnections && !hasManualAccounts && activeTab === "note-spese") {
+    return <div className="space-y-4">
+      <Button variant="outline" onClick={() => handleTabChange("overview")}>Torna alla tesoreria</Button>
+      <ExpenseReports companyId={effectiveCompany.id} refreshKey={refreshKey} />
+    </div>;
+  }
+
   if (!hasConnections && !hasManualAccounts) {
     return (
       <div className="space-y-6 max-sm:space-y-3">
@@ -237,6 +244,10 @@ export default function Tesoreria() {
             Collega primo conto
           </Button>
         </div>
+
+        <Button variant="outline" onClick={() => handleTabChange("note-spese")}>
+          <Receipt className="mr-2 h-4 w-4" /> Note spese
+        </Button>
 
         {/* Alternativa senza banca: conti/casse manuali con import CSV/Excel o AI.
             Appena l'utente ne crea uno, hasManualAccounts diventa true e si apre

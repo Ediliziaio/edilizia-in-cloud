@@ -70,20 +70,55 @@ Deno.serve(async (req) => {
       if(edit.error || edit.data!==true)return new Response(JSON.stringify({error:"Non hai il permesso di preparare il link SAL"}),{status:403,headers:{...getCorsHeaders(req),"Content-Type":"application/json"}});
     }
 
-    // Fetch SAL with voci
-    const { data: sal, error: salErr } = await supabase
+    const { data: riferimentoSal, error: salErr } = await supabase
       .from("sal_records")
-      .select("*, sal_voci(id, fase_id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, sal_voci_sottofasi(sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal))")
+      .select("order_id,company_id")
       .eq("id", sal_id)
       .eq("company_id", company_id)
       .single();
 
-    if (salErr || !sal) {
+    if (salErr || !riferimentoSal) {
       return new Response(JSON.stringify({ error: "SAL non trovato" }), {
         status: 404,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
+
+    const caller = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader, "x-azienda-scheda": riferimentoSal.company_id } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: visibile, error: visibilityError } = await caller
+      .from("orders_visibili")
+      .select("id")
+      .eq("id", riferimentoSal.order_id)
+      .eq("company_id", riferimentoSal.company_id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (visibilityError || !visibile) {
+      return new Response(JSON.stringify({ error: "Non hai accesso alla commessa di questo SAL" }), {
+        status: 403,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+    if (prepare_signature === true) {
+      const { data: modificabile, error: editError } = await caller.rpc("puo_modificare_commessa", { p_order_id: riferimentoSal.order_id });
+      if (editError || modificabile !== true) {
+        return new Response(JSON.stringify({ error: "Non hai il permesso di preparare il link per questa commessa" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const { data: sal, error: letturaSalError } = await supabase
+      .from("sal_records")
+      .select("*, sal_voci(id, fase_id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, sal_voci_sottofasi(sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal))")
+      .eq("id", sal_id)
+      .eq("company_id", riferimentoSal.company_id)
+      .eq("order_id", riferimentoSal.order_id)
+      .single();
+    if (letturaSalError || !sal) throw new Error("Non è stato possibile leggere il SAL. Aggiorna la commessa e riprova.");
 
     // Fetch order
     const { data: order } = await supabase

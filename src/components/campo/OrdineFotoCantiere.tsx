@@ -47,7 +47,7 @@ export function OrdineFotoCantiere({ orderId }: { orderId: string }) {
             <FotoUploader
               onUpload={async (params) => {
                 const esito = await upload({ files: params.files, descrizione: params.descrizione });
-                setCaricaAperto(false);
+                if (esito.mancanti.length === 0) setCaricaAperto(false);
                 return esito;
               }}
               isUploading={isUploading}

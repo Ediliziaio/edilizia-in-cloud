@@ -221,11 +221,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredTasks.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredTasks.map((t) => t.id)));
-    }
+    setSelectedIds(tutteVisibiliSelezionate ? new Set() : new Set(filteredTasks.map((task) => task.id)));
   };
 
   const { data: tasks = [], isLoading, isError, refetch } = useQuery({
@@ -392,8 +388,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     });
   }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch, statusOptions]);
 
-  // Ordinamento per colonna (click sull'intestazione). Senza ordinamento vale
-  // l'ordine manuale (sort_order) e il trascinamento resta attivo.
+  const selezioneVisibile = new Set(
+    filteredTasks.filter((task) => selectedIds.has(task.id)).map((task) => task.id),
+  );
+  const tutteVisibiliSelezionate = filteredTasks.length > 0 && selezioneVisibile.size === filteredTasks.length;
+
+  // Senza ordinamento per colonna resta attivo il trascinamento.
   const sortedTasks = useMemo(() => {
     if (!sort) return filteredTasks;
     const nome = (t: any) => t.assigned_profile ? `${t.assigned_profile.last_name ?? ""} ${t.assigned_profile.first_name ?? ""}`.trim().toLowerCase() : "";
@@ -516,15 +516,17 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   /**
    * Applica uno stato scelto (dal menu o dall'azione rapida) e offre "Annulla"
    * nel toast: chi segna "fatto" per sbaglio torna indietro con un click.
-   * Se la chiusura di una ricorrente crea l'occorrenza successiva, l'annulla
-   * la elimina.
+   * L'annullamento controlla la versione salvata e l'eventuale occorrenza generata.
    */
   const applicaStato = async (task: any, nuovoStato: string) => {
     if (nuovoStato === task.status) return;
     const updates = buildTaskStatusUpdate(nuovoStato, statusOptions);
-    const { error } = await supabase.from("tasks").update(updates).eq("id", task.id);
-    if (error) {
-      toast.error("Stato non cambiato", { description: error.message });
+    const scrittura = supabase.from("tasks").update(updates).eq("id", task.id);
+    if (task.updated_at) scrittura.eq("updated_at", task.updated_at);
+    const { data: aggiornata, error } = await scrittura.select("updated_at").maybeSingle();
+    if (error || !aggiornata) {
+      invalidaTask();
+      toast.error("Stato non cambiato", { description: error?.message ?? "L'attività è cambiata. Controlla lo stato aggiornato." });
       return;
     }
 
@@ -548,13 +550,16 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
 
     const ripristina = async () => {
       const indietro: TablesUpdate<"tasks"> = { status: task.status, completed_at: (task.completed_at as string | null | undefined) ?? null };
-      const { error: errUndo } = await supabase.from("tasks").update(indietro).eq("id", task.id);
-      if (errUndo) { toast.error("Annullamento non riuscito", { description: errUndo.message }); return; }
-      // Se il completamento ha generato la prossima occorrenza, va via anche quella.
-      if (task.is_recurring) {
-        // Solo le figlie nate dopo l'ultima modifica della task: quelle generate da questo completamento.
-        const daQuando = (task.updated_at as string | null | undefined) ?? (task.created_at as string);
-        await supabase.from("tasks").delete().eq("parent_task_id", task.id).eq("status", "da_fare").gte("created_at", daQuando);
+      const { data: esito, error: errUndo } = await supabase.rpc("annulla_stato_attivita", {
+        p_id: task.id,
+        p_versione: aggiornata.updated_at,
+        p_stato: task.status,
+        p_completata_il: indietro.completed_at,
+      });
+      if (errUndo) {
+        invalidaTask();
+        toast.error("Annullamento non riuscito", { description: errUndo.message });
+        return;
       }
       await logTaskActivity({
         companyId, userId: user?.id, taskId: task.id, taskTitle: task.title,
@@ -563,7 +568,10 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         changes: indietro, beforeSnapshot: { ...task, ...updates }, afterSnapshot: { ...task, ...indietro },
       });
       invalidaTask();
-      toast.success("Ripristinato", { description: `"${task.title}" è di nuovo ${getTaskStatusLabel(task.status, statusOptions)}` });
+      const conservata = esito && typeof esito === "object" && "occorrenza_conservata" in esito && esito.occorrenza_conservata === true;
+      toast.success("Ripristinato", { description: conservata
+        ? "La prossima occorrenza è stata conservata."
+        : `"${task.title}" è di nuovo ${getTaskStatusLabel(task.status, statusOptions)}` });
     };
     toast.success(`${isTaskDoneStatus(nuovoStato, statusOptions) ? "Completata" : getTaskStatusLabel(nuovoStato, statusOptions)}: ${task.title}`, {
       duration: 8000,
@@ -960,7 +968,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </Card>
             ) : (
               <>
-                <BulkActionsBar companyId={companyId} selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} tasks={tasks} />
+                <BulkActionsBar companyId={companyId} selectedIds={selezioneVisibile} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} tasks={tasks} />
                 <Card>
                   {/* Si scrive dove la riga finirà: in cima alla lista. */}
                   {!solaLettura && (
@@ -979,7 +987,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                           <TableRow>
                             <TableHead className="hidden w-6 px-1 xl:table-cell" />
                             <TableHead className="w-10">
-                              <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
+                              <Checkbox checked={tutteVisibiliSelezionate} onCheckedChange={toggleSelectAll} />
                             </TableHead>
                             <TableHead>{intestazione("title", "Titolo")}</TableHead>
                             <TableHead>{intestazione("assignee", "Assegnatario")}</TableHead>

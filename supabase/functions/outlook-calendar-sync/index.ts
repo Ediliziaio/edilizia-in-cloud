@@ -64,77 +64,83 @@ async function syncConnection(db: any, conn: ConnRow, calendarId: string, opts: 
   const from = opts.from ?? now.toISOString();
   const toDefault = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
   const to = opts.to ?? toDefault.toISOString();
+  if (!Number.isFinite(Date.parse(from)) || !Number.isFinite(Date.parse(to))
+      || Date.parse(from) >= Date.parse(to)) throw new Error("Finestra Outlook non valida.");
 
   const accessToken = await getFreshAccessToken(conn.id);
 
   // Paginated fetch via @odata.nextLink
-  const eventsAll: GraphEvent[] = [];
+  const eventi = new Map<string, GraphEvent>();
+  const pagineVisitate = new Set<string>();
   let url: string | null = `https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView`
     + `?startDateTime=${encodeURIComponent(from)}&endDateTime=${encodeURIComponent(to)}`
     + "&$top=100&$select=id,iCalUId,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,showAs,seriesMasterId,isCancelled,webLink";
-  let pages = 0;
+  const tempoLettura = AbortSignal.timeout(90000);
 
-  while (url && pages < 20) {
-    const res: Response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      await db.from("outlook_calendar_connections").update({
-        last_error: `Graph ${res.status}: ${errText.slice(0, 200)}`,
-      }).eq("id", conn.id);
-      throw new Error(`Graph fetch failed: ${res.status} ${errText.slice(0, 200)}`);
+  try {
+    while (url) {
+      if (new URL(url).origin !== "https://graph.microsoft.com") throw new Error("Graph: pagina successiva con indirizzo non valido.");
+      if (pagineVisitate.has(url)) throw new Error("Graph: la paginazione ha restituito una pagina già visitata.");
+      pagineVisitate.add(url);
+      const res: Response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' },
+        redirect: "error",
+        signal: AbortSignal.any([tempoLettura, AbortSignal.timeout(20000)]),
+      });
+      if (!res.ok) throw new Error(`Graph ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const json = await res.json() as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+      if (!Array.isArray(json.value) || json.value.some(e => typeof e?.id !== "string" || !e.id)) {
+        throw new Error("Graph: pagina eventi incompleta.");
+      }
+      for (const evento of json.value) eventi.set(evento.id, evento);
+      url = json["@odata.nextLink"] ?? null;
     }
-    const json = await res.json() as { value?: GraphEvent[]; "@odata.nextLink"?: string };
-    eventsAll.push(...(json.value ?? []));
-    url = json["@odata.nextLink"] ?? null;
-    pages++;
+  } catch (error) {
+    await db.from("outlook_calendar_connections").update({
+      last_error: error instanceof Error ? error.message.slice(0, 250) : "Lettura del calendario Outlook interrotta.",
+    }).eq("id", conn.id);
+    throw error;
   }
 
-  // Upsert
-  if (eventsAll.length > 0) {
-    const rows = eventsAll.map((e) => ({
-      connection_id: conn.id,
-      company_id: conn.company_id,
-      user_id: conn.user_id,
-      outlook_event_id: e.id,
-      outlook_calendar_id: calendarId,
-      outlook_ical_uid: e.iCalUId ?? null,
-      subject: e.subject ?? null,
-      body_preview: e.bodyPreview ?? null,
-      start_time: e.start?.dateTime ? new Date(e.start.dateTime + "Z").toISOString() : null,
-      end_time: e.end?.dateTime ? new Date(e.end.dateTime + "Z").toISOString() : null,
-      is_all_day: e.isAllDay ?? false,
-      location_display_name: e.location?.displayName ?? null,
-      organizer_email: e.organizer?.emailAddress?.address ?? null,
-      attendees: (e.attendees ?? []).map((a) => ({
-        email: a.emailAddress?.address ?? null,
-        name: a.emailAddress?.name ?? null,
-        response_status: a.status?.response ?? null,
-      })),
-      show_as: e.showAs ?? null,
-      series_master_id: e.seriesMasterId ?? null,
-      is_cancelled: e.isCancelled ?? false,
-      web_link: e.webLink ?? null,
-      raw: e,
-    }));
+  // Graph restituisce l’orario in UTC per il Prefer della richiesta. Alcuni
+  // eventi riportano già un suffisso, anche quando la zona è la stessa.
+  const dataGraph = (value: string | undefined) => {
+    if (!value) return null;
+    return new Date(/(?:z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : value + "Z").toISOString();
+  };
+  const eventsAll = [...eventi.values()];
+  const rows = eventsAll.map((e) => ({
+    outlook_event_id: e.id,
+    outlook_ical_uid: e.iCalUId ?? null,
+    subject: e.subject ?? null,
+    body_preview: e.bodyPreview ?? null,
+    start_time: dataGraph(e.start?.dateTime),
+    end_time: dataGraph(e.end?.dateTime),
+    is_all_day: e.isAllDay ?? false,
+    location_display_name: e.location?.displayName ?? null,
+    organizer_email: e.organizer?.emailAddress?.address ?? null,
+    attendees: (e.attendees ?? []).map((a) => ({
+      email: a.emailAddress?.address ?? null,
+      name: a.emailAddress?.name ?? null,
+      response_status: a.status?.response ?? null,
+    })),
+    show_as: e.showAs ?? null,
+    series_master_id: e.seriesMasterId ?? null,
+    is_cancelled: e.isCancelled ?? false,
+    web_link: e.webLink ?? null,
+    raw: e,
+  }));
 
-    const { error: upsertErr } = await db.from("outlook_calendar_events").upsert(rows, {
-      onConflict: "connection_id,outlook_event_id",
-    });
-    if (upsertErr) {
-      console.error("[outlook-calendar-sync] upsert error:", upsertErr);
-      throw upsertErr;
-    }
-  }
-
-  await db.from("outlook_calendar_connections").update({
-    last_sync_at: new Date().toISOString(),
-    last_sync_event_count: eventsAll.length,
-    last_error: null,
-  }).eq("id", conn.id);
-  return eventsAll.length;
+  const { data: applicato, error } = await db.rpc("outlook_applica_snapshot", {
+    p_connessione: conn.id,
+    p_calendario: calendarId,
+    p_da: from,
+    p_fino: to,
+    p_letto_da: now.toISOString(),
+    p_eventi: rows,
+  });
+  if (error) throw error;
+  return applicato ? eventsAll.length : 0;
 }
 
 /** Cron: tutte le connessioni col calendario scelto, una alla volta, errori isolati. */
@@ -170,7 +176,7 @@ async function cronFullSync(): Promise<Response> {
       esito.errori++;
     }
   }
-  return new Response(JSON.stringify({ ok: true, ...esito }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(esito), { headers: { "Content-Type": "application/json" } });
 }
 
 serveConMetriche("outlook-calendar-sync", async (req) => {

@@ -843,24 +843,19 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
   if (q.isError) return <ErrorBlock onRetry={() => q.refetch()} />;
   if (!q.data) return null;
 
-  // Schema dalle voci dell'anno corrente (l'ultimo).
-  const annoCorrenteRow = q.data.find((r) => r.anno === anno);
-  const schema: VoceCE[] = annoCorrenteRow?.voci ?? q.data[0]?.voci ?? [];
-
-  if (schema.length === 0) {
-    return (
-      <EmptyState
-        title="Nessun dato di confronto"
-        description={`Non ho voci di CE per gli anni ${anni.join(", ")}.`}
-      />
-    );
-  }
-
+  const anniIndisponibili = q.data.filter((r) => r.stato === "errore").map((r) => r.anno);
+  const schema = new Map<string, VoceCE>();
   const mappa = new Map<number, Map<string, number>>();
-  for (const r of q.data) {
-    const m = new Map<string, number>();
-    for (const v of r.voci) m.set(v.codice, v.valore);
-    mappa.set(r.anno, m);
+
+  // L'anno più recente fornisce l'ordine. Le voci solo storiche restano leggibili.
+  for (const r of [...q.data].reverse()) {
+    if (r.stato !== "letto") continue;
+    const valori = new Map<string, number>();
+    for (const voce of r.voci) {
+      if (!schema.has(voce.codice)) schema.set(voce.codice, voce);
+      valori.set(voce.codice, voce.valore);
+    }
+    mappa.set(r.anno, valori);
   }
 
   return (
@@ -874,6 +869,16 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
         )}
       </CardHeader>
       <CardContent>
+        {anniIndisponibili.length > 0 && (
+          <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <span>Dati non disponibili per {anniIndisponibili.join(", ")}.</span>
+            <Button size="sm" variant="outline" disabled={q.isFetching} onClick={() => void q.refetch()}>Riprova</Button>
+          </div>
+        )}
+        {schema.size === 0 && mappa.size > 0 && (
+          <EmptyState title="Nessun dato di confronto" description="Gli anni caricati non contengono voci di conto economico." />
+        )}
+        {schema.size > 0 && (
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-muted/40">
@@ -890,6 +895,7 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
                     className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
                   >
                     {a}
+                    {anniIndisponibili.includes(a) && <span className="block">Non disponibile</span>}
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
@@ -901,17 +907,17 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
               </tr>
             </thead>
             <tbody>
-              {schema.map((v) => {
+              {[...schema.values()].map((v) => {
                 const isGrasso = v.tipo === "subtot_grasso";
                 const isSub = v.tipo === "subtot";
-                const valori = anni.map((a) => mappa.get(a)?.get(v.codice) ?? 0);
+                const valori = anni.map((a) => mappa.get(a)?.get(v.codice));
                 const corr = valori[2];
                 const prec = valori[1];
-                const delta = calcDeltaPct(corr, prec);
+                const delta = corr !== undefined && prec !== undefined ? calcDeltaPct(corr, prec) : null;
                 const isCosto = CODICI_COSTO.has(v.codice);
 
                 let deltaColor = "text-muted-foreground";
-                let trendIcon = <ArrowRight className="mx-auto h-3.5 w-3.5 text-muted-foreground" />;
+                let trendIcon = delta === null ? null : <ArrowRight className="mx-auto h-3.5 w-3.5 text-muted-foreground" />;
                 if (delta !== null && Math.abs(delta) >= 0.1) {
                   const positivo = delta > 0;
                   // Per voci di costo: positivo = brutto = rosso.
@@ -939,13 +945,14 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
                     <td className="px-3 py-2">{etichettaVoce(v.codice, v.label)}</td>
                     {valori.map((val, i) => (
                       <td
-                        key={i}
+                        key={anni[i]}
+                        aria-label={val === undefined ? "Dato non disponibile" : val === 0 ? "Zero euro" : undefined}
                         className={cn(
                           "px-3 py-2 text-right tabular-nums",
-                          val < 0 && "font-medium",
+                          val !== undefined && val < 0 && "font-medium",
                         )}
                       >
-                        {val !== 0 ? formatCurrency(val) : "—"}
+                        {val !== undefined && val !== 0 ? formatCurrency(val) : "—"}
                       </td>
                     ))}
                     <td className={cn("px-3 py-2 text-right tabular-nums text-xs font-medium", deltaColor)}>
@@ -958,6 +965,7 @@ function CEConfrontoView({ anno, periodoLabel }: { anno: number; periodoLabel: s
             </tbody>
           </table>
         </div>
+        )}
       </CardContent>
     </Card>
   );

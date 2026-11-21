@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
-import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
+import { createTimeoutSignal, withAbortableClientTimeout, withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
 import { giornoItaliano, ricercaDocumenti } from "@/lib/fatturazione/filtriDocumenti";
 import { stornatoDellaFattura } from "@/lib/fatturazione/noteCredito";
+import type { RichiestaCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 
 const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
 // Nel listato bastano conteggi e prossima rata: gli eventuali allegati
@@ -314,14 +315,17 @@ export function useDocumentoFiscale(id: string | undefined) {
   return useQuery({
     queryKey: queryKeys.documentiFiscali.detail(id),
     enabled: !!id && !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    // Una lettura interrotta deve arrivare al tasto Riprova senza tenere aperto l'editor in caricamento.
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await withAbortableClientTimeout((abortSignal) => supabase
         .from("documenti_fiscali" as never)
         .select("*")
         .eq("id", id!)
         .eq("company_id", companyId!)
         .is("deleted_at", null)
-        .single();
+        .abortSignal(abortSignal)
+        .single(), "Lettura del documento", DOCUMENTI_QUERY_TIMEOUT_MS, signal);
 
       if (error) throw error;
       return conStornato(mapRow(data as Record<string, unknown>));
@@ -334,6 +338,7 @@ export function useDocumentoFiscale(id: string | undefined) {
 // ─── Create mutation ──────────────────────────────────────────
 
 interface CreateDocumentoInput {
+  daDdtId?: string;
   tipo: TipoDocumento;
   anagrafica_id?: string;
   cliente_snapshot?: DocumentoFiscale["cliente_snapshot"];
@@ -345,89 +350,104 @@ interface CreateDocumentoInput {
   [key: string]: unknown;
 }
 
-export function useCreateDocumento() {
+function useOperazioneCreazioneDocumento() {
   const companyId = useEffectiveCompanyId();
+  return async ({ daDdtId, ...input }: CreateDocumentoInput, copia?: RichiestaCopiaDocumento) => {
+    if (!companyId) throw new Error("Nessuna azienda selezionata");
+
+    // Ensure anagrafica_azienda exists for this company
+    const { data: anaExists } = await supabase
+      .from("anagrafica_azienda" as never)
+      .select("id")
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (!anaExists) {
+      // Il profilo fiscale nasce dai dati VERI dell'azienda, non da segnaposto:
+      // partita IVA, sede, PEC e codice SDI sono gia' in companies (raccolti in
+      // fase di registrazione). Prima venivano ignorati e la prima fattura usciva
+      // intestata a "Da configurare" con partita IVA 00000000000.
+      // I campi hanno vincoli di lunghezza esatti a database (P.IVA 11, CAP 5,
+      // SDI 7, provincia 2): se un dato non e' conforme si ricade sul segnaposto,
+      // perche' un insert rifiutato bloccherebbe del tutto la fatturazione.
+      const { data: azienda } = await supabase
+        .from("companies")
+        .select("name, vat_number, fiscal_code, legal_address, legal_city, legal_province, legal_postal_code, pec, sdi_code")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      const soloCifre = (v?: string | null) => (v ?? "").replace(/\D/g, "");
+      const piva = soloCifre(azienda?.vat_number);
+      const cf = (azienda?.fiscal_code ?? "").trim().toUpperCase();
+      const cap = soloCifre(azienda?.legal_postal_code);
+      const prov = (azienda?.legal_province ?? "").trim().toUpperCase();
+      const sdi = (azienda?.sdi_code ?? "").trim().toUpperCase();
+      const pivaValida = piva.length === 11 ? piva : "00000000000";
+
+      const { error: anaError } = await supabase
+        .from("anagrafica_azienda" as never)
+        .insert({
+          company_id: companyId,
+          ragione_sociale: azienda?.name?.trim() || "Da configurare",
+          partita_iva: pivaValida,
+          // Per le societa' il codice fiscale coincide con la partita IVA:
+          // meglio quello del segnaposto se il campo dedicato e' vuoto.
+          codice_fiscale: cf.length === 11 || cf.length === 16 ? cf : pivaValida,
+          regime_fiscale: "RF01",
+          forma_giuridica: "SRL",
+          indirizzo_via: azienda?.legal_address?.trim() || "Da configurare",
+          indirizzo_cap: cap.length === 5 ? cap : "00000",
+          indirizzo_comune: azienda?.legal_city?.trim() || "Da configurare",
+          indirizzo_provincia: prov.length === 2 ? prov : "XX",
+          indirizzo_nazione: "IT",
+          ...(sdi.length === 7 && { codice_sdi: sdi }),
+          ...(azienda?.pec?.trim() && { pec: azienda.pec.trim() }),
+        } as never);
+      if (anaError && anaError.code !== "23505") throw new Error("Impossibile creare il profilo di fatturazione: " + anaError.message);
+    }
+
+    // Numero e documento nascono nella stessa transazione.
+    //
+    // Prima erano due chiamate: `genera_numero_documento_native` e poi
+    // l'insert. Quella funzione non calcola un massimo, INCREMENTA E SCRIVE
+    // un contatore, e la scrittura era gia' committata quando arrivava
+    // l'insert: se l'insert falliva, il numero era consumato per sempre.
+    // Non un caso di scuola — il menu offre sedici tipi di documento e il
+    // vincolo sulla tabella ne ammette nove, quindi parcella, acconti e
+    // reverse charge bruciavano un numero di FATTURA a ogni tentativo,
+    // perche' il ramo di riserva della funzione usa quel contatore.
+    //
+    // `documento_crea` rifiuta i tipi non gestiti PRIMA di toccare il
+    // contatore, e se l'inserimento fallisce anche l'incremento torna
+    // indietro. Provato su dati veri in transazione annullata: tentativo con
+    // «parcella» -> contatore fermo a 37; fattura valida -> 38, documento
+    // FT-2026-0038 scritto.
+    const risultato = copia
+      ? await supabase.rpc("documento_duplica_bozza", {
+        p_company_id: companyId, p_origine_id: copia.origineId, p_richiesta_id: copia.id, p_dati: input as never,
+      })
+      : daDdtId
+        ? await supabase.rpc("documento_fattura_da_ddt", {
+          p_company_id: companyId, p_ddt_id: daDdtId, p_dati: input as never,
+        })
+        : await supabase.rpc("documento_crea", { p_company_id: companyId, p_dati: input as never });
+    const { data: creato, error: rpcError } = risultato as {
+      data: { id?: string; riutilizzata?: boolean } | null; error: { message?: string } | null;
+    };
+
+    if (rpcError) throw new Error(rpcError.message ?? "Creazione documento non riuscita");
+    if (!creato?.id) throw new Error("Il documento non e' stato creato");
+    return { id: creato.id, riutilizzata: creato.riutilizzata === true };
+  };
+}
+
+export function useCreateDocumento() {
+  const crea = useOperazioneCreazioneDocumento();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: CreateDocumentoInput) => {
-      if (!companyId) throw new Error("Nessuna azienda selezionata");
-
-      // Ensure anagrafica_azienda exists for this company
-      const { data: anaExists } = await supabase
-        .from("anagrafica_azienda" as never)
-        .select("id")
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      if (!anaExists) {
-        // Il profilo fiscale nasce dai dati VERI dell'azienda, non da segnaposto:
-        // partita IVA, sede, PEC e codice SDI sono gia' in companies (raccolti in
-        // fase di registrazione). Prima venivano ignorati e la prima fattura usciva
-        // intestata a "Da configurare" con partita IVA 00000000000.
-        // I campi hanno vincoli di lunghezza esatti a database (P.IVA 11, CAP 5,
-        // SDI 7, provincia 2): se un dato non e' conforme si ricade sul segnaposto,
-        // perche' un insert rifiutato bloccherebbe del tutto la fatturazione.
-        const { data: azienda } = await supabase
-          .from("companies")
-          .select("name, vat_number, fiscal_code, legal_address, legal_city, legal_province, legal_postal_code, pec, sdi_code")
-          .eq("id", companyId)
-          .maybeSingle();
-
-        const soloCifre = (v?: string | null) => (v ?? "").replace(/\D/g, "");
-        const piva = soloCifre(azienda?.vat_number);
-        const cf = (azienda?.fiscal_code ?? "").trim().toUpperCase();
-        const cap = soloCifre(azienda?.legal_postal_code);
-        const prov = (azienda?.legal_province ?? "").trim().toUpperCase();
-        const sdi = (azienda?.sdi_code ?? "").trim().toUpperCase();
-        const pivaValida = piva.length === 11 ? piva : "00000000000";
-
-        const { error: anaError } = await supabase
-          .from("anagrafica_azienda" as never)
-          .insert({
-            company_id: companyId,
-            ragione_sociale: azienda?.name?.trim() || "Da configurare",
-            partita_iva: pivaValida,
-            // Per le societa' il codice fiscale coincide con la partita IVA:
-            // meglio quello del segnaposto se il campo dedicato e' vuoto.
-            codice_fiscale: cf.length === 11 || cf.length === 16 ? cf : pivaValida,
-            regime_fiscale: "RF01",
-            forma_giuridica: "SRL",
-            indirizzo_via: azienda?.legal_address?.trim() || "Da configurare",
-            indirizzo_cap: cap.length === 5 ? cap : "00000",
-            indirizzo_comune: azienda?.legal_city?.trim() || "Da configurare",
-            indirizzo_provincia: prov.length === 2 ? prov : "XX",
-            indirizzo_nazione: "IT",
-            ...(sdi.length === 7 && { codice_sdi: sdi }),
-            ...(azienda?.pec?.trim() && { pec: azienda.pec.trim() }),
-          } as never);
-        if (anaError) throw new Error("Impossibile creare il profilo di fatturazione: " + anaError.message);
-      }
-
-      // Numero e documento nascono nella stessa transazione.
-      //
-      // Prima erano due chiamate: `genera_numero_documento_native` e poi
-      // l'insert. Quella funzione non calcola un massimo, INCREMENTA E SCRIVE
-      // un contatore, e la scrittura era gia' committata quando arrivava
-      // l'insert: se l'insert falliva, il numero era consumato per sempre.
-      // Non un caso di scuola — il menu offre sedici tipi di documento e il
-      // vincolo sulla tabella ne ammette nove, quindi parcella, acconti e
-      // reverse charge bruciavano un numero di FATTURA a ogni tentativo,
-      // perche' il ramo di riserva della funzione usa quel contatore.
-      //
-      // `documento_crea` rifiuta i tipi non gestiti PRIMA di toccare il
-      // contatore, e se l'inserimento fallisce anche l'incremento torna
-      // indietro. Provato su dati veri in transazione annullata: tentativo con
-      // «parcella» -> contatore fermo a 37; fattura valida -> 38, documento
-      // FT-2026-0038 scritto.
-      const { data: creato, error: rpcError } = await supabase.rpc("documento_crea", {
-        p_company_id: companyId,
-        p_dati: input as never,
-      }) as { data: { id?: string; numero?: string; riutilizzata?: boolean } | null; error: { message?: string } | null };
-
-      if (rpcError) throw new Error(rpcError.message ?? "Creazione documento non riuscita");
-      if (!creato?.id) throw new Error("Il documento non e' stato creato");
-
+      const creato = await crea(input);
       const { data, error } = await supabase
         .from("documenti_fiscali" as never)
         .select()
@@ -441,14 +461,31 @@ export function useCreateDocumento() {
         riutilizzata: creato.riutilizzata === true,
       });
     },
-    onSuccess: (doc) => {
+    onSuccess: (doc, { daDdtId }) => {
       refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
-      if (doc.riutilizzata) toast.info("Hai già una bozza aperta: completala o eliminala prima di crearne un'altra", { description: "Riprendi da dove eri rimasto." });
+      if (daDdtId && doc.riutilizzata) toast.info(doc.stato === "bozza" ? "Bozza del DDT aperta" : "Fattura del DDT aperta");
+      else if (doc.riutilizzata) toast.info("Hai già una bozza aperta: completala o eliminala prima di crearne un'altra", { description: "Riprendi da dove eri rimasto." });
       else toast.success("Documento creato");
     },
     onError: (err: Error) => {
       toast.error("Errore nella creazione", { description: err.message });
+    },
+  });
+}
+
+export function useDuplicaDocumentoBozza() {
+  const crea = useOperazioneCreazioneDocumento();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ dati, richiesta }: { dati: CreateDocumentoInput; richiesta: RichiestaCopiaDocumento }) => crea(dati, richiesta),
+    onSuccess: ({ riutilizzata }) => {
+      refreshFinancialQueries(queryClient);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      toast.success(riutilizzata ? "Bozza della copia recuperata" : "Documento duplicato");
+    },
+    onError: () => {
+      toast.error("Impossibile confermare la copia", { description: "Riprova per recuperare la stessa bozza." });
     },
   });
 }

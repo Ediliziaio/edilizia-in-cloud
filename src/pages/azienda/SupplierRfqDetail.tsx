@@ -5,7 +5,7 @@ import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
 import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
 import { RdoCondizioniOfferta } from "@/components/acquisti/RdoCondizioniOfferta";
 import { attivitaRdo, oggiLocale } from "@/lib/acquisti/attivita";
-import { confrontoOfferta, TRASPORTO_LABELS } from "@/lib/acquisti/confronto";
+import { confrontoOfferta, coperturaOfferta, TRASPORTO_LABELS } from "@/lib/acquisti/confronto";
 import { RdoDettagliCard } from "@/components/rdo/RdoDettagliCard";
 import { EtichettaStatoVoce, StatoVoceCella } from "@/components/rdo/StatoVoceCella";
 import { aggiornamentoStatoVoce, statoVoceOfferta } from "@/lib/acquisti/statoVoceOfferta";
@@ -122,30 +122,25 @@ export default function SupplierRfqDetail() {
   const aggiudicaInCorso = useRef(false);
 
   const totaliPerFornitore = useMemo(() => {
-    const out: Record<string, { totale: number | null; righeCoperte: number; daRighe?:boolean }> = {};
+    const out: Record<string, ReturnType<typeof coperturaOfferta>> = {};
     for (const f of fornitori) {
       let somma = 0;
       let coperte = 0;
+      let indisponibili = 0;
       for (const it of items) {
         const q = quotes.find((x) => x.rfq_item_id === it.id && x.rfq_supplier_id === f.id);
+        if (q?.disponibile === false) indisponibili += 1;
         const t = totaleRigaOfferta(q, Number(it.quantita));
         if (t != null) {
           somma += t;
           coperte += 1;
         }
       }
-      // Se il fornitore ha risposto a corpo senza dettagliare, vale il totale
-      // che ha scritto lui: sommare righe vuote darebbe zero.
-      const daRighe = coperte > 0 ? somma : null;
-      out[f.id] = {
-        daRighe: daRighe!=null,
-        totale: daRighe ?? (f.totale_offerto == null ? null : Number(f.totale_offerto)),
-        // un'offerta a corpo copre tutto per definizione
-        righeCoperte: daRighe == null && f.totale_offerto != null ? items.length : coperte,
-      };
+      out[f.id] = coperturaOfferta(f.totale_offerto, { somma, quotate: coperte, indisponibili }, items.length);
     }
     return out;
   }, [fornitori, items, quotes]);
+  const senzaVociDisponibili = !!aggiudicaA && !!totaliPerFornitore[aggiudicaA.id]?.senzaVociDisponibili;
 
   /** Chi offre meno su una riga: e' l'unico confronto che conta davvero. */
   const migliorePerRiga = useMemo(() => {
@@ -1000,7 +995,12 @@ export default function SupplierRfqDetail() {
                 </span>
               </div>
             )}
-            {aggiudicaA && (totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) < items.length && (
+            {senzaVociDisponibili && (
+              <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">
+                L’offerta ha voci indisponibili e nessuna voce disponibile con prezzo. Chiedi al fornitore quali voci può fornire.
+              </p>
+            )}
+            {aggiudicaA && !senzaVociDisponibili && (totaliPerFornitore[aggiudicaA.id]?.righeCoperte ?? 0) < items.length && (
               <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                 <span>
@@ -1058,7 +1058,7 @@ export default function SupplierRfqDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAggiudicaA(null); setMotivazione(""); }}>Annulla</Button>
             <Button
-              disabled={aggiudica.isPending || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || !aggiudicaA || !!confronti[aggiudicaA.id]?.scaduta || !confronti[aggiudicaA.id]?.coerente || (aggiudicaA.trasporto_tipo==="extra"&&aggiudicaA.costo_trasporto==null) || !((confronti[aggiudicaA.id]?.totale ?? 0) > 0)}
+              disabled={aggiudica.isPending || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || !aggiudicaA || senzaVociDisponibili || !!confronti[aggiudicaA.id]?.scaduta || !confronti[aggiudicaA.id]?.coerente || (aggiudicaA.trasporto_tipo==="extra"&&aggiudicaA.costo_trasporto==null) || !((confronti[aggiudicaA.id]?.totale ?? 0) > 0)}
               onClick={() => {
                 if (!aggiudicaA || aggiudicaInCorso.current) return;
                 aggiudicaInCorso.current = true;

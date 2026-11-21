@@ -11,9 +11,9 @@ beforeEach(()=>{
     const query={
       select:vi.fn((columns:string)=>{mock.calls.push(["select",columns]);return query;}),
       eq:vi.fn((key:string,value:string)=>{mock.calls.push(["eq",key,value]);rows=rows.filter(row=>row[key as keyof typeof row]===value);return query;}),
-      is:vi.fn().mockReturnThis(),
+      is:vi.fn((key:string,value:unknown)=>{mock.calls.push(["is",key,value]);return query;}),
       in:vi.fn((key:string,ids:string[])=>{mock.calls.push(["in",key,ids]);rows=rows.filter(row=>ids.includes(row[key as keyof typeof row]));return query;}),
-      or:vi.fn((espressione:string)=>{mock.calls.push(["or",espressione]);return query;}),gte:vi.fn().mockReturnThis(),lte:vi.fn().mockReturnThis(),
+      or:vi.fn((espressione:string, options?:unknown)=>{mock.calls.push(options ? ["or",espressione,options] : ["or",espressione]);return query;}),gte:vi.fn().mockReturnThis(),lte:vi.fn().mockReturnThis(),
       order:vi.fn().mockReturnThis(),
       range:vi.fn((from:number,to:number)=>{mock.calls.push(["range",from,to]);start=from;end=to;return query;}),
       then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(resolve({data:mock.error?null:rows.slice(start,end+1),error:mock.error,count:rows.length})),
@@ -99,4 +99,46 @@ describe("Filtri prima della paginazione delle commesse",()=>{
   it("propaga un errore invece di mostrare un elenco vuoto",async()=>{
     mock.error=new Error("timeout");await expect(readOrdersPage(filters,0,19)).rejects.toThrow("timeout");
   });
+});
+
+describe("Cliente collegato nella ricerca Commesse", () => {
+  it.each(["principale", "laterale"])("cerca il cognome attraverso il filtro %s prima di contare e paginare", async (filtro) => {
+    const lettura = filtro === "principale"
+      ? { ...filters, debouncedSearch: "Rossi" }
+      : { ...filters, sidebarFilters: { ...filters.sidebarFilters, orderSearch: "Rossi" } };
+    await readOrdersPage(lettura, 0, 19);
+    const alias = filtro === "principale" ? "cliente_ricerca" : "cliente_filtro";
+    expect(mock.calls.find(([operazione]) => operazione === "select")?.[1]).toContain(
+      `${alias}:profiles!orders_customer_id_fkey()`,
+    );
+    expect(mock.calls).toContainEqual(["or", "first_name.ilike.%Rossi%,last_name.ilike.%Rossi%", { referencedTable: alias }]);
+    const filtroCliente = mock.calls.findIndex(([op, exp]) => op === "or" && String(exp).includes(`${alias}.not.is.null`));
+    expect(filtroCliente).toBeGreaterThan(-1);
+    expect(filtroCliente).toBeLessThan(mock.calls.findIndex(([op]) => op === "range"));
+    expect(mock.calls.filter(([op]) => op === "range")).toHaveLength(1);
+    expect(mock.calls).toContainEqual(["eq", "company_id", "company-a"]);
+    expect(mock.calls).toContainEqual(["is", "deleted_at", null]);
+  });
+});
+
+it("mantiene fatturato, incassato e residuo della commessa a misura anche nell'export integrale", async () => {
+  const creditiMisura = { fatturato: 610, incassato: 244, residuo: 366, scaduto: 0, documenti: [] as never[] };
+  mock.rows = Array.from({ length: 150 }, (_, pos) => ({
+    id: String(pos).padStart(3, "0"),
+    current_status_id: "open",
+    company_id: "company-a",
+  }));
+  mock.rpc.mockImplementation(async (_nome, { p_ids }: { p_ids: string[] }) => ({
+    data: p_ids.map((id) => id === "120" ? {
+      id, order_type: "appaltatore_lavoro", valorizzazione: "a_misura", crediti_misura: creditiMisura,
+    } : { id }),
+    error: null as null,
+  }));
+  const perimetro = { ...filters, focusIds: mock.rows.map(({ id }) => id) };
+  const pagina = await readOrdersPage(perimetro, 120, 139);
+  const exportCompleto = await readOrdersPage(perimetro, 0, Infinity);
+  expect(pagina.orders[0]).toMatchObject({ id: "120", crediti_misura: creditiMisura });
+  expect(exportCompleto.orders[120]).toMatchObject({ id: "120", crediti_misura: creditiMisura });
+  mock.rpc.mockResolvedValue({ data: null, error: new Error("rete indisponibile") });
+  await expect(readOrdersPage(perimetro, 0, Infinity)).rejects.toThrow(/Incassi e crediti non disponibili/);
 });

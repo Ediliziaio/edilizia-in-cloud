@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   listini: [] as Array<Record<string, unknown>>,
   voci: {} as Record<string, Array<Record<string, unknown>>>,
+  revisione: 0,
+  salva: vi.fn(),
   aggiornamenti: [] as Array<Record<string, unknown>>,
   // Quando e' acceso, le `update` restano in volo finche' non si chiama
   // `sblocca`: serve a provare cosa succede a chi scrive nel frattempo.
@@ -56,7 +58,12 @@ vi.mock("@/integrations/supabase/client", () => {
     };
     return q;
   };
-  return { supabase: { from: (t: string) => costruisci(t) } };
+  return { supabase: {
+    from: (t: string) => costruisci(t),
+    rpc: async (nome: string, args: { p_listino: string }) => nome === "leggi_voci_listino_fornitore"
+      ? { data: { revisione: m.revisione, voci: m.voci[args.p_listino] ?? [] }, error: null }
+      : m.salva(args),
+  } };
 });
 
 import { ListinoFornitoreTab } from "@/components/suppliers/ListinoFornitoreTab";
@@ -75,6 +82,8 @@ beforeEach(() => {
   m.listini = [];
   m.voci = {};
   m.aggiornamenti = [];
+  m.revisione = 0;
+  m.salva.mockReset();
   m.trattieni = false;
   m.sblocca = [];
 });
@@ -298,5 +307,56 @@ describe("scheda Listino del fornitore", () => {
 
     await waitFor(() => expect(screen.getByDisplayValue("Inerte 0-30 vecchio")).toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent("scaduto il 31/12/2025");
+  });
+});
+
+describe("Salvataggio delle voci", () => {
+  function prepara(conSecondoListino = false) {
+    m.listini = [{ id: "l1", nome: "Listino", sconto_default_pct: 0, valido_dal: null, valido_al: null, attivo: true }];
+    m.voci.l1 = [{ id: "v1", codice: "X", descrizione: "Voce di prova", unita: "pz", prezzo: 10, sconto_pct: 0 }];
+    if (conSecondoListino) {
+      m.listini.push({ id: "l2", nome: "Listino B", sconto_default_pct: 0, valido_dal: "2027-01-01", valido_al: null, attivo: true });
+      m.voci.l2 = [{ id: "v2", codice: "Y", descrizione: "Voce B", unita: "pz", prezzo: 19, sconto_pct: 0 }];
+    }
+    apri();
+    return screen.findByRole("spinbutton", { name: "Prezzo voce X" });
+  }
+
+  it("mantiene le modifiche fatte dopo il clic e usa la nuova revisione per salvarle", async () => {
+    let conferma!: (esito: { data: { id: string; revisione: number; totale: number }; error: null }) => void;
+    m.salva.mockImplementationOnce(() => new Promise((ok) => { conferma = ok; }))
+      .mockResolvedValueOnce({ data: { id: "l1", revisione: 2, totale: 1 }, error: null });
+    const prezzo = await prepara(true);
+    fireEvent.change(prezzo, { target: { value: "11" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva listino" }));
+    await waitFor(() => expect(m.salva).toHaveBeenCalledWith(expect.objectContaining({
+      p_revisione: 0, p_voci: [expect.objectContaining({ id: "v1", prezzo: 11 })],
+    })));
+    fireEvent.change(prezzo, { target: { value: "12" } });
+    conferma({ data: { id: "l1", revisione: 1, totale: 1 }, error: null });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salva listino" })).toBeEnabled());
+    expect(prezzo).toHaveValue(12);
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(await screen.findByText("Listino B — in vigore dal 01/01/2027"));
+    expect(await screen.findByText("Modifiche non salvate")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resta qui" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva listino" }));
+    await waitFor(() => expect(m.salva).toHaveBeenLastCalledWith(expect.objectContaining({
+      p_revisione: 1, p_voci: [expect.objectContaining({ id: "v1", prezzo: 12 })],
+    })));
+  });
+
+  it("con un conflitto conserva la bozza finché l’utente sceglie di ricaricare", async () => {
+    m.salva.mockResolvedValue({ data: null, error: { code: "PT409", message: "Listino cambiato" } });
+    const prezzo = await prepara();
+    fireEvent.change(prezzo, { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva listino" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Le tue modifiche sono ancora nella griglia");
+    expect(prezzo).toHaveValue(12);
+    expect(screen.getByRole("button", { name: "Salva listino" })).toBeDisabled();
+    m.revisione = 1;
+    m.voci.l1 = [{ ...m.voci.l1[0], prezzo: 11 }];
+    fireEvent.click(screen.getByRole("button", { name: "Scarta la bozza e ricarica" }));
+    await waitFor(() => expect(screen.getByRole("spinbutton", { name: "Prezzo voce X" })).toHaveValue(11));
   });
 });

@@ -13,14 +13,17 @@
  * su una fattura non si può scrivere.
  */
 import type { AnagraficaAzienda, ContoFatturazione } from "@/types/fatturazione";
+import { isValidIBAN } from "ibantools";
 
 /** Senza spazi e in maiuscolo, come lo vuole il tracciato della fattura elettronica. */
 export const pulisciIbanConto = (iban: string | null | undefined): string =>
   String(iban ?? "").replace(/\s+/g, "").toUpperCase();
 
-/** Un IBAN italiano scritto bene: IT, due cifre di controllo, il CIN, 22 fra cifre e lettere. */
-export const ibanValido = (iban: string | null | undefined): boolean =>
-  /^IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}$/.test(pulisciIbanConto(iban));
+/** Verifica formato e cifre di controllo dell'IBAN italiano. */
+export function ibanValido(iban: string | null | undefined): boolean {
+  const normalizzato = pulisciIbanConto(iban);
+  return normalizzato.startsWith("IT") && isValidIBAN(normalizzato);
+}
 
 export interface ContoScegliibile extends ContoFatturazione {
   /** Il conto principale delle impostazioni: proposto di serie, non si cancella da qui. */

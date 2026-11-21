@@ -219,34 +219,49 @@ Deno.serve(async (req: Request) => {
       updatePayload.b2c_clausole = b2c_clausole_approvate ?? null;
     }
 
-    // Aggiorna signature_requests
-    const { data: firmata, error: firmaErr } = await supabaseAdmin
-      .from("signature_requests")
-      .update(updatePayload)
-      .eq("id", sigReq.id).eq("status", "otp_verified")
-      .eq("sessione_firma_hash", sigReq.sessione_firma_hash)
-      .eq("expires_at", sigReq.expires_at).gt("expires_at", ora)
-      .select("id").maybeSingle();
-    if (firmaErr) return errore(500, "Firma non registrata. Riprova tra qualche istante.");
-    if (!firmata) return errore(409, "La richiesta di firma è cambiata. Ricarica il documento prima di procedere.");
+    type StatoGruppo = { completo: boolean; chiude: boolean; firmati: number; richiesti: number; nomi: string | null };
+    let gruppo: StatoGruppo | null = null;
+    if (sigReq.gruppo_firma_id) {
+      const { data: esito, error: gruppoErr } = await supabaseAdmin.rpc("fea_registra_firma_congiunta", {
+        p_richiesta: sigReq.id, p_sessione_hash: sigReq.sessione_firma_hash,
+        p_scadenza: sigReq.expires_at, p_firma: updatePayload,
+      }).maybeSingle();
+      if (gruppoErr) {
+        console.error("Firma congiunta non confermata:", gruppoErr);
+        return errore(503, "Non è stato possibile confermare la firma congiunta. Riprova tra qualche istante.");
+      }
+      if (!esito) return errore(409, "La richiesta di firma è cambiata. Ricarica il documento prima di procedere.");
+      gruppo = esito as StatoGruppo;
+    } else if (sigReq.odv_id) {
+      const { data: firmata, error: firmaErr } = await supabaseAdmin.rpc("fea_registra_firma_variante", {
+        p_richiesta: sigReq.id, p_sessione_hash: sigReq.sessione_firma_hash,
+        p_scadenza: sigReq.expires_at, p_firma: updatePayload,
+      });
+      if (firmaErr?.code === "PVA01") {
+        return errore(409, "La riduzione supera il residuo del contratto. Chiedi all’impresa una proposta aggiornata.");
+      }
+      if (firmaErr?.code === "PVA02" || (!firmaErr && !firmata)) {
+        return errore(409, "La variante non è più da firmare. Ricarica il documento prima di procedere.");
+      }
+      if (firmaErr) {
+        console.error("Firma della variante non confermata:", firmaErr.code);
+        return errore(503, "Firma della variante non registrata. Riprova tra qualche istante.");
+      }
+    } else {
+      const { data: firmata, error: firmaErr } = await supabaseAdmin
+        .from("signature_requests")
+        .update(updatePayload)
+        .eq("id", sigReq.id).eq("status", "otp_verified")
+        .eq("sessione_firma_hash", sigReq.sessione_firma_hash)
+        .eq("expires_at", sigReq.expires_at).gt("expires_at", ora)
+        .select("id").maybeSingle();
+      if (firmaErr) return errore(500, "Firma non registrata. Riprova tra qualche istante.");
+      if (!firmata) return errore(409, "La richiesta di firma è cambiata. Ricarica il documento prima di procedere.");
+    }
 
-    // Preventivo cointestato: firmano tutti e due. Il documento si chiude (preventivo
-    // accettato, progetto firmato) solo all'ultima firma del gruppo, e una volta sola anche
-    // se le due firme arrivano insieme (fea_gruppo_dopo_firma). Una richiesta da sola si
-    // chiude con la sua firma, come prima.
-    const { data: statoGruppo, error: gruppoErr } = await supabaseAdmin.rpc("fea_gruppo_dopo_firma", { p_richiesta: sigReq.id });
-    if (gruppoErr) console.error("Stato del gruppo di firma non letto:", gruppoErr);
-    const gruppo = (Array.isArray(statoGruppo) ? statoGruppo[0] : statoGruppo) as
-      { completo: boolean; chiude: boolean; firmati: number; richiesti: number; nomi: string | null } | null;
-    // Una richiesta da sola si chiude con la sua firma anche se la risposta sul gruppo manca;
-    // in un gruppo, senza risposta il documento resta aperto: meglio una firma da completare
-    // che un'accettazione a metà.
-    const chiudeDocumento = gruppo ? gruppo.chiude : !sigReq.gruppo_firma_id;
+    // Per i gruppi, il database ha già aggiornato il documento in transazione.
+    const chiudeDocumento = !sigReq.gruppo_firma_id;
     const nomiFirmatari = gruppo?.nomi || sigReq.signer_name;
-    const ripristinaGruppo = async () => {
-      if (!sigReq.gruppo_firma_id) return;
-      await supabaseAdmin.from("signature_requests").update({ gruppo_completato_at: null }).eq("gruppo_firma_id", sigReq.gruppo_firma_id);
-    };
 
     if (chiudeDocumento && sigReq.quote_id) {
       const { data: preventivoAggiornato, error: quoteUpdateErr } = await supabaseAdmin
@@ -272,7 +287,6 @@ Deno.serve(async (req: Request) => {
             documento_hash_firma: null, firmatario_id: null,
             sessione_firma_hash: sigReq.sessione_firma_hash, sessione_firma_scadenza: sigReq.sessione_firma_scadenza })
           .eq("id", sigReq.id).eq("status", "signed").eq("signed_at", ora);
-        await ripristinaGruppo();
         return errore(500, "Errore nell'aggiornamento del preventivo collegato. La firma non è stata registrata: riprova tra qualche istante.");
       }
     }
@@ -287,15 +301,6 @@ Deno.serve(async (req: Request) => {
         .eq("id", sigReq.fv_progetto_id)
         .eq("company_id", sigReq.company_id);
       if (fvErr) console.error("Stato firmato sul preventivo fotovoltaico non aggiornato:", fvErr);
-    }
-    // Lavori extra e varianti (06/11/2026): la firma vale l'accettazione. L'RPC controlla da sé che la
-    // richiesta sia firmata e la variante sia ancora in attesa; il trigger della variante crea poi la
-    // fase nelle Lavorazioni. Non blocca: la firma è già registrata, e dalla scheda si può creare a mano.
-    if (chiudeDocumento && sigReq.odv_id) {
-      const { data: fatto, error: odvErr } = await supabaseAdmin.rpc("odv_approva_da_firma_fea", { p_request: sigReq.id });
-      // Quasi irraggiungibile: poco sopra si è già controllato che il lavoro extra sia in attesa.
-      // Resta la corsa di chi annulla mentre il cliente firma: la firma vale, il lavoro extra no.
-      if (odvErr || fatto !== true) console.error("Lavoro extra non approvato dopo la firma:", odvErr ?? "variante non più in attesa");
     }
     if (chiudeDocumento && sigReq.quote_id) {
       // I moduli (ristrutturazione, bagni…) firmano tramite un preventivo «ombra»
@@ -439,7 +444,7 @@ Deno.serve(async (req: Request) => {
 
       // Preventivo cointestato completo: anche chi aveva già firmato riceve il documento
       // finale, con le firme di tutti.
-      if (gruppo?.completo && gruppo.richiesti > 1 && sigReq.gruppo_firma_id && allegato) {
+      if (gruppo?.chiude && gruppo.richiesti > 1 && sigReq.gruppo_firma_id && allegato) {
         const { data: altri } = await supabaseAdmin.from("signature_requests")
           .select("id, signer_name, signer_email")
           .eq("gruppo_firma_id", sigReq.gruppo_firma_id).neq("id", sigReq.id).eq("status", "signed");
@@ -474,9 +479,9 @@ Deno.serve(async (req: Request) => {
       const ownerId = await risolviOwner(supabaseAdmin, sigReq);
       if (ownerId) {
         const signerLabel = sigReq.signer_name ?? "il cliente";
-        const parziale = gruppo && gruppo.richiesti > 1 && !gruppo.completo;
+        const parziale = gruppo && gruppo.richiesti > 1 && !gruppo.completo ? gruppo : null;
         const titoloAvviso = parziale
-          ? `Firmato da ${signerLabel}: ${gruppo.firmati} firme su ${gruppo.richiesti}`
+          ? `Firmato da ${signerLabel}: ${parziale.firmati} firme su ${parziale.richiesti}`
           : `Documento firmato da ${nomiFirmatari ?? signerLabel}`;
         const testoAvviso = parziale
           ? `${signerLabel} ha firmato. Manca la firma del cointestatario: il preventivo sarà accettato quando firmano tutti.`

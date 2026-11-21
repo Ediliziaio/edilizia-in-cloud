@@ -56,6 +56,18 @@ describe("il riepilogo economico", () => {
     expect(r.risparmio).toBe(0);
   });
 
+  it.each([[10, 90, 990], [0, 0, 900]])("nel PDF usa l’aliquota esplicita %i%% del prezzo manuale", (aliquota, valore, totale) => {
+    const dati = datiGenerici({
+      quote: { prezzo_manuale: 1000, prezzo_manuale_iva_pct: aliquota, subtotal: 1000, discount_percent: 10, discount_amount: 100, total: totale },
+      items: [],
+      righePerIva: [{ line_total: 0, vat_rate: 22 }],
+      company: null,
+      template: {},
+    });
+    expect(dati.totali).toMatchObject({ imponibile: 900, ivaPct: aliquota, iva: valore, totale });
+    expect(dati.totali.aliquoteIva).toEqual([{ aliquota, valore }]);
+  });
+
   it("nel PDF il risparmio nasce da uno sconto vero, non dai centesimi dell'IVA", () => {
     // Dal 27/10/2026 il generico è il documento edile: lo sconto lo decide l'adattatore generico.
     const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");

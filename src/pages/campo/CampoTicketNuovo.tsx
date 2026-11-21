@@ -4,7 +4,7 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * All'ufficio arriva come ticket con fonte='campo': il titolo sono le prime parole.
  * Il cantiere è già scelto se si arriva da /campo/ticket/nuovo/:orderId.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Camera, CheckCircle, Loader2, Mic, X } from "lucide-react";
@@ -16,6 +16,20 @@ import { useRapportinoVocale } from "@/hooks/campo/useRapportinoVocale";
 import { senzaRete } from "@/lib/campo/timbra";
 import { MASSIMO_FOTO_SEGNALAZIONE, segnalazioneDaTesto } from "@/lib/campo/segnalazione";
 
+function AnteprimaFoto({ file, numero }: { file: File; numero: number }) {
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image) return;
+    const url = URL.createObjectURL(file);
+    image.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  return <img ref={imageRef} alt={`Foto ${numero}`} className="aspect-square w-full rounded-xl object-cover" />;
+}
+
 export default function CampoTicketNuovo() {
   const { orderId } = useParams<{ orderId?: string }>();
   const navigate = useNavigate();
@@ -26,16 +40,9 @@ export default function CampoTicketNuovo() {
   const [urgente, setUrgente] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(orderId ?? "");
   const [foto, setFoto] = useState<File[]>([]);
-  const [anteprime, setAnteprime] = useState<string[]>([]);
   const [voceAperta, setVoceAperta] = useState(false);
   const [done, setDone] = useState(false);
   const { processAudio, uploading, transcribing, error: erroreVoce } = useRapportinoVocale();
-
-  useEffect(() => {
-    const urls = foto.map((f) => URL.createObjectURL(f));
-    setAnteprime(urls);
-    return () => urls.forEach((u) => URL.revokeObjectURL(u));
-  }, [foto]);
 
   const { data: cantieri = [] } = useQuery({
     queryKey: ["campo-cantieri-ticket", user?.id],
@@ -85,12 +92,11 @@ export default function CampoTicketNuovo() {
           const path = `${ticketId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
           const { error: upErr } = await supabase.storage.from("ticket-attachments").upload(path, file, { contentType: file.type });
           if (upErr) throw upErr;
-          const { data: firmato } = await supabase.storage.from("ticket-attachments").createSignedUrl(path, 60 * 60 * 24);
           const { error: msgErr } = await supabase.from("ticket_messages").insert({
             ticket_id: ticketId,
             sender_id: user!.id,
             message: `📎 ${file.name}`,
-            attachment_url: firmato?.signedUrl || path,
+            attachment_url: path,
           });
           if (msgErr) throw msgErr;
         } catch (e) {
@@ -202,11 +208,11 @@ export default function CampoTicketNuovo() {
       )}
       {erroreVoce && <p role="alert" className="text-sm text-destructive">{erroreVoce}</p>}
 
-      {anteprime.length > 0 && (
+      {foto.length > 0 && (
         <div className="grid grid-cols-4 gap-2">
-          {anteprime.map((u, i) => (
-            <div key={u} className="relative">
-              <img src={u} alt={`Foto ${i + 1}`} className="aspect-square w-full rounded-xl object-cover" />
+          {foto.map((file, i) => (
+            <div key={`${i}-${file.name}`} className="relative">
+              <AnteprimaFoto file={file} numero={i + 1} />
               <button
                 type="button"
                 aria-label={`Togli la foto ${i + 1}`}

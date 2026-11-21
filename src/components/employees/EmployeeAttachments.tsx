@@ -188,21 +188,31 @@ export function EmployeeAttachments({
 
   const deleteMutation = useMutation({
     mutationFn: async (attachment: EmployeeAttachment) => {
-      const filePath = getStoragePath(attachment.file_url);
-      await supabase.storage.from("personnel-attachments").remove([filePath]);
-
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("employee_attachments")
         .delete()
-        .eq("id", attachment.id);
+        .eq("id", attachment.id)
+        .eq("employee_id", employee.id)
+        .select("id")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("L'eliminazione non è stata confermata.");
+      try {
+        const { error: cleanupError } = await supabase.storage.from("personnel-attachments")
+          .remove([getStoragePath(attachment.file_url)]);
+        return !cleanupError;
+      } catch (cleanupError) {
+        logger.error("Pulizia allegato personale:", cleanupError);
+        return false;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (fileRimosso) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.employeeAttachments.byEmployee(employee.id),
       });
-      toast.success("Documento eliminato", { description: "Il documento è stato eliminato." });
+      if (fileRimosso) toast.success("Documento eliminato");
+      else toast.warning("Documento rimosso dall’elenco", { description: "Il file nell’archivio richiede una verifica." });
     },
     onError: () => {
       toast.error("Errore", { description: "Si è verificato un errore durante l'eliminazione." });

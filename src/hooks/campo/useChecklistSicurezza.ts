@@ -10,6 +10,7 @@ import {
 } from "@/lib/campo/checklist-items";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { isOnline } from "@/lib/campo/network-status";
+import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "@/lib/campo/salvaChecklistSicurezza";
 
 export type Turno = "mattina" | "pomeriggio" | "notte";
 const CHECKLIST_REQUEST_TIMEOUT_MS = 8000;
@@ -30,6 +31,7 @@ async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, messag
 
 export interface ChecklistSicurezzaRecord {
   id?: string;
+  updated_at?: string;
   company_id: string;
   order_id?: string | null;
   operaio_id: string;
@@ -59,12 +61,13 @@ interface UseChecklistActions {
   conferma: (
     orderId?: string | null,
     gps?: { lat: number; lng: number; accuracy: number } | null,
-  ) => Promise<boolean>;
+  ) => Promise<"salvata" | "accodata" | false>;
   reset: () => void;
 }
 
 export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistState & UseChecklistActions {
   const { user, profile } = useAuth();
+  const companyId = profile?.company_id;
   const { enqueue } = useOfflineSync();
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -79,19 +82,20 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
 
   // Fetch record del giorno se esiste
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.id || !companyId) {
       setState((s) => ({ ...s, loading: false }));
       return;
     }
     let cancelled = false;
 
     void (async () => {
-      setState((s) => ({ ...s, loading: true, error: null }));
+      setState({ loading: true, record: null, risposte: createInitialRisposte(), note: "", saving: false, error: null });
       try {
         const { data, error } = await withTimeout(
           supabase
-            .from("checklist_sicurezza" as never)
-            .select("id, company_id, order_id, operaio_id, data, turno, risposte, note, foto_urls, completata, firmata, posizione_gps")
+            .from("checklist_sicurezza")
+            .select("id, company_id, order_id, operaio_id, data, turno, risposte, note, foto_urls, completata, firmata, posizione_gps, updated_at")
+            .eq("company_id", companyId)
             .eq("operaio_id", user.id)
             .eq("data", today)
             .eq("turno", turno)
@@ -135,7 +139,7 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
     return () => {
       cancelled = true;
     };
-  }, [user?.id, today, turno]);
+  }, [user?.id, companyId, today, turno]);
 
   const toggleItem = useCallback((itemId: string) => {
     setState((s) => ({
@@ -165,8 +169,8 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
     async (
       orderId?: string | null,
       gps?: { lat: number; lng: number; accuracy: number } | null,
-    ): Promise<boolean> => {
-      if (!user?.id || !profile?.company_id) {
+    ): Promise<"salvata" | "accodata" | false> => {
+      if (!user?.id || !companyId) {
         setState((s) => ({ ...s, error: "Profilo non disponibile" }));
         return false;
       }
@@ -182,13 +186,19 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
 
       setState((s) => ({ ...s, saving: true, error: null }));
 
-      const payload: ChecklistSicurezzaRecord = {
-        company_id: profile.company_id,
+      const idChecklist = crypto.randomUUID();
+      const record = state.record;
+      const stessaChecklist = record?.company_id === companyId && record?.operaio_id === user.id
+        && record?.data === today && record?.turno === turno;
+      const payload: ChecklistDaSalvare = {
+        id: idChecklist,
+        revisione_base: stessaChecklist ? record.updated_at : null,
+        company_id: companyId,
         order_id: orderId ?? null,
         operaio_id: user.id,
         data: today,
         turno,
-        risposte: state.risposte,
+        risposte: state.risposte.map(risposta => ({ ...risposta })),
         note: state.note || null,
         foto_urls: state.risposte
           .map((r) => r.fotoUrl)
@@ -200,11 +210,7 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
 
       try {
         if (isOnline()) {
-          const { error } = await supabase
-            .from("checklist_sicurezza" as never)
-            .upsert(payload as never, {
-              onConflict: "company_id,operaio_id,data,turno",
-            });
+          const error = await salvaChecklistSicurezza(payload, idChecklist);
           // Se siamo ONLINE ed è il server a rifiutare (RLS, vincolo, payload)
           // non è un problema di rete: accodare significa solo ritentare 5
           // volte, fallire e morire in silenzio in IndexedDB — mentre l'utente
@@ -214,11 +220,12 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
             setState((s) => ({ ...s, saving: false, error: error.message }));
             return false;
           }
-        } else {
-          await enqueue("checklist", payload);
+          setState((s) => ({ ...s, saving: false }));
+          return "salvata";
         }
+        await enqueue("checklist", payload);
         setState((s) => ({ ...s, saving: false }));
-        return true;
+        return "accodata";
       } catch (err) {
         console.error("[useChecklistSicurezza] conferma error", err);
         // Idem: la coda è per l'OFFLINE. Se siamo online l'eccezione è reale.
@@ -233,7 +240,7 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
         try {
           await enqueue("checklist", payload);
           setState((s) => ({ ...s, saving: false }));
-          return true;
+          return "accodata";
         } catch {
           setState((s) => ({
             ...s,
@@ -244,7 +251,7 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
         }
       }
     },
-    [user?.id, profile?.company_id, state.risposte, state.note, today, turno, enqueue],
+    [user?.id, companyId, state.record, state.risposte, state.note, today, turno, enqueue],
   );
 
   const reset = useCallback(() => {

@@ -6,7 +6,7 @@
  * lo slot restava occupato e nessuno lo sapeva. Il token e' l'unica chiave:
  * non serve account, e vale solo per quell'appuntamento.
  *
- * Azioni: "annulla" e "sposta" (verso un orario che rispetta le stesse regole
+ * Azioni: "annulla", "orari" e "sposta" (verso un orario che rispetta le stesse regole
  * della prenotazione: disponibilita', margini, preavviso, impegni del titolare).
  */
 
@@ -19,7 +19,7 @@ import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
 import { whatsappAppuntamento } from "../_shared/messaggiAppuntamento.ts";
 import { sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
 import { opzioniMittenteCalendario } from "../_shared/mittenteCalendario.ts";
-import { slotLiberiCalendario } from "../_shared/calendarioPrenotazione.ts";
+import { dataRoma, slotLiberiCalendario } from "../_shared/calendarioPrenotazione.ts";
 import {
   minutiDa, orarioDa, dataEstesa, esc, creaIcs, allegatoIcs,
   urlGestione, blocchettoDettagli, bottoneGestione, sincronizzaCalendariEsterni,
@@ -32,19 +32,19 @@ const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-  const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
+  const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
   try {
     const body = await req.json().catch(() => ({}));
     const token = String(body?.token ?? "").trim();
-    const azione = String(body?.action ?? "").trim();      // "annulla" | "sposta"
+    const azione = String(body?.action ?? "").trim();
     if (!token || !/^[a-f0-9]{16,64}$/.test(token)) return json({ error: "Link non valido." }, 400);
-    if (!["annulla", "sposta"].includes(azione)) return json({ error: "Azione non riconosciuta." }, 400);
+    if (!["annulla", "sposta", "orari"].includes(azione)) return json({ error: "Azione non riconosciuta." }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
     const { data: app, error: appErr } = await admin
       .from("appointments")
-      .select("id, calendar_id, company_id, contact_id, appointment_date, appointment_time, appointment_end_time, status, title, booking_email, assigned_to, meeting_url")
+      .select("id, calendar_id, company_id, contact_id, appointment_date, appointment_time, appointment_end_time, status, title, booking_email, assigned_to, meeting_url, updated_at")
       .eq("manage_token", token).maybeSingle();
     if (appErr) throw appErr;
     if (!app) return json({ error: "Appuntamento non trovato: il link potrebbe essere scaduto." }, 404);
@@ -63,12 +63,29 @@ Deno.serve(async (req) => {
     cal.owner_id=app.assigned_to??cal.owner_id;
 
     const durata = cal.duration_minutes || 30;
-    const adessoRoma = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Rome" }));
+    const adesso = new Date();
+    const adessoRoma = new Date(adesso.toLocaleString("en-US", { timeZone: "Europe/Rome" }));
     const oraAttuale = String(app.appointment_time ?? "00:00").slice(0, 5);
     const inizioAttuale = new Date(`${app.appointment_date}T${oraAttuale}:00`);
     // Si puo' intervenire fino a un'ora prima: dopo, si telefona.
     if (inizioAttuale.getTime() < adessoRoma.getTime() + 60 * 60_000) {
       return json({ error: "Manca meno di un'ora: chiama o rispondi all'email di conferma, facciamo prima." }, 409);
+    }
+
+    const data = String(body?.date ?? "").trim();
+    if (azione !== "annulla" && (
+      !/^\d{4}-\d{2}-\d{2}$/.test(data) || !Number.isFinite(Date.parse(data))
+      || new Date(data).toISOString().slice(0, 10) !== data
+      || data < dataRoma(adesso) || data > dataRoma(adesso, 60)
+    )) return json({ error: "Giorno non valido." }, 400);
+
+    const leggiOrari = () => slotLiberiCalendario(admin, cal.id, data, {
+      companyId: cal.company_id,
+      escludiAppuntamentoId: app.id,
+    });
+    if (azione === "orari") {
+      const { slot } = await leggiOrari();
+      return json({ slots: slot });
     }
 
     const quandoVecchio = `${dataEstesa(app.appointment_date)} alle ${oraAttuale}`;
@@ -79,13 +96,15 @@ Deno.serve(async (req) => {
     // ── DISDETTA ────────────────────────────────────────────────────────────
     if (azione === "annulla") {
       const motivo = String(body?.reason ?? "").trim().slice(0, 500);
-      const { error } = await admin.from("appointments").update({
+      const { data: annullato, error } = await admin.from("appointments").update({
         status: "annullato",
         cancelled_at: new Date().toISOString(),
         cancelled_by: "cliente",
-        description: [app.title, motivo && `Disdetto dal cliente: ${motivo}`].filter(Boolean).join("\n"),
-      }).eq("id", app.id);
+        cancelled_reason: motivo || null,
+      }).eq("id", app.id).eq("company_id", app.company_id).eq("updated_at", app.updated_at)
+        .select("id").maybeSingle();
       if (error) throw error;
+      if (!annullato) return json({ error: "L’appuntamento è cambiato. Ricarica la pagina e riprova." }, 409);
       // Via dal Google/Apple Calendar del responsabile: prima l'evento restava
       // li', e il commerciale si presentava a un appuntamento disdetto.
       await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: app.id, companyId: app.company_id, userId: app.assigned_to ?? cal.owner_id ?? null }, admin);
@@ -117,7 +136,6 @@ Deno.serve(async (req) => {
     }
 
     // ── SPOSTAMENTO ─────────────────────────────────────────────────────────
-    const data = String(body?.date ?? "").trim();
     const ora = String(body?.time ?? "").trim().slice(0, 5);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !/^\d{2}:\d{2}$/.test(ora)) return json({ error: "Scegli il nuovo giorno e orario." }, 400);
 
@@ -133,11 +151,7 @@ Deno.serve(async (req) => {
     // (calendarioSlot.ts, via slotLiberiCalendario): un posto solo per la griglia
     // del passo, le fasce, i margini, il tetto giornaliero e gli impegni esterni
     // del titolare. L'appuntamento che si sta spostando non blocca se stesso.
-    const { slot: liberi } = await slotLiberiCalendario(admin, cal.id, data, {
-      companyId: cal.company_id,
-      adesso: new Date(),
-      escludiAppuntamentoId: app.id,
-    });
+    const { slot: liberi } = await leggiOrari();
     if (!liberi.includes(ora)) {
       return json({ error: "Questo orario non è più disponibile: scegline un altro." }, 409);
     }

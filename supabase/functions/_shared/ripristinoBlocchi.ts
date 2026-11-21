@@ -17,6 +17,8 @@
 //   · dall'indice, dal conto tenuto da «versa» e dalle righe contate da «chiudi»
 //     all'esito che la scheda Backup sa già mostrare.
 
+import { CARTELLA_BACKUP_BLOCCHI } from "./backupBlocchi.ts";
+
 // ---------------------------------------------------------------------------
 // L'indice, come lo scrive company-backup
 // ---------------------------------------------------------------------------
@@ -45,14 +47,14 @@ export interface Passo {
   azienda?: boolean;
 }
 
-const PERCORSO_INDICE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(\d{4}-\d{2}-\d{2})\/indice\.json$/;
+const PERCORSO_INDICE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([^/]+)\/indice\.json$/;
 const NOME_TABELLA = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /** <azienda>/<AAAA-MM-GG>/indice.json → i suoi pezzi; null se il percorso non è quello di un indice. */
 export function leggiPercorsoIndice(percorso: string): { companyId: string; data: string; base: string } | null {
   const m = PERCORSO_INDICE.exec(percorso ?? "");
-  if (!m) return null;
-  return { companyId: m[1], data: m[2], base: `${m[1]}/${m[2]}` };
+  if (!m || !CARTELLA_BACKUP_BLOCCHI.test(m[2])) return null;
+  return { companyId: m[1], data: m[2].slice(0, 10), base: `${m[1]}/${m[2]}` };
 }
 
 export type PianoDellaProva =

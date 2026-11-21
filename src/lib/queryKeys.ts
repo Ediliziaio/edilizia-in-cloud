@@ -160,6 +160,8 @@ export const queryKeys = {
     all: ["notifications"] as const,
     list: (companyId: string | undefined, userId: string | undefined) =>
       ["notifications", "list", companyId, userId] as const,
+    unread: (companyId: string | undefined, userId: string | undefined) =>
+      ["notifications", "unread", companyId, userId] as const,
   },
 
   // ── Dashboard ──────────────────────────────────────────
@@ -425,8 +427,8 @@ export const queryKeys = {
   // ── Global Search ──────────────────────────────────────
   globalSearch: {
     all: ["global-search"] as const,
-    results: (companyId: string | undefined, query: string) =>
-      ["global-search", companyId, query] as const,
+    results: (companyId: string | undefined, query: string, includiCestino = false) =>
+      ["global-search", companyId, query, includiCestino] as const,
   },
 
   // ── Customer Portal ────────────────────────────────────

@@ -64,6 +64,7 @@ export interface MarketingAppointmentData {
   id?: string;
   title: string;
   description: string | null;
+  cancelled_reason?: string | null;
   appointment_date: string;
   appointment_time: string | null;
   appointment_end_time?: string | null;
@@ -891,6 +892,12 @@ export default function MarketingAppointmentDialog({
                   <Label htmlFor="mkt-desc">Descrizione</Label>
                   <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} className="max-sm:h-16 max-sm:min-h-0 max-sm:placeholder:text-[13px]" />
                 </div>
+                {appointment?.cancelled_reason && (
+                  <div className="space-y-1 text-sm">
+                    <p className="text-xs font-medium text-muted-foreground">Motivo della disdetta</p>
+                    <p className="whitespace-pre-wrap break-words">{appointment.cancelled_reason}</p>
+                  </div>
+                )}
 
                 {/* Telefono: le modalità in tasselli piccoli, senza la riga di spiegazione. */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3 max-sm:p-3">

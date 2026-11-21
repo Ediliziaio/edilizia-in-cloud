@@ -3,7 +3,7 @@
  * di Attività e dall'elenco dei rapportini.
  */
 import { useState, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,10 +17,11 @@ import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
 type Originale = { stato?: string | null; approvato?: boolean | null; updated_at?: string | null };
+const chiaveAnteprima = (id?: string, updatedAt?: string) => ["rapportino-anteprima-annullo", id, updatedAt];
 
 export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?: () => void; onRifiutato?: () => void; onAnnullato?: () => void } = {}) {
   const qc = useQueryClient();
@@ -110,11 +111,12 @@ export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?:
   });
 
   const annullaMutation = useMutation({
-    mutationFn: async ({ id, updatedAt, motivo }: { id: string; updatedAt: string; motivo: string }) => {
+    mutationFn: async ({ id, updatedAt, motivo, anteprima }: { id: string; updatedAt: string; motivo: string; anteprima?: string }) => {
       if (!canApprove) throw new Error("Non hai il permesso di annullare rapportini");
-      // La funzione non è ancora nei tipi generati.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).rpc("campo_rapportino_annulla", { p_id: id, p_updated_at: updatedAt, p_motivo: motivo.trim() });
+      const args = { p_id: id, p_updated_at: updatedAt, p_motivo: motivo.trim() };
+      const { error } = anteprima
+        ? await supabase.rpc("campo_rapportino_conferma_annullo", { ...args, p_anteprima: anteprima })
+        : await supabase.rpc("campo_rapportino_annulla", args);
       if (error) throw error;
     },
     onSuccess: (_r, { id }) => {
@@ -123,31 +125,113 @@ export function useDecisioneRapportino(orderId: string, opzioni: { onApprovato?:
       void notifyRapportinoPdf(id, orderId, qc);
       opzioni.onAnnullato?.();
     },
-    onError: (e: unknown) => toast.error(messaggioAnnullamento(e)),
+    onError: (e: unknown, variables) => {
+      if ((e as { code?: string } | null)?.code === "PT409" && variables.anteprima) {
+        void qc.invalidateQueries({ queryKey: chiaveAnteprima(variables.id, variables.updatedAt) });
+      }
+      toast.error(messaggioAnnullamento(e));
+    },
   });
 
   return { canApprove, puoDecidereSu, approvaMutation, rifiutaMutation, annullaMutation };
 }
 
 /** Annullare è definitivo: il motivo è obbligatorio e resta sul rapportino. */
-export function AnnullaRapportinoDialog({ motivo, onMotivo, busy, onClose, onConferma, elimina = false }: {
-  motivo: string; onMotivo: (v: string) => void; busy: boolean; onClose: () => void; onConferma: () => void; elimina?: boolean;
+type StimaRevoca = { prima: number | null; dopo: number | null; esito: string };
+type AnteprimaRevoca = {
+  versione: string;
+  fasi: (StimaRevoca & { id: string; name: string })[];
+  voci: (StimaRevoca & { id: string; name: string; unita: string | null; percentuale_prima: number; percentuale_dopo: number })[];
+  commessa: StimaRevoca | null;
+};
+
+const formatoMisura = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+const percentuale = (p: number | null) => p === null ? "—" : `${formatoMisura.format(p)}%`;
+
+function MisuraRevoca({ nome, prima, dopo, esito }: { nome: string; prima: string; dopo: string; esito: string }) {
+  return (
+    <li className="grid gap-1 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <span className="min-w-0 break-words font-medium">{nome}</span>
+      <span className="tabular-nums text-muted-foreground">
+        {prima === dopo ? dopo : <>{prima} <span aria-hidden>→</span><span className="sr-only"> diventa </span> <strong className="text-foreground">{dopo}</strong></>}
+      </span>
+      {esito === "verifica" && (
+        <span className="text-xs text-amber-800 dark:text-amber-300 sm:col-span-2">Valore mantenuto. Potrebbe includere una rettifica manuale.</span>
+      )}
+      {esito === "altri_rapportini" && (
+        <span className="text-xs text-muted-foreground sm:col-span-2">La voce risulta completata anche in un altro rapportino.</span>
+      )}
+    </li>
+  );
+}
+
+export function AnnullaRapportinoDialog({ motivo, onMotivo, busy, onClose, onConferma, elimina = false, rapportino }: {
+  motivo: string; onMotivo: (v: string) => void; busy: boolean; onClose: () => void;
+  onConferma: (versione?: string) => void; elimina?: boolean; rapportino?: { id: string; updatedAt: string };
 }) {
+  const anteprima = useQuery({
+    queryKey: chiaveAnteprima(rapportino?.id, rapportino?.updatedAt),
+    enabled: !elimina && !!rapportino,
+    retry: false,
+    queryFn: async () => {
+      if (!rapportino) throw new Error("Rapportino non disponibile");
+      const { data, error } = await supabase.rpc("campo_rapportino_anteprima_annullo", {
+        p_id: rapportino.id, p_updated_at: rapportino.updatedAt,
+      });
+      if (error) throw error;
+      const risultato = data as unknown as AnteprimaRevoca | null;
+      if (!risultato?.versione || !Array.isArray(risultato?.fasi) || !Array.isArray(risultato?.voci)) {
+        throw new Error("Impossibile leggere l’anteprima dell’annullamento.");
+      }
+      return risultato;
+    },
+  });
+  const dati = anteprima.data;
+  const pronto = elimina || (!!dati && !anteprima.isError && !anteprima.isFetching);
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{elimina ? "Elimina rapportino" : "Annulla rapportino"}</DialogTitle>
+          <DialogDescription>
+            {elimina ? "Il rapportino resta consultabile in «Mostra annullati»." : "Controlla come cambiano le lavorazioni. L’annullamento rettifica anche le ore e i costi collegati."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          <p className="text-sm text-muted-foreground">
-            Ore, costo e avanzamento tornano indietro e il rapportino sparisce dagli elenchi. Resta consultabile con «Mostra annullati», ma non si può riaprire. Non si può annullare se è già in una pagina di giornale firmata o in un rendiconto non più in bozza.
-          </p>
-          <Textarea aria-label="Motivo della rimozione" placeholder="Perché lo rimuovi? Es: rapportino di prova" value={motivo} onChange={(e) => onMotivo(e.target.value)} rows={3} />
+          {!elimina && (
+            <section aria-label="Anteprima avanzamento" aria-busy={anteprima.isFetching} className="rounded-lg border bg-muted/25">
+              <h3 className="border-b px-3 py-2 text-sm font-semibold">Avanzamento dopo la revoca</h3>
+              {anteprima.isFetching && <p role="status" className="px-3 py-2 text-sm text-muted-foreground">Calcolo delle variazioni…</p>}
+              {anteprima.isError && !anteprima.isFetching && (
+                <div className="space-y-2 px-3 py-2 text-sm">
+                  <p role="alert" className="text-destructive">{messaggioAnnullamento(anteprima.error)}</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void anteprima.refetch()}>Riprova</Button>
+                </div>
+              )}
+              {dati && !anteprima.isFetching && !anteprima.isError && (
+                dati.voci.length || dati.fasi.length || dati.commessa ? (
+                  <ul className="max-h-60 divide-y overflow-y-auto">
+                    {dati.commessa && <MisuraRevoca nome="Intera commessa" prima={percentuale(dati.commessa.prima)} dopo={percentuale(dati.commessa.dopo)} esito={dati.commessa.esito} />}
+                    {dati.fasi.map((f) => <MisuraRevoca key={f.id} nome={f.name} prima={percentuale(f.prima)} dopo={percentuale(f.dopo)} esito={f.esito} />)}
+                    {dati.voci.map((v) => {
+                      const unita = v.unita === "mq" ? "m²" : v.unita === "mc" ? "m³" : v.unita;
+                      const misura = !!unita && (v.prima !== null || v.dopo !== null);
+                      return <MisuraRevoca key={v.id} nome={v.name}
+                        prima={misura ? `${formatoMisura.format(v.prima ?? 0)} ${unita}` : percentuale(v.percentuale_prima)}
+                        dopo={misura ? `${formatoMisura.format(v.dopo ?? 0)} ${unita}` : percentuale(v.percentuale_dopo)}
+                        esito={v.esito} />;
+                    })}
+                  </ul>
+                ) : <p className="px-3 py-2 text-sm text-muted-foreground">L’avanzamento delle lavorazioni resta invariato.</p>
+              )}
+            </section>
+          )}
+          <label htmlFor="motivo-annullo-rapportino" className="block text-sm font-medium">Motivo della rimozione</label>
+          <Textarea id="motivo-annullo-rapportino" placeholder="Indica perché lo rimuovi" value={motivo} onChange={(e) => onMotivo(e.target.value)} rows={3} />
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" disabled={busy} onClick={onClose}>Torna indietro</Button>
-          <Button variant="destructive" onClick={onConferma} disabled={busy || !motivo.trim()}>
+          <Button variant="destructive" onClick={() => onConferma(dati?.versione)} disabled={busy || !motivo.trim() || !pronto}>
             {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
             {elimina ? "Elimina rapportino" : "Annulla rapportino"}
           </Button>

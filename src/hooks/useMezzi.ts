@@ -942,7 +942,7 @@ export function useInviaSegnalazione(mezzoId: string, aziendaDelMezzo?: string) 
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["mezzi"] });
       void invalidaFontiSicurezzaMezzi(qc, companyId);
-      toast.success(v.tipo === "km" ? "Km aggiornati" : "Segnalazione inviata all'ufficio");
+      toast.success(v.tipo === "km" ? "Lettura del contatore registrata" : "Segnalazione inviata all'ufficio");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Non ho inviato la segnalazione"),
   });

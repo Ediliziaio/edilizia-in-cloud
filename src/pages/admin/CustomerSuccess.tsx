@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -253,13 +253,6 @@ export default function AdminOnboardingConfig() {
     return { totalTemplates, defaultSet, totalAssignments, totalCompleted, completionRate };
   }, [templates, templateStats]);
 
-  // If selected template is deleted, reset selection
-  useEffect(() => {
-    if (selectedTemplateId && !templates.find(t => t.id === selectedTemplateId)) {
-      setSelectedTemplateId(null);
-    }
-  }, [templates, selectedTemplateId]);
-
   // ─── Mutations ──────────────────────────────────────────
 
   const createTemplate = useMutation({
@@ -269,6 +262,16 @@ export default function AdminOnboardingConfig() {
       cloneFromId?: string;
       seedSteps?: Array<Omit<Step, "id" | "template_id">>;
     }) => {
+      if (payload.cloneFromId) {
+        const { data, error } = await supabase.rpc("duplica_modello_onboarding", {
+          p_origine: payload.cloneFromId,
+          p_nome: payload.name,
+          p_descrizione: payload.description,
+        });
+        if (error) throw error;
+        return data;
+      }
+
       const { data: inserted, error } = await supabase
         .from("onboarding_templates" as never)
         .insert({
@@ -281,26 +284,6 @@ export default function AdminOnboardingConfig() {
         .single();
       if (error) throw error;
       const newTemplateId = (inserted as { id: string }).id;
-
-      // Clone steps se richiesto
-      if (payload.cloneFromId && inserted) {
-        const { data: sourceSteps } = await supabase
-          .from("onboarding_steps" as never)
-          .select("title, description, sort_order, is_required, auto_check_key")
-          .eq("template_id", payload.cloneFromId as never)
-          .order("sort_order");
-
-        if (sourceSteps && sourceSteps.length > 0) {
-          const newStepsPayload = (sourceSteps as never[]).map((s) => ({
-            ...(s as Record<string, unknown>),
-            template_id: newTemplateId,
-          }));
-          const { error: insertErr } = await supabase
-            .from("onboarding_steps" as never)
-            .insert(newStepsPayload as never);
-          if (insertErr) throw insertErr;
-        }
-      }
 
       // Seed steps dal prefab library (mutuamente esclusivo con cloneFromId)
       if (payload.seedSteps && payload.seedSteps.length > 0) {
@@ -596,15 +579,18 @@ export default function AdminOnboardingConfig() {
       </div>
 
       {/* Dialogs */}
-      <NewTemplateDialog
-        open={showNewTemplate}
-        onOpenChange={setShowNewTemplate}
-        onCreate={(payload) => createTemplate.mutate(payload)}
-        creating={createTemplate.isPending}
-      />
+      {showNewTemplate && (
+        <NewTemplateDialog
+          open={showNewTemplate}
+          onOpenChange={setShowNewTemplate}
+          onCreate={(payload) => createTemplate.mutate(payload)}
+          creating={createTemplate.isPending}
+        />
+      )}
 
       {duplicateSource && (
         <DuplicateTemplateDialog
+          key={duplicateSource.id}
           source={duplicateSource}
           open={!!duplicateSource}
           onOpenChange={(open) => !open && setDuplicateSource(null)}
@@ -623,6 +609,7 @@ export default function AdminOnboardingConfig() {
 
       {editTemplate && (
         <EditTemplateDialog
+          key={editTemplate.id}
           template={editTemplate}
           open={!!editTemplate}
           onOpenChange={(open) => !open && setEditTemplate(null)}
@@ -633,6 +620,7 @@ export default function AdminOnboardingConfig() {
 
       {editStep && (
         <EditStepDialog
+          key={editStep.id}
           step={editStep}
           open={!!editStep}
           onOpenChange={(open) => !open && setEditStep(null)}
@@ -1213,15 +1201,6 @@ function NewTemplateDialog({
   const [desc, setDesc] = useState("");
   const [selectedLib, setSelectedLib] = useState<LibraryTemplate | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setTab("library");
-      setName("");
-      setDesc("");
-      setSelectedLib(null);
-    }
-  }, [open]);
-
   const handleCreateCustom = () => {
     onCreate({ name: name.trim(), description: desc.trim() || null });
   };
@@ -1390,10 +1369,7 @@ function DuplicateTemplateDialog({
   onDuplicate: (name: string) => void;
   creating: boolean;
 }) {
-  const [name, setName] = useState("");
-  useEffect(() => {
-    if (open) setName(`${source.name} (copia)`);
-  }, [open, source.name]);
+  const [name, setName] = useState(`${source.name} (copia)`);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1437,13 +1413,6 @@ function EditTemplateDialog({
 }) {
   const [name, setName] = useState(template.name);
   const [desc, setDesc] = useState(template.description ?? "");
-  useEffect(() => {
-    if (open) {
-      setName(template.name);
-      setDesc(template.description ?? "");
-    }
-  }, [open, template]);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -1492,15 +1461,6 @@ function EditStepDialog({
   // (has_company_profile) o con chiave legacy mostrava il Select vuoto e il
   // salvataggio sostituiva la chiave funzionante con una a caso del catalogo.
   const [autoKey, setAutoKey] = useState<string>(canonicalAutoKey(step.auto_check_key) ?? "__none__");
-
-  useEffect(() => {
-    if (open) {
-      setTitle(step.title);
-      setDesc(step.description ?? "");
-      setRequired(step.is_required);
-      setAutoKey(canonicalAutoKey(step.auto_check_key) ?? "__none__");
-    }
-  }, [open, step]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

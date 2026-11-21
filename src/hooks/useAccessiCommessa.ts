@@ -90,20 +90,20 @@ export function useTogliAccessoAMano(orderId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
-        .from("order_campo_assignments")
-        .delete()
-        .eq("id", id)
-        .eq("order_id", orderId)
-        .select("id")
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("commessa_togli_accesso_manuale", {
+        p_order_id: orderId,
+        p_accesso_id: id,
+      });
       if (error) throw error;
-      // Nessuna riga tolta: gli accessi al cantiere li toglie solo l'ufficio (amministratori e
-      // personale d'ufficio), non gli altri ruoli. Prima diceva «riprova tra qualche secondo».
-      if (!data) throw new Error("Gli accessi al cantiere li toglie l'amministratore o il personale d'ufficio. Chiedi al titolare dell'azienda.");
+      return data;
     },
-    onSuccess: () => {
-      toast.success("Non vede più il cantiere nell'app");
+    onSuccess: (fonte) => {
+      const messaggi: Record<string, string> = {
+        lavorazioni: "Accesso manuale rimosso. Resta quello dalle lavorazioni.",
+        squadra: "Accesso manuale rimosso. Resta quello dalla squadra.",
+        squadra_e_lavorazioni: "Accesso manuale rimosso. Restano squadra e lavorazioni.",
+      };
+      toast.success(messaggi[fonte] ?? "Accesso manuale rimosso.");
       refreshWorkQueries(qc, orderId);
     },
     onError: (e: unknown) => toast.error((e as { message?: string } | null)?.message || "Non sono riuscito a toglierlo. Riprova tra qualche secondo."),

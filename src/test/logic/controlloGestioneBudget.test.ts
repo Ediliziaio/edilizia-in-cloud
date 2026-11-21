@@ -68,7 +68,21 @@ describe("Budget contro consuntivo", () => {
     expect(semaforoScostamento("08", 100, 110)).toBe("giallo");
     expect(semaforoScostamento("01", 100, 130)).toBe("verde");
     expect(semaforoScostamento("E", 100, 80)).toBe("rosso");
-    expect(semaforoScostamento("01", 0, 80)).toBe("grigio");
+    expect(semaforoScostamento("01", 0, 80)).toBe("verde");
+  });
+
+  it("distingue uno zero registrato da una voce senza budget", () => {
+    const ce: VoceCE[] = [{ codice: "03", label: "", tipo: "voce", valore: 100 }];
+    const vuoto = costruisciBudget({}, ce, 12);
+    const zero = costruisciBudget({ "03": 0 }, ce, 12);
+
+    expect(vuoto.righe.find((v) => v.codice === "03")).toMatchObject({ budgetDefinito: false, confrontoDisponibile: false });
+    expect(zero.righe.find((v) => v.codice === "03")).toMatchObject({
+      budgetDefinito: true, confrontoDisponibile: true, scostamento: 100, scostamentoPct: null, semaforo: "rosso",
+    });
+    expect(zero.righe.find((v) => v.codice === "C")).toMatchObject({ budgetIncompleto: false, scostamento: 100 });
+    expect(zero.utileConfrontabile).toBe(true);
+    expect(zero.haBudget).toBe(true);
   });
 
   it("mesi chiusi: al 22 ottobre sono 9 (gen–set), non 10", () => {

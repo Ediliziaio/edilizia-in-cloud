@@ -48,12 +48,26 @@ import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 import { RapportiniIntervento } from "@/components/tickets/RapportiniIntervento";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
-import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
+import type { TicketDetail as TicketDetailType } from "@/types/tickets";
+import { useTicketMessages } from "@/hooks/useTicketMessages";
 import { SUPPORT_PRIORITIES, TICKET_STATI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
+import { format } from "date-fns";
+
+type CampiIntervento = {
+  indirizzo: string;
+  data: string;
+  durata: string;
+  note: string;
+};
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
+  const { effectiveCompany } = useAuth();
+  return <SchedaTicket key={`${effectiveCompany?.id ?? ""}:${id ?? ""}`} id={id} />;
+}
+
+function SchedaTicket({ id }: { id: string | undefined }) {
   const navigate = useNavigate();
   
   const { effectiveCompany } = useAuth();
@@ -64,9 +78,8 @@ export default function TicketDetail() {
   const [editorFlussoAperto, setEditorFlussoAperto] = useState(false);
 
   const queryClient = useQueryClient();
-  const [internalNotes, setInternalNotes] = useState<string>("");
-  const [notesLoaded, setNotesLoaded] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
+  const [bozzaNote, setBozzaNote] = useState<string | undefined>(undefined);
+  const [aperturaNote, setAperturaNote] = useState<boolean | undefined>(undefined);
   // Escalation a intervento (disponibile per tipo=supporto)
   const [aiTriaging, setAiTriaging] = useState(false);
   const [escalationOpen, setEscalationOpen] = useState(false);
@@ -79,11 +92,7 @@ export default function TicketDetail() {
   // Canale aperto per scrivere al cliente (WhatsApp/Email), come nelle commesse.
   const [contattoCanale, setContattoCanale] = useState<"whatsapp" | "email" | null>(null);
   // Editing "dettagli intervento" inline
-  const [interventoIndirizzo, setInterventoIndirizzo] = useState("");
-  const [interventoData, setInterventoData] = useState("");
-  const [interventoDurata, setInterventoDurata] = useState("");
-  const [interventoNoteTecnico, setInterventoNoteTecnico] = useState("");
-  const [interventoLoaded, setInterventoLoaded] = useState(false);
+  const [bozzaIntervento, setBozzaIntervento] = useState<Partial<CampiIntervento>>({});
   const { markTicketAsRead } = useUnreadTicketCounts();
 
   // Mark ticket as read when opening
@@ -93,13 +102,9 @@ export default function TicketDetail() {
     }
   }, [id, markTicketAsRead]);
 
-  useEffect(() => {
-    setNotesLoaded(false);
-    setInterventoLoaded(false);
-  }, [id]);
-
+  const chiaveDettaglio = [...queryKeys.adminTicket.detail(id), effectiveCompany?.id] as const;
   const { data: ticket, isLoading: ticketLoading, isError: ticketError, refetch: refetchTicket } = useQuery({
-    queryKey: queryKeys.adminTicket.detail(id),
+    queryKey: chiaveDettaglio,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
@@ -127,66 +132,25 @@ export default function TicketDetail() {
     staleTime: 30 * 1000,
   });
 
-  // Inizializza i dettagli dal primo caricamento (una sola volta per navigazione).
-  useEffect(() => {
-    if (ticket && !notesLoaded) {
-      setInternalNotes(ticket.internal_notes || "");
-      if (ticket.internal_notes) setNotesOpen(true);
-      setNotesLoaded(true);
-    }
-  }, [ticket, notesLoaded]);
-  useEffect(() => {
-    if (ticket && !interventoLoaded) {
-      setInterventoIndirizzo(ticket.indirizzo_intervento ?? "");
-      // Converti ISO datetime → formato input datetime-local (YYYY-MM-DDTHH:mm)
-      const iso = ticket.data_intervento_prevista;
-      if (iso) {
-        const d = new Date(iso);
-        if (!isNaN(d.getTime())) {
-          const pad = (n: number) => String(n).padStart(2, "0");
-          setInterventoData(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-        }
-      } else {
-        setInterventoData("");
-      }
-      setInterventoDurata(ticket.durata_ore != null ? String(ticket.durata_ore) : "");
-      setInterventoNoteTecnico(ticket.note_tecnico ?? "");
-      setInterventoLoaded(true);
-    }
-  }, [ticket, interventoLoaded]);
+  const internalNotes = bozzaNote ?? ticket?.internal_notes ?? "";
+  const notesOpen = aperturaNote ?? Boolean(ticket?.internal_notes);
+  const dataPrevista = ticket?.data_intervento_prevista ? new Date(ticket.data_intervento_prevista) : null;
+  const valoriSalvati: CampiIntervento = {
+    indirizzo: ticket?.indirizzo_intervento ?? "",
+    data: dataPrevista && Number.isFinite(dataPrevista.getTime()) ? format(dataPrevista, "yyyy-MM-dd'T'HH:mm") : "",
+    durata: ticket?.durata_ore != null ? String(ticket.durata_ore) : "",
+    note: ticket?.note_tecnico ?? "",
+  };
+  const campiIntervento = { ...valoriSalvati, ...bozzaIntervento };
+  const chiaviIntervento = Object.keys(valoriSalvati) as (keyof CampiIntervento)[];
+  const interventoDirty = chiaviIntervento.some((chiave) => campiIntervento[chiave] !== valoriSalvati[chiave]);
+  const cambiaCampo = (chiave: keyof CampiIntervento, valore: string) => {
+    setBozzaIntervento((bozza) => ({ ...bozza, [chiave]: valore }));
+  };
 
-  const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: queryKeys.adminTicketMessages.byTicket(id),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ticket_messages")
-        .select("id, message, sender_id, created_at, attachment_url")
-        .eq("ticket_id", id!)
-        .order("created_at", { ascending: true })
-        .limit(500);
-      if (error) throw error;
-
-      // Fetch sender profiles separately
-      const senderIds = [...new Set((data || []).map((m) => m.sender_id).filter(Boolean))];
-      const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
-      if (senderIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, first_name, last_name")
-          .in("id", senderIds);
-        for (const p of profiles || []) {
-          profilesMap[p.id] = { first_name: p.first_name, last_name: p.last_name };
-        }
-      }
-
-      return (data || []).map((m) => ({
-        ...m,
-        sender: profilesMap[m.sender_id] || null,
-      })) as TicketMessage[];
-    },
-    enabled: !!id,
-    staleTime: 30 * 1000,
-  });
+  const {
+    messages, isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages, olderMessages,
+  } = useTicketMessages(id, queryKeys.adminTicketMessages.byTicket(id));
 
   // Staff members for assignment dropdown — use staff_permissions (company-level RLS)
   const { data: staffMembers = [] } = useQuery({
@@ -287,23 +251,34 @@ export default function TicketDetail() {
 
   // Salva modifiche "Dettagli Intervento"
   const saveInterventoMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (modifiche: Partial<CampiIntervento>) => {
       if (!id || !effectiveCompany?.id) throw new Error("Dati mancanti");
-      const durataNum = interventoDurata ? parseFloat(interventoDurata) : null;
-      const { error } = await supabase
+      const durata = modifiche.durata ? Number(modifiche.durata) : null;
+      const { data, error } = await supabase
         .from("tickets")
         .update({
-          indirizzo_intervento: interventoIndirizzo.trim() || null,
-          data_intervento_prevista: interventoData ? new Date(interventoData).toISOString() : null,
-          durata_ore: durataNum && !isNaN(durataNum) ? durataNum : null,
-          note_tecnico: interventoNoteTecnico.trim() || null,
+          ...(modifiche.indirizzo !== undefined ? { indirizzo_intervento: modifiche.indirizzo.trim() || null } : {}),
+          ...(modifiche.data !== undefined ? { data_intervento_prevista: modifiche.data ? new Date(modifiche.data).toISOString() : null } : {}),
+          ...(modifiche.durata !== undefined ? { durata_ore: durata && Number.isFinite(durata) ? durata : null } : {}),
+          ...(modifiche.note !== undefined ? { note_tecnico: modifiche.note.trim() || null } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)
-        .eq("company_id", effectiveCompany.id);
+        .eq("company_id", effectiveCompany.id)
+        .select("indirizzo_intervento, data_intervento_prevista, durata_ore, note_tecnico, updated_at")
+        .single();
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (salvato, modifiche) => {
+      queryClient.setQueryData<TicketDetailType>(chiaveDettaglio, (corrente) => corrente && { ...corrente, ...salvato });
+      setBozzaIntervento((bozza) => {
+        const rimaste = { ...bozza };
+        for (const chiave of chiaviIntervento) {
+          if (rimaste[chiave] === modifiche[chiave]) delete rimaste[chiave];
+        }
+        return rimaste;
+      });
       toast.success("Dettagli intervento salvati");
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
@@ -337,14 +312,21 @@ export default function TicketDetail() {
   const updateTicketMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       if (!id || !effectiveCompany?.id) throw new Error("Dati mancanti");
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("tickets")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("company_id", effectiveCompany.id);
+        .eq("company_id", effectiveCompany.id)
+        .select("internal_notes, updated_at")
+        .single();
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (salvato, updates) => {
+      if ("internal_notes" in updates) {
+        queryClient.setQueryData<TicketDetailType>(chiaveDettaglio, (corrente) => corrente && { ...corrente, ...salvato });
+        setBozzaNote((corrente) => corrente === (updates.internal_notes ?? "") ? undefined : corrente);
+      }
       toast.success("Ticket aggiornato con successo.");
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicket.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
@@ -435,17 +417,6 @@ export default function TicketDetail() {
   const isClosed = ticket.status === "risolto" || ticket.status === "chiuso";
   const TipoIcon = isEmergenza ? AlertTriangle : isIntervento ? Wrench : LifeBuoy;
   const tipoLabel = isEmergenza ? "Emergenza" : isIntervento ? "Intervento" : "Supporto";
-
-  const interventoDirty =
-    (ticket.indirizzo_intervento ?? "") !== interventoIndirizzo ||
-    (ticket.durata_ore != null ? String(ticket.durata_ore) : "") !== interventoDurata ||
-    (ticket.note_tecnico ?? "") !== interventoNoteTecnico ||
-    (() => {
-      // data_intervento_prevista diff check via ISO string
-      const cur = ticket.data_intervento_prevista ? new Date(ticket.data_intervento_prevista).toISOString() : "";
-      const newIso = interventoData ? new Date(interventoData).toISOString() : "";
-      return cur !== newIso;
-    })();
 
   return (
     // Mobile: altezza libera, la pagina scorre (chat, poi dettagli). Con
@@ -772,7 +743,10 @@ export default function TicketDetail() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs"
-                    onClick={() => saveInterventoMutation.mutate()}
+                    onClick={() => saveInterventoMutation.mutate(Object.fromEntries(
+                      chiaviIntervento.filter((chiave) => campiIntervento[chiave] !== valoriSalvati[chiave])
+                        .map((chiave) => [chiave, campiIntervento[chiave]]),
+                    ))}
                     disabled={saveInterventoMutation.isPending}
                   >
                     {saveInterventoMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
@@ -788,8 +762,8 @@ export default function TicketDetail() {
                 </Label>
                 <CampoIndirizzo
                   id="ticket-intervento-indirizzo"
-                  value={interventoIndirizzo}
-                  onChange={setInterventoIndirizzo}
+                  value={campiIntervento.indirizzo}
+                  onChange={(valore) => cambiaCampo("indirizzo", valore)}
                   placeholder="Via, n°, città…"
                   className="h-8 text-xs"
                   disabled={isClosed}
@@ -801,8 +775,8 @@ export default function TicketDetail() {
                   <Label className="text-xs text-muted-foreground">Data prevista</Label>
                   <Input
                     type="datetime-local"
-                    value={interventoData}
-                    onChange={(e) => setInterventoData(e.target.value)}
+                    value={campiIntervento.data}
+                    onChange={(e) => cambiaCampo("data", e.target.value)}
                     className="h-8 text-xs"
                     disabled={isClosed}
                   />
@@ -816,8 +790,8 @@ export default function TicketDetail() {
                     type="number"
                     step="0.5"
                     min="0"
-                    value={interventoDurata}
-                    onChange={(e) => setInterventoDurata(e.target.value)}
+                    value={campiIntervento.durata}
+                    onChange={(e) => cambiaCampo("durata", e.target.value)}
                     placeholder="2"
                     className="h-8 text-xs"
                     disabled={isClosed}
@@ -835,8 +809,8 @@ export default function TicketDetail() {
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Note per il tecnico</Label>
                 <Textarea
-                  value={interventoNoteTecnico}
-                  onChange={(e) => setInterventoNoteTecnico(e.target.value)}
+                  value={campiIntervento.note}
+                  onChange={(e) => cambiaCampo("note", e.target.value)}
                   placeholder="Istruzioni, materiali, accessi…"
                   rows={2}
                   className="text-xs resize-none"
@@ -847,7 +821,7 @@ export default function TicketDetail() {
           </Card>
 
           {/* Note Interne collassabili */}
-          <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+          <Collapsible open={notesOpen} onOpenChange={setAperturaNote}>
             <Card>
               <CollapsibleTrigger asChild>
                 <button className="w-full flex items-center justify-between p-4 text-sm font-medium hover:bg-muted/50 rounded-t-lg transition-colors">
@@ -859,7 +833,7 @@ export default function TicketDetail() {
                 <CardContent className="pt-0 px-4 pb-4 space-y-2">
                   <Textarea
                     value={internalNotes}
-                    onChange={(e) => setInternalNotes(e.target.value)}
+                    onChange={(e) => setBozzaNote(e.target.value)}
                     placeholder="Note visibili solo allo staff..."
                     rows={3}
                     maxLength={1000}
@@ -955,6 +929,7 @@ export default function TicketDetail() {
           <TicketChat
             ticketId={ticket.id}
             messages={messages}
+            olderMessages={olderMessages}
             customerId={ticket.customer_id}
             invalidateKeys={chatInvalidateKeys}
             height="min(60vh, calc(100vh - 220px))"

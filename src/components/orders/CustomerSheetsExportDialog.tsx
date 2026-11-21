@@ -142,6 +142,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
         .eq("company_id", companyId)
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false })
+        .order("id")
         .range(currentOffset, currentOffset + batchSize - 1);
       if (error) throw error;
       const batch = (data ?? []) as CustomerRow[];
@@ -180,7 +181,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
         return;
       }
 
-      // 2. Fetch ordini in un unico colpo solo per i customer IDs selezionati
+      // 2. Legge tutte le pagine di commesse per i clienti selezionati.
       setProgress({ done: 0, total: customers.length, phase: "Caricamento commesse…" });
       const customerIds = customers.map((c) => c.id);
       const ordersByCustomer = new Map<string, OrderRow[]>();
@@ -188,26 +189,28 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
       // Supabase in-filter ha limit pratico ~1000 UUIDs → batch anche questo
       for (let i = 0; i < customerIds.length; i += BATCH_SIZE) {
         const chunk = customerIds.slice(i, i + BATCH_SIZE);
-        const { data } = await supabase
-          .from("orders")
-          .select("id, order_code, description, total_amount, created_at, customer_id, order_statuses:current_status_id(name)")
-          .eq("company_id", effectiveCompany.id)
-          .in("customer_id", chunk);
-        (data ?? []).forEach((o) => {
-          const row: OrderRow = {
-            id: o.id as string,
-            order_code: o.order_code as string | null,
-            description: o.description as string | null,
-            total_amount: o.total_amount as number | null,
-            created_at: o.created_at as string,
-            customer_id: o.customer_id as string | null,
-            status_name: (o.order_statuses as { name: string } | null)?.name ?? null,
-          };
-          const list = ordersByCustomer.get(row.customer_id!) ?? [];
-          list.push(row);
-          ordersByCustomer.set(row.customer_id!, list);
-        });
-        await yieldToBrowser();
+        let da = 0;
+        for (;;) {
+          const { data, error } = await supabase
+            .from("orders")
+            .select("id, order_code, description, total_amount, created_at, customer_id, order_statuses:current_status_id(name)")
+            .eq("company_id", effectiveCompany.id)
+            .in("customer_id", chunk)
+            .order("id")
+            .range(da, da + BATCH_SIZE - 1);
+          if (error || !data) {
+            throw new Error("Impossibile caricare tutte le commesse. Riprova a esportare le schede.");
+          }
+          for (const { order_statuses, ...ordine } of data) {
+            if (!ordine.customer_id) continue;
+            const list = ordersByCustomer.get(ordine.customer_id) ?? [];
+            list.push({ ...ordine, status_name: order_statuses?.name ?? null });
+            ordersByCustomer.set(ordine.customer_id, list);
+          }
+          await yieldToBrowser();
+          if (data.length < BATCH_SIZE) break;
+          da += BATCH_SIZE;
+        }
       }
 
       // 3. Generate PDF a chunk con yield per non freezare UI

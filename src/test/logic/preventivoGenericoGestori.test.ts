@@ -273,7 +273,7 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
       partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
       persistLocalDraft: () => {}, saveInFlightRef: { current: false }, versioneCaricataRef: { current: "v0" },
-      setSaving: () => {}, setAutosaveFailed: () => {}, setLastSavedHash: () => {}, draftSerialized: '{"notes":"bozza"}',
+      setSaving: () => {}, setErroreBozza: () => {}, setLastSavedHash: () => {}, draftSerialized: '{"notes":"bozza"}',
       latestDraftSerializedRef: { current: '{"notes":"bozza"}' }, lastCloudSavedSnapshotRef: { current: '{"notes":"bozza"}' },
       createdQuoteRef: { current: null as string | null }, quoteDraftInputHash,
       setPartialQuoteId: () => {}, setPendingEditNavId: () => {}, newQuoteCompletedRef: { current: false },
@@ -281,7 +281,7 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       subtotal, discountAmt, vatAmount, total, financingProposal: null, validityDays: 30, discountPercent: 0,
       templateValues: {}, contractFields: [], prezziVenditaCompleti, tipoCliente: "privato",
       normalizzaRigaSconto, clearQuoteDraft: () => {}, assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia,
-      isConflittoModifica, queryClient: { invalidateQueries: () => {} },
+      isConflittoModifica, erroreAttuale: null, ambitoSalvataggio: "azienda:preventivo", queryClient: { invalidateQueries: () => {} },
       queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } }, navigate: () => {}, toast, supabase,
     };
     for (const k of ["contactId", "customerId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "pdfWatermarkText", "pdfCopiaDestinatario", "condizioniTesto", "clienteDaUrl"]) contesto[k] = null;

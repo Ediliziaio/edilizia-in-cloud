@@ -43,7 +43,7 @@ const item = {
   line_total: 3800,
   price_pending: false,
 } as PurchaseOrderItem;
-const apri = (row = item) => {
+const apri = (row = item, showReceived = false) => {
   const onUpdate = vi.fn().mockResolvedValue(undefined);
   render(
     <table>
@@ -51,7 +51,7 @@ const apri = (row = item) => {
         <PurchaseOrderItemRow
           item={row}
           isEditable
-          showReceived={false}
+          showReceived={showReceived}
           onUpdate={onUpdate}
           onDelete={() => {}}
         />
@@ -251,4 +251,12 @@ describe("Unità e IVA si scelgono, non si scrivono (09/11/2026)", () => {
     apri({ ...item, quantity_received: 5 } as PurchaseOrderItem);
     expect(screen.getByRole("combobox", { name: "Unità di misura" })).toBeDisabled();
   });
+});
+
+it("mostra ricevuto e residuo senza una modifica fuori dal flusso DDT", () => {
+  const aggiorna = apri({ ...item, quantity: 10, quantity_received: 4 }, true);
+  expect(screen.queryByRole("spinbutton", { name: "Quantità ricevuta" })).not.toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "4" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "6" })).toBeInTheDocument();
+  expect(aggiorna).not.toHaveBeenCalled();
 });

@@ -34,6 +34,7 @@ export interface StockUnit {
   purchase_price: number | null;
   purchase_date: string | null;
   reserved_order_id: string | null;
+  reserved_order_item_id?: string | null;
   delivered_to_order_id: string | null;
   delivered_shipment_id: string | null;
   delivered_at: string | null;
@@ -216,16 +217,7 @@ export interface AssignSerialsResult {
   alreadyReserved: { serial: string; reservedToOrderId: string | null }[];
 }
 
-/**
- * Assegna N seriali a una riga commessa.
- * Per ogni serial:
- *  - cerca stock_units WHERE serial_number=? AND status='available'
- *  - UPDATE status='reserved', reserved_order_id, reserved_order_item_id
- * Restituisce: lista assegnati + non trovati + già riservati altrove (per UI feedback).
- *
- * Atomicità: ogni update è independent; se uno fallisce gli altri continuano.
- * Per garanzia transazionale serve RPC server-side (future improvement).
- */
+/** Prenota solo le matricole ancora disponibili; un retry sulla stessa riga mantiene l'assegnazione. */
 export function useAssignSerialsToOrderItem() {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
@@ -237,70 +229,52 @@ export function useAssignSerialsToOrderItem() {
   >({
     mutationFn: async ({ orderId, orderItemId, serials }) => {
       if (!effectiveCompany?.id) throw new Error("Nessuna azienda attiva");
-      if (serials.length === 0) {
-        return { assigned: [], notFound: [], alreadyReserved: [] };
-      }
-      const clean = Array.from(
-        new Set(serials.map((s) => s.trim()).filter(Boolean)),
-      );
+      const companyId = effectiveCompany.id;
+      const clean = [...new Set(serials.map((s) => s.trim()).filter(Boolean))];
+      const assigned: StockUnit[] = [];
+      const notFound: string[] = [];
+      const alreadyReserved: AssignSerialsResult["alreadyReserved"] = [];
+      if (!clean.length) return { assigned, notFound, alreadyReserved };
 
-      // Lookup batch dei seriali nello stock corrente
       const { data: foundUnits, error: lookupErr } = await supabase
-        .from("stock_units")
-        .select("id, serial_number, status, reserved_order_id, stock_item_id")
-        .eq("company_id", effectiveCompany.id)
-        .in("serial_number", clean);
+        .from("stock_units").select("*").eq("company_id", companyId).in("serial_number", clean);
       if (lookupErr) throw lookupErr;
 
-      const foundMap = new Map(
-        ((foundUnits ?? []) as Array<{
-          id: string;
-          serial_number: string;
-          status: string;
-          reserved_order_id: string | null;
-          stock_item_id: string;
-        }>).map((u) => [u.serial_number, u]),
-      );
-
-      const notFound: string[] = [];
-      const alreadyReserved: { serial: string; reservedToOrderId: string | null }[] = [];
-      const toAssign: string[] = [];
-
+      const bySerial = new Map((foundUnits ?? []).map((unit) => [unit.serial_number, unit]));
+      const stessaRiga = (unit: Pick<StockUnit, "status" | "reserved_order_id" | "reserved_order_item_id">) =>
+        unit.status === "reserved" && unit.reserved_order_id === orderId && unit.reserved_order_item_id === orderItemId;
+      const disponibili: StockUnit[] = [];
       for (const serial of clean) {
-        const unit = foundMap.get(serial);
-        if (!unit) {
-          notFound.push(serial);
-          continue;
-        }
-        if (
-          unit.status !== "available" &&
-          unit.reserved_order_id !== orderId
-        ) {
-          alreadyReserved.push({
-            serial,
-            reservedToOrderId: unit.reserved_order_id,
-          });
-          continue;
-        }
-        toAssign.push(unit.id);
+        const unit = bySerial.get(serial) as StockUnit | undefined;
+        if (!unit) notFound.push(serial);
+        else if (stessaRiga(unit)) assigned.push(unit);
+        else if (unit.status === "available") disponibili.push(unit);
+        else alreadyReserved.push({ serial, reservedToOrderId: unit.reserved_order_id });
       }
+      if (!disponibili.length) return { assigned, notFound, alreadyReserved };
 
-      // Update batch (filtro su id già verificati)
-      let assigned: StockUnit[] = [];
-      if (toAssign.length > 0) {
-        const { data: updated, error: updateErr } = await supabase
-          .from("stock_units")
-          .update({
-            status: "reserved",
-            reserved_order_id: orderId,
-            reserved_order_item_id: orderItemId,
-          })
-          .in("id", toAssign)
-          .select();
-        if (updateErr) throw updateErr;
-        assigned = (updated ?? []) as unknown as StockUnit[];
+      const { data: updated, error } = await supabase
+        .from("stock_units")
+        .update({ status: "reserved", reserved_order_id: orderId, reserved_order_item_id: orderItemId })
+        .eq("company_id", companyId)
+        .eq("status", "available")
+        .in("id", disponibili.map((unit) => unit.id))
+        .select("*");
+      if (error) throw error;
+
+      assigned.push(...((updated ?? []) as StockUnit[]));
+      const assegnati = new Set(assigned.map((unit) => unit.id));
+      const cambiati = disponibili.filter((unit) => !assegnati.has(unit.id));
+      if (cambiati.length) {
+        const { data: attuali } = await supabase.from("stock_units").select("*")
+          .eq("company_id", companyId).in("id", cambiati.map((unit) => unit.id));
+        const perId = new Map((attuali ?? []).map((unit) => [unit.id, unit]));
+        for (const precedente of cambiati) {
+          const attuale = perId.get(precedente.id) as StockUnit | undefined;
+          if (attuale && stessaRiga(attuale)) assigned.push(attuale);
+          else alreadyReserved.push({ serial: precedente.serial_number, reservedToOrderId: attuale?.reserved_order_id ?? null });
+        }
       }
-
       return { assigned, notFound, alreadyReserved };
     },
     onSuccess: (result, vars) => {

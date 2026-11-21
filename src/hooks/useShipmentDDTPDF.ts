@@ -44,7 +44,10 @@ function loadPdfModule() {
     ]).then(([pdfMod, tplMod]) => ({
       pdf: pdfMod.pdf,
       ShipmentDDTPDF: tplMod.ShipmentDDTPDF,
-    }));
+    })).catch((error: unknown) => {
+      pdfModulePromise = null;
+      throw new Error("Impossibile caricare il generatore DDT. Riprova o ricarica la pagina.", { cause: error });
+    });
   }
   return pdfModulePromise;
 }
@@ -148,6 +151,8 @@ interface BuildResult {
 
 export function useShipmentDDTPDF() {
   const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const companyName = effectiveCompany?.name;
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   // Ref-based guards: setState non è sincrono, due click ravvicinati
@@ -159,14 +164,14 @@ export function useShipmentDDTPDF() {
   // Estraibile: build del PDF blob — usato sia da generate che da uploadAndAttach.
   const buildBlob = useCallback(
     async (documentoId: string): Promise<BuildResult> => {
-      if (!effectiveCompany?.id) throw new Error("Nessuna azienda attiva");
+      if (!companyId) throw new Error("Nessuna azienda attiva");
       const { data: ddt, error: ddtErr } = await supabase
         .from("documenti_fiscali")
         .select(
           "id, numero, serie, data_emissione, data_consegna, cliente_snapshot, righe, ddt_causale_trasporto, ddt_aspetto_beni, ddt_numero_colli, ddt_peso, ddt_mezzo_trasporto, ddt_porto, ddt_data_ora_consegna, ddt_indirizzo_consegna, ddt_vettore, note_documento, tipo, company_id",
         )
         .eq("id", documentoId)
-        .eq("company_id", effectiveCompany.id)
+        .eq("company_id", companyId)
         .eq("tipo", "ddt")
         .maybeSingle();
       if (ddtErr) throw ddtErr;
@@ -178,10 +183,10 @@ export function useShipmentDDTPDF() {
         .select(
           "id, name, vat_number, fiscal_code, address, city, postal_code, province, phone, email, pec, logo_url",
         )
-        .eq("id", effectiveCompany.id)
+        .eq("id", companyId)
         .maybeSingle();
       if (compErr) throw compErr;
-      const company = (comp ?? { id: effectiveCompany.id, name: effectiveCompany.name ?? "—" }) as unknown as CompanyRecord;
+      const company = (comp ?? { id: companyId, name: companyName ?? "—" }) as unknown as CompanyRecord;
 
       const mittente: DDTCompanyMittente = {
         name: company.name ?? "—",
@@ -276,12 +281,12 @@ export function useShipmentDDTPDF() {
 
       return { blob, numero: ddtRec.numero, companyId: ddtRec.company_id, documentoId: ddtRec.id };
     },
-    [effectiveCompany?.id, effectiveCompany?.name],
+    [companyId, companyName],
   );
 
   const uploadAndAttach = useCallback(
     async (documentoId: string): Promise<string | null> => {
-      if (!effectiveCompany?.id) {
+      if (!companyId) {
         toast.error("Nessuna azienda attiva");
         return null;
       }
@@ -289,8 +294,8 @@ export function useShipmentDDTPDF() {
       uploadingRef.current = true;
       setIsUploading(true);
       try {
-        const { blob, numero, companyId, documentoId: docId } = await buildBlob(documentoId);
-        const filePath = `${companyId}/${docId}/DDT-${numero}.pdf`;
+        const { blob, numero, companyId: documentCompanyId, documentoId: docId } = await buildBlob(documentoId);
+        const filePath = `${documentCompanyId}/${docId}/DDT-${numero}.pdf`;
         const { error: upErr } = await supabase.storage
           .from("documenti-fiscali")
           .upload(filePath, blob, { upsert: true, contentType: "application/pdf" });
@@ -310,12 +315,12 @@ export function useShipmentDDTPDF() {
         setIsUploading(false);
       }
     },
-    [effectiveCompany?.id, buildBlob],
+    [companyId, buildBlob],
   );
 
   const generate = useCallback(
     async (documentoId: string) => {
-      if (!effectiveCompany?.id) {
+      if (!companyId) {
         toast.error("Nessuna azienda attiva");
         return;
       }
@@ -333,7 +338,7 @@ export function useShipmentDDTPDF() {
         setIsGenerating(false);
       }
     },
-    [effectiveCompany?.id, buildBlob],
+    [companyId, buildBlob],
   );
 
   return { generate, isGenerating, uploadAndAttach, isUploading };

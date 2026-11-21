@@ -5,6 +5,7 @@ import {
   sendViaProvider,
   sendViaProviderWithFailover,
   EmailSendResult,
+  rifiutoEmailCerto,
 } from "./emailProvider.ts";
 import { addEmailCredits, deductEmailCredits } from "./emailCredits.ts";
 import { logEmailDelivery } from "./email-log.ts";
@@ -40,6 +41,8 @@ export interface UnifiedEmailArgs {
   adminClient?: SupabaseClient;
   /** Freeform metadata persisted on each log row. */
   metadata?: Record<string, unknown>;
+  /** Tiene l'invio sullo stesso provider. Resend usa la chiave anche nei tentativi interni. */
+  idempotencyKey?: string;
   /**
    * Pre-resolved sender. When provided, the internal `company_email_domains`
    * lookup is skipped and these values are used verbatim.
@@ -419,11 +422,12 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
         stream: streamProvider,
         disableNativeTracking: args.stream === "marketing" || args.viaMarketingProvider === true,
         elasticTransactionalClass: args.viaMarketingProvider === true ? true : undefined,
+        idempotencyKey: args.idempotencyKey,
       });
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    refundedAfterProviderFailure = await refundFailedSend(msg);
+    if (!args.idempotencyKey) refundedAfterProviderFailure = await refundFailedSend(msg);
     for (const r of recipients) {
       await logEmailDelivery(admin, {
         company_id:    args.companyId,
@@ -460,7 +464,7 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
     };
   }
 
-  if (!result.ok) {
+  if (!result.ok && (!args.idempotencyKey || rifiutoEmailCerto(result))) {
     const providerFailureReason = typeof result.body === "object"
       ? JSON.stringify(result.body)
       : String(result.body ?? `HTTP ${result.status}`);
