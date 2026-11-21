@@ -40,7 +40,7 @@ export function MappaGoogleFv(props: Props) {
       if (map.getZoom() !== zoom) map.setZoom(zoom);
       if (zoom !== p.zoom) correnti.current.onVista?.(p.centro, zoom);
     };
-    if (!api.MaxZoomService) applica(21);
+    if (!api.MaxZoomService) applica(20);
     else void massimoZoomGoogleFv(api, p.centro).then(applica).catch(e => {
       if (mappa.current === map && versione === versioneVista.current) correnti.current.onStato({caricando:false,pronto:false,errore:e instanceof Error ? e.message : "Dettaglio satellitare non disponibile. Riprova."});
     });

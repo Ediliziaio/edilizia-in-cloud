@@ -24,11 +24,22 @@ describe("Google nel documento: caricamento reale prima della stampa",()=>{
     cleanup();expect(d.querySelector('[data-fv-google-scale]')).toBeNull();
     expect(d.querySelector('[data-overlay] polygon')?.getAttribute('points')).toBe('1,2 3,4 5,6');
   });
-  it("non dichiara pronta la foto quando Google non conferma la disponibilità",async()=>{
+  it("se i metadati Google falliscono usa zoom 20 e attende comunque le immagini reali",async()=>{
     const api=await mocks.load();
     api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string})=>void){cb({status:"ERROR"});}};
-    const d=documento();await expect(preparaMappeDocumentoFv(d)).rejects.toThrow('dettaglio satellitare');
-    expect(mocks.maps).toHaveLength(0);expect(d.querySelector('[data-fv-google-ready]')).toBeNull();
+    const d=documento(),p=preparaMappeDocumentoFv(d);await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.maps[0].options.zoom).toBe(20);
+    expect(d.querySelector('[data-fv-google-ready]')).toBeNull();
+    mocks.maps[0].events.tilesloaded();(await p)();
+  });
+  it("il timeout dei metadati non impedisce di preparare la foto, senza segnalarla pronta prima delle tile",async()=>{
+    const api=await mocks.load();
+    api.MaxZoomService=class {getMaxZoomAtLatLng(){}};
+    const d=documento(),p=preparaMappeDocumentoFv(d);await vi.advanceTimersByTimeAsync(5001);
+    expect(mocks.maps[0].options.zoom).toBe(20);
+    expect(d.querySelector('[data-fv-google-ready]')).toBeNull();
+    mocks.maps[0].events.tilesloaded();const cleanup=await p;
+    expect(d.querySelector('[data-fv-google-ready="true"]')).not.toBeNull();cleanup();
   });
   it("non carica Google se la vista non è nel documento",async()=>{await preparaMappeDocumentoFv(document);expect(mocks.load).not.toHaveBeenCalled();});
   it("usa lo stesso SDK e la camera salvata, conserva overlay e attribuzioni e attende tilesloaded",async()=>{

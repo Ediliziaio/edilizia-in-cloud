@@ -82,6 +82,15 @@ describe("mappa nativa del tetto", () => {
     onStato: vi.fn(),
     onDimensioni: vi.fn(),
   });
+  it("se Google non risponde sul massimo mantiene foto e disegno a zoom 20", async () => {
+    const api=await mocks.carica();
+    api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string})=>void){cb({status:"ERROR"});}};
+    const p={...props(),zoom:21};render(<MappaGoogleFv {...p}/>);
+    await waitFor(()=>expect(p.onVista).toHaveBeenCalledWith(p.centro,20));
+    const map=mocks.istanze[0] as unknown as {zoom:number;callbacks:Record<string,()=>void>};
+    expect(map.zoom).toBe(20);act(()=>map.callbacks.tilesloaded());
+    expect(p.onStato).toHaveBeenLastCalledWith({caricando:false,pronto:true,errore:""});
+  });
   it("limita lo zoom al dettaglio disponibile e riallinea la camera del disegno", async () => {
     const api=await mocks.carica();
     api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string;zoom:number})=>void){cb({status:"OK",zoom:20});}};
