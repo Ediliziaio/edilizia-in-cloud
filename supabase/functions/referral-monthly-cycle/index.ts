@@ -16,9 +16,11 @@ Deno.serve(async (req) => {
   );
 
   // Calcola mese precedente
-  const now = new Date();
-  const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-  const prevYear  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const [year, month] = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' })
+    .format(new Date()).split('-').map(Number);
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const periodEnd = new Date(Date.UTC(prevYear, prevMonth, 0)).toISOString().slice(0, 10);
 
   console.log(`[referral-monthly-cycle] Calcolo ${prevMonth}/${prevYear}`);
 
@@ -40,16 +42,10 @@ Deno.serve(async (req) => {
     console.log(`[cycle] Generati ${payoutCount} payout pending`);
 
     // Step 3: Notifica ogni referrer con le proprie commissioni
-    const { data: payouts } = await supabase
-      .from('referral_payouts')
-      .select('*, referrers(id, name, email)')
-      .eq('status', 'pending')
-      .eq('auto_generated', true)
-      .filter(
-        'period_start',
-        'gte',
-        new Date(prevYear, prevMonth - 1, 1).toISOString().split('T')[0]
-      );
+    const { data: payouts } = payoutCount > 0
+      ? await supabase.from('referral_payouts').select('*, referrers(id, name, email)')
+        .eq('status', 'pending').eq('auto_generated', true).eq('period_end', periodEnd)
+      : { data: [] };
 
     const monthNames = [
       'Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',

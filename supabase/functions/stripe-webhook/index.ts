@@ -817,6 +817,24 @@ async function handleCheckoutCompleted(
   });
 }
 
+async function syncWholesaleInvoice(supabase: SupabaseClient, stripe: Stripe, invoice: Stripe.Invoice) {
+  const producerId = invoice.metadata?.produttore_id;
+  const period = invoice.metadata?.period;
+  if (!producerId || !period || invoice.metadata?.wholesale_key !== `wholesale:${producerId}:${period}`) return;
+
+  // Stripe can deliver payment events out of order. Read the current invoice
+  // and keep a paid account closed even if a concurrent older event arrives.
+  const current = await stripe.invoices.retrieve(invoice.id);
+  const customerId = typeof current.customer === "string" ? current.customer : current.customer?.id;
+  let update = supabase.from("produttori_conti_wholesale").update({
+    stripe_invoice_id: invoice.id, stripe_status: current.status, updated_at: new Date().toISOString(),
+  }).eq("produttore_id", producerId).eq("period", period).eq("stripe_customer_id", customerId ?? "")
+    .or(`stripe_invoice_id.is.null,stripe_invoice_id.eq.${invoice.id}`);
+  if (current.status !== "paid") update = update.or("stripe_status.is.null,stripe_status.neq.paid");
+  const { error } = await update;
+  if (error) throw new Error(error.message);
+}
+
 async function handleInvoicePaid(
   supabase: SupabaseClient,
   invoice: any,
@@ -1476,6 +1494,10 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
 
     // Extract company_id for logging
     const eventObject = event.data?.object;
+    const invoiceObject = eventObject && "object" in eventObject && eventObject.object === "invoice"
+      ? eventObject as Stripe.Invoice : null;
+    const wholesaleInvoice = invoiceObject?.metadata?.produttore_id
+      && /^\d{4}-(0[1-9]|1[0-2])$/.test(invoiceObject.metadata?.period ?? "") ? invoiceObject : null;
     const companyId = eventObject && "metadata" in eventObject ? eventObject.metadata?.company_id || null : null;
     const customer = eventObject && "customer" in eventObject ? eventObject.customer : null;
     const customerId = typeof customer === "string" ? customer : customer?.id;
@@ -1548,7 +1570,7 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
       "customer.subscription.updated",
       "customer.subscription.deleted",
     ];
-    if (CUSTOMER_SCOPED_EVENTS.includes(event.type) && customerId) {
+    if (!wholesaleInvoice && CUSTOMER_SCOPED_EVENTS.includes(event.type) && customerId) {
       const scopedCompany = await getCompanyByStripeCustomer(supabase, customerId);
       if (!scopedCompany) {
         await logStripeEvent(
@@ -1572,7 +1594,9 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
     let handlerError: string | null = null;
 
     try {
-      switch (event.type) {
+      if (wholesaleInvoice) {
+        await syncWholesaleInvoice(supabase, stripe, wholesaleInvoice);
+      } else switch (event.type) {
         case "checkout.session.completed":
           await handleCheckoutCompleted(supabase, event.data.object, stripeSecretKey);
           break;

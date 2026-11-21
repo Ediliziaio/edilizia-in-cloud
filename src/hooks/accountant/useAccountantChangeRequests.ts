@@ -3,7 +3,7 @@
  * approval_required).
  *
  * Espone:
- *  - useMyChangeRequests(): lista richieste fatte dal commercialista
+ *  - useMyChangeRequests(firmId): lista richieste fatte dal commercialista
  *  - useCompanyPendingChangeRequests(companyId): coda da approvare per l'azienda
  *  - useSubmitChangeRequest(): crea una nuova richiesta
  *  - useDecideChangeRequest(): approva/rifiuta (per l'azienda)
@@ -38,18 +38,19 @@ export interface ChangeRequestRow {
 const KEY = "accountant-change-requests";
 
 /** Richieste fatte dal commercialista loggato (per dashboard "le mie richieste") */
-export function useMyChangeRequests() {
+export function useMyChangeRequests(firmId: string | undefined) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   return useQuery({
-    queryKey: [KEY, "mine", userId] as const,
-    enabled: !!userId,
+    queryKey: [KEY, "mine", userId, firmId] as const,
+    enabled: !!userId && !!firmId,
     staleTime: 30_000,
     queryFn: async (): Promise<ChangeRequestRow[]> => {
       const { data, error } = await supabase
         .from("accountant_change_requests")
         .select("*")
         .eq("requested_by", userId!)
+        .eq("firm_id", firmId!)
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw new Error(error.message);

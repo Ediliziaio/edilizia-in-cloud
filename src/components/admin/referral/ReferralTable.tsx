@@ -334,7 +334,7 @@ export function ReferralTable({
                                 <CreditCard className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>{toPay > 0 ? "Registra pagamento" : "Nessun saldo da pagare"}</TooltipContent>
+                            <TooltipContent>{toPay > 0 ? "Prepara pagamento" : "Nessun saldo da pagare"}</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>

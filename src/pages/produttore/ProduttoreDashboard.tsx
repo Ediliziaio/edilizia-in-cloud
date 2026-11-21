@@ -155,13 +155,9 @@ export default function ProduttoreDashboard() {
   const attivi = rivenditori.filter((r) => r.status === "active").length;
   const comped = rivenditori.filter((r) => r.billing_comped).length;
   const paganti = rivenditori.length - comped;
-  // Quanto paghi TU al mese = prezzi-piano dei rivenditori comped, scontati
-  // della % wholesale. Arrotondamento AL CENTESIMO PER RIGA come fa il server
-  // (get-produttore-billing: your_price = round2(list_price*factor) poi somma):
-  // senza il round per-riga la card divergeva di 1-2 cent dalla pagina Fatturazione.
   const youPayMonthly = rivenditori
-    .filter((r) => r.billing_comped)
-    .reduce((s, r) => s + Math.round((r.plan_price ?? 0) * (1 - wholesalePct / 100) * 100) / 100, 0);
+    .filter((r) => r.billing_comped && r.status === "active")
+    .reduce((sum, r) => sum + Math.round(Math.round((r.plan_price ?? 0) * 100) * (100 - wholesalePct) / 100), 0) / 100;
   const byPlan = plans.map((p) => ({ name: p.name, count: rivenditori.filter((r) => r.subscription_plan_id === p.id).length }));
 
   const ql = q.trim().toLowerCase();

@@ -6,146 +6,31 @@ Deno.serve(async (req) => {
 
   const secret = Deno.env.get('CRON_SECRET');
   if (!secret || req.headers.get('x-cron-secret') !== secret) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    return errorResponse('Unauthorized', 401);
   }
 
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
-
-  const isPayoutCompliant = (payout: any) => {
-    const details = payout.referrers?.payout_details || {};
-    const method = payout.referrers?.payout_method || payout.payment_method || 'bank_transfer';
-    const bankVerified = method !== 'bank_transfer' || details.bank_verification?.status === 'verified';
-    const contractApproved = payout.referrers?.has_accepted_terms === true && details.contract?.status === 'approved';
-    return bankVerified && contractApproved;
-  };
-
-  const complianceReason = (payout: any) => {
-    const details = payout.referrers?.payout_details || {};
-    const method = payout.referrers?.payout_method || payout.payment_method || 'bank_transfer';
-    const reasons: string[] = [];
-    if (method === 'bank_transfer' && details.bank_verification?.status !== 'verified') {
-      reasons.push('conto corrente non verificato');
-    }
-    if (payout.referrers?.has_accepted_terms !== true || details.contract?.status !== 'approved') {
-      reasons.push('contratto partner non approvato');
-    }
-    return reasons.join(' · ');
-  };
-
-  const today = new Date().toISOString().split('T')[0];
-  console.log(`[payout-executor] Esecuzione pagamenti per data <= ${today}`);
-
-  // Trova tutti i payout approvati con scheduled_payment_date <= oggi
+  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(new Date());
   const { data: duePayouts, error } = await supabase
     .from('referral_payouts')
-    .select('*, referrers(id, name, email, payout_method, payout_details, has_accepted_terms)')
+    .select('id')
     .eq('status', 'approved')
     .lte('scheduled_payment_date', today);
-
   if (error) return errorResponse(error.message, 500);
 
-  if (!duePayouts || duePayouts.length === 0) {
-    return jsonResponse({ success: true, message: 'Nessun payout da processare', processed: 0 });
-  }
-
-  const blockedPayouts = duePayouts.filter((p: any) => !isPayoutCompliant(p));
-  const payablePayouts = duePayouts.filter((p: any) => isPayoutCompliant(p));
-
-  for (const payout of blockedPayouts) {
-    await supabase
-      .from('referral_payouts')
-      .update({
-        status: 'pending',
-        rejection_reason: `Bloccato dal controllo compliance: ${complianceReason(payout)}`,
-      })
-      .eq('id', payout.id)
-      .eq('status', 'approved');
-  }
-
-  if (payablePayouts.length === 0) {
-    return jsonResponse({
-      success: true,
-      message: 'Nessun payout conforme da processare',
-      processed: 0,
-      blocked: blockedPayouts.length,
+  let processed = 0;
+  let blocked = 0;
+  for (const payout of duePayouts ?? []) {
+    const { data: instruction, error: prepareError } = await supabase.rpc('referral_payout_transition', {
+      p_payout_id: payout.id,
+      p_action: 'prepare',
     });
+    if (prepareError) {
+      console.warn('[referral-payout-executor] Preparazione sospesa', payout.id, prepareError.message);
+      blocked += 1;
+    } else if (instruction.created) {
+      processed += 1;
+    }
   }
-
-  console.log(`[payout-executor] ${payablePayouts.length} payout conformi da processare, ${blockedPayouts.length} bloccati`);
-
-  // Claim idempotente: porta a 'processing' SOLO i payout ancora 'approved'.
-  // La guard .eq('status','approved') + .select() impedisce a un secondo run
-  // concorrente di ri-processare gli stessi payout (genererebbe un CSV SEPA doppio).
-  const candidateIds = payablePayouts.map((p: any) => p.id);
-  const { data: claimedRows, error: claimError } = await supabase
-    .from('referral_payouts')
-    .update({ status: 'processing' })
-    .in('id', candidateIds)
-    .eq('status', 'approved')
-    .select('id');
-  if (claimError) return errorResponse(claimError.message, 500);
-
-  const claimedIds = new Set((claimedRows || []).map((r: any) => r.id));
-  const claimedPayouts = payablePayouts.filter((p: any) => claimedIds.has(p.id));
-
-  if (claimedPayouts.length === 0) {
-    return jsonResponse({
-      success: true,
-      message: 'Payout già in elaborazione, nessuna nuova riga processata',
-      processed: 0,
-      blocked: blockedPayouts.length,
-    });
-  }
-
-  // Genera CSV SEPA-ready per batch bancario (solo payout effettivamente claimati)
-  const csvRows = [
-    'Nome,IBAN,Importo,Causale,Data',
-    ...claimedPayouts.map((p: any) => {
-      const details      = p.referrers?.payout_details || {};
-      const iban         = details.iban || 'IBAN_MANCANTE';
-      const holder       = details.account_holder || p.referrers?.name || '';
-      const causale      = `Commissioni referral ${p.period_start?.slice(0, 7)} - EIC`;
-      return `"${holder}","${iban}",${p.amount},"${causale}",${today}`;
-    }),
-  ].join('\n');
-
-  const ids = claimedPayouts.map((p: any) => p.id);
-  const adminEmail  = Deno.env.get('ADMIN_EMAIL') || 'admin@ediliziaincloud.it';
-  const totalAmount = claimedPayouts.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-
-  // Notifica ogni partner che il pagamento è in elaborazione
-  for (const payout of claimedPayouts) {
-    const referrerId = (payout as any).referrers?.id || payout.referrer_id;
-    await fetch(
-      `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-partner-notification`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-cron-secret': secret,
-        },
-        body: JSON.stringify({
-          type:        'payout_approved',
-          referrer_id: referrerId,
-          data: {
-            amount:    (payout as any).amount?.toFixed(2) ?? '0.00',
-            reference: `EIC-${payout.id.slice(0, 8).toUpperCase()}`,
-          },
-        }),
-      }
-    ).catch((e) => console.error('[executor] Email partner error:', e));
-  }
-
-  return jsonResponse({
-    success:      true,
-    processed:    claimedPayouts.length,
-    total_amount: totalAmount.toFixed(2),
-    sepa_csv:     csvRows,   // L'admin usa questo CSV per il bonifico batch
-    payout_ids:   ids,
-    blocked:      blockedPayouts.length,
-    admin_email:  adminEmail,
-  });
+  return jsonResponse({ success: true, processed, blocked });
 });

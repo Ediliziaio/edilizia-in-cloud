@@ -5,7 +5,7 @@
  * Mostra status badge, payload preview, decision_note se rifiutate.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { NuovaRichiestaStudio } from "@/components/accountant/NuovaRichiestaStudio";
@@ -81,7 +81,8 @@ export default function AccountantRequests() {
 
   const [params] = useSearchParams();
   const { data: firm } = useAccountantFirm();
-  const { data: requests = [], isLoading, isError, refetch } = useMyChangeRequests();
+  const { data: requests = [], isLoading, isError, refetch } = useMyChangeRequests(firm?.id);
+  const [status, setStatus] = useState<"all" | ChangeRequestRow["status"]>("all");
   const { data: companies = [], isSuccess: deleghePronte } = useAccountantCompanies();
   const aziendeApprovazione = companies.filter(riga => riga.status === "active" && riga.access_mode === "approval_required");
 
@@ -92,12 +93,14 @@ export default function AccountantRequests() {
   }, [companies]);
 
   const grouped = useMemo(() => {
-    const pending = requests.filter((r) => r.status === "pending");
-    const approved = requests.filter((r) => r.status === "approved");
-    const rejected = requests.filter((r) => r.status === "rejected");
-    const expired = requests.filter((r) => r.status === "expired");
-    return { pending, approved, rejected, expired };
-  }, [requests]);
+    const visible = status === "all" ? requests : requests.filter((request) => request.status === status);
+    return {
+      pending: visible.filter((request) => request.status === "pending"),
+      approved: visible.filter((request) => request.status === "approved"),
+      rejected: visible.filter((request) => request.status === "rejected"),
+      expired: visible.filter((request) => request.status === "expired"),
+    };
+  }, [requests, status]);
 
   return (
     <div className="space-y-5">
@@ -138,6 +141,18 @@ export default function AccountantRequests() {
 
       {!isLoading && requests.length > 0 && (
         <>
+          <div role="group" aria-label="Filtra lo storico per stato" className="flex flex-wrap gap-1.5">
+            {([
+              ["all", "Tutte"], ["pending", "In attesa"], ["approved", "Approvate"],
+              ["rejected", "Rifiutate"], ["expired", "Scadute"],
+            ] as const).map(([value, label]) => (
+              <Button key={value} size="sm" variant={status === value ? "default" : "outline"}
+                aria-pressed={status === value} onClick={() => setStatus(value)}>{label}</Button>
+            ))}
+          </div>
+          {status !== "all" && grouped[status].length === 0 && (
+            <p role="status" className="rounded-lg border p-4 text-sm text-muted-foreground">Nessuna richiesta con questo stato.</p>
+          )}
           {grouped.pending.length > 0 && (
             <RequestsSection
               title="In attesa di risposta"

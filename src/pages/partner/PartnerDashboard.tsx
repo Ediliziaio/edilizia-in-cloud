@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useReferralBalance } from "@/lib/referralPayouts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -149,6 +150,8 @@ export default function PartnerDashboard() {
     },
   });
 
+  const { data: payoutBalance } = useReferralBalance(referrer?.id);
+
   if (loadingReferrer) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -169,9 +172,6 @@ export default function PartnerDashboard() {
 
   const tier = referrer.referral_tiers;
   const activeCompanies = referredCompanies.filter((rc: any) => rc.is_active && rc.company?.status === "active").length;
-  const totalEarned = referrer.total_earned || 0;
-  const totalPaid = referrer.total_paid || 0;
-  const balance = totalEarned - totalPaid;
   const monthlyCommission = ledger.reduce((sum: number, l: any) => sum + (l.commission_amount || 0), 0);
   const referralLink = buildReferralLink(referrer.referral_code);
 
@@ -269,11 +269,11 @@ export default function PartnerDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5 text-xs">
-              <Wallet className="h-3.5 w-3.5" /> Saldo
+              <Wallet className="h-3.5 w-3.5" /> Saldo disponibile
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className={`text-2xl font-bold ${balance > 0 ? "text-green-600" : ""}`}>{formatCurrency(balance)}</p>
+            <p className={`text-2xl font-bold ${payoutBalance && payoutBalance.available > 0 ? "text-green-600" : ""}`}>{payoutBalance ? formatCurrency(payoutBalance.available) : "—"}</p>
           </CardContent>
         </Card>
       </div>

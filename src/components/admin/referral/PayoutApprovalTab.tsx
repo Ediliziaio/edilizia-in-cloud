@@ -14,7 +14,7 @@ import { exportToCSV } from "@/lib/csvExport";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+import { transitionReferralPayout } from "@/lib/referralPayouts";
 import {
   DEFAULT_REFERRAL_COMMISSION_POLICY,
   REFERRAL_COMMISSION_POLICY_KEY,
@@ -28,14 +28,16 @@ import {
 } from "@/lib/referralCompliance";
 
 export function PayoutApprovalTab() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [bankRejected, setBankRejected] = useState(false);
+  const [confirmPayout, setConfirmPayout] = useState<{ id: string; amount: number } | null>(null);
+  const [bankReference, setBankReference] = useState("");
   const [approveConfirmId, setApproveConfirmId] = useState<string | null>(null);
   const [approveConfirmData, setApproveConfirmData] = useState<{ referrerName: string; amount: number } | null>(null);
 
-  const { data: pendingPayouts = [], isLoading } = useQuery({
+  const { data: pendingPayouts = [], isLoading, isError } = useQuery({
     queryKey: ["admin-pending-payouts"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -119,107 +121,65 @@ export function PayoutApprovalTab() {
     staleTime: 60000,
   });
 
-  const recalculateReferrerTotalPaid = async (referrerId: string) => {
-    const { data: paidRows, error: fetchError } = await supabase
-      .from("referral_payouts")
-      .select("amount")
-      .eq("referrer_id", referrerId)
-      .eq("status", "paid");
-    if (fetchError) throw fetchError;
-
-    const totalPaid = (paidRows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const { error: updateError } = await supabase
-      .from("referrers")
-      .update({ total_paid: totalPaid })
-      .eq("id", referrerId);
-    if (updateError) throw updateError;
+  const refreshPayouts = () => {
+    for (const key of ["admin-pending-payouts", "admin-paid-payouts", "pending-payout-count",
+      "referral-payout-balance", "referral_payouts", "referrers"]) {
+      queryClient.invalidateQueries({ queryKey: [key] });
+    }
   };
 
   const approveMutation = useMutation({
-    mutationFn: async (payoutId: string) => {
-      const { data, error } = await supabase
-        .from("referral_payouts")
-        .update({
-          status: "approved",
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq("id", payoutId)
-        .eq("status", "pending")
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("Payout già elaborato o non più approvabile");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
-      toast.success("Payout approvato");
-    },
-    onError: (err: any) => toast.error(err.message),
+    mutationFn: (id: string) => transitionReferralPayout(id, "approve"),
+    onSuccess: () => { refreshPayouts(); toast.success("Richiesta approvata"); },
+    onError: (error) => toast.error(error.message),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const cleanReason = reason.trim();
-      if (cleanReason.length < 3) throw new Error("Inserisci una motivazione di rifiuto");
-      const { data, error } = await supabase
-        .from("referral_payouts")
-        .update({ status: "rejected", rejection_reason: cleanReason })
-        .eq("id", id)
-        .in("status", ["pending", "approved", "processing"])
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("Payout già elaborato o non più rifiutabile");
-    },
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      transitionReferralPayout(id, bankRejected ? "bank_rejected" : "reject", reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-paid-payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
+      refreshPayouts();
       setRejectId(null);
       setRejectReason("");
-      toast.success("Payout rifiutato");
+      setBankRejected(false);
+      toast.success("Richiesta chiusa. Importo restituito al saldo disponibile.");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (error) => toast.error(error.message),
+  });
+
+  const prepareMutation = useMutation({
+    mutationFn: ({ id }: { id: string; download: boolean }) => transitionReferralPayout(id, "prepare"),
+    onSuccess: (instruction, { download }) => {
+      refreshPayouts();
+      if (!download) {
+        toast.success("Pagamento pronto per la riconciliazione");
+        return;
+      }
+      exportToCSV([{
+        beneficiary: instruction.beneficiary ?? "",
+        iban: instruction.iban ?? "",
+        amount: Number(instruction.amount).toFixed(2),
+        reference: instruction.reference,
+      }], [
+        { key: "beneficiary", label: "Beneficiario" },
+        { key: "iban", label: "IBAN" },
+        { key: "amount", label: "Importo EUR" },
+        { key: "reference", label: "Causale" },
+      ], `distinta-${instruction.reference}.csv`);
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const markPaid = useMutation({
-    mutationFn: async ({ id, referrerId, amount, txRef }: { id: string; referrerId: string; amount: number; txRef: string }) => {
-      const cleanTxRef = txRef.trim();
-      if (!cleanTxRef) throw new Error("Inserisci un riferimento transazione valido");
-      const { data, error } = await supabase
-        .from("referral_payouts")
-        .update({ status: "paid", transaction_reference: cleanTxRef, paid_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("status", "approved")
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("Payout già pagato o non approvato");
-
-      await recalculateReferrerTotalPaid(referrerId);
-
-      // Send notification
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      fetch(`https://${projectId}.supabase.co/functions/v1/send-partner-notification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "payout_approved",
-          referrer_id: referrerId,
-          data: { amount, reference: txRef },
-        }),
-      }).catch(() => {});
-    },
+    mutationFn: ({ id, reference }: { id: string; reference: string }) =>
+      transitionReferralPayout(id, "confirm", reference),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-paid-payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
-      queryClient.invalidateQueries({ queryKey: ["referrers"] });
-      toast.success("Payout marcato come pagato");
+      refreshPayouts();
+      setConfirmPayout(null);
+      setBankReference("");
+      toast.success("Pagamento riconciliato");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (error) => toast.error(error.message),
   });
 
   const exportCSV = () => {
@@ -248,7 +208,7 @@ export function PayoutApprovalTab() {
   };
 
   const pending = pendingPayouts.filter((p: any) => p.status === "pending");
-  const approved = pendingPayouts.filter((p: any) => p.status === "approved");
+  const approved = pendingPayouts.filter((p) => p.status === "approved" || p.status === "processing");
 
   const fraudCountByReferrer = useMemo(() => {
     const map = new Map<string, number>();
@@ -272,7 +232,7 @@ export function PayoutApprovalTab() {
   });
 
   const blockedPendingCount = pending.filter((p: any) => !getEligibility(p).eligible || !getCompliance(p).ready).length;
-  const blockedApprovedCount = approved.filter((p: any) => !getEligibility(p).eligible || !getCompliance(p).ready).length;
+  const blockedApprovedCount = approved.filter((p) => p.status === "approved" && (!getEligibility(p).eligible || !getCompliance(p).ready)).length;
 
   const handleApproveClick = (payout: any) => {
     const eligibility = getEligibility(payout);
@@ -292,9 +252,9 @@ export function PayoutApprovalTab() {
     switch (status) {
       case "paid": return <Badge variant="default">Pagato</Badge>;
       case "approved": return <Badge className="bg-blue-500/10 text-blue-700 border-blue-200">Approvato</Badge>;
-      case "processing": return <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-200">In Elaborazione</Badge>;
+      case "processing": return <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-200">Da riconciliare</Badge>;
       case "rejected": return <Badge variant="destructive">Rifiutato</Badge>;
-      default: return <Badge variant="secondary">Pending</Badge>;
+      default: return <Badge variant="secondary">In attesa</Badge>;
     }
   };
 
@@ -302,11 +262,13 @@ export function PayoutApprovalTab() {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   }
 
+  if (isError) return <p role="alert" className="text-sm text-destructive">Impossibile caricare le richieste di pagamento.</p>;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Payout da Approvare ({pending.length})</h3>
+          <h3 className="text-lg font-semibold">Richieste da approvare ({pending.length})</h3>
           {(blockedPendingCount > 0 || blockedApprovedCount > 0) && (
             <p className="text-sm text-muted-foreground">
               {blockedPendingCount + blockedApprovedCount} payout bloccati da policy referral.
@@ -321,7 +283,7 @@ export function PayoutApprovalTab() {
       {pending.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            Nessun payout in attesa
+            Nessuna richiesta in attesa
           </CardContent>
         </Card>
       ) : (
@@ -392,7 +354,7 @@ export function PayoutApprovalTab() {
                             >
                               <Check className="h-3.5 w-3.5 mr-1" /> Approva
                             </Button>
-                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setRejectId(p.id)}>
+                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { setBankRejected(false); setRejectId(p.id); }}>
                               <X className="h-3.5 w-3.5 mr-1" /> Rifiuta
                             </Button>
                           </div>
@@ -410,7 +372,7 @@ export function PayoutApprovalTab() {
       {/* Approved payouts — mark as paid */}
       {approved.length > 0 && (
         <>
-          <h3 className="text-lg font-semibold">Approvati — Da Pagare</h3>
+          <h3 className="text-lg font-semibold">Pagamenti approvati e da riconciliare</h3>
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -433,7 +395,7 @@ export function PayoutApprovalTab() {
                         <TableRow key={p.id}>
                           <TableCell className="font-medium">{p.referrer?.name}</TableCell>
                           <TableCell className="text-right font-bold">{formatCurrency(p.amount)}</TableCell>
-                          <TableCell className="text-sm">{p.payment_method}</TableCell>
+                          <TableCell className="space-y-1 text-sm"><div>{p.payment_method}</div>{statusBadge(p.status ?? "")}</TableCell>
                           <TableCell className="max-w-[260px]">
                             <div className="space-y-1">
                               <Badge variant={canPay ? "secondary" : "destructive"}>
@@ -455,26 +417,40 @@ export function PayoutApprovalTab() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                if (!canPay) {
-                                  toast.error("Pagamento bloccato dalla policy", {
-                                    description: [...compliance.blockers, ...eligibility.blockers].join(" · "),
-                                  });
-                                  return;
-                                }
-                                const txRef = prompt("Riferimento transazione/bonifico:");
-                                if (txRef !== null && txRef.trim()) {
-                                  markPaid.mutate({ id: p.id, referrerId: p.referrer_id, amount: p.amount, txRef });
-                                } else if (txRef !== null) {
-                                  toast.error("Riferimento transazione obbligatorio");
-                                }
-                              }}
-                              disabled={markPaid.isPending || !canPay}
-                            >
-                              Segna come Pagato
-                            </Button>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {p.status === "approved" ? (
+                                <>
+                                  <Button size="sm" disabled={prepareMutation.isPending || !canPay}
+                                    onClick={() => prepareMutation.mutate({ id: p.id, download: false })}>
+                                    {p.payment_method === "bank_transfer" ? "Prepara bonifico" : "Prepara pagamento"}
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => { setBankRejected(false); setRejectId(p.id); }}>
+                                    Rifiuta
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  {p.payment_method === "bank_transfer" && (
+                                    <Button size="sm" variant="outline" disabled={prepareMutation.isPending}
+                                      onClick={() => prepareMutation.mutate({ id: p.id, download: true })}>
+                                      <Download className="mr-1 h-4 w-4" /> Distinta CSV
+                                    </Button>
+                                  )}
+                                  {p.payment_method !== "bank_transfer" && (
+                                    <Button size="sm" variant="outline" disabled={prepareMutation.isPending}
+                                      onClick={() => prepareMutation.mutate({ id: p.id, download: false })}>
+                                      Dati pagamento
+                                    </Button>
+                                  )}
+                                  <Button size="sm" onClick={() => setConfirmPayout({ id: p.id, amount: p.amount })}>
+                                    Riconcilia
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => { setBankRejected(true); setRejectId(p.id); }}>
+                                    Pagamento respinto
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -509,7 +485,7 @@ export function PayoutApprovalTab() {
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.referrer?.name}</TableCell>
                         <TableCell className="text-right">{formatCurrency(p.amount)}</TableCell>
-                        <TableCell className="text-sm">{format(new Date(p.created_at), "dd/MM/yyyy")}</TableCell>
+                        <TableCell className="text-sm">{format(new Date(p.paid_at ?? p.created_at), "dd/MM/yyyy")}</TableCell>
                         <TableCell>{statusBadge(p.status)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{p.transaction_reference || "—"}</TableCell>
                       </TableRow>
@@ -522,14 +498,38 @@ export function PayoutApprovalTab() {
         </>
       )}
 
-      {/* Reject dialog */}
-      <Dialog open={!!rejectId} onOpenChange={() => { setRejectId(null); setRejectReason(""); }}>
+      <Dialog open={!!confirmPayout} onOpenChange={(open) => {
+        if (!open) { setConfirmPayout(null); setBankReference(""); }
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Rifiuta Payout</DialogTitle>
-            <DialogDescription>Inserisci il motivo del rifiuto</DialogDescription>
+            <DialogTitle>Riconcilia pagamento</DialogTitle>
+            <DialogDescription>
+              Verifica l’addebito di {formatCurrency(confirmPayout?.amount ?? 0)} prima di registrare il riferimento.
+            </DialogDescription>
           </DialogHeader>
-          <Input placeholder="Motivo..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+          <form className="space-y-3" onSubmit={(event) => {
+            event.preventDefault();
+            if (confirmPayout) markPaid.mutate({ id: confirmPayout.id, reference: bankReference });
+          }}>
+            <label className="block text-sm font-medium" htmlFor="payout-bank-reference">Riferimento transazione</label>
+            <Input id="payout-bank-reference" value={bankReference} maxLength={120}
+              onChange={(event) => setBankReference(event.target.value)} />
+            <Button type="submit" disabled={markPaid.isPending || bankReference.trim().length < 3}>
+              Conferma incrocio con la banca
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject dialog */}
+      <Dialog open={!!rejectId} onOpenChange={(open) => { if (!open) { setRejectId(null); setRejectReason(""); setBankRejected(false); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{bankRejected ? "Registra pagamento respinto" : "Rifiuta richiesta"}</DialogTitle>
+            <DialogDescription>{bankRejected ? "Verifica lo scarto con la banca e indica il motivo e il riferimento." : "Inserisci il motivo del rifiuto."}</DialogDescription>
+          </DialogHeader>
+          <Input aria-label="Motivo del rifiuto" maxLength={500} placeholder="Motivo…" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
           <Button
             variant="destructive"
             onClick={() => rejectId && rejectMutation.mutate({ id: rejectId, reason: rejectReason })}
@@ -552,16 +552,14 @@ export function PayoutApprovalTab() {
               Conferma Approvazione Payout
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>Stai per approvare un payout a <strong>{approveConfirmData?.referrerName}</strong>.</p>
-              <p>
-                Importo:{" "}
+              <span className="block">Stai per approvare un payout a <strong>{approveConfirmData?.referrerName}</strong>.</span>
+              <span className="block">
+                Importo{" "}
                 <strong className="text-foreground">
                   {approveConfirmData ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(approveConfirmData.amount) : "—"}
                 </strong>
-              </p>
-              <p className="text-destructive font-medium">
-                Questa azione richiede una seconda conferma. L&apos;operazione verrà registrata nell&apos;audit log.
-              </p>
+              </span>
+              <span className="block">Verranno registrati data e utente che approva.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

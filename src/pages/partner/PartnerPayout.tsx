@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { referralBalanceKey, requestReferralPayout, useReferralBalance } from "@/lib/referralPayouts";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,7 +77,7 @@ const paymentMethodLabel = (method: string | null | undefined) => {
 export default function PartnerPayout({ previewData }: { previewData?: PartnerPayoutPreviewData } = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [amount, setAmount] = useState("");
+  const [editedAmount, setAmount] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const isPreview = !!previewData;
 
@@ -142,14 +143,12 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
     },
   });
 
-  const balance = (referrer?.total_earned || 0) - (referrer?.total_paid || 0);
-  const [hasDefaultedAmount, setHasDefaultedAmount] = useState(false);
-  useEffect(() => {
-    if (!hasDefaultedAmount && !amount && balance > 0) {
-      setAmount(balance.toFixed(2));
-      setHasDefaultedAmount(true);
-    }
-  }, [amount, balance, hasDefaultedAmount]);
+  const { data: payoutBalance, isError: balanceError } = useReferralBalance(isPreview ? undefined : referrer?.id);
+  const requestKey = useRef<{ fingerprint: string; key: string } | undefined>(undefined);
+  const balance = isPreview
+    ? (referrer?.total_earned || 0) - (referrer?.total_paid || 0)
+    : payoutBalance?.available ?? 0;
+  const amount = editedAmount ?? (balance > 0 ? balance.toFixed(2) : "");
 
   const requestedAmount = parseFloat(amount);
   const amountInvalid =
@@ -205,23 +204,17 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
 
       if (isPreview) return;
 
-      const now = new Date();
-      const { error } = await supabase.from("referral_payouts").insert({
-        referrer_id: referrer!.id,
-        amount: amt,
-        period_start: new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString("en-CA"),
-        period_end: now.toLocaleDateString("en-CA"),
-        paid_at: null,
-        payment_method: referrer?.payout_method || "bank_transfer",
-        notes: notes || null,
-        status: "pending",
-        requested_by_referrer: true,
-      });
-      if (error) throw error;
+      const fingerprint = JSON.stringify([referrer!.id, amt, notes]);
+      if (requestKey.current?.fingerprint !== fingerprint) {
+        requestKey.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      await requestReferralPayout(referrer!.id, amt, requestKey.current.key, notes);
     },
     onSuccess: () => {
       if (!isPreview) {
         queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.payoutsAll });
+        queryClient.invalidateQueries({ queryKey: referralBalanceKey(referrer?.id) });
+        requestKey.current = undefined;
       }
       toast.success(isPreview ? "Simulazione richiesta pagamento pronta" : "Richiesta di pagamento inviata!");
       setAmount("");
@@ -269,10 +262,11 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
         <CardContent className="p-4 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm text-muted-foreground">Prossimo pagamento automatico</p>
+              <p className="text-sm text-muted-foreground">Prossimo ciclo di liquidazione</p>
               <p className="text-xl font-bold text-primary sm:text-2xl">{paymentInfo.date}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                tra {paymentInfo.daysLeft} giorni · importo stimato: {formatCurrency(balance)}
+                tra {paymentInfo.daysLeft} giorni
+                {(isPreview || payoutBalance) && <> · saldo disponibile {formatCurrency(balance)}</>}
               </p>
             </div>
             <div className="shrink-0 text-center">
@@ -280,9 +274,9 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
               <div className="text-xs text-muted-foreground">giorni</div>
             </div>
           </div>
-          {balance <= 0 && (
+          {(isPreview || payoutBalance) && balance <= 0 && (
             <p className="text-sm text-muted-foreground mt-3 italic">
-              Nessuna commissione maturata per questo ciclo.
+              Nessun importo disponibile per nuove richieste.
             </p>
           )}
         </CardContent>
@@ -322,8 +316,19 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
         <CardContent className="flex items-center gap-4 p-4 sm:p-6">
           <Wallet className="h-8 w-8 shrink-0 text-primary" />
           <div className="min-w-0">
-            <p className="text-sm text-muted-foreground">Saldo Disponibile</p>
-            <p className={`text-2xl font-bold sm:text-3xl ${balance > 0 ? "text-green-600" : ""}`}>{formatCurrency(balance)}</p>
+            <p className="text-sm text-muted-foreground">Saldo disponibile</p>
+            {isPreview || payoutBalance ? (
+              <p className={`text-2xl font-bold sm:text-3xl ${balance > 0 ? "text-green-600" : ""}`}>{formatCurrency(balance)}</p>
+            ) : (
+              <p role={balanceError ? "alert" : "status"} className="text-sm text-muted-foreground">
+                {balanceError ? "Saldo temporaneamente non disponibile" : "Caricamento del saldo…"}
+              </p>
+            )}
+            {payoutBalance && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatCurrency(payoutBalance.reserved)} riservati · {formatCurrency(payoutBalance.paid)} pagati
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -354,7 +359,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
             </div>
             <div className="space-y-1.5">
               <Label>Note (opzionale)</Label>
-              <Textarea placeholder="Note aggiuntive..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <Textarea maxLength={2000} placeholder="Note aggiuntive..." value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
             {(payoutEligibility.blockers.length > 0 || payoutEligibility.warnings.length > 0 || payoutCompliance.blockers.length > 0) && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

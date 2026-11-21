@@ -330,7 +330,7 @@ export function ReferralCommandCenter({
             )}
             {insights.topPartners[0] && (insights.topPartners[0].referrer.total_earned || 0) - (insights.topPartners[0].referrer.total_paid || 0) > 0 && (
               <Button className="w-full" variant="outline" onClick={() => onPayout(insights.topPartners[0].referrer)}>
-                Registra payout top partner
+                Prepara pagamento per il partner
               </Button>
             )}
           </CardContent>

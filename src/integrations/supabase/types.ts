@@ -100416,10 +100416,11 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
-          paid_at: string
+          paid_at: string | null
           payment_method: string
           period_end: string
           period_start: string
+          request_key: string | null
           referrer_id: string
           rejection_reason: string | null
           requested_by_referrer: boolean | null
@@ -100435,11 +100436,12 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
-          paid_at?: string
+          paid_at?: string | null
           payment_method?: string
           period_end: string
           period_start: string
           referrer_id: string
+          request_key?: string | null
           rejection_reason?: string | null
           requested_by_referrer?: boolean | null
           scheduled_payment_date?: string | null
@@ -100454,11 +100456,12 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
-          paid_at?: string
+          paid_at?: string | null
           payment_method?: string
           period_end?: string
           period_start?: string
           referrer_id?: string
+          request_key?: string | null
           rejection_reason?: string | null
           requested_by_referrer?: boolean | null
           scheduled_payment_date?: string | null
@@ -152631,6 +152634,18 @@ export type Database = {
           invoice_number: string
           progressive_number: number
         }[]
+      }
+      referral_payout_balance: {
+        Args: { p_referrer_id: string }
+        Returns: Json
+      }
+      referral_request_payout: {
+        Args: { p_referrer_id: string; p_amount: number; p_key: string; p_notes?: string }
+        Returns: string
+      }
+      referral_payout_transition: {
+        Args: { p_payout_id: string; p_action: string; p_reference?: string }
+        Returns: Json
       }
       generate_monthly_payouts: {
         Args: { p_month: number; p_year: number }

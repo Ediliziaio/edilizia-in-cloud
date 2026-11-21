@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useReferralBalance } from "@/lib/referralPayouts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { escapeCsvCell } from "@/lib/csvExport";
@@ -47,7 +48,7 @@ export default function PartnerCommissions() {
   const [year, setYear] = useState(now.getFullYear());
 
   const { data: referrer, isLoading: isReferrerLoading } = useQuery<ReferrerCommissionSummary | null>({
-    queryKey: ["my-referrer", user?.id],
+    queryKey: ["partner-commission-profile", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data } = await supabase.from("referrers").select("id, total_earned, total_paid").eq("user_id", user!.id).maybeSingle();
@@ -125,9 +126,7 @@ export default function PartnerCommissions() {
     URL.revokeObjectURL(url);
     toast.success(`Export ${monthName} ${year} scaricato`);
   };
-  const totalEarned = referrer?.total_earned || 0;
-  const totalPaid = referrer?.total_paid || 0;
-  const balance = totalEarned - totalPaid;
+  const { data: payoutBalance } = useReferralBalance(referrer?.id);
 
   const statusBadge = (status: string) => {
     switch (status) {
@@ -172,19 +171,19 @@ export default function PartnerCommissions() {
           <CardHeader className="pb-2">
             <span className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Totale Storico</span>
           </CardHeader>
-          <CardContent><p className="text-xl font-bold">{formatCurrency(totalEarned)}</p></CardContent>
+          <CardContent><p className="text-xl font-bold">{payoutBalance ? formatCurrency(payoutBalance.earned) : "—"}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <span className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Già Pagato</span>
           </CardHeader>
-          <CardContent><p className="text-xl font-bold">{formatCurrency(totalPaid)}</p></CardContent>
+          <CardContent><p className="text-xl font-bold">{payoutBalance ? formatCurrency(payoutBalance.paid) : "—"}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1"><Wallet className="h-3 w-3" /> Da Ricevere</span>
+            <span className="text-xs text-muted-foreground flex items-center gap-1"><Wallet className="h-3 w-3" /> Saldo disponibile</span>
           </CardHeader>
-          <CardContent><p className={`text-xl font-bold ${balance > 0 ? "text-green-600" : ""}`}>{formatCurrency(balance)}</p></CardContent>
+          <CardContent><p className={`text-xl font-bold ${payoutBalance && payoutBalance.available > 0 ? "text-green-600" : ""}`}>{payoutBalance ? formatCurrency(payoutBalance.available) : "—"}</p></CardContent>
         </Card>
       </div>
 

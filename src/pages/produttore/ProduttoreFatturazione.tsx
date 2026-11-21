@@ -28,6 +28,7 @@ interface Billing {
   billing_mode: BillingMode;
   items: BillingItem[];
   self_paid: SelfPaid[];
+  current_account?: { period: string; amount: number; status: string | null } | null;
   totals: { list: number; yours: number; saving: number };
 }
 
@@ -189,7 +190,7 @@ export default function ProduttoreFatturazione() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><Receipt className="h-5 w-5" /> Il tuo conto</CardTitle>
-          <CardDescription>Quanto paghi alla piattaforma per i rivenditori che paghi tu (comped).</CardDescription>
+          <CardDescription>Stima mensile per i rivenditori attivi a tuo carico.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -210,6 +211,16 @@ export default function ProduttoreFatturazione() {
             )}
           </div>
 
+          {b.current_account && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+              <span>Conto registrato · {b.current_account.period} · <strong>{formatEuro(b.current_account.amount)}</strong></span>
+              <Badge variant="outline">
+                {b.current_account.status === "paid" ? "Pagato" : b.current_account.status === "open" ? "Da pagare"
+                  : b.current_account.status === "void" ? "Annullato" : b.current_account.status === "uncollectible" ? "Insoluto" : "In preparazione"}
+              </Badge>
+            </div>
+          )}
+
           {b.items.length > 0 ? (
             <ul className="mt-4 divide-y rounded-lg border">
               {b.items.map((it) => (
@@ -219,11 +230,12 @@ export default function ProduttoreFatturazione() {
                     <div className="text-xs text-muted-foreground">{it.plan_name ?? "—"}</div>
                   </div>
                   <div className="shrink-0 text-right">
-                    {b.wholesale_pct > 0 && it.list_price > 0 && (
+                    {it.status === "active" && b.wholesale_pct > 0 && it.list_price > 0 && (
                       <span className="mr-2 text-xs text-muted-foreground line-through">{formatEuro(it.list_price)}</span>
                     )}
-                    <span className="font-semibold">{formatEuro(it.your_price)}</span>
-                    <span className="text-xs text-muted-foreground">/mese</span>
+                    {it.status === "active" ? (
+                      <><span className="font-semibold">{formatEuro(it.your_price)}</span><span className="text-xs text-muted-foreground">/mese</span></>
+                    ) : <span className="text-xs text-muted-foreground">Fuori dal conto mensile</span>}
                   </div>
                 </li>
               ))}

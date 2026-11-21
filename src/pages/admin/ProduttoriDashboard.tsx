@@ -608,7 +608,7 @@ function WholesaleControl({ produttoreId, initialPct, onSaved }: { produttoreId:
 }
 
 function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string; produttoreName: string }) {
-  const [confirm, setConfirm] = useState<{ amount: number; period: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ amount: number; period: string; key: string } | null>(null);
 
   const preview = useMutation({
     mutationFn: async () => {
@@ -616,14 +616,15 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
         body: { produttore_id: produttoreId, preview: true },
       });
       if (error) throw new Error(error.message);
-      const r = data as { success?: boolean; error?: string; amount?: number; period?: string; has_customer?: boolean } | null;
+      const r = data as { success?: boolean; error?: string; amount?: number; period?: string; preview_key?: string; has_customer?: boolean; status?: string } | null;
       if (!r || r.success === false) throw new Error(r?.error ?? "Errore");
       return r;
     },
     onSuccess: (r) => {
       if ((r.amount ?? 0) <= 0) { toast.info("Nessun importo da addebitare"); return; }
       if (!r.has_customer) { toast.warning("Il produttore non ha ancora una carta a sistema"); return; }
-      setConfirm({ amount: r.amount as number, period: r.period as string });
+      if (r.status === "paid") { toast.info("Conto del periodo già pagato"); return; }
+      if (r.period && r.preview_key) setConfirm({ amount: r.amount as number, period: r.period, key: r.preview_key });
     },
     onError: (e) => toast.error("Errore", { description: (e as Error).message }),
   });
@@ -631,7 +632,7 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
   const charge = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("charge-produttore-billing", {
-        body: { produttore_id: produttoreId, preview: false },
+        body: { produttore_id: produttoreId, preview: false, preview_key: confirm?.key },
       });
       if (error) throw new Error(error.message);
       const r = data as { success?: boolean; error?: string; charged?: boolean; reason?: string; status?: string; amount?: number } | null;
@@ -640,8 +641,11 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
     },
     onSuccess: (r) => {
       setConfirm(null);
-      if (r.charged) toast.success(`Addebitato €${r.amount} — fattura ${r.status}`);
-      else if (r.reason === "already_billed") toast.info(`Già fatturato questo mese (${r.status ?? "—"})`);
+      if (r.reason === "already_billed") toast.info(`Conto già registrato (${r.status === "paid" ? "pagato" : r.status ?? "in attesa"})`);
+      else if (r.reason === "preview_changed") toast.warning("Il conto è cambiato. Apri una nuova anteprima.");
+      else if (r.reason === "needs_review") toast.warning("Verifica il conto e la fattura in Stripe prima di riprovare.");
+      else if (r.charged) toast.success(`Pagamento confermato di ${formatEuro(r.amount ?? 0)}`);
+      else if (r.status === "open") toast.warning("Fattura emessa e ancora da pagare. Verifica la carta o lo stato su Stripe.");
       else if (r.reason === "no_card") toast.warning("Il produttore non ha una carta a sistema");
       else if (r.reason === "no_amount") toast.info("Nessun importo da addebitare");
       else toast.info(`Non addebitato: ${r.reason ?? r.status ?? "—"}`);
@@ -657,9 +661,9 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
           <span className="text-sm font-medium">Conto wholesale</span>
           <span className="ml-1 text-xs text-muted-foreground">addebito sulla carta del produttore</span>
         </div>
-        <Button size="sm" variant="outline" className="ml-auto gap-1.5" disabled={preview.isPending} onClick={() => preview.mutate()}>
+        <Button size="sm" variant="outline" className="ml-auto gap-1.5" disabled={preview.isPending || charge.isPending} onClick={() => preview.mutate()}>
           {preview.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeEuro className="h-3.5 w-3.5" />}
-          Addebita conto
+          Anteprima addebito
         </Button>
       </div>
 
@@ -674,7 +678,7 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction disabled={charge.isPending} onClick={() => charge.mutate()}>
+            <AlertDialogAction disabled={charge.isPending} onClick={(event) => { event.preventDefault(); charge.mutate(); }}>
               {charge.isPending ? "Addebito…" : "Addebita ora"}
             </AlertDialogAction>
           </AlertDialogFooter>

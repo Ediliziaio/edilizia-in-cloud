@@ -1,4 +1,5 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { wholesaleQuote } from "../_shared/produttoreWholesale.ts";
 import { resolveProduttore } from "../_shared/produttore.ts";
 
 /**
@@ -28,11 +29,14 @@ Deno.serve(async (req) => {
     const ctx = await resolveProduttore(req, corsH);
     const admin = ctx.supabaseAdmin;
 
-    const { data: me } = await admin
+    const { data: me, error: producerError } = await admin
       .from("companies").select("reseller_wholesale_pct, payment_method, reseller_billing_mode")
       .eq("id", ctx.produttoreId).maybeSingle();
-    const pct = Math.min(100, Math.max(0, Number(me?.reseller_wholesale_pct ?? 0)));
-    const factor = 1 - pct / 100;
+    if (producerError) throw producerError;
+    const period = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit" }).format(new Date());
+    const { data: account, error: accountError } = await admin.from("produttori_conti_wholesale")
+      .select("period, amount_cents, stripe_status").eq("produttore_id", ctx.produttoreId).eq("period", period).maybeSingle();
+    if (accountError) throw accountError;
 
     const { data: rivs, error } = await admin
       .from("companies")
@@ -51,15 +55,20 @@ Deno.serve(async (req) => {
       list_price: Number(r.subscription_plans?.price_monthly ?? 0),
     }));
 
-    const comped = mapped.filter((r) => r.comped).map((r) => ({ ...r, your_price: round2(r.list_price * factor) }));
+    const quote = wholesaleQuote(rivs ?? [], Number(me?.reseller_wholesale_pct ?? 0));
+    const prices = new Map(quote.items.map((item) => [item.id, item]));
+    const comped = mapped.filter((r) => r.comped).map((r) => ({
+      ...r, your_price: (prices.get(r.id)?.amount_cents ?? 0) / 100,
+    }));
     const selfPaid = mapped.filter((r) => !r.comped).map(({ id, name, plan_name, list_price, status }) => ({ id, name, plan_name, list_price, status }));
 
-    const listTotal = round2(comped.reduce((s, r) => s + r.list_price, 0));
-    const yourTotal = round2(comped.reduce((s, r) => s + r.your_price, 0));
+    const listTotal = quote.items.reduce((sum, item) => sum + item.list_cents, 0) / 100;
+    const yourTotal = quote.total / 100;
 
     return jsonResponse({
       success: true,
-      wholesale_pct: pct,
+      wholesale_pct: quote.pct,
+      current_account: account ? { period, amount: account.amount_cents / 100, status: account.stripe_status } : null,
       payment_method: (me?.payment_method as string | null) ?? null,
       billing_mode: (me?.reseller_billing_mode as string | null) ?? "fabbrica_paga",
       items: comped,

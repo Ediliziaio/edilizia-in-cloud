@@ -19,6 +19,7 @@ import {
   Clock,
   Eye,
   LogIn,
+  ListChecks,
   Pause,
   Plus,
   Search,
@@ -44,6 +45,7 @@ import {
 } from "@/hooks/accountant/useAccountantPortalData";
 import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
 import { CreateAziendaDialog } from "@/components/accountant/CreateAziendaDialog";
+import { useMyChangeRequests } from "@/hooks/accountant/useAccountantChangeRequests";
 import { ACCESS_MODE_OPTIONS } from "@/lib/commercialista/livelliAccesso";
 
 function companyInitials(name: string) {
@@ -84,6 +86,7 @@ export default function AccountantDashboard() {
   const { data: firm } = useAccountantFirm();
   const { data: companies = [], isLoading: companiesLoading, isError: companiesError, refetch: refetchCompanies } = useAccountantCompanies();
   const { data: notifications = [] } = useAccountantNotifications();
+  const { data: requests, isError: requestsError } = useMyChangeRequests(firm?.id);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | AccountantAccessStatus>("all");
@@ -99,14 +102,16 @@ export default function AccountantDashboard() {
       total: companies.length,
       active: active.length,
       invited: invited.length,
+      approvalRequired: active.filter((item) => item.access_mode === "approval_required").length,
       suspended: suspended.length,
     };
   }, [companies]);
 
-  const unreadNotifications = useMemo(
-    () => notifications.filter((n) => !n.is_read),
-    [notifications],
-  );
+  const unreadNotifications = notifications.filter((item) => !item.is_read);
+  const pendingRequests = requests?.filter((item) => item.status === "pending").length;
+  const requestsHint = requestsError ? "Apri lo storico per riprovare"
+    : pendingRequests === undefined ? "Caricamento delle richieste…" :
+      pendingRequests === 0 ? "Nessuna risposta in attesa" : `${pendingRequests} in attesa nelle richieste recenti`;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -192,15 +197,42 @@ export default function AccountantDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Notifiche nuove
+                  Deleghe sospese
                 </p>
-                <p className="mt-1 text-2xl font-bold">{unreadNotifications.length}</p>
+                <p className="mt-1 text-2xl font-bold">{stats.suspended}</p>
               </div>
-              <Bell className="h-6 w-6 text-blue-500" />
+              <Pause className="h-6 w-6 text-slate-500" />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <section aria-labelledby="studio-work">
+        <h2 id="studio-work" className="mb-2 text-lg font-semibold">Da gestire</h2>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Link to="/commercialista/inbox" className="flex items-center gap-3 rounded-lg border bg-card p-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Bell className="h-5 w-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Apri gli inviti e le notifiche</span>
+              <span className="block text-xs text-muted-foreground">
+                {companiesLoading || companiesError ? "Verifica lo stato nella posta dello studio"
+                  : `${stats.invited} ${stats.invited === 1 ? "invito" : "inviti"} · ${unreadNotifications.length} notifiche nuove`}
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0" />
+          </Link>
+          <Link to="/commercialista/richieste" className="flex items-center gap-3 rounded-lg border bg-card p-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <ListChecks className="h-5 w-5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">Segui le richieste di modifica</span>
+              <span className="block text-xs text-muted-foreground">
+                {requestsHint}{!companiesLoading && !companiesError && ` · ${stats.approvalRequired} con approvazione`}
+              </span>
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0" />
+          </Link>
+        </div>
+      </section>
 
       {/* Hint primo accesso */}
       {companiesError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm">
@@ -233,6 +265,7 @@ export default function AccountantDashboard() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="search"
+                  aria-label="Cerca azienda per nome o partita IVA"
                   placeholder="Cerca per nome o P.IVA"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}

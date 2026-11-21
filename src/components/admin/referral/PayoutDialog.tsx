@@ -1,37 +1,15 @@
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
-} from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { formatCurrency } from "@/lib/formatters";
+import { referralBalanceKey, requestReferralPayout, useReferralBalance } from "@/lib/referralPayouts";
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
-
-const schema = z.object({
-  amount: z.coerce.number<string | number>().min(0.01, "Importo obbligatorio"),
-  period_start: z.string().min(1, "Data inizio obbligatoria"),
-  period_end: z.string().min(1, "Data fine obbligatoria"),
-  payment_method: z.enum(["bank_transfer", "paypal", "other"]),
-  notes: z.string().optional().or(z.literal("")),
-}).refine((data) => new Date(data.period_end) >= new Date(data.period_start), {
-  path: ["period_end"],
-  message: "La data fine deve essere successiva o uguale alla data inizio",
-});
-
-type FormData = z.infer<typeof schema>;
 
 interface Props {
   referrer: Referrer | null;
@@ -39,148 +17,66 @@ interface Props {
 }
 
 export function PayoutDialog({ referrer, onOpenChange }: Props) {
+  if (!referrer) return null;
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onOpenChange(); }}>
+      <RequestForm key={referrer.id} referrer={referrer} onClose={onOpenChange} />
+    </Dialog>
+  );
+}
+
+function RequestForm({ referrer, onClose }: { referrer: Referrer; onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const availableBalance = referrer ? Math.max(0, (referrer.total_earned || 0) - (referrer.total_paid || 0)) : 0;
-
-  const form = useForm<z.input<typeof schema>, unknown, FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      amount: 0,
-      period_start: "",
-      period_end: "",
-      payment_method: "bank_transfer",
-      notes: "",
-    },
-  });
-
-  useEffect(() => {
-    if (referrer) {
-      form.reset({
-        amount: 0,
-        period_start: "",
-        period_end: "",
-        payment_method: "bank_transfer",
-        notes: "",
-      });
-    }
-    // S2-02: form.reset stabile (react-hook-form ref-based), referrer letto via .id
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [referrer?.id]);
-
+  const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const requestKey = useRef<{ fingerprint: string; key: string } | undefined>(undefined);
+  const { data: balance, isError } = useReferralBalance(referrer.id);
+  const numericAmount = Number(amount);
   const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      if (!referrer) throw new Error("Referrer non selezionato");
-      if (data.amount > availableBalance) {
-        throw new Error("L'importo supera il saldo commissioni disponibile");
+    mutationFn: () => {
+      const fingerprint = JSON.stringify([numericAmount, notes]);
+      if (requestKey.current?.fingerprint !== fingerprint) {
+        requestKey.current = { fingerprint, key: crypto.randomUUID() };
       }
-      const { error: payoutError } = await supabase.from("referral_payouts").insert({
-        referrer_id: referrer.id,
-        amount: data.amount,
-        period_start: data.period_start,
-        period_end: data.period_end,
-        paid_at: new Date().toISOString(),
-        status: "paid",
-        payment_method: data.payment_method,
-        notes: data.notes || null,
-      });
-      if (payoutError) throw payoutError;
-
-      // Fetch current total from all payouts to avoid stale state
-      const { data: allPayouts, error: fetchError } = await supabase
-        .from("referral_payouts")
-        .select("amount")
-        .eq("referrer_id", referrer.id)
-        .eq("status", "paid");
-      if (fetchError) throw fetchError;
-
-      const newTotal = (allPayouts || []).reduce((sum, p) => sum + Number(p.amount), 0);
-      const { error: updateError } = await supabase
-        .from("referrers")
-        .update({ total_paid: newTotal })
-        .eq("id", referrer.id);
-      if (updateError) throw updateError;
+      return requestReferralPayout(referrer.id, numericAmount, requestKey.current.key, notes);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.referrers });
+      queryClient.invalidateQueries({ queryKey: referralBalanceKey(referrer.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.referralPayouts });
       queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-paid-payouts"] });
-      toast({ title: "Pagamento registrato" });
-      form.reset();
-      onOpenChange();
+      queryClient.invalidateQueries({ queryKey: ["pending-payout-count"] });
+      toast({ title: "Richiesta creata", description: "Il pagamento è in attesa di approvazione." });
+      onClose();
     },
-    onError: (err: any) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
-    },
+    onError: (error) => toast({ title: "Richiesta non salvata", description: error.message, variant: "destructive" }),
   });
 
-  if (!referrer) return null;
-
   return (
-    <Dialog open={!!referrer} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Registra Pagamento</DialogTitle>
-          <DialogDescription>Pagamento per {referrer.name}</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
-            <FormField control={form.control} name="amount" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Importo (€)</FormLabel>
-                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="period_start" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Periodo Da</FormLabel>
-                  <FormControl><Input type="date" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="period_end" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Periodo A</FormLabel>
-                  <FormControl><Input type="date" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </div>
-            <FormField control={form.control} name="payment_method" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Metodo</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="bank_transfer">Bonifico</SelectItem>
-                    <SelectItem value="paypal">PayPal</SelectItem>
-                    <SelectItem value="other">Altro</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="notes" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Note (opzionale)</FormLabel>
-                <FormControl><Textarea placeholder="Note..." {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <Button type="submit" className="w-full" disabled={mutation.isPending}>
-              Registra Pagamento
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Saldo disponibile: {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(availableBalance)}
-            </p>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Prepara pagamento</DialogTitle>
+        <DialogDescription>Riserva le commissioni maturate di {referrer.name} per l’approvazione.</DialogDescription>
+      </DialogHeader>
+      <form onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }} className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {balance ? `Saldo disponibile ${formatCurrency(balance.available)} · ${formatCurrency(balance.reserved)} riservati`
+            : isError ? "Saldo temporaneamente non disponibile" : "Caricamento del saldo…"}
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="admin-payout-amount">Importo (€)</Label>
+          <Input id="admin-payout-amount" type="number" required min="0.01" step="0.01" max={balance?.available}
+            value={amount} onChange={(event) => setAmount(event.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="admin-payout-notes">Note (facoltative)</Label>
+          <Textarea id="admin-payout-notes" maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} />
+        </div>
+        <Button type="submit" className="w-full"
+          disabled={mutation.isPending || !balance || numericAmount <= 0 || numericAmount > balance.available}>
+          Crea richiesta
+        </Button>
+      </form>
+    </DialogContent>
   );
 }

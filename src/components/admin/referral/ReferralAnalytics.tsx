@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ function convRateColor(rate: number): string {
 }
 
 export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payouts, getMonthlyCommission }: Props) {
+  const queryClient = useQueryClient();
   const [calculating, setCalculating] = useState(false);
 
   const analytics = useMemo(() => {
@@ -72,12 +74,16 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
   const calculateCommissions = async () => {
     setCalculating(true);
     try {
-      const now = new Date();
-      const m = now.getMonth() + 1;
-      const y = now.getFullYear();
+      const [year, month] = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome" })
+        .format(new Date()).split("-").map(Number);
+      const previous = new Date(Date.UTC(year, month - 2, 1));
+      const m = previous.getUTCMonth() + 1;
+      const y = previous.getUTCFullYear();
       const { data, error } = await supabase.rpc("calculate_monthly_commissions", { p_month: m, p_year: y });
-      if (error) throw error;
-      toast.success(`Calcolate ${data} voci di commissione per ${m}/${y}`);
+      if (error) throw new Error(error.message);
+      void queryClient.invalidateQueries({ queryKey: ["referrers"] });
+      void queryClient.invalidateQueries({ queryKey: ["referral-payout-balance"] });
+      toast.success(`${data} nuove voci di commissione per ${m}/${y}`);
     } catch (err: unknown) {
       toast.error("Errore", {
         description: err instanceof Error ? err.message : "Calcolo commissioni non riuscito.",
@@ -143,7 +149,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
       <div className="flex gap-2 flex-wrap">
         <Button onClick={calculateCommissions} disabled={calculating} variant="outline">
           <RefreshCw className={`h-4 w-4 mr-1.5 ${calculating ? "animate-spin" : ""}`} />
-          Calcola Commissioni Mese Corrente
+          Calcola commissioni del mese scorso
         </Button>
         {/* Export CSV nascosto su mobile (feedback_no_mobile_export). */}
         <Button variant="outline" onClick={exportCSV} className="hidden sm:inline-flex">
