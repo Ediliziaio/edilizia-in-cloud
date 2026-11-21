@@ -11,12 +11,12 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Camera, Check, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Camera, Check, Images, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFormDraft } from "@/hooks/campo/useFormDraft";
 import { supabase } from "@/integrations/supabase/client";
-import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { useAnnullaAcquisto, useMieiAcquisti, useRegistraAcquisto } from "@/hooks/campo/useCampoAcquisti";
@@ -224,7 +224,7 @@ function CampoMerceEditor() {
 
       <fieldset disabled={!ripresaDecisa || fase === "leggo" || invioAttivo || registra.isPending} className="min-w-0 space-y-4">
       {/* 1. La foto */}
-      <section className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm" aria-label="Documento">
+      <section className="space-y-3 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label="Documento">
         <input
           ref={cameraInput} type="file" accept="image/*" capture="environment" className="hidden"
           aria-label="Scatta foto del documento"
@@ -243,15 +243,14 @@ function CampoMerceEditor() {
             type="button"
             disabled={fase === "leggo"}
             onClick={() => cameraInput.current?.click()}
-            className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-muted/50 p-4 text-center active:border-primary disabled:opacity-60"
+            className="flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 p-3 text-center text-primary disabled:opacity-60 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
           >
-            {fase === "leggo" ? <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden="true" /> : <Camera className="h-7 w-7 text-muted-foreground" aria-hidden="true" />}
+            {fase === "leggo" ? <Loader2 className="size-5 shrink-0 motion-safe:animate-spin" aria-hidden="true" /> : <Camera className="size-5 shrink-0" aria-hidden="true" />}
             <span className="text-base font-semibold">{fase === "leggo" ? "Leggo il documento…" : "Fotografa bolla, scontrino o fattura"}</span>
-            {fase !== "leggo" && <span className="text-xs text-muted-foreground">Scatta ora con la fotocamera</span>}
           </button>
         ) : (
           <div className="flex items-start gap-3">
-            {foto.anteprima.startsWith("blob:") ? <img src={foto.anteprima} alt="Documento fotografato" className="h-24 w-20 shrink-0 rounded-xl border object-cover" /> : <ImgRiservata src={foto.anteprima} alt="Documento fotografato" className="h-24 w-20 shrink-0 rounded-xl border object-cover" />}
+            <AnteprimaFotoCampo foto={foto.anteprima} etichetta="documento fotografato" className="h-24 w-20 shrink-0" />
             <div className="min-w-0 flex-1 space-y-1">
               {fase === "letto" && !lettura?.daControllare && <p role="status" className="flex items-center gap-1.5 text-sm font-semibold text-green-700"><Check className="h-4 w-4" aria-hidden="true" />Letto: controlla qui sotto</p>}
               {fase === "letto" && lettura?.daControllare && <p role="status" className="text-sm font-semibold text-amber-700">Letto in parte: controlla bene fornitore, prodotti e totale.</p>}
@@ -262,7 +261,9 @@ function CampoMerceEditor() {
             </div>
           </div>
         )}
-        <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => fileInput.current?.click()}>{foto ? "Cambia foto dalla galleria" : "Scegli dalla galleria"}</button>
+        <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-semibold" onClick={() => fileInput.current?.click()}>
+          <Images className="size-4 shrink-0" aria-hidden="true" />{foto ? "Cambia foto dalla galleria" : "Scegli dalla galleria"}
+        </button>
         {nuovaFoto && <div role="alert" className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
           <p>La nuova foto sostituirà il documento e i dati compilati. Cantiere, pagamento e note restano invariati.</p>
           <div className="flex flex-wrap gap-2">

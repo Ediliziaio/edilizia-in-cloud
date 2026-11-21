@@ -236,7 +236,7 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(null);
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
-    await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("Indica le ore")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Indica le ore");
     expect(state.insert).not.toHaveBeenCalled();
   });
   it("propone solo il cantiere corrente, pause escluse", async () => {
@@ -267,7 +267,7 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
   });
   it("segnala una sequenza anomala senza precompilarla come confermata", () => {
     state.punches = [punch("uscita", "12:00")]; render(<CampoRapportino />);
-    expect(screen.getByText(/timbrature da verificare/)).toBeInTheDocument();
+    expect(screen.getByText(/Verifica le timbrature/)).toBeInTheDocument();
     expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(null);
   });
   it("scegliere un membro non assegna otto ore e blocca la presenza vuota", async () => {
@@ -277,9 +277,9 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     expect(screen.getByLabelText("Ore di Luca Bianchi")).toHaveValue(null);
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
-    await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("ogni persona selezionata")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("ogni persona selezionata");
     expect(state.insert).not.toHaveBeenCalled();
-    fireEvent.click(screen.getAllByRole("button", { name: "Passo precedente" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica ore e presenze" }));
     changeFormControl(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));

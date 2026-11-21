@@ -94,7 +94,7 @@ async function compila({ fasi, foto = 0 }: { fasi: string[]; foto?: number }) {
     const file = (n: number) => new File(["x"], `f${n}.jpg`, { type: "image/jpeg" });
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     changeFormControl(input, { target: { files: Array.from({ length: foto }, (_, i) => file(i)) } });
-    await waitFor(() => expect(screen.getAllByAltText("preview")).toHaveLength(foto));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /^Ingrandisci foto \d+$/ })).toHaveLength(foto));
   }
   fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
   for (const nome of fasi) fireEvent.click(screen.getByRole("button", { name: nome }));
@@ -309,6 +309,7 @@ describe("un rapportino respinto si riapre con i collegamenti già fatti", () =>
     render(<CampoRapportino />);
     await waitFor(() => expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(3));
     // anche nel passo 1 la miniatura arriva firmata, non come indirizzo pubblico di un contenitore chiuso
-    await waitFor(() => expect(screen.getAllByAltText("preview")[0]).toHaveAttribute("src", "https://firmato.invalid/azienda/ordine/a.jpg"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ingrandisci foto 1" }).querySelector("img"))
+      .toHaveAttribute("src", "https://firmato.invalid/azienda/ordine/a.jpg"));
   });
 });
