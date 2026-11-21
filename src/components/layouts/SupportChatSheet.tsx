@@ -201,3 +201,5 @@ export function SupportChatSheet({ open, onOpenChange }: SupportChatSheetProps) 
     </Sheet>
   );
 }
+
+export default SupportChatSheet;

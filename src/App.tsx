@@ -37,7 +37,7 @@ import { BannerCookie } from "@/components/legal/BannerCookie";
 import { toast } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
-import { PaymentGateDialog } from "@/components/billing/PaymentGateDialog";
+import { PaymentGateHost } from "@/components/billing/PaymentGateHost";
 import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
 import { Force2FAGuard } from "@/components/auth/Force2FAGuard";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -610,7 +610,7 @@ const Gestionale = () => (
         </Suspense>
         <AuthProvider>
           <FinancialRefreshBridge />
-          <PaymentGateDialog />
+          <PaymentGateHost />
           <AnalyticsProvider>
           <Force2FAGuard>
           <BillingModeProvider>

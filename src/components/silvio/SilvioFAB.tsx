@@ -15,7 +15,7 @@
  *
  * Pattern: Popover ancorato al bottone, animazioni leggere via framer-motion.
  */
-import { useEffect, useMemo, useState, lazy, Suspense, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -100,6 +100,8 @@ interface Props {
   hidden?: boolean;
   /** Modalità chat: "azienda" (default) o "admin" (Silvio Superadmin) */
   mode?: "azienda" | "admin";
+  /** Il layout azienda ascolta l'evento anche mentre il pannello si sta caricando. */
+  richiestaChat?: { draft?: string } | null;
 }
 
 /**
@@ -193,7 +195,7 @@ interface MorningBriefing {
   read_at: string | null;
 }
 
-export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
+export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const pageContext = useSilvioPageContext();
@@ -288,33 +290,37 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
   const [chatHasMounted, setChatHasMounted] = useState(false);
   useEffect(() => { if (chatOpen) setChatHasMounted(true); }, [chatOpen]);
 
+  const apriChatDaEvento = useCallback((draft?: string) => {
+    setOpen(false);
+    if (draft) setChatPrefill(`${Date.now()}::${draft}`);
+    setChatOpen(true);
+  }, []);
+  useEffect(() => {
+    if (richiestaChat) apriChatDaEvento(richiestaChat.draft);
+  }, [richiestaChat, apriChatDaEvento]);
+
   // Listener globale per aprire il sheet da componenti esterni (es. il bell
   // popover "Apri chat con Silvio"). Pattern d'uso:
   //   window.dispatchEvent(new Event("silvio:open-chat"))                 // apre vuoto
   //   window.dispatchEvent(new CustomEvent("silvio:open-chat",            // apre con draft
   //     { detail: { draft: "Riassumi candidato Marco" } }))
+  const ascoltaEventi = richiestaChat === undefined;
   useEffect(() => {
+    if (!ascoltaEventi) return;
     const openHandler = (e: Event) => {
       // consuma l'eventuale flag pending (vedi sotto) per evitare riaperture a un futuro remount
       (window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending = false;
-      setOpen(false); // chiudi popover FAB se aperto
       const detail = (e as CustomEvent<{ draft?: string }>).detail;
-      if (detail?.draft) {
-        // Prefix con timestamp per forzare re-application su prefillDraft anche se stessa string
-        setChatPrefill(`${Date.now()}::${detail.draft}`);
-      }
-      setChatOpen(true);
+      apriChatDaEvento(detail?.draft);
     };
     window.addEventListener("silvio:open-chat", openHandler);
-    // Il FAB è montato in differita (deferredRealtimeReady): se l'utente ha toccato
-    // il punch button della bottom nav PRIMA del mount, l'evento è andato perso —
-    // il punch lascia un flag e qui lo onoriamo (niente tap "muti" al primo secondo).
+    // Compatibilità con il flag delle vecchie barre di navigazione.
     if ((window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending) {
       (window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending = false;
       setChatOpen(true);
     }
     return () => window.removeEventListener("silvio:open-chat", openHandler);
-  }, []);
+  }, [apriChatDaEvento, ascoltaEventi]);
   const [tipIdx, setTipIdx] = useState(0);
   const [tipsExpanded, setTipsExpanded] = useState(false);
 
@@ -785,3 +791,5 @@ function ActionCard({
     </motion.button>
   );
 }
+
+export default SilvioFAB;

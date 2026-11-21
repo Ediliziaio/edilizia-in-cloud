@@ -12,7 +12,6 @@
 import { accountingHome } from "@/lib/companyManagementMode";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
 
@@ -141,9 +140,9 @@ function appendSearchToAziendaUrl(url: string, search: string) {
 }
 
 /* ── Componente ────────────────────────────────────────── */
-export function MobileBottomNav() {
+export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean }) {
   const location = useLocation();
-  const { unreadCount } = useNotifications();
+  const { unreadCount } = useNotifications(badgePronti);
   const permissions = usePermissions();
   const { role, effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
@@ -306,12 +305,16 @@ export function MobileBottomNav() {
     { type: "app" },
   ];
 
+  const indiceAttivo = appGridOpen ? navSlots.length - 1 : navSlots.findIndex(slot => (
+    slot.type === "link" && (slot.active ?? isActive(slot.href, slot.exact))
+  ));
+
   const bottomNav = (
     <nav
       // "Liquid glass" stile iOS 26 (richiesta utente, rif. video Instagram/App
       // Store): la barra diventa una PILLOLA flottante in vetro traslucido,
       // staccata dai bordi, con la bolla dell'elemento attivo che scivola
-      // liquida tra le voci (motion layoutId + spring, vedi sotto).
+      // tra le voci.
       // Overlay flottante (richiesta utente, rif. video Instagram): la pillola
       // NON occupa più una fascia di layout — il contenuto scorre DIETRO il
       // vetro. absolute (non fixed: inaffidabile su Safari iOS in questo
@@ -329,9 +332,20 @@ export function MobileBottomNav() {
         // e si COMPRIME di più stile Instagram (scala ~80% ancorata in basso +
         // leggero scorrimento verso il basso, icone incluse), restando visibile
         // e cliccabile; torna piena scrollando su o vicino al top.
-        "pointer-events-auto flex h-16 origin-bottom items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,transform] duration-300 ease-out",
+        "pointer-events-auto relative isolate flex h-16 origin-bottom items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,transform] duration-300 ease-out",
         navHidden && !appGridOpen && "scale-[0.8] opacity-60 translate-y-1.5",
       )}>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-2 flex justify-center transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none"
+          style={{
+            width: `${100 / navSlots.length}%`,
+            transform: `translateX(${Math.max(0, indiceAttivo) * 100}%)`,
+            opacity: indiceAttivo < 0 ? 0 : 1,
+          }}
+        >
+          <div className="h-8 w-12 rounded-2xl bg-blue-100/90" />
+        </div>
         {navSlots.map((slot) => {
           if (slot.type === "app") {
             return (
@@ -343,14 +357,6 @@ export function MobileBottomNav() {
                 type="button"
               >
                 <div className="relative flex h-8 w-12 items-center justify-center">
-                  {appGridOpen && (
-                    <motion.div
-                      layoutId="bottomnav-liquid"
-                      initial={false}
-                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                      className="absolute inset-0 rounded-2xl bg-blue-100/90"
-                    />
-                  )}
                   <LayoutGrid className={cn(
                     "relative h-5 w-5 stroke-[1.5]",
                     appGridOpen ? "text-blue-600 stroke-[2.5]" : "text-muted-foreground"
@@ -405,16 +411,6 @@ export function MobileBottomNav() {
               aria-current={active ? "page" : undefined}
             >
               <div className="relative flex h-8 w-12 items-center justify-center">
-                {/* Bolla "liquida" condivisa: layoutId fa scivolare la stessa
-                    bolla tra le voci con fisica spring (effetto iOS 26). */}
-                {active && !appGridOpen && (
-                  <motion.div
-                    layoutId="bottomnav-liquid"
-                    initial={false}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className="absolute inset-0 rounded-2xl bg-blue-100/90"
-                  />
-                )}
                 <Icon
                   className={cn(
                     "relative h-5 w-5 transition-all duration-200",

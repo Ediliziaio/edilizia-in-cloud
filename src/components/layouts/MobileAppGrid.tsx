@@ -278,7 +278,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const gatingLoading = limitsLoading || flagsLoading;
   const { role, effectiveCompany } = useAuth();
-  const { notifications } = useNotifications();
+  const { notifications } = useNotifications(open);
   const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
   const location = useLocation();
   const [search, setSearch] = useState("");

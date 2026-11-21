@@ -150,10 +150,10 @@ import { FeatureRoute } from "@/components/auth/FeatureRoute";
 // RequireCompanyPermission + CompanyPermissionKey usati via ./company/_shared
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
-import { SettingsLayout } from "@/components/layouts/SettingsLayout";
 import { SoloTabletDesktop } from "@/components/layouts/SoloTabletDesktop";
 
 // Company pages
+const SettingsLayout = lazy(() => import("@/components/layouts/SettingsLayout"));
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
 const UpgradePage = lazy(() => import("@/pages/azienda/UpgradePage"));
 const DemoPreviewShowcase = lazy(() => import("@/pages/azienda/DemoPreviewShowcase"));

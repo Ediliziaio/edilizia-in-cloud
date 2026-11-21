@@ -360,7 +360,7 @@ function EntityGroupRow({
   );
 }
 
-export function NotificationsBellPopover() {
+export function NotificationsBellPopover({ badgePronti = true }: { badgePronti?: boolean }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -368,10 +368,11 @@ export function NotificationsBellPopover() {
     notifications,
     unreadCount,
     unreadMessagesCount,
+    isLoading,
     markAsRead,
     markAllAsRead,
     dismiss,
-  } = useNotifications();
+  } = useNotifications(badgePronti || open);
 
   const groupedNotifications = useGroupedNotifications(notifications, filter);
 
@@ -475,7 +476,9 @@ export function NotificationsBellPopover() {
 
         {/* Content */}
         <ScrollArea className="flex-1 max-h-[60vh]">
-          {visibleCount === 0 ? (
+          {isLoading && visibleCount === 0 ? (
+            <p role="status" className="px-4 py-6 text-center text-sm text-muted-foreground">Caricamento notifiche…</p>
+          ) : visibleCount === 0 ? (
             <EmptyState filter={filter} totalCount={notifications.length} />
           ) : (
             <div>

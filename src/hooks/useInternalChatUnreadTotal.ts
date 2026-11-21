@@ -22,7 +22,7 @@ interface SidebarRow {
 
 const QUERY_KEY = "internal-chat-unread-total";
 
-export function useInternalChatUnreadTotal() {
+export function useInternalChatUnreadTotal(enabled = true) {
   const { effectiveCompany, profile } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = profile?.id;
@@ -32,7 +32,7 @@ export function useInternalChatUnreadTotal() {
 
   const { data: unreadTotal = 0 } = useQuery({
     queryKey: [QUERY_KEY, companyId, userId],
-    enabled: !!companyId && !!userId,
+    enabled: enabled && !!companyId && !!userId,
     staleTime: 15_000,
     // 15/09/2026: il badge lo tiene fresco la subscription realtime qui sotto;
     // il giro è solo una rete di sicurezza, quindi 5 minuti e mai a scheda
@@ -62,7 +62,7 @@ export function useInternalChatUnreadTotal() {
   // Realtime: invalida la query al primo INSERT su internal_chat_messages
   // dell'azienda corrente. Refetch automatico → badge sempre fresco.
   useEffect(() => {
-    if (!companyId || !userId) return;
+    if (!enabled || !companyId || !userId) return;
     return shareSubscription(queryClient, `chat-unread:${companyId}:${userId}`, () => {
       const istanza = Math.random().toString(36).slice(2, 10);
       const channel = supabase
@@ -87,7 +87,7 @@ export function useInternalChatUnreadTotal() {
         void supabase.removeChannel(channel);
       };
     });
-  }, [companyId, userId, queryClient]);
+  }, [enabled, companyId, userId, queryClient]);
 
   return unreadTotal;
 }

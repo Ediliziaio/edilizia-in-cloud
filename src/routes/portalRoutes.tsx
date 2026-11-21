@@ -4,10 +4,11 @@ import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Navigate, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { CustomerLayout } from "@/components/layouts/CustomerLayout";
-import { PartnerLayout } from "@/components/layouts/PartnerLayout";
-import { ProduttoreLayout } from "@/components/layouts/ProduttoreLayout";
 import { EMPLOYEE_LEGACY_REDIRECTS } from "@/routes/employeeLegacyRedirects";
+
+const CustomerLayout = lazy(() => import("@/components/layouts/CustomerLayout"));
+const PartnerLayout = lazy(() => import("@/components/layouts/PartnerLayout"));
+const ProduttoreLayout = lazy(() => import("@/components/layouts/ProduttoreLayout"));
 
 // Customer pages
 const CustomerOrders = lazy(() => import("@/pages/cliente/CustomerOrders"));

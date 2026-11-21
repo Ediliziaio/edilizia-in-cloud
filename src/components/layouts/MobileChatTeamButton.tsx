@@ -13,9 +13,9 @@ import { MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
 
-export function MobileChatTeamButton() {
+export function MobileChatTeamButton({ badgePronti = true }: { badgePronti?: boolean }) {
   const navigate = useNavigate();
-  const unread = useInternalChatUnreadTotal();
+  const unread = useInternalChatUnreadTotal(badgePronti);
 
   return (
     <Button

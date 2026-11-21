@@ -24,7 +24,7 @@ export type EmailCounts = ConteggiEmail;
  *   - `unread > 0`  → secondary (grigio)
  *   - `unread = 0`  → niente badge
  */
-export function useUnreadEmailCount(): {
+export function useUnreadEmailCount(enabled = true): {
   data: EmailCounts | null;
   isLoading: boolean;
 } {
@@ -34,7 +34,7 @@ export function useUnreadEmailCount(): {
 
   return useQuery({
     queryKey: ["unread-email-count", userId, companyId],
-    enabled: !!userId && !!companyId,
+    enabled: enabled && !!userId && !!companyId,
     // 15/09/2026: 30s → 120s, e mai con la scheda nascosta. La sync inbox gira
     // lato server ogni pochi minuti: un giro più stretto non mostrava prima nulla.
     // Tornando sulla scheda si aggiorna subito (refetchOnWindowFocus).

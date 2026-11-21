@@ -103,3 +103,5 @@ export function ProduttoreLayout() {
     </div>
   );
 }
+
+export default ProduttoreLayout;

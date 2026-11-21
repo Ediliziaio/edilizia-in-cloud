@@ -689,3 +689,5 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
     </Dialog>
   );
 }
+
+export default SupportChannelDialog;

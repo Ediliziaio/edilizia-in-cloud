@@ -8,7 +8,7 @@ import { contaAttivita, LIMITE_RIGHE_ATTIVITA, type ConteggiAttivita } from "@/l
 
 type TaskCounts = ConteggiAttivita;
 
-export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean } {
+export function useMyTaskCount(enabled = true): { data: TaskCounts | null; isLoading: boolean } {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -43,7 +43,7 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
 
       return contaAttivita(res.data, res.count, todayStart, tomorrowStart);
     },
-    enabled: !!userId && !!companyId,
+    enabled: enabled && !!userId && !!companyId,
     // 15/09/2026: 60s → 180s, mai con la scheda nascosta; al ritorno sulla
     // scheda si aggiorna subito.
     refetchInterval: 180_000,
