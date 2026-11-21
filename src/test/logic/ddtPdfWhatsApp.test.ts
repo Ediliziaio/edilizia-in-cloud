@@ -9,7 +9,7 @@ vi.mock("../../../supabase/functions/_shared/pdfExtraction.ts", () => ({ estraiP
 vi.mock("../../../supabase/functions/_shared/aiRouter.ts", () => ({ aiRouterComplete: m.ocr }));
 
 const id = "10000000-0000-4000-8000-000000000001";
-const job = { id, company_id: "azienda", created_by: "utente", source: "whatsapp", files: [],
+const job: Parameters<typeof preparaPdfWhatsApp>[1] = { id, company_id: "azienda", created_by: "utente", source: "whatsapp", files: [],
   file_hash: "a".repeat(64), lease_id: "lease", attempts: 1 };
 const db = { storage: { from: () => ({ upload: m.upload }) }, rpc: m.rpc } as unknown as Parameters<typeof preparaPdfWhatsApp>[0];
 const intestazioni = ["DDT n. 41 Pagina 1 di 2", "Righe della merce Pagina 2 di 2", "DDT n. 42 Pagina 1 di 1"];

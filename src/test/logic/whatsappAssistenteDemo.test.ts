@@ -394,7 +394,7 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     db.tabelle.orders.push({ id: secondo, company_id: azienda, order_code: "SECONDO", description: "Secondo cantiere",
       status: "in_corso", work_start_date: "2026-11-20" });
     db.tabelle.order_campo_assignments.push({ company_id: azienda, order_id: secondo, user_id: "utente-a" });
-    const foto = [];
+    const foto: Awaited<ReturnType<typeof registra>>[] = [];
     for (const [i, byte] of [1, 2, 3, 4, 1].entries()) {
       const f = await registra({ id: `wamid.gruppo-${i}`, type: "image", image: { id: String(234580 + i), caption: "Bolla" } },
         new Blob([new Uint8Array([255, 216, 255, byte])], { type: "image/jpeg" }));
