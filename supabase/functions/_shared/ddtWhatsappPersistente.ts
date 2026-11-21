@@ -171,5 +171,5 @@ export async function acquisisciDdtWhatsapp(
       .is("order_id", null).is("destinazione", null).eq("status", j.status);
     if (updateError) throw updateError;
   }
-  return { id: j.id as string, status: j.status as string, stessoOperatore };
+  return { id: j.id as string, status: j.status as string, stessoOperatore, duplicata: j.source_key !== opts.messageId };
 }

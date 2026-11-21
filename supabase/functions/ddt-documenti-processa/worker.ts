@@ -11,6 +11,9 @@ import { parteFileDdt } from "../_shared/lettoreDdt.ts";
 import { tipoFileDdt } from "../_shared/tipoFileDdt.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { avviaAttivitaAi } from "../_shared/aiAttivitaLive.ts";
+import { preparaPdfWhatsApp } from "./pdfWhatsApp.ts";
+import { datiBolla } from "../whatsapp-ai-processor/bolleInConversazione.ts";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 export interface DocumentoFile {
   path: string;
   name: string;
@@ -20,6 +23,7 @@ export interface DocumentoFile {
   prepared_mime?: string;
   prepared_name?: string;
   bucket?: string;
+  origine_pdf?: string;
 }
 export interface DocumentoJob {
   id: string;
@@ -30,6 +34,27 @@ export interface DocumentoJob {
   file_hash: string;
   lease_id: string;
   attempts: number;
+}
+
+async function avvisoDestinazioneWhatsApp(db: SupabaseClient, job: DocumentoJob, result: Record<string, unknown>) {
+  if (job.source !== "whatsapp") return null;
+  const { indirizzo, riferimento } = datiBolla({ result });
+  if (!indirizzo && !riferimento) return null;
+  const { data: corrente, error } = await db.from("ddt_document_jobs").select("order_id, destinazione")
+    .eq("id", job.id).eq("company_id", job.company_id).eq("lease_id", job.lease_id).maybeSingle();
+  if (error || !corrente?.destinazione) return null;
+  const esatto = (testo: string) => testo.replace(/[\\%_]/g, "\\$&");
+  const [ordini, cantieri] = await Promise.all([
+    riferimento && db.from("purchase_orders").select("order_id").eq("company_id", job.company_id)
+      .ilike("oda_number", esatto(riferimento.slice(0, 80))).not("order_id", "is", null).limit(2),
+    indirizzo && /\d/.test(indirizzo) && db.from("orders").select("id").eq("company_id", job.company_id)
+      .ilike("indirizzo_lavori", esatto(indirizzo.slice(0, 320))).is("deleted_at", null).limit(2),
+  ]);
+  if ((ordini && !ordini.error && ordini.data?.length === 1 && ordini.data[0].order_id !== corrente.order_id) ||
+    (cantieri && !cantieri.error && cantieri.data?.length === 1 && cantieri.data[0].id !== corrente.order_id)) {
+    return "La bolla indica un cantiere diverso dalla destinazione scelta su WhatsApp. Verifica prima di registrare.";
+  }
+  return null;
 }
 /**
  * Gli errori per cui riprovare è inutile (11/11/2026): la carta non c'è, l'abbonamento
@@ -79,6 +104,7 @@ export async function processaDocumento(
     if (!Array.isArray(j.files) || !j.files.length || j.files.length > 12)
       throw new Error("File del documento non validi");
     const contenuti: any[] = [];
+    let pdfWhatsApp: Uint8Array | undefined;
     const hashes: string[] = [];
     let totale = 0;
     let totalePreparato = 0;
@@ -159,6 +185,10 @@ export async function processaDocumento(
         ].includes(mime)
       )
         throw new Error("Formato non leggibile");
+      if (j.source === "whatsapp" && j.files.length === 1 && mime === "application/pdf" && !f.origine_pdf) {
+        pdfWhatsApp = bytes;
+        continue;
+      }
       contenuti.push(
         {
           type: "text",
@@ -172,6 +202,24 @@ export async function processaDocumento(
       j.file_hash
     )
       throw new Error("L’originale non corrisponde al documento acquisito");
+    if (pdfWhatsApp) {
+      const esitoPdf = await preparaPdfWhatsApp(db, j, pdfWhatsApp);
+      if (esitoPdf === "split" || esitoPdf === "lease_scaduta") {
+        if (esitoPdf === "split") attivita.chiudi("completata", "terminata");
+        return { id: j.id, stato: esitoPdf };
+      }
+      if (esitoPdf === "da_controllare") {
+        const { data, error } = await db.from("ddt_document_jobs").update({
+          status: "review", result: null, lease_id: null, lease_until: null, updated_at: new Date().toISOString(),
+          last_error: "Controlla quali pagine appartengono alla stessa bolla. Il PDF originale è conservato.",
+        }).eq("id", j.id).eq("lease_id", j.lease_id).eq("status", "processing").select("id");
+        if (error) throw error;
+        if (data?.length) attivita.chiudi("in_attesa", "da_smistare");
+        return { id: j.id, stato: data?.length ? "review" : "lease_scaduta" };
+      }
+      contenuti.push({ type: "text", text: `Documento ${j.files[0].name}` },
+        parteFileDdt({ base64: bytesToBase64(pdfWhatsApp), mime: "application/pdf", fileName: j.files[0].name }));
+    }
     const ai = await attivita.misura("documento_in_lettura", () => aiRouterComplete({
       supabase: db,
       taskKey: "pdf_vision_extract",
@@ -197,6 +245,7 @@ export async function processaDocumento(
     const parsed = leggiJsonDalModello(ai.content);
     if (!parsed) throw new Error("Lettura non riuscita: risposta incompleta");
     const risultato = normalizeDdtPayload(parsed);
+    const avviso = await avvisoDestinazioneWhatsApp(db, j, risultato);
     attivita.passo("salvataggio", ai.modelUsed);
     const { data: updated, error } = await db
       .from("ddt_document_jobs")
@@ -204,7 +253,7 @@ export async function processaDocumento(
         status: "review",
         files: j.files,
         result: risultato,
-        last_error: null,
+        last_error: avviso,
         lease_id: null,
         lease_until: null,
         updated_at: new Date().toISOString(),

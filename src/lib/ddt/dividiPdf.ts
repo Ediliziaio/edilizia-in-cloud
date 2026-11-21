@@ -4,21 +4,8 @@
  * una proposta: la persona lo vede sulle miniature e lo sposta. Una bolla tagliata male smista male tutto.
  */
 
-const NUMERO = /(?:d\.?\s?d\.?\s?t\.?|documento\s+di\s+trasporto|bolla(?:\s+di\s+consegna)?|doc(?:umento)?\.?)\s*(?:di\s+vendita\s+)?(?:n(?:r|um(?:ero)?)?\s*[.°º:]*\s*|numero\s*:?\s*)([A-Za-z0-9][A-Za-z0-9/._-]{0,24})/i;
-const PAGINA = /\bpag(?:ina|\.)?\s*(\d{1,3})\s*(?:di|\/|of)\s*(\d{1,3})\b/i;
-
-export function numeroBollaDaTesto(testo: string): string | null {
-  const m = testo.replace(/\s+/g, " ").match(NUMERO);
-  return m ? m[1].replace(/[./_-]+$/, "").toUpperCase() : null;
-}
-
-export function paginaDiTotale(testo: string): { pagina: number; totale: number } | null {
-  const m = testo.match(PAGINA);
-  if (!m) return null;
-  const pagina = Number(m[1]);
-  const totale = Number(m[2]);
-  return pagina >= 1 && totale >= pagina ? { pagina, totale } : null;
-}
+import { numeroBollaDaTesto, paginaDiTotale } from "../../../shared/ddtPaginePdf";
+export { numeroBollaDaTesto, paginaDiTotale };
 
 export interface PropostaTagli {
   /** Le pagine (da 0) con cui comincia una bolla nuova. La prima non si elenca. */

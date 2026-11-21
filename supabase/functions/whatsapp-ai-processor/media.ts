@@ -26,6 +26,7 @@ import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
 import { PROMPT_LETTORE_DDT, parteFileDdt } from "../_shared/lettoreDdt.ts";
 import { acquisisciDdtWhatsapp } from "../_shared/ddtWhatsappPersistente.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { contaPaginePdfCompleto } from "../_shared/sceltaModelloLettura.ts";
 
 /** Quanto vale il link a un file salvato: basta per registrare DDT e foto nei giorni seguenti. */
 const DURATA_LINK_SECONDI = 60 * 60 * 24 * 30;
@@ -210,6 +211,7 @@ interface OpzioniDocumentoOperativo {
   messageId: string;
   file?: Blob;
   ricordaBolla?: (id: string, stato?: string) => void;
+  ricordaBollaDuplicata?: () => void;
   ricordaScontrino?: (lettura?: DdtLetto) => void;
 }
 
@@ -218,6 +220,7 @@ async function salvaBollaOperativa(supabase: SupabaseClient, opts: OpzioniDocume
   if (opts.acquisizioneConsentita === false) return false;
   try {
     const bolla = await acquisisciDdtWhatsapp(supabase, { ...opts, ...dati });
+    if (bolla.duplicata) opts.ricordaBollaDuplicata?.();
     if (bolla.stessoOperatore) opts.ricordaBolla?.(bolla.id, bolla.status);
     return true;
   } catch {
@@ -380,6 +383,7 @@ export async function leggiDocumentoOperativo(
       const { data: file, error } = fileIniziale ? { data: fileIniziale, error: null } : await download();
       if (error || !file) throw new Error("PDF non disponibile");
       if (file.size > limite) return troppoGrande;
+      const bytes = new Uint8Array(await file.arrayBuffer());
       const letto = await aiRouterComplete({
         supabase, taskKey: "pdf_vision_extract", companyId: opts.companyId, userId: opts.userId,
         idempotencyKey: `wa_ddt_pdf_${opts.companyId}_${opts.messageId}`,
@@ -387,14 +391,20 @@ export async function leggiDocumentoOperativo(
           { role: "system", content: conRegoleDocumento(PROMPT_LETTORE_DDT) },
           { role: "user", content: [
             { type: "text", text: "Leggi questo PDF scansionato. Estrai tutte le righe leggibili, senza inventare dati mancanti." },
-            parteFileDdt({ base64: bytesToBase64(new Uint8Array(await file.arrayBuffer())), mime: "application/pdf", fileName: "documento-whatsapp.pdf" }),
+            parteFileDdt({ base64: bytesToBase64(bytes), mime: "application/pdf", fileName: "documento-whatsapp.pdf" }),
           ] },
         ],
         params: { temperature: 0.05, max_tokens: 4500 }, responseFormat: { type: "json_object" },
       });
       const raw = JSON.parse(letto.content);
       const documento = normalizzaDdtLetto(raw);
-      if (documento.tipo === "ddt") await salvaBollaOperativa(supabase, opts, { file, result: raw });
+      if (documento.tipo === "ddt") {
+        const pagine = await contaPaginePdfCompleto(bytes);
+        if (pagine === 1) await salvaBollaOperativa(supabase, opts, { file, result: raw });
+        else if (await salvaBollaOperativa(supabase, opts, { file, accodaLettura: true })) {
+          return "[Documento PDF — DDT da leggere]";
+        }
+      }
       if (documento.tipo === "scontrino") opts.ricordaScontrino?.(documento);
       const risultato = documento.tipo && documento.tipo !== "altro" ? testoDdtPerAssistente(documento, opts.didascalia) : null;
       if (risultato) return risultato;

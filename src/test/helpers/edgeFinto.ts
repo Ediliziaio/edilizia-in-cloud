@@ -35,7 +35,7 @@ class Interrogazione {
   private verbo: "select" | "insert" | "update" | "upsert" = "select";
   private colonne: string | null = null;
   private dati: unknown;
-  private ordine: { colonna: string; crescente: boolean } | null = null;
+  private ordine: { colonna: string; crescente: boolean }[] = [];
   private massimo: number | null = null;
   private intervallo: [number, number] | null = null;
   private unica: "single" | "maybe" | null = null;
@@ -107,7 +107,10 @@ class Interrogazione {
     }
     return this;
   }
-  order(colonna: string, opzioni?: { ascending?: boolean }) { this.ordine = { colonna, crescente: opzioni?.ascending !== false }; return this; }
+  order(colonna: string, opzioni?: { ascending?: boolean }) {
+    this.ordine.push({ colonna, crescente: opzioni?.ascending !== false });
+    return this;
+  }
   limit(n: number) { this.massimo = n; return this; }
   range(from: number, to: number) { this.intervallo = [from, to]; return this; }
   single() { this.unica = "single"; return this; }
@@ -145,9 +148,15 @@ class Interrogazione {
     } else {
       risultato = righe.filter((r) => this.corrisponde(r));
     }
-    if (this.ordine) {
-      const { colonna, crescente } = this.ordine;
-      risultato = [...risultato].sort((a, b) => (String(a[colonna] ?? "") < String(b[colonna] ?? "") ? -1 : 1) * (crescente ? 1 : -1));
+    if (this.ordine.length) {
+      risultato = [...risultato].sort((a, b) => {
+        for (const { colonna, crescente } of this.ordine) {
+          const sinistra = String(a[colonna] ?? "");
+          const destra = String(b[colonna] ?? "");
+          if (sinistra !== destra) return (sinistra < destra ? -1 : 1) * (crescente ? 1 : -1);
+        }
+        return 0;
+      });
     }
     if (this.massimo != null) risultato = risultato.slice(0, this.massimo);
     if (this.intervallo) risultato = risultato.slice(this.intervallo[0], this.intervallo[1] + 1);

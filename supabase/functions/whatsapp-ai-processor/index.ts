@@ -75,6 +75,7 @@ import { chiedeAiutoOperativo, chiedeCantieriDiOggi, guidaOperativa } from "./ai
 import { elencaMieiCantieriOggi } from "./tools/operaio/elenca_miei_cantieri_oggi.ts";
 import { avviaProssimoMessaggio, posticipaDomandaBolla } from "./codaConversazione.ts";
 import { avviaLetturaBolla } from "./letturaBollaInCoda.ts";
+import { cercaInvioBolle, destinaInvioBolle, destinazioneDettaPerInvio, type EsitoInvioBolle, messaggioPerTutteLeBolle, posticipaInvioBolle, preletturaInvio, raccogliInvioBolle, recuperaAllegatoInRitardo } from "./invioBolle.ts";
 import { acquisisciDdtWhatsapp } from "../_shared/ddtWhatsappPersistente.ts";
 import { cantiereNellaRichiesta, segnalazioneEsplicita, tipoAllegatoDetto, vuolePreventivoInChat } from "./intentiRapidi.ts";
 import { cercaScontriniInAttesa, datiScontrino, domandaScontrino, importoScontrinoDetto, paganteScontrino, type ScontrinoLetto } from "./scontriniInConversazione.ts";
@@ -270,7 +271,10 @@ Deno.serve(async (req) => {
   const datiCoda = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data.ddt_domanda_posticipata : null;
   const domandaInAttesa = isPlainRecord(datiCoda) && typeof datiCoda.foto_id === "string" && typeof datiCoda.testo === "string"
     ? { fotoId: datiCoda.foto_id, testo: datiCoda.testo } : null;
-  const conDomandaBolla = (testo: string) => domandaInAttesa ? `${testo}\n\n${domandaInAttesa.testo}` : testo;
+  const invioAtteso = isPlainRecord(msg.ai_extracted_data) && typeof msg.ai_extracted_data.ddt_invio_attesa === "string"
+    ? msg.ai_extracted_data.ddt_invio_attesa : undefined;
+  const conDomandaBolla = (testo: string) => domandaInAttesa ? `${testo}\n\n${domandaInAttesa.testo}`
+    : invioAtteso ? `${testo}\n\nLe bolle sono in DDT → Documenti in ingresso. Per collegarle scrivi «Tutte per» seguito dalla destinazione.` : testo;
   if (isPlainRecord(impostazioniNumero) && impostazioniNumero.bot_enabled === false) {
     return termina("processed", "bot_spento");
   }
@@ -342,14 +346,14 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         if (e instanceof MediaWhatsAppNonDisponibile) {
-          await sendReply(msg, conDomandaBolla(e.codice === "file_grande" ? "Il file supera il limite di questo canale del gestionale. Invia un file più piccolo."
-            : "Il file WhatsApp non è più disponibile. Invia di nuovo l’allegato originale."));
+          await sendReply(msg, conDomandaBolla(e.codice === "file_grande" ? "Questo file supera il limite. Invia una copia più piccola."
+            : "Questo allegato non è più disponibile. Invia di nuovo l’originale."), true);
           return termina("failed", e.codice);
         }
         console.error(JSON.stringify({ level: "error", fn: "scarica_media", error: String(e) }));
       }
       if (!mediaCorrente && msg.message_type !== "audio") {
-        await sendReply(msg, "📎 Non sono riuscito a scaricare il file che mi hai mandato. Rimandamelo tra poco, per favore.");
+        await sendReply(msg, "Non sono riuscito a scaricare questo allegato. Rimanda solo questo file.", true);
         return termina("failed", "media_download_error");
       }
     }
@@ -364,6 +368,7 @@ Deno.serve(async (req) => {
     if (sessionError) throw new Error("bot_session_lookup_unavailable");
     if (!identity.solaLettura && msg.message_type === "text" && operationalTriage.intent === "unknown" &&
         !chiedeAiutoOperativo(msg.content_text ?? "") && !leggiDestinazioneBolla(msg.content_text ?? "") &&
+        !messaggioPerTutteLeBolle(msg.content_text ?? "") &&
         !paganteScontrino(msg.content_text ?? "") && !importoScontrinoDetto(msg.content_text ?? "") && !tipoAllegatoDetto(msg.content_text ?? "")) {
       const conferma = leggiStatoSessione(existingSess?.state_data, new Date()).conferma;
       const rispostaAlRapportino = conferma?.numero_id === msg.wa_number_id && conferma?.azione === "crea_rapportino" &&
@@ -440,6 +445,7 @@ Deno.serve(async (req) => {
       return termina("failed", "media_download_error");
     }
     let ddtJobId: string | null = null;
+    let ddtDuplicata = false;
     let scontrinoLetto: ScontrinoLetto | undefined;
     let traduzioneAudio = msg.message_type === "audio" && isPlainRecord(msg.ai_extracted_data)
       && typeof msg.ai_extracted_data.trascrizione_italiana === "string";
@@ -458,7 +464,11 @@ Deno.serve(async (req) => {
     };
     const paginaAggiuntiva = mediaCorrente && ["image", "document"].includes(String(msg.message_type)) && paginaDiBolla(msg.content_text ?? "");
     const precedenteLettura = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data.testo_per_assistente : null;
-    if (typeof precedenteLettura === "string" && /^\[(?:Audio trascritto|Foto di un DDT|Documento PDF — DDT)/.test(precedenteLettura)) {
+    const preletto = preletturaInvio(msg.ai_extracted_data);
+    if (preletto && mediaCorrente && !paginaAggiuntiva) {
+      userContent = preletto.testo;
+      if (preletto.scontrino || /^\[Scontrino ricevuto/.test(userContent)) ricordaScontrino(preletto.scontrino);
+    } else if (typeof precedenteLettura === "string" && /^\[(?:Audio trascritto|Foto di un DDT|Documento PDF — DDT)/.test(precedenteLettura)) {
       userContent = precedenteLettura;
     } else if (msg.message_type === "audio" && msg.media_storage_path) {
       let originaleSalvato = false;
@@ -520,6 +530,7 @@ Deno.serve(async (req) => {
           messageId: msg.id,
           file: mediaOriginale,
           ricordaBolla,
+          ricordaBollaDuplicata: () => { ddtDuplicata = true; },
           ricordaScontrino,
         }));
       } catch (e) {
@@ -540,6 +551,7 @@ Deno.serve(async (req) => {
           messageId: msg.id,
           file: mediaOriginale,
           ricordaBolla,
+          ricordaBollaDuplicata: () => { ddtDuplicata = true; },
           ricordaScontrino,
           mime: String((isPlainRecord(msg.metadata) ? msg.metadata.mime_type : null) ?? "application/pdf"),
         }));
@@ -735,7 +747,8 @@ Deno.serve(async (req) => {
       if (azione === "carica_ddt") confermaDdtPreparata = true;
       const parametri = frozen.pending.parametri;
       const testoBozza = `Bozza salvata in Campo.\n\n${frozen.interactive.body.text}`;
-      if (azione !== "crea_rapportino" || !parametri || frozen.pending.rapportino?.scelta || statoSessione.conferma || !mediaCorrente || traduzioneAudio ||
+      if (azione !== "crea_rapportino" || !parametri || frozen.interactive.type === "list" ||
+        frozen.pending.rapportino?.scelta || statoSessione.conferma || !mediaCorrente || traduzioneAudio ||
         operationalTriage.intent !== "rapportino" || sbloccatiOra.includes(azione) || testoBozza.length > 1024 ||
         !vocalePermetteBozza(toolCtx, input, parametri, frozen.pending.cantieri ?? [])) return frozen;
 
@@ -766,10 +779,53 @@ Deno.serve(async (req) => {
       return esito;
     };
     const mostraDestinazione = async (domanda: DomandaDestinazioneBolla, pagina?: Parameters<typeof propostaDestinazioneBolla>[2], id = msg.id) => {
-      const risposta = await propostaDestinazioneBolla(toolCtx, domanda, pagina).catch(() => domanda.domandaDestinazione);
+      const risposta = await propostaDestinazioneBolla(toolCtx, domanda, pagina).catch(() => pagina
+        ? "Rispondi alla foto con il codice del cantiere o il nome del magazzino."
+        : domanda.domandaDestinazione);
       if (typeof risposta === "string") await sendReply({ ...msg, id }, risposta);
       else await sendInteractiveReply({ ...msg, id }, risposta as unknown as Record<string, unknown>);
     };
+    const mostraEsitoInvio = async (esito: EsitoInvioBolle, id = msg.id, pagina?: Parameters<typeof propostaDestinazioneBolla>[2]) => {
+      if (typeof esito === "string") await sendReply({ ...msg, id }, esito);
+      else if ("bollaId" in esito) {
+        attivita.collegaBolla(esito.bollaId);
+        await sendReply({ ...msg, id }, esito.messaggio);
+      }
+      else await mostraDestinazione(esito, pagina, id);
+    };
+    const chiedeInvio = ["text", "audio"].includes(msg.message_type) && messaggioPerTutteLeBolle(testoOperativo);
+    const invioDellaDomanda = invioAtteso ?? domandaInAttesa?.fotoId;
+    const indicaDestinazione = ["text", "audio"].includes(msg.message_type) &&
+      leggiDestinazioneBolla(testoOperativo, false, !!(relazione || invioDellaDomanda));
+    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && (rispostaBolla?.invio || invioAtteso || chiedeInvio ||
+      ((relazione || invioDellaDomanda) && indicaDestinazione))) {
+      const invio = await cercaInvioBolle(toolCtx, rispostaBolla?.invio ? rispostaBolla.fotoId : invioDellaDomanda, relazione);
+      if (invio && invio !== "ambiguo") {
+        const pagina = rispostaBolla?.invio && "pagina" in rispostaBolla ? rispostaBolla.pagina : undefined;
+        if (pagina) {
+          await mostraEsitoInvio(await destinaInvioBolle(toolCtx, invio, { testo: "" }), msg.id, pagina);
+          return termina("processed");
+        }
+        const destinazioneContestuale = (invio.pdf || (invioDellaDomanda && !relazione)) && indicaDestinazione || undefined;
+        if (chiedeInvio || rispostaBolla?.invio || destinazioneContestuale) {
+          const scelta = rispostaBolla?.invio && "scelta" in rispostaBolla ? rispostaBolla.scelta : undefined;
+          const speditoIl = typeof msg.metadata?.sent_at === "string" ? msg.metadata.sent_at : null;
+          const input = scelta ? { scelta } : { testo: testoOperativo, vocale: msg.message_type === "audio",
+            ...(speditoIl ? { speditoIl } : {}), ...(destinazioneContestuale ? { destinazioneContestuale } : {}) };
+          const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-invio:${msg.id}`, "destina_invio_bolle",
+            { invio: invio.id, ...input }, () => destinaInvioBolle(toolCtx, invio, input));
+          await mostraEsitoInvio(esito);
+          return termina("processed");
+        }
+        // Il vocale può contenere un rapportino o un’altra richiesta. Gli lasciamo il suo turno.
+        if (invioAtteso) await mostraEsitoInvio(await destinaInvioBolle(toolCtx, invio), invio.id);
+      } else if (rispostaBolla?.invio || (chiedeInvio && invio === "ambiguo")) {
+        await sendReply(msg, invio === "ambiguo"
+          ? "Ho più invii da destinare. Usa «Scegli destinazione» sotto quello giusto o rispondi a una sua foto con «Tutte per…»."
+          : "Questa scelta è scaduta. Trovi l’invio in DDT → Documenti in ingresso.");
+        return termina("processed");
+      }
+    }
     const pagante = paganteScontrino(testoOperativo);
     const totaleDetto = importoScontrinoDetto(testoOperativo);
     const tipoDetto = relazione && ["text", "audio"].includes(msg.message_type) ? tipoAllegatoDetto(testoOperativo) : null;
@@ -860,7 +916,7 @@ Deno.serve(async (req) => {
     }
     if (allegatoDaSmistare && mediaCorrente) {
       msg.attivita.attesa = "da_smistare";
-      await sendReply(msg, "Allegato salvato in WhatsApp del gestionale. È una bolla, uno scontrino o una foto di cantiere? Rispondi all’allegato e dimmi dove va.");
+      await sendReply(msg, "Ho salvato questo allegato. È una bolla, uno scontrino o una foto di cantiere?", true);
       return termina("processed");
     }
     const isDdtLetto = tipoDocumentoLetto === "bolla ddt" || !!ddtJobId;
@@ -890,8 +946,32 @@ Deno.serve(async (req) => {
       await sendReply(msg, esito);
       return termina("processed");
     }
-    const testoBolla = testoOperativo;
-    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && (isDdtLetto || leggiDestinazioneBolla(testoBolla, false, !!(relazione || domandaInAttesa)))) {
+    const bollaAcquisita = ddtJobId || ddtDuplicata ||
+      (isPlainRecord(msg.ai_extracted_data) && typeof msg.ai_extracted_data.ddt_job_id === "string");
+    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && bollaAcquisita && msg.created_at && ["image", "document"].includes(msg.message_type)) {
+      const pdf = msg.message_type === "document" &&
+        (String(msg.metadata?.mime_type ?? "").toLowerCase().includes("pdf") || /\.pdf$/i.test(msg.media_storage_path ?? ""));
+      const arrivo = { ...msg, created_at: msg.created_at };
+      if (await recuperaAllegatoInRitardo(toolCtx, arrivo, ddtDuplicata)) {
+        msg.attivita.esito = "destinazione_ddt";
+        return termina("processed");
+      }
+      const invio = await raccogliInvioBolle(toolCtx, arrivo, ddtDuplicata, pdf);
+      if (invio && !invio.singola) {
+        if (!await posticipaInvioBolle(toolCtx, invio)) await mostraEsitoInvio(await destinaInvioBolle(toolCtx, invio));
+        else msg.attivita.esito = "destinazione_ddt";
+        return termina("processed");
+      }
+      if (ddtDuplicata) {
+        await sendReply(msg, "Questa bolla è già in archivio. La trovi in DDT → Documenti in ingresso.");
+        return termina("processed");
+      }
+    }
+    const destinazioneGenerica = chiedeInvio ? destinazioneDettaPerInvio(testoOperativo) : null;
+    const testoBolla = destinazioneGenerica
+      ? `${destinazioneGenerica.conferma ? "Confermo " : ""}${destinazioneGenerica.tipo === "luogo" ? "È per" : destinazioneGenerica.tipo} ${destinazioneGenerica.nome}`
+      : testoOperativo;
+    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && (isDdtLetto || leggiDestinazioneBolla(testoBolla, false, !!(relazione || domandaInAttesa || destinazioneGenerica)))) {
       const inputBolla = { id: msg.id, tipo: msg.message_type, testo: testoBolla, riferimento: relazione, ddtLetto: isDdtLetto,
         ...(domandaInAttesa ? { fotoAssociata: domandaInAttesa.fotoId } : {}), ...(msg.wa_message_id ? { providerId: msg.wa_message_id } : {}) };
       const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-destinazione:${msg.id}`, "destina_bolla",
@@ -957,8 +1037,7 @@ Deno.serve(async (req) => {
     }
 
     const inAttesa = statoSessione.conferma && !statoSessione.conferma.proposta_id ? statoSessione.conferma : null;
-    const rapportinoDiSquadra = inAttesa?.azione === "crea_rapportino" &&
-      Array.isArray(inAttesa.parametri?.persone) && inAttesa.parametri.persone.length > 0;
+    const rapportinoInAttesa = inAttesa?.azione === "crea_rapportino";
     const sceltaDelCantiere = rispostaCantiere(inAttesa, msg.metadata, msg.message_type, testoDellaRisposta);
     const chiarimento = inAttesa?.rapportino?.scelta;
     const proseguiRapportino = async (pending: ConfermaAttesa, parametri: Record<string, unknown>, identificativi?: (string | null)[]) => {
@@ -974,7 +1053,7 @@ Deno.serve(async (req) => {
       }
       return termina("processed");
     };
-    if (inAttesa && (chiarimento || (rapportinoDiSquadra && sceltaDelCantiere?.tipo === "cantiere"))) {
+    if (inAttesa && (chiarimento || (rapportinoInAttesa && sceltaDelCantiere?.tipo === "cantiere"))) {
       if (!nomiBot.has("crea_rapportino") || !await frozenConfirmationValid(inAttesa)) {
         await sessionState.consume();
         await sendReply(msg, "Il riepilogo è scaduto o i permessi sono cambiati. Rimandami il rapportino.");
@@ -994,18 +1073,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    // «Altro cantiere» mostra le alternative. Per la squadra segue sempre il riepilogo nominativo.
+    // Resta valido anche il pulsante «Altro cantiere» delle domande già inviate.
     if (inAttesa && sceltaDelCantiere?.tipo === "altro") {
       const conElenco = { ...inAttesa, lista_mostrata: true };
       await sessionState.save({ conferma: conElenco });
-      const domanda = rapportinoDiSquadra
-        ? "Scegli il cantiere. Poi ti mostro le ore per persona da confermare."
+      const domanda = rapportinoInAttesa
+        ? "Scegli il cantiere. Poi ti mostro il riepilogo da confermare."
         : "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.";
       await sendInteractiveReply(msg, elencoCantieri(conElenco, domanda) as unknown as Record<string, unknown>);
       return termina("processed");
     }
     const cantiereScelto = sceltaDelCantiere?.tipo === "cantiere" ? sceltaDelCantiere.order_id : null;
-    if (inAttesa && cantiereScelto && rapportinoDiSquadra) {
+    if (inAttesa && cantiereScelto && rapportinoInAttesa) {
       return proseguiRapportino(inAttesa, { ...inAttesa.parametri!, order_id: cantiereScelto });
     }
     if (inAttesa && !cantiereScelto && userJustConfirmed && inAttesa.cantieri?.length && !inAttesa.parametri?.order_id
@@ -1848,10 +1927,10 @@ async function inviaPreambolo(msg: MsgForSend, pezzi: string[] | undefined): Pro
   }
 }
 
-async function sendReply(msg: MsgForSend, text: string): Promise<void> {
+async function sendReply(msg: MsgForSend, text: string, citaOriginale = false): Promise<void> {
   msg.indicatoreScrittura?.abort();
   await consegnaConAttivita(msg, { wa_number_id: msg.wa_number_id, company_id: msg.company_id, to: msg.from_phone, text,
-    ...(msg.id ? { idempotency_key: `reply:${msg.id}:text` } : {}) });
+    ...(msg.id ? { idempotency_key: `reply:${msg.id}:text`, ...(citaOriginale ? { reply_to_id: msg.id } : {}) } : {}) });
   if (msg.attivita) {
     msg.attivita.risposta = true;
     msg.attivita.run.passo("risposta_inviata");

@@ -1,30 +1,37 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { leggiDestinazioneBolla } from "./bolleInConversazione.ts";
 
-interface Conversazione {
+export interface Conversazione {
   company_id: string;
   wa_number_id: string | null;
   from_phone: string;
 }
 
-interface MessaggioInAttesa {
+export interface MessaggioInAttesa {
   id: string;
+  wa_message_id: string | null;
   message_type: string;
   content_text: string | null;
+  media_url: string | null;
+  media_storage_path: string | null;
   created_at: string;
-  metadata: { reply_to?: string } | null;
+  metadata: { reply_to?: string; mime_type?: string; sent_at?: string } | null;
   ai_extracted_data: Record<string, unknown> | null;
 }
 
-export async function primoMessaggioInAttesa(db: SupabaseClient, c: Conversazione): Promise<MessaggioInAttesa | null> {
-  if (!c.wa_number_id) return null;
+export async function messaggiInAttesa(db: SupabaseClient, c: Conversazione, limite: number): Promise<MessaggioInAttesa[]> {
+  if (!c.wa_number_id) return [];
   const { data, error } = await db.from("whatsapp_messages")
-    .select("id, message_type, content_text, created_at, metadata, ai_extracted_data")
+    .select("id, wa_message_id, message_type, content_text, media_url, media_storage_path, created_at, metadata, ai_extracted_data")
     .eq("company_id", c.company_id).eq("wa_number_id", c.wa_number_id).eq("from_phone", c.from_phone)
     .eq("direction", "inbound").eq("processing_status", "received")
-    .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1).maybeSingle();
+    .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(limite);
   if (error) throw new Error("coda_conversazione_non_disponibile");
-  return data;
+  return data ?? [];
+}
+
+export async function primoMessaggioInAttesa(db: SupabaseClient, c: Conversazione): Promise<MessaggioInAttesa | null> {
+  return (await messaggiInAttesa(db, c, 1))[0] ?? null;
 }
 
 export async function posticipaDomandaBolla(

@@ -5,7 +5,7 @@ import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
 import { resolveCantiere } from "./tools/shared/resolve_cantiere.ts";
 import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 
-interface Bolla {
+export interface Bolla {
   id: string;
   source_key: string;
   created_by: string | null;
@@ -14,7 +14,7 @@ interface Bolla {
   status: string;
 }
 
-const IN_LAVORAZIONE = ["queued", "processing", "review", "da_leggere", "error"];
+export const IN_LAVORAZIONE = ["queued", "processing", "review", "da_leggere", "error"];
 const TIPI_DOCUMENTO = ["image", "document"];
 export const idWhatsAppValido = (id: unknown): id is string => typeof id === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
 const normalizza = (value: string) => value.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "")
@@ -30,12 +30,13 @@ function sezione(value: unknown, key: string): unknown {
   return value && typeof value === "object" ? (value as Record<string, unknown>)[key] : null;
 }
 
-function datiBolla(bolla: Bolla) {
+export function datiBolla(bolla: Pick<Bolla, "result">) {
   return {
     numero: campo(sezione(bolla.result, "intestazione"), "numero_ddt"),
     fornitore: campo(sezione(bolla.result, "mittente"), "ragione_sociale"),
     indirizzo: campo(sezione(bolla.result, "luogo_destinazione"), "indirizzo"),
-    riferimento: campo(sezione(bolla.result, "riferimenti"), "ordine_cliente"),
+    riferimento: campo(sezione(bolla.result, "riferimenti"), "ordine_acquisto")
+      ?? campo(sezione(bolla.result, "riferimenti"), "ordine_cliente"),
   };
 }
 
@@ -68,17 +69,17 @@ export function leggiDestinazioneBolla(testo: string, allegato = false, seguitoB
   return null;
 }
 
-function conParole(nome: string, testo: string) {
+export function conParole(nome: string, testo: string) {
   const parole = normalizza(nome).split(" ").filter(p => p && !["di", "del", "della"].includes(p));
   const paroleRecord = new Set(normalizza(testo).split(" "));
   return parole.length > 0 && parole.every(p => paroleRecord.has(p));
 }
 
-function descriviCommessa(riga: CommessaAperta) {
+export function descriviCommessa(riga: CommessaAperta) {
   return [riga.client_name || riga.description, riga.indirizzo_lavori, riga.order_code].filter(Boolean).join(" · ");
 }
 
-async function cercaDestinazione(ctx: ToolCtx, hint: string) {
+export async function cercaDestinazione(ctx: ToolCtx, hint: string) {
   const commesse = await commesseAperte(ctx);
   const trova = (c: CommessaAperta) => conParole(hint, [c.client_name, c.description, c.indirizzo_lavori, c.order_code].join(" "));
   const trovate = commesse.filter(trova);
@@ -120,7 +121,7 @@ export async function magazziniPerBolla(ctx: ToolCtx): Promise<{ id: string; nam
 }
 
 export type SceltaDestinazioneBolla = { tipo: "cantiere" | "magazzino"; id: string };
-export type DomandaDestinazioneBolla = { domandaDestinazione: string; fotoId: string; etichetta: string; posticipata?: boolean };
+export type DomandaDestinazioneBolla = { domandaDestinazione: string; fotoId: string; etichetta: string; posticipata?: boolean; invio?: boolean };
 
 /** La stessa acquisizione resta nella coda DDT. Mai un movimento implicito. */
 export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
@@ -221,7 +222,7 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
     if (!orderId) return scegli;
     await requireSiteAccess(ctx, orderId);
     const nome = commessaIndirizzo ? descriviCommessa(commessaIndirizzo) : daOda?.cantiere_nome;
-    descrizione = `sul cantiere ${nome ?? "indicato nel documento"}`;
+    descrizione = `cantiere ${nome ?? "indicato nel documento"}`;
   } else {
     const oggi = oggiARoma();
     const opzioni = destinazione.tipo === "magazzino" ? null : scelta
@@ -248,11 +249,11 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
       const cantiere = candidati[0];
       await requireSiteAccess(ctx, cantiere.id);
       orderId = cantiere.id;
-      descrizione = `sul cantiere ${descriviCommessa(cantiere)}`;
+      descrizione = `cantiere ${descriviCommessa(cantiere)}`;
     } else {
       if (scelti.length !== 1 || (!scelta && depositi.length === 51)) return `${etichetta} conservata. Quale magazzino? Scrivi «Magazzino» seguito dal nome del deposito.`;
       warehouseId = scelti[0].id;
-      descrizione = `nel magazzino ${scelti[0].name}`;
+      descrizione = `magazzino ${scelti[0].name}`;
     }
     const altro = commessaIndirizzo && commessaIndirizzo.id !== orderId
       ? descriviCommessa(commessaIndirizzo) : commessaOda && commessaOda !== orderId ? daOda?.cantiere_nome : null;
@@ -270,5 +271,5 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
   const salvata = await update.select("id").maybeSingle();
   if (salvata.error) throw new Error("destinazione_bolla_non_salvata");
   if (!salvata.data) return `${etichetta} già aggiornata. Controlla la destinazione in «DDT → Documenti in ingresso».`;
-  return `${etichetta} salvata ${descrizione}. L’ufficio trova l’originale e verifica le quantità prima della registrazione della merce.`;
+  return `${etichetta} collegata al ${descrizione}. L’ufficio verifica le quantità prima di registrare la merce.`;
 }

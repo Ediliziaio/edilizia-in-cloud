@@ -17,6 +17,7 @@ type TemplateLanguageInput = string | { code?: string } | undefined;
 
 interface SendBody {
   idempotency_key?: string;
+  reply_to_id?: string;
   company_id?: string;
   wa_number_id?: string | null;
   to?: string;
@@ -298,6 +299,21 @@ serveConMetriche("whatsapp-send", async (req) => {
       to,
       type,
     };
+    if (body.reply_to_id != null) {
+      if (clienteUtente || type !== "text" || !body.wa_number_id ||
+        typeof body.reply_to_id !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.reply_to_id)) {
+        return new Response(JSON.stringify({ error: "Riferimento al messaggio non valido" }), { status: 400, headers: jsonHeaders });
+      }
+      const { data, error } = await adminClient.from("whatsapp_messages").select("wa_message_id")
+        .eq("id", body.reply_to_id).eq("company_id", companyId).eq("wa_number_id", body.wa_number_id)
+        .eq("from_phone", to).eq("direction", "inbound").maybeSingle();
+      if (error || !data?.wa_message_id || !/^wamid\.[A-Za-z0-9_+/=.-]{1,500}$/.test(data.wa_message_id)) {
+        return new Response(JSON.stringify({ error: "Il messaggio originale non è disponibile" }), {
+          status: error ? 503 : 404, headers: jsonHeaders,
+        });
+      }
+      payload.context = { message_id: data.wa_message_id };
+    }
 
     let logContent = "";
     if (type === "text") {

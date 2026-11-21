@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AvvisoPossibileDuplicatoDDT } from "./AvvisoPossibileDuplicatoDDT";
 import {
   Dialog,
   DialogDescription,
@@ -794,6 +795,7 @@ function BolleAperte({
                   bloccanti.length > 0 ||
                   dubbiB.length > 0 ||
                   !!doppio ||
+                  !!b.possibileDuplicato ||
                   conflittoFornitore(b, rubrica) ||
                   richiedeCaricoManuale(b.grezzo);
                 return (
@@ -801,6 +803,7 @@ function BolleAperte({
                     key={b.id}
                     className={`space-y-3 rounded-xl border bg-background p-4 text-sm shadow-sm ${b.esito === "salvata" ? "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20" : attenzione ? "border-amber-200 dark:border-amber-800" : ""}`}
                   >
+                    {b.possibileDuplicato && <AvvisoPossibileDuplicatoDDT duplicato={b.possibileDuplicato} />}
                     <div className="flex flex-wrap items-center gap-2">
                       <Checkbox
                         aria-label={`Seleziona ${b.file.name}`}

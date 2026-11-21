@@ -11,9 +11,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import {
   destinazioneDocumento,
+  documentiDb,
   leggiPersistente,
   scartaDocumentoPersistente,
   type DocumentoPersistente,
+  type PossibileDuplicatoDDT,
+  type RiepilogoInvioWhatsApp,
 } from "@/lib/ddt/documentiPersistenti";
 import {
   bollaDaFile,
@@ -28,6 +31,7 @@ import {
 } from "@/lib/ddt/dividiPdf";
 import { preparaDocumento } from "@/lib/ddt/preparaDocumento";
 import { BolleInBloccoDialog } from "./BolleInBloccoDialog";
+import { AvvisoPossibileDuplicatoDDT } from "./AvvisoPossibileDuplicatoDDT";
 
 export function RevisioneDocumento({
   documento,
@@ -51,9 +55,12 @@ export function RevisioneDocumento({
     queryFn: async () => {
       const aggiornato = await leggiPersistente(documento.id);
       const f = aggiornato.files[0];
-      const { data, error } = await supabase.storage
-        .from(f.bucket ?? "ddt-documenti")
-        .download(f.path);
+      const [{ data, error }, esitoDoppio] = await Promise.all([
+        supabase.storage.from(f.bucket ?? "ddt-documenti").download(f.path),
+        aggiornato.status === "review" ? documentiDb.rpc("ddt_ingresso_duplicati", {
+          p_company: documento.company_id, p_documenti: [documento.id],
+        }) : { data: null, error: null },
+      ]);
       if (error || !data) throw new Error("Originale non disponibile: riprova");
       const originale = new File([data], f.name, { type: f.mime });
       const file = (
@@ -76,6 +83,7 @@ export function RevisioneDocumento({
         // con l'originale si apre da sola, con le righe vuote.
         bolla: {
           ...letta,
+          ...(esitoDoppio.data?.[0] ? { possibileDuplicato: esitoDoppio.data[0] as PossibileDuplicatoDDT } : {}),
           documentoJobId: documento.id,
           ...(aggiornato.status === "error" || aggiornato.status === "da_leggere"
             ? { compilaAMano: true }
@@ -176,12 +184,14 @@ export function RigaDocumentoInIngresso({
   riprova,
   riprovando,
   colonnaSelezione = false,
+  duplicato,
 }: {
   colonnaSelezione?: boolean;
   documento: DocumentoPersistente;
   apri: (j: DocumentoPersistente) => void;
   riprova: (j: DocumentoPersistente) => Promise<void>;
   riprovando: string | null;
+  duplicato?: PossibileDuplicatoDDT;
 }) {
   const inLettura = ["queued", "processing"].includes(j.status);
   const confirm = useConfirm();
@@ -233,6 +243,7 @@ export function RigaDocumentoInIngresso({
                   ? "WhatsApp"
                   : "Caricamento ufficio"}
             </p>
+            {duplicato && <AvvisoPossibileDuplicatoDDT duplicato={duplicato} />}
             {j.whatsapp_voice_message_id && (
               <VocaleDocumento companyId={j.company_id} messageId={j.whatsapp_voice_message_id} />
             )}
@@ -318,5 +329,45 @@ export function RigaDocumentoInIngresso({
         )}
       </td>
     </tr>
+  );
+}
+
+const dataInvio = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
+
+export function RiepilogoInviiWhatsApp({ invii, selezionato, onApri }: {
+  invii: RiepilogoInvioWhatsApp[];
+  selezionato?: string;
+  onApri: (id: string | null) => void;
+}) {
+  if (!invii.length && !selezionato) return null;
+  return (
+    <section aria-label="Invii WhatsApp" className="rounded-xl border bg-card">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+        <h3 className="text-sm font-semibold">{selezionato ? "Invio WhatsApp" : "Invii WhatsApp recenti"}</h3>
+        {selezionato && <Button size="sm" variant="ghost" onClick={() => onApri(null)}>Tutti i documenti</Button>}
+      </div>
+      <ul className="divide-y border-t">
+        {invii.map(invio => (
+          <li key={invio.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{dataInvio.format(new Date(invio.created_at))} · {invio.ricevuti} {invio.ricevuti === 1 ? "file ricevuto" : "file ricevuti"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {[
+                  invio.in_lettura > 0 && `${invio.in_lettura} da leggere`,
+                  invio.da_controllare > 0 && `${invio.da_controllare} da controllare`,
+                  invio.registrate > 0 && `${invio.registrate} ${invio.registrate === 1 ? "registrata" : "registrate"}`,
+                  invio.duplicati_identici > 0 && `${invio.duplicati_identici} già in archivio`,
+                  invio.da_riprovare > 0 && `${invio.da_riprovare} ${invio.da_riprovare === 1 ? "lettura" : "letture"} da riprovare`,
+                ].filter(Boolean).join(" · ")}
+                {invio.da_rimandare > 0 && <span className="ml-2 font-medium text-amber-800 dark:text-amber-300">{invio.da_rimandare} da rimandare</span>}
+              </p>
+            </div>
+            {selezionato !== invio.id && invio.in_lettura + invio.da_controllare + invio.da_riprovare > 0 && (
+              <Button size="sm" variant="outline" onClick={() => onApri(invio.id)}>Apri invio</Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

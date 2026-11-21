@@ -23,6 +23,7 @@ export function useDocumentiDDT(
   includiRegistrati = true,
   enabled = true,
   documentoId?: string,
+  invioId?: string,
 ) {
   const { effectiveCompany, profile, user } = useAuth();
   const companyId = soloMiei ? profile?.company_id : effectiveCompany?.id;
@@ -35,26 +36,27 @@ export function useDocumentiDDT(
       orderId,
       includiRegistrati,
       documentoId,
+      invioId,
     ],
     enabled: enabled && !!companyId && !!user?.id,
     initialPageParam: undefined as Cursor | undefined,
     queryFn: async ({ pageParam }): Promise<Page> => {
-      let q = documentiDb
-        .from("ddt_document_jobs")
-        .select(CAMPI)
-        .eq("company_id", companyId);
-      if (soloMiei) q = q.eq("created_by", user!.id);
-      if (orderId) q = q.eq("order_id", orderId);
-      if (documentoId) q = q.eq("id", documentoId);
-      if (!includiRegistrati) q = q.not("status", "in", "(registered,split)");
-      if (pageParam)
-        q = q.or(
+      const leggi = (campi: string) => {
+        let q = documentiDb.from("ddt_document_jobs").select(campi).eq("company_id", companyId);
+        if (soloMiei) q = q.eq("created_by", user!.id);
+        if (orderId) q = q.eq("order_id", orderId);
+        if (documentoId) q = q.eq("id", documentoId);
+        if (invioId) q = q.eq("whatsapp_invio_id", invioId);
+        if (!includiRegistrati) q = q.not("status", "in", "(registered,split)");
+        if (pageParam) q = q.or(
           `created_at.lt.${pageParam.created_at},and(created_at.eq.${pageParam.created_at},id.lt.${pageParam.id})`,
         );
-      const { data, error } = await q
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .range(0, PAGE_SIZE);
+        return q.order("created_at", { ascending: false }).order("id", { ascending: false }).range(0, PAGE_SIZE);
+      };
+      let { data, error } = await leggi(`${CAMPI},whatsapp_invio_id`);
+      if (!invioId && error?.code === "42703" && error.message?.includes("whatsapp_invio_id")) {
+        ({ data, error } = await leggi(CAMPI));
+      }
       if (error) throw error;
       const righe = (data ?? []) as DocumentoPersistente[];
       const documenti = righe

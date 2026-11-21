@@ -29,6 +29,7 @@ export interface DocumentoPersistente {
   destinazione?: "cantiere" | "magazzino" | null;
   warehouse_id?: string | null;
   whatsapp_voice_message_id?: string | null;
+  whatsapp_invio_id?: string | null;
   files: FileDocumento[];
   split_ids?: string[];
   result: Record<string, unknown> | null;
@@ -36,6 +37,24 @@ export interface DocumentoPersistente {
   ddt_id: string | null;
   created_at: string;
   updated_at?: string;
+}
+
+export interface RiepilogoInvioWhatsApp {
+  id: string;
+  ricevuti: number;
+  duplicati_identici: number;
+  da_rimandare: number;
+  created_at: string;
+  in_lettura: number;
+  da_controllare: number;
+  da_riprovare: number;
+  registrate: number;
+}
+
+export interface PossibileDuplicatoDDT {
+  documento_id: string;
+  altro_id: string;
+  registrato: boolean;
 }
 // Tabella nuova: il contratto è esplicito finché non si rigenerano tutti i tipi.
 export const documentiDb = supabase as unknown as {

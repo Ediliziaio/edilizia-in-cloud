@@ -8,6 +8,7 @@ import type { DDTRigaNuova } from "@/hooks/useDDTRicezione";
 import { leggiDDTdaAI, type LetturaDDT } from "@/lib/ddt/letturaAI";
 import { normalizzaPiva, abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import { problemiBolla } from "@/lib/ddt/righeBolla";
+import type { PossibileDuplicatoDDT } from "@/lib/ddt/documentiPersistenti";
 
 /** Il limite di `ddt-ai-extract`. */
 export const MAX_BYTE_BOLLA = 18 * 1024 * 1024;
@@ -43,6 +44,7 @@ export interface BollaLetta {
   ddtCreatoId?: string;
   /** Lettura durevole condivisa con app e WhatsApp. */
   documentoJobId?: string;
+  possibileDuplicato?: PossibileDuplicatoDDT;
   destinazione: "magazzino" | "cantiere";
   righe: DDTRigaNuova[];
   confidenza: number | null;

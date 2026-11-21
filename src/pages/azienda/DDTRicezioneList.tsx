@@ -75,7 +75,8 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
-import { RigaDocumentoInIngresso, VocaleDocumento } from "@/components/ddt/DocumentiInIngresso";
+import { RiepilogoInviiWhatsApp, RigaDocumentoInIngresso, VocaleDocumento } from "@/components/ddt/DocumentiInIngresso";
+import { AvvisoPossibileDuplicatoDDT } from "@/components/ddt/AvvisoPossibileDuplicatoDDT";
 import { useDocumentiInIngresso } from "@/hooks/useDocumentiInIngresso";
 import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
@@ -251,6 +252,7 @@ export default function DDTRicezioneList() {
 function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boolean }) {
   const ingresso = useDocumentiInIngresso(canCreate, id);
   const documento = canCreate ? ingresso.query.data?.find(j => j.id === id) : undefined;
+  const duplicato = ingresso.duplicati.get(id);
   const stato = documento?.status;
   const inLettura = stato === "queued" || stato === "processing";
   return (
@@ -265,12 +267,26 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
         <>
           <p className="break-words text-sm font-medium">{documento.files[0]?.name ?? "Documento"}</p>
           <p className="text-sm text-muted-foreground" role="status">{STATO_DOCUMENTO[stato]}</p>
+          {duplicato && <AvvisoPossibileDuplicatoDDT duplicato={duplicato} />}
           {documento.whatsapp_voice_message_id && (
             <VocaleDocumento companyId={documento.company_id} messageId={documento.whatsapp_voice_message_id} />
           )}
           {documento.last_error && <p className="text-sm text-destructive">{documento.last_error}</p>}
           {stato === "registered" && documento.ddt_id ? (
             <Button asChild><Link to={`/azienda/ddt/${documento.ddt_id}`}>Apri il DDT registrato</Link></Button>
+          ) : stato === "split" && documento.split_ids?.length ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Bolle ricavate dal PDF</p>
+              <ul className="flex flex-wrap gap-2">
+                {documento.split_ids.filter(idBollaValido).map((figlio, i) => (
+                  <li key={figlio}>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/azienda/ordini?tab=ddt&ddt_documento=${figlio}`}>Apri bolla {i + 1}</Link>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : !inLettura && stato !== "registered" && stato !== "split" ? (
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => ingresso.apri(documento)}>
@@ -323,11 +339,13 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       },
     );
   const rawTab = params.get("ddt_stato") ?? "tutti";
+  const idInvio = params.get("ddt_invio");
+  const invioSelezionato = idBollaValido(idInvio) ? idInvio : undefined;
   const tab: FilterKey = FILTERS.some((f) => f.key === rawTab)
     ? (rawTab as FilterKey)
     : "tutti";
   const setTab = (v: FilterKey) =>
-    update({ stato: v, focus: null, ambito: "all" });
+    update({ stato: v, focus: null, invio: null, ambito: "all" });
   const search = params.get("ddt_cerca") ?? "";
   const setSearch = (v: string) => update({ cerca: v });
   const view = params.get("ddt_vista") === "pipeline" ? "pipeline" : "elenco";
@@ -349,7 +367,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
   const [newOpen, setNewOpen] = useState(false);
   const [bloccoOpen, setBloccoOpen] = useState(false);
   const movement = usePipelineTransition({ kind: "ddt", enabled: canCreate });
-  const ingresso = useDocumentiInIngresso(canCreate);
+  const ingresso = useDocumentiInIngresso(canCreate, undefined, invioSelezionato);
 
   const [sort, setSort] = useState<{
     key: DDTSortKey;
@@ -376,6 +394,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
     !!search,
     tab !== "tutti",
     !!focus,
+    !!invioSelezionato,
   ].filter(Boolean).length;
   const clearFilters = () =>
     update({
@@ -385,6 +404,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       cerca: null,
       stato: null,
       focus: null,
+      invio: null,
     });
   const stage = (d: (typeof ddtList)[number]) =>
     d.has_damages || d.stato === "non_conforme"
@@ -479,6 +499,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
   }, [ddtList, search, filterOrder, filterSupplier, filterPeriodo, dateFrom, dateTo, sort]);
   const filtered = baseFiltered.filter(
     (d) =>
+      !invioSelezionato &&
       (tab === "tutti" || stage(d) === tab) &&
       inOperationalScope(stage(d) === "verificato", archive.scope) &&
       (!focus ||
@@ -844,6 +865,21 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {canCreate && (pendingBase.length > 0 || ingresso.invii.length > 0 || !!invioSelezionato) && (
+            <Button
+              variant={tab === "da_registrare" ? "secondary" : "outline"}
+              size="sm"
+              className="shrink-0"
+              aria-label={`Documenti in ingresso (${pendingBase.length})`}
+              aria-pressed={tab === "da_registrare"}
+              onClick={() => setTab(tab === "da_registrare" ? "tutti" : "da_registrare")}
+            >
+              <span className="hidden sm:inline">Documenti in ingresso</span>
+              <span className="sm:hidden">In ingresso</span>
+              <span className="ml-1 tabular-nums">({pendingBase.length})</span>
+            </Button>
+          )}
+
           {canCreate && (
             <Button
               variant="outline"
@@ -1020,6 +1056,12 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           Caricamento documenti in lettura…
         </p>
       )}
+      {canCreate && tab === "da_registrare" && !focus && archive.scope !== "history" && (
+        <RiepilogoInviiWhatsApp invii={ingresso.invii} selezionato={invioSelezionato}
+          onApri={invio => update({ invio, stato: "da_registrare", cerca: null, commessa: null, fornitore: null,
+            periodo: null, da: null, a: null, focus: null, pagina: null })} />
+      )}
+      {canCreate && ingresso.infoNonAggiornate && <p role="status" className="text-sm text-muted-foreground">Riepilogo invii e confronto duplicati momentaneamente indisponibili.</p>}
 
       {/* ─── List ─────────────────────────────────────────────── */}
       {isError ? (
@@ -1076,6 +1118,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                   <RigaDocumentoInIngresso
                     key={j.id}
                     documento={j}
+                    duplicato={ingresso.duplicati.get(j.id)}
                     apri={ingresso.apri}
                     riprova={ingresso.riprova}
                     riprovando={ingresso.riprovando}
@@ -1164,6 +1207,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                     <RigaDocumentoInIngresso
                       key={row.documento.id}
                       documento={row.documento}
+                      duplicato={ingresso.duplicati.get(row.documento.id)}
                       apri={ingresso.apri}
                       riprova={ingresso.riprova}
                       riprovando={ingresso.riprovando}

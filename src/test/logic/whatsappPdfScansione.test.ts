@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({
   download: vi.fn(),
   fetch: vi.fn(),
   visioneBreve: vi.fn(),
+  contaPagine: vi.fn(),
 }));
 vi.mock(
   "../../../supabase/functions/_shared/ddtWhatsappPersistente.ts",
@@ -22,6 +23,9 @@ vi.mock("../../../supabase/functions/whatsapp-ai-processor/openai.ts", () => ({
 vi.mock("../../../supabase/functions/_shared/resolveWhatsAppSender.ts", () => ({
   resolveWhatsAppSender: vi.fn(),
 }));
+vi.mock("../../../supabase/functions/_shared/sceltaModelloLettura.ts", () => ({
+  contaPaginePdfCompleto: m.contaPagine,
+}));
 import { leggiDocumentoOperativo, leggiFotoOperativa } from "../../../supabase/functions/whatsapp-ai-processor/media";
 const opts = {
   storagePath: "azienda/2026-11/prova.pdf",
@@ -35,6 +39,7 @@ const db = {
   storage: { from: () => ({ download: m.download }) },
 } as unknown as Parameters<typeof leggiDocumentoOperativo>[0];
 beforeEach(() => {
+  m.contaPagine.mockReset().mockResolvedValue(1);
   m.acquisisci.mockReset().mockResolvedValue({ id: "job", status: "queued", stessoOperatore: true });
   m.visioneBreve.mockReset().mockResolvedValue({ choices: [{ message: { content: "DDT\nFornitore prova" } }] });
   vi.stubGlobal("Deno", { env: { get: () => "https://progetto.invalid" } });
@@ -97,6 +102,12 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
     expect(await leggiDocumentoOperativo(db, { ...opts, didascalia: null })).toContain("Cemento 12 kg");
     expect(m.ai).not.toHaveBeenCalled();
     expect(m.acquisisci).toHaveBeenLastCalledWith(db, expect.objectContaining({ accodaLettura: true }));
+  });
+  it("accoda un PDF scansionato multipagina senza trattare le righe come una singola bolla", async () => {
+    m.contaPagine.mockResolvedValueOnce(20);
+    expect(await leggiDocumentoOperativo(db, { ...opts, didascalia: null })).toContain("DDT da leggere");
+    expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ accodaLettura: true }));
+    expect(m.acquisisci.mock.calls[0][1]).not.toHaveProperty("result");
   });
   it("accoda direttamente la bolla dichiarata e restituisce la conferma senza aspettare il lettore", async () => {
     m.ai.mockRejectedValue(new Error("OCR non disponibile"));

@@ -94,7 +94,7 @@ function riepilogoOperativo(action: string, args: Record<string, unknown>, voci:
     const oreTesto = persone.length ? [
       `Ore di squadra: ${numeroIt(persone.reduce((totale, p) => totale + Number(p.ore), 0))} h`,
       ...persone.map(p => `• ${p.nome.replace(/\s+/g, " ").trim()} · ${numeroIt(p.ore)} h`),
-    ] : [`Ore: ${ore}${extra}`];
+    ] : [`Ore personali: ${ore}${extra}`];
     return [`Rapportino del ${dataIt(args.data_lavoro)}`, ...oreTesto,
       ...(attivita.length ? ["Lavori:", ...attivita.slice(0, voci).map((a) => `• ${testo(a, 90)}`), ...(attivita.length > voci ? [`…e altri ${attivita.length - voci} lavori`] : [])] : []),
       ...(materiali.length ? ["Materiali usati:", ...righeElenco(materiali, "materiali")] : []),
@@ -305,7 +305,9 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
     if (error || !data) throw new Error("Cantiere non disponibile per la conferma.");
     const nome = data.client_name || data.description || data.order_code || "Cantiere";
     const codice = data.order_code && data.order_code !== nome ? ` · ${data.order_code}` : "";
-    siteName = [nome, data.indirizzo_lavori].filter(Boolean).join(" — ") + codice + (motivoCantiere ? ` (${motivoCantiere})` : "");
+    siteName = action === "crea_rapportino"
+      ? testo(data.order_code, 80) || testo(nome, 80)
+      : [nome, data.indirizzo_lavori].filter(Boolean).join(" — ") + codice + (motivoCantiere ? ` (${motivoCantiere})` : "");
   }
   // Approvazioni: il titolare deve vedere l'OGGETTO della segnalazione, non il
   // suo codice. Lo recuperiamo qui e lo passiamo alla preview, come il siteName.
@@ -329,10 +331,10 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
     ...(rapportino ? { rapportino } : {}),
   };
   if (rapportino?.scelta) return { pending, interactive: elencoPersoneRapportino(pending) };
-  // Per la squadra si mostrano le identità dopo aver risolto il cantiere.
+  // La conferma di un rapportino segue la scelta del cantiere.
   if (!args.order_id && cantieri?.length) {
-    const domanda = action === "crea_rapportino" && Array.isArray(args.persone) && args.persone.length
-      ? "Scegli il cantiere. Poi ti mostro le ore per persona da confermare."
+    const domanda = action === "crea_rapportino"
+      ? "Scegli il cantiere. Poi ti mostro il riepilogo da confermare."
       : "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.";
     return { pending: { ...pending, lista_mostrata: true }, interactive: elencoCantieri(pending,
       riepilogoConCantiere(action, args, descrizioneAllegato(media), domanda)
@@ -356,6 +358,16 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
     };
   }
   const preview = confirmationPreview(action, anteprimaPersone ? { ...args, persone: anteprimaPersone } : args, siteName, media, quoteReview, oggettoRichiesta);
+  if (action === "crea_rapportino") {
+    const alternative = (cantieri ?? []).flatMap((c, i) => c.id === args.order_id ? [] : [
+      { id: `site:${pending.id}:${i}`, title: c.titolo, description: c.dettaglio },
+    ]);
+    return { pending, interactive: buildInteractivePayload(preview, [
+      { id: `approve:${pending.id}`, title: "Invia all’ufficio" },
+      ...alternative,
+      { id: `reject:${pending.id}`, title: "Annulla" },
+    ], "Scegli azione", alternative.length > 0) };
+  }
   const altri = (cantieri ?? []).filter((c) => c.id !== args.order_id);
   return { pending, interactive: buildInteractivePayload(preview, [
     { id: `approve:${pending.id}`, title: "Sì" },

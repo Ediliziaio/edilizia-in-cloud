@@ -146,7 +146,7 @@ describe("DDT operativo", () => {
     const riga = { ...job };
     const { ctx, writes } = ambiente({ whatsapp_messages: [foto], ddt_document_jobs: [riga] });
     expect(await trattaBollaInConversazione(ctx, { id: "audio-1", tipo: "audio", testo: "È per il cantiere Rossi di via Manzoni", riferimento: null, ddtLetto: false }))
-      .toContain("Bolla n. 438 salvata sul cantiere Marco Rossi");
+      .toContain("Bolla n. 438 collegata al cantiere Marco Rossi");
     expect(riga).toMatchObject({ order_id: "rossi", destinazione: "cantiere" });
     expect(writes).toHaveBeenCalledTimes(1);
     expect(writes).toHaveBeenCalledWith("ddt_document_jobs", expect.any(Object));
@@ -187,7 +187,7 @@ describe("DDT operativo", () => {
     expect(await trattaBollaInConversazione({ ...ctx, supabase: client }, {
       id: String(vocale.id), tipo: "audio", testo: "È per il cantiere Rossi di via Manzoni",
       riferimento: "wamid.bolla", ddtLetto: false,
-    })).toContain("Bolla n. 438 salvata sul cantiere Marco Rossi");
+    })).toContain("Bolla n. 438 collegata al cantiere Marco Rossi");
     expect(db.tabelle.ddt_document_jobs).toEqual([expect.objectContaining({
       source_key: originale.id, order_id: "rossi", destinazione: "cantiere",
       files: [expect.objectContaining({ bucket: "ddt-documenti" })],
@@ -201,7 +201,7 @@ describe("DDT operativo", () => {
     const input: Parameters<typeof trattaBollaInConversazione>[1] = { id: "audio-2", tipo: "audio", testo: "Cantiere Rossi", riferimento: null, ddtLetto: false };
     expect(await trattaBollaInConversazione(ctx, input)).toContain("Ci sono 2 bolle");
     expect(writes).not.toHaveBeenCalled();
-    expect(await trattaBollaInConversazione(ctx, { ...input, riferimento: "wamid.seconda" })).toContain("salvata");
+    expect(await trattaBollaInConversazione(ctx, { ...input, riferimento: "wamid.seconda" })).toContain("collegata");
     expect(prima.order_id).toBeNull();
     expect(seconda.order_id).toBe("rossi");
   });
@@ -239,7 +239,7 @@ describe("DDT operativo", () => {
     tabelle.ddt_document_jobs.push(bolla);
     expect(await trattaBollaInConversazione(ctx, {
       id: foto.id, tipo: "image", testo: "", riferimento: null, ddtLetto: true, providerId: "wamid.foto",
-    })).toContain("salvata sul cantiere Marco Rossi");
+    })).toContain("collegata al cantiere Marco Rossi");
     expect(bolla.order_id).toBe("rossi");
   });
 
@@ -267,7 +267,7 @@ describe("DDT operativo", () => {
     const bolla = { ...job, result: { ...job.result, luogo_destinazione: { indirizzo: "Via Manzoni, 9" } } };
     const { ctx } = ambiente({ whatsapp_messages: [foto], ddt_document_jobs: [bolla] });
     expect(await trattaBollaInConversazione(ctx, { id: foto.id, tipo: "image", testo: "", riferimento: null, ddtLetto: true }))
-      .toContain("Bolla n. 438 salvata sul cantiere Marco Rossi");
+      .toContain("Bolla n. 438 collegata al cantiere Marco Rossi");
     expect(bolla).toMatchObject({ order_id: "rossi", destinazione: "cantiere" });
   });
 

@@ -155,6 +155,24 @@ beforeEach(() => {
   };
   db.rpcs.whatsapp_conversation_claim = () => true;
   db.rpcs.whatsapp_conversation_release = () => true;
+  db.rpcs.ddt_whatsapp_memorizza_invio = ({ p_company, p_numero, p_mittente, p_invio }) => {
+    const invio = p_invio as { id: string; origini: { id: string; duplicata: boolean }[]; daRimandare?: unknown[] };
+    const origine = db.tabelle.whatsapp_messages.find(r => r.id === invio.id && r.company_id === p_company &&
+      r.wa_number_id === p_numero && r.from_phone === p_mittente);
+    if (!origine) return false;
+    origine.ai_extracted_data = { ...(origine.ai_extracted_data as Riga | null), ddt_invio: JSON.parse(JSON.stringify(invio)) };
+    db.tabelle.ddt_whatsapp_invii ??= [];
+    const riepilogo = { id: invio.id, company_id: p_company, ricevuti: invio.origini.length,
+      duplicati_identici: invio.origini.filter(o => o.duplicata).length, da_rimandare: invio.daRimandare?.length ?? 0 };
+    const precedente = db.tabelle.ddt_whatsapp_invii.find(r => r.id === invio.id);
+    if (precedente) Object.assign(precedente, riepilogo);
+    else db.tabelle.ddt_whatsapp_invii.push(riepilogo);
+    for (const bolla of db.tabelle.ddt_document_jobs ?? []) {
+      if (bolla.company_id === p_company && !bolla.whatsapp_invio_id && invio.origini.some(o => o.id === bolla.source_key))
+        bolla.whatsapp_invio_id = invio.id;
+    }
+    return true;
+  };
   db.rpcs.whatsapp_contesto_rapportino = () => ({
     persone: [
       { employee_id: "dip-a", nome: "Andrea Demo", sono_io: true },
@@ -275,22 +293,23 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
       items: [{ description: "Tubi", quantity: 12, unit: "m" }] }) });
     await elabora(foto);
     const proposta = consegne[0].interactive as InteractivePayload;
-    expect(proposta.type).toBe("button");
-    if (proposta.type !== "button") throw new Error("Proposta attesa");
-    expect(proposta.body.text).toContain("PROVA-SIMULA");
-    expect(proposta.action.buttons[0].reply.title).toBe("Assegna qui");
-    const altriCantieri = proposta.action.buttons.find(b => b.reply.title === "Altri cantieri")!.reply;
-    const tap = (id: string, scelta: { id: string; title: string }, bottone = false) => registra({
-      id, type: "interactive", interactive: bottone ? { button_reply: scelta } : { list_reply: scelta },
+    if (proposta.type !== "list") throw new Error("Attesa la lista nel primo messaggio");
+    expect(proposta.body.text).toContain("Bolla salvata");
+    expect(proposta.body.text).toMatch(/Cantiere suggerito.*PROVA-SIMULA/);
+    expect(proposta.action.button).toBe("Scegli destinazione");
+    expect(proposta.action.sections[0].rows[0].id).toBe(`ddt:cantiere:${foto.id}:${cantiere}`);
+    const tap = (id: string, scelta: { id: string; title: string }) => registra({
+      id, type: "interactive", interactive: { list_reply: scelta },
     });
-    await elabora(await tap("wamid.menu-0", altriCantieri, true));
     const ids = new Set<string>();
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 0; i < 3; i++) {
       const pagina = consegne[i].interactive as InteractivePayload;
       if (pagina.type !== "list") throw new Error("Lista attesa");
+      if (i > 0) expect(pagina.body.text).not.toMatch(/salvata|conservata/i);
       const rows = pagina.action.sections[0].rows;
       expect(rows.length).toBeLessThanOrEqual(10);
-      rows.filter(r => r.title.startsWith("Cantiere") || r.id.includes("ddt:cantiere:")).forEach(r => ids.add(r.id));
+      expect(rows).toContainEqual({ id: `ddt:depositi:${foto.id}:0`, title: "Magazzino" });
+      rows.filter(r => r.id.startsWith("ddt:cantiere:")).forEach(r => ids.add(r.id));
       const avanti = rows.find(r => r.title === "Altri risultati");
       if (avanti) await elabora(await tap("wamid.menu-" + i, avanti));
     }
@@ -300,7 +319,150 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     expect(db.tabelle.ddt_document_jobs).toEqual([expect.objectContaining({
       status: "queued", source_key: foto.id, order_id: ultima.split(":").at(-1), destinazione: "cantiere",
     })]);
+    expect(consegne.at(-1)?.text).toMatch(/Bolla collegata al cantiere/);
     expect(m.ai).not.toHaveBeenCalled();
+  });
+
+  it("conserva 20 bolle e collega lo stesso vocale con una sola risposta", async () => {
+    const foto = [];
+    for (let i = 0; i < 20; i++) {
+      const messaggio = await registra({ id: `wamid.invio-${i}`, type: "image", image: { id: String(123450 + i),
+        ...(i === 0 ? { caption: "Bolla di prova" } : {}) } },
+        new Blob([new Uint8Array([255, 216, 255, i])], { type: "image/jpeg" }));
+      messaggio.created_at = new Date(Date.now() - 2000 + i * 10).toISOString();
+      foto.push(messaggio);
+    }
+    m.ai.mockResolvedValue({ choices: [{ message: { content: "DDT\nForniture Demo" } }] });
+    m.transcribe.mockResolvedValueOnce({ testo: "Tutte per PROVA-SIMULA.", lingua: "italian", durata: 3 });
+    const vocale = await registra({ id: "wamid.invio-voce", type: "audio", audio: { id: "234580", voice: true } },
+      new Blob(["vocale di prova"]));
+
+    await elabora(foto[0]);
+    expect(consegne).toHaveLength(1);
+    expect(consegne[0].text).toBe("20 bolle per PROVA-SIMULA in DDT → Documenti in ingresso.");
+    expect(db.tabelle.ddt_document_jobs).toHaveLength(20);
+    expect(db.tabelle.ddt_document_jobs).toEqual(expect.arrayContaining(foto.map(f => expect.objectContaining({
+      source_key: f.id, order_id: cantiere, destinazione: "cantiere", whatsapp_voice_message_id: vocale.id,
+    }))));
+    expect(foto.every(f => f.processing_status === "processed")).toBe(true);
+    expect(m.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("in Demo Azienda 2 recupera 18 foto ricevute dopo il vocale a causa della rete lenta", async () => {
+    const adesso = Date.now();
+    const primaSpedizione = adesso - 60_000;
+    m.ai.mockResolvedValue({ choices: [{ message: { content: "DDT\nForniture Demo" } }] });
+    async function fotoSpedita(i: number, secondiSpedizione: number = i * 2) {
+      const f = await registra({ id: `wamid.ritardo-${i}`, timestamp: String((primaSpedizione + secondiSpedizione * 1000) / 1000),
+        type: "image", image: { id: String(345678 + i) } },
+        new Blob([new Uint8Array([255, 216, 255, i])], { type: "image/jpeg" }));
+      return f;
+    }
+    const prima = await fotoSpedita(0, 6);
+    prima.created_at = new Date(adesso - 2000).toISOString();
+    const seconda = await fotoSpedita(1, 7);
+    seconda.created_at = new Date(adesso - 1000).toISOString();
+    m.transcribe.mockResolvedValueOnce({ testo: "Cantiere PROVA-SIMULA", lingua: "italian", durata: 3 });
+    const vocale = await registra({ id: "wamid.ritardo-voce", timestamp: String((primaSpedizione + 55_000) / 1000),
+      type: "audio", audio: { id: "345699", voice: true } }, new Blob(["tutte per Prova Simula"]));
+    await elabora(prima);
+    expect(consegne).toHaveLength(1);
+    expect(consegne[0].text).toContain("2 bolle per PROVA-SIMULA");
+
+    for (let i = 2; i < 20; i++) {
+      vi.setSystemTime(adesso + (i - 1) * 15_000);
+      await elabora(await fotoSpedita(i, i === 2 ? 0 : i * 2));
+    }
+    expect(db.tabelle.ddt_document_jobs).toHaveLength(20);
+    expect(db.tabelle.ddt_document_jobs.every(b => b.order_id === cantiere && b.whatsapp_voice_message_id === vocale.id &&
+      b.whatsapp_invio_id === prima.id)).toBe(true);
+    expect(db.tabelle.ddt_whatsapp_invii).toEqual([expect.objectContaining({ id: prima.id, ricevuti: 20, da_rimandare: 0 })]);
+    expect(consegne).toHaveLength(1);
+    expect(m.transcribe).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(adesso + 300_000);
+    const successiva = await fotoSpedita(20, 360);
+    await elabora(successiva);
+    expect(db.tabelle.ddt_document_jobs.find(b => b.source_key === successiva.id)).toMatchObject({
+      whatsapp_invio_id: successiva.id, order_id: null,
+    });
+    expect(consegne).toHaveLength(2);
+  });
+
+  it("mostra un menu per l’invio, esclude il duplicato e rispetta la destinazione scritta sulla singola foto", async () => {
+    const secondo = randomUUID();
+    db.tabelle.orders.push({ id: secondo, company_id: azienda, order_code: "SECONDO", description: "Secondo cantiere",
+      status: "in_corso", work_start_date: "2026-11-20" });
+    db.tabelle.order_campo_assignments.push({ company_id: azienda, order_id: secondo, user_id: "utente-a" });
+    const foto = [];
+    for (const [i, byte] of [1, 2, 3, 4, 1].entries()) {
+      const f = await registra({ id: `wamid.gruppo-${i}`, type: "image", image: { id: String(234580 + i), caption: "Bolla" } },
+        new Blob([new Uint8Array([255, 216, 255, byte])], { type: "image/jpeg" }));
+      f.created_at = new Date(Date.now() - 1000 + i * 10).toISOString();
+      foto.push(f);
+    }
+    await elabora(foto[0]);
+    expect(consegne).toHaveLength(1);
+    const menu = consegne[0].interactive as InteractivePayload;
+    if (menu.type !== "list") throw new Error("Lista cantieri attesa");
+    expect(menu.body.text).toContain("Ho salvato 4 bolle");
+    expect(db.tabelle.ddt_document_jobs).toHaveLength(4);
+    db.tabelle.purchase_orders = [{ id: "oda", company_id: azienda, order_id: secondo, oda_number: "ODA-42", status: "inviato" }];
+    db.tabelle.ddt_document_jobs.find(d => d.source_key === foto[2].id)!.result = { riferimenti: { ordine_acquisto: "ODA-42" } };
+    await elabora(await registra({ id: "wamid.gruppo-eccezione", type: "text", context: { id: "wamid.gruppo-1" },
+      text: { body: "Cantiere SECONDO" } }));
+    const sito = menu.action.sections[0].rows.find(r => r.id === `ddt-invio:cantiere:${foto[0].id}:${cantiere}`)!;
+    await elabora(await registra({ id: "wamid.gruppo-sito", type: "interactive", interactive: { list_reply: sito } }));
+    expect(db.tabelle.ddt_document_jobs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source_key: foto[0].id, order_id: cantiere }),
+      expect.objectContaining({ source_key: foto[1].id, order_id: secondo }),
+      expect.objectContaining({ source_key: foto[3].id, order_id: cantiere }),
+    ]));
+    expect(db.tabelle.ddt_document_jobs.find(d => d.source_key === foto[2].id)?.order_id).toBeNull();
+    expect(consegne.at(-1)?.text).toContain("2 bolle per PROVA-SIMULA");
+    expect(consegne.at(-1)?.text).toContain("1 bolla da verificare");
+    expect(consegne.at(-1)?.text).toContain("1 bolla già in archivio");
+  });
+
+  it("tiene separati due invii aperti e permette di destinare quello citato", async () => {
+    const invii = [];
+    for (let gruppo = 0; gruppo < 2; gruppo++) {
+      const foto = [];
+      for (let i = 0; i < 2; i++) {
+        const f = await registra({ id: `wamid.distinto-${gruppo}-${i}`, type: "image",
+          image: { id: String(234590 + gruppo * 2 + i), caption: "Bolla" } },
+          new Blob([new Uint8Array([255, 216, 255, gruppo * 2 + i])], { type: "image/jpeg" }));
+        f.created_at = new Date(Date.now() - 20_000 + gruppo * 10_000 + i * 10).toISOString();
+        foto.push(f);
+      }
+      await elabora(foto[0]);
+      invii.push(foto);
+    }
+    await elabora(await registra({ id: "wamid.distinti-tutte", type: "text", text: { body: "Tutte per PROVA-SIMULA" } }));
+    expect(consegne.at(-1)?.text).toContain("Ho più invii da destinare");
+    expect(db.tabelle.ddt_document_jobs.every(d => !d.order_id)).toBe(true);
+    await elabora(await registra({ id: "wamid.distinti-citazione", type: "text", context: { id: "wamid.distinto-1-0" },
+      text: { body: "Tutte per PROVA-SIMULA" } }));
+    const assegnate = db.tabelle.ddt_document_jobs.filter(d => d.order_id === cantiere).map(d => d.source_key);
+    expect(assegnate).toEqual(expect.arrayContaining(invii[1].map(r => r.id)));
+    expect(assegnate).toHaveLength(2);
+  });
+
+  it("conserva le bolle arrivate e cita soltanto l’allegato da rimandare", async () => {
+    const foto = [];
+    for (let i = 0; i < 3; i++) {
+      const f = await registra({ id: `wamid.incompleto-${i}`, type: "image",
+        image: { id: String(234599 + i), caption: "Bolla" } },
+        i < 2 ? new Blob([new Uint8Array([255, 216, 255, i])], { type: "image/jpeg" }) : undefined);
+      f.created_at = new Date(Date.now() - 2000 + i * 10).toISOString();
+      foto.push(f);
+    }
+    await elabora(foto[0]);
+    expect(db.tabelle.ddt_document_jobs).toHaveLength(2);
+    expect(consegne).toHaveLength(2);
+    expect(consegne[0].interactive).toMatchObject({ body: { text: expect.stringContaining("Ho salvato 2 bolle") } });
+    expect(consegne[1]).toMatchObject({ text: expect.stringContaining("Rimanda solo questo file"), reply_to_id: foto[2].id });
+    expect(foto[2].processing_status).toBe("failed");
   });
 
   it.each([
@@ -406,16 +568,68 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     const messaggio = await registra({ id: "wamid.squadra-senza-cantiere", type: "text", text: { body: "Rapportino di oggi: Marco 8 ore" } });
     await elabora(messaggio);
     const scelta = consegne[0].interactive as InteractivePayload;
-    expect(scelta.body.text).toContain("Poi ti mostro le ore per persona da confermare.");
+    expect(scelta.body.text).toContain("Poi ti mostro il riepilogo da confermare.");
     if (scelta.type !== "button") throw new Error("Attesi due cantieri e Annulla");
     const destinazione = scelta.action.buttons.find(b => b.reply.title === "Secondo cantiere")!.reply;
     await elabora(await registra({ id: "wamid.squadra-cantiere", type: "interactive", interactive: { button_reply: destinazione } }));
-    expect(consegne[1].interactive).toMatchObject({ body: { text: expect.stringMatching(/Marco Verdi.*8 h[\s\S]*Secondo cantiere/) } });
+    expect(consegne[1].interactive).toMatchObject({ body: { text: expect.stringMatching(/Marco Verdi.*8 h[\s\S]*Cantiere: SECONDO/) } });
     expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
     await elabora(await registra({ id: "wamid.squadra-cantiere-si", type: "text", text: { body: "Sì" } }));
     expect(db.tabelle.campo_rapportini).toEqual([expect.objectContaining({
       order_id: altro, whatsapp_message_id: messaggio.id, stato: "inviato",
       presenze: [{ employee_id: "dip-m", nome: "Marco Verdi", ore: 8 }],
+    })]);
+    expect(m.ai).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])("ricapitola il vocale personale in rumeno prima di inviarlo (cantiere dettato: %s)", async (conCantiere) => {
+    const altro = randomUUID();
+    Object.assign(db.tabelle.orders[0], {
+      order_code: "SIM-S1", description: "SIMULAZIONE S1 — 8 operai in economia + trasporto",
+    });
+    db.tabelle.orders.push({ id: altro, company_id: azienda, order_code: "SECONDO", description: "Secondo cantiere",
+      status: "in_corso", work_start_date: "2026-11-20" });
+    db.tabelle.order_campo_assignments.push({ company_id: azienda, order_id: altro, user_id: "utente-a" });
+    const originale = `Astăzi am lucrat 8 ore${conCantiere ? " pe șantierul SECONDO" : ""}. Am montat două ferestre la primul etaj.`;
+    const italiano = `Oggi ho lavorato 8 ore${conCantiere ? " nel cantiere SECONDO" : ""}. Ho montato due finestre al primo piano.`;
+    m.transcribe.mockResolvedValueOnce({ testo: originale, lingua: "romanian", durata: 8 });
+    m.router.mockResolvedValueOnce({ content: JSON.stringify({ testo_italiano: italiano }) });
+    m.ai.mockResolvedValueOnce(chiediConferma("crea_rapportino", {
+      ore_lavorate: 8, attivita: ["Montaggio due finestre al primo piano"],
+      ...(conCantiere ? { cantiere_hint: "SECONDO" } : {}),
+    }));
+    const vocale = await registra({ id: "wamid.rapportino-personale", type: "audio", audio: { id: "345690", voice: true } },
+      new Blob(["vocale demo"]));
+    await elabora(vocale);
+    expect(vocale.ai_extracted_data).toMatchObject({ trascrizione_italiana: italiano, lingua_audio: "romanian" });
+    expect(originali.has("whatsapp-media/" + vocale.media_storage_path)).toBe(true);
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+
+    const scelta = consegne[0].interactive as InteractivePayload;
+    if (conCantiere) {
+      expect(scelta.type).toBe("list");
+      expect(scelta.body.text).toContain("Cantiere: SECONDO");
+    } else {
+      expect(scelta.body.text).toContain("Poi ti mostro il riepilogo da confermare.");
+    }
+    const opzioni = scelta.type === "list" ? scelta.action.sections[0].rows : scelta.action.buttons.map(b => b.reply);
+    const sim = opzioni.find(row => row.title.startsWith("SIMULAZIONE S1"))!;
+    await elabora(await registra({ id: "wamid.rapportino-personale-cantiere", type: "interactive",
+      interactive: scelta.type === "list" ? { list_reply: sim } : { button_reply: sim } }));
+    const riepilogo = consegne[1].interactive as InteractivePayload;
+    expect(riepilogo.body.text).toContain("Cantiere: SIM-S1");
+    expect(riepilogo.body.text).toContain("Ore personali: 8 h");
+    expect(riepilogo.body.text).toContain("Vocale allegato");
+    expect(riepilogo.body.text).not.toContain("operai in economia");
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+
+    if (riepilogo.type !== "button") throw new Error("Attesa la conferma del rapportino");
+    const invia = riepilogo.action.buttons[0].reply;
+    expect(invia.title).toBe("Invia all’ufficio");
+    await elabora(await registra({ id: "wamid.rapportino-personale-si", type: "interactive", interactive: { button_reply: invia } }));
+    expect(db.tabelle.campo_rapportini).toEqual([expect.objectContaining({
+      order_id: cantiere, whatsapp_message_id: vocale.id, stato: "inviato", ore_lavorate: 8,
+      descrizione_lavori: "Montaggio due finestre al primo piano",
     })]);
     expect(m.ai).toHaveBeenCalledTimes(1);
   });
@@ -473,7 +687,8 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
       new Blob([new Uint8Array([255, 216, 255, 3])], { type: "image/jpeg" }));
     await elabora(foto);
     expect(foto).toMatchObject({ ai_intent: "unknown", media_storage_path: expect.any(String) });
-    expect(consegne[0].text).toContain("Allegato salvato");
+    expect(consegne[0].text).toContain("Ho salvato questo allegato");
+    expect(consegne[0].reply_to_id).toBe(foto.id);
     expect(db.tabelle.ai_attivita_live[0]).toMatchObject({ stato: "in_attesa", fase: "da_smistare" });
     expect(db.tabelle.ddt_document_jobs ?? []).toHaveLength(0);
     await elabora(await registra({ id: "wamid.allegato-sfocato-risposta", type: "text",

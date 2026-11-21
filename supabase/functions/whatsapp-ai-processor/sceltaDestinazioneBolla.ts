@@ -5,7 +5,7 @@ import type { ToolCtx } from "./tools/shared/types.ts";
 
 type Sezione = "cantieri" | "depositi";
 type PaginaBolla = { sezione: Sezione; pagina: number };
-type RispostaBolla = { fotoId: string; scelta: SceltaDestinazioneBolla } | { fotoId: string; pagina: PaginaBolla };
+type RispostaBolla = { fotoId: string; invio?: true } & ({ scelta: SceltaDestinazioneBolla } | { pagina: PaginaBolla });
 
 export function rispostaDestinazioneBolla(meta: unknown, tipo: string): RispostaBolla | null {
   if (tipo !== "interactive") return null;
@@ -13,12 +13,13 @@ export function rispostaDestinazioneBolla(meta: unknown, tipo: string): Risposta
   const id = record?.interactive?.button_reply?.id ?? record?.interactive?.list_reply?.id;
   if (typeof id !== "string") return null;
   const [prefisso, azione, fotoId, valore, extra] = id.split(":");
-  if (prefisso !== "ddt" || extra !== undefined || !idWhatsAppValido(fotoId)) return null;
+  if (!["ddt", "ddt-invio"].includes(prefisso) || extra !== undefined || !idWhatsAppValido(fotoId)) return null;
+  const origine = { fotoId, ...(prefisso === "ddt-invio" ? { invio: true as const } : {}) };
   if ((azione === "cantiere" || azione === "magazzino") && idWhatsAppValido(valore)) {
-    return { fotoId, scelta: { tipo: azione, id: valore } };
+    return { ...origine, scelta: { tipo: azione, id: valore } };
   }
   if ((azione === "cantieri" || azione === "depositi") && /^\d{1,3}$/.test(valore ?? "")) {
-    return { fotoId, pagina: { sezione: azione, pagina: Number(valore) } };
+    return { ...origine, pagina: { sezione: azione, pagina: Number(valore) } };
   }
   return null;
 }
@@ -28,17 +29,22 @@ export function elencoDestinazioniBolla(
   destinazioni: InteractiveOption[],
   sezione: Sezione,
   pagina: number,
+  introduzione?: string,
 ): InteractivePayload {
-  const perPagina = destinazioni.length > 10 ? 8 : 10;
+  const prefisso = domanda.invio ? "ddt-invio" : "ddt";
+  const capacita = sezione === "cantieri" ? 9 : 10;
+  const perPagina = destinazioni.length > capacita ? capacita - 2 : capacita;
   const totalePagine = Math.ceil(destinazioni.length / perPagina);
   const corrente = Math.min(pagina, totalePagine - 1);
   const righe = destinazioni.slice(corrente * perPagina, (corrente + 1) * perPagina);
-  if (corrente > 0) righe.push({ id: `ddt:${sezione}:${domanda.fotoId}:${corrente - 1}`, title: "Pagina precedente" });
-  if (corrente + 1 < totalePagine) righe.push({ id: `ddt:${sezione}:${domanda.fotoId}:${corrente + 1}`, title: "Altri risultati" });
+  if (corrente > 0) righe.push({ id: `${prefisso}:${sezione}:${domanda.fotoId}:${corrente - 1}`, title: "Pagina precedente" });
+  if (corrente + 1 < totalePagine) righe.push({ id: `${prefisso}:${sezione}:${domanda.fotoId}:${corrente + 1}`, title: "Altri risultati" });
+  if (sezione === "cantieri") righe.push({ id: `${prefisso}:depositi:${domanda.fotoId}:0`, title: "Magazzino" });
   const nome = sezione === "cantieri" ? "cantieri" : "magazzini";
   const pagine = totalePagine > 1 ? ` · Pagina ${corrente + 1} di ${totalePagine}` : "";
-  return buildInteractivePayload(`${domanda.etichetta} salvata. Seleziona la destinazione.\n${destinazioni.length} ${nome}${pagine}`,
-    righe, sezione === "cantieri" ? "Scegli cantiere" : "Scegli magazzino", true);
+  const testo = introduzione ?? (sezione === "cantieri" ? "Scegli dove è arrivata la merce." : "Scegli il magazzino di arrivo.");
+  return buildInteractivePayload(`${testo}\n${destinazioni.length} ${nome}${pagine}`,
+    righe, sezione === "cantieri" ? "Scegli destinazione" : "Scegli magazzino", true);
 }
 
 export async function propostaDestinazioneBolla(
@@ -46,28 +52,37 @@ export async function propostaDestinazioneBolla(
   domanda: DomandaDestinazioneBolla,
   pagina?: PaginaBolla,
 ): Promise<InteractivePayload | string> {
+  const prefisso = domanda.invio ? "ddt-invio" : "ddt";
+  const salvata = domanda.invio ? `Ho salvato ${domanda.etichetta} in DDT → Documenti in ingresso.`
+    : `${domanda.etichetta} salvata in DDT → Documenti in ingresso.`;
+  const primaDomanda = `${salvata} Dove è arrivata la merce?`;
   if (pagina?.sezione === "depositi") {
     const magazzini = await magazziniPerBolla(ctx);
-    if (!magazzini.length) return `${domanda.etichetta} salvata. Per la destinazione al magazzino serve l’ufficio.`;
-    return elencoDestinazioniBolla(domanda, magazzini.map(m => ({ id: `ddt:magazzino:${domanda.fotoId}:${m.id}`, title: m.name })), "depositi", pagina.pagina);
+    if (!magazzini.length) return "Per indicare il magazzino di arrivo, chiedi all’ufficio.";
+    return elencoDestinazioniBolla(domanda, magazzini.map(m => ({ id: `${prefisso}:magazzino:${domanda.fotoId}:${m.id}`, title: m.name })), "depositi", pagina.pagina);
   }
 
   const oggi = oggiARoma();
   const cantieri = (await commesseAperte(ctx)).filter(c => !c.work_start_date || c.work_start_date <= oggi);
   const ordinati = await cantieriInOrdine(ctx, cantieri);
-  const righe = ordinati.map(c => ({ id: `ddt:cantiere:${domanda.fotoId}:${c.id}`, title: c.titolo, description: c.dettaglio }));
-  if (!righe.length) return `${domanda.etichetta} salvata. Puoi indicare un magazzino a voce. L’ufficio può collegare la bolla in «Documenti in ingresso».`;
+  const righe = ordinati.map(c => ({ id: `${prefisso}:cantiere:${domanda.fotoId}:${c.id}`, title: c.titolo, description: c.dettaglio }));
+  if (!righe.length) {
+    const magazzini = await magazziniPerBolla(ctx);
+    if (!magazzini.length) return pagina
+      ? "L’ufficio può indicare la destinazione in «Documenti in ingresso»."
+      : `${salvata} L’ufficio può indicare la destinazione.`;
+    const opzioni = magazzini.map(m => ({ id: `${prefisso}:magazzino:${domanda.fotoId}:${m.id}`, title: m.name }));
+    return elencoDestinazioniBolla(domanda, opzioni, "depositi", 0, pagina ? undefined : primaDomanda);
+  }
   if (pagina) return elencoDestinazioniBolla(domanda, righe, "cantieri", pagina.pagina);
   const [primo, secondo] = ordinati;
-  if (secondo && primo.punteggio === secondo.punteggio) {
-    return buildInteractivePayload(`${domanda.etichetta} salvata. Dove è arrivata la merce?`, [
-      { id: `ddt:cantieri:${domanda.fotoId}:0`, title: "Scegli cantiere" },
-      { id: `ddt:depositi:${domanda.fotoId}:0`, title: "Magazzino" },
-    ]);
+  if (secondo) {
+    const suggerito = primo.punteggio > secondo.punteggio
+      ? `\nCantiere suggerito · ${[primo.titolo, primo.dettaglio].filter(Boolean).join(" · ")}` : "";
+    return elencoDestinazioniBolla(domanda, righe, "cantieri", 0, primaDomanda + suggerito);
   }
-  return buildInteractivePayload(`${domanda.etichetta} salvata. La merce è arrivata qui?\n${[primo.titolo, primo.dettaglio].filter(Boolean).join(" · ")}`, [
+  return buildInteractivePayload(`${salvata} La merce è arrivata qui?\n${[primo.titolo, primo.dettaglio].filter(Boolean).join(" · ")}`, [
     { id: righe[0].id, title: "Assegna qui" },
-    ...(secondo ? [{ id: `ddt:cantieri:${domanda.fotoId}:0`, title: "Altri cantieri" }] : []),
-    { id: `ddt:depositi:${domanda.fotoId}:0`, title: "Magazzino" },
+    { id: `${prefisso}:depositi:${domanda.fotoId}:0`, title: "Magazzino" },
   ]);
 }

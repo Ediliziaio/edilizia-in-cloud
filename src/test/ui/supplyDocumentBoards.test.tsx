@@ -12,12 +12,12 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SupplierRfqsList from "@/pages/azienda/SupplierRfqsList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
-import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
+import { documentiDb, type DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
 import type { SupplierRfq, ContatoriRichiesta } from "@/hooks/useSupplierRfqs";
 import type { DDTRicezioneWithJoins, DDTStato } from "@/hooks/useDDTRicezione";
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: null as null, effectiveCompany: null as null }),
+  useAuth: () => ({ user: state.company ? { id: "utente" } : null, effectiveCompany: state.company ? { id: state.company } : null }),
 }));
 
 vi.mock("@/hooks/usePipelineTransition", () => ({
@@ -29,6 +29,7 @@ vi.mock("@/hooks/usePipelineTransition", () => ({
 }));
 
 const state = vi.hoisted(() => ({
+  company: "",
   jobs: [] as DocumentoPersistente[],
   transition: vi.fn(),
   rfqs: [] as SupplierRfq[],
@@ -84,8 +85,8 @@ vi.mock("@/hooks/useDocumentiDDT", async () => {
   >("@/hooks/useDocumentiDDT");
   return {
     ...actual,
-    useDocumentiDDT: () => ({
-      data: state.jobs,
+    useDocumentiDDT: (...args: Parameters<typeof actual.useDocumentiDDT>) => ({
+      data: args[5] ? state.jobs.filter(j => j.whatsapp_invio_id === args[5]) : state.jobs,
       isLoading: false,
       isError: false,
       hasNextPage: false,
@@ -199,6 +200,7 @@ beforeEach(() => { Element.prototype.scrollIntoView = vi.fn();
   state.costs = true;
   state.error = false;
   state.jobs = [];
+  state.company = "";
   state.transition.mockClear();
   state.create.mockClear();
   state.csv.mockClear();
@@ -471,6 +473,18 @@ describe("Colonne dell’elenco documenti", () => {
 });
 
 describe("Elenco DDT operativo", () => {
+  it("dal PDF diviso apre le singole bolle", () => {
+    const id = "10000000-0000-4000-8000-000000000011";
+    const figli = ["10000000-0000-4000-8000-000000000012", "10000000-0000-4000-8000-000000000013"];
+    state.jobs = [{
+      id, company_id: "co", created_by: "u", order_id: null, source: "whatsapp", status: "split",
+      split_ids: figli, files: [{ name: "Bolle.pdf", mime: "application/pdf", path: "co/u/bolle", size: 100 }],
+      result: null, created_at: "2026-11-21T12:00:00Z", updated_at: "2026-11-21T12:00:00Z", last_error: null, ddt_id: null,
+    }];
+    open(<DDTRicezioneList />, `/azienda/ordini?tab=ddt&ddt_documento=${id}`, false);
+    expect(screen.getByRole("link", { name: "Apri bolla 2" })).toHaveAttribute("href", `/azienda/ordini?tab=ddt&ddt_documento=${figli[1]}`);
+  });
+
   it.each(["review", "registered"] as const)("apre la bolla esatta dall’attività AI con stato %s", (status) => {
     const id = "10000000-0000-4000-8000-000000000011";
     const bolla: DocumentoPersistente = {
@@ -551,11 +565,50 @@ describe("Elenco DDT operativo", () => {
     expect(
       screen.queryByText("File-gia-registrato.pdf"),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Da registrare"}));
+    const inIngresso = screen.getByRole("button", { name: "Documenti in ingresso (1)" });
+    fireEvent.click(inIngresso);
+    expect(inIngresso).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Nuova-bolla.pdf")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "DDT-gia" }),
     ).not.toBeInTheDocument();
+    fireEvent.click(inIngresso);
+    expect(screen.getByRole("link", { name: "DDT-gia" })).toBeInTheDocument();
+  });
+
+  it("riepiloga l’invio WhatsApp, mostra i duplicati e apre solo i documenti del gruppo", async () => {
+    const invio = "10000000-0000-4000-8000-000000000001";
+    const altroId = "20000000-0000-4000-8000-000000000001";
+    const base: DocumentoPersistente = {
+      id: "foto-1", company_id: "co", created_by: "utente", order_id: null, source: "whatsapp", status: "review",
+      last_error: null, ddt_id: null, result: null, created_at: "2026-10-26T10:00:00Z",
+      files: [{ name: "Bolla da WhatsApp.jpg", path: "co/utente/bolla.jpg", mime: "image/jpeg", size: 123 }],
+      whatsapp_invio_id: invio,
+    };
+    state.company = "co";
+    state.jobs = [base, { ...base, id: "foto-2", whatsapp_invio_id: null, files: [{ ...base.files[0], name: "Bolla di un altro invio.jpg" }] }];
+    const rpc = vi.spyOn(documentiDb, "rpc").mockImplementation(async nome => ({
+      error: null,
+      data: nome === "ddt_ingresso_invii" ? [{ id: invio, ricevuti: 20, duplicati_identici: 1,
+        in_lettura: 7, da_controllare: 12, da_rimandare: 1, da_riprovare: 0, registrate: 0, created_at: base.created_at }]
+        : [{ documento_id: base.id, altro_id: altroId, registrato: true }],
+    }));
+    try {
+      open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt&ddt_stato=da_registrare", false);
+      const recap = await screen.findByRole("region", { name: "Invii WhatsApp" });
+      expect(recap).toHaveTextContent("20 file ricevuti");
+      expect(recap).toHaveTextContent("7 da leggere · 12 da controllare · 1 già in archivio");
+      expect(recap).toHaveTextContent("1 da rimandare");
+      expect(screen.getByRole("link", { name: "Confronta bolla" })).toHaveAttribute("href", `/azienda/ddt/${altroId}`);
+      fireEvent.click(within(recap).getByRole("button", { name: "Apri invio" }));
+      expect(screen.getByTestId("url")).toHaveTextContent(`ddt_invio=${invio}`);
+      expect(screen.getByText("Bolla da WhatsApp.jpg")).toBeInTheDocument();
+      expect(screen.queryByText("Bolla di un altro invio.jpg")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Tutti i documenti" }));
+      expect(screen.getByText("Bolla di un altro invio.jpg")).toBeInTheDocument();
+    } finally {
+      rpc.mockRestore();
+    }
   });
 });
 

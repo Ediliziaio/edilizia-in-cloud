@@ -115,6 +115,30 @@ it("salva una lettura recuperabile senza creare DDT, materiali o costi e senza p
     type: "file",
   });
 });
+it("se il riferimento si legge dopo la scelta WhatsApp, evidenzia il cantiere discordante in ufficio", async () => {
+  job.source = "whatsapp";
+  (job.files as Array<Record<string, unknown>>)[0].origine_pdf = "pdf-origine";
+  const queryBase = db.from.getMockImplementation();
+  const corrente = {
+    eq: () => corrente,
+    maybeSingle: async () => ({ data: { destinazione: "cantiere", order_id: "primo" }, error: null }),
+  };
+  const odA = {
+    eq: () => odA, ilike: () => odA, not: () => odA,
+    limit: async () => ({ data: [{ order_id: "secondo" }], error: null }),
+  };
+  db.from.mockImplementation((tabella: string) => {
+    if (tabella === "ddt_document_jobs") return { ...queryBase(tabella), select: () => corrente };
+    if (tabella === "purchase_orders") return { select: () => odA };
+    return queryBase(tabella);
+  });
+  m.ai.mockResolvedValueOnce({
+    content: JSON.stringify({ riferimenti: { ordine_acquisto: "ODA-42" }, righe_merce: [{ descrizione: "Tubi", quantita: 2 }] }),
+  });
+  expect((await processaDocumento(db, "job")).stato).toBe("review");
+  expect(updates[0].last_error).toMatch(/cantiere diverso/);
+  expect(updates[0]).not.toHaveProperty("order_id");
+});
 it("non legge file di altre aziende o originali manomessi e non spende AI", async () => {
   (job.files as any[])[0].path = "altra/utente/job/file.pdf";
   expect((await processaDocumento(db)).stato).toBe("error");
