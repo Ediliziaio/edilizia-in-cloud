@@ -30,7 +30,7 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
     if (
       !Array.isArray(files) ||
       !files.length ||
-      files.some((f) => !(f instanceof Blob))
+      files.some((f) => !(f instanceof Blob) && !(f instanceof ArrayBuffer))
     )
       throw new SyncPermanentError(
         "Documento locale non disponibile: la bozza è conservata",

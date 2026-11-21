@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Mic,
+  Camera, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Mic, Images, Trash2, WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
@@ -49,9 +49,9 @@ import { loadRapportinoArticles } from "@/lib/campo/loadRapportinoArticles";
 import { loadRapportinoDeliveredStock } from "@/lib/campo/loadRapportinoDeliveredStock";
 import { costruisciFasiLavorate, faseDiAppartenenza } from "@/lib/campo/rapportinoFasi";
 import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext";
-import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cn } from "@/lib/utils";
-import { MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, avvisoCaricamento, postiLiberi, preparaFoto } from "@/lib/campo/preparaFoto";
+import { MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, postiLiberi, preparaFoto, type FotoPronta } from "@/lib/campo/preparaFoto";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
@@ -66,6 +66,7 @@ import { RapportinoVoceInput, type PropostaRapportino } from "@/components/campo
 import { DettaTesto } from "@/components/campo/DettaTesto";
 import { accodaTesto } from "@/lib/campo/dettaTesto";
 import { useFormDraft } from "@/hooks/campo/useFormDraft";
+import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
 
 const TOTAL_STEPS = 2;
@@ -117,6 +118,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [step, setStep] = useState(1);
   const inizioRapportino = useRef<HTMLDivElement>(null);
   const campoDescrizione = useRef<HTMLTextAreaElement>(null);
+  const campoOre = useRef<HTMLInputElement>(null);
+  const online = useNetworkStatus();
+  const [controllaOre, setControllaOre] = useState(false);
 
   // Step 1
   const [descrizione, setDescrizione] = useState("");
@@ -138,11 +142,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [mezziSel, setMezziSel] = useState<Record<string, RigaMezzoGiornata>>({});
   const [arrivo, setArrivo] = useState(ARRIVO_VUOTO);
   const [materialeLibero, setMaterialeLibero] = useState("");
-  const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
+  const [fotoLocali, setFotoLocali] = useState<Record<string, Blob>>({});
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
+  const [fotoDaRiprovare, setFotoDaRiprovare] = useState<FotoPronta[]>([]);
   // Foto → fase, solo se l'operaio l'ha scelta (con più fasi). Con una fase sola si collega da sé al salvataggio.
   const [fotoFase, setFotoFase] = useState<Record<string, string>>({});
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const bloccoFoto = useRef(false);
   const [fotoProgresso, setFotoProgresso] = useState<string | null>(null);
 
   // Step 3
@@ -331,7 +337,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     if (typeof b.oreLavorate === "number" && Number.isFinite(b.oreLavorate)) modificaOre(b.oreLavorate);
     setOreStraordinario(Number(b.oreStraordinario) || 0); setMeteo(b.meteo || ""); setPercentuale(Number(b.percentuale) || 0);
     setFasiDichiarate(b.fasiDichiarate || {}); setMaterialiSel(b.materialiSel || {}); setMezziSel(b.mezziSel || {});
-    setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
+    setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
     setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []); setSottofasiAvanzate(b.sottofasiAvanzate && typeof b.sottofasiAvanzate === "object" ? b.sottofasiAvanzate : {});
     setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || ""); setCampiValori(b.campiValori || {});
     setPresenzeModificate(b.presenzeModificate || {});
@@ -472,7 +478,6 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       setPercentuale(Number(r.percentuale_avanzamento) || 0);
       const foto = Array.isArray(r.foto_urls) ? r.foto_urls.filter((u): u is string => typeof u === "string") : [];
       setFotoUrls(foto);
-      setFotoPreviews(foto);
       setCampiValori(valoriInBozza(leggiValori(r.campi_extra)));
       setArrivo(leggiArrivo(r.campi_extra));
       if (Array.isArray(r.fasi_lavorate)) {
@@ -607,7 +612,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const idsFasiDichiarate = Object.keys(fasiDichiarate);
   // Quello che non appartiene a nessuna fase (con più fasi e nessuna scelta, o senza fasi).
   const materialiGenerali = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === null);
-  const fotoAlCompleto = postiLiberi(fotoUrls.length) === 0;
+  const fotoAlCompleto = postiLiberi(fotoUrls.length + fotoDaRiprovare.length) === 0;
   const fotoGenerali = fotoUrls.filter(u => faseDiAppartenenza(fotoFase[u], idsFasiDichiarate) === null).length;
 
   // ── Articoli/materiali della commessa (order_items) ─────────────────
@@ -687,76 +692,101 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   });
   const fotoDelGiornoPrese = useRef(false);
   useEffect(() => {
-    if (fotoDelGiornoPrese.current || !fotoDelGiorno || !ripresaDecisa || daRifare || !parti.foto || soloOreAllOperaio || rapportinoGiaOggi) return;
+    if (fotoDelGiornoPrese.current || !fotoDelGiorno || !ripresaDecisa || daRifare || !parti.foto || soloOreAllOperaio || rapportinoGiaOggi || uploadingFoto) return;
     fotoDelGiornoPrese.current = true;
     if (fotoDelGiorno.length === 0) return;
-    setFotoUrls((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u))]);
-    setFotoPreviews((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u))]);
-  }, [fotoDelGiorno, ripresaDecisa, daRifare, parti.foto, soloOreAllOperaio, rapportinoGiaOggi]);
+    setFotoUrls((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u)).slice(0, postiLiberi(prima.length + fotoDaRiprovare.length))]);
+  }, [fotoDelGiorno, ripresaDecisa, daRifare, parti.foto, soloOreAllOperaio, rapportinoGiaOggi, uploadingFoto, fotoDaRiprovare.length]);
 
   // ── Upload foto ──────────────────────────────────────────────────────
-  const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Azzerato subito: senza, riscegliere la stessa foto (o riscattare dopo un errore) non fa scattare onChange.
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    if (!files.length) return;
+  const caricaFoto = async (prepara: () => Promise<FotoPronta[]>, riprova = false) => {
+    if (bloccoFoto.current || !online) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
-    if (!profile?.company_id || !orderId) {
+    if (!companyId || !orderId) {
       toast.error("Sessione non pronta, riprova");
       return;
     }
-    if (postiLiberi(fotoUrls.length) === 0) {
-      toast.error(`Hai già ${MAX_FOTO_PER_RAPPORTINO} foto: togline una per aggiungerne altre.`);
-      return;
-    }
+    bloccoFoto.current = true;
     setUploadingFoto(true);
-
-    const previews: string[] = [];
-    const urls: string[] = [];
+    const caricate: Record<string, Blob> = {};
+    const mancanti: FotoPronta[] = [];
     try {
-      // In sequenza, una alla volta: con 15 foto su un telefono economico la memoria non basta per tutte insieme.
-      const esito = await preparaFoto(files, {
-        giaPresenti: fotoUrls.length,
-        onProgresso: (i, n) => setFotoProgresso(`Preparo le foto ${i} di ${n}…`),
-      });
+      const pronte = await prepara();
       controllaGiorno();
-      for (let i = 0; i < esito.pronte.length; i++) {
-        const foto = esito.pronte[i];
-        setFotoProgresso(`Carico le foto ${i + 1} di ${esito.pronte.length}…`);
+      const storage = supabase.storage.from("campo-rapportini");
+      for (const [i, foto] of pronte.entries()) {
+        setFotoProgresso(`Carico le foto ${i + 1} di ${pronte.length}…`);
         try {
-          const path = `${profile.company_id}/${orderId}/${foto.nomeFile}`;
-          const { data: up, error: upErr } = await supabase.storage
-            .from("campo-rapportini")
-            .upload(path, foto.blob, { contentType: foto.contentType, upsert: false });
-          if (upErr) throw upErr;
-          if (!up?.path) throw new Error("Upload senza path");
-          const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
-          urls.push(urlData.publicUrl);
-          // Anteprima dalla foto compressa: tenere in memoria l'originale da 12 MB per una miniatura non serve.
-          previews.push(URL.createObjectURL(foto.blob));
-        } catch (err) {
-          console.error("[CampoRapportino] upload foto:", err);
+          controllaGiorno();
+          const path = `${companyId}/${orderId}/${foto.nomeFile}`;
+          const { data: up, error } = await storage.upload(path, foto.blob, { contentType: foto.contentType, upsert: false });
+          if (error) {
+            if (!riprova || (String((error as { statusCode?: string }).statusCode) !== "409" && !/already exists|duplicate/i.test(error.message))) throw error;
+            const { data: copia, error: erroreLettura } = await storage.download(path);
+            if (erroreLettura || !copia || copia.size !== foto.blob.size) throw error;
+            const [originale, caricata] = await Promise.all([foto.blob.arrayBuffer(), copia.arrayBuffer()]);
+            const bytes = new Uint8Array(caricata);
+            if (!new Uint8Array(originale).every((valore, indice) => valore === bytes[indice])) throw error;
+          } else if (!up?.path) throw new Error("Upload senza path");
+          const { data: urlData } = storage.getPublicUrl(up?.path ?? path);
+          caricate[urlData.publicUrl] = foto.blob;
+        } catch {
+          mancanti.push(foto);
         }
       }
-      avvisiPreparazione(esito).forEach((a) => toast.error(a));
-      const avviso = avvisoCaricamento(urls.length, esito.pronte.length);
-      if (avviso) toast.error(avviso);
+      if (Object.keys(caricate).length) {
+        setFotoLocali((prima) => ({ ...prima, ...caricate }));
+        setFotoUrls((prima) => [...prima, ...Object.keys(caricate)]);
+      }
+      setFotoDaRiprovare((prima) => riprova ? mancanti : [...prima, ...mancanti]);
     } catch (err) {
-      // controllaGiorno può fermare tutto se nel frattempo la giornata non è più ammessa.
       toast.error(err instanceof Error ? err.message : "Impossibile caricare le foto — riprova");
     } finally {
-      setFotoPreviews(prev => [...prev, ...previews]);
-      setFotoUrls(prev => [...prev, ...urls]);
+      bloccoFoto.current = false;
       setUploadingFoto(false);
       setFotoProgresso(null);
     }
   };
 
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length || fotoAlCompleto) return;
+    void caricaFoto(async () => {
+      const esito = await preparaFoto(files, {
+        giaPresenti: fotoUrls.length + fotoDaRiprovare.length,
+        onProgresso: (i, n) => setFotoProgresso(`Preparo le foto ${i} di ${n}…`),
+      });
+      avvisiPreparazione(esito).forEach((avviso) => toast.error(avviso));
+      return esito.pronte;
+    });
+  };
+
+  const togliFoto = (url: string) => {
+    setFotoUrls((prima) => prima.filter((foto) => foto !== url));
+    setFotoLocali(({ [url]: _foto, ...resto }) => resto);
+    setFotoFase(({ [url]: _fase, ...resto }) => resto);
+  };
+
   // ── Salvataggio ──────────────────────────────────────────────────────
+  const straordinarioDaInviare = parti.straordinario || daRifare ? oreStraordinario : 0;
+  const oreDaInviare = () => confermaCliente || oreNonMie ? 0 : validateRapportinoHours(
+    oreLavorate, straordinarioDaInviare, registraSquadra ? presenzeSel : {},
+  );
+  let erroreOre: string | null = null;
+  if (controllaOre) {
+    try {
+      oreDaInviare();
+    } catch (err) {
+      erroreOre = err instanceof Error ? err.message : "Verifica le ore lavorate.";
+    }
+  }
+
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
       // Il rapportino senza rete non parte: la bozza resta sul telefono e la giornata resta aperta.
       if (senzaRete()) throw new Error("Sei senza rete: il rapportino resta qui sul telefono. Mandalo appena torna il campo.");
+      if (bloccoFoto.current || fotoDaRiprovare.length) throw new Error("Completa il caricamento delle foto prima di inviare.");
       if (verificaInCorso || verificaFallita || !ruoloCampo) throw new Error("Attendi la verifica del cantiere e dei rapporti già inviati, oppure riprova.");
       if (clienteNonConsentito) throw new Error("Il collaudo col cliente lo fa il capocantiere. Puoi inviare il tuo rapportino.");
       if (!lavoro_completato && flusso.soloTimbratura && !daRifare) throw new Error("Il giornaliero lo invia il responsabile: tu registra entrata e uscita. Puoi aggiungere foto dal cantiere.");
@@ -775,11 +805,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
       // Un'azienda può aver spento una parte dopo: un rapportino respinto tiene quello che aveva, uno nuovo non la scrive.
-      const straordinarioDaInviare = parti.straordinario || daRifare ? oreStraordinario : 0;
       const materialiPayload = confermaCliente || !parti.materiali ? [] : buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
       // Se le mie ore le registra il capo, qui non se ne scrivono: sommate due
       // volte falserebbero il costo della commessa.
-      const orePayload = confermaCliente || oreNonMie ? 0 : validateRapportinoHours(oreLavorate, straordinarioDaInviare, registraSquadra ? presenzeSel : {});
+      const orePayload = oreDaInviare();
 
       // Fasi dichiarate dall'operaio: [{phase_id, percentuale, nome, foto?, sottofasi_fatte?}]. Per le fasi con sottofasi
       // la voce la costruisce `fasiLavorateDelRapportino`; qui si aggiungono nome e foto. Le foto di ogni fase stanno anche
@@ -1004,15 +1033,26 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     // Quelli per fase stanno più avanti, per chi ha due passi: si chiedono all'invio.
     const mancaOra = isUltimoStep ? campiMancanti : step === 1 ? mancantiRapportino : [];
     if (mancaOra.length > 0) { setErroriCampi(true); toast.error(`Compila: ${mancaOra.join(", ")}`); return; }
-    if (step < totalSteps) cambiaPassaggio(step + 1);
-    else salva();
+    if (step < totalSteps) {
+      cambiaPassaggio(step + 1);
+      return;
+    }
+    if (!online || bloccoFoto.current || fotoDaRiprovare.length) return;
+    try {
+      oreDaInviare();
+    } catch {
+      setControllaOre(true);
+      campoOre.current?.scrollIntoView?.({ block: "center" });
+      return;
+    }
+    salva();
   };
 
   // Dati "sudati" nel form: uscire per sbaglio (freccia indietro col pollice)
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
     avanzamentoModificato.current || descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
-    fotoUrls.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
+    fotoUrls.length > 0 || fotoDaRiprovare.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
     Object.keys(presenzeSel).length > 0 || Object.keys(presenzeModificate).length > 0 ||
     Object.keys(materialiSel).length > 0 || Object.keys(mezziSel).length > 0 ||
@@ -1022,7 +1062,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     if (saving || uploadingFoto) return;
     if (vocaleVisibile) { tornaAScrivere(); return; }
     if (step === 1) {
-      if (datiInseriti && !window.confirm(bozza.saveError ? "La bozza non è stata salvata sul telefono. Uscendo potresti perdere i dati: continuare?" : "Vuoi uscire dal rapportino? La bozza resta sul telefono, ma non è inviata. Le firme vanno raccolte di nuovo.")) {
+      const confermaUscita = bozza.saveError
+        ? "La bozza non è stata salvata sul telefono. Uscendo potresti perdere i dati: continuare?"
+        : fotoDaRiprovare.length
+          ? "Vuoi uscire dal rapportino? Le foto in attesa di caricamento si perdono quando chiudi il modulo."
+          : "Vuoi uscire dal rapportino? La bozza resta sul telefono, ma non è inviata. Le firme vanno raccolte di nuovo.";
+      if (datiInseriti && !window.confirm(confermaUscita)) {
         return;
       }
       navigate(`/campo/lavoro/${orderId}`);
@@ -1328,17 +1373,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   );
                 })}
 
-                {sceltaFasePerOgniCosa && fotoPreviews.length > 0 && (
+                {sceltaFasePerOgniCosa && fotoUrls.length > 0 && (
                   <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
                     <p className="text-sm font-medium text-foreground">Di quale fase sono le foto?</p>
                     <p className="mb-2 text-xs text-muted-foreground">Facoltativo: le foto senza scelta restano tra quelle generali del cantiere.</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      {fotoPreviews.map((p, i) => (
-                        <div key={i}>
-                          <ImgRiservata loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt={`Foto ${i + 1}`} />
+                      {fotoUrls.map((url, i) => (
+                        <div key={url}>
+                          <AnteprimaFotoCampo foto={fotoLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-square h-auto" />
                           <UniformSelect aria-label={`Fase della foto ${i + 1}`}
-                            value={fotoFase[fotoUrls[i]] && fasiSelezionate.some(f => f.id === fotoFase[fotoUrls[i]]) ? fotoFase[fotoUrls[i]] : ""}
-                            onChange={e => { const url = fotoUrls[i]; const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
+                            value={fasiSelezionate.some(f => f.id === fotoFase[url]) ? fotoFase[url] : ""}
+                            onChange={e => { const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
                             className="mt-1 h-11 w-full min-w-0 rounded-lg border bg-background px-2 text-base">
                             <option value="">Nessuna fase</option>
                             {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -1553,11 +1598,19 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
   const titoloRapportino = lavoro_completato ? "Collaudo col cliente" : registraSquadra ? "Rapportino di squadra" : soloOreAllOperaio ? "Rapportino ore" : "Rapportino giornaliero";
   const titoloPasso = step === 1 ? (parti.foto ? "Lavoro e foto" : "Dati della giornata") : step === 2 ? "Controlla i dati" : "Firma del cliente";
+  const bloccaFoto = !online || uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente;
+  const presenzeIndicate = registraSquadra ? Object.keys(presenzeSel).length : 0;
+  const riepilogoRapido = [
+    presenzeIndicate ? `${presenzeIndicate} ${presenzeIndicate === 1 ? "presenza" : "presenze"}`
+      : !confermaCliente && !oreNonMie && oreLavorate !== "" ? `${oreInTesto(oreLavorate)} ordinarie` : "",
+    parti.foto && !soloOreAllOperaio && fotoUrls.length ? `${fotoUrls.length} ${fotoUrls.length === 1 ? "foto allegata" : "foto allegate"}` : "",
+  ].filter(Boolean).join(" · ");
   const dettagliDaAggiungere = new Intl.ListFormat("it", { type: "conjunction" })
     .format(["la descrizione", ...(parti.foto ? ["le foto"] : []), ...(parti.materiali ? ["i materiali"] : [])]);
 
   return (
-    <div ref={inizioRapportino} className="mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div ref={inizioRapportino} className={cn("mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background md:pb-0",
+      riepilogoRapido && isUltimoStep ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(5.25rem+env(safe-area-inset-bottom))]")}>
       {/* Header */}
       <div className="flex items-start gap-3 rounded-t-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:sticky md:top-0 md:z-10 md:px-4">
         <button type="button"
@@ -1625,7 +1678,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               </label>
               <UniformSelect id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto || vocaleVisibile}
                 onChange={e => {
-                  if (datiInseriti && !window.confirm("Cambiare giornata apre un altro modulo. La bozza resta sul telefono, salvo errori di salvataggio; le firme vanno raccolte di nuovo. Continuare?")) return;
+                  const avviso = fotoDaRiprovare.length
+                    ? "Cambiare giornata chiude il modulo. Le foto in attesa di caricamento si perdono. Continuare?"
+                    : "Cambiare giornata apre un altro modulo. La bozza resta sul telefono, salvo errori di salvataggio; le firme vanno raccolte di nuovo. Continuare?";
+                  if (datiInseriti && !window.confirm(avviso)) return;
                   const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
                 }} className="h-11 w-[47%] min-w-0 rounded-lg border bg-background px-2 text-base md:text-sm">
                 {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
@@ -1661,7 +1717,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             {soloOreAllOperaio ? (
               <p className="text-sm text-muted-foreground">Qui segni solo le tue ore. Il racconto del cantiere, le foto e i materiali li scrive il capocantiere.</p>
             ) : !vocaleVisibile && (
-              <div className="space-y-2 rounded-2xl border bg-background p-3">
+              <div className="space-y-2 rounded-2xl border border-primary/15 bg-background p-3 shadow-sm">
                 <label htmlFor="rapportino-lavori" className="flex items-center gap-2 text-sm font-semibold">
                   <ClipboardPenLine className="size-4 text-primary" aria-hidden="true" /> Descrizione dei lavori
                 </label>
@@ -1669,8 +1725,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   ref={campoDescrizione}
                   id="rapportino-lavori"
                   aria-label={lavoro_completato ? "Lavori da confermare con il cliente" : "Lavori svolti nella giornata"}
-                  className="block w-full resize-y rounded-xl border border-border bg-muted/35 px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 md:text-sm"
-                  rows={3}
+                  className="block w-full resize-y rounded-xl border border-border bg-muted/35 px-3 py-2.5 text-base leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 md:text-sm"
+                  rows={4}
                   placeholder={lavoro_completato ? "Descrivi i lavori conclusi e le note concordate." : "Es. Installati i telai delle finestre al primo piano."}
                   value={descrizione}
                   onChange={e => setDescrizione(e.target.value)}
@@ -1698,7 +1754,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 </button>
               </div>
             ) : mostraOrePersonali ? (
-            <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
+            <div className="space-y-3 rounded-2xl border bg-background p-3 shadow-sm sm:p-4">
               <div>
                 {oreRegistrateDalCapo && (
                   <p role="status" className="mb-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
@@ -1707,12 +1763,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   </p>
                 )}
                 <label htmlFor="ore-cantiere" className="text-sm font-semibold">Ore ordinarie su questo cantiere</label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {dayTime.isError ? "Timbrature non disponibili: inserisci le ore oppure riprova." :
-                    anomalieTimbrature ? "Ci sono timbrature da verificare: indica le ore effettive." :
-                    oreRilevate != null ? `Rilevate ${oreRilevate} h, pause escluse.` :
+                <p id="rapportino-ore-aiuto" className="mt-1 text-xs text-muted-foreground">
+                  {dayTime.isError ? "Timbrature non disponibili. Inserisci le ore effettive." :
+                    anomalieTimbrature ? "Verifica le timbrature e indica le ore effettive." :
+                    oreRilevate != null ? `Da timbrature, pause escluse: ${oreInTesto(oreRilevate)}.` :
                     soloOreAllOperaio ? "Indica le ore effettive." :
-                    `Nessuna ora attribuita da proporre. Per ${parti.foto ? "sole foto o note" : "una nota"}, indica 0.`}
+                    `Per registrare ${parti.foto ? "solo foto o note" : "solo una nota"}, indica 0 ore.`}
                 </p>
                 {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>Riprova timbrature</button>}
                 <div className="mt-3 flex items-center gap-3">
@@ -1721,10 +1777,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                     className="h-11 w-11 shrink-0 rounded-xl bg-muted flex items-center justify-center">
                     <Minus className="w-4 h-4" />
                   </button>
-                  <input id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
+                  <input ref={campoOre} id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
+                    aria-invalid={!!erroreOre && !registraSquadra}
+                    aria-describedby={erroreOre ? "rapportino-ore-aiuto rapportino-ore-errore" : "rapportino-ore-aiuto"}
                     value={oreLavorate} placeholder="Da indicare"
                     onChange={e => modificaOre(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="min-w-0 w-full h-11 rounded-xl border bg-background px-3 text-center text-sm" />
+                    className="h-12 w-full min-w-0 rounded-xl border bg-background px-2 text-center text-base font-semibold tabular-nums" />
                   <span className="text-sm text-muted-foreground">h</span>
                   <button type="button" aria-label="Aumenta ore ordinarie"
                     onClick={() => modificaOre(Math.min(24, Math.round(((oreLavorate === "" ? 0 : oreLavorate) + 0.5) * 10) / 10))}
@@ -1736,75 +1794,67 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               {!semplice && parti.straordinario && bloccoStraordinario}
             </div>
             ) : null}
+            {erroreOre && <p id="rapportino-ore-errore" role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-2.5 text-sm text-destructive">{erroreOre}</p>}
 
             {!soloOreAllOperaio && parti.foto && (
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
+            <section className="space-y-2 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label="Foto del rapportino">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Foto cantiere</h3>
+                <p className="text-xs tabular-nums text-muted-foreground">{fotoUrls.length}/{MAX_FOTO_PER_RAPPORTINO}</p>
+              </div>
               <div className="grid grid-cols-2 gap-2">
-                {/* Dopo il primo scatto il bottone resta lì, pieno: si scatta di fila senza perdere le foto già fatte. */}
                 <label className={cn(
-                  "flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold",
-                  fotoUrls.length > 0 ? "border-primary bg-primary text-primary-foreground" : "bg-primary/5",
-                  (uploadingFoto || fotoAlCompleto) && "cursor-not-allowed opacity-60",
+                  "flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary",
+                  bloccaFoto && "cursor-not-allowed opacity-60",
                 )}>
                   <input type="file" aria-label="Scatta una foto" accept="image/*" capture="environment" className="sr-only"
-                    onChange={handleFotoChange} disabled={uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente} />
-                  <Camera className="h-5 w-5" aria-hidden="true" />{fotoUrls.length > 0 ? "Scatta un'altra" : "Scatta foto"}
+                    onChange={handleFotoChange} disabled={bloccaFoto} />
+                  <Camera className="size-5 shrink-0" aria-hidden="true" />{fotoUrls.length ? "Altra foto" : "Scatta foto"}
                 </label>
-              <label className={cn("flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold", (uploadingFoto || fotoAlCompleto) && "cursor-not-allowed opacity-60")}>
-                <input
-                  type="file"
-                  aria-label="Scegli foto dalla galleria"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  onChange={handleFotoChange}
-                  disabled={uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente}
-                />
-                <div className="flex items-center gap-2">
-                  {uploadingFoto ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  ) : (
-                    <>
-                      <Plus className="h-5 w-5" aria-hidden="true" />
-                      <span>Galleria</span>
-                    </>
-                  )}
-                </div>
-              </label>
+                <label className={cn("flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary", bloccaFoto && "cursor-not-allowed opacity-60")}>
+                  <input type="file" aria-label="Scegli foto dalla galleria" accept="image/*" multiple className="sr-only"
+                    onChange={handleFotoChange} disabled={bloccaFoto} />
+                  <Images className="size-4 shrink-0" aria-hidden="true" /> Galleria
+                </label>
               </div>
-              <p role="status" className="mt-2 text-xs text-muted-foreground">
-                {uploadingFoto
-                  ? `${fotoProgresso ?? "Caricamento in corso…"} Attendi prima di inviare.`
-                  : fotoAlCompleto
-                    ? `${fotoUrls.length} foto: è il massimo per un rapportino. Togline una per aggiungerne un'altra.`
-                    : `${fotoUrls.length} di ${MAX_FOTO_PER_RAPPORTINO} foto. Puoi scattarne altre o sceglierne più insieme dalla galleria.`}
-              </p>
-              {fotoPreviews.length > 0 && (
-                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                  {fotoPreviews.map((p, i) => (
-                    <div key={i} className="relative">
-                      <ImgRiservata loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
+              {uploadingFoto ? (
+                <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />{fotoProgresso ?? "Caricamento in corso…"}
+                </p>
+              ) : !online ? (
+                <p className="text-xs text-muted-foreground">Torna online per allegare le foto.</p>
+              ) : fotoAlCompleto && !fotoDaRiprovare.length ? (
+                <p className="text-xs text-muted-foreground">Limite raggiunto. Rimuovi una foto per aggiungerne un’altra.</p>
+              ) : null}
+              {fotoDaRiprovare.length > 0 && !uploadingFoto && (
+                <div className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-sm">
+                  <p role="alert">{fotoDaRiprovare.length === 1 ? "Una foto è ancora da caricare." : `${fotoDaRiprovare.length} foto sono ancora da caricare.`} Tieni aperto il modulo.</p>
+                  <div className="flex flex-wrap items-center gap-x-3">
+                    <button type="button" disabled={!online || !dayAllowed || bloccatoDaEsistente} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
+                      onClick={() => void caricaFoto(async () => fotoDaRiprovare, true)}>Riprova caricamento</button>
+                    <button type="button" className="min-h-11 text-muted-foreground underline" onClick={() => setFotoDaRiprovare([])}>Rimuovi le foto in attesa</button>
+                  </div>
+                </div>
+              )}
+              {fotoUrls.length > 0 && (
+                <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  {fotoUrls.map((url, i) => (
+                    <li key={url} className="min-w-0">
+                      <AnteprimaFotoCampo foto={fotoLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-[4/3] h-auto" />
                       <button
                         type="button"
                         aria-label={`Togli la foto ${i + 1}`}
-                        onClick={() => {
-                          setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));
-                          setFotoUrls(prev => prev.filter((_, idx) => idx !== i));
-                        }}
-                        // tap-compact: senza, sotto i 768 px ogni bottone diventa 44x44 e copre mezza foto.
-                        // L'area di tocco è 32 px, il pallino rosso 24: sporge dall'angolo.
-                        className="tap-compact absolute -right-2.5 -top-2.5 flex h-8 w-8 items-center justify-center"
+                        disabled={uploadingFoto}
+                        onClick={() => togliFoto(url)}
+                        className="flex min-h-11 w-full items-center justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
                       >
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 shadow">
-                          <X className="h-3.5 w-3.5 text-white" aria-hidden="true" />
-                        </span>
+                        <Trash2 className="size-3.5 shrink-0" aria-hidden="true" /> Rimuovi
                       </button>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
-            </div>
+            </section>
             )}
 
             {campiSulRapportino.length > 0 && (
@@ -1818,9 +1868,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               errore={mezziPerArrivo.isError} riprova={() => void mezziPerArrivo.refetch()} />}
 
             {semplice && !soloOreAllOperaio && (parti.fasi || parti.materiali || parti.mezzi || (parti.straordinario && !oreNonMie) || (parti.avanzamento && puoDichiararePercentuali)) && (
-              <details className="rounded-2xl border bg-background p-4 shadow-sm">
-                <summary className="min-h-11 cursor-pointer text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
-                                <div className="space-y-3">
+              <details className="rounded-2xl border bg-background px-3 shadow-sm sm:px-4">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
+                <div className="space-y-3 pb-3">
                   {!oreNonMie && parti.straordinario && bloccoStraordinario}
                   {parti.avanzamento && puoDichiararePercentuali && bloccoAvanzamento}
                   {parti.fasi && bloccoFasi}
@@ -1841,6 +1891,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         {step === 2 && !semplice && (
           <>
             <h2 className="text-lg font-black text-foreground md:text-xl">Controlla prima di inviare</h2>
+            {erroreOre && (
+              <div role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-2.5 text-sm text-destructive">
+                <p>{erroreOre}</p>
+                <button type="button" onClick={goBack} className="min-h-11 font-semibold underline">Modifica ore e presenze</button>
+              </div>
+            )}
             {compilaArrivo && arrivo.mezzoId && <p className="text-sm text-muted-foreground">Arrivo dichiarato con {(mezziPerArrivo.data ?? []).find(m => m.id === arrivo.mezzoId)?.nome ?? "il mezzo selezionato"}{arrivo.km.trim() ? ` · ${arrivo.km} km all’andata` : ""}.</p>}
             {!confermaCliente && <>{(parti.avanzamento || parti.fasi) && <details className="rounded-2xl border p-3">
               <summary className="min-h-11 cursor-pointer text-sm font-semibold">{parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento"}{Object.keys(fasiDichiarate).length > 0 ? ` · ${Object.keys(fasiDichiarate).length} selezionate` : ""}</summary>
@@ -1887,13 +1943,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   ))}
                 </div>
               )}
-              {oreStraordinario > 0 && (
+              {!confermaCliente && !oreNonMie && straordinarioDaInviare > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Ore straordinario</span>
-                  <span className="text-primary font-bold">{oreStraordinario}h</span>
+                  <span className="text-primary font-bold">{oreInTesto(straordinarioDaInviare)}</span>
                 </div>
               )}
-              {fasiCommessa.length === 0 && (
+              {!confermaCliente && parti.avanzamento && puoDichiararePercentuali && !fasiCommessa.length && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Avanzamento</span>
                   <span className="text-primary font-bold">{percentuale}%</span>
@@ -2011,8 +2067,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
           outer page and main have different scroll heights. The pb-24 above
           keeps the last field visible; CampoLayout hides the app bottom nav. */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:sticky md:inset-x-auto md:z-20 md:px-4 md:pb-3">
+        {riepilogoRapido && isUltimoStep && (
+          <p className="mb-1.5 truncate text-xs font-medium text-muted-foreground">{riepilogoRapido}</p>
+        )}
         <div className="flex gap-3">
           <button
+            type="button"
             onClick={goBack}
             aria-label={step === 1 ? "Esci dal modulo" : "Passo precedente"}
             disabled={saving || uploadingFoto}
@@ -2021,12 +2081,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
+            type="button"
             onClick={goNext}
-            disabled={saving || uploadingFoto || vocaleVisibile || verificaInCorso || verificaFallita || clienteNonConsentito || (!lavoro_completato && flusso.soloTimbratura && !daRifare) || !dayAllowed || bloccatoDaEsistente || (!ripresaDecisa && !daRifare) || (lavoro_completato && !descrizione.trim()) || (isUltimoStep && firmeMancanti)}
-            className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
+            disabled={saving || uploadingFoto || fotoDaRiprovare.length > 0 || vocaleVisibile || verificaInCorso || verificaFallita || clienteNonConsentito || (!lavoro_completato && flusso.soloTimbratura && !daRifare) || !dayAllowed || bloccatoDaEsistente || (!ripresaDecisa && !daRifare) || (lavoro_completato && !descrizione.trim()) || (isUltimoStep && (firmeMancanti || !online))}
+            className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-2 py-2.5 text-center text-sm font-bold text-primary-foreground disabled:opacity-60 motion-safe:transition-transform motion-safe:active:scale-[0.98] sm:text-base"
           >
             {saving ? (
               <><Loader2 className="size-5 motion-safe:animate-spin" aria-hidden="true" /> Invio in corso…</>
+            ) : fotoDaRiprovare.length ? (
+              "Completa le foto"
+            ) : isUltimoStep && !online ? (
+              <><WifiOff className="size-4 shrink-0" aria-hidden="true" /> Torna online per inviare</>
             ) : !isUltimoStep ? (
               <>
                 Avanti

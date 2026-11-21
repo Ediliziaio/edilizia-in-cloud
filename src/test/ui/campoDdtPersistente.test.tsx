@@ -18,8 +18,10 @@ const m = vi.hoisted(() => ({
   documenti: [] as unknown[],
   soloDocumento: vi.fn(),
   lettura: "ai_subito" as "ai_subito" | "solo_foto",
+  online: true,
   toast: vi.fn(),
 }));
+vi.mock("@/hooks/campo/useNetworkStatus", () => ({ useNetworkStatus: () => m.online }));
 vi.mock("@/hooks/useImpostazioniAcquisti", () => ({
   useLetturaBolleTelefono: () => ({ data: m.lettura }),
 }));
@@ -69,6 +71,7 @@ vi.mock("@/components/ddt/DividiPdfPannello", () => ({
 import CampoDDT from "@/pages/campo/CampoDDT";
 beforeEach(() => {
   m.ufficio = false;
+  m.online = true;
   m.lettura = "ai_subito";
   m.toast.mockReset();
   m.permessi = { solaLettura: false, isAdmin: false, canEditOrders: false, canManagePurchasing: false, canEditWarehouse: false };
@@ -106,13 +109,15 @@ it("salva tutte le foto dello stesso DDT prima di avviare la rete, senza richied
   expect(m.enqueue.mock.calls[0][0]).toMatchObject({
     type: "documento_ddt",
     payload: {
-      files,
+      files: [expect.any(ArrayBuffer), expect.any(ArrayBuffer)],
       user_id: "operaio",
       company_id: "azienda",
       order_id: "cantiere",
       fileNames: ["fronte.heic", "retro.png"],
+      fileTypes: ["image/heic", "image/png"],
     },
   });
+  expect(new TextDecoder().decode(m.enqueue.mock.calls[0][0].payload.files[0])).toBe("foto1");
   await waitFor(() => expect(m.process).toHaveBeenCalledTimes(1));
   expect(screen.queryByText("1. fronte.heic")).not.toBeInTheDocument();
 });
@@ -285,17 +290,17 @@ it("l'operaio senza cantieri assegnati parte da «In magazzino» e può inviare"
   expect(screen.getByRole("button", { name: "Invia la bolla" })).toBeEnabled();
 });
 
-it("solo la foto: l'operaio non vede l'interruttore AI, invia, e legge «Inviata: l'ufficio la controlla»", async () => {
+it("solo la foto: l'operaio vede l'accodamento finché l'ufficio non riceve il documento", async () => {
   m.lettura = "solo_foto";
   // Anche con i permessi che darebbero l'interruttore e la revisione.
   m.permessi = { ...m.permessi, canManagePurchasing: true, canEditWarehouse: true };
   const vista = apri();
   expect(screen.queryByRole("switch", { name: "Leggi con l'AI" })).not.toBeInTheDocument();
-  expect(screen.getByText(/la legge e la registra l'ufficio/)).toBeInTheDocument();
+  expect(screen.getByText(/la legge e la registra l'ufficio/i)).toBeInTheDocument();
   await caricaBolla();
   fireEvent.click(screen.getByRole("button", { name: "Invia la bolla" }));
   await waitFor(() => expect(m.enqueue).toHaveBeenCalledTimes(1));
-  expect(m.toast).toHaveBeenCalledWith(expect.stringMatching(/l'ufficio la controlla/));
+  expect(m.toast).toHaveBeenCalledWith("Bolla salvata sul telefono. Invio in coda.");
   // Nessuna finestra di revisione aspetta una lettura che non partirà.
   m.documenti = [{ id: "operazione", status: "review", files: [{ name: "bolla.jpg" }], created_at: "2026-11-12T08:00:00Z", order_id: "cantiere" }];
   vista.rerender(
@@ -304,6 +309,17 @@ it("solo la foto: l'operaio non vede l'interruttore AI, invia, e legge «Inviata
     </MemoryRouter>,
   );
   expect(screen.queryByText("Revisione operazione")).not.toBeInTheDocument();
+});
+
+it("salva la foto offline indicando la destinazione confermata", async () => {
+  m.online = false;
+  apri();
+  await caricaBolla();
+  expect(screen.getByText("SIM-1 · Cantiere assegnato", { selector: "p" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Salva la bolla sul telefono" }));
+  await waitFor(() => expect(m.enqueue).toHaveBeenCalledOnce());
+  expect(m.enqueue.mock.calls[0][0].payload).toMatchObject({ destinazione: "cantiere", order_id: "cantiere" });
+  expect(m.toast).toHaveBeenCalledWith("Bolla salvata sul telefono. Partirà appena torna la connessione.");
 });
 
 it("solo la foto non tocca l'ufficio, che dal telefono tiene il suo interruttore", () => {
