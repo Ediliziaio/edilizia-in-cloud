@@ -42,6 +42,31 @@ function tassoZero(rata: number, finanziato = 12345.67): (d: FvPdfTemplateData) 
   };
 }
 
+it("il prezzo contrattuale conserva i centesimi in fornitura, investimento e accettazione", () => {
+  const html = conSpaziNormali(renderFvPdfHtml(dati(d => { d.costi.prezzo_vendita_iva_inclusa = 4439.6; })));
+  expect(html).toContain("4.439,60");
+  expect(html).toMatch(/class="price">4\.439,60\s*€/);
+  expect((html.match(/4\.439,60/g) ?? []).length).toBeGreaterThanOrEqual(3);
+});
+
+it("un nuovo impianto include le sezioni energetiche richieste con i dati della bolletta", () => {
+  const d = dati(d => {
+    d.progetto.consumo_annuo_bolletta_kwh = 2787;
+    d.progetto.spesa_annua_bolletta_eur = 1148.02;
+    d.template = { pdf_blocchi: { modulo_intervento: "nuovo" }, pdf_pages_order: [
+      { id: "produzione", visible: true }, { id: "flussi", visible: true }, { id: "risparmio", visible: true },
+    ] } as FvPdfTemplateData["template"];
+  });
+  const html = conSpaziNormali(renderFvPdfHtml(d));
+  expect(html.includes('data-fv-section="flussi"')).toBe(true);
+  expect(html.includes('data-fv-section="risparmio"')).toBe(true);
+  expect(html.includes("Bolletta confermata")).toBe(true);
+  expect(html.includes("2.787 kWh")).toBe(true);
+  expect(html.includes("1.148,02")).toBe(true);
+  d.template!.pdf_blocchi = { modulo_intervento: "accumulo" };
+  expect(renderFvPdfHtml(d).includes('data-fv-section="flussi"')).toBe(false);
+});
+
 describe("finanziatoConAnticipo: capitale e rata dopo l'anticipo", () => {
   it.each([
     // [totale, anticipo %, rata intera, anticipo €, finanziato €, rata attesa]

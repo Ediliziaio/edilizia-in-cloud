@@ -1,3 +1,5 @@
+import { FvIntestazioneProgetto } from "@/components/fotovoltaico/FvIntestazioneProgetto";
+import { FvAnteprimaDocumento } from "@/components/fotovoltaico/FvAnteprimaDocumento";
 import {FvAllegatiTecniciPreventivo} from "@/components/fotovoltaico/FvAllegatiTecniciPreventivo";
 /**
  * Dettaglio progetto FV — vista post-wizard.
@@ -18,7 +20,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft,
   Sun,
   FileText,
   Pencil,
@@ -64,6 +65,7 @@ const STATI_LABEL = {
 };
 
 export default function FotovoltaicoDettaglio() {
+  const [anteprimaHtml, setAnteprimaHtml] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -196,21 +198,10 @@ export default function FotovoltaicoDettaglio() {
         const res = await fetch(data.signedUrl);
         if (!res.ok) throw new Error("Errore download preventivo");
         let htmlContent = await res.text();
-        if (options?.autoPrint) {
-          htmlContent = htmlContent.replace("</body>", "<script>window.onload=function(){window.print()}</script></body>");
-        }
-        const blob = new Blob([htmlContent], { type: "text/html" });
-        const blobUrl = URL.createObjectURL(blob);
-        const win = window.open(blobUrl, "_blank", "noopener,noreferrer");
-        // Revoca il blob URL dopo l'apertura (il browser ha già caricato il contenuto)
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        if (!win) toast.error("Popup bloccato — abilita i popup per questo sito.");
-        else if (!options?.autoPrint) {
-          toast.success(
-            "Preventivo aperto in nuova scheda. Usa Ctrl+P (Cmd+P su Mac) → 'Salva come PDF'.",
-            { duration: 6000 },
-          );
-        }
+        const pagineSchede = await costruisciPagineSchedeTecniche((componenti ?? []).map(c => c.articolo_id), progetto.company_id);
+        htmlContent = inserisciPagineSchede(htmlContent, pagineSchede);
+        if (options?.autoPrint) await stampaPreventivoNativo(htmlContent, "Preventivo-" + progetto.numero);
+        else setAnteprimaHtml(htmlContent);
       } else {
         const a = document.createElement("a");
         a.href = data.signedUrl;
@@ -225,10 +216,7 @@ export default function FotovoltaicoDettaglio() {
     }
   };
 
-  // "Scarica PDF" via stampa NATIVA del browser: stesso motore di rendering
-  // dell'anteprima → il PDF salvato è identico per definizione (testo vettoriale
-  // selezionabile). La vecchia pipeline html2canvas+jsPDF produceva un PDF
-  // raster DIVERSO dall'anteprima (gradienti/font persi, pagine schiacciate).
+  // La stampa nativa conserva testo e grafici del documento emesso e delle schede tecniche.
   const handleScaricaPdf = async (path: string | null, tipo: string) => {
     if (!path) {
       toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
@@ -282,54 +270,18 @@ export default function FotovoltaicoDettaglio() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* HERO HEADER */}
-      <div
-        className="relative overflow-hidden text-white"
-        style={{ background: "linear-gradient(135deg, #1E3A5F 0%, #2C5184 100%)" }}
-      >
-        <div
-          className="absolute -top-1/3 -right-10 w-2/5 h-[160%] pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, rgba(249,115,22,0.18) 0%, transparent 60%)",
-          }}
-        />
-        <div
-          className="absolute right-8 top-6 text-7xl opacity-10 select-none max-sm:hidden"
-          aria-hidden
-        >
-          ☀
-        </div>
-        <div className="relative max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-3 max-sm:py-3">
-          <Link
-            to="/azienda/marketing/fotovoltaico"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-100 hover:text-white max-sm:text-xs"
-          >
-            <ArrowLeft className="h-4 w-4" /> <span className="max-sm:hidden">Torna alla lista progetti</span><span className="sm:hidden">Progetti</span>
-          </Link>
-          <div className="flex items-start justify-between flex-wrap gap-3">
-            <div className="min-w-0">
-              <div className="text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
-                ★ DETTAGLIO PROGETTO
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center flex-wrap gap-3 max-sm:gap-2 max-sm:text-lg">
-                {progetto.titolo}
-                <FvChip variant={stato.variant}>{stato.label}</FvChip>
-              </h1>
-              <p className="text-sm text-blue-100 mt-1.5 flex items-center gap-3 flex-wrap max-sm:mt-1 max-sm:gap-2 max-sm:text-xs">
-                <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-xs">
-                  {progetto.numero}
-                </span>
-                <span>· {progetto.indirizzo}</span>
-              </p>
-            </div>
-            {/* Telefono: la riga usciva dallo schermo («Richiedi firma» non si vedeva).
-                Niente scarico, Annulla solo icona, Modifica e firma si dividono la riga. */}
-            <div className="flex gap-2 max-sm:w-full">
+      <FvAnteprimaDocumento html={anteprimaHtml} numero={progetto.numero} onClose={() => setAnteprimaHtml(null)}
+        onPrint={() => { if (anteprimaHtml) void stampaPreventivoNativo(anteprimaHtml, "Preventivo-" + progetto.numero).catch(e => toast.error(e instanceof Error ? e.message : "Stampa non disponibile")); }}
+        loading={scaricando !== null}/>
+      <FvIntestazioneProgetto titolo={progetto.titolo} numero={progetto.numero} indirizzo={progetto.indirizzo}
+        stato={<FvChip variant={stato.variant}>{stato.label}</FvChip>}
+        azioni={<>
+
               {progetto.pdf_vendita_url && (
                 <Button
                   onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}
                   disabled={scaricando === "header-pdf"}
-                  className="bg-white text-blue-900 hover:bg-blue-50 shadow border-0 max-sm:hidden"
+                  className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-300 max-sm:hidden"
                 >
                   {scaricando === "header-pdf" ? (
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -345,7 +297,7 @@ export default function FotovoltaicoDettaglio() {
                   className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-sm:flex-1"
                 >
                   <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
-                    <Pencil className="h-4 w-4 mr-1.5" /> Modifica
+                    <Pencil className="h-4 w-4 mr-1.5" /> {progetto.stato === "emesso" ? "Apri progetto" : "Modifica"}
                   </Link>
                 </Button>
               )}
@@ -353,7 +305,7 @@ export default function FotovoltaicoDettaglio() {
                 <Button
                   variant="outline"
                   onClick={handleElimina}
-                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white max-sm:px-3"
+                  className="border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 max-sm:px-3"
                   aria-label="Annulla progetto"
                 >
                   <Trash2 className="h-4 w-4 mr-1.5 max-sm:mr-0" /> <span className="max-sm:hidden">Annulla</span>
@@ -362,7 +314,7 @@ export default function FotovoltaicoDettaglio() {
               {canManagePreventivo && progetto.stato === "emesso" && (
                 <Button
                   onClick={() => setFirmaOpen(true)}
-                  className="bg-white text-orange-700 hover:bg-orange-50 shadow border-0 max-sm:flex-1"
+                  className="bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200 max-sm:flex-1"
                 >
                   <FileSignature className="h-4 w-4 mr-1.5" /> Richiedi firma
                 </Button>
@@ -378,11 +330,7 @@ export default function FotovoltaicoDettaglio() {
                 onSend={handleSendFirma}
                 isSending={richiediFirma.isPending}
               />
-            </div>
-          </div>
-        </div>
-
-        {/* Il cliente ha accettato: da qui nasce la commessa, senza riscrivere nulla. */}
+        </>} conversione={<>
         {progetto.id && (
           <ConvertiInCommessaCard
             modulo="fv"
@@ -400,14 +348,14 @@ export default function FotovoltaicoDettaglio() {
             clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || null}
           />
         )}
-      </div>
+        </>}/>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5 max-sm:space-y-3 max-sm:py-3">
         {/* KPI cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:gap-2">
           <FvKpi
             label="Potenza"
-            value={progetto.potenza_kwp != null ? Number(progetto.potenza_kwp).toFixed(2) : "—"}
+            value={progetto.potenza_kwp != null ? Number(progetto.potenza_kwp).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
             unit="kWp"
             variant="orange"
           />
@@ -417,7 +365,7 @@ export default function FotovoltaicoDettaglio() {
               // Col prezzo a corpo non ancora ricalcolato qui c'era 0 €.
               importoPreventivoFv(progetto as ImportoPreventivoFvInput) != null
                 ? Number(importoPreventivoFv(progetto as ImportoPreventivoFvInput)).toLocaleString("it-IT", {
-                    maximumFractionDigits: 0,
+                    minimumFractionDigits: 2, maximumFractionDigits: 2,
                   })
                 : "—"
             }
@@ -434,7 +382,7 @@ export default function FotovoltaicoDettaglio() {
             value={
               progetto.risparmio_anno1 != null
                 ? Number(progetto.risparmio_anno1).toLocaleString("it-IT", {
-                    maximumFractionDigits: 0,
+                    minimumFractionDigits: 2, maximumFractionDigits: 2,
                   })
                 : "—"
             }
@@ -789,10 +737,8 @@ export default function FotovoltaicoDettaglio() {
                   {/* Telefono: la spiegazione parla di stampa e «Salva come PDF», che lì non ci sono. */}
                   <div className="max-sm:hidden">
                     <FvCallout variant="success" title="Preventivo pronto">
-                      <strong>Scarica PDF</strong> apre la stampa già pronta: scegli
-                      “Salva come PDF”: comprende il preventivo e le schede tecniche abilitate dei prodotti. Oppure{" "}
-                      <strong>Apri preventivo</strong> per vederlo nel browser. Design
-                      print-ready A4 con tutti i grafici inline.
+                      <strong>Apri preventivo</strong> mostra le pagine qui nell’app, con zoom e adattamento alla larghezza.
+                      La stampa comprende anche le schede tecniche abilitate: scegli “Salva come PDF” nella finestra del browser.
                     </FvCallout>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3 mt-4 max-sm:mt-0">

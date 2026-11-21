@@ -215,6 +215,8 @@ export interface FvPdfTemplateData {
     costo_kwh_attuale: number;
     /** Quote fisse separate dalla tariffa sui kWh; assente = non disponibili. */
     costi_fissi_annui_eur?: number | null;
+    spesa_annua_bolletta_eur?: number | null;
+    consumo_annuo_bolletta_kwh?: number | null;
     ipotesi_energetiche?: string[];
     profilo_consumo?: string | null;
     ore_sole_annue?: number | null;
@@ -1033,7 +1035,7 @@ function renderServiziInclusi(d: FvPdfTemplateData): string {
         const meta = [
           Number.isFinite(qty) && qty > 1 ? `Quantità ${fmtNum(qty, 1)}` : null,
           note || null,
-          mostraPrezzi && Number.isFinite(price) && price > 0 ? `${fmtEur(price)} + IVA` : null,
+          mostraPrezzi && Number.isFinite(price) && price > 0 ? `${fmtEur(price, 2)} + IVA` : null,
         ].filter(Boolean).join(" · ");
         return `<div class="service-item">
           <div class="service-title">${escHtml(descrizione)}</div>
@@ -1317,7 +1319,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
       </div>` : ""}
       <div class="invest-hero">
         <div class="label">${isFvLocalIntervention(d.template) ? "Importo della proposta" : propostaConCanoniAzienda(d)?"Valore della fornitura · riferimento per i canoni":modelloAzienda(d.template)?"Valore della fornitura":"Prezzo chiavi in mano"}</div>
-        <div class="price">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
+        <div class="price">${fmtEur(d.costi.prezzo_vendita_iva_inclusa, 2)}</div>
         <div class="desc">IVA ${d.costi.iva_perc}% inclusa${inclusi.length > 0 ? " · componenti e servizi elencati qui sotto." : "."}</div>
       </div>
       ${inclusi.length > 0 ? `<h3 style="font-size:12pt;color:#1E3A5F;margin-bottom:2mm;">Cosa è incluso</h3>
@@ -1328,8 +1330,8 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
       ${d.foto_di_serie?.impianto ? fasciaImmagineFv(d.foto_di_serie.impianto,"center",false,true) : ""}
       ${d.costi.detrazione_eur > 0 ? `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
-        <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
-        Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione)}</strong></div>
+        <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur, 2)} in 10 anni.</strong>
+        Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione, 2)}</strong></div>
       </div>` : ""}
       ${(() => {
         const mp = d.modalita_pagamento;
@@ -1346,13 +1348,13 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
           return `${h3}
           <table style="width:100%;border-collapse:collapse;font-size:10pt;">
             <tbody>
-              ${mp.anticipo_eur > 0 ? r2(`Anticipo alla firma (${fmtNum(mp.anticipo_pct, 0)}%)`, fmtEur(mp.anticipo_eur)) : r2("Anticipo alla firma", "Nessun anticipo")}
-              ${r2(`Importo finanziato${mp.tasso_zero ? " · tasso zero" : ""}`, fmtEur(mp.finanziato_eur))}
+              ${mp.anticipo_eur > 0 ? r2(`Anticipo alla firma (${fmtNum(mp.anticipo_pct, 0)}%)`, fmtEur(mp.anticipo_eur, 2)) : r2("Anticipo alla firma", "Nessun anticipo")}
+              ${r2(`Importo finanziato${mp.tasso_zero ? " · tasso zero" : ""}`, fmtEur(mp.finanziato_eur, 2))}
               ${r2(`Rata mensile · ${mp.durata_mesi} rate`, `${fmtRata(mp.rata_mensile)}/mese`, true)}
             </tbody>
             <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
               <td style="padding:1.8mm 0;color:#1E3A5F;">${isFvLocalIntervention(d.template) ? "Totale proposta" : "Totale chiavi in mano"}</td>
-              <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(tot)}</td>
+              <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(tot, 2)}</td>
             </tr></tfoot>
           </table>${noteP}`;
         }
@@ -1380,7 +1382,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
           <tr style="border-bottom:1px solid #F1F5F9;">
             <td style="padding:1.8mm 0;color:#1E293B;">${escHtml(t.label)}</td>
             <td style="padding:1.8mm 0;text-align:center;color:#64748B;">${fmtNum(t.pct, 0)}%</td>
-            <td style="padding:1.8mm 0;text-align:right;font-weight:600;color:#1E3A5F;">${fmtEur(t.importo_eur)}</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:600;color:#1E3A5F;">${fmtEur(t.importo_eur, 2)}</td>
           </tr>`).join("");
         return `${h3}
         <table style="width:100%;border-collapse:collapse;font-size:10pt;">
@@ -1393,7 +1395,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
           <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
             <td style="padding:1.8mm 0;color:#1E3A5F;">${isFvLocalIntervention(d.template) ? "Totale proposta" : "Totale chiavi in mano"}</td>
             <td style="padding:1.8mm 0;text-align:center;color:#1E3A5F;">${fmtNum(sumPct, 0)}%</td>
-            <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(sumImp)}</td>
+            <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(sumImp, 2)}</td>
           </tr></tfoot>
         </table>${noteP}`;
       })()}
@@ -1697,7 +1699,7 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
       </table>
       ${ultima ? `<div class="forn-tot">
         <div class="forn-tot-l">${local ? "Totale della proposta" : propostaConCanoniAzienda(d)?"Valore della fornitura":"Fornitura chiavi in mano"}<span>IVA ${fmtNum(d.costi.iva_perc, 0)}% inclusa · ${modelloAzienda(d.template)?"componenti e servizi elencati":"installazione e collaudo compresi"}</span></div>
-        <div class="forn-tot-v">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
+        <div class="forn-tot-v">${fmtEur(d.costi.prezzo_vendita_iva_inclusa, 2)}</div>
       </div>` : ""}
     </div>
     ${footer(d, pageN, total)}
@@ -1799,7 +1801,10 @@ function calloutAccumulo(d: FvPdfTemplateData): string {
 
 function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string {
   const opzioni={tipo:modelloAzienda(d.template)?"azienda" as const:"casa" as const,hasAccumulo:d.progetto.has_accumulo};
-  return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${htmlBilancioEnergia(d.flows,d.progetto.consumo_annuo_kwh,opzioni)}</div>${footer(d,pageN,total)}</div>`;
+  const bolletta = d.progetto.spesa_annua_bolletta_eur != null
+    ? `<div style="padding:3mm 4mm;border:1px solid #dce5df;border-radius:2mm;font-size:9pt;margin-bottom:4mm"><strong>Bolletta confermata</strong> · Consumo annuo: ${fmtNum(d.progetto.consumo_annuo_bolletta_kwh ?? d.progetto.consumo_annuo_kwh)} kWh · Spesa annua letta: ${fmtEur(d.progetto.spesa_annua_bolletta_eur, 2)}</div>`
+    : "";
+  return `<div class="page">${header(d.progetto.numero,d.azienda.name)}<div class="content">${bolletta}${htmlBilancioEnergia(d.flows,d.progetto.consumo_annuo_kwh,opzioni)}</div>${footer(d,pageN,total)}</div>`;
 }
 
 function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): string {
@@ -2388,8 +2393,8 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
       <div class="offer-box">
         <div class="offer-eyebrow">${sim?"Riepilogo della simulazione · non è un’offerta":`Riepilogo offerta · valida ${d.progetto.valido_giorni} giorni`}</div>
         <h3>${isFvAccumulo(d.template) ? `Aggiunta accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh<br/>su impianto esistente` : isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + "<br/>Limitato alle voci elencate" : `Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>${business?"fornitura descritta":"chiavi in mano"}`}</h3>
-        <div class="offer-num">${fmtEur(prezzo)}</div>
-        <div style="font-size:10pt;opacity:0.85;margin-top:2mm;position:relative;">${canone!=null?`Canone ogni ${periodo} mesi · `:""}IVA ${d.costi.iva_perc}% inclusa${business?`<br/>Valore della fornitura: ${fmtEur(d.costi.prezzo_vendita_iva_inclusa)} IVA inclusa. Condizioni nel prospetto aziendale.`:""}${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
+        <div class="offer-num">${fmtEur(prezzo, 2)}</div>
+        <div style="font-size:10pt;opacity:0.85;margin-top:2mm;position:relative;">${canone!=null?`Canone ogni ${periodo} mesi · `:""}IVA ${d.costi.iva_perc}% inclusa${business?`<br/>Valore della fornitura: ${fmtEur(d.costi.prezzo_vendita_iva_inclusa, 2)} IVA inclusa. Condizioni nel prospetto aziendale.`:""}${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
       </div>
       ${d.template?.urgenza_attiva && urgenzaDescrizione ? `<div class="callout callout-tip">
         <span class="callout-icon">★</span>
@@ -2457,7 +2462,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   ];
   if (luogo) righe.push(["Luogo dei lavori", luogo]);
   righe.push(["Documento", `Preventivo ${d.progetto.numero} del ${fmtData(d.progetto.creato_il)}`]);
-  righe.push(["Importo", `${fmtEur(d.costi.prezzo_vendita_iva_inclusa)} · IVA ${d.costi.iva_perc}% inclusa`]);
+  righe.push(["Importo", `${fmtEur(d.costi.prezzo_vendita_iva_inclusa, 2)} · IVA ${d.costi.iva_perc}% inclusa`]);
   if (fin) righe.push(["Pagamento", `${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi · ${fin.finanziaria}${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}`]);
   righe.push(["Validità", `${d.progetto.valido_giorni} giorni dalla data del documento`]);
   return `<div class="page">
@@ -2674,7 +2679,7 @@ function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
     if (preventivoSenzaMappa(d.progetto.layout_overlay) && (page.id === "anteprima" || page.id === "piano_tetto")) return false;
     if (d.economia_azienda && [...(!modelloAzienda(d.template)?["produzione","flussi"]:[]),"risparmio","costi_futuri","piano_pagamento","bollette_240","cassa_25","co2"].includes(page.id)) return false;
     if (d.configurationOnly && ['produzione','flussi','risparmio','costi_futuri','piano_pagamento','bollette_240','cassa_25','co2','decisione'].includes(page.id)) return false;
-    if (isFvLocalIntervention(d.template) && FV_ACCUMULO_PAGINE_NON_APPLICABILI.has(page.id)) return false;
+    if (isFvLocalIntervention(d.template) && d.template?.pdf_blocchi?.modulo_intervento !== "nuovo" && FV_ACCUMULO_PAGINE_NON_APPLICABILI.has(page.id)) return false;
     if (isFvLocalIntervention(d.template) && page.id === "componenti" && d.componenti.length === 0) return false;
     if (!page.visible&&!(modelloAzienda(d.template)&&FV_AZIENDA_PAGINE_OBBLIGATORIE.has(page.id))) return false;
     // Senza immagini satellite reali l'anteprima non ha niente da mostrare.
@@ -2771,7 +2776,7 @@ function renderFvPdfHtmlBase(d: FvPdfTemplateData): string {
     cliente:{nome:d.cliente.nome,cognome:d.cliente.cognome,nome_completo:nomeCommittenti(d.cliente)},
     azienda:{ragione_sociale:d.azienda.name,email:d.azienda.email??'',telefono:d.azienda.phone??''},
     cantiere:{indirizzo:indirizzoCompleto(d.cliente)},
-    preventivo:{numero:d.progetto.numero,data:fmtData(d.progetto.creato_il),totale:fmtEur(d.costi.prezzo_vendita_iva_inclusa),piano_pagamenti:plainText((d.template as {condizioni_pagamento_testo?:string}).condizioni_pagamento_testo)||'come da piano di pagamento concordato'},
+    preventivo:{numero:d.progetto.numero,data:fmtData(d.progetto.creato_il),totale:fmtEur(d.costi.prezzo_vendita_iva_inclusa, 2),piano_pagamenti:plainText((d.template as {condizioni_pagamento_testo?:string}).condizioni_pagamento_testo)||'come da piano di pagamento concordato'},
   })}};
   if(d.economia_azienda||d.economia_azienda_richiesta)d={...d,finanziamento:null,modalita_pagamento:null,costi:{...d.costi,detrazione_eur:0,detrazione_perc:0,costo_netto_dopo_detrazione:d.costi.prezzo_vendita_iva_inclusa}};
   if(d.economia_azienda&&modelloAzienda(d.template)){

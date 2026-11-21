@@ -813,6 +813,8 @@ Deno.serve(async (req: Request) => {
         consumo_annuo_kwh: flows.consumo_simulato_kwh ?? (Number(prog.consumo_annuo_kwh) || 0),
         costo_kwh_attuale: prog.costo_kwh_attuale != null ? Number(prog.costo_kwh_attuale) : 0.32,
         costi_fissi_annui_eur: spesaBolletta?.fissiAnnui ?? null,
+        spesa_annua_bolletta_eur: analisiConsumi?.documenti.some(d => d.confermato) ? spesaBolletta?.spesaAnnua ?? null : null,
+        consumo_annuo_bolletta_kwh: Number(prog.consumo_annuo_kwh) || null,
         ipotesi_energetiche: analisiConsumi ? [
           `Consumo di partenza ${Number(prog.consumo_annuo_kwh).toLocaleString("it-IT")} kWh/anno; aumento futuro previsto ${analisiConsumi.profilo.aumentoConsumiPct}%.`,
           spesaBolletta?.stimato ? `Proiezione su ${spesaBolletta.giorniCoperti} giorni disponibili, confermata dall’operatore.` : "Consumo annuo confermato dall’operatore.",

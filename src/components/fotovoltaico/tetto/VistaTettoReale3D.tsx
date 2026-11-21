@@ -52,7 +52,7 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.domElement.setAttribute("aria-label", "Modello 3D reale del tetto, ruotabile e ingrandibile");
+        renderer.domElement.setAttribute("aria-label", edificio.attributi.origine === "satellite" ? "Vista 3D delle falde tracciate sulla mappa, ruotabile e ingrandibile" : "Modello 3D reale del tetto, ruotabile e ingrandibile");
         renderer.domElement.setAttribute("role", "img");
         if (renderer.domElement.parentElement !== nodo)
             nodo.appendChild(renderer.domElement);
