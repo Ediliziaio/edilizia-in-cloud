@@ -160,7 +160,9 @@ Deno.serve(async (req: Request) => {
       );
       url.searchParams.set("location.latitude", String(punto.lat));
       url.searchParams.set("location.longitude", String(punto.lng));
-      url.searchParams.set("requiredQuality", "LOW");
+      // Il livello minimo attuale è BASE; la guida REST legacy elenca ancora LOW.
+      // https://developers.google.com/maps/documentation/solar/building-insights
+      url.searchParams.set("requiredQuality", "BASE");
       if (endpoint === "dataLayers") {
         url.searchParams.set("radiusMeters", "50");
         url.searchParams.set("view", "IMAGERY_LAYERS");
