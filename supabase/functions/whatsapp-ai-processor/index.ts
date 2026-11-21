@@ -69,18 +69,21 @@ import { resolveIdentity } from "./identity.ts";
 import { aggiungiPaginaBolla, paginaDiBolla } from "./pagineBolla.ts";
 import { leggiDestinazioneBolla, riprendiOriginaleBolla, trattaBollaInConversazione, type DomandaDestinazioneBolla } from "./bolleInConversazione.ts";
 import { propostaDestinazioneBolla, rispostaDestinazioneBolla } from "./sceltaDestinazioneBolla.ts";
-import { elencoPersoneRapportino, rispostaPersonaRapportino } from "./sceltaPersonaRapportino.ts";
+import { correggiOreNelRiepilogo, elencoPersoneRapportino, leggiCorrezioneOre, rispostaPersonaRapportino } from "./sceltaPersonaRapportino.ts";
 import { linguaItaliana, traduciVocaleInItaliano } from "./traduzioneVocale.ts";
 import { chiedeAiutoOperativo, chiedeCantieriDiOggi, guidaOperativa } from "./aiutoOperativo.ts";
 import { elencaMieiCantieriOggi } from "./tools/operaio/elenca_miei_cantieri_oggi.ts";
 import { applicaRitardo, AZIONE_RITARDO, leggiRitardoCronoprogramma, preparaRitardo, puoRipianificare } from "./ritardoCronoprogramma.ts";
 import { seguiTicket, ticketDaCitazione } from "./tools/operaio/segui_ticket.ts";
-import { nuovaRichiestaPreventivo, preventivoInConversazione, riguardaBozzaPreventivo } from "./preventiviInConversazione.ts";
+import { preventivoInConversazione, riguardaBozzaPreventivo } from "./preventiviInConversazione.ts";
 import { avviaProssimoMessaggio, posticipaDomandaBolla } from "./codaConversazione.ts";
 import { avviaLetturaBolla } from "./letturaBollaInCoda.ts";
-import { cercaInvioBolle, destinaInvioBolle, destinazioneDettaPerInvio, type EsitoInvioBolle, messaggioPerTutteLeBolle, posticipaInvioBolle, preletturaInvio, raccogliInvioBolle, recuperaAllegatoInRitardo } from "./invioBolle.ts";
+import {
+  cercaInvioBolle, chiedeStatoInvioBolle, destinaInvioBolle, destinazioneDettaPerInvio, type EsitoInvioBolle,
+  messaggioPerTutteLeBolle, posticipaInvioBolle, preletturaInvio, raccogliInvioBolle, recuperaAllegatoInRitardo, statoInvioBolle,
+} from "./invioBolle.ts";
 import { acquisisciDdtWhatsapp } from "../_shared/ddtWhatsappPersistente.ts";
-import { cantiereNellaRichiesta, segnalazioneEsplicita, tipoAllegatoDetto, vuolePreventivoInChat } from "./intentiRapidi.ts";
+import { cantiereNellaRichiesta, nuovaRichiestaPreventivo, segnalazioneEsplicita, sostituzionePdfPreventivo, tipoAllegatoDetto, vuolePreventivoInChat } from "./intentiRapidi.ts";
 import { cercaScontriniInAttesa, datiScontrino, domandaScontrino, importoScontrinoDetto, paganteScontrino, type ScontrinoLetto } from "./scontriniInConversazione.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio, CreditoTrascrizioneEsaurito } from "./media.ts";
@@ -337,11 +340,12 @@ Deno.serve(async (req) => {
     const citazioneRicevuta = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
     const ticketCitato = identity.role_grants.includes("segnalazione.write") && citazioneRicevuta && msg.wa_number_id
       ? await ticketDaCitazione(supabase, msg.company_id, msg.wa_number_id, msg.from_phone, citazioneRicevuta) : null;
+    const consultaBolle = msg.message_type === "text" && !ticketCitato && chiedeStatoInvioBolle(msg.content_text ?? "");
     const ritardoScritto = msg.message_type === "text" && !ticketCitato ? leggiRitardoCronoprogramma(msg.content_text ?? "") : null;
     const allegatoSegnalazione = !!ticketCitato || (identity.role_grants.includes("segnalazione.write") &&
       !!segnalazioneEsplicita(msg.content_text ?? ""));
-    const pdfPerPreventivo = msg.message_type === "document" && identity.role_grants.includes("preventivi.ai") &&
-      nuovaRichiestaPreventivo(msg.content_text ?? "");
+    const pdfPerPreventivo = msg.message_type === "document" && !ticketCitato &&
+      (nuovaRichiestaPreventivo(msg.content_text ?? "") || !!sostituzionePdfPreventivo(msg.content_text ?? ""));
 
     // Prima conserviamo l'originale. Il credito AI serve solo alla lettura.
     let mediaCorrente: { storagePath: string; url: string; tipo: string } | null = null;
@@ -379,7 +383,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (sessionError) throw new Error("bot_session_lookup_unavailable");
     const riguardaBozza = identity.role_grants.includes("preventivi.ai") && riguardaBozzaPreventivo(msg.content_text ?? "", citazioneRicevuta);
-    if (!identity.solaLettura && !ticketCitato && !riguardaBozza && !ritardoScritto &&
+    if (!identity.solaLettura && !ticketCitato && !riguardaBozza && !consultaBolle && !ritardoScritto &&
         msg.message_type === "text" && operationalTriage.intent === "unknown" &&
         !chiedeAiutoOperativo(msg.content_text ?? "") && !leggiDestinazioneBolla(msg.content_text ?? "") &&
         !messaggioPerTutteLeBolle(msg.content_text ?? "") &&
@@ -393,13 +397,6 @@ Deno.serve(async (req) => {
       if (!rispostaAlRapportino && !sceltaPerRitardo && await forwardToSilvio(msg, msg.content_text ?? "")) {
         return termina("processed");
       }
-    }
-
-    // Budget
-    const budget = await checkBudget(supabase, msg.company_id);
-    if (!budget.ok) {
-      await sendReply(msg, conDomandaBolla(mediaCorrente ? "Allegato salvato in WhatsApp del gestionale. " + budget.user_message : budget.user_message));
-      return termina("failed", "budget_exceeded");
     }
 
     let configAgente: ConfigAgenteOperativo | null = null;
@@ -421,6 +418,28 @@ Deno.serve(async (req) => {
     const strumentiAbilitati = filterOperationalTools(filterToolsByGrants(identity.role_grants), operationalSettings);
     const acquisizioneConsentita = strumentiAbilitati.some(tool => tool.name === "carica_ddt")
       && !vietatiOra.includes("carica_ddt") && !sbloccatiOra.includes("carica_ddt");
+    const preventiviConsentiti = !!identity.user_id && (identity.kind === "ufficio" || identity.kind === "admin") &&
+      ["crea_preventivo_ai", "salva_preventivo_bozza"].every(nome =>
+        strumentiAbilitati.some(tool => tool.name === nome) && !vietatiOra.includes(nome)) && !sbloccatiOra.includes("crea_preventivo_ai");
+    if (pdfPerPreventivo && !preventiviConsentiti) {
+      await sendReply(msg, "PDF salvato in Conversazioni. Per gestire il preventivo serve un utente d’ufficio abilitato.");
+      return termina("processed");
+    }
+
+    if (consultaBolle) {
+      const testo = acquisizioneConsentita && !identity.solaLettura && msg.wa_number_id
+        ? await statoInvioBolle({ supabase, company_id: msg.company_id, waNumberId: msg.wa_number_id, phone: msg.from_phone }, citazioneRicevuta)
+        : "La consultazione delle bolle in chat richiede l’abilitazione dell’ufficio.";
+      await sendReply(msg, testo);
+      return termina("processed");
+    }
+
+    // Le consultazioni che leggono solo il gestionale non usano credito AI.
+    const budget = await checkBudget(supabase, msg.company_id);
+    if (!budget.ok) {
+      await sendReply(msg, conDomandaBolla(mediaCorrente ? "Allegato salvato in WhatsApp del gestionale. " + budget.user_message : budget.user_message));
+      return termina("failed", "budget_exceeded");
+    }
 
     let userContent = msg.content_text ?? "";
     // «Ti ho mandato la foto, è del cantiere Rossi»: la foto è arrivata nel
@@ -742,6 +761,7 @@ Deno.serve(async (req) => {
 
     const relazione = citazioneRicevuta;
     const testoOperativo = msg.message_type === "audio" ? testoDellaRisposta : msg.content_text ?? "";
+    const correzioneOre = ["text", "audio"].includes(msg.message_type) ? leggiCorrezioneOre(testoOperativo) : null;
     const pdfQuiDisponibile = nomiBot.has("invia_pdf_preventivo") && !sbloccatiOra.includes("invia_pdf_preventivo");
     const modelloDedicatoRichiesto = /\b(?:modello|facsimile|layout|impaginazione)\b/i.test(testoOperativo) &&
       !/\b(?:pdf|preventivo) (?:classico|standard)\b/i.test(testoOperativo);
@@ -1019,7 +1039,7 @@ Deno.serve(async (req) => {
       await sendReply(msg, r.user_message ?? "I tuoi cantieri sono disponibili in Campo.");
       return termina("processed");
     }
-    if (rapportinoTradotto && !statoSessione.conferma && operationalTriage.intent === "rapportino" &&
+    if (rapportinoTradotto && !statoSessione.conferma && !correzioneOre?.esplicita && operationalTriage.intent === "rapportino" &&
         nomiBot.has("crea_rapportino") && !sbloccatiOra.includes("crea_rapportino")) {
       try {
         validateToolArguments(findTool("crea_rapportino")!.parameters, rapportinoTradotto);
@@ -1031,8 +1051,7 @@ Deno.serve(async (req) => {
         if (!(e instanceof ConfirmationReviewError)) throw e;
       }
     }
-    if (!ticketCitato && nomiBot.has("crea_preventivo_ai") && nomiBot.has("salva_preventivo_bozza") &&
-      !sbloccatiOra.includes("crea_preventivo_ai") && !modelloDedicatoRichiesto) {
+    if (!ticketCitato && preventiviConsentiti && !modelloDedicatoRichiesto) {
       const esito = await preventivoInConversazione(toolCtx, { testo: testoOperativo, tipo: msg.message_type,
         citazione: relazione, metadata: msg.metadata });
       if (esito) {
@@ -1144,10 +1163,11 @@ Deno.serve(async (req) => {
     const rapportinoInAttesa = inAttesa?.azione === "crea_rapportino";
     const sceltaDelCantiere = rispostaCantiere(inAttesa, msg.metadata, msg.message_type, testoDellaRisposta);
     const chiarimento = inAttesa?.rapportino?.scelta;
-    const proseguiRapportino = async (pending: ConfermaAttesa, parametri: Record<string, unknown>, identificativi?: (string | null)[]) => {
+    const proseguiRapportino = async (pending: ConfermaAttesa, parametri: Record<string, unknown>,
+      identificativi?: (string | null)[], orePrima?: number[]) => {
       try {
         const congelato = await freezeConfirmation({
-          ...toolCtx, mediaCorrente: pending.media, rapportinoPersoneIds: identificativi,
+          ...toolCtx, mediaCorrente: pending.media, rapportinoPersoneIds: identificativi, rapportinoOrePrima: orePrima,
         }, "crea_rapportino", parametri, pending.source_message_id ?? msg.id);
         await sessionState.save({ conferma: congelato.pending });
         await sendInteractiveReply(msg, congelato.interactive as unknown as Record<string, unknown>);
@@ -1157,7 +1177,7 @@ Deno.serve(async (req) => {
       }
       return termina("processed");
     };
-    if (inAttesa && (chiarimento || (rapportinoInAttesa && sceltaDelCantiere?.tipo === "cantiere"))) {
+    if (inAttesa && (chiarimento || (rapportinoInAttesa && (sceltaDelCantiere?.tipo === "cantiere" || correzioneOre)))) {
       if (!nomiBot.has("crea_rapportino") || !await frozenConfirmationValid(inAttesa)) {
         await sessionState.consume();
         await sendReply(msg, "Il riepilogo è scaduto o i permessi sono cambiati. Rimandami il rapportino.");
@@ -1169,12 +1189,24 @@ Deno.serve(async (req) => {
       if (persona) {
         const identificativi = [...inAttesa.rapportino!.identificativi];
         identificativi[chiarimento.indice] = persona.id;
-        return proseguiRapportino(inAttesa, inAttesa.parametri!, identificativi);
+        return proseguiRapportino(inAttesa, inAttesa.parametri!, identificativi, inAttesa.rapportino?.orePrima);
       }
-      if (userJustConfirmed || msg.message_type === "interactive" || operationalTriage.intent === "unknown") {
+      if (correzioneOre || userJustConfirmed || msg.message_type === "interactive" || operationalTriage.intent === "unknown") {
         await sendInteractiveReply(msg, elencoPersoneRapportino(inAttesa) as unknown as Record<string, unknown>);
         return termina("processed");
       }
+    }
+    if (inAttesa && rapportinoInAttesa && correzioneOre) {
+      const correzione = correggiOreNelRiepilogo(inAttesa, correzioneOre, toolCtx.employee_id);
+      if ("parametri" in correzione) {
+        return proseguiRapportino(inAttesa, correzione.parametri, inAttesa.rapportino?.identificativi, correzione.orePrima);
+      }
+      await sendReply(msg, correzione.messaggio);
+      return termina("processed");
+    }
+    if (correzioneOre?.esplicita && nomiBot.has("crea_rapportino")) {
+      await sendReply(msg, "Non c’è un riepilogo del rapportino aperto in questa chat. Rimandami il rapportino per rivederlo o aprilo in Campo.");
+      return termina("processed");
     }
 
     // Resta valido anche il pulsante «Altro cantiere» delle domande già inviate.
@@ -1200,6 +1232,10 @@ Deno.serve(async (req) => {
     // Approval executes the stored payload directly, never a second model reconstruction.
     if ((userJustConfirmed || cantiereScelto) && statoSessione.conferma && !statoSessione.conferma.proposta_id) {
       const pending = statoSessione.conferma;
+      if (pending.rapportino?.orePrima && userJustConfirmed && relazione && msg.message_type !== "interactive") {
+        await sendReply(msg, "Per inviare le ore corrette, tocca «Invia all’ufficio» nel riepilogo aggiornato.");
+        return termina("processed");
+      }
       const tool = pending.azione && nomiBot.has(pending.azione) ? findTool(pending.azione) : undefined;
       if (!tool || !confermaValePer(pending, tool.name, true) || !await frozenConfirmationValid(pending)) {
         await sessionState.consume();
@@ -1214,6 +1250,7 @@ Deno.serve(async (req) => {
       const contestoConfermato = {
         ...toolCtx, sourceMessageId: pending.source_message_id ?? msg.id, mediaCorrente: pending.media ?? undefined,
         rapportinoPersoneIds: pending.rapportino?.identificativi,
+        rapportinoOrePrima: pending.rapportino?.orePrima,
       };
       const richiestaPreventivo = tool.name === "salva_preventivo_bozza"
         ? { tipo: "preventivo" as const, id: contestoConfermato.sourceMessageId } : null;

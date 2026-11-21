@@ -2,7 +2,7 @@ import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 import { incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
 import { idWhatsAppValido } from "./bolleInConversazione.ts";
 import { buildInteractivePayload, idRispostaInterattiva, type InteractivePayload } from "./interactive.ts";
-import { vuolePreventivoInChat } from "./intentiRapidi.ts";
+import { nuovaRichiestaPreventivo, sostituzionePdfPreventivo, vuolePreventivoInChat } from "./intentiRapidi.ts";
 import { creaPreventivoAi } from "./tools/ufficio/crea_preventivo_ai.ts";
 import type { ToolCtx } from "./tools/shared/types.ts";
 
@@ -37,14 +37,8 @@ const MAX_TESTO = 24_000;
 const COMANDO_BOZZA = /^(riprendi|riprova|aggiorna)\s+(?:(?:il|la)\s+)?(?:bozza(?:\s+di\s+preventivo)?|preventivo)\s*([a-f0-9]{8}-[a-f0-9])?(?:\s+(.+))?$/is;
 const DATI_BOZZA = /^(?:cliente\s*:\s*[^?]+$|cliente\s+[^,?]+,\s*iva\b|iva\s*(?:al\s+)?\d{1,3}(?:[.,]\d{1,2})?\s*(?:%|per cento)?[.!]?\s*$)/i;
 
-export function nuovaRichiestaPreventivo(testo: string) {
-  const t = testo.trim().replace(/^(?:(?:ciao|buongiorno|ok|per favore)[\s,.!]+)+/i, "");
-  return /^(?:(?:prepara|preparami|crea|creami|genera|fammi|fai|mi fai|mi prepari|vorrei|mi serve)\s+(?:(?:un|il|una|la)\s+)?(?:bozza\s+(?:di|del)\s+)?preventivo\b|(?:bozza\s+di\s+)?preventivo\s+(?:per|da|dal|di)\b)/i.test(t) &&
-    !/\b(?:modello|facsimile|layout|impaginazione)\b/i.test(t);
-}
-
 export function riguardaBozzaPreventivo(testo: string, citazione: string | null) {
-  return COMANDO_BOZZA.test(testo.trim()) || DATI_BOZZA.test(testo.trim()) ||
+  return COMANDO_BOZZA.test(testo.trim()) || DATI_BOZZA.test(testo.trim()) || !!sostituzionePdfPreventivo(testo) ||
     (nuovaRichiestaPreventivo(testo) && (!!citazione || /\b(?:pdf|computo)\b/i.test(testo)));
 }
 
@@ -119,11 +113,11 @@ async function elaboraBozza(ctx: ToolCtx, b: Bozza) {
   try {
     if (b.pdf_path && !testoPdf) testoPdf = await estraiDalPdf(ctx, b.pdf_path);
     if (b.pdf_path && !testoPdf) {
-      risultato = daVerificare("Non ho letto tutto il PDF. Puoi riprovare dalla stessa bozza oppure mandare una copia più leggibile.");
+      risultato = daVerificare(`Non ho letto tutto il PDF. Per usare una copia più leggibile, allegala con «Sostituisci PDF ${b.codice}».`);
     } else if (b.cliente !== null && b.iva !== null) {
       const descrizione = testoPdf ? `${b.testo}\n\n${incorniciaTestoDocumento(testoPdf)}` : b.testo;
       if (descrizione.length > MAX_TESTO) {
-        risultato = daVerificare("Il computo intero supera la lettura del preventivo in chat. Indica una parte del computo da preventivare usando un PDF più breve.");
+        risultato = daVerificare(`Il computo è troppo lungo per la chat. Allega le pagine da preventivare con «Sostituisci PDF ${b.codice}».`);
       } else {
         const res = await creaPreventivoAi(ctx, { cliente_nome: b.cliente, iva: b.iva, descrizione });
         if (res.ok && res.data && typeof res.data === "object" && "dati_da_confermare" in res.data) {
@@ -174,11 +168,24 @@ export async function preventivoInConversazione(ctx: ToolCtx, input: { testo: st
   const idBottone = input.tipo === "interactive" ? idRispostaInterattiva(input.metadata) : null;
   const selezione = idBottone?.startsWith("preventivo-riprendi:") ? idBottone.slice("preventivo-riprendi:".length) : null;
   const comando = testo.match(COMANDO_BOZZA);
+  const sostituzione = sostituzionePdfPreventivo(testo);
   const completa = DATI_BOZZA.test(testo) && !["image", "document"].includes(input.tipo);
-  if (selezione || comando || completa) {
+  if (selezione || comando || completa || sostituzione) {
+    let nuovoPdf: string | null = null;
+    if (sostituzione) {
+      // Per la sostituzione serve il file di questo messaggio o quello citato.
+      if (input.tipo === "document") {
+        const path = ctx.mediaCorrente?.storagePath;
+        if (percorsoDellaChat(ctx, path) && /\.pdf$/i.test(path)) nuovoPdf = path;
+      } else if (input.citazione) {
+        nuovoPdf = (await pdfDellaRichiesta({ ...ctx, mediaCorrente: null }, "da questo PDF", input.citazione)).path;
+      }
+      if (!nuovoPdf) return { messaggio: "Allega il nuovo PDF con «Sostituisci PDF» e il codice della bozza. Puoi anche rispondere direttamente al PDF con lo stesso comando." };
+    }
     let elenco = bozze(ctx);
+    const codice = sostituzione?.codice ?? comando?.[2]?.toUpperCase();
     if (selezione && idWhatsAppValido(selezione)) elenco = elenco.eq("id", selezione);
-    else if (comando?.[2]) elenco = elenco.eq("codice", comando[2].toUpperCase());
+    else if (codice) elenco = elenco.eq("codice", codice);
     else if (!comando?.[3]) elenco = elenco.neq("stato", "salvata");
     if (completa) elenco = elenco.in("stato", ["da_completare", "da_verificare", "in_elaborazione"]);
     const { data, error } = await elenco.order("updated_at", { ascending: false }).limit(8);
@@ -187,12 +194,18 @@ export async function preventivoInConversazione(ctx: ToolCtx, input: { testo: st
     const righe = (data ?? []).map(r => ({ ...r, codice: String(r.id).slice(0, 10).toUpperCase() })) as Bozza[];
     const candidati = cerca && comando?.[1].toLowerCase() === "riprendi" ? righe.filter(b => b.cliente?.toLowerCase() === cerca) : righe;
     if (candidati.length === 0) return completa ? null : { messaggio: "Non trovo questa bozza. Scrivi «Riprendi preventivo» per vedere le bozze aperte." };
+    if (candidati.length > 1 && sostituzione) return {
+      messaggio: ["Rispondi al nuovo PDF con «Sostituisci PDF» seguito dal codice della bozza.",
+        ...candidati.map(b => `• ${b.codice}${b.cliente ? ` · ${b.cliente}` : ""}`)].join("\n"),
+    };
     if (candidati.length > 1) return { menu: buildInteractivePayload("Quale bozza vuoi riprendere?", candidati.map(b => ({
       id: `preventivo-riprendi:${b.id}`, title: b.cliente || `Bozza ${b.codice}`, description: b.codice,
     })), "Apri una bozza", true) };
     const [b] = candidati;
     const modo = comando?.[1].toLowerCase();
-    if (b.stato === "salvata" || (!completa && modo !== "aggiorna" && modo !== "riprova")) return apriBozza(ctx, b);
+    if (b.stato === "salvata" || (nuovoPdf && nuovoPdf === b.pdf_path) ||
+      (!sostituzione && !completa && modo !== "aggiorna" && modo !== "riprova")) return apriBozza(ctx, b);
+    if (modo === "riprova" && b.stato === "in_elaborazione" && Date.now() - Date.parse(b.updated_at) < LEASE_MS) return apriBozza(ctx, b);
     const campi = datiDichiarati(testo);
     const modifica = modo === "aggiorna" ? comando?.[3]?.trim() : null;
     if (completa && !Object.keys(campi).length) return { ...apriBozza(ctx, b), elabora: undefined };
@@ -201,10 +214,12 @@ export async function preventivoInConversazione(ctx: ToolCtx, input: { testo: st
     const { data: nuova, error: aggiornamento } = await aggiorna(ctx, b, {
       ...campi, testo: nuovoTesto, revisione: b.revisione + 1, stato: "da_completare", anteprima: null, da_verificare: null,
       invia_pdf_qui: b.invia_pdf_qui || vuolePreventivoInChat(testo),
+      ...(nuovoPdf ? { pdf_path: nuovoPdf, testo_pdf: null } : {}),
       updated_at: new Date().toISOString(),
     }).select(CAMPI).maybeSingle();
     if (aggiornamento || !nuova) return { id: b.id, messaggio: "La bozza è cambiata. Riprendila per vedere i dati aggiornati." };
-    return apriBozza(ctx, { ...nuova, codice: b.codice } as Bozza);
+    const esito = apriBozza(ctx, { ...nuova, codice: b.codice } as Bozza);
+    return nuovoPdf ? { ...esito, messaggio: `PDF sostituito. ${esito.messaggio}` } : esito;
   }
   if (!nuovaRichiestaPreventivo(testo)) return null;
   if (!["audio", "document"].includes(input.tipo) && !input.citazione && !/\b(?:pdf|computo)\b/i.test(testo)) return null;

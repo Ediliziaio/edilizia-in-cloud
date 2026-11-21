@@ -161,7 +161,10 @@ export function confirmationPreview(action: string, args: Record<string, unknown
     return preview;
   }
   const coda = [...(siteName ? [`${action === "assegna_fattura" ? "Commessa" : "Cantiere"}: ${siteName}`] : []), ...descrizioneAllegato(media)];
-  const leggibile = riepilogoConCantiere(action, args, coda, "Confermi?");
+  const domanda = action === "crea_rapportino"
+    ? `Per correggere, scrivi «${Array.isArray(args.persone) && args.persone.length ? "Nome" : "Io"} 7 ore». Confermi l’invio?`
+    : "Confermi?";
+  const leggibile = riepilogoConCantiere(action, args, coda, domanda);
   if (leggibile) return leggibile;
   const lines = [names[action] ?? action.replace(/_/g, " ")];
   for (const [key, value] of Object.entries(args)) {
@@ -295,7 +298,7 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
         const verificate = await verificaContestoRapportino(ctx, String(args.order_id), data, persone);
         if (verificate.presenze?.length) {
           anteprimaPersone = verificate.presenze.map((p, i) => ({ nome: verificate.nomiPerRiepilogo?.[i] ?? p.nome, ore: p.ore }));
-          rapportino = { identificativi: verificate.presenze.map(p => p.employee_id) };
+          rapportino = { identificativi: verificate.presenze.map(p => p.employee_id), nomi: anteprimaPersone.map(p => p.nome) };
         }
       }
     } catch (e) {
@@ -303,6 +306,9 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
         throw new ConfirmationReviewError("dati_rapportino_da_chiarire", e instanceof Error ? e.message : "Verifica data e operai del rapportino.");
       }
       rapportino = { identificativi: persone.map((_, i) => ctx.rapportinoPersoneIds?.[i] ?? null), scelta: e.scelta };
+    }
+    if (rapportino && ctx.rapportinoOrePrima?.length === rapportino.identificativi.length) {
+      rapportino.orePrima = [...ctx.rapportinoOrePrima];
     }
   }
   if (args.order_id) {

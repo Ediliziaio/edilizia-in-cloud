@@ -210,6 +210,20 @@ export async function creaRapportino(
     if (existing.stato !== "bozza" && existing.stato !== "rifiutato") {
       return errResult("rapportino_locked", `Il rapportino di oggi per ${cantiereNome} è già all'ufficio. Per correggerlo scrivi all'ufficio: non lo modifico.`);
     }
+    let presenzeCorrette: Record<string, unknown>[] | undefined;
+    if (stessoVocale && ctx.rapportinoOrePrima) {
+      // Non riaggiungere lavori o materiali del vocale già salvato. Applica le
+      // ore approvate solo se la squadra nella bozza coincide ancora con la prima anteprima.
+      const presenti = Array.isArray(existing.presenze) ? existing.presenze as Record<string, unknown>[] : [];
+      const nuove = contesto.presenze ?? [];
+      const orePerPersona = new Map(nuove.map((p, i) => [p.employee_id, { prima: ctx.rapportinoOrePrima![i], dopo: p.ore }]));
+      if (existing.stato !== "bozza" || nuove.length !== ctx.rapportinoOrePrima.length || presenti.length !== nuove.length ||
+        new Set(presenti.map(p => p?.employee_id)).size !== presenti.length ||
+        presenti.some(p => typeof p?.employee_id !== "string" || orePerPersona.get(p.employee_id)?.prima !== p.ore)) {
+        return errResult("rapportino_ore_cambiate", "Le ore della bozza sono cambiate nel gestionale. Rivedi il rapportino in Campo prima di inviarlo.");
+      }
+      presenzeCorrette = presenti.map(p => ({ ...p, ore: orePerPersona.get(p.employee_id as string)!.dopo }));
+    }
     if (existing.materiali_usati != null && !Array.isArray(existing.materiali_usati)) return errResult("invalid_existing_materials", "Elenco materiali esistente da verificare nell’app.");
     const ore = contesto.presenze ? 0 : args.ore_lavorate ?? existing.ore_lavorate;
     const straordinario = contesto.presenze ? 0 : args.ore_straordinario ?? existing.ore_straordinario;
@@ -247,6 +261,7 @@ export async function creaRapportino(
           ...(pres ? { presenze: pres } : {}),
           note: mergedNote,
         } : {}),
+        ...(presenzeCorrette ? { presenze: presenzeCorrette } : {}),
         source: "whatsapp",
         ...(ctx.sourceMessageId ? { whatsapp_message_id: ctx.sourceMessageId } : {}),
         stato: "inviato",

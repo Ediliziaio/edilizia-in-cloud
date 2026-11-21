@@ -13,6 +13,15 @@ export type Riga = Record<string, unknown>;
 type Filtro = (r: Riga) => boolean;
 export type Esito = { data: unknown; error: { message: string; code?: string } | null };
 
+function contieneJson(dato: unknown, cercato: unknown): boolean {
+  if (Array.isArray(cercato)) return Array.isArray(dato) && cercato.every(v => dato.some(r => contieneJson(r, v)));
+  if (cercato && typeof cercato === "object") {
+    return !!dato && typeof dato === "object" && !Array.isArray(dato) &&
+      Object.entries(cercato).every(([chiave, valore]) => contieneJson((dato as Riga)[chiave], valore));
+  }
+  return dato === cercato;
+}
+
 export class DbMinimo {
   tabelle: Record<string, Riga[]> = {};
   scritture: Array<{ tabella: string; tipo: "insert" | "update" | "upsert"; dati: unknown }> = [];
@@ -62,10 +71,7 @@ class Interrogazione {
   neq(c: string, v: unknown) { this.filtri.push((r) => r[c] !== v); return this; }
   in(c: string, v: unknown[]) { this.filtri.push((r) => v.includes(r[c])); return this; }
   contains(c: string, v: Record<string, unknown>) {
-    this.filtri.push(r => {
-      const campo = r[c] as Record<string, unknown> | null;
-      return campo != null && Object.entries(v).every(([chiave, valore]) => campo[chiave] === valore);
-    });
+    this.filtri.push(r => contieneJson(r[c], v));
     return this;
   }
   gte(c: string, v: unknown) { this.filtri.push((r) => String(r[c] ?? "") >= String(v)); return this; }

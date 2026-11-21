@@ -92,6 +92,14 @@ const NUMERI_ORE = ["zero", "una", "due", "tre", "quattro", "cinque", "sei", "se
   "undici", "dodici", "tredici", "quattordici", "quindici", "sedici", "diciassette", "diciotto", "diciannove", "venti",
   "ventuno", "ventidue", "ventitre", "ventiquattro"];
 
+export function oreDettateRapportino(testo: string): number | null {
+  if (/^\d{1,3}(?:[.,]\d{1,2})?$/.test(testo)) return Number(testo.replace(",", "."));
+  const parola = normalizza(testo);
+  if (parola === "un" || parola === "uno") return 1;
+  const valore = NUMERI_ORE.indexOf(parola);
+  return valore >= 0 ? valore : null;
+}
+
 function orePerPersonaEsplicite(trascrizione: string, persone: OrePersona[]): boolean {
   const nomi = persone.map(p => normalizza(p.nome));
   if (nomi.some(nome => !nome) || new Set(nomi).size !== nomi.length) return false;
@@ -116,7 +124,8 @@ function orePerPersonaEsplicite(trascrizione: string, persone: OrePersona[]): bo
     const dopoOre = frase.slice(ora.index + ora[0].length);
     if (nominativi.length > 1 && !/\b(?:ciascun[oa]|a testa|ognuno)\b/.test(dopoOre)) return false;
 
-    const ore = /^\d+$/.test(ora[1]) ? Number(ora[1]) : ora[1] === "un" ? 1 : NUMERI_ORE.indexOf(ora[1]);
+    const ore = oreDettateRapportino(ora[1]);
+    if (ore === null) return false;
     for (const nome of nominativi) {
       if (orePerNome.has(nome)) return false;
       orePerNome.set(nome, ore);

@@ -78,9 +78,9 @@ async function registra(msg: Omit<IncomingWhatsAppMessage, "from">, file?: Blob)
   return riga;
 }
 
-async function elabora(riga: Riga) {
+async function elabora(riga: Riga, stato: "processed" | "failed" = "processed") {
   const r = await gestore(richiesta("whatsapp-ai-processor", { message_id: riga.id }));
-  expect(await r.json()).toMatchObject({ ok: true, status: "processed" });
+  expect(await r.json()).toMatchObject({ ok: stato === "processed", status: stato });
   while (sfondo.length) await Promise.all(sfondo.splice(0));
 }
 
@@ -180,6 +180,14 @@ beforeEach(() => {
     }
     return true;
   };
+  db.rpcs.ddt_ingresso_invii = ({ p_company, p_invio }) =>
+    (db.tabelle.ddt_whatsapp_invii ?? []).filter(r => r.company_id === p_company && r.id === p_invio).map(r => {
+      const bolle = (db.tabelle.ddt_document_jobs ?? []).filter(b => b.company_id === p_company && b.whatsapp_invio_id === r.id);
+      return { ...r, in_lettura: bolle.filter(b => ["queued", "processing", "da_leggere"].includes(String(b.status))).length,
+        da_controllare: bolle.filter(b => b.status === "review").length,
+        da_riprovare: bolle.filter(b => b.status === "error").length,
+        registrate: bolle.filter(b => b.status === "registered").length };
+    });
   db.rpcs.whatsapp_contesto_rapportino = () => ({
     persone: [
       { employee_id: "dip-a", nome: "Andrea Demo", sono_io: true },
@@ -443,6 +451,33 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
       whatsapp_invio_id: successiva.id, order_id: null,
     });
     expect(consegne).toHaveLength(2);
+    const chiamateAi = m.ai.mock.calls.length;
+    db.tabelle.ddt_document_jobs.find(b => b.source_key === prima.id)!.status = "registered";
+    db.tabelle.ddt_document_jobs.find(b => b.source_key === seconda.id)!.status = "review";
+    await elabora(await registra({ id: "wamid.stato-invio", type: "text", context: { id: String(seconda.wa_message_id) },
+      text: { body: "Quante bolle sono arrivate?" } }));
+    expect(consegne.at(-1)?.text).toContain("20 allegati ricevuti");
+    expect(consegne.at(-1)?.text).toContain("18 bolle in lettura");
+    expect(consegne.at(-1)?.text).toContain("1 bolla da controllare");
+    expect(consegne.at(-1)?.text).toContain("1 bolla registrata");
+    expect(consegne.at(-1)?.text).toContain(`ddt_invio=${prima.id}`);
+    await elabora(await registra({ id: "wamid.stato-ultimo", type: "text", text: { body: "Le mie bolle" } }));
+    expect(consegne.at(-1)?.text).toContain(`ddt_invio=${successiva.id}`);
+    expect(m.ai).toHaveBeenCalledTimes(chiamateAi);
+  });
+
+  it("limita lo stato delle bolle al mittente e alla linea", async () => {
+    for (const [i, extra] of [{ from_phone: "393331234501" }, { wa_number_id: "linea-diversa" }, { company_id: "azienda-diversa" }].entries()) {
+      db.tabelle.whatsapp_messages ??= [];
+      db.tabelle.whatsapp_messages.push({ company_id: azienda, from_phone: mittente, wa_number_id: linea.id,
+        direction: "inbound", id: randomUUID(), ai_extracted_data: { ddt_invio: { origini: [{ provider: "wamid.altra-" + i }] } }, ...extra });
+    }
+    await elabora(await registra({ id: "wamid.stato-privato", type: "text", context: { id: "wamid.altra-0" }, text: { body: "Stato bolle" } }));
+    expect(consegne.at(-1)?.text).toContain("Non trovo un invio per questa foto nella tua chat");
+    await elabora(await registra({ id: "wamid.stato-linea", type: "text", text: { body: "Le mie bolle" } }));
+    expect(consegne.at(-1)?.text).toContain("Non trovo invii raggruppati");
+    expect(db.rpcChiamate.some(r => r.nome === "ddt_ingresso_invii")).toBe(false);
+    expect(m.ai).not.toHaveBeenCalled();
   });
 
   it("mostra un menu per l’invio, esclude il duplicato e rispetta la destinazione scritta sulla singola foto", async () => {
@@ -543,6 +578,38 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
       presenze: [expect.objectContaining({ employee_id: "dip-a", ore: 8 }), expect.objectContaining({ employee_id: "dip-m", ore: 4 })],
     })]);
     expect(m.ai).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])("corregge un rapportino già salvato dal vocale, bozza cambiata in app: %s", async modificataInApp => {
+    m.transcribe.mockResolvedValueOnce({ testo: "Oggi a PROVA-SIMULA. Io ho fatto 8 ore. Marco ha fatto 4 ore. Abbiamo montato tre porte.",
+      lingua: "italian", durata: 9 });
+    m.ai.mockResolvedValueOnce(chiediConferma("crea_rapportino", { cantiere_hint: "PROVA-SIMULA", data_lavoro: "oggi",
+      attivita: ["Montate tre porte"], persone: [{ nome: "io", ore: 8 }, { nome: "Marco", ore: 4 }] }));
+    const vocale = await registra({ id: "wamid.squadra-originale", type: "audio", audio: { id: "345680" } }, new Blob(["vocale"]));
+    await elabora(vocale);
+    const prima = consegne.at(-1)?.interactive as InteractivePayload;
+    expect(prima.body.text).toContain("Bozza salvata in Campo");
+    const bozza = db.tabelle.campo_rapportini[0];
+    const bozzaId = bozza.id;
+    await elabora(await registra({ id: "wamid.correzione-ore", type: "text", text: { body: "Marco Demo 7,5 ore" } }));
+    const corretta = consegne.at(-1)?.interactive as InteractivePayload;
+    expect(corretta.body.text).toMatch(/15,5 h[\s\S]*Andrea Demo.*8 h[\s\S]*Marco Demo.*7,5 h/);
+    if (prima.type !== "button" || corretta.type !== "button") throw new Error("Atteso bottone rapportino");
+    await elabora(await registra({ id: "wamid.squadra-si-vecchio", type: "interactive", interactive: { button_reply: prima.action.buttons[0].reply } }));
+    expect(consegne.at(-1)?.text).toContain("domanda precedente");
+    expect(bozza.stato).toBe("bozza");
+    if (modificataInApp) ((bozza.presenze as Riga[])[1]).ore = 5;
+    await elabora(await registra({ id: "wamid.squadra-si-corretto", type: "interactive", interactive: { button_reply: corretta.action.buttons[0].reply } }),
+      modificataInApp ? "failed" : "processed");
+    expect(db.tabelle.campo_rapportini).toEqual([expect.objectContaining({
+      id: bozzaId, stato: modificataInApp ? "bozza" : "inviato", whatsapp_message_id: vocale.id,
+      descrizione_lavori: "Montate tre porte", presenze: [
+        expect.objectContaining({ employee_id: "dip-a", ore: 8 }),
+        expect.objectContaining({ employee_id: "dip-m", ore: modificataInApp ? 5 : 7.5 }),
+      ],
+    })]);
+    if (modificataInApp) expect(consegne.at(-1)?.text).toContain("sono cambiate nel gestionale");
+    expect(m.ai).toHaveBeenCalledOnce();
   });
 
   it.each(["cognome", "pulsante", "vocale"])("chiarisce quale Marco con %s e conserva le ore del vocale", async (modalita) => {
@@ -915,16 +982,18 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     const original = fetch;
     let letture = 0;
     let generazioni = 0;
+    let pdfNuovo: Riga | undefined;
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (String(url).endsWith("/silvio-extract-pdf")) {
         letture++;
-        return rispostaJson({ text: "Posa ceramica\t12,50\tmq", coverage: { complete: true } });
+        if (pdfNuovo) expect(JSON.parse(String(init?.body)).storage_path).toBe(pdfNuovo.media_storage_path);
+        return rispostaJson({ text: `Posa ceramica\t${pdfNuovo ? "15,00" : "12,50"}\tmq`, coverage: { complete: true } });
       }
       if (String(url).endsWith("/ai-genera-preventivo-v2")) {
         generazioni++;
-        expect(JSON.parse(String(init?.body)).descrizione).toContain("Posa ceramica\t12,50\tmq");
+        expect(JSON.parse(String(init?.body)).descrizione).toContain(`Posa ceramica\t${pdfNuovo ? "15,00" : "12,50"}\tmq`);
         return rispostaJson({ success: true, sezioni: [{ righe: [{
-          nome: "Posa ceramica", quantita: 12.5, unita_misura: "mq", unit_price: 32, item_category: "posa",
+          nome: "Posa ceramica", quantita: pdfNuovo ? 15 : 12.5, unita_misura: "mq", unit_price: 32, item_category: "posa",
         }] }] });
       }
       return original(url, init);
@@ -945,6 +1014,41 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     await elabora(await registra({ id: "wamid.preventivo-riapri", type: "text", text: { body: "Riprendi preventivo" } }));
     expect(consegne.at(-1)?.interactive).toMatchObject({ body: { text: expect.stringContaining("12,5 mq") } });
     expect(db.tabelle.quotes ?? []).toHaveLength(0);
+
+    const prima = consegne.at(-1)?.interactive as InteractivePayload;
+    const bozza = db.tabelle.whatsapp_preventivi_bozze[0];
+    const codice = String(bozza.id).slice(0, 10).toUpperCase();
+    bozza.codice = codice;
+    const altra = { ...bozza, id: randomUUID(), cliente: "Rossi" };
+    db.tabelle.whatsapp_preventivi_bozze.push({ ...altra, codice: String(altra.id).slice(0, 10).toUpperCase() });
+    pdfNuovo = await registra({ id: "wamid.rev-pdf", type: "document", document: {
+      id: "349981", mime_type: "application/pdf", filename: "Computo aggiornato.pdf", caption: "Sostituisci PDF",
+    } }, new Blob(["%PDF-1.7 aggiornato"], { type: "application/pdf" }));
+    await elabora(pdfNuovo);
+    expect(consegne.at(-1)?.text).toContain("seguito dal codice della bozza");
+    expect(letture).toBe(1);
+    const sostituisci = (id: string) => registra({ id, type: "text", context: { id: "wamid.rev-pdf" },
+      text: { body: `Sostituisci PDF ${codice}` } });
+    await elabora(await sostituisci("wamid.pdf-revisione"));
+    expect(consegne.at(-1)?.text).toContain("PDF sostituito");
+    expect(bozza).toMatchObject({ id: pdf.id, revisione: 3, stato: "pronta", cliente: "Bianchi", iva: 10, pdf_path: pdfNuovo.media_storage_path });
+    expect(db.tabelle.whatsapp_preventivi_bozze[1]).toMatchObject({ cliente: "Rossi", revisione: 2, pdf_path: pdf.media_storage_path });
+    expect(db.tabelle.ddt_document_jobs ?? []).toHaveLength(0);
+    expect(originali.has(`whatsapp-media/${pdf.media_storage_path}`)).toBe(true);
+    if (prima.type !== "button") throw new Error("Atteso bottone preventivo");
+    db.rpcs.whatsapp_salva_bozza_preventivo = ({ p_revisione }) => {
+      expect(p_revisione).toBe(2);
+      return { success: false };
+    };
+    const obsoleta = await registra({ id: "wamid.preventivo-conferma-vecchia", type: "interactive", interactive: { button_reply: prima.action.buttons[0].reply } });
+    await elabora(obsoleta, "failed");
+    expect(consegne.at(-1)?.text).toContain("Riprendi la bozza WhatsApp");
+    expect(db.tabelle.quotes ?? []).toHaveLength(0);
+    await elabora(await sostituisci("wamid.pdf-revisione-ripetuta"));
+    expect(consegne.at(-1)?.interactive).toMatchObject({ body: { text: expect.stringContaining("15 mq ×") } });
+    expect(bozza.revisione).toBe(3);
+    expect(letture).toBe(2);
+    expect(generazioni).toBe(2);
   });
 
   it("presenta all'operaio le funzioni abilitate e legge le assegnazioni di oggi senza AI", async () => {
@@ -953,6 +1057,18 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     expect(consegne[0].text).not.toContain("fatture");
     await elabora(await registra({ id: "wamid.oggi", type: "text", text: { body: "Dove lavoro oggi?" } }));
     expect(consegne[1].text).toContain("PROVA-SIMULA");
+    expect(m.ai).not.toHaveBeenCalled();
+  });
+
+  it("conserva il PDF del preventivo anche senza il permesso di modificarlo", async () => {
+    const pdf = await registra({ id: "wamid.pdf-solo-campo", type: "document", document: {
+      id: "349988", mime_type: "application/pdf", filename: "Computo.pdf", caption: "Sostituisci PDF",
+    } }, new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+    await elabora(pdf);
+    expect(consegne.at(-1)?.text).toContain("PDF salvato in Conversazioni");
+    expect(originali.has(`whatsapp-media/${pdf.media_storage_path}`)).toBe(true);
+    expect(db.tabelle.whatsapp_preventivi_bozze ?? []).toHaveLength(0);
+    expect(db.tabelle.ddt_document_jobs ?? []).toHaveLength(0);
     expect(m.ai).not.toHaveBeenCalled();
   });
 

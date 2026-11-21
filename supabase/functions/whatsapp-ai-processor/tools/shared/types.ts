@@ -20,6 +20,8 @@ export interface ToolCtx {
   transcript?: string;
   /** Identità verificate e vincolate al riepilogo del rapportino. */
   rapportinoPersoneIds?: readonly (string | null)[];
+  /** Versione delle ore prima di una correzione confermata in chat. */
+  rapportinoOrePrima?: readonly number[];
   kind: "operaio" | "ufficio" | "admin" | "unknown";
   /** Il file arrivato con questo messaggio, già salvato nel bucket (foto del DDT, foto di cantiere, vocale). */
   mediaCorrente?: { storagePath: string; url: string; tipo: string } | null;

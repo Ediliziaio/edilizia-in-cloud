@@ -7,6 +7,7 @@ import { messaggiInAttesa, primoMessaggioInAttesa, type MessaggioInAttesa } from
 import { avviaLetturaBolla } from "./letturaBollaInCoda.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio } from "./media.ts";
 import { paginaDiBolla } from "./pagineBolla.ts";
+import { nuovaRichiestaPreventivo, sostituzionePdfPreventivo } from "./intentiRapidi.ts";
 import { commesseAperte, oggiARoma } from "./tools/shared/cantieriAperti.ts";
 import { resolveCantiere } from "./tools/shared/resolve_cantiere.ts";
 import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
@@ -41,7 +42,9 @@ function conversazione(ctx: ToolCtx) {
   return { company_id: ctx.company_id, wa_number_id: ctx.waNumberId, from_phone: ctx.phone };
 }
 
-function messaggi(ctx: ToolCtx) {
+type ConversazioneBolle = Pick<ToolCtx, "supabase" | "company_id" | "waNumberId" | "phone">;
+
+function messaggi(ctx: ConversazioneBolle) {
   return ctx.supabase.from("whatsapp_messages").select("id, ai_extracted_data, created_at")
     .eq("company_id", ctx.company_id).eq("wa_number_id", ctx.waNumberId).eq("from_phone", ctx.phone).eq("direction", "inbound");
 }
@@ -94,10 +97,11 @@ export function destinazioneDettaPerInvio(testo: string): DestinazioneDetta | nu
 function allegatoVicino(m: MessaggioInAttesa, prima: Arrivo) {
   const distanza = Date.parse(m.created_at) - Date.parse(prima.created_at);
   const mime = m.metadata?.mime_type ?? "";
+  const testo = m.content_text ?? "";
   return distanza >= 0 && distanza <= DISTANZA_ALLEGATI_MS && !m.metadata?.reply_to &&
     (m.message_type === "image" || (m.message_type === "document" && (!mime || /^(application\/pdf|image\/)/i.test(mime)))) &&
-    !paginaDiBolla(m.content_text ?? "") &&
-    (!leggiDestinazioneBolla(m.content_text ?? "", true) || messaggioPerTutteLeBolle(m.content_text ?? ""));
+    !paginaDiBolla(testo) && !nuovaRichiestaPreventivo(testo) && !sostituzionePdfPreventivo(testo) &&
+    (!leggiDestinazioneBolla(testo, true) || messaggioPerTutteLeBolle(testo));
 }
 
 /** Gli allegati diversi dalle bolle riprendono il loro flusso quando arriva il loro turno. */
@@ -308,6 +312,43 @@ async function bolleDellInvio(ctx: ToolCtx, invio: InvioBolle): Promise<BollaApe
 }
 
 const contaBolle = (n: number) => n === 1 ? "1 bolla" : `${n} bolle`;
+
+export function chiedeStatoInvioBolle(testo: string): boolean {
+  const richiesta = testo.trim().replace(/[.!?]+$/, "").trim();
+  return /^(?:le mie bolle|stato (?:delle bolle|bolle|(?:dell['’]|ultimo )invio(?: (?:ddt|bolle))?)|(?:l['’])?ultimo invio (?:ddt|bolle)|quante bolle (?:sono arrivate|hai ricevuto|hai salvato))$/i.test(richiesta);
+}
+
+/** Usa gli stessi contatori di Documenti in ingresso, dopo aver verificato l’origine nella chat del mittente. */
+export async function statoInvioBolle(ctx: ConversazioneBolle, citazione: string | null): Promise<string> {
+  const link = "https://app.ediliziaincloud.com/azienda/ordini?tab=ddt&ddt_stato=da_registrare";
+  const senzaInvio = citazione
+    ? "Non trovo un invio per questa foto nella tua chat. Scrivi «Le mie bolle» per vedere l’ultimo invio."
+    : "Non trovo invii raggruppati in questa chat. Le singole bolle sono in DDT → Documenti in ingresso.";
+  if (citazione && citazione.length > 512) return senzaInvio;
+  let ricerca = messaggi(ctx).not("ai_extracted_data->>ddt_invio", "is", null);
+  if (citazione) ricerca = ricerca.contains("ai_extracted_data", { ddt_invio: { origini: [{ provider: citazione }] } });
+  const { data: invii, error } = await ricerca.order("created_at", { ascending: false }).limit(citazione ? 2 : 1);
+  if (error) return "Non riesco a leggere lo stato delle bolle. Controlla in DDT → Documenti in ingresso.";
+  if (invii?.length !== 1 || !idWhatsAppValido(invii[0].id)) return senzaInvio;
+
+  const invioId = invii[0].id;
+  const { data, error: erroreRiepilogo } = await ctx.supabase.rpc("ddt_ingresso_invii", {
+    p_company: ctx.company_id, p_invio: invioId,
+  });
+  const invio = Array.isArray(data) ? data.find(riga => riga.id === invioId) : null;
+  if (erroreRiepilogo || !invio) return "Il riepilogo dell’invio non è disponibile. Controlla in DDT → Documenti in ingresso.";
+  const righe = [
+    `${citazione ? "Invio citato" : "Ultimo invio"} · ${invio.ricevuti} ${invio.ricevuti === 1 ? "allegato ricevuto" : "allegati ricevuti"}`,
+    ...(invio.in_lettura > 0 ? [`${contaBolle(invio.in_lettura)} in lettura`] : []),
+    ...(invio.da_controllare > 0 ? [`${contaBolle(invio.da_controllare)} da controllare`] : []),
+    ...(invio.registrate > 0 ? [`${contaBolle(invio.registrate)} ${invio.registrate === 1 ? "registrata" : "registrate"}`] : []),
+    ...(invio.da_riprovare > 0 ? [`${contaBolle(invio.da_riprovare)} con lettura da riprovare`] : []),
+    ...(invio.duplicati_identici > 0 ? [`${invio.duplicati_identici} ${invio.duplicati_identici === 1 ? "copia identica" : "copie identiche"} già presenti`] : []),
+    ...(invio.da_rimandare > 0 ? [`${invio.da_rimandare} ${invio.da_rimandare === 1 ? "allegato" : "allegati"} da rimandare`] : []),
+    `${link}&ddt_invio=${invioId}`,
+  ];
+  return righe.join("\n");
+}
 
 export async function destinaInvioBolle(ctx: ToolCtx, invio: InvioBolle, input: {
   scelta?: SceltaDestinazioneBolla; testo?: string; vocale?: boolean; speditoIl?: string;

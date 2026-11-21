@@ -24,6 +24,17 @@ export function vuolePreventivoInChat(testo: string): boolean {
     || /\b(?:mandalo|mandala|invialo|inviala|invia|manda)\b.{0,30}\b(?:qui|a me|su questa chat)\b/.test(t);
 }
 
+export function nuovaRichiestaPreventivo(testo: string) {
+  const t = testo.trim().replace(/^(?:(?:ciao|buongiorno|ok|per favore)[\s,.!]+)+/i, "");
+  return /^(?:(?:prepara|preparami|crea|creami|genera|fammi|fai|mi fai|mi prepari|vorrei|mi serve)\s+(?:(?:un|il|una|la)\s+)?(?:bozza\s+(?:di|del)\s+)?preventivo\b|(?:bozza\s+di\s+)?preventivo\s+(?:per|da|dal|di)\b)/i.test(t) &&
+    !/\b(?:modello|facsimile|layout|impaginazione)\b/i.test(t);
+}
+
+export function sostituzionePdfPreventivo(testo: string): { codice?: string } | null {
+  const comando = testo.trim().match(/^(?:sostituisci|cambia)\s+(?:il\s+)?pdf(?:\s+(?:della\s+)?bozza)?(?:\s+([a-f0-9]{8}-[a-f0-9]))?[.!]?$/i);
+  return comando ? { codice: comando[1]?.toUpperCase() } : null;
+}
+
 export function tipoAllegatoDetto(testo: string): "ddt" | "scontrino" | "foto" | null {
   const tipo = testo.trim().match(/^(?:(?:è|quest[oa]\s+è)\s+)?(?:(?:un|una|uno)\s+)?(ddt|bolla|scontrino|ricevuta fiscale|foto di cantiere)\b/i)?.[1]?.toLowerCase();
   if (tipo === "ddt" || tipo === "bolla") return "ddt";

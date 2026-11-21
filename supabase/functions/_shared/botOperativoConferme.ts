@@ -40,6 +40,9 @@ export interface SceltaPersonaRapportino {
 export interface PersoneRapportinoAttesa {
   identificativi: (string | null)[];
   scelta?: SceltaPersonaRapportino;
+  nomi?: string[];
+  /** Ore della prima anteprima, prima delle correzioni in chat. */
+  orePrima?: number[];
 }
 
 export interface CantiereDaScegliere {
@@ -76,7 +79,17 @@ function leggiPersoneRapportino(value: unknown): PersoneRapportinoAttesa | undef
   const r = record(value);
   const ids = r?.identificativi;
   if (!Array.isArray(ids) || !ids.length || ids.length > 30 || ids.some(id => id !== null && typeof id !== "string")) return;
-  if (r?.scelta === undefined) return { identificativi: ids };
+  const ore = r?.orePrima;
+  if (ore !== undefined && (!Array.isArray(ore) || ore.length !== ids.length ||
+    ore.some(n => typeof n !== "number" || !Number.isFinite(n) || n < 0 || n > 24))) return;
+  const nomi = r?.nomi;
+  if (nomi !== undefined && (!Array.isArray(nomi) || nomi.length !== ids.length || nomi.some(nome => typeof nome !== "string"))) return;
+  const base = {
+    identificativi: ids,
+    ...(Array.isArray(nomi) ? { nomi } : {}),
+    ...(Array.isArray(ore) ? { orePrima: ore } : {}),
+  };
+  if (r?.scelta === undefined) return base;
   const scelta = record(r.scelta);
   const indice = scelta?.indice;
   const opzioni = scelta?.opzioni;
@@ -85,7 +98,7 @@ function leggiPersoneRapportino(value: unknown): PersoneRapportinoAttesa | undef
       const o = record(opzione);
       return !o || typeof o.id !== "string" || typeof o.nome !== "string" || (o.squadra !== null && typeof o.squadra !== "string");
     })) return;
-  return { identificativi: ids, scelta: { indice, opzioni } };
+  return { ...base, scelta: { indice, opzioni } };
 }
 
 export function leggiStatoSessione(stateData: unknown, adesso: Date): StatoSessioneBot {
