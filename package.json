@@ -145,6 +145,7 @@
     "pdfjs-dist": "^6",
     "pdfmake": "0.3.9",
     "posthog-js": "^1.376.0",
+    "proj4": "2.23.0",
     "qrcode": "^1.5.4",
     "react": "18.3.1",
     "react-day-picker": "^10.0.1",

@@ -2270,6 +2270,7 @@ function FotovoltaicoWizard() {
           )}
           {step === 4 && (
             <Step4Tetto
+              progettoId={progettoId}
               data={data}
               update={update}
               analizzando={analizzandoTetto}
@@ -2945,12 +2946,14 @@ export function Step3Consumi({
 // STEP 4 — TETTO
 // ============================================================================
 export function Step4Tetto({
+  progettoId,
   data,
   update,
   analizzando,
   onAnalizza,
   readOnlyMode,
 }: {
+  progettoId?: string | null;
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   analizzando: boolean;
@@ -2978,7 +2981,7 @@ export function Step4Tetto({
       />
       <FvSceltaProgettazione senzaMappa={senzaMappa} disabled={readOnlyMode || analizzando}
         onChange={(rapido) => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, rapido))} />
-      {!senzaMappa&&data.latitudine!=null&&data.longitudine!=null&&<FvMappaTetto key={`${data.latitudine}:${data.longitudine}`} ricerca={{lat:data.latitudine,lng:data.longitudine}} indirizzo={data.indirizzo} riferimento={data.riferimento_tetto??null} piano={leggiDisegnoCommerciale(data.layout_overlay)} modificabile={!readOnlyMode} onPosizione={r=>update("riferimento_tetto",r)} onChange={p=>update("layout_overlay",p)}/>}
+      {!senzaMappa&&data.latitudine!=null&&data.longitudine!=null&&<FvMappaTetto key={`${data.latitudine}:${data.longitudine}`} progettoId={progettoId} ricerca={{lat:data.latitudine,lng:data.longitudine}} indirizzo={data.indirizzo} riferimento={data.riferimento_tetto??null} piano={leggiDisegnoCommerciale(data.layout_overlay)} modificabile={!readOnlyMode} onPosizione={r=>update("riferimento_tetto",r)} onChange={p=>update("layout_overlay",p)}/>}
       {senzaMappa && (
         <FvCard title="Stima solare senza mappa">
           <p className="mb-4 text-sm text-slate-600">Scegli numero e modello dei pannelli nella fase Impianto. La capienza del tetto resta da verificare con il sopralluogo.</p>
@@ -3023,7 +3026,7 @@ export function Step4Tetto({
             icon={<Sparkles className="h-5 w-5 text-orange-500" />}
             title="Google Solar API"
             titleBreve="Google"
-            description="Analisi satellitare ad alta risoluzione, layout pannelli automatico."
+            description="Potenziale solare del tetto, dove coperto. Foto e quote nel pannello della mappa."
             badge="Consigliato"
           />
           <SourceTile

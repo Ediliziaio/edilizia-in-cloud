@@ -1,3 +1,4 @@
+import { leggiFotoSolar, type FotoSolarFv } from "./fvGoogleSolar.ts";
 /** Riferimenti della mappa, senza immagini o chiavi del provider. Metri est/nord dall'origine. */
 export type PosizioneMappaFv = { lat: number; lng: number };
 export type MappaFv = {
@@ -12,9 +13,11 @@ export type MappaFv = {
       inclinazione: number;
       azimut: number;
       inclinazioneStimata: boolean;
+      dislivelloGronda?: number;
     }
   >;
   distanzaOstacoli: number;
+  fotoSolar?: FotoSolarFv;
   solare?: Array<{ faldaId: string; ore: number; pesiMensili: number[] }>;
 };
 const record = (x: unknown): x is Record<string, unknown> =>
@@ -54,6 +57,7 @@ export function leggiMappaFv(raw: unknown): MappaFv | null {
       inclinazione: f.inclinazione,
       azimut: f.azimut,
       inclinazioneStimata: f.inclinazioneStimata !== false,
+      ...(n(f.dislivelloGronda) && f.dislivelloGronda >= 0 && f.dislivelloGronda <= 100 ? {dislivelloGronda:f.dislivelloGronda} : {}),
     });
   }
   let solare: MappaFv["solare"];
@@ -94,6 +98,7 @@ export function leggiMappaFv(raw: unknown): MappaFv | null {
     falde,
     distanzaOstacoli: raw.distanzaOstacoli,
     ...(solare ? { solare } : {}),
+    ...(leggiFotoSolar(raw.fotoSolar) ? {fotoSolar:leggiFotoSolar(raw.fotoSolar)!} : {}),
   };
 }
 export function resaMappaFv(raw: unknown) {

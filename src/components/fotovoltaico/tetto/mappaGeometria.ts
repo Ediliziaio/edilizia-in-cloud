@@ -63,7 +63,7 @@ export function edificioDaMappaFv(m: MappaFv, altezza = 8): EdificioReale {
       );
     }
     return {
-      ...faldaDaOrto(f.punti, altezza, f.inclinazione, f.azimut, f.id),
+      ...faldaDaOrto(f.punti, altezza + (f.dislivelloGronda ?? 0), f.inclinazione, f.azimut, f.id),
       nome: f.nome,
     };
   });

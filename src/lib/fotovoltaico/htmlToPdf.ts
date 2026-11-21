@@ -13,6 +13,7 @@
 // titolo del documento diventa il nome file suggerito.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { STILE_STAMPA_PAGINE_FV } from "../../../supabase/functions/_shared/fvStampaPagina";
 import { preparaMappeDocumentoFv } from "./googleMapsDocumento";
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -62,6 +63,7 @@ export async function stampaPreventivoNativo(
         if (doc.readyState === "complete") resolve();
         else iframe.addEventListener("load", () => resolve(), { once: true });
       });
+      const stileStampa=doc.createElement("style");stileStampa.textContent=STILE_STAMPA_PAGINE_FV;doc.head.appendChild(stileStampa);
       doc.title = titolo.replace(/[^\w.\- ]+/g, "_");
       pulisciMappe = await preparaMappeDocumentoFv(doc, mappeAbort.signal);
       // Avvia il layout e attendi i caratteri e le immagini prima della stampa.

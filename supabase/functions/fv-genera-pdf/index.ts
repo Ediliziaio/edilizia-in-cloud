@@ -327,7 +327,19 @@ Deno.serve(async (req: Request) => {
       const vista = inquadraturaSatellitePdf(disegnoCommerciale);
       // La mappa viene caricata dall'SDK JavaScript ufficiale nell'app prima
       // dell'anteprima e della stampa. Non scarica né conserva tile o chiavi.
-      if (vista) satelliteTetto = { ...vista, provider: "google" };
+      if (vista) {
+        satelliteTetto = { ...vista, provider: "google" };
+        const solar=disegnoCommerciale.mappa?.fotoSolar;
+        if(solar){
+          if(!solar.path.startsWith(`${prog.company_id}/`))return errorResponse("La foto Solar non appartiene a questa azienda",400,corsHeaders);
+          const {data:foto,error:fotoError}=await supabaseAdmin.storage.from("fv-progetti").download(solar.path);
+          if(fotoError||!foto||foto.size>2*1024*1024)return errorResponse("La foto Google Solar salvata non è disponibile: ricaricala prima di generare il PDF",400,corsHeaders);
+          const b=new Uint8Array(await foto.arrayBuffer());
+          if(b[0]!==255||b[1]!==216)return errorResponse("Foto Google Solar non valida",400,corsHeaders);
+          let binario="";for(let i=0;i<b.length;i+=32768)binario+=String.fromCharCode(...b.subarray(i,i+32768));
+          satelliteTetto={...vista,provider:"google",solar,img:`data:image/jpeg;base64,${btoa(binario)}`};
+        }
+      }
     }
     if (!disegnoCommerciale && satLat && satLng && googleMapsKey) {
       const fetchSatImg = (zoom: number) =>

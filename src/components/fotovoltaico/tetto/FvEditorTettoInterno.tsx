@@ -1,3 +1,4 @@
+import { useOrtoSolarFv } from "./useFotoSolar";
 import { aspettoTettoFv, copertureFv, coperturaValidaFv } from "../../../../supabase/functions/_shared/fvAspettoTetto";
 import { FvMisureFaldeMappa } from "./FvMisureFaldeMappa";
 import { UniformSelect } from "@/components/ui/uniform-select";
@@ -22,7 +23,8 @@ export default function EditorTetto(props: FvDisegnoPreventivoProps) {
     const [alto, setAlto] = useState(false), [texture, setTexture] = useState(true), [selezione, setSelezione] = useState<SelezioneReale>(null), [provvisorio, setProvvisorio] = useState<DisegnoCommercialeFv | null>(null);
     const [inquadratura, setInquadratura] = useState<InquadraturaReale>({ faldaId: null, versione: 0 }), [nota, setNota] = useState("");
     const caricato = useRilievoArchiviato(props.value?.rilievo?.id), runtime = caricato.runtime;
-    const schema = useMemo(() => props.value?.mappa ? {piano:props.value,runtime:{edificio:edificioDaMappaFv(props.value.mappa, props.value.schema3d?.altezza ?? 8),orto:null,modello:null,fonte:null}} : props.value && !props.value.rilievo ? schemaDalDisegno(props.value) : null, [props.value]);
+    const ortoSolar=useOrtoSolarFv(props.value?.mappa?.fotoSolar,props.value?.mappa?.origine);
+    const schema = useMemo(() => props.value?.mappa ? {piano:props.value,runtime:{edificio:edificioDaMappaFv(props.value.mappa, props.value.schema3d?.altezza ?? 8),orto:ortoSolar,modello:null,fonte:null}} : props.value && !props.value.rilievo ? schemaDalDisegno(props.value) : null, [props.value,ortoSolar]);
     const edificio = runtime?.edificio ?? schema?.runtime.edificio ?? RUNTIME_VUOTO.edificio;
     const piano = props.value;
     if (!piano)
@@ -47,7 +49,7 @@ export default function EditorTetto(props: FvDisegnoPreventivoProps) {
                 setNota("Posizione non disponibile: controlla bordo, pannelli e ostacoli.");
         };
         const foto = <FotoTettoReale piano={piano} onChange={salva} modificabile={props.modificabile} selezione={selezione} onSelezione={setSelezione} onProvvisorio={setProvvisorio} inquadratura={inquadratura}/>;
-        const vista3d = <><div className="fv-roof-photo-tools"><button type="button" onClick={() => setAlto(v => !v)}>{alto ? "Vista prospettica" : "Vista dall’alto"}</button><button type="button" disabled={!runtime?.orto} aria-pressed={texture&&!!runtime?.orto} onClick={() => setTexture(v => !v)}>Ortofoto sul modello</button></div><VistaReale pannelli={pannelli} ids={ids} faldaId={faldaId ?? piano.falde[0]?.id ?? ""} alto={alto} foto={texture} ostacoli={ostacoli} selezione={selezione} onSelezione={setSelezione} inquadratura={inquadratura} invalidi={invalidi} areaPosa={pianoVista}/><p className="fv-roof-photo-note">Clicca un modulo per selezionarlo anche sulla foto. Trascina lo sfondo per ruotare; rotella per lo zoom. Luce illustrativa, nessun calcolo di ombre.</p></>;
+        const vista3d = <><div className="fv-roof-photo-tools"><button type="button" onClick={() => setAlto(v => !v)}>{alto ? "Vista prospettica" : "Vista dall’alto"}</button><button type="button" disabled={!visualRuntime?.orto} aria-pressed={texture&&!!visualRuntime?.orto} onClick={() => setTexture(v => !v)}>Ortofoto sul modello</button></div><VistaReale pannelli={pannelli} ids={ids} faldaId={faldaId ?? piano.falde[0]?.id ?? ""} alto={alto} foto={texture} ostacoli={ostacoli} selezione={selezione} onSelezione={setSelezione} inquadratura={inquadratura} invalidi={invalidi} areaPosa={pianoVista}/><p className="fv-roof-photo-note">Clicca un modulo per selezionarlo anche sulla foto. Trascina lo sfondo per ruotare; rotella per lo zoom. Luce illustrativa, nessun calcolo di ombre.{piano.mappa?.fotoSolar && <> Google Maps · Foto Google Solar del {piano.mappa.fotoSolar.data}. Source: Includes solar data from Google.</>}</p></>;
         return <><div className="fv-roof-photo-tools fv-roof-focus-tools"><button type="button" onClick={() => { setAlto(false); inquadra(null); }}>Tetto intero</button><button type="button" disabled={!faldaId} onClick={() => inquadra(faldaId ?? null)}>Inquadra falda selezionata</button><label>Falda <UniformSelect aria-label="Falda da inquadrare" value={inquadratura.faldaId ?? ""} onChange={e => inquadra(e.target.value || null)}><option value="">Tutto il tetto</option>{piano.falde.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}</UniformSelect></label></div>
       <div className="fv-roof-photo-selection" aria-label="Selezione condivisa foto e 3D">
         <strong>{modulo ? `Pannello ${piano.pannelli.findIndex(m => m.id === modulo.id) + 1} · ${piano.falde.find(f => f.id === modulo.faldaId)?.nome}` : ostacolo ? "Ostacolo selezionato" : "Seleziona un pannello sulla foto o nel 3D"}</strong>
