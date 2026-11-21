@@ -35,11 +35,11 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
   });
   const [tentativo, setTentativo] = useState(0);
   const runtime = useMemo<RilievoRuntime>(() => ({
-    edificio: edificioDaMappaFv(mappa),
+    edificio: edificioDaMappaFv(mappa, piano.schema3d?.altezza ?? 8),
     orto: riferimentoMappaGoogleFv(mappa.origine, centro, zoom, dimensioni),
     modello: null,
     fonte: null,
-  }), [mappa, centro, zoom, dimensioni]);
+  }), [mappa, centro, zoom, dimensioni, piano.schema3d?.altezza]);
   return (
     <>
       <p className="mb-2 text-xs text-slate-600">

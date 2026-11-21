@@ -52,7 +52,8 @@ function verificaSovrapposizioni(m: MappaFv) {
     }
   }
 }
-export function edificioDaMappaFv(m: MappaFv): EdificioReale {
+export function edificioDaMappaFv(m: MappaFv, altezza = 8): EdificioReale {
+  if (!Number.isFinite(altezza) || altezza < 2 || altezza > 150) throw Error("Altezza edificio non valida.");
   if (!m.falde.length) throw Error("Disegna almeno una falda sul tetto.");
   verificaSovrapposizioni(m);
   const falde = m.falde.map((f) => {
@@ -62,7 +63,7 @@ export function edificioDaMappaFv(m: MappaFv): EdificioReale {
       );
     }
     return {
-      ...faldaDaOrto(f.punti, 8, f.inclinazione, f.azimut, f.id),
+      ...faldaDaOrto(f.punti, altezza, f.inclinazione, f.azimut, f.id),
       nome: f.nome,
     };
   });

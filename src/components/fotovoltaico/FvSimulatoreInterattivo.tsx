@@ -210,7 +210,7 @@ export function FvSimulatoreInterattivo({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
         <KpiTile
           icon={PiggyBank}
-          label="Risparmio 1° anno"
+          label="Beneficio 1° anno, incluse detrazioni"
           value={`${eur(kpi.beneficio_lordo_anno_1_eur)}`}
           accent
         />

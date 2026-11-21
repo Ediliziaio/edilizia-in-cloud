@@ -1,3 +1,5 @@
+import { analisiNelPdfFv, conAnalisiNelPdfFv } from "@/lib/fotovoltaico/analisiNelPdf";
+import { finanziamentoSelezionatoFv } from "@/lib/fotovoltaico/finanziamentoSelezionato";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {FvEconomiaAzienda} from "@/components/fotovoltaico/economiaAzienda/FvEconomiaAzienda";
 import {creaSnapshotEconomia,riferimentoClienteEconomia,snapshotEconomiaValido} from "../../../../supabase/functions/_shared/fvEconomiaAzienda";
@@ -158,7 +160,7 @@ import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
 import { spostaPinTettoFv } from "@/lib/fotovoltaico/spostaPinTetto";
 import { FvProfiloEnergetico, FvScenariEnergia } from "@/components/fotovoltaico/FvScenariEnergia";
 import { FvSuggerimentoPannelli } from "@/components/fotovoltaico/FvSuggerimentoPannelli";
-import { leggiAnalisiConsumi, problemiConsumiFv } from "../../../../supabase/functions/_shared/fvBollette";
+import { leggiAnalisiConsumi, problemiConsumiFv, riepilogoBollette } from "../../../../supabase/functions/_shared/fvBollette";
 import { resaMappaFv } from "../../../../supabase/functions/_shared/fvMappa";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
@@ -1495,10 +1497,11 @@ function FotovoltaicoWizard() {
         await aggiornaProgetto.mutateAsync({id:progettoId,patch:{economia_azienda:{parametri:e.parametri,snapshot},scenario_finanziamento:e.parametri.modo,finanziamento_rata_eur:(e.parametri.modo==="noleggio"||e.parametri.modo==="leasing")?snapshot.risultato.canoneMensileEquivalente:e.parametri.modo==="rate"?e.parametri.rataFinanziamento:null,finanziamento_durata_mesi:e.parametri.modo==="leasing"?e.parametri.leasing?.durataMesi??null:e.parametri.modo==="noleggio"?e.parametri.durataNoleggioMesi:e.parametri.modo==="rate"?e.parametri.durataFinanziamentoMesi:null,finanziamento_totale_dovuto_eur:snapshot.risultato.totalePagamenti,finanziamento_tabella_id:null,finanziamento_tan:null,finanziamento_taeg:null} as never});
         if(!mountedRef.current)return;markSaved();goTo(7,{markCompleted:true});return;
       }
-      const tabId = data.tabella_finanziamento_id ?? topFinanziamenti[0]?.id ?? null;
-      const tabRata = tabId
-        ? topFinanziamenti.find((t) => t.id === tabId)?.rata ?? null
+      const scelta = data.finanziamento_modalita === "rate"
+        ? finanziamentoSelezionatoFv(data.tabella_finanziamento_id, topFinanziamenti, data.durata_mesi_scelta)
         : null;
+      const tabId = scelta?.id ?? null;
+      const tabRata = scelta?.rata ?? null;
       let rataEur: number | null = null;
       let taegPct: number | null = null;
       let tanPct: number | null = null;
@@ -1619,6 +1622,10 @@ function FotovoltaicoWizard() {
           .maybeSingle();
         return Number((riga as { finanziamento_rata_eur?: number | null } | null)?.finanziamento_rata_eur) || 0;
       };
+      if (data.cliente_tipo !== "azienda" && data.finanziamento_modalita === "rate") {
+        try { finanziamentoSelezionatoFv(data.tabella_finanziamento_id, topFinanziamenti, data.durata_mesi_scelta); }
+        catch (e) { goTo(6); throw e; }
+      }
       const rataPrima = await rataSalvata();
       await handleSalvaStep5({ skipNav: true });
       if (!mountedRef.current) return;
@@ -2326,6 +2333,18 @@ function FotovoltaicoWizard() {
               onEmetti={() => void handleGeneraEdEmetti()}
               salvando={salvando}
               readOnly={readOnlyMode}
+              analisiDisponibile={!!modelloSalvato.snapshot && !!data.analisi_consumi && (modelloSalvato.snapshot.template?.pdf_blocchi as Record<string, unknown> | undefined)?.modulo_intervento === "nuovo"}
+              analisiAttiva={analisiNelPdfFv((modelloSalvato.snapshot?.template ?? fvTemplate ?? {}) as Record<string, unknown>)}
+              onAnalisi={async (attiva) => {
+                if (!progettoId || !modelloSalvato.snapshot || readOnlyMode) return;
+                setSalvando(true);
+                try {
+                  await aggiornaProgetto.mutateAsync({ id: progettoId, patch: { modello_snapshot: { ...modelloSalvato.snapshot, template: conAnalisiNelPdfFv(modelloSalvato.snapshot.template, attiva) } } as never });
+                  await rileggiProgetto();
+                  markSaved();
+                } catch (e) { toast.error(describeError(e)); }
+                finally { setSalvando(false); }
+              }}
               data={data}
               update={update}
               condizioniDelModello={typeof modelloDelDocumento?.condizioni_legali_testo === "string" ? modelloDelDocumento.condizioni_legali_testo : null}
@@ -5987,7 +6006,8 @@ function Step6FinanziarioPrivato({
               // attuale con rincaro composto prudente del 3%/anno (fattore ≈ 36,5).
               // Prima era un "~250.000 €" FISSO — cioè 833 €/mese per chiunque:
               // numero indifendibile davanti al cliente.
-              const spesaAnnuaAttuale =
+              const spesaLetta = data.analisi_consumi ? riepilogoBollette(data.analisi_consumi).spesaAnnua : null;
+              const spesaAnnuaAttuale = spesaLetta ??
                 (data.consumo_annuo_kwh ?? 0) * (data.costo_kwh_attuale ?? 0);
               const bollette25Anni = Math.round(
                 spesaAnnuaAttuale * ((Math.pow(1.03, 25) - 1) / 0.03),
@@ -5995,8 +6015,8 @@ function Step6FinanziarioPrivato({
               return bollette25Anni > 0 ? (
                 <>
                   In 25 anni pagherai{" "}
-                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> di
-                  bollette (rincaro prudente del 3%/anno)
+                  <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> di{" "}
+                  {spesaLetta != null ? "bollette" : "acquisti di energia, escluse le quote fisse"} (ipotesi di rincaro del 3%/anno)
                   <br />
                 </>
               ) : null;
@@ -6267,6 +6287,9 @@ function Step8Genera({
   onEmetti,
   salvando,
   readOnly = false,
+  analisiDisponibile,
+  analisiAttiva,
+  onAnalisi,
   data,
   update,
   condizioniDelModello,
@@ -6276,6 +6299,9 @@ function Step8Genera({
   onEmetti: () => void;
   salvando: boolean;
   readOnly?: boolean;
+  analisiDisponibile: boolean;
+  analisiAttiva: boolean;
+  onAnalisi: (attiva: boolean) => Promise<void>;
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   /** Le condizioni del modello dell'azienda: quelle che valgono se il preventivo non ne ha di sue. */
@@ -6299,6 +6325,12 @@ function Step8Genera({
           </>
         }
       />
+
+      {analisiDisponibile && <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-900">
+        <input type="checkbox" className="mt-1 h-5 w-5" checked={analisiAttiva} disabled={salvando || readOnly} onChange={e => void onAnalisi(e.target.checked)}/>
+        <span><strong className="block">Includi consumi e analisi energetica nel PDF</strong>
+          <span className="mt-1 block text-slate-600">Bolletta confermata, produzione, flussi di energia e risparmio stimato. La scelta vale per questo preventivo.</span></span>
+      </label>}
 
       {/* Il documento con o senza la parte contrattuale, e le condizioni riscritte per questo cliente: la stessa
           scheda degli altri preventivatori. Il documento che va in firma le ha sempre — chi lo prepara chiede a
