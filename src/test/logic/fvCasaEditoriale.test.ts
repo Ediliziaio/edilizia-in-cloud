@@ -2,7 +2,18 @@ import {describe,it,expect} from "vitest";
 import {datiBollettaCasa,htmlBollettaCasa,htmlGiornoSeraCasa,datiPercorsoCasa,htmlPercorsoCasa,svgPercorsoCasa} from "../../../supabase/functions/_shared/fvCasaEditoriale";
 import {datiCasaCompleta,documentoCasaCompleta} from "../../../dev/fotovoltaico-locale/casaCompleta";
 import {renderFvPdfHtml,getFvPdfRenderedPagesCount} from "../../../supabase/functions/_shared/fvHtmlTemplate";
+import {calcolaEnergyFlows} from "../../../supabase/functions/_shared/fvCalcoli";
 describe("Bolletta privata con dati dichiarati",()=>{
+ it("distingue la spesa storica letta dal confronto parziale delle quote modellate",()=>{
+  const d=datiCasaCompleta();
+  Object.assign(d.progetto,{consumo_annuo_kwh:2787,costo_kwh_attuale:.2799,costi_fissi_annui_eur:274.1,spesa_annua_bolletta_eur:1148.02});
+  d.flows=calcolaEnergyFlows({potenza_kwp:9.72,has_accumulo:false,capacita_accumulo_kwh:0,consumo_annuo_kwh:2787,ore_sole_annue:1300,produzione_kwh:12640.12,autoconsumo_pct:.094});
+  const b=datiBollettaCasa(d);
+  expect(b.totalePrima).toBeCloseTo(1054.1813,4);
+  expect(b.totalePrima-b.totaleDopo).toBeCloseTo(b.evitata,6);
+  const h=htmlBollettaCasa(d);
+  expect(h).toContain("1.148,02");expect(h).toContain("Il confronto qui sotto è parziale");expect(h).toContain("non gli altri addebiti della bolletta");
+ });
  it("conserva le quote fisse e distingue minor costo in bolletta dai ricavi della cessione",()=>{
   const d=datiCasaCompleta();d.scenario.ricavi_rid_anno1_eur=500;
   const b=datiBollettaCasa(d);expect(b.totalePrima).toBe(1812);expect(b.totaleDopo).toBe(468);expect(b.evitata).toBe(1344);expect(b.rid).toBe(500);
