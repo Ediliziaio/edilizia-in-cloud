@@ -709,10 +709,6 @@ export function FvMappaTetto(
           </p>
         </div>
         <aside className="fv-mappa-laterale" aria-label="Comandi del tetto">
-          <FvGoogleSolarPanel progettoId={progettoId} posizione={pin} mappa={{versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar}} modificabile={modificabile} pannelli={piano?.pannelli.length??0}
-            onFoto={foto=>{setFotoSolar(foto);if(piano?.mappa&&contorniInvariati)onChange({...piano,mappa:{...piano.mappa,fotoSolar:foto}});}}
-            onMisure={misure=>{if((piano?.pannelli.length??0)>0)return;setFalde(misure.falde);const next=pianoDaMappaFv({versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde:misure.falde,distanzaOstacoli:ostacoli,fotoSolar},piano?.modulo??{corto:1.134,lungo:1.762,stimato:true});onChange({...next,distanzaBordo:bordo,schema3d:{...piano?.schema3d,altezza:misure.altezza,pendenza:piano?.schema3d?.pendenza??20}});}}/>
-
           <div className="fv-mappa-strumenti">
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Strumenti di disegno</h4>
       <div
@@ -873,6 +869,12 @@ export function FvMappaTetto(
       </div>
           </div>
           <div className="fv-mappa-dettagli">
+            <details className="mb-3">
+              <summary className="cursor-pointer text-sm font-semibold">Migliora foto e misure con Google Solar</summary>
+          <FvGoogleSolarPanel progettoId={progettoId} posizione={pin} mappa={{versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar}} modificabile={modificabile} pannelli={piano?.pannelli.length??0}
+            onFoto={foto=>{setFotoSolar(foto);if(piano?.mappa&&contorniInvariati)onChange({...piano,mappa:{...piano.mappa,fotoSolar:foto}});}}
+            onMisure={misure=>{if((piano?.pannelli.length??0)>0)return;setFalde(misure.falde);const next=pianoDaMappaFv({versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde:misure.falde,distanzaOstacoli:ostacoli,fotoSolar},piano?.modulo??{corto:1.134,lungo:1.762,stimato:true});onChange({...next,distanzaBordo:bordo,schema3d:{...piano?.schema3d,altezza:misure.altezza,pendenza:piano?.schema3d?.pendenza??20}});}}/>
+            </details>
           <h4 className="mb-3 text-sm font-semibold text-slate-900">
             Il tuo tetto
           </h4>
