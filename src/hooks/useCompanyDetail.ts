@@ -12,6 +12,7 @@ import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
 import type { StaffUserFormData, StaffRoleType } from "@/components/users/StaffUserDialog";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { livelloMagazzinoCampo } from "../../shared/campo-magazzino";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import type { EmployeeFormData } from "@/components/employees/EmployeeDialog";
 
@@ -239,7 +240,9 @@ export function useCompanyDetail(id: string | undefined) {
         if (userRoles.has("salesperson") || userRoles.has("employee") || userRoles.has("subcontractor")) return false;
         return !linkedOperationalUserIds.has(p.id);
       });
-      const permissionsMap = new Map((permissionsRes.data || []).map((p) => [p.user_id, p]));
+      const permissionsMap = new Map((permissionsRes.data || []).map((p) => [
+        p.user_id, { ...p, magazzino_campo: livelloMagazzinoCampo(p.magazzino_campo) },
+      ]));
       return {
         admins,
         staff: staff.map((s) => ({ ...s, permissions: permissionsMap.get(s.id) || null })),
