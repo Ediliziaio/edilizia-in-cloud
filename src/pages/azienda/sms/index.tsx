@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +38,9 @@ import { SmsOnboarding } from "@/pages/azienda/sms-marketing/components/SmsOnboa
 import { PlatformSmsActivationCard } from "./PlatformSmsActivationCard";
 import { SmsWalletBadge } from "@/pages/azienda/sms-marketing/components/SmsWalletBadge";
 import { SmsRicaricaModal } from "@/pages/azienda/sms-marketing/components/SmsRicaricaModal";
+import { useSmsRicaricaEsito } from "@/hooks/useSmsWallet";
+import { formatCurrency } from "@/lib/formatters";
+import { Button } from "@/components/ui/button";
 
 // Componenti "Singolo" (esistenti in questa cartella)
 import { SmsCompose } from "./SmsCompose";
@@ -71,6 +75,11 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
   const isMobile = useIsMobile();
   const schedaVisibile = isMobile && !SCHEDE_TELEFONO.includes(activeTab) ? "panoramica" : activeTab;
   const [ricaricaOpen, setRicaricaOpen] = useState(false);
+  const [params] = useSearchParams();
+  const esitoRicarica = params.get("ricarica");
+  const sessionId = params.get("session_id");
+  const sessioneValida = esitoRicarica === "in_attesa" && sessionId && /^cs_(test|live)_[a-zA-Z0-9_]+$/.test(sessionId);
+  const ricevuta = useSmsRicaricaEsito(sessioneValida ? sessionId : null);
   const { isScopriPlan } = useSubscriptionLimits();
 
   const { config, isLoading: isLoadingConfig } = useSmsProviderConfig();
@@ -98,6 +107,26 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
         </div>
         {onboardingOk && <SmsWalletBadge onRicarica={() => setRicaricaOpen(true)} />}
       </div>
+
+      {esitoRicarica === "annullata" && (
+        <div role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">Pagamento annullato. Puoi avviare un’altra ricarica.</div>
+      )}
+      {sessioneValida && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
+          {ricevuta.data ? (
+            <span><strong>Crediti accreditati.</strong> {formatCurrency(ricevuta.data.credit_cents / 100)} aggiunti al portafoglio SMS.</span>
+          ) : (
+            <>
+              <span>
+                {ricevuta.isError ? "Impossibile verificare l’accredito." : "Pagamento in verifica. L’accredito risulterà qui appena registrato."}
+              </span>
+              <Button size="sm" variant="outline" disabled={ricevuta.isFetching} onClick={() => void ricevuta.refetch()}>
+                Verifica accredito
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Onboarding bloccante: se manca Telnyx, mostra solo l'onboarding.
           In platformMode (super admin) niente paywall €30/mese. */}

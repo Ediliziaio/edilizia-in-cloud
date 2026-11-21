@@ -14,6 +14,7 @@ import { DEFAULT_NOTIF_PREFS } from "@/hooks/useUserNotificationPrefs";
 const stato = vi.hoisted(() => ({
   riga: null as Record<string, unknown> | null,
   scritture: [] as Record<string, unknown>[],
+  erroreLettura: null as Error | null,
   errore: null as { code?: string; message: string } | null,
   errori: vi.fn(),
 }));
@@ -31,7 +32,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       const costruttore = {
         select: () => costruttore,
         eq: () => costruttore,
-        maybeSingle: async () => ({ data: stato.riga, error: null as unknown }),
+        maybeSingle: async () => ({ data: stato.erroreLettura ? null : stato.riga, error: stato.erroreLettura }),
         upsert: async (valore: Record<string, unknown>) => {
           stato.scritture.push(valore);
           if (stato.errore) return { error: stato.errore };
@@ -64,6 +65,7 @@ beforeEach(() => {
   stato.riga = { ...DEFAULT_NOTIF_PREFS };
   stato.scritture.length = 0;
   stato.errore = null;
+  stato.erroreLettura = null;
   stato.errori.mockClear();
 });
 afterEach(cleanup);
@@ -98,6 +100,26 @@ describe("Avvisi: una sezione, due colonne", () => {
     expect(screen.getByRole("button", { name: "Disattiva tutto" })).toBeDisabled();
     expect(stato.scritture).toHaveLength(0);
   });
+});
+
+it("con lettura fallita blocca le scritture e riprende dalle preferenze salvate", async () => {
+  stato.riga = { ...DEFAULT_NOTIF_PREFS, message_whatsapp_in_app: false, report_daily_email: false };
+  stato.erroreLettura = new Error("rete");
+  apri({ conDispositivo: false });
+
+  const riprova = await screen.findByRole("button", { name: "Riprova" });
+  expect(screen.getByRole("alert")).toHaveTextContent("Impossibile caricare");
+  const messaggi = interruttore("Messaggi dai contatti, nell'app");
+  expect(messaggi).toBeDisabled();
+  fireEvent.click(messaggi);
+  expect(stato.scritture).toHaveLength(0);
+
+  stato.erroreLettura = null;
+  fireEvent.click(riprova);
+  await caricati();
+  expect(messaggi).not.toBeChecked();
+  fireEvent.click(messaggi);
+  await waitFor(() => expect(ultima()).toMatchObject({ message_whatsapp_in_app: true, report_daily_email: false }));
 });
 
 describe("Avvisi: si salva subito, una scrittura per tocco", () => {

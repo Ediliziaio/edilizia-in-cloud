@@ -1194,7 +1194,7 @@ function CalendarInner() {
         const query = supabase
           .from("piani_manutenzione")
           .select(
-            "id,titolo,prossima_scadenza,attivo,frequenza_tipo,ultima_esecuzione,tecnico_preferito,contratto:contratti_manutenzione(impianto:impianti_cliente(id,order_id,tipo_impianto,marca,modello,commessa:orders(indirizzo_lavori,work_address,work_lat,work_lng)))",
+            "id,titolo,prossima_scadenza,attivo,frequenza_tipo,ultima_esecuzione,tecnico_preferito,impianto:impianti_cliente!piani_manutenzione_impianto_company_fkey(id,order_id,tipo_impianto,marca,modello,commessa:orders(indirizzo_lavori,work_address,work_lat,work_lng))",
           )
           .eq("company_id", effectiveCompany.id)
           .not("prossima_scadenza", "is", null)
@@ -1214,21 +1214,21 @@ function CalendarInner() {
           titolo: piano.titolo,
           prossima_scadenza: piano.prossima_scadenza,
           stato: piano.attivo === false ? "inattivo" : "attivo",
-          impianto_id: piano.contratto?.impianto?.id ?? null,
-          order_id: piano.contratto?.impianto?.order_id ?? null,
+          impianto_id: piano.impianto?.id ?? null,
+          order_id: piano.impianto?.order_id ?? null,
           impianto: [
-            piano.contratto?.impianto?.tipo_impianto,
-            piano.contratto?.impianto?.marca,
-            piano.contratto?.impianto?.modello,
+            piano.impianto?.tipo_impianto,
+            piano.impianto?.marca,
+            piano.impianto?.modello,
           ]
             .filter(Boolean)
             .join(" · "),
           indirizzo:
-            piano.contratto?.impianto?.commessa?.indirizzo_lavori ||
-            piano.contratto?.impianto?.commessa?.work_address ||
+            piano.impianto?.commessa?.indirizzo_lavori ||
+            piano.impianto?.commessa?.work_address ||
             null,
-          lat: piano.contratto?.impianto?.commessa?.work_lat ?? null,
-          lng: piano.contratto?.impianto?.commessa?.work_lng ?? null,
+          lat: piano.impianto?.commessa?.work_lat ?? null,
+          lng: piano.impianto?.commessa?.work_lng ?? null,
           frequenza_tipo: piano.frequenza_tipo,
           ultima_esecuzione: piano.ultima_esecuzione,
           assigned_to: piano.tecnico_preferito,

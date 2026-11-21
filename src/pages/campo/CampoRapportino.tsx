@@ -56,7 +56,7 @@ import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
 import { avanzateDelRapportino, fasiLavorateDelRapportino, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
-import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
+import { correggiPresenzeRapportino, presenzeRapportino, stessaPresenza, validateRapportinoHours, type CampoHoursDraft, type RapportinoPresenza } from "@/lib/campo/rapportinoHours";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
@@ -129,6 +129,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const modificaOre = (value: CampoHoursDraft) => { oreModificate.current = true; setOreLavorate(value); };
   const [oreStraordinario, setOreStraordinario] = useState(0);
   const [percentuale, setPercentuale] = useState(0);
+  const avanzamentoModificato = useRef(false);
   // Fasi dichiarate: phase_id → nuovo avanzamento raggiunto (0-100)
   const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
   // Materiali usati oggi: key (order_item id o "libero_<n>") → nome+quantità
@@ -162,6 +163,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
     campiValori: {} as Record<string, unknown>, arrivo: ARRIVO_VUOTO,
     sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], sottofasiAvanzate: {} as Record<string, { quantita?: number; percentuale?: number }>, presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
+    presenzeModificate: {} as Record<string, true>,
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
   const bozzaAttivata = useRef(false);
@@ -310,11 +312,15 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori, arrivo }),
-    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori, arrivo]);
+  const [presenzeModificate, setPresenzeModificate] = useState<Record<string, true>>({});
+  const segnaPresenzeModificate = (chiavi: string[]) => setPresenzeModificate(prev => ({
+    ...prev, ...Object.fromEntries(chiavi.map(chiave => [chiave, true as const])),
+  }));
+  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, presenzeModificate, firmaClienteNome, campiValori, arrivo }),
+    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, presenzeModificate, firmaClienteNome, campiValori, arrivo]);
   useEffect(() => {
     if (!ripresaDecisa || !companyId || !user?.id) return;
-    if (bozzaAttivata.current || bozzaCorrente.arrivo.mezzoId || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
+    if (bozzaAttivata.current || avanzamentoModificato.current || bozzaCorrente.arrivo.mezzoId || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.presenzeModificate).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
       bozzaAttivata.current = true;
       aggiornaBozza(bozzaCorrente);
     }
@@ -328,6 +334,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
     setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []); setSottofasiAvanzate(b.sottofasiAvanzate && typeof b.sottofasiAvanzate === "object" ? b.sottofasiAvanzate : {});
     setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || ""); setCampiValori(b.campiValori || {});
+    setPresenzeModificate(b.presenzeModificate || {});
     setArrivo(b.arrivo ?? ARRIVO_VUOTO);
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
@@ -344,6 +351,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     },
   });
   const togglePresenza = (m: MembroSquadra) => {
+    segnaPresenzeModificate([m.key]);
     setPresenzeSel(prev => {
       const next = { ...prev };
       if (m.key in next) delete next[m.key];
@@ -360,7 +368,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     id: string; created_at: string; stato: string | null; motivo_rifiuto: string | null;
     descrizione_lavori: string | null; ore_lavorate: number | null; ore_straordinario: number | null;
     foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number; foto?: string[] }[] | null;
-    presenze: { employee_id?: string; subappaltatore_id?: string; ore?: number }[] | null;
+    presenze: RapportinoPresenza[] | null;
     materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string; stock_item_id?: string; fase_id?: string }[] | null;
     meteo: string | null; percentuale_avanzamento: number | null;
     lavoro_completato?: boolean | null; firma_cliente_url?: string | null; campi_extra?: unknown;
@@ -481,23 +489,24 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     return () => { cancelled = true; };
   }, [daRifare, rapportinoGiaOggi]);
   useEffect(() => {
-    // Le presenze si agganciano alle persone della squadra, che arriva dopo.
-    if (!daRifare || !rapportinoGiaOggi || presenzeRiapertoFatto.current || squadra.length === 0) return;
+    if (!ripresaDecisa || !daRifare || !rapportinoGiaOggi || presenzeRiapertoFatto.current || squadra.length === 0) return;
     let cancelled = false;
     void Promise.resolve().then(() => {
       if (cancelled || presenzeRiapertoFatto.current) return;
       presenzeRiapertoFatto.current = true;
       const salvate = Array.isArray(rapportinoGiaOggi.presenze) ? rapportinoGiaOggi.presenze : [];
       if (salvate.length === 0) return;
-      const next: Record<string, CampoHoursDraft> = {};
-      for (const p of salvate) {
-        const m = squadra.find(x => (p.employee_id && x.employee_id === p.employee_id) || (p.subappaltatore_id && x.subappaltatore_id === p.subappaltatore_id));
-        if (m) next[m.key] = Number(p.ore) > 0 ? Number(p.ore) : "";
-      }
-      setPresenzeSel(next);
+      setPresenzeSel(prev => {
+        const next = { ...prev };
+        for (const p of salvate) {
+          const m = squadra.find(x => stessaPresenza(p, x));
+          if (m && !(m.key in presenzeModificate)) next[m.key] = Number(p.ore) > 0 ? Number(p.ore) : "";
+        }
+        return next;
+      });
     });
     return () => { cancelled = true; };
-  }, [daRifare, rapportinoGiaOggi, squadra]);
+  }, [ripresaDecisa, daRifare, rapportinoGiaOggi, squadra, presenzeModificate]);
 
   // Azienda in cui il rapportino lo fa il capocantiere: l'operaio timbra e scrive
   // descrizione, foto, materiali, ma non le ore. Solo se il cantiere ha davvero
@@ -835,16 +844,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
       // Inserisci rapportino — oppure, se l'ufficio lo aveva respinto, aggiorna lo stesso e rimandalo
       controllaGiorno(); // Recheck after permission lookup / slow uploads.
-      const presenzeDaInviare = !confermaCliente && registraSquadra && Object.keys(presenzeSel).length > 0
-        ? squadra
-            .filter(m => m.key in presenzeSel)
-            .map(m => ({
-              ...(m.employee_id ? { employee_id: m.employee_id } : {}),
-              ...(m.subappaltatore_id ? { subappaltatore_id: m.subappaltatore_id } : {}),
-              nome: m.nome,
-              ore: presenzeSel[m.key],
-            }))
-        : null;
+      const puoScriverePresenze = !confermaCliente && registraSquadra;
+      const presenzeDaInviare = puoScriverePresenze ? presenzeRapportino(squadra, presenzeSel) : [];
       const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
       const campiExtra = [...componiValori(campiModulo, campiValori, campiPrecedenti, fasiPerCampi), ...arrivoDaSalvare];
       const campi = {
@@ -874,6 +875,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       };
       let inserted: { id: string };
       if (daRifare && rapportinoGiaOggi) {
+        const presenzeCorrette = puoScriverePresenze
+          ? correggiPresenzeRapportino(rapportinoGiaOggi.presenze, squadra, presenzeSel, presenzeModificate)
+          : undefined;
         const { data: aggiornato, error: updError } = await supabase
           .from("campo_rapportini")
           .update({
@@ -883,7 +887,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             approvato: false,
             // Sul rimando si riscrive tutto quello che l'operaio vede nel modulo
             ...(parti.fasi ? { fasi_lavorate: fasiLavorate } : {}),
-            presenze: presenzeDaInviare ?? [],
+            ...(presenzeCorrette ? { presenze: presenzeCorrette } : {}),
             ...(parti.materiali ? { materiali_usati: materialiPayload } : {}),
             ...firme,
           })
@@ -909,7 +913,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
             // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
             // I subappaltatori sono presenza registrata, non costo orario.
-            ...(presenzeDaInviare ? { presenze: presenzeDaInviare } : {}),
+            ...(presenzeDaInviare.length > 0 ? { presenze: presenzeDaInviare } : {}),
             // Materiali confermati oggi (facoltativi): stesso formato del vocale
             ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
             ...firme,
@@ -1007,10 +1011,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // Dati "sudati" nel form: uscire per sbaglio (freccia indietro col pollice)
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
-    descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
+    avanzamentoModificato.current || descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
     fotoUrls.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
-    Object.keys(presenzeSel).length > 0 ||
+    Object.keys(presenzeSel).length > 0 || Object.keys(presenzeModificate).length > 0 ||
     Object.keys(materialiSel).length > 0 || Object.keys(mezziSel).length > 0 ||
     !!firmaOperaio || !!firmaCliente || firmaClienteNome.trim().length > 0;
 
@@ -1051,7 +1055,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   max={100}
                   step={5}
                   value={percentuale}
-                  onChange={e => setPercentuale(Number(e.target.value))}
+                  onChange={e => {
+                    avanzamentoModificato.current = true;
+                    setPercentuale(Number(e.target.value));
+                  }}
                   className="w-full accent-primary"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
@@ -1089,11 +1096,14 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 {dalleTimbrature && timbratiDaSelezionare.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setPresenzeSel(prev => {
-                      const next = { ...prev };
-                      for (const m of timbratiDaSelezionare) next[m.key] = proponiOre(m.ore_timbrate, m.timbratura_aperta);
-                      return next;
-                    })}
+                    onClick={() => {
+                      segnaPresenzeModificate(timbratiDaSelezionare.map(m => m.key));
+                      setPresenzeSel(prev => {
+                        const next = { ...prev };
+                        for (const m of timbratiDaSelezionare) next[m.key] = proponiOre(m.ore_timbrate, m.timbratura_aperta);
+                        return next;
+                      });
+                    }}
                     className="mb-3 min-h-11 rounded-full border border-primary px-4 text-sm font-semibold text-primary"
                   >
                     Seleziona chi ha timbrato ({timbratiDaSelezionare.length})
@@ -1153,7 +1163,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                       <button
                         key={h}
                         type="button"
-                        onClick={() => setPresenzeSel(prev => Object.fromEntries(Object.keys(prev).map(k => [k, h])))}
+                        onClick={() => {
+                          const chiavi = squadra.filter(m => m.key in presenzeSel).map(m => m.key);
+                          segnaPresenzeModificate(chiavi);
+                          setPresenzeSel(prev => ({ ...prev, ...Object.fromEntries(chiavi.map(k => [k, h])) }));
+                        }}
                         className="min-h-11 rounded-full border border-border bg-muted px-4 text-sm font-semibold"
                       >
                         {h} h
@@ -1180,9 +1194,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                           step={0.1}
                           inputMode="decimal"
                           value={presenzeSel[m.key]}
-                          onChange={e =>
-                            setPresenzeSel(prev => ({ ...prev, [m.key]: e.target.value === "" ? "" : Number(e.target.value) }))
-                          }
+                          onChange={e => {
+                            segnaPresenzeModificate([m.key]);
+                            const ore = e.target.value === "" ? "" : Number(e.target.value);
+                            setPresenzeSel(prev => ({ ...prev, [m.key]: ore }));
+                          }}
                           className="h-11 w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-base"
                           aria-label={`Ore di ${m.nome}`}
                         />

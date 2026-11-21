@@ -9,6 +9,7 @@ import {
 import {
   Package, User, UserCircle, MessageSquare, Loader2, Settings, Sparkles, Bot, BookOpen, Search,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
@@ -99,13 +100,14 @@ const navGroups = macroAreas.map(area => ({
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
+  const [includiCestino, setIncludiCestino] = useState(false);
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
   // Le impostazioni fuori dal piano o senza permesso non si cercano (21/09/2026).
   const { voci: vociImpostazioni } = useVociImpostazioni(open);
 
-  const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
+  const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id, includiCestino);
 
   // 🆕 GAP 1: carica personas + esempi (cached, refetch ogni 5 min)
   const { data: personas = [] } = useQuery({
@@ -142,9 +144,17 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         },
       );
       if (error || !data) return { kb: [], entities: [] };
+      const entities = data.entity_results ?? [];
+      const idsOrdini = entities.filter((r) => r.entity_type === "order").map((r) => r.entity_id);
+      if (idsOrdini.length === 0 || !effectiveCompany?.id) {
+        return { kb: data.results ?? [], entities: entities.filter((r) => r.entity_type !== "order") };
+      }
+      const { data: attivi } = await supabase.from("orders").select("id")
+        .eq("company_id", effectiveCompany.id).in("id", idsOrdini).is("deleted_at", null);
+      const visibili = new Set((attivi ?? []).map((r) => r.id));
       return {
         kb: data.results ?? [],
-        entities: data.entity_results ?? [],
+        entities: entities.filter((r) => r.entity_type !== "order" || visibili.has(r.entity_id)),
       };
     },
     retry: 0, // search è "best effort" — no retry se fallisce
@@ -153,7 +163,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const entityData = semanticBundle?.entities ?? [];
 
   useEffect(() => {
-    if (!open) setTimeout(() => setQuery(""), 200);
+    if (open) return;
+    const timeout = window.setTimeout(() => {
+      setQuery("");
+      setIncludiCestino(false);
+    }, 200);
+    return () => window.clearTimeout(timeout);
   }, [open]);
 
   const handleSelect = (url: string) => {
@@ -237,6 +252,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         value={query}
         onValueChange={setQuery}
       />
+      <label className="flex items-center gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
+        <Checkbox checked={includiCestino} onCheckedChange={(v) => setIncludiCestino(v === true)} />
+        Includi il cestino di commesse e preventivi
+      </label>
       <CommandList>
         {isFetching && (
           <div className="flex items-center justify-center py-6">
@@ -308,7 +327,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 >
                   <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">{result.title}</span>
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <span className="truncate">{result.title}</span>
+                      {result.cestinato && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Nel cestino</span>}
+                    </span>
                     {result.subtitle && (
                       <span className="text-xs text-muted-foreground truncate">
                         {result.subtitle}

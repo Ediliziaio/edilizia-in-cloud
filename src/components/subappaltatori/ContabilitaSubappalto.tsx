@@ -151,8 +151,8 @@ export function SALContabilita({
   canWrite: boolean;
   approvazioneInCorso: boolean;
   onVerbale: (sal: SALSubappaltatore) => void;
-  onApprova: (id: string) => void;
-  onContesta: (id: string) => void;
+  onApprova: (sal: SALSubappaltatore) => void;
+  onContesta: (sal: SALSubappaltatore) => void;
   onPagamento: (sal: SALSubappaltatore) => void;
 }) {
   const [selezionato, setSelezionato] = useState<string | null>(null);
@@ -229,7 +229,7 @@ export function SALContabilita({
           { titolo: "Azioni", destra: true, cella: (s) => (
             <div className="flex flex-wrap justify-end gap-1">
               <Button size="sm" variant="ghost" aria-label={`Verbale del SAL ${s.numero_sal}`} onClick={() => onVerbale(s)}><FileText className="h-4 w-4" /></Button>
-              {canWrite && s.stato === "ricevuto" && <Button size="sm" variant="outline" disabled={approvazioneInCorso} onClick={() => onApprova(s.id)}>Approva</Button>}
+              {canWrite && s.stato === "ricevuto" && <Button size="sm" variant="outline" disabled={approvazioneInCorso} onClick={() => onApprova(s)}>Approva</Button>}
               {canWrite && s.stato === "verificato" && <Button size="sm" variant="outline" onClick={() => onPagamento(s)}>Paga</Button>}
             </div>
           ) },
@@ -323,13 +323,13 @@ export function SALContabilita({
                     <>
                       <Button
                         variant="outline"
-                        onClick={() => onContesta(corrente.id)}
+                        onClick={() => onContesta(corrente)}
                       >
                         Contesta
                       </Button>
                       <Button
                         disabled={approvazioneInCorso}
-                        onClick={() => onApprova(corrente.id)}
+                        onClick={() => onApprova(corrente)}
                       >
                         {approvazioneInCorso ? "Verifica…" : "Approva SAL"}
                       </Button>

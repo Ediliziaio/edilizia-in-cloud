@@ -126,7 +126,7 @@ describe("Fatture della commessa in tabella", () => {
     fireEvent.click(within(await riga(/N\. CC/)).getByRole("button", { name: /Pagamento della fattura/ }));
     expect(await screen.findByText("pagamenti del costo c1")).toBeInTheDocument();
     fireEvent.click(within(await riga(/N\. SS/)).getByRole("button", { name: /Pagamento della fattura/ }));
-    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("segna_fattura_ricevuta_pagata", expect.objectContaining({ p_id: "f2", p_pagata: true })));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("registra_saldo_fattura_ricevuta", expect.objectContaining({ p_id: "f2", p_richiesta: expect.any(String) })));
   });
   it("la fattura si apre in un popup, senza uscire", async () => {
     stato.fatture = [{ ...base, id: "f1", purchase_order_id: "po1" }];

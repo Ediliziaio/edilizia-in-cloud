@@ -91,17 +91,17 @@ export interface SmsPacchettoCrediti {
   ordine: number;
 }
 
-/** Request per creare un PaymentIntent Stripe */
+/** Avvio della sessione Stripe Checkout del pacchetto SMS. */
 export interface SmsRicaricaRequest {
   company_id: string;
+  type: "sms_credits";
   pacchetto_id: string;
+  operazione_id: string;
 }
 
-/** Response con client_secret Stripe per il frontend */
 export interface SmsRicaricaResponse {
-  client_secret: string;
-  importo_eur: number;
-  crediti_da_accreditare: number;
+  url: string;
+  session_id: string;
 }
 
 // ─── Provider Config ────────────────────────────────────────

@@ -3,6 +3,7 @@
  * agisce e quali salta; alla fine elenca quelle non riuscite, col motivo del database.
  */
 import { useMemo, useRef, useState } from "react";
+import { annullaSaldoRicevuta, registraSaldoRicevuta } from "@/lib/fatturazione/saldoRapidoRicevuta";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCheck, FileCheck2, FolderKanban, Loader2, Receipt, RotateCcw, ShieldCheck, ShieldOff, Truck, X } from "lucide-react";
 import { toast } from "sonner";
@@ -25,14 +26,12 @@ const chiama = async (funzione: string, argomenti: Record<string, unknown>): Pro
   const { error } = await db.rpc(funzione, argomenti);
   if (error) throw error;
 };
-const segnaPagata = (id: string, pagata: boolean, data: string | null) =>
-  chiama("segna_fattura_ricevuta_pagata", { p_id: id, p_pagata: pagata, p_data: data });
 const segnaVerifica = (id: string, verificata: boolean) =>
   chiama("fattura_segna_verifica", { p_fattura_id: id, p_verificata: verificata });
 
 const AZIONI: Record<AzioneRicevute, { etichetta: string; titolo: string; conferma: string; fatto: string; icona: typeof CheckCheck }> = {
   pagate: { etichetta: "Segna pagate", titolo: "Segna pagate", conferma: "Segna pagate", fatto: "segnate pagate", icona: CheckCheck },
-  da_pagare: { etichetta: "Da pagare", titolo: "Di nuovo da pagare", conferma: "Rimetti da pagare", fatto: "di nuovo da pagare", icona: RotateCcw },
+  da_pagare: { etichetta: "Da pagare", titolo: "Annulla i saldi rapidi", conferma: "Annulla i saldi", fatto: "con saldo annullato", icona: RotateCcw },
   verificate: { etichetta: "Verificate", titolo: "Segna verificate", conferma: "Segna verificate", fatto: "verificate", icona: ShieldCheck },
   da_verificare: { etichetta: "Da verificare", titolo: "Rimetti da verificare", conferma: "Rimetti da verificare", fatto: "di nuovo da verificare", icona: ShieldOff },
   contabilizza: { etichetta: "Contabilizza", titolo: "Contabilizza", conferma: "Contabilizza", fatto: "contabilizzate", icona: Receipt },
@@ -87,10 +86,14 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
     setFallite([]); setCommessa(undefined); setModoData("data"); setData(oggi()); setAzione(a);
   };
 
-  const lavoro = (a: AzioneRicevute) => (r: RicevutaInBlocco): Promise<void> => {
+  const lavoro = (a: AzioneRicevute, annullamenti: Map<string, string>) => async (r: RicevutaInBlocco): Promise<void> => {
     switch (a) {
-      case "pagate": return segnaPagata(r.id, true, modoData === "scadenza" ? dataAllaScadenza(r.scadenze, oggi()) : data);
-      case "da_pagare": return segnaPagata(r.id, false, null);
+      case "pagate": {
+        const id = await registraSaldoRicevuta(r.id, modoData === "scadenza" ? dataAllaScadenza(r.scadenze, oggi()) : data);
+        if (id) annullamenti.set(r.id, id);
+        return;
+      }
+      case "da_pagare": await annullaSaldoRicevuta(r.id); return;
       case "verificate": return segnaVerifica(r.id, true);
       case "da_verificare": return segnaVerifica(r.id, false);
       case "contabilizza": return chiama("contabilizza_fattura_ricevuta", { p_fattura_id: r.id });
@@ -100,18 +103,18 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
   };
 
   /** Riporta le fatture riuscite a com'erano. Contabilizza e commessa non si disfano da qui. */
-  const annullamento = (a: AzioneRicevute, riuscite: RicevutaInBlocco[]) => {
+  const annullamento = (a: AzioneRicevute, riuscite: RicevutaInBlocco[], saldi: Map<string, string>) => {
     const inverso: ((r: RicevutaInBlocco) => Promise<void>) | null =
-      a === "pagate" ? (r) => segnaPagata(r.id, false, null)
-      : a === "da_pagare" ? (r) => segnaPagata(r.id, true, r.pagataIl)
+      a === "pagate" ? async (r) => { await annullaSaldoRicevuta(r.id, saldi.get(r.id)!); }
       : a === "verificate" ? (r) => segnaVerifica(r.id, false)
       : a === "da_verificare" ? (r) => segnaVerifica(r.id, true)
       : null;
-    if (!inverso) return undefined;
+    const conAnnullamento = a === "pagate" ? riuscite.filter((r) => saldi.has(r.id)) : riuscite;
+    if (!inverso || !conAnnullamento.length) return undefined;
     return {
       label: "Annulla",
       onClick: () => {
-        void eseguiInBlocco(riuscite, inverso).then((e) => {
+        void eseguiInBlocco(conAnnullamento, inverso).then((e) => {
           aggiorna();
           if (e.fallite.length) toast.error(`${fatture(e.fallite.length)} non riportate indietro`, { description: e.fallite[0].motivo });
           else toast.success(`${fatture(e.riuscite.length)} riportate a com'erano`);
@@ -124,7 +127,8 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
     if (!azione || !selezione) return;
     mezziConfermati.current = 0;
     setFatte(0);
-    const esito = await eseguiInBlocco(selezione.idonee, lavoro(azione), setFatte);
+    const saldi = new Map<string, string>();
+    const esito = await eseguiInBlocco(selezione.idonee, lavoro(azione, saldi), setFatte);
     setFatte(null);
     aggiorna();
     if (azione === "mezzi" && esito.riuscite.length) {
@@ -132,7 +136,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
       toast.success(n ? `${n} mezz${n === 1 ? "o confermato" : "i confermati"} su ${fatture(esito.riuscite.length)}` : "Nessun mezzo da confermare sulle fatture scelte");
     } else if (esito.riuscite.length) {
       const fatto = esito.riuscite.length === 1 ? AZIONI[azione].fatto.replace(/^segnate pagate$/, "segnata pagata").replace(/^verificate$/, "verificata").replace(/^contabilizzate$/, "contabilizzata").replace(/^messe /, "messa ") : AZIONI[azione].fatto;
-      toast.success(`${fatture(esito.riuscite.length)} ${fatto}`, { action: annullamento(azione, esito.riuscite), duration: 10_000 });
+      toast.success(`${fatture(esito.riuscite.length)} ${fatto}`, { action: annullamento(azione, esito.riuscite, saldi), duration: 10_000 });
     }
     if (esito.fallite.length) {
       setFallite(esito.fallite);

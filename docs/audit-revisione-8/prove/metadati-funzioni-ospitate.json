@@ -1,0 +1,78 @@
+{
+  "ambiente": "Progetto Supabase ospitato",
+  "fonte": "Catalogo pg_proc in sola lettura",
+  "osservazione": "2026-11-20",
+  "perimetro": "Impronte e predicati sulle definizioni attive. Non sono stati letti record aziendali né invocati flussi scriventi.",
+  "funzioni": [
+    {
+      "nspname": "private",
+      "proname": "sal_sub_da_fatturare",
+      "args": "p_order uuid",
+      "impronta": "9275a95daf9d3bd6169335d4ae5e09dd",
+      "controllo_mirato": true
+    },
+    {
+      "nspname": "public",
+      "proname": "bank_account_recompute_manual_balance",
+      "args": "p_account uuid",
+      "impronta": "98e1a0bedcb3e672ab5eef58b9a00cc4",
+      "controllo_mirato": null
+    },
+    {
+      "nspname": "public",
+      "proname": "contabilita_cespite_imposta",
+      "args": "p_cespite uuid, p_conto_bene uuid, p_conto_fondo uuid, p_conto_ammortamento uuid, p_fondo_iniziale numeric, p_fondo_iniziale_anno integer",
+      "impronta": "15b25ba8d286807fab15a6d66a9d3f8f",
+      "controllo_mirato": null
+    },
+    {
+      "nspname": "public",
+      "proname": "documento_crea",
+      "args": "p_company_id uuid, p_dati jsonb",
+      "impronta": "59859823db56909f9798db0d87733783",
+      "controllo_mirato": false
+    },
+    {
+      "nspname": "public",
+      "proname": "get_effective_company_id",
+      "args": "",
+      "impronta": "4d820692ef87b65e6520ec34ddb4ca23",
+      "controllo_mirato": true
+    },
+    {
+      "nspname": "public",
+      "proname": "hr_update_richiesta_stato",
+      "args": "p_richiesta_id uuid, p_stato text, p_note_risposta text",
+      "impronta": "a95809b83ed605a80dbf97b685bd81a6",
+      "controllo_mirato": true
+    },
+    {
+      "nspname": "public",
+      "proname": "mezzi_allocazioni_controlla",
+      "args": "",
+      "impronta": "0adc1d879ddaff044a1666168e8b52ab",
+      "controllo_mirato": false
+    },
+    {
+      "nspname": "public",
+      "proname": "odv_approva_da_firma_fea",
+      "args": "p_request uuid",
+      "impronta": "8a75cf464a82a6ec88c5517ae10abdc2",
+      "controllo_mirato": false
+    },
+    {
+      "nspname": "public",
+      "proname": "prima_nota_modificabile",
+      "args": "p prima_nota_entries",
+      "impronta": "f6d037ff54becc73db98573a54d452e4",
+      "controllo_mirato": false
+    },
+    {
+      "nspname": "public",
+      "proname": "rdo_aggiudica",
+      "args": "p_rfq_supplier_id uuid, p_motivazione text",
+      "impronta": "5fa7567609120ff27cb3a244f86b388d",
+      "controllo_mirato": true
+    }
+  ]
+}

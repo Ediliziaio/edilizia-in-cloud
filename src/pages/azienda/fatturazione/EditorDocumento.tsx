@@ -15,6 +15,7 @@ import {
   useDocumentoFiscale,
   rileggiDocumentoFiscale,
   useCreateDocumento,
+  useDuplicaDocumentoBozza,
   useEmittiDocumento,
   useDeleteDocumento,
 } from "@/hooks/useDocumentiFiscali";
@@ -27,7 +28,7 @@ import { PERCORSO_FATTURE_IN_BOZZA, TIPI_ELENCO_FATTURE } from "@/lib/fatturazio
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
-import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
+import { datiCopiaDocumento, siPuoDuplicare, type RichiestaCopiaDocumento } from "@/lib/fatturazione/duplicaDocumento";
 import { datiFatturaDaDdt } from "@/lib/fatturazione/fatturaDaDdt";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
@@ -88,11 +89,15 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   }, [navigaPagina, popup]);
   const isCreate = !id;
   const createdRef = useRef(false);
+  const richiestaCopiaDiretta = useRef<RichiestaCopiaDocumento | null>(null);
+  const copiaDirettaInCorso = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const location = useLocation();
-  const prefilled = (location.state as { prefilled?: Partial<DocumentoFiscale> } | null)?.prefilled;
+  const statoRotta = location.state as { prefilled?: Partial<DocumentoFiscale>; richiestaCopia?: RichiestaCopiaDocumento } | null;
+  const prefilled = statoRotta?.prefilled;
+  const richiestaCopia = statoRotta?.richiestaCopia;
   const tipoParam = (searchParams.get("tipo") ?? "fattura") as TipoDocumento;
   const ordineParam = searchParams.get("ordine");
   // Fatturare un rendiconto d'appalto: il documento nasce qui, e qui si chiude
@@ -121,25 +126,27 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
     },
   });
 
-  // Fattura da DDT: si legge il DDT; se ha già una bozza di fattura si riapre quella.
+  // La creazione e il riuso della fattura per il DDT sono decisi dal database.
   const { data: ddtData, isFetched: ddtFetched, isError: ddtErrore } = useQuery({
     queryKey: ["ddt-prefill", fromDdtParam],
     enabled: isCreate && !!fromDdtParam,
     retry: 1,
-    queryFn: async () => {
-      const ddt = await rileggiDocumentoFiscale(fromDdtParam!);
-      if (!ddt.ddt_fattura_id) return { ddt, bozzaId: null };
-      const { data } = await supabase.from("documenti_fiscali" as never).select("id")
-        .eq("id", ddt.ddt_fattura_id).eq("stato", "bozza").is("deleted_at", null).maybeSingle();
-      return { ddt, bozzaId: (data as { id: string } | null)?.id ?? null };
-    },
+    queryFn: () => rileggiDocumentoFiscale(fromDdtParam!),
   });
 
   const createMutation = useCreateDocumento();
   const creaDocumento = createMutation.mutate;
-  const { data: loadedDoc, isLoading } = useDocumentoFiscale(id);
+  const { mutate: duplicaDocumento, mutateAsync: duplicaDocumentoAsync, isError: erroreCopia, isPending: copiaInCorso } = useDuplicaDocumentoBozza();
+  const { data: loadedDoc, isLoading, isError: erroreLettura, refetch: rileggiEditor, isFetching: letturaInCorso } = useDocumentoFiscale(id);
   const emittiMutation = useEmittiDocumento();
   const deleteMutation = useDeleteDocumento();
+
+  const apriCopiaPrecompilata = useCallback(() => {
+    if (!richiestaCopia) return;
+    duplicaDocumento({ dati: { ...prefilled, tipo: tipoParam }, richiesta: richiestaCopia }, {
+      onSuccess: (doc) => navigate(`/azienda/documenti/${doc.id}`, { replace: true }),
+    });
+  }, [duplicaDocumento, navigate, prefilled, richiestaCopia, tipoParam]);
 
   // La rotta /nuovo crea il documento una volta, dopo aver letto i dati iniziali.
   useEffect(() => {
@@ -151,31 +158,26 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
 
     createdRef.current = true;
 
+    if (richiestaCopia) {
+      apriCopiaPrecompilata();
+      return;
+    }
+
     if (fromDdtParam && (ddtErrore || !ddtData)) {
       toast.error("DDT non letto: la fattura non è stata creata");
       navigate(-1);
       return;
     }
-    if (ddtData?.bozzaId) {
-      navigate(`/azienda/documenti/${ddtData.bozzaId}`, { replace: true });
-      return;
-    }
-
     // Build prefilled data from order if available
-    const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled, ...(ddtData ? datiFatturaDaDdt(ddtData.ddt) : {}) };
+    const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled, ...(ddtData ? datiFatturaDaDdt(ddtData) : {}) };
     if (ordineData && !mergedPrefill.note_documento) {
       mergedPrefill.note_documento = ordineData.description || undefined;
     }
 
     creaDocumento(
-      { tipo: tipoParam, ...mergedPrefill },
+      { tipo: tipoParam, ...mergedPrefill, daDdtId: fromDdtParam ?? undefined },
       {
         onSuccess: async (doc) => {
-          if (fromDdtParam) {
-            const { error } = await supabase.from("documenti_fiscali" as never)
-              .update({ ddt_fattura_id: doc.id } as never).eq("id", fromDdtParam);
-            if (error) toast.error("Fattura creata, ma non agganciata al DDT", { description: error.message });
-          }
           if (appaltoSalParam) {
             const { error } = await (supabase as any).rpc("appalto_sal_collega_fattura", {
               p_sal_id: appaltoSalParam,
@@ -187,7 +189,9 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
               toast.error("Fattura creata, ma non agganciata al rendiconto", { description: error.message });
             }
           }
-          const newUrl = ordineParam
+          const newUrl = fromDdtParam && doc.stato !== "bozza"
+            ? `/azienda/documenti/${doc.id}/dettaglio`
+            : ordineParam
             ? `/azienda/documenti/${doc.id}?ordine_link=${ordineParam}`
             : `/azienda/documenti/${doc.id}`;
           navigate(newUrl, { replace: true });
@@ -203,7 +207,7 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [creaDocumento, isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam, fromDdtParam, ddtFetched]);
+  }, [creaDocumento, isCreate, tipoParam, ordineParam, ordineDataFetched, appaltoSalParam, fromDdtParam, ddtFetched, richiestaCopia, apriCopiaPrecompilata]);
 
   const { state, dispatch, isSaving, lastSaved, isDirty, puoSalvare: modificabile, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
@@ -307,29 +311,28 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
 
   // Duplicate document as new draft
   const handleDuplicate = useCallback(async () => {
-    if (!state.id) return;
-    // Uscendo dall'originale il salvataggio automatico in attesa si perderebbe.
-    if (isDirty) {
-      try {
-        await saveNow();
-      } catch (err) {
-        toast.error("Modifiche non salvate: il documento non è stato duplicato", { description: (err as Error).message });
-        return;
+    if (!state.id || copiaDirettaInCorso.current) return;
+    copiaDirettaInCorso.current = true;
+    try {
+      // Uscendo dall'originale il salvataggio automatico in attesa si perderebbe.
+      if (isDirty) {
+        try {
+          await saveNow();
+        } catch (err) {
+          toast.error("Modifiche non salvate: il documento non è stato duplicato", { description: (err as Error).message });
+          return;
+        }
       }
+      const richiesta = richiestaCopiaDiretta.current ??= { origineId: state.id, id: crypto.randomUUID() };
+      const copia = await duplicaDocumentoAsync({ dati: { ...datiCopiaDocumento(state), tipo: state.tipo ?? "fattura" }, richiesta });
+      richiestaCopiaDiretta.current = null;
+      navigate(`/azienda/documenti/${copia.id}`);
+    } catch {
+      // La mutazione mostra il messaggio. Si conserva la richiesta per il prossimo tentativo.
+    } finally {
+      copiaDirettaInCorso.current = false;
     }
-    createMutation.mutate(
-      { tipo: (state.tipo ?? "fattura") as TipoDocumento, ...datiCopiaDocumento(state) },
-      {
-        onSuccess: (doc) => {
-          toast.success("Documento duplicato");
-          navigate(`/azienda/documenti/${doc.id}`);
-        },
-        onError: (err) => {
-          toast.error("Errore nella duplicazione", { description: (err as Error).message });
-        },
-      }
-    );
-  }, [state, createMutation, navigate, isDirty, saveNow]);
+  }, [state, duplicaDocumentoAsync, navigate, isDirty, saveNow]);
 
   // ── Auto-cleanup draft "vuote" ─────────────────────────────────
   //
@@ -498,6 +501,22 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
   const xmlDisponibile = TIPI_SDI.includes(state.tipo) && !["preventivo", "proforma", "ddt"].includes(state.tipo);
   const { effectiveCompany: aziendaAnteprima } = useAuth();
 
+  if (isCreate && richiestaCopia && erroreCopia) {
+    return (
+      <div role="alert" className="m-4 space-y-3 rounded-lg border p-4">
+        <p>Non siamo riusciti a confermare la copia. Riprova per riaprire la stessa bozza.</p>
+        <Button onClick={apriCopiaPrecompilata} disabled={copiaInCorso}>Riprova</Button>
+      </div>
+    );
+  }
+  if (!isCreate && erroreLettura && !loadedDoc) {
+    return (
+      <div role="alert" className="m-4 space-y-3 rounded-lg border p-4">
+        <p>Il documento non si è caricato.</p>
+        <Button onClick={() => void rileggiEditor()} disabled={letturaInCorso}>Riprova lettura</Button>
+      </div>
+    );
+  }
   if (isCreate || isLoading || !state._initialized) {
     return (
       <div className="flex items-center justify-center h-screen">

@@ -2,7 +2,7 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Check, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { annullaSaldoRicevuta, registraSaldoRicevuta, messaggioPagamentoRicevuta } from "@/lib/fatturazione/saldoRapidoRicevuta";
 import { Button } from "@/components/ui/button";
 import { formatDateShort } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 /**
  * «L'ho pagata» sulle fatture dei fornitori, con un clic. La data sta sulla fattura
  * (`pagata_il`); se la fattura è contabilizzata e ha le rate, anche le rate diventano
- * pagate e con loro costo e scadenzario (`segna_fattura_ricevuta_pagata`). Vale per chi
+ * pagate e con loro costo e scadenzario. Vale per chi
  * fattura con Edilizia in Cloud e per chi importa da un altro programma.
  */
 
@@ -59,30 +59,35 @@ export function useSegnaRicevutaPagata() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
     void queryClient.invalidateQueries({ queryKey: ["cashflow"] });
   };
-  const segna = async (id: string, pagata: boolean, data?: string) => {
-    const { error } = await supabase.rpc("segna_fattura_ricevuta_pagata" as never, {
-      p_id: id, p_pagata: pagata, p_data: data ?? null,
-    } as never);
-    if (error) throw error;
-  };
   return useMutation({
-    mutationFn: ({ id, pagata }: { id: string; pagata: boolean; numero?: string }) => segna(id, pagata),
-    onSuccess: (_, { id, pagata, numero }) => {
+    mutationFn: async ({ id, pagata }: { id: string; pagata: boolean; numero?: string }) => {
+      if (pagata) return registraSaldoRicevuta(id);
+      await annullaSaldoRicevuta(id);
+      return null;
+    },
+    onSuccess: (annullamento, { id, pagata, numero }) => {
       invalida();
-      // Un clic sbagliato si annulla dal messaggio stesso.
-      toast.success(pagata ? `Fattura ${numero ?? ""}: ${PAROLE_PAGAMENTO_RICEVUTA.fatto.toLowerCase()}` : `Fattura ${numero ?? ""} ${PAROLE_PAGAMENTO_RICEVUTA.annulla}`, {
+      if (pagata && !annullamento) {
+        toast.success(`Fattura ${numero ?? ""} già saldata`);
+        return;
+      }
+      const messaggio = pagata ? `Fattura ${numero ?? ""}: pagata` : `Fattura ${numero ?? ""}: saldo annullato`;
+      toast.success(messaggio, annullamento ? {
         action: {
           label: "Annulla",
-          onClick: () => { void segna(id, !pagata).then(invalida).catch((e) => toast.error("Non annullato", { description: e instanceof Error ? e.message : undefined })); },
+          onClick: () => {
+            void annullaSaldoRicevuta(id, annullamento).then(invalida)
+              .catch((e) => toast.error("Non annullato", { description: messaggioPagamentoRicevuta(e) }));
+          },
         },
-      });
+      } : undefined);
     },
-    onError: (e) => toast.error("Non sono riuscito a segnarla", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Pagamento non aggiornato", { description: messaggioPagamentoRicevuta(e) }),
   });
 }
 
 /** Le parole, in un posto solo: se il titolare ne preferisce altre, si cambiano qui. */
-export const PAROLE_PAGAMENTO_RICEVUTA = { fatto: "Pagata", azione: "Segna pagata", annulla: "di nuovo da pagare" };
+export const PAROLE_PAGAMENTO_RICEVUTA = { fatto: "Pagata", azione: "Segna pagata", annulla: "annulla il saldo" };
 
 /**
  * Tre forme, una per posto:
@@ -104,7 +109,7 @@ export function PagamentoRicevutaCella({
         type="button"
         disabled={inCorso}
         onClick={() => segna.mutate({ id, pagata: false, numero })}
-        title={`${P.fatto}: clic per segnarla ${P.annulla}`}
+        title={`${P.fatto} · ${P.annulla}`}
         className="group inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100"
       >
         {inCorso ? <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" /> : <Check className="h-2.5 w-2.5 shrink-0 group-hover:hidden" />}

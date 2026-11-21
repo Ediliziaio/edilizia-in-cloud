@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 /**
  * Creates a new Stripe customer or returns the existing one for a company.
@@ -9,7 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * Uses upsert-style logic to avoid race conditions on concurrent creation.
  */
 export async function createOrGetStripeCustomer(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseClient,
   stripeSecretKey: string,
   company: {
     id: string;

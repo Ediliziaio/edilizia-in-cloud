@@ -60,6 +60,7 @@ interface BulkRun {
   channel_breakdown: Record<string, number>;
   status: "running" | "success" | "partial" | "failed";
   error_summary: string | null;
+  metadata?: { pending?: number; uncertain?: number };
 }
 
 interface CompanyLite { id: string; name: string }
@@ -107,7 +108,7 @@ export default function AdminBulkSchedulesPage() {
     queryFn: async (): Promise<BulkRun[]> => {
       const { data } = await supabase
         .from("bulk_scheduler_runs")
-        .select("*")
+        .select("id, flow_id, company_id, scheduled_for, started_at, finished_at, targets_resolved, sent_ok, sent_failed, channel_breakdown, status, error_summary, metadata")
         .in("flow_id", flowIds)
         .order("started_at", { ascending: false })
         .limit(50);
@@ -323,16 +324,20 @@ export default function AdminBulkSchedulesPage() {
                     </div>
                   )}
                   {lastRun && (
-                    <div className="rounded-md border bg-slate-50 p-2 flex items-center gap-2 text-[11px]">
+                    <div className="rounded-md border bg-slate-50 p-2 flex flex-wrap items-center gap-2 text-[11px]">
                       <Activity className="h-3 w-3 text-slate-500" />
                       <span className="text-muted-foreground">Ultima run {new Date(lastRun.started_at).toLocaleString("it-IT")}:</span>
                       <span className="inline-flex items-center gap-1 text-emerald-700">
                         <CheckCircle className="h-3 w-3" /> {lastRun.sent_ok} ok
                       </span>
-                      {lastRun.sent_failed > 0 && (
+                      {lastRun.sent_failed > (lastRun.metadata?.uncertain ?? 0) && (
                         <span className="inline-flex items-center gap-1 text-rose-700">
-                          <AlertCircle className="h-3 w-3" /> {lastRun.sent_failed} falliti
+                          <AlertCircle className="h-3 w-3" /> {lastRun.sent_failed - (lastRun.metadata?.uncertain ?? 0)} falliti
                         </span>
+                      )}
+                      {(lastRun.metadata?.pending ?? 0) > 0 && <span>{lastRun.metadata?.pending} in attesa</span>}
+                      {(lastRun.metadata?.uncertain ?? 0) > 0 && (
+                        <span className="text-amber-800">{lastRun.metadata?.uncertain} da verificare</span>
                       )}
                       <Badge variant="outline" className={cn(
                         "text-[9px]",
@@ -340,7 +345,7 @@ export default function AdminBulkSchedulesPage() {
                         lastRun.status === "partial" && "border-amber-300 text-amber-700",
                         lastRun.status === "failed" && "border-rose-300 text-rose-700",
                       )}>
-                        {lastRun.status}
+                        {{ running: "In corso", success: "Completato", partial: "Parziale", failed: "Con errori" }[lastRun.status]}
                       </Badge>
                     </div>
                   )}

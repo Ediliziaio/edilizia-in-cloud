@@ -49,6 +49,7 @@ export interface MaterialeFase {
   /** Calcolati dalla copertura degli ordini. */
   stato: StatoAcquistoMateriale;
   ordinabile: boolean;
+  quantitaResidua?: number;
   avviso: string | null;
   // ── Le altre colonne della riga, per l'elenco unico della commessa ──
   /** materiale (default), lavorazione, descrizione. */
@@ -137,6 +138,7 @@ export function useMaterialiPerFase(orderId: string | undefined) {
         stato: statoAcquistoMateriale({ ...r, drafted: piano.drafted, issued: piano.issued, received: piano.received }),
         scala,
         ordinabile: piano.canOrder && eMateriale(r),
+        quantitaResidua: piano.remaining,
         // Le unità diverse le riassume la testata, una volta sola.
         avviso: eMateriale(r) && !scala.unitaDaVerificare ? piano.review : null,
         oda,
@@ -314,7 +316,8 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
         const r = await createMaterialPurchaseOrder({
           companyId, orderId: commessa, orderCode: p.codiceDi?.(gruppo[0]) ?? orderCode, supplierId: fornitore, userId: user?.id,
           items: gruppo.map((m) => ({
-            id: m.id, name: m.name, quantity: m.quantity, purchase_price: m.purchase_price, vat_rate: m.vat_rate,
+            id: m.id, name: m.name, quantity: m.quantitaResidua ?? m.quantity, purchase_price: m.purchase_price, vat_rate: m.vat_rate,
+            prezzo_da_definire: m.prezzo_da_definire, prezzo_fonte: m.prezzo_fonte,
             supplier_id: m.supplier_id, stock_item_id: m.stock_item_id, status: m.status, posizioni: m.posizioni, unita_misura: m.unita_misura,
           })),
         });

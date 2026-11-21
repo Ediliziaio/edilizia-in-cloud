@@ -4,7 +4,7 @@
  *  - Crea opportunità: una nuova opportunità per ogni contatto selezionato,
  *    con pipeline/fase reali, fonte, venditore e call center opzionali.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +23,8 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
-import { perOgniLotto, raccogliALotti, LOTTO_RIGHE } from "@/lib/lottiDiId";
+import { perOgniLotto, raccogliALotti } from "@/lib/lottiDiId";
+import { improntaOpportunitaInBlocco, salvaOpportunitaInBlocco } from "@/lib/marketing/opportunitaInBlocco";
 
 /** Quanti contatti si leggono per proporre i tag da rimuovere. */
 const TAG_DA_LEGGERE = 5000;
@@ -203,7 +204,7 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
 // ── Crea opportunità in blocco ──────────────────────────────────────────────
 
 export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Set<string> }) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [pipelineId, setPipelineId] = useState("");
@@ -212,6 +213,7 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
   const [value, setValue] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [callCenterId, setCallCenterId] = useState("");
+  const operazioniInCorso = useRef(new Map<string, string>());
 
   const ids = useMemo(() => [...selectedIds], [selectedIds]);
   const companyId = effectiveCompany?.id;
@@ -248,7 +250,7 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!companyId || !user?.id) throw new Error("Sessione aziendale non disponibile");
       if (!pipelineId || !stageId) throw new Error("Seleziona pipeline e fase");
       const contacts = await raccogliALotti(ids, async (lotto) => {
         const { data, error } = await supabase
@@ -261,6 +263,18 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
       });
 
       const numValue = Number(value.replace(",", ".")) || 0;
+      const fonte = source.trim() || null;
+      const impronta = await improntaOpportunitaInBlocco(JSON.stringify([
+        pipelineId, stageId, fonte, numValue, assignedTo, callCenterId, [...ids].sort(),
+      ]));
+      const chiave = `crm:opportunita-in-blocco:${companyId}:${user.id}:${impronta}`;
+      let operazione = operazioniInCorso.current.get(chiave);
+      if (!operazione) {
+        try { operazione = sessionStorage.getItem(chiave) ?? undefined; } catch { /* Il tentativo resta in memoria. */ }
+        operazione ??= crypto.randomUUID();
+        operazioniInCorso.current.set(chiave, operazione);
+        try { sessionStorage.setItem(chiave, operazione); } catch { /* Il tentativo resta in memoria. */ }
+      }
       const rows = contacts.map((c) => ({
         company_id: companyId,
         contact_id: c.id,
@@ -269,24 +283,28 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
         name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Nuova opportunità",
         value: numValue,
         status: "open",
-        source: source.trim() || null,
+        source: fonte,
         assigned_to: assignedTo || null,
         call_center_id: callCenterId || null,
       }));
-      await perOgniLotto(rows, async (lotto) => {
-        const { error: insErr } = await supabase.from("marketing_opportunities").insert(lotto);
-        if (insErr) throw insErr;
-      }, LOTTO_RIGHE);
-      return rows.length;
+      const confermate = await salvaOpportunitaInBlocco(companyId, rows, operazione);
+      operazioniInCorso.current.delete(chiave);
+      try { sessionStorage.removeItem(chiave); } catch { /* Il salvataggio è già confermato. */ }
+      return { confermate, richieste: ids.length };
     },
-    onSuccess: (n) => {
+    onSuccess: ({ confermate, richieste }) => {
       qc.invalidateQueries({ queryKey: queryKeys.opportunities.all });
       qc.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
       qc.invalidateQueries({ queryKey: queryKeys.marketing.all });
-      toast.success(`${n} opportunità create`, { description: "Le trovi nella pipeline selezionata." });
+      if (confermate < richieste) toast.info(`${confermate} opportunità create su ${richieste} contatti`);
+      else toast.success(`${confermate} opportunità create`, { description: "Le trovi nella pipeline selezionata." });
       setOpen(false);
     },
-    onError: (e) => toast.error("Errore creazione opportunità", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Salvataggio interrotto", {
+      description: e && typeof e === "object" && "message" in e && typeof e.message === "string"
+        ? `${e.message} Puoi riprovare con gli stessi dati.`
+        : "Puoi riprovare con gli stessi dati.",
+    }),
   });
 
   return (

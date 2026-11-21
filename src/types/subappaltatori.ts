@@ -29,6 +29,7 @@ export interface ContrattoSubappalto {
 }
 
 export interface SALSubappaltatore {
+  revisione?: number;
   pagato_registrato?: number | null;
   id: string;
   company_id: string;

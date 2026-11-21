@@ -301,14 +301,17 @@ export interface BillingPortalFlow {
 }
 
 export function useOpenBillingPortal() {
+  const { effectiveCompany } = useAuth();
   return useMutation({
     // `| void` e non `?:` — con TVariables opzionale React Query richiederebbe
     // comunque l'argomento in mutate(); void mantiene validi i mutate() esistenti.
     mutationFn: async (opts: BillingPortalFlow | void) => {
+      if (!effectiveCompany?.id) throw new Error("Seleziona l’azienda prima di aprire il portale.");
       const { data, error } = await supabase.functions.invoke("customer-portal", {
-        body: opts
-          ? { flow: opts.flow, plan_id: opts.planId, billing_period: opts.billingPeriod }
-          : {},
+        body: {
+          company_id: effectiveCompany.id,
+          ...(opts && { flow: opts.flow, plan_id: opts.planId, billing_period: opts.billingPeriod }),
+        },
       });
       if (error) throw new Error(await messaggioDellaFunzione(error));
       return data as { url: string };

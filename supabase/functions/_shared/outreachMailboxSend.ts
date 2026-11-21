@@ -20,7 +20,7 @@
 import { credenzialiGmail } from "./gmailOAuthCredentials.ts";
 import { buildRFC822, smtpSend } from "./imapSmtpClient.ts";
 import { getMsOAuthCredentials } from "./msOAuth.ts";
-import { getSuppressedEmailMap, normalizeEmailAddress } from "./emailSuppression.ts";
+import { getSuppressedEmailMap, normalizeEmailAddress, type EmailStream } from "./emailSuppression.ts";
 import { logEmailDelivery } from "./email-log.ts";
 
 export type NativeProvider = "gmail" | "outlook" | "smtp";
@@ -56,7 +56,7 @@ export interface NativeMessage {
   threadIdHint?: string | null;
   headers?: Record<string, string>;
   metadata?: Record<string, unknown>;
-  stream?: string;
+  stream?: EmailStream;
 }
 
 export interface NativeSendResult {

@@ -7,7 +7,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocumentiFiscali, useDeleteDocumento, useUpdateDocumento, useRipristinaDocumento, rileggiDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
-import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
+import { preparaCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
@@ -561,7 +561,7 @@ function DocumentiFiscaliListInner() {
         // La riga dell'elenco è ridotta (niente righe né pagamento): la copia nasce dal documento intero.
         try {
           const completo = await rileggiDocumentoFiscale(doc.id);
-          navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: datiCopiaDocumento(completo) } });
+          navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: preparaCopiaDocumento(completo) });
         } catch (e: unknown) {
           toast.error("Documento non duplicato", { description: getErrorMessage(e) });
         }
@@ -1022,8 +1022,8 @@ function DocumentiFiscaliListInner() {
                   </div>
                   <div className="mt-0.5 flex justify-end">
                     {isDdt && !isTrash ? (
-                      <span className={cn("text-[11px]", doc.ddt_fattura_id ? "text-emerald-600" : "text-amber-600")}>
-                        {doc.ddt_fattura_id ? "Fatturato" : "Da fatturare"}
+                      <span className={cn("text-[11px]", doc.ddt_fatturato ? "text-emerald-600" : "text-amber-600")}>
+                        {doc.ddt_fatturato ? "Fatturato" : "Da fatturare"}
                       </span>
                     ) : (
                       <StatoBadge stato={doc.stato} className="px-1.5 py-0 text-[10px] [&>svg]:hidden" />

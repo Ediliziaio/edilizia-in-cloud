@@ -73,6 +73,7 @@ interface Props {
 export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, mostraAllegato = false, entry = null }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const rataCollegata = !!entry?.installment_id && !entry.invoice_id && !entry.bank_transaction_id;
   const conti = useContiPrimaNota(companyId, open);
   const metodiAzienda = useQuery({
     queryKey: ["prima-nota-metodi", companyId], enabled: open && !!companyId,
@@ -308,7 +309,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           <DialogTitle>{entry ? "Modifica registrazione" : "Nuova Registrazione"}</DialogTitle>
           <DialogDescription>
             {entry
-              ? `Registrata il ${dataIt(entry.entry_date)}${entry.is_auto ? " dal programma" : " a mano"}. Le modifiche valgono subito in Prima nota.`
+              ? rataCollegata
+                ? "Incasso collegato a una rata. La data si aggiorna anche nella commessa. L’importo deve corrispondere all’intera rata."
+                : `Registrata il ${dataIt(entry.entry_date)}${entry.is_auto ? " dal programma" : " a mano"}. Le modifiche valgono subito in Prima nota.`
               : "Un movimento di cassa o banca scritto a mano."}
           </DialogDescription>
         </DialogHeader>
@@ -317,7 +320,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
               <Label htmlFor="pn-categoria">Categoria</Label>
-              <Select value={category} onValueChange={scegliCategoria}>
+              <Select value={category} onValueChange={scegliCategoria} disabled={rataCollegata}>
                 <SelectTrigger id="pn-categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
@@ -334,6 +337,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
                     key={v}
                     type="button"
                     aria-pressed={direction === v}
+                    disabled={rataCollegata}
                     onClick={() => setDirection(v)}
                     className={cn(
                       "h-8 rounded text-sm font-medium transition-colors",
@@ -379,7 +383,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           )}
 
           {/* Fattura da incassare: porta cliente, commessa e importo */}
-          {showOrder && (
+          {showOrder && !rataCollegata && (
             <div className="space-y-2">
               <Label>Fattura incassata</Label>
               <Popover open={fatturaOpen} onOpenChange={setFatturaOpen}>
@@ -429,8 +433,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
 
           <div className="space-y-2">
             <Label>Commessa o macrocommessa</Label>
-            <CommessaCombobox value={orderId || null} onChange={id => setOrderId(id ?? "")}
-              ariaLabel="Commessa o macrocommessa" nessunaLabel="Nessuna commessa collegata" />
+            {rataCollegata ? <p className="text-sm font-medium">{entry.orders?.order_code || "Commessa della rata"}</p>
+              : <CommessaCombobox value={orderId || null} onChange={id => setOrderId(id ?? "")}
+                ariaLabel="Commessa o macrocommessa" nessunaLabel="Nessuna commessa collegata" />}
           </div>
 
           <div className="space-y-2">

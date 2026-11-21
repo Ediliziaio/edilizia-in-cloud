@@ -42,10 +42,20 @@ interface ApiKeyField {
 // FIX: useRef<bool> "mounted" per evitare setState post-unmount (il setTimeout
 // finale poteva scattare quando il componente era già smontato e causare warn).
 
+const verificaIntegrazione = {
+  connessione: { azione: "Testa connessione", riuscita: "Connesso" },
+  configurazione: { azione: "Verifica configurazione", riuscita: "Configurata" },
+  formato: { azione: "Verifica formato ID", riuscita: "Formato valido" },
+};
+
 const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string }>(
   function ConnectionTestButton({ integrationKey }, ref) {
     const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
     const [message, setMessage] = useState("");
+    const [esitoVerifica, setEsitoVerifica] = useState<keyof typeof verificaIntegrazione>();
+    const tipoVerifica = integrationKey === "stripe"
+      ? "connessione"
+      : integrationKey === "google_maps" ? "configurazione" : "formato";
     const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mountedRef = useRef(true);
 
@@ -58,8 +68,10 @@ const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string
     }, []);
 
     const handleTest = async () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       setStatus("testing");
       setMessage("");
+      setEsitoVerifica(undefined);
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const res = await supabase.functions.invoke("test-integration", {
@@ -70,13 +82,16 @@ const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string
         const result = res.data;
         if (!mountedRef.current) return;
         setStatus(result?.ok ? "ok" : "error");
+        const verifica = result?.verifica;
+        if (verifica === "formato" || verifica === "configurazione" || verifica === "connessione") {
+          setEsitoVerifica(verifica);
+        }
         setMessage(result?.message || "");
       } catch (e: unknown) {
         if (!mountedRef.current) return;
         setStatus("error");
         setMessage(e instanceof Error ? e.message : String(e));
       }
-      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       resetTimerRef.current = setTimeout(() => {
         if (!mountedRef.current) return;
         setStatus("idle");
@@ -100,10 +115,10 @@ const ConnectionTestButton = forwardRef<HTMLDivElement, { integrationKey: string
           {status === "testing"
             ? "Test..."
             : status === "ok"
-            ? integrationKey === "google_maps" ? "Configurata" : "Connesso"
+            ? verificaIntegrazione[esitoVerifica ?? tipoVerifica].riuscita
             : status === "error"
             ? "Errore"
-            : integrationKey === "google_maps" ? "Verifica configurazione" : "Testa connessione"}
+            : verificaIntegrazione[tipoVerifica].azione}
         </Button>
         {message && (
           <span

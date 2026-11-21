@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,9 +28,26 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
     resetForm(); setCreateOpen(false); onAfterCreate?.();
   }
   async function submitEdit() {
-    if (!editing) return;
-    await updateAccount.mutateAsync({ id: editing.id, name: form.name.trim() || undefined, iban: form.iban, opening_balance: Number(String(form.opening).replace(",", ".")) || 0 });
-    setEditing(null); resetForm();
+    if (!editing || !canViewBankBalances || solaLettura || !form.name.trim()) return;
+    const opening = Number(form.opening.trim().replace(",", "."));
+    if (!Number.isFinite(opening)) {
+      toast.error("Inserisci un saldo di apertura valido.");
+      return;
+    }
+    const name = form.name.trim();
+    const iban = form.iban.trim();
+    try {
+      await updateAccount.mutateAsync({
+        id: editing.id,
+        name: name !== (editing.display_name || editing.account_name || "") ? name : undefined,
+        iban: iban !== (editing.iban ?? "") ? iban : undefined,
+        opening_balance: opening !== Number(editing.opening_balance ?? 0) ? opening : undefined,
+      });
+      setEditing(null);
+      resetForm();
+    } catch {
+      // La mutazione mostra l'errore e il dialog mantiene i dati digitati.
+    }
   }
 
   return (

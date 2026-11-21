@@ -140,9 +140,19 @@ export async function readOrdersPage(
           order_employees(employee:employees(id, first_name, last_name)),
           order_external_teams(external_team:external_teams(id, name, kind))
         `;
+      const ricerche = [
+        { alias: "cliente_filtro", testo: sf.orderSearch },
+        { alias: "cliente_ricerca", testo: debouncedSearch },
+      ].flatMap(({ alias, testo }) => {
+        const termine = testo.replace(/[(),"\\]/g, " ").trim();
+        return termine ? [{ alias, termine }] : [];
+      });
       const buildQuery = (projection: string, ids: string[] | null, count = false) => {
       let query = supabase.from("orders")
-        .select(projection, count ? { count: "exact" } : undefined)
+        .select(
+          [projection, ...ricerche.map(({ alias }) => `${alias}:profiles!orders_customer_id_fkey()`)].join(","),
+          count ? { count: "exact" } : undefined,
+        )
         .eq("company_id", companyId)
         .is("deleted_at", null);
       if (signal) query = query.abortSignal(signal);
@@ -153,24 +163,17 @@ export async function readOrdersPage(
       if (filters.soloPrimoLivello) query = query.is("commessa_generale_id", null);
       if (sf.includeStatuses.length) query = query.in("current_status_id", sf.includeStatuses);
       if (sf.excludeStatuses.length) query = query.or(`current_status_id.not.in.(${sf.excludeStatuses.join(",")}),current_status_id.is.null`);
-      if (sf.orderSearch.trim()) {
-        const safe = sf.orderSearch.replace(/[(),]/g, " ").trim();
-        if (safe) query = query.or(`description.ilike.%${safe}%,order_code.ilike.%${safe}%,client_name.ilike.%${safe}%`);
-      }
       for (const value of [sf.dateFrom, sf.createdFrom]) if (value) query = query.gte("created_at", new Date(`${value}T00:00:00`).toISOString());
       for (const value of [sf.dateTo, sf.createdTo]) if (value) query = query.lte("created_at", new Date(`${value}T23:59:59.999`).toISOString());
       if (sf.amountMin) query = query.gte("total_amount", Number(sf.amountMin));
       if (sf.amountMax) query = query.lte("total_amount", Number(sf.amountMax));
       // B1 — customerFilter e paymentFilter applicati server-side
       if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
-      if (debouncedSearch) {
-        // Sanitize: PostgREST `.or()` interpreta virgole/parentesi come separatori → safer escape
-        const safe = debouncedSearch.replace(/[(),]/g, " ").trim();
-        if (safe) {
-          query = query.or(
-            `description.ilike.%${safe}%,order_code.ilike.%${safe}%,client_name.ilike.%${safe}%`
-          );
-        }
+      // L'embed vuoto filtra il profilo senza modificare quello esposto nella riga.
+      for (const { alias, termine } of ricerche) {
+        query = query
+          .or(`first_name.ilike.%${termine}%,last_name.ilike.%${termine}%`, { referencedTable: alias })
+          .or(`description.ilike.%${termine}%,order_code.ilike.%${termine}%,client_name.ilike.%${termine}%,${alias}.not.is.null`);
       }
       if (statusFilter === "__da_completare__") {
         // Sentinel "Da completare": esclude ordini in Assistenza e Completati

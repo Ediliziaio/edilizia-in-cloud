@@ -61,4 +61,15 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["src/contexts/AuthContext.tsx"],
+    rules: {
+      // Il provider condivide già lo stesso contesto e gestisce il proprio HMR.
+      "react-refresh/only-export-components": ["warn", {
+        allowConstantExport: true,
+        allowExportNames: ["AuthContext", "getCachedTokens", "useAuth", "useAuthSelector",
+          "useAuthUser", "useAuthCompany", "useAuthImpersonation", "useAuthActions"],
+      }],
+    },
+  },
 );

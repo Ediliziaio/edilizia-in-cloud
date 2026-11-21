@@ -100,7 +100,8 @@ const RIGA = "grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] items-center gap-x-2 
 export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: { conDispositivo?: boolean; evidenziata?: boolean } = {}) {
   const { user, effectiveCompany, profile } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? undefined;
-  const { data: prefs } = useUserNotifPrefs(user?.id);
+  const { data: prefs, isError, isFetching, refetch } = useUserNotifPrefs(user?.id);
+  const puoModificare = Boolean(prefs) && !isError;
   const salva = useSaveUserNotifPrefs(user?.id, companyId);
   const queryClient = useQueryClient();
   const generali = useImpostazioniCommesseGenerali();
@@ -113,7 +114,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
   const valore = (chiave: Chiave) => inCorso[chiave] ?? Boolean(prefs?.[chiave]);
 
   const scrivi = async (modifiche: Partial<Record<Chiave, boolean>>) => {
-    if (!prefs) return;
+    if (!prefs || !puoModificare) return;
     setInCorso((prima) => ({ ...prima, ...modifiche }));
     // Una scrittura sola, anche se le colonne sono più d'una; i tocchi ancora in volo (`inCorso`) ci sono già.
     const prossime: NotifPrefs = { ...prefs, ...inCorso, ...modifiche };
@@ -145,7 +146,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
       ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
       evidenziata={evidenziata}
       azione={
-        <Button type="button" size="sm" variant="outline" className="h-8 px-3 text-xs" disabled={!prefs || salva.isPending} onClick={cambiaTutto}>
+        <Button type="button" size="sm" variant="outline" className="h-8 px-3 text-xs" disabled={!puoModificare || salva.isPending} onClick={cambiaTutto}>
           {tuttoSpento ? "Attiva tutto" : "Disattiva tutto"}
         </Button>
       }
@@ -154,6 +155,14 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
         <div className="px-4 py-3 max-sm:px-3">
           {/* Prima di tutto: arrivano anche ad app chiusa? (per questo dispositivo) */}
           <NotificheSuQuestoDispositivo />
+        </div>
+      )}
+      {isError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm text-destructive">
+          <p>Impossibile caricare le preferenze di notifica.</p>
+          <Button type="button" size="sm" variant="outline" disabled={isFetching} onClick={() => void refetch()}>
+            Riprova
+          </Button>
         </div>
       )}
       <div className={`${RIGA} py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground`} aria-hidden="true">
@@ -173,7 +182,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
           <div className="flex justify-center">
             <Switch
               checked={valore(app)}
-              disabled={!prefs}
+              disabled={!puoModificare}
               onCheckedChange={(acceso) => void scrivi({ [app]: acceso })}
               aria-label={`${etichetta}, nell'app`}
             />
@@ -182,7 +191,7 @@ export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: 
             {email ? (
               <Switch
                 checked={valore(email)}
-                disabled={!prefs}
+                disabled={!puoModificare}
                 onCheckedChange={(acceso) => void scrivi({ [email]: acceso })}
                 aria-label={`${etichetta}, per email`}
               />

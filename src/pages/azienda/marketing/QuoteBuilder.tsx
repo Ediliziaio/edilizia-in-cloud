@@ -86,6 +86,7 @@ import { idAttivitaValido } from "../../../../shared/aiAttivita";
 import { useBoundedAutosave, useDraftExitFlush } from "@/hooks/useBoundedAutosave";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
+import { erroreSalvataggioTemporaneo, useQuoteAutosaveRetry } from "@/hooks/useQuoteAutosaveRetry";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
@@ -1697,7 +1698,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const saveInFlightRef = useRef(false);
   const [lastSavedHash, setLastSavedHash] = useState("");
   const lastCloudSavedSnapshotRef = useRef("");
-  const [autosaveFailed, setAutosaveFailed] = useState(false);
+  const ambitoSalvataggio = `${companyId}:${id}`;
+  const [erroreBozza, setErroreBozza] = useState<{ ambito: string; tentativo: number | null; messaggio: string } | null>(null);
+  const erroreAttuale = erroreBozza?.ambito === ambitoSalvataggio ? erroreBozza : null;
+  const autosaveFailed = !!erroreAttuale;
 
   // Il recupero copre anche la modifica di un preventivo già esistente.
   const quoteDraftKey = companyId && !localEditor ? `quote-draft-${companyId}${isEdit ? `-${id}` : ""}` : null;
@@ -2297,7 +2301,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       }
       setLastSavedHash(draftSerialized);
       lastCloudSavedSnapshotRef.current = draftSerialized;
-      setAutosaveFailed(false);
+      setErroreBozza(null);
       const laterInput = quoteDraftInputHash(latestDraftSerializedRef.current) !== quoteDraftInputHash(draftSerialized);
       if (isEdit && !laterInput) clearQuoteDraft();
       if (opts?.autosave) return; // Nessun refetch che possa cancellare input in corso.
@@ -2336,7 +2340,18 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         navigate(`/azienda/marketing/preventivi/${quoteId}`);
       }
     } catch (err: unknown) {
-      setAutosaveFailed(true);
+      const conflitto = isConflittoModifica(err);
+      const temporaneo = opts?.autosave && !conflitto && erroreSalvataggioTemporaneo(err);
+      const tentativo = temporaneo ? (erroreAttuale?.tentativo ?? -1) + 1 : null;
+      setErroreBozza({
+        ambito: ambitoSalvataggio,
+        tentativo,
+        messaggio: conflitto
+          ? "Preventivo modificato da un’altra persona. Ricarica e recupera la bozza locale."
+          : temporaneo && tentativo !== null && tentativo < 3
+            ? "Bozza locale salvata. Stiamo riprovando a sincronizzarla."
+            : "Salvataggio non completato. La bozza resta su questo dispositivo.",
+      });
       if (opts?.autosave) return;
       if (isConflittoModifica(err)) {
         // Non è un guasto: è una persona che ha salvato prima di te. Quello
@@ -2357,11 +2372,14 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   };
 
   // Payload completo e guardia di versione condivisi con il salvataggio manuale.
-  useBoundedAutosave(draftSerialized,
-    !!(isEdit && existingQuote && draftReady && lastSavedHash &&
-      !recoverableDraft && !autosaveFailed && !saving && canEditPreventivi && clientName.trim() &&
-      ["bozza", "draft"].includes(existingQuote.status || "") && lastSavedHash !== draftSerialized),
-    () => { void handleSave("bozza", { autosave: true }); }, `${companyId}:${id}`);
+  const puoSalvareBozza = !!(isEdit && existingQuote && draftReady && lastSavedHash &&
+    !recoverableDraft && !saving && canEditPreventivi && clientName.trim() &&
+    existingItemsLoaded && existingAttachmentsLoaded && !paymentPlanError(paymentPhases) &&
+    !righeConMisureIncomplete(items) &&
+    ["bozza", "draft"].includes(existingQuote.status || "") && lastSavedHash !== draftSerialized);
+  const salvaAutomaticamente = () => { void handleSave("bozza", { autosave: true }); };
+  useBoundedAutosave(draftSerialized, puoSalvareBozza && !autosaveFailed, salvaAutomaticamente, ambitoSalvataggio);
+  useQuoteAutosaveRetry(erroreAttuale?.tentativo ?? null, puoSalvareBozza, salvaAutomaticamente, ambitoSalvataggio);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -2479,14 +2497,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       <QuotePageHeader
         className="testata-pagina"
         title={localEditor ? "Editor classico · bozza AI locale" : isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
-        subtitle={
-          autosaveFailed || localDraftFailed ? (
-            <span className="flex items-center gap-1 font-medium text-red-600">
-              <AlertTriangle className="h-3 w-3" />
-              {localDraftFailed ? "Bozza locale non protetta: salva prima di uscire" : "Salvataggio non completato: controlla prima di uscire"}
-            </span>
-          ) : !isEdit && localDraftSaved ? "Bozza protetta su questo dispositivo. Premi Salva per renderla disponibile online." : undefined
-        }
+        subtitle={!isEdit && localDraftSaved && !localDraftFailed ? "Bozza protetta su questo dispositivo. Premi Salva per renderla disponibile online." : undefined}
         icon={<FileCheck className="h-5 w-5" />}
         actions={
           <>
@@ -2536,6 +2547,13 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           </>
         }
       />
+
+      {(erroreAttuale || localDraftFailed) && (
+        <div role="status" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0" />
+          {localDraftFailed ? "Bozza locale non protetta. Salva prima di uscire." : erroreAttuale?.messaggio}
+        </div>
+      )}
 
       {/* Stepper (replica FvTabBar) */}
       <QuoteStepper

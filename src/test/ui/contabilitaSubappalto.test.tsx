@@ -116,14 +116,14 @@ describe("Contabilità del subappalto", () => {
   });
   it("un SAL ricevuto deve essere verificato prima di mostrare il pagamento; il popup riflette gli aggiornamenti", () => {
     const p = props();
-    const ricevuto = { ...base, stato: "ricevuto" as const };
+    const ricevuto = { ...base, stato: "ricevuto" as const, revisione: 3 };
     const view = render(<SALContabilita {...p} sal={[ricevuto]} />);
     fireEvent.click(screen.getByRole("button", { name: "Apri SAL 1" }));
     expect(
       screen.queryByRole("button", { name: "Registra pagamento" }),
     ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Approva SAL" }));
-    expect(p.onApprova).toHaveBeenCalledWith("s1");
+    expect(p.onApprova).toHaveBeenCalledWith(ricevuto);
     view.rerender(<SALContabilita {...p} />);
     expect(
       screen.getByRole("button", { name: "Registra pagamento" }),

@@ -7,7 +7,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { AppRole } from "@/types/auth";
 
 const testAuth = vi.hoisted(() => ({
-  role: "company_staff" as AppRole,
+  role: "company_staff" as AppRole | null,
   listener: null as null | ((event: AuthChangeEvent, session: Session | null) => void),
   getSession: vi.fn(),
   setSession: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       const result: { data: unknown; error: null } = {
         data: table === "profiles"
           ? { id: "user", company_id: "company", company: { id: "company", name: "Azienda" } }
-          : table === "user_roles" ? [{ role: testAuth.role }] : [],
+          : table === "user_roles" && testAuth.role ? [{ role: testAuth.role }] : [],
         error: null,
       };
       const query: Record<string, unknown> = {};
@@ -204,6 +204,19 @@ describe("Ripristino dell'accesso con rete lenta", () => {
     expect(screen.getByText("Gestionale aperto")).toBeInTheDocument();
     await emit("SIGNED_OUT", null);
     expect(screen.getByText("Inserisci email e password")).toBeInTheDocument();
+  });
+
+  it("una rilettura riuscita senza ruoli revoca il ruolo già caricato e il rinnovo non lo ripristina", async () => {
+    openApp();
+    await emit("INITIAL_SESSION", session);
+    expect(screen.getByText("Gestionale aperto")).toBeInTheDocument();
+
+    testAuth.role = null;
+    await emit("SIGNED_IN", session);
+    expect(screen.getByTestId("auth-state")).toHaveTextContent("disconnesso");
+    await emit("TOKEN_REFRESHED", session);
+    expect(screen.getByTestId("auth-state")).toHaveTextContent("disconnesso");
+    expect(screen.queryByText("Gestionale aperto")).not.toBeInTheDocument();
   });
 
   it("un passaggio fra sottodomini ancora in corso non viene annullato dal watchdog", async () => {

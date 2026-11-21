@@ -43,6 +43,7 @@ export interface PrimaNotaEntry {
   payment_method: string | null;
   reference_number: string | null;
   invoice_id: string | null;
+  installment_id?: string | null;
   order_id: string | null;
   supplier_id: string | null;
   cost_id: string | null;
@@ -405,8 +406,9 @@ export function usePrimaNota(
   };
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, dati, prima }: { id: string; dati: DatiRegistrazione; prima?: Pick<PrimaNotaEntry, "amount" | "entry_date" | "invoice_id"> }) => {
-      const { data, error } = await rpc.rpc("prima_nota_modifica", { p_id: id, p_dati: dati });
+    mutationFn: async ({ id, dati, prima }: { id: string; dati: DatiRegistrazione; prima?: Pick<PrimaNotaEntry, "amount" | "entry_date" | "invoice_id" | "updated_at"> }) => {
+      const versione = prima?.updated_at;
+      const { data, error } = await rpc.rpc("prima_nota_modifica", { p_id: id, p_dati: { ...dati, ...(versione ? { versione } : {}) } });
       if (error) throw new Error(error.message);
       const esito = (data ?? {}) as { esito?: string; invoice_id?: string | null; invoice_id_prima?: string | null };
       // L'avviso per Fatture in Cloud solo se l'incasso è cambiato davvero (importo, data o fattura).
@@ -436,12 +438,13 @@ export function usePrimaNota(
       const { data, error } = await rpc.rpc("prima_nota_elimina_registrazione", { p_id: id, p_versione: riga.updated_at ?? null });
       if (error) throw new Error(error.message);
       const esito = (data ?? {}) as { incassi_tolti?: number; invoice_id?: string | null };
-      return { tolti: Number(esito.incassi_tolti ?? 0), fic: (esito.incassi_tolti ?? 0) > 0 && await tocca_fattureincloud([esito.invoice_id]) };
+      return { tolti: Number(esito.incassi_tolti ?? 0), fic: (esito.incassi_tolti ?? 0) > 0 && await tocca_fattureincloud([esito.invoice_id]),
+        rataRiaperta: !!riga.installment_id };
     },
-    onSuccess: ({ tolti, fic }) => {
+    onSuccess: ({ tolti, fic, rataRiaperta }) => {
       toast.success("Registrazione eliminata", tolti > 0
         ? { description: `La fattura torna da incassare.${fic ? " Viene da Fatture in Cloud: togli l'incasso anche lì." : ""}` }
-        : undefined);
+        : rataRiaperta ? { description: "La rata della commessa torna da incassare." } : undefined);
       invalidaIncassi();
     },
     onError: (e) => toast.error("Registrazione non eliminata", { description: e instanceof Error ? e.message : String(e) }),

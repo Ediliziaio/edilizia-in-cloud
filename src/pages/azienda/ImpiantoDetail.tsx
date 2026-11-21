@@ -1,5 +1,5 @@
 import { usePermissions } from "@/hooks/usePermissions";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDialog";
@@ -36,7 +36,8 @@ export default function ImpiantoDetail() {
   const permissions = usePermissions();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany } = useAuth();
+  const operazioneEsecuzione = useRef<{ dati: string; id: string } | null>(null);
   const [esecuzioneOpen, setEsecuzioneOpen] = useState(false);
   const [selectedPianoId, setSelectedPianoId] = useState<string | null>(null);
   const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toLocaleDateString("en-CA"), esito: "ok", note: "" });
@@ -86,19 +87,18 @@ export default function ImpiantoDetail() {
     enabled: !!id,
   });
 
-  const { data: piani = [] } = useQuery({
-    queryKey: ["piani-impianto", contratto?.id],
+  const { data: piani = [], isPending: caricamentoPiani, isError: errorePiani, refetch: ricaricaPiani } = useQuery({
+    queryKey: ["piani-impianto", id],
     queryFn: async () => {
-      if (!contratto?.id) return [];
       const { data, error } = await supabase
         .from("piani_manutenzione")
         .select("*, tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(first_name, last_name)")
-        .eq("contratto_id", contratto.id)
+        .eq("impianto_id", id!)
         .order("prossima_scadenza", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!contratto?.id,
+    enabled: !!id,
   });
 
   const { data: interventiImpianto = [] } = useQuery({
@@ -117,13 +117,13 @@ export default function ImpiantoDetail() {
   });
 
   const { data: esecuzioni = [] } = useQuery({
-    queryKey: ["esecuzioni-impianto", piani.map((p: any) => p.id).join(",")],
+    queryKey: ["esecuzioni-impianto", id, piani.map((p) => p.id)],
     queryFn: async () => {
       if (piani.length === 0) return [];
       const { data, error } = await supabase
         .from("esecuzioni_manutenzione")
         .select("*, piano:piani_manutenzione(titolo)")
-        .in("piano_id", piani.map((p: any) => p.id))
+        .in("piano_id", piani.map((p) => p.id))
         .order("data_esecuzione", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -134,32 +134,33 @@ export default function ImpiantoDetail() {
   const registraEsecuzioneMutation = useMutation({
     mutationFn: async () => {
       if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      // 2026-05-27 (UX audit): precondizioni esplicite + payload completo.
-      // Prima: data poteva essere "" (Input non-required) → insert rifiutato.
-      // company_id/tecnico_id mancanti → orfanaggio + zero traccia "chi ha eseguito".
       if (!selectedPianoId) throw new Error("Seleziona un piano");
       if (!esecuzioneForm.data) throw new Error("La data è obbligatoria");
-      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
-
-      // esecuzioni_manutenzione NON ha company_id, per scelta: la RLS
-      // (esecuzioni_company) ricava l'azienda dal piano collegato. Passarlo
-      // faceva rifiutare ogni inserimento con PGRST204, quindi "Registra
-      // esecuzione" non ha mai funzionato. L'ambito resta garantito dal
-      // piano_id, che qui e' obbligatorio.
-      const { error } = await supabase.from("esecuzioni_manutenzione").insert({
-        piano_id: selectedPianoId,
-        tecnico_id: user?.id ?? null,
-        data_esecuzione: esecuzioneForm.data,
-        esito: esecuzioneForm.esito,
-        note: esecuzioneForm.note.trim() || null,
+      if (!id) throw new Error("Impianto non disponibile");
+      const dati = {
+        p_piano_id: selectedPianoId,
+        p_impianto_id: id,
+        p_data: esecuzioneForm.data,
+        p_esito: esecuzioneForm.esito,
+        p_note: esecuzioneForm.note.trim() || null,
+      };
+      const versione = JSON.stringify(dati);
+      if (operazioneEsecuzione.current?.dati !== versione) {
+        operazioneEsecuzione.current = { dati: versione, id: crypto.randomUUID() };
+      }
+      const { error } = await supabase.rpc("manutenzione_registra_esecuzione", {
+        ...dati,
+        p_operazione: operazioneEsecuzione.current.id,
       });
       if (error) throw error;
-      await supabase.from("piani_manutenzione").update({ ultima_esecuzione: esecuzioneForm.data }).eq("id", selectedPianoId);
     },
     onSuccess: () => {
+      operazioneEsecuzione.current = null;
       toast.success("Esecuzione registrata");
-      queryClient.invalidateQueries({ queryKey: ["esecuzioni-impianto"] });
-      queryClient.invalidateQueries({ queryKey: ["piani-impianto", contratto?.id] });
+      queryClient.invalidateQueries({ queryKey: ["esecuzioni-impianto", id] });
+      queryClient.invalidateQueries({ queryKey: ["piani-impianto", id] });
+      queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["cal-manutenzioni", effectiveCompany?.id] });
       setEsecuzioneOpen(false);
     },
     onError: (e: Error) => toast.error(e.message || "Errore nella registrazione"),
@@ -469,16 +470,23 @@ export default function ImpiantoDetail() {
                   <Calendar className="h-4 w-4 text-muted-foreground" /> Piano di manutenzione
                   {piani.length > 0 && <span className="text-muted-foreground">({piani.length})</span>}
                 </h3>
-                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={permissions.solaLettura || piani.length === 0}
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={permissions.solaLettura || errorePiani || piani.length === 0}
                         onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }}>
                   <Plus className="h-3.5 w-3.5" /> Registra esecuzione
                 </Button>
               </div>
-              {piani.length === 0 ? (
+              {caricamentoPiani ? (
+                <Skeleton className="h-14" />
+              ) : errorePiani ? (
+                <div className="flex items-center justify-between gap-3 text-sm" role="alert">
+                  <span>Impossibile caricare il piano di manutenzione.</span>
+                  <Button size="sm" variant="outline" onClick={() => void ricaricaPiani()}>Riprova</Button>
+                </div>
+              ) : piani.length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">Nessun piano configurato per questo impianto.</p>
               ) : (
                 <div className="space-y-2">
-                  {piani.map((piano: any) => (
+                  {piani.map((piano) => (
                     <div key={piano.id} className="rounded-lg border p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -499,11 +507,12 @@ export default function ImpiantoDetail() {
               {esecuzioni.length > 0 && (
                 <div className="space-y-2 border-t pt-3">
                   <h4 className="text-xs font-medium text-muted-foreground">Storico esecuzioni</h4>
-                  {esecuzioni.map((e: any) => (
-                    <div key={e.id} className="flex items-center justify-between rounded bg-muted/50 p-2.5 text-sm">
+                  {esecuzioni.map((e) => (
+                    <div key={e.id} className="flex items-start justify-between gap-2 rounded bg-muted/50 p-2.5 text-sm">
                       <div className="min-w-0">
                         <span className="font-medium">{e.piano?.titolo}</span>
                         <span className="ml-2 text-xs text-muted-foreground">{format(new Date(e.data_esecuzione), "dd MMM yyyy", { locale: it })}</span>
+                        {e.note && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">{e.note}</p>}
                       </div>
                       <Badge className={cn("text-[10px]", e.esito === "ok" ? "bg-emerald-100 text-emerald-700" : e.esito === "anomalia_rilevata" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600")}>
                         {e.esito === "ok" ? "OK" : e.esito === "anomalia_rilevata" ? "Anomalia" : "Rinviata"}
@@ -720,9 +729,9 @@ export default function ImpiantoDetail() {
               <div className="space-y-1.5">
                 <Label>Piano</Label>
                 <Select value={selectedPianoId ?? ""} onValueChange={setSelectedPianoId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona piano..." /></SelectTrigger>
+                  <SelectTrigger aria-label="Piano di manutenzione"><SelectValue placeholder="Seleziona piano..." /></SelectTrigger>
                   <SelectContent>
-                    {piani.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.titolo}</SelectItem>)}
+                    {piani.map((p) => <SelectItem key={p.id} value={p.id}>{p.titolo}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -730,8 +739,9 @@ export default function ImpiantoDetail() {
             {/* Mobile: data ed esito affiancati. */}
             <div className="space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-3 max-sm:space-y-0">
             <div className="space-y-1.5">
-              <Label>Data <span className="max-sm:hidden">esecuzione</span> <span className="text-destructive">*</span></Label>
+              <Label htmlFor="manutenzione-data-esecuzione">Data <span className="max-sm:hidden">esecuzione</span> <span className="text-destructive">*</span></Label>
               <Input
+                id="manutenzione-data-esecuzione"
                 type="date"
                 value={esecuzioneForm.data}
                 onChange={(e) => setEsecuzioneForm((f) => ({ ...f, data: e.target.value }))}
@@ -739,9 +749,9 @@ export default function ImpiantoDetail() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Esito</Label>
+              <Label htmlFor="manutenzione-esito">Esito</Label>
               <Select value={esecuzioneForm.esito} onValueChange={(v) => setEsecuzioneForm((f) => ({ ...f, esito: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="manutenzione-esito"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ok">OK — Tutto regolare</SelectItem>
                   <SelectItem value="anomalia_rilevata">Anomalia rilevata</SelectItem>
@@ -751,8 +761,8 @@ export default function ImpiantoDetail() {
             </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Note</Label>
-              <Textarea value={esecuzioneForm.note} onChange={(e) => setEsecuzioneForm((f) => ({ ...f, note: e.target.value }))} rows={2} />
+              <Label htmlFor="manutenzione-note-esecuzione">Note</Label>
+              <Textarea id="manutenzione-note-esecuzione" value={esecuzioneForm.note} onChange={(e) => setEsecuzioneForm((f) => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>

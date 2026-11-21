@@ -1,3 +1,6 @@
+import { createElement, type ReactNode } from "react";
+import { renderHook, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ rpc: vi.fn(), calls: [] as Array<{ table: string; op: string; values?: unknown; filters: Array<[string, unknown]>; range?: number[] }>, headers: [] as unknown[], orphanRows: [] as unknown[], coverage: [] as unknown[], current: [] as unknown[], coverageError: null as Error | null, lineError: null as Error | null, headerError: null as Error | null, diaryError: null as Error | null, pages: null as unknown[][] | null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
@@ -5,6 +8,7 @@ vi.mock("@/utils/logger", () => ({ logger: { error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc, from: (table: string) => {
   const call: typeof state.calls[number] = { table, op: "select", filters: [] }; state.calls.push(call);
   const result = () => {
+    if (table === "order_work_phases" || table === "materiali_fasi_validazione") return { data: [], error: null };
     if (table === "order_items") return { data: state.current, error: null };
     if (table === "purchase_orders") return call.op === "insert" ? { data: { id: "po" }, error: state.headerError } : { data: state.headers, error: null };
     if (table === "purchase_order_items" && call.filters.some(f => f[0] === "purchase_order_id")) return { data: state.orphanRows, error: null };
@@ -16,12 +20,15 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.rpc, f
     eq: (key: string, value: unknown) => { call.filters.push([key, value]); return q; },
     neq: (key: string, value: unknown) => { call.filters.push([`neq:${key}`, value]); return q; },
     in: (key: string, value: unknown) => { call.filters.push([key, value]); return q; },
+    is: () => q, not: () => q,
     order: () => q, range: (a: number, b: number) => { call.range = [a, b]; return q; },
     single: () => Promise.resolve(result()), then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve),
   };
   return q;
 } } }));
 import { createMaterialPurchaseOrder } from "@/lib/orders/createMaterialPurchaseOrder";
+import { useAzioniMateriali, useMaterialiPerFase } from "@/hooks/useMaterialiPerFase";
+import { waitFor } from "@testing-library/react";
 import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
 const item = { id: "a", name: "Pavimento", quantity: 10, purchase_price: 20, vat_rate: 0, supplier_id: "s", status: "da_ordinare" };
 const row = { id: "r", order_item_id: "a", quantity: 4, quantity_received: 2, purchase_orders: { id: "old", oda_number: "ODA-1", status: "confermato" } };
@@ -129,4 +136,37 @@ it("se la RPC non è distribuita interrompe senza tornare al salvataggio non ato
   state.rpc.mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "Function missing" } });
   await expect(createMaterialPurchaseOrder(input())).rejects.toThrow("non è ancora attivo sul server");
   expect(inserts()).toHaveLength(0);
+});
+
+
+it("dai Materiali della commessa l'ordine salva il residuo e rifiuta una copertura cambiata", async () => {
+  state.coverage = [row];
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+  const { result, unmount } = renderHook(() => ({
+    piano: useMaterialiPerFase("order"),
+    ordini: useAzioniMateriali("order").creaOrdini,
+  }), { wrapper });
+  try {
+    await waitFor(() => expect(result.current.piano.fasi[0]?.materiali[0]?.ordinabile).toBe(true));
+    const materiale = result.current.piano.fasi[0].materiali[0];
+
+    state.coverage = [{ ...row, quantity: 5 }];
+    await act(async () => {
+      await expect(result.current.ordini.mutateAsync({ materiali: [materiale] })).rejects.toThrow(/cambiati/);
+    });
+    expect(state.rpc).not.toHaveBeenCalled();
+
+    state.coverage = [row];
+    await act(async () => {
+      await expect(result.current.ordini.mutateAsync({ materiali: [materiale] })).resolves.toEqual(["po"]);
+    });
+    expect(state.rpc).toHaveBeenCalledTimes(1);
+    expect(state.rpc).toHaveBeenCalledWith("crea_oda_materiali_atomica", expect.objectContaining({
+      p_righe: [expect.objectContaining({ quantity: 6, order_item_id: "a" })],
+    }));
+  } finally {
+    unmount();
+    client.clear();
+  }
 });

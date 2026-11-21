@@ -11,6 +11,18 @@
 import { normalizzaRiferimenti, numeriLineaDi } from "../../../supabase/functions/_shared/riferimentiPaFattura";
 import type { DocumentoFiscale, RigaDocumento, ScadenzaPagamento } from "@/types/fatturazione";
 
+export interface RichiestaCopiaDocumento {
+  origineId: string;
+  id: string;
+}
+
+export function preparaCopiaDocumento(doc: DocumentoFiscale) {
+  return {
+    prefilled: datiCopiaDocumento(doc),
+    richiestaCopia: { origineId: doc.id, id: crypto.randomUUID() },
+  };
+}
+
 const CAMPI_DA_COPIARE = [
   "anagrafica_id", "cliente_snapshot", "serie",
   "riepilogo_iva", "subtotale", "imponibile_totale", "iva_totale", "totale_documento", "totale_da_pagare",

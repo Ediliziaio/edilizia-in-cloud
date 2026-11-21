@@ -39,7 +39,10 @@ function loadPdfModule() {
     ]).then(([pdfMod, tplMod]) => ({
       pdf: pdfMod.pdf,
       RendicontoAppaltoPDF: tplMod.RendicontoAppaltoPDF,
-    }));
+    })).catch((error: unknown) => {
+      pdfModulePromise = null;
+      throw new Error("Impossibile caricare il generatore del rendiconto. Riprova o ricarica la pagina.", { cause: error });
+    });
   }
   return pdfModulePromise;
 }
@@ -65,6 +68,8 @@ const nomeDi = (p: { business_name?: string | null; first_name?: string | null; 
 
 export function useRendicontoAppaltoPDF() {
   const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const companyName = effectiveCompany?.name;
   const [isGenerating, setIsGenerating] = useState(false);
   // setState non è sincrono: due click ravvicinati vedrebbero entrambi false.
   const inCorso = useRef(false);
@@ -72,7 +77,7 @@ export function useRendicontoAppaltoPDF() {
   const stampa = useCallback(
     /** Con `soloFile` restituisce il PDF senza scaricarlo (per mandarlo in firma). */
     async (salId: string, opzioni?: { soloFile?: boolean }): Promise<Blob | null> => {
-      if (!effectiveCompany?.id) {
+      if (!companyId) {
         toast.error("Nessuna azienda attiva");
         return null;
       }
@@ -86,7 +91,7 @@ export function useRendicontoAppaltoPDF() {
             "id, numero, stato, periodo_dal, periodo_al, totale, ritenuta_pct, ritenuta, netto, note, company_id, committente_id, contratto_id",
           )
           .eq("id", salId)
-          .eq("company_id", effectiveCompany.id)
+          .eq("company_id", companyId)
           .maybeSingle();
         if (salErr) throw salErr;
         if (!salRaw) throw new Error("Rendiconto non trovato");
@@ -119,12 +124,12 @@ export function useRendicontoAppaltoPDF() {
             .eq("id", sal.contratto_id)
             .maybeSingle(),
           // `companies` non ha address/city: la lettura falliva e in testata restava il solo nome (09/11/2026).
-          caricaDatiSocietari(supabase, effectiveCompany.id),
+          caricaDatiSocietari(supabase, companyId),
           // Il logo in testata (10/11/2026): il rendiconto usciva senza, e senza nome dell'impresa.
           // Col colore principale: l'accento dello stile unico dei documenti (10/11/2026).
-          supabase.from("companies").select("logo_url, brand_primary_color").eq("id", effectiveCompany.id).maybeSingle(),
+          supabase.from("companies").select("logo_url, brand_primary_color").eq("id", companyId).maybeSingle(),
           // Come gli altri documenti (15/11/2026): prima il logo dell'anagrafica, poi quello dell'azienda.
-          supabase.from("anagrafica_azienda").select("logo_url").eq("company_id", effectiveCompany.id).maybeSingle(),
+          supabase.from("anagrafica_azienda").select("logo_url").eq("company_id", companyId).maybeSingle(),
         ]);
 
         const cantieri = raggruppaPerCantiere(righe, (cantieriRes.data ?? []) as Array<{
@@ -156,13 +161,13 @@ export function useRendicontoAppaltoPDF() {
             periodoAl: sal.periodo_al,
             statoEtichetta: STATI_SAL[sal.stato]?.etichetta ?? sal.stato,
             azienda: {
-              name: societari?.ragioneSociale || effectiveCompany.name || "—",
+              name: societari?.ragioneSociale || companyName || "—",
               logo_url: (logoAnagrafica.data as { logo_url?: string | null } | null)?.logo_url
                 || (logoRes.data as { logo_url?: string | null } | null)?.logo_url || null,
               colore: (logoRes.data as { brand_primary_color?: string | null } | null)?.brand_primary_color ?? null,
             },
             societarie: righeSocietarie(societari),
-            companyId: effectiveCompany.id,
+            companyId: companyId,
             committente: {
               ragione_sociale: nomeDi(comm),
               vat_number: comm.vat_number,
@@ -205,7 +210,7 @@ export function useRendicontoAppaltoPDF() {
         setIsGenerating(false);
       }
     },
-    [effectiveCompany?.id, effectiveCompany?.name],
+    [companyId, companyName],
   );
 
   return { stampa, isGenerating };

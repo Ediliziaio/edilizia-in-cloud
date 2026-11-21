@@ -92,12 +92,12 @@ describe("Duplica: da dove nasce la copia", () => {
     const lista = sorgente("DocumentiFiscaliList.tsx");
     expect(lista).not.toMatch(/state:\s*\{\s*prefilled:\s*doc\s*\}/);
     expect(lista).toMatch(/rileggiDocumentoFiscale\(doc\.id\)/);
-    expect(lista).toContain("datiCopiaDocumento(");
+    expect(lista).toContain("preparaCopiaDocumento(");
   });
 
   it("dal dettaglio e dall'editor passa dalla stessa regola", () => {
     expect(sorgente("DocumentoDetail.tsx")).not.toMatch(/state:\s*\{\s*prefilled:\s*doc\s*\}/);
-    expect(sorgente("DocumentoDetail.tsx")).toContain("datiCopiaDocumento(");
+    expect(sorgente("DocumentoDetail.tsx")).toContain("preparaCopiaDocumento(");
     expect(sorgente("EditorDocumento.tsx")).toContain("datiCopiaDocumento(");
   });
 

@@ -105,17 +105,8 @@ export function useManualTreasury() {
       if (params.name !== undefined) { patch.display_name = params.name; patch.account_name = params.name; }
       if (params.iban !== undefined) patch.iban = params.iban?.trim() || null;
       if (params.is_active !== undefined) patch.is_active = params.is_active;
-      if (params.opening_balance !== undefined) {
-        const opening = Number(params.opening_balance) || 0;
-        patch.opening_balance = opening;
-        // ricalcola il saldo = apertura + somma movimenti
-        const { data: sumRow, error: sumError } = await supabase
-          .from("bank_transactions").select("amount").eq("account_id", params.id).eq("company_id", companyId!);
-        if (sumError) throw sumError;
-        const sum = (sumRow ?? []).reduce((s, r) => s + (Number((r as { amount: number }).amount) || 0), 0);
-        patch.current_balance = opening + sum;
-        patch.balance_updated_at = new Date().toISOString();
-      }
+      if (params.opening_balance !== undefined) patch.opening_balance = params.opening_balance;
+      if (Object.keys(patch).length === 0) return;
       const { error } = await supabase.from("bank_accounts").update(patch as never)
         .eq("id", params.id).eq("company_id", companyId!).eq("is_manual", true).select("id").single();
       if (error) throw error;

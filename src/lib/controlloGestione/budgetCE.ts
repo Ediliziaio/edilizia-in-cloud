@@ -90,7 +90,10 @@ export function mesiChiusi(anno: number, oggi: Date = new Date()): number {
 
 /** Semaforo dello scostamento: entro 5% verde, entro 15% giallo, oltre rosso. */
 export function semaforoScostamento(codice: string, budget: number, previsione: number): SemaforoBudget {
-  if (budget === 0) return "grigio";
+  if (budget === 0) {
+    const peggiora = COSTI_E_SUBTOTALI_COSTO.has(codice) ? previsione > 0 : previsione < 0;
+    return peggiora ? "rosso" : "verde";
+  }
   const pct = ((previsione - budget) / Math.abs(budget)) * 100;
   // Per i costi «peggio» è spendere di più; per ricavi e margini incassare meno.
   const peggioramento = COSTI_E_SUBTOTALI_COSTO.has(codice) ? pct : -pct;
@@ -104,6 +107,8 @@ export interface RigaBudget {
   label: string;
   tipo: VoceCE["tipo"];
   budget: number;
+  budgetDefinito: boolean;
+  confrontoDisponibile: boolean;
   consuntivo: number;
   previsione: number;
   scostamento: number;
@@ -122,9 +127,9 @@ export interface RiepilogoBudget {
   righe: RigaBudget[];
   mesiChiusi: number;
   haBudget: boolean;
-  ricavi: { budget: number; previsione: number };
-  costi: { budget: number; previsione: number };
-  utile: { budget: number; previsione: number };
+  ricavi: { budget: number; previsione: number; definito: boolean; incompleto: boolean };
+  costi: { budget: number; previsione: number; definito: boolean; incompleto: boolean };
+  utile: { budget: number; previsione: number; definito: boolean };
   /** Il budget dell'utile ha tutte le voci con un consuntivo: si può confrontare. */
   utileConfrontabile: boolean;
 }
@@ -151,23 +156,28 @@ export function costruisciBudget(
   const cons = calcolaTotaliCE(consPerCodice);
   const prev = calcolaTotaliCE(prevPerCodice);
 
+  const haImporto = (codice: string) => Object.hasOwn(budgetPerCodice, codice);
+  const mancaBudget = (codice: string) => !haImporto(codice) && (consPerCodice[codice] ?? 0) !== 0;
   const righe: RigaBudget[] = SCHEMA_CE.map(({ codice, label, tipo }) => {
     const b = round2(bud[codice] ?? 0);
     const c = round2(cons[codice] ?? 0);
     const p = nMesiChiusi > 0 ? round2(prev[codice] ?? 0) : 0;
-    const incompleto = !!COMPONENTI[codice] &&
-      vociDi(codice).some((v) => (budgetPerCodice[v] ?? 0) === 0 && (consPerCodice[v] ?? 0) !== 0);
-    const haConfronto = b !== 0 && nMesiChiusi > 0 && !incompleto;
+    const voci = vociDi(codice);
+    const definito = voci.some(haImporto);
+    const incompleto = !!COMPONENTI[codice] && voci.some(mancaBudget);
+    const haConfronto = definito && nMesiChiusi > 0 && !incompleto;
     const scost = haConfronto ? round2(p - b) : 0;
     return {
       codice,
       label,
       tipo,
       budget: b,
+      budgetDefinito: definito,
+      confrontoDisponibile: haConfronto,
       consuntivo: c,
       previsione: p,
       scostamento: scost,
-      scostamentoPct: haConfronto ? (scost / Math.abs(b)) * 100 : null,
+      scostamentoPct: haConfronto && b !== 0 ? (scost / Math.abs(b)) * 100 : null,
       semaforo: haConfronto ? semaforoScostamento(codice, b, p) : "grigio",
       piuEMeglio: !COSTI_E_SUBTOTALI_COSTO.has(codice),
       budgetIncompleto: incompleto,
@@ -182,11 +192,11 @@ export function costruisciBudget(
   return {
     righe,
     mesiChiusi: nMesiChiusi,
-    haBudget: Object.values(budgetPerCodice).some((x) => Number(x) !== 0),
-    ricavi: { budget: round2(sommaRicavi(bud)), previsione: round2(sommaRicavi(prev)) },
-    costi: { budget: round2(sommaCosti(bud)), previsione: round2(sommaCosti(prev)) },
-    utile: { budget: round2(bud.L), previsione: round2(prev.L) },
-    utileConfrontabile: !vociDi("L").some((v) => (budgetPerCodice[v] ?? 0) === 0 && (consPerCodice[v] ?? 0) !== 0),
+    haBudget: righe.some((v) => v.budgetDefinito),
+    ricavi: { budget: round2(sommaRicavi(bud)), previsione: round2(sommaRicavi(prev)), definito: [...CODICI_RICAVO].some(haImporto), incompleto: [...CODICI_RICAVO].some(mancaBudget) },
+    costi: { budget: round2(sommaCosti(bud)), previsione: round2(sommaCosti(prev)), definito: [...CODICI_COSTO].some(haImporto), incompleto: [...CODICI_COSTO].some(mancaBudget) },
+    utile: { budget: round2(bud.L), previsione: round2(prev.L), definito: vociDi("L").some(haImporto) },
+    utileConfrontabile: !vociDi("L").some(mancaBudget),
   };
 }
 

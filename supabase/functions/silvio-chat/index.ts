@@ -81,7 +81,7 @@ import {
 import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
 import { dominiPerAree, indiceAreeCaricabili, indiceAreeGruppoFisso } from "../_shared/silvioTools.ts";
 import { ruoloPrincipaleSilvio, usaPermessiStaff } from "../_shared/ruoloSilvio.ts";
-import { dichiaraAzioneNonEseguita, RICHIAMO_AZIONE_NON_ESEGUITA } from "../_shared/azioneDichiarata.ts";
+import { dichiaraAzioneNonEseguita, esitoStrumenti, politicaErroreStrumento, RICHIAMO_AZIONE_NON_ESEGUITA } from "../_shared/azioneDichiarata.ts";
 import {
   CONCLUDI_ADESSO,
   domandaDiSolaLettura,
@@ -1391,11 +1391,12 @@ serve(async (req: Request) => {
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
     let totalCostEur = 0;
-    const authorizationDenials:string[]=[];
-    const executionFailures:string[]=[];
+    const authorizationDenials: string[] = [];
+    const executionFailures = new Map<string, string>();
     const toolCallsLog: Array<{
       name: string;
       args: unknown;
+      success: boolean;
       result_preview: string;
       proposal_id?: string | null;
       risk_level?: string | null;
@@ -1585,7 +1586,7 @@ serve(async (req: Request) => {
           // AI Test Lab override (demo only) > persona.recommended_model > config primary
           forceModel: aiTestLabForceModel ?? persona.recommended_model ?? undefined,
           // The shared reader emits only the public answer, including partial structured output.
-          onDelta: STREAMING_ATTIVO && !skipToolsForModel && authorizationDenials.length===0 && executionFailures.length===0
+          onDelta: STREAMING_ATTIVO && !skipToolsForModel && authorizationDenials.length === 0 && executionFailures.size === 0
             ? mostraInStreaming
             : undefined,
         });
@@ -1693,11 +1694,20 @@ serve(async (req: Request) => {
         const risultati = await Promise.all(
           chiamate.map((c) => executeToolWithRouting(c.toolName, c.toolArgs, toolCtx)),
         );
+        let erroreDefinitivo: string | undefined;
         for (let k = 0; k < chiamate.length; k++) {
           const { tc, toolName, toolArgs } = chiamate[k];
           const toolResult = risultati[k];
-          if(!toolResult.success)executionFailures.push(toolResult.error?.message??'Operazione non eseguita');
-          if(!toolResult.success && /^(forbidden_|actor_|session_|permissions_)/.test(toolResult.error?.code??''))authorizationDenials.push(toolResult.error?.message??'Operazione non consentita');
+          const firma = toolCallSignature([tc]);
+          if (toolResult.success) {
+            executionFailures.delete(firma);
+          } else {
+            const motivo = toolResult.error?.message?.replace(/\s*\[Riferisci all'utente[^\n]*\]\s*$/, "") || "Operazione non eseguita.";
+            executionFailures.set(firma, motivo);
+            const politica = politicaErroreStrumento(toolResult.error?.code);
+            if (politica === "autorizzazione") authorizationDenials.push(motivo);
+            if (politica !== "riprova") erroreDefinitivo ??= motivo;
+          }
           if (toolName === "search_brain") registerBrainToolSources(toolResult, ragSources);
           const resultStr = silvioToolResultForPrompt(toolResult, risparmioToken ? limiteRisultatoStrumento(charRisultati) : undefined);
           charRisultati += resultStr.length;
@@ -1706,6 +1716,7 @@ serve(async (req: Request) => {
           toolCallsLog.push({
             name: toolName,
             args: toolArgs,
+            success: toolResult.success,
             result_preview: resultStr.slice(0, 200),
             proposal_id: toolResult.proposalId ?? null,
             risk_level: toolResult.riskLevel ?? null,
@@ -1761,6 +1772,12 @@ serve(async (req: Request) => {
               if (gruppoFisso || !toolDomains?.includes(d)) dominiExtra.add(d);
             }
           }
+        }
+
+        if (erroreDefinitivo) {
+          finalContent = erroreDefinitivo;
+          answerFinishReason = "terminal_tool_error";
+          break;
         }
 
         if (dominiExtra.size > dominiExtraApplicati || azioniDaCaricare) {
@@ -1831,8 +1848,8 @@ serve(async (req: Request) => {
     // Anche con BAD/GOOD example nel prompt, Claude Haiku/Mistral Medium
     // dumpano internals dentro answer. Questo è l'ultimo guardiano.
     if(authorizationDenials.length)finalContent='Non ho eseguito le richieste non autorizzate. '+[...new Set(authorizationDenials)].slice(0,3).join(' ');
-    else if(executionFailures.length)finalContent='Non ho completato le operazioni richieste. '+[...new Set(executionFailures)].slice(0,3).join(' ');
-    if(executionFailures.length)structured=null;
+    else if(executionFailures.size)finalContent='Non ho completato le operazioni richieste. '+[...new Set(executionFailures.values())].slice(0,3).join(' ');
+    if(executionFailures.size)structured=null;
     if (finalContent) {
       const sanitized = sanitizeAnswer(finalContent);
       if (sanitized.wasModified) {
@@ -2015,7 +2032,7 @@ serve(async (req: Request) => {
     if (insertedMsg) {
       turnControl.markStoredText();
       attivita.passo("risposta_salvata", lastResult?.modelUsed);
-      if (authorizationDenials.length || executionFailures.length) attivita.chiudi("errore", "errore");
+      if (authorizationDenials.length || executionFailures.size) attivita.chiudi("errore", "errore");
       else if (toolCallsLog.some(t => t.proposal_id)) attivita.chiudi("in_attesa", "proposta_pronta");
       else attivita.chiudi("completata", "risposta_salvata");
     }
@@ -2029,9 +2046,8 @@ serve(async (req: Request) => {
     // con metadati completi (tool usati, modello, costo, decisione utente).
     // Required by EU AI Act art. 15 (logging system per high-risk AI).
     try {
-      const hasToolErrors = toolCallsLog.some((t) =>
-        (t.result_preview ?? "").toLowerCase().includes("\"error\""),
-      );
+      const esito = esitoStrumenti(toolCallsLog);
+      const hasToolErrors = esito === "fallito" || esito === "parziale";
       const confidence = toolCallsLog.length === 0
         ? "medium"
         : hasToolErrors
@@ -2044,10 +2060,13 @@ serve(async (req: Request) => {
       // registro delle decisioni (AI Act) li segnava tutti come non critici.
       const isCritical = toolCallsLog.some((t) => t.risk_level === "yellow" || t.risk_level === "red");
       const pendingProposalIds = toolCallsLog
+        .filter(t => t.success)
         .map((t) => t.proposal_id)
         .filter((proposalId): proposalId is string => Boolean(proposalId));
       const hasPendingActionProposal = pendingProposalIds.length > 0;
-      await supabaseAdmin.from("silvio_decision_log").insert({
+      const status = hasPendingActionProposal ? "pending_review" : esito === "fallito" ? "abandoned" : "executed";
+      const eseguitaIl = status === "executed" ? new Date().toISOString() : null;
+      const { error: decisionLogError } = await supabaseAdmin.from("silvio_decision_log").insert({
         company_id: companyId,
         user_id: userId,
         persona_key: PERSONA_KEY,
@@ -2068,11 +2087,12 @@ serve(async (req: Request) => {
         situation_description: userMessage.substring(0, 500) || "(messaggio con solo allegati)",
         ai_diagnosis: finalContent.substring(0, 1000),
         ai_diagnosis_data: {
+          esito_strumenti: esito,
           tool_calls: toolCallsLog.map((t) => ({
             name: t.name,
             risk_level: t.risk_level ?? null,
             proposal_id: t.proposal_id ?? null,
-            has_error: (t.result_preview ?? "").includes("\"error\""),
+            has_error: !t.success,
           })),
           pending_proposal_ids: pendingProposalIds,
           iterations: iteration,
@@ -2086,9 +2106,9 @@ serve(async (req: Request) => {
         ai_model_used: lastResult?.modelUsed ?? null,
         ai_tokens_total: turnPerformance.input_tokens + turnPerformance.output_tokens,
         ai_cost_eur: turnPerformance.billed_cost_eur,
-        status: hasPendingActionProposal ? "pending_review" : "executed",
-        decided_at: hasPendingActionProposal ? null : new Date().toISOString(),
-        executed_at: hasPendingActionProposal ? null : new Date().toISOString(),
+        status,
+        decided_at: eseguitaIl,
+        executed_at: eseguitaIl,
         is_critical: isCritical || hasPendingActionProposal,
         // MP-01: Pre-RAG audit
         rag_sources: ragSources.length > 0 ? ragSources : null,
@@ -2106,6 +2126,7 @@ serve(async (req: Request) => {
         followup_suggestions: structured?.followup_suggestions ?? null,
         requires_human_review: structured?.requires_human_review ?? false,
       });
+      if (decisionLogError) throw decisionLogError;
     } catch (logErr) {
       // Non bloccare la response per un fail di logging — solo warn
       console.warn("[silvio-chat] decision_log insert fallito (non bloccante):", logErr instanceof Error ? logErr.message : String(logErr));
@@ -2119,7 +2140,7 @@ serve(async (req: Request) => {
     // duplicati.
     try {
       const sideEffectsToTrack = toolCallsLog.filter((t) =>
-        ["create_quote_draft", "create_invoice_draft"].includes(t.name) && !t.proposal_id,
+        t.success && ["create_quote_draft", "create_invoice_draft"].includes(t.name) && !t.proposal_id,
       );
       for (const t of sideEffectsToTrack) {
         let draftId: string | null = null;

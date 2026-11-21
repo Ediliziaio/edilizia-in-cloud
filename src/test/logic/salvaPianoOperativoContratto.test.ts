@@ -25,6 +25,28 @@ describe('persistenza del piano documentale nella commessa',()=>{
     expect(s.tabelle.order_items).toHaveLength(2);expect(s.tabelle.order_work_phase_voci).toHaveLength(2);expect(s.tabelle.order_work_phases).toHaveLength(2);
     expect(s.chiamate.filter(c=>c.startsWith('rpc:'))).toHaveLength(prima);expect(s.tabelle.order_items[0]).toMatchObject({quantity:3,purchase_price:480,phase_id:'fase-scelta',unita_misura:'mq',specifiche:'Scelta verificata dal tecnico'});expect(s.tabelle.order_work_subphases[0].quantita_fatta).toBe(1);expect(s.tabelle.order_work_phase_voci[0].quantita).toBe(4);
   });
+  it('conserva quantità confermata e riscontro del tecnico quando riapplica la stessa fonte', async () => {
+    const s = locale();
+    await salva(s);
+    const a = s.tabelle.order_items[0];
+    const verifica = { stato: 'confermata', motivi: ['Controllato in cantiere'], campi_mancanti: [] as string[], confermata_da: 'tecnico' };
+    Object.assign(a, { quantity: 9, quantita_calcolata: 9, origini: a.origini.map((o: object) => ({ ...o, verifica_acquisto: verifica })) });
+    await salva(s);
+    await salva(s);
+    expect(s.tabelle.order_items).toHaveLength(2);
+    expect(a).toMatchObject({ quantity: 9, quantita_calcolata: 9, origini: [{ verifica_acquisto: verifica }] });
+  });
+
+  it('richiede una revisione esplicita quando cambiano i dati di una fonte confermata', async () => {
+    const s = locale();
+    await salva(s);
+    const a = s.tabelle.order_items[0];
+    a.origini[0].verifica_acquisto = { stato: 'confermata', motivi: [], campi_mancanti: [] };
+    const p = piano();
+    p.materiali[0].origini[0].quantita = 4;
+    await expect(salva(s, { piano: p })).rejects.toThrow(/fonte.*cambiata/i);
+    expect(a.origini[0]).toMatchObject({ quantita: 2, verifica_acquisto: { stato: 'confermata' } });
+  });
   it('dopo risposta persa degli articoli recupera i riferimenti salvati e completa senza duplicare',async()=>{
     const s=locale();s.perdiRispostaArticoli();await expect(salva(s)).rejects.toThrow(/Connessione/);expect(s.tabelle.order_items).toHaveLength(2);
     await salva(s);expect(s.tabelle.order_items).toHaveLength(2);expect(s.chiamate.filter(c=>c==='rpc:commessa_aggiungi_voci')).toHaveLength(1);expect(s.tabelle.order_items.every(a=>a.chiave_materiale&&a.origini[0].voce_id)).toBe(true);

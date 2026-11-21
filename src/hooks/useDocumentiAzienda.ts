@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffectiveCompanyId } from '@/hooks/useEffectiveCompanyId';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +19,11 @@ const chiavi = {
   // avvelenerebbe la cache dell'altra schermata.
   conteggio: (companyId: string | null | undefined) => ['documenti-azienda', 'conteggio', companyId ?? null] as const,
 };
+
+function invalidaDocumentiAzienda(qc: QueryClient, companyId: string | null) {
+  void qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+  void qc.invalidateQueries({ queryKey: chiavi.conteggio(companyId) });
+}
 
 // Il client tipizzato su tabelle con molte relazioni manda TypeScript in
 // «instantiation excessively deep»: si passa dal client senza tipi e si
@@ -151,6 +156,31 @@ export async function rimuoviFileDocumento(path: string): Promise<void> {
   await supabase.storage.from(BUCKET).remove([path]);
 }
 
+type DocumentoPerAllegato = Pick<DocumentoAzienda, 'id' | 'file_path' | 'updated_at'>;
+
+async function collegaFileDocumento(
+  companyId: string,
+  documento: DocumentoPerAllegato,
+  caricato: { path: string; name: string },
+) {
+  const modifica = db.from('azienda_documenti')
+    .update({ file_path: caricato.path, file_name: caricato.name })
+    .eq('company_id', companyId)
+    .eq('id', documento.id)
+    .is('archiviato_il', null)
+    .eq('updated_at', documento.updated_at);
+  const { data, error } = await (documento.file_path
+    ? modifica.eq('file_path', documento.file_path)
+    : modifica.is('file_path', null)
+  ).select('id').maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    await rimuoviFileDocumento(caricato.path).catch(() => {});
+    throw new Error('Il documento è cambiato o è stato rinnovato. Ricarica la pagina e riprova.');
+  }
+  if (documento.file_path) await rimuoviFileDocumento(documento.file_path).catch(() => {});
+}
+
 /** Link temporaneo (un'ora) per aprire un file. */
 export async function linkFileDocumento(path: string): Promise<string | null> {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
@@ -181,7 +211,7 @@ export function useSalvaDocumentoAzienda() {
       return (data as { id: string }).id;
     },
     onSuccess: (_id, { id }) => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       toast.success(id ? 'Documento aggiornato' : 'Documento aggiunto');
     },
     onError: (e) => toast.error(messaggio(e, 'Non è riuscito a salvare il documento')),
@@ -200,26 +230,17 @@ export function useAllegaFileDocumento() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ documento, file }: {
-      documento: Pick<DocumentoAzienda, 'id' | 'file_path'>;
+      documento: DocumentoPerAllegato;
       file: File;
     }) => {
       if (!companyId) throw new Error('Azienda non trovata');
       const caricato = await caricaFileDocumento(companyId, file);
-      const { error } = await db
-        .from('azienda_documenti')
-        .update({ file_path: caricato.path, file_name: caricato.name })
-        .eq('id', documento.id);
-      if (error) {
-        // La riga non è stata salvata: il file appena caricato resterebbe orfano nel bucket.
-        await rimuoviFileDocumento(caricato.path);
-        throw error;
-      }
-      if (documento.file_path) await rimuoviFileDocumento(documento.file_path);
+      await collegaFileDocumento(companyId, documento, caricato);
       // Chi chiama ne ha bisogno per far leggere la scadenza dal file appena entrato.
       return caricato;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       toast.success('File caricato');
     },
     onError: (e) => toast.error(messaggio(e, 'Non è riuscito a caricare il file')),
@@ -268,16 +289,10 @@ export function useAllegaFileInBlocco() {
 
       for (let i = 0; i < righe.length; i++) {
         const riga = righe[i];
-        let caricato: { path: string; name: string } | null = null;
         try {
-          caricato = await caricaFileDocumento(companyId, riga.file);
+          const caricato = await caricaFileDocumento(companyId, riga.file);
           if (riga.documento) {
-            const { error } = await db
-              .from('azienda_documenti')
-              .update({ file_path: caricato.path, file_name: caricato.name })
-              .eq('id', riga.documento.id);
-            if (error) throw error;
-            if (riga.documento.file_path) await rimuoviFileDocumento(riga.documento.file_path);
+            await collegaFileDocumento(companyId, riga.documento, caricato);
             if (!riga.documento.data_scadenza) {
               esito.daLeggere.push({
                 documentoId: riga.documento.id,
@@ -320,8 +335,6 @@ export function useAllegaFileInBlocco() {
           }
           esito.caricati++;
         } catch (e) {
-          // Il file è nell'archivio ma nessuna riga lo punta: resterebbe lì invisibile.
-          if (caricato) await rimuoviFileDocumento(caricato.path).catch(() => {});
           esito.errori.push({ nome: riga.file.name, motivo: messaggio(e, 'non caricato') });
         }
         onProgresso?.(i + 1, righe.length);
@@ -330,7 +343,7 @@ export function useAllegaFileInBlocco() {
       return esito;
     },
     onSuccess: (esito) => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       if (esito.caricati > 0) {
         const quanti = esito.caricati === 1 ? '1 file caricato' : `${esito.caricati} file caricati`;
         const nuovi = esito.creati === 1 ? '1 documento nuovo' : `${esito.creati} documenti nuovi`;
@@ -379,7 +392,7 @@ export function useApplicaLettureDocumenti() {
       return { messe, errori };
     },
     onSuccess: ({ messe, errori }) => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       if (messe > 0) toast.success(messe === 1 ? 'Scadenza messa' : `${messe} carte aggiornate`);
       if (errori > 0) toast.error(errori === 1 ? 'Una carta non si è aggiornata' : `${errori} carte non si sono aggiornate`);
     },
@@ -417,7 +430,7 @@ export function useEliminaDocumentoAzienda() {
       for (const path of files) await rimuoviFileDocumento(path);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       toast.success('Documento eliminato');
     },
     onError: (e) => toast.error(messaggio(e, 'Non è riuscito a eliminare il documento')),
@@ -452,7 +465,7 @@ export function useRinnovaDocumentoAzienda() {
       return data as string;
     },
     onSuccess: (_nuovo, p) => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       qc.invalidateQueries({ queryKey: chiavi.storico(p.documentoId) });
       toast.success('Rinnovo registrato');
     },
@@ -480,7 +493,7 @@ export function useAggiungiDaElencoDiPartenza() {
       return righe.length;
     },
     onSuccess: (quante) => {
-      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      invalidaDocumentiAzienda(qc, companyId);
       qc.invalidateQueries({ queryKey: chiavi.avvio(companyId) });
       if (quante > 0) toast.success(quante === 1 ? 'Documento aggiunto' : `${quante} documenti aggiunti`);
     },
