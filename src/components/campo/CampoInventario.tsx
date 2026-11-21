@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, HardHat, Loader2, Search, ShoppingCart, Warehouse, X } from "lucide-react";
+import { Check, HardHat, Loader2, Minus, Plus, Search, ShoppingCart, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,39 +8,40 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {
-  useCampoCantieriPrelievo, useCampoInventario, usePrelievoRegistra,
+  PrelievoNonRegistrato, useCampoCantieriPrelievo, useCampoInventario, usePrelievoRegistra,
   type StockCampo,
 } from "@/hooks/campo/useCampoPrelievo";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import {
+  BOZZA_PRELIEVO_VUOTA, chiaveBozzaPrelievo, leggiBozzaPrelievo, salvaBozzaPrelievo, type BozzaPrelievo,
+} from "@/lib/campo/bozzaPrelievo";
+import { formatoQuantitaMagazzino, nomeCantierePrelievo, quantitaPrelievo } from "@/lib/campo/magazzino";
 import { cn } from "@/lib/utils";
 
-import { formatoQuantitaMagazzino, nomeCantierePrelievo, quantitaPrelievo } from "@/lib/campo/magazzino";
+const formatoInputQuantita = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 20, useGrouping: false });
 
-interface RigaCarrello {
-  articolo: StockCampo;
-  quantita: string;
-}
-
-export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConferma, cantiereIniziale, onRegistrato }: {
+export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richiedeConferma, cantiereIniziale, onRegistrato }: {
   companyId: string;
+  userId: string;
   attivo: boolean;
   puoPrelevare: boolean;
   richiedeConferma: boolean;
   cantiereIniziale?: string;
   onRegistrato: () => void;
 }) {
+  const chiaveBozza = chiaveBozzaPrelievo(companyId, userId, cantiereIniziale);
+  const [bozza, setBozza] = useState(() => puoPrelevare ? leggiBozzaPrelievo(chiaveBozza) : BOZZA_PRELIEVO_VUOTA);
+  const { righe, orderId, note, richiestaId } = bozza;
+  const [ripristinata, setRipristinata] = useState(righe.length > 0);
   const [ricerca, setRicerca] = useState("");
+  const inputRicerca = useRef<HTMLInputElement>(null);
   const cerca = useDebounce(ricerca.trim(), 250);
-  const [righe, setRighe] = useState<RigaCarrello[]>([]);
   const [aperto, setAperto] = useState(false);
-  const [orderId, setOrderId] = useState("");
-  const [note, setNote] = useState("");
-  const ultimoTentativo = useRef<{ firma: string; id: string } | null>(null);
   const inInvio = useRef(false);
   const online = useOnlineStatus();
   const inventario = useCampoInventario(companyId, cerca, attivo);
-  const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare && (aperto || !!cantiereIniziale));
+  const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare && (aperto || !!cantiereIniziale || !!orderId));
   const prelievo = usePrelievoRegistra(companyId);
 
   const articoli = inventario.data?.pages.flat() ?? [];
@@ -58,51 +59,67 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
     const qta = quantitaPrelievo(quantita);
     const disponibile = articoliVisibili.get(articolo.id)?.disponibile ?? articolo.disponibile;
     if (!(qta > 0)) erroriQuantita.set(articolo.id, "Inserisci una quantità maggiore di zero.");
-    else if (!(qta <= disponibile)) {
+    else if (!richiestaId && !(qta <= disponibile)) {
       const unita = articolo.unita_misura ? ` ${articolo.unita_misura}` : "";
       erroriQuantita.set(articolo.id, `Disponibili ${formatoQuantitaMagazzino.format(disponibile)}${unita}.`);
     }
   }
   const righeValide = righe.length > 0 && erroriQuantita.size === 0;
+  const destinazioneInvio = richiestaId ? orderId : cantiere?.id;
+  const puoInviare = online && puoPrelevare && righeValide && !!destinazioneInvio && !prelievo.isPending;
 
-  const rimuovi = (id: string) => setRighe((prev) => prev.filter((riga) => riga.articolo.id !== id));
-  const aggiorna = (id: string, quantita: string) =>
-    setRighe((prev) => prev.map((riga) => riga.articolo.id === id ? { ...riga, quantita } : riga));
+  const aggiornaBozza = (prossima: BozzaPrelievo) => {
+    salvaBozzaPrelievo(chiaveBozza, prossima);
+    setBozza(prossima);
+  };
 
-  const aggiungi = (articolo: StockCampo) => {
-    setRighe((prev) => prev.length >= 100
-      || prev.some((riga) => riga.articolo.id === articolo.id || riga.articolo.warehouse_id !== articolo.warehouse_id)
-      ? prev
-      : [...prev, { articolo, quantita: String(Math.min(1, articolo.disponibile)).replace(".", ",") }]);
+  const rimuovi = (id: string) => aggiornaBozza({ ...bozza, righe: righe.filter((riga) => riga.articolo.id !== id) });
+  const aggiorna = (id: string, quantita: string) => aggiornaBozza({
+    ...bozza, righe: righe.map((riga) => riga.articolo.id === id ? { ...riga, quantita } : riga),
+  });
+
+  const aggiungi = ({ id, name, warehouse_id, magazzino, unita_misura, disponibile }: StockCampo) => {
+    if (richiestaId || righe.length >= 100 || carrello.has(id) || (primaRiga && warehouse_id !== warehouseId)) return;
+    aggiornaBozza({ ...bozza, righe: [...righe, {
+      articolo: { id, name, warehouse_id, magazzino, unita_misura, disponibile },
+      quantita: formatoInputQuantita.format(Math.min(1, disponibile)),
+    }] });
   };
 
   const apriRiepilogo = () => {
     prelievo.reset();
+    setRipristinata(false);
     setAperto(true);
   };
 
   const registra = async () => {
-    if (inInvio.current || !online || !puoPrelevare || !righeValide || !cantiere) return;
+    if (inInvio.current || !puoInviare || !destinazioneInvio) return;
     const materiale = righe.map((riga) => ({ stock_item_id: riga.articolo.id, quantita: quantitaPrelievo(riga.quantita) }));
-    const dati = { orderId: cantiere.id, warehouseId, righe: materiale, note: note.trim() };
-    const firma = JSON.stringify(dati);
-    if (ultimoTentativo.current?.firma !== firma) ultimoTentativo.current = { firma, id: crypto.randomUUID() };
+    const requestId = richiestaId ?? crypto.randomUUID();
+    const inVerifica = { ...bozza, orderId: destinazioneInvio, richiestaId: requestId };
+    const chiudiTentativo = (prossima: BozzaPrelievo) => {
+      // Un esito tardivo può arrivare quando la schermata è stata riaperta e la bozza è cambiata.
+      if (leggiBozzaPrelievo(chiaveBozza).richiestaId === requestId) salvaBozzaPrelievo(chiaveBozza, prossima);
+      setBozza((corrente) => corrente.richiestaId === requestId ? prossima : corrente);
+    };
     inInvio.current = true;
+    aggiornaBozza(inVerifica);
     try {
-      const esito = await prelievo.mutateAsync({ ...dati, requestId: ultimoTentativo.current.id });
+      const esito = await prelievo.mutateAsync({ orderId: destinazioneInvio, warehouseId, righe: materiale, note: note.trim(), requestId });
       const messaggio = esito.stato === "consegnato"
         ? "Prelievo registrato. Giacenze aggiornate."
         : esito.stato === "rifiutato" ? "Questo prelievo è stato rifiutato." : "Richiesta inviata al magazzino.";
       if (esito.stato === "rifiutato") toast.info(messaggio);
       else toast.success(messaggio);
-      ultimoTentativo.current = null;
-      setRighe([]);
-      setNote("");
-      setOrderId("");
+      chiudiTentativo(BOZZA_PRELIEVO_VUOTA);
       setAperto(false);
       onRegistrato();
-    } catch {
-      // Il riepilogo resta aperto e il tentativo mantiene il suo identificativo.
+    } catch (error) {
+      if (error instanceof PrelievoNonRegistrato) {
+        chiudiTentativo({ ...inVerifica, richiestaId: null });
+        void inventario.refetch();
+        void cantieri.refetch();
+      }
     } finally {
       inInvio.current = false;
     }
@@ -124,13 +141,23 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
       <div className="relative">
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          ref={inputRicerca}
           type="search"
           aria-label="Cerca nell’inventario"
           value={ricerca}
           onChange={(e) => setRicerca(e.target.value)}
           placeholder="Cerca materiale o codice"
-          className="min-h-12 rounded-xl pl-9 text-base"
+          className="min-h-12 rounded-xl pl-9 pr-12 text-base [&::-webkit-search-cancel-button]:hidden"
         />
+        {ricerca && (
+          <Button type="button" variant="ghost" size="icon" aria-label="Cancella la ricerca"
+            className="absolute right-0.5 top-0.5 h-11 w-11" onClick={() => {
+              setRicerca("");
+              inputRicerca.current?.focus();
+            }}>
+            <X aria-hidden="true" className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {inventario.isLoading ? (
@@ -151,7 +178,10 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
             const riga = carrello.get(articolo.id);
             const errore = erroriQuantita.get(articolo.id);
             const stessaUbicazione = !primaRiga || articolo.warehouse_id === warehouseId;
-            const puoAggiungere = puoPrelevare && articolo.disponibile > 0 && stessaUbicazione;
+            const puoAggiungere = puoPrelevare && !richiestaId && articolo.disponibile > 0 && stessaUbicazione;
+            const quantita = quantitaPrelievo(riga?.quantita ?? "");
+            const meno = Number((quantita - 1).toFixed(8));
+            const piu = Math.min(articolo.disponibile, Number((quantita + 1).toFixed(8)));
             return (
               <li key={articolo.id} className={cn("rounded-xl border bg-card p-3.5", riga && "border-primary")}>
                 <div className="flex justify-between gap-4">
@@ -175,15 +205,25 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
                 )}
                 {puoPrelevare && riga && (
                   <div className="mt-2 rounded-xl bg-primary/5 px-2.5 py-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Label htmlFor={`qta-${articolo.id}`} className="flex-1">Da prelevare</Label>
+                    <Label htmlFor={`qta-${articolo.id}`} className="mb-1 block text-xs">Da prelevare</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
+                        disabled={!!richiestaId || !(meno > 0)} aria-label={`Diminuisci quantità di ${articolo.name}`}
+                        onClick={() => aggiorna(articolo.id, formatoInputQuantita.format(meno))}>
+                        <Minus aria-hidden="true" className="h-4 w-4" />
+                      </Button>
                       <Input id={`qta-${articolo.id}`} inputMode="decimal"
                         aria-label={`Quantità di ${articolo.name}`} aria-invalid={!!errore}
                         aria-describedby={errore ? `errore-qta-${articolo.id}` : undefined}
-                        value={riga.quantita} onChange={(e) => aggiorna(articolo.id, e.target.value)}
-                        className="min-h-11 w-20 text-right text-base tabular-nums" />
-                      {articolo.unita_misura && <span className="max-w-24 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
-                      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
+                        value={riga.quantita} disabled={!!richiestaId} onChange={(e) => aggiorna(articolo.id, e.target.value)}
+                        className="min-h-11 min-w-12 max-w-24 flex-1 px-1 text-center text-base tabular-nums" />
+                      {articolo.unita_misura && <span className="min-w-0 max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
+                      <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
+                        disabled={!!richiestaId || !(piu > quantita)} aria-label={`Aumenta quantità di ${articolo.name}`}
+                        onClick={() => aggiorna(articolo.id, formatoInputQuantita.format(piu))}>
+                        <Plus aria-hidden="true" className="h-4 w-4" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon" className="ml-auto h-11 w-11 shrink-0" disabled={!!richiestaId}
                         aria-label={`Rimuovi ${articolo.name}`} onClick={() => rimuovi(articolo.id)}>
                         <X aria-hidden="true" className="h-4 w-4" />
                       </Button>
@@ -209,7 +249,7 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
         <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl px-4 md:bottom-4">
           <Button type="button" className="h-12 w-full gap-2 rounded-xl text-sm font-semibold shadow-lg" onClick={apriRiepilogo}>
             <ShoppingCart className="h-4 w-4 shrink-0" />
-            Rivedi prelievo · {righe.length} {righe.length === 1 ? "articolo" : "articoli"}
+            {richiestaId ? "Verifica prelievo" : ripristinata ? "Riprendi prelievo" : "Rivedi prelievo"} · {righe.length} {righe.length === 1 ? "articolo" : "articoli"}
           </Button>
         </div>
       )}
@@ -221,7 +261,9 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
           <SheetHeader className="shrink-0 px-4 pb-3 pr-12 text-left">
             <SheetTitle>Materiale per il cantiere</SheetTitle>
             <SheetDescription>
-              {richiedeConferma ? "Il magazzino conferma la richiesta prima di scalare le giacenze." : "La registrazione aggiorna subito le giacenze."}
+              {richiestaId && !prelievo.isPending
+                ? "Verifica l’invio prima di modificare il prelievo."
+                : richiedeConferma ? "Il magazzino conferma la richiesta prima di scalare le giacenze." : "La registrazione aggiorna subito le giacenze."}
             </SheetDescription>
           </SheetHeader>
           <div className="shrink-0 space-y-1.5 border-b px-4 pb-3">
@@ -234,10 +276,12 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
             ) : (
               <>
                 <UniformSelect id="prelievo-cantiere" value={cantiere?.id ?? ""} required
-                  disabled={prelievo.isPending || cantieri.isLoading || !cantieri.data?.length}
-                  onChange={(event) => setOrderId(event.target.value)}
+                  disabled={!!richiestaId || cantieri.isLoading || !cantieri.data?.length}
+                  onChange={(event) => aggiornaBozza({ ...bozza, orderId: event.target.value })}
                   className="min-h-11 w-full rounded-lg border bg-background px-3 text-base">
-                  <option value="" disabled>{cantieri.isLoading ? "Carico i cantieri…" : "Scegli un cantiere"}</option>
+                  <option value="" disabled>
+                    {cantieri.isLoading ? "Carico i cantieri…" : richiestaId ? "Cantiere dell’invio precedente" : "Scegli un cantiere"}
+                  </option>
                   {cantieri.data?.map((item) => <option key={item.id} value={item.id}>{nomeCantierePrelievo(item)}</option>)}
                 </UniformSelect>
                 {cantieri.data?.length === 0 && <p className="text-sm text-muted-foreground">Nessun cantiere aperto assegnato. Chiedi un’assegnazione all’ufficio.</p>}
@@ -261,11 +305,11 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
                           <span className="min-w-0 flex-1 break-words text-sm font-medium">{articolo.name}</span>
                           <Input aria-label={`Verifica quantità di ${articolo.name}`} inputMode="decimal"
                             aria-invalid={!!errore} aria-describedby={errore ? `riepilogo-errore-${articolo.id}` : undefined}
-                            value={quantita} disabled={prelievo.isPending} onChange={(e) => aggiorna(articolo.id, e.target.value)}
+                            value={quantita} disabled={!!richiestaId} onChange={(e) => aggiorna(articolo.id, e.target.value)}
                             className="min-h-11 w-16 text-right text-base tabular-nums" />
                           {articolo.unita_misura && <span className="max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
                           <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-                            disabled={prelievo.isPending}
+                            disabled={!!richiestaId}
                             aria-label={`Togli ${articolo.name} dal riepilogo`} onClick={() => rimuovi(articolo.id)}>
                             <X aria-hidden="true" className="h-4 w-4" />
                           </Button>
@@ -280,19 +324,23 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
 
             <div className="space-y-1.5">
               <Label htmlFor="prelievo-note">Note facoltative</Label>
-              <Textarea id="prelievo-note" rows={2} value={note} disabled={prelievo.isPending}
-                onChange={(e) => setNote(e.target.value)} />
+              <Textarea id="prelievo-note" rows={2} value={note} disabled={!!richiestaId}
+                onChange={(e) => aggiornaBozza({ ...bozza, note: e.target.value })} />
             </div>
 
           </div>
           <div className="shrink-0 space-y-2 border-t bg-background px-4 pt-3 pb-[calc(.75rem+env(safe-area-inset-bottom))]">
-            {!online && <p role="status" className="text-sm text-muted-foreground">Attendi che torni la connessione per inviare il prelievo.</p>}
-            {prelievo.isError && <p role="alert" className="max-h-20 overflow-y-auto break-words text-sm text-destructive">{prelievo.error.message}</p>}
+            {!online && <p role="status" className="text-sm text-muted-foreground">Sei offline. Puoi riprendere il prelievo quando torna la connessione.</p>}
+            {prelievo.isError && (
+              <p role="alert" className="max-h-20 overflow-y-auto break-words text-sm text-destructive">
+                {richiestaId ? "L’app è in attesa dell’esito del prelievo." : prelievo.error.message}
+              </p>
+            )}
             {righe.length ? (
               <Button className="h-12 w-full gap-2 text-base" onClick={() => void registra()}
-                disabled={prelievo.isPending || !online || !cantiere || !righeValide}>
+                disabled={!puoInviare}>
                 {prelievo.isPending ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> : <Check aria-hidden="true" className="h-5 w-5" />}
-                {richiedeConferma ? "Invia richiesta" : "Registra prelievo"}
+                {prelievo.isPending ? "Invio in corso…" : richiestaId ? "Verifica invio" : richiedeConferma ? "Invia richiesta" : "Registra prelievo"}
               </Button>
             ) : (
               <Button type="button" variant="outline" className="h-12 w-full" onClick={() => setAperto(false)}>Torna all’inventario</Button>

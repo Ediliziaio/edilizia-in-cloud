@@ -35,7 +35,7 @@ function Magazzino({ config, cantiereIniziale }: {
   const schedeVisibili = vedeInventario ? schede : schede.filter((s) => s.id === "furgone");
   const scheda = schedeVisibili.find((s) => s.id === schedaScelta)?.id ?? schedeVisibili[0].id;
 
-  if (!config.companyId || config.isLoading) return (
+  if (!config.companyId || !config.userId || config.isLoading) return (
     <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
       <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> Carico il magazzino…
     </div>
@@ -70,7 +70,9 @@ function Magazzino({ config, cantiereIniziale }: {
         {vedeInventario && (
           <div hidden={scheda !== "inventario"}>
             <CampoInventario
+              key={config.data!.livello}
               companyId={config.companyId}
+              userId={config.userId}
               attivo={scheda === "inventario"}
               puoPrelevare={puoPrelevare}
               richiedeConferma={config.data!.conferma}
