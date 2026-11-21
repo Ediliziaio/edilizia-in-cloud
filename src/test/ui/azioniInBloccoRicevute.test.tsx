@@ -4,12 +4,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RicevutaInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 
-type EsitoRpc = { error: { message: string } | null };
-const finto = vi.hoisted(() => ({ rpc: vi.fn(async (_f: string, _a: Record<string, unknown>): Promise<{ error: { message: string } | null }> => ({ error: null })) }));
+type EsitoRpc = { data?: { annullamento: string }; error: { message: string } | null };
+const finto = vi.hoisted(() => ({ rpc: vi.fn(async (_f: string, a: Record<string, unknown>): Promise<EsitoRpc> => ({ data: { annullamento: `saldo-${a.p_id}` }, error: null })) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: finto.rpc } }));
 vi.mock("@/components/warehouse/OrderSelectCombobox", () => ({ OrderSelectCombobox: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { toast } from "sonner";
 import { AzioniInBloccoRicevute } from "@/components/fatturazione/AzioniInBloccoRicevute";
 
 const riga = (patch: Partial<RicevutaInBlocco>): RicevutaInBlocco => ({
@@ -35,7 +36,17 @@ describe("barra delle modifiche in blocco", () => {
     await waitFor(() => expect(onSvuota).toHaveBeenCalled());
     expect(finto.rpc).toHaveBeenCalledTimes(2);
     expect(finto.rpc.mock.calls.map((c) => c[1].p_id).sort()).toEqual(["a", "b"]);
-    expect(finto.rpc.mock.calls[0][0]).toBe("segna_fattura_ricevuta_pagata");
+    expect(finto.rpc.mock.calls[0][0]).toBe("registra_saldo_fattura_ricevuta");
+    const action = vi.mocked(toast.success).mock.lastCall?.[1]?.action;
+    expect(action).toMatchObject({ label: "Annulla" });
+    if (action && typeof action === "object" && "onClick" in action) {
+      render(<button onClick={action.onClick}>Annulla saldi</button>);
+      fireEvent.click(screen.getByRole("button", { name: "Annulla saldi" }));
+    }
+    await waitFor(() => expect(finto.rpc.mock.calls.slice(2)).toEqual([
+      ["annulla_saldo_fattura_ricevuta", { p_id: "a", p_richiesta: "saldo-a" }],
+      ["annulla_saldo_fattura_ricevuta", { p_id: "b", p_richiesta: "saldo-b" }],
+    ]));
   });
 
   it("se una fallisce la mostra col motivo e non svuota la selezione", async () => {

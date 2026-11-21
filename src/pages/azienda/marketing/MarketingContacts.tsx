@@ -30,6 +30,7 @@ import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
 import { BulkTagsDialog, BulkCreateOpportunitiesDialog } from "@/components/contacts/BulkContactActions";
 import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollAutomationDropdown";
 import { ImportWizard } from "@/components/shared/ImportWizard";
+import type { ImportMode } from "@/components/shared/import-wizard/StepUpload";
 import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
@@ -1403,7 +1404,7 @@ export default function MarketingContacts() {
     setPage(1);
   };
 
-  const handleImport = async (rows: Record<string, string>[], options: { mode: string }) => {
+  const handleImport = async (rows: Record<string, string>[], options: { mode: ImportMode }) => {
     if (!companyId) return { success: 0, errors: ["Nessuna azienda selezionata"] };
     if (!canEditContacts) return { success: 0, errors: ["Non hai i permessi per importare o modificare contatti"] };
     const customKeys = contactCustomFields.map(f => `custom_${f.id}`);
@@ -1513,9 +1514,7 @@ export default function MarketingContacts() {
         }
       }
     } else {
-      // update or create_and_update: match by email or phone
-      const existingEmails = new Set<string>();
-      const existingPhones = new Set<string>();
+      // Abbina i contatti esistenti per email o telefono.
       const existingMap = new Map<string, string>(); // matchKey -> contact id
 
       // Fetch existing contacts by email/phone
@@ -1526,14 +1525,14 @@ export default function MarketingContacts() {
         // Batch in chunks of 100 for .in()
         for (let i = 0; i < emails.length; i += 100) {
           const batch = emails.slice(i, i + 100);
-          const { data: existing } = await supabase
+          const { data: existing, error } = await supabase
             .from("marketing_contacts")
             .select("id, email")
             .eq("company_id", companyId)
             .in("email", batch);
+          if (error) return { success: 0, errors: [...errors, "Impossibile verificare i contatti esistenti. Riprova l’importazione."] };
           for (const e of existing || []) {
             if (e.email) {
-              existingEmails.add(e.email.toLowerCase());
               existingMap.set(`email:${e.email.toLowerCase()}`, e.id);
             }
           }
@@ -1543,14 +1542,14 @@ export default function MarketingContacts() {
       if (phones.length > 0) {
         for (let i = 0; i < phones.length; i += 100) {
           const batch = phones.slice(i, i + 100);
-          const { data: existing } = await supabase
+          const { data: existing, error } = await supabase
             .from("marketing_contacts")
             .select("id, phone")
             .eq("company_id", companyId)
             .in("phone", batch);
+          if (error) return { success: 0, errors: [...errors, "Impossibile verificare i contatti esistenti. Riprova l’importazione."] };
           for (const e of existing || []) {
             if (e.phone) {
-              existingPhones.add(e.phone);
               existingMap.set(`phone:${e.phone}`, e.id);
             }
           }
@@ -1595,7 +1594,7 @@ export default function MarketingContacts() {
               }
             }
           }
-        } else if (mode === "create_and_update") {
+        } else if (mode === "upsert") {
           toCreate.push(p.data);
           toCreateRows.push(p.row);
         } else {

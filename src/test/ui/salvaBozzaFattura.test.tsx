@@ -16,6 +16,7 @@ const mock = vi.hoisted(() => ({
 vi.mock("@/hooks/useDocumentiFiscali", () => ({
   useDocumentoFiscale: () => ({ data: mock.doc, isLoading: false }),
   useCreateDocumento: () => ({ mutate: vi.fn() }),
+  useDuplicaDocumentoBozza: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
   useUpdateDocumento: () => ({ mutateAsync: mock.salva, isPending: false }),
   useEmittiDocumento: () => ({ mutate: mock.emetti, isPending: false }),
   useDeleteDocumento: () => ({ mutate: vi.fn() }),

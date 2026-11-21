@@ -48,8 +48,8 @@ export function SmsOnboarding({ onCompleted }: SmsOnboardingProps) {
       }
       setNumeriDisponibili(numeri);
       setStep(3);
-    } catch {
-      setErroreRicerca("Errore nella ricerca. Riprova.");
+    } catch (errore) {
+      setErroreRicerca(errore instanceof Error ? errore.message : "Errore nella ricerca. Riprova.");
     }
   };
 

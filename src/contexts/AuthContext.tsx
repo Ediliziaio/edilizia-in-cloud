@@ -2,7 +2,7 @@ import { bindQueryCacheIdentity, storedQueryCacheIdentity, removeIdentityQueryCa
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { cancellaSessioniSalvate, sessioneSalvataPresente } from "@/integrations/supabase/authStorage";
+import { cancellaSessioniSalvate, sessioneCondivisaRevocata, sessioneSalvataPresente } from "@/integrations/supabase/authStorage";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { logger } from "@/utils/logger";
@@ -22,6 +22,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import { quandoSiRiapre } from "@/lib/sicurezza/accessiBloccati";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
 import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
+import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
 
 /**
  * Velocity Protocol — V1/V2
@@ -983,17 +984,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               usedCachedAuth,
             });
             clearProfileCache();
-            if (!usedCachedAuth) {
-              resolvedRoleRef.current = null;
-              setState({
-                user: null,
-                profile: null,
-                role: null,
-                userRoles: [],
-                company: null,
-                isLoading: false,
-              });
-            }
+            resolvedRoleRef.current = null;
+            setIsImpersonationReady(false);
+            setState({
+              user: null,
+              profile: null,
+              role: null,
+              userRoles: [],
+              company: null,
+              isLoading: false,
+            });
             return;
           }
 
@@ -1081,7 +1081,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             const myGen = ++authGenRef.current;
-            let userData: { profile: Profile | null; role: AppRole | null; company: Company | null; userRoles: AppRole[] };
+            let userData: Awaited<ReturnType<typeof fetchUserData>>;
             // Memory-leak fix: cancella il timer se fetchUserData vince il race
             // (stesso pattern del ramo SIGNED_IN, riga ~705).
             let tokenRefreshRaceTimerId: ReturnType<typeof setTimeout> | undefined;
@@ -1115,19 +1115,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             if (myGen !== authGenRef.current) return;
+            if (userData.role === null && userData.transient) return;
             if (userData.role === null) {
               clearProfileCache();
-              if (!usedCachedAuth) {
-                resolvedRoleRef.current = null;
-                setState({
-                  user: null,
-                  profile: null,
-                  role: null,
-                  userRoles: [],
-                  company: null,
-                  isLoading: false,
-                });
-              }
+              resolvedRoleRef.current = null;
+              setIsImpersonationReady(false);
+              setState({
+                user: null,
+                profile: null,
+                role: null,
+                userRoles: [],
+                company: null,
+                isLoading: false,
+              });
               return;
             }
             resolvedRoleRef.current = userData.role;
@@ -1181,29 +1181,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Set up auth state listener BEFORE checking initial session.
     // NB: callback SINCRONO — vedi processAuthEvent sopra.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        // Clear before any async profile work or rendering the next identity.
-        const nextIdentity=session?.user?.id ?? null;
-        if(event==="SIGNED_OUT" || (nextIdentity && nextIdentity!==queryIdentityRef.current)) {
-          const previousIdentity=queryIdentityRef.current;
-          queryClient.clear();
-          bindQueryCacheIdentity(nextIdentity);
-          queryIdentityRef.current=nextIdentity;
-          if(event==="SIGNED_OUT")void removeIdentityQueryCache(previousIdentity).catch(()=>{});
-        }
-        // Keep the module-level token cache fresh — allows getCachedTokens() to
-        // return the current tokens WITHOUT acquiring the Supabase storage lock.
-        if (session?.access_token) {
-          _cachedAccessToken = session.access_token;
-          _cachedRefreshToken = session.refresh_token ?? null;
-        } else if (event === "SIGNED_OUT") {
-          _cachedAccessToken = null;
-          _cachedRefreshToken = null;
-        }
-        setTimeout(() => { void processAuthEvent(event, session); }, 0);
+    const invalidaCaricamentiAuth = () => { authGenRef.current++; };
+    const gestisciEventoAuth = (event: AuthChangeEvent, session: Session | null) => {
+      if (session?.access_token && sessioneCondivisaRevocata(session.access_token)) {
+        if (_cachedAccessToken && !sessioneCondivisaRevocata(_cachedAccessToken)) return;
+        event = "SIGNED_OUT";
+        session = null;
       }
-    );
+      const nextIdentity = session?.user?.id ?? null;
+      if (event === "SIGNED_OUT" || (nextIdentity && nextIdentity !== queryIdentityRef.current)) {
+        const previousIdentity = queryIdentityRef.current;
+        queryClient.clear();
+        bindQueryCacheIdentity(nextIdentity);
+        queryIdentityRef.current = nextIdentity;
+        if (event === "SIGNED_OUT") {
+          invalidaCaricamentiAuth();
+          void removeIdentityQueryCache(previousIdentity).catch(() => {});
+        }
+      }
+      if (session?.access_token) {
+        _cachedAccessToken = session.access_token;
+        _cachedRefreshToken = session.refresh_token ?? null;
+      } else if (event === "SIGNED_OUT") {
+        _cachedAccessToken = null;
+        _cachedRefreshToken = null;
+      }
+      setTimeout(() => { void processAuthEvent(event, session); }, 0);
+    };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(gestisciEventoAuth);
+
+    // Il cookie è condiviso, mentre gli eventi di Supabase arrivano alla sola origine.
+    const fermaLogoutCondiviso = avviaIntervalloVisibile(() => {
+      if (sessioneCondivisaRevocata(_cachedAccessToken)) gestisciEventoAuth("SIGNED_OUT", null);
+    }, 3_000);
 
     // ── Cross-subdomain impersonation handoff ──────────────────────────────────
     // When the super-admin clicks "Accedi" on admin.*, the page navigates to
@@ -1235,8 +1245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // inactivity).  The warm-up wakes it up in parallel with setSession() so
         // that by the time SIGNED_IN fires and page hooks run, the DB is already
         // alive.  We use a raw fetch with the AT directly to avoid any session state.
-        const supabaseUrl: string = (import.meta as any).env?.VITE_SUPABASE_URL ?? "";
-        const supabaseKey: string = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+        const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL ?? "";
+        const supabaseKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
         if (supabaseUrl && supabaseKey) {
           // Velocity — warm-up fire-and-forget con timeout 8s.
           // Senza timeout, una request bloccata (tipo DNS fallito sulla rete
@@ -1295,6 +1305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => {
           window.clearTimeout(authBootstrapWatchdog);
           window.removeEventListener("unhandledrejection", handleUnhandledAuthError);
+          fermaLogoutCondiviso();
           subscription.unsubscribe();
         };
       }
@@ -1311,7 +1322,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Invalidate any in-flight fetch so setState is never called after unmount.
       window.clearTimeout(authBootstrapWatchdog);
       window.removeEventListener("unhandledrejection", handleUnhandledAuthError);
-      authGenRef.current++;
+      invalidaCaricamentiAuth();
+      fermaLogoutCondiviso();
       subscription.unsubscribe();
     };
   }, [fetchUserData, refreshAuth, recoverInvalidAuthSession, queryClient]);
@@ -1421,6 +1433,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await endSession();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error("Disconnessione non confermata", { description: "Controlla la connessione e premi «Esci» di nuovo." });
+      return;
+    }
     sessionStorage.removeItem("quick_login_original_email");
     sessionStorage.removeItem("quick_login_original_name");
     clearMultiCompanySession();
@@ -1428,7 +1445,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.removeItem("eic_session_started_at"); } catch { /* ignore */ }
     queryClient.clear();
     bindQueryCacheIdentity(null);
-    await supabase.auth.signOut();
   }, [queryClient]);
 
   

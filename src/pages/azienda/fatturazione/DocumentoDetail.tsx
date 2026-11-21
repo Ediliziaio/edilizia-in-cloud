@@ -2,7 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
-import { datiCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
+import { preparaCopiaDocumento, siPuoDuplicare } from "@/lib/fatturazione/duplicaDocumento";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBillingMode } from "@/contexts/BillingModeContext";
@@ -171,7 +171,7 @@ export default function DocumentoDetail() {
   };
 
   const handleDuplica = () => {
-    navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: datiCopiaDocumento(doc) } });
+    navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: preparaCopiaDocumento(doc) });
   };
 
   const handleDownloadXML = async () => {

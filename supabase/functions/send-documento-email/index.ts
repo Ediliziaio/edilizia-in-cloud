@@ -1,6 +1,7 @@
 import { puoGestireDocumento } from "../_shared/permessoDocumentoFiscale.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { rifiutoEmailCerto } from "../_shared/emailProvider.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -150,8 +151,13 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { documento_id, to_email, subject, message } = await req.json();
+    const { documento_id, to_email: destinatario, subject, message, request_id } = await req.json();
+    const to_email = typeof destinatario === "string" ? destinatario.trim() : "";
     if (!documento_id || !to_email) return json({ error: "documento_id and to_email required" }, 400);
+    if (request_id != null && (typeof request_id !== "string" ||
+      !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(request_id))) {
+      return json({ error: "Identificativo invio non valido." }, 400);
+    }
 
     // Fetch document
     const { data: doc, error: docErr } = await supabase
@@ -177,6 +183,27 @@ Deno.serve(async (req) => {
     const docLabel = TIPO_LABELS[tipo] || "Documento";
     const emailSubject = subject || `${docLabel} N° ${doc.numero || "—"} — ${companyData.ragione_sociale || ""}`;
     const emailHtml = buildEmailHtml(doc, companyData, message);
+    const requestId = request_id ?? crypto.randomUUID();
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(
+      JSON.stringify([to_email.toLowerCase(), subject || "", message || ""]),
+    ));
+    const richiesta = {
+      p_azienda: doc.company_id, p_documento: doc.id, p_richiesta: requestId,
+      p_impronta: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(""),
+    };
+    const { data: stato, error: erroreRichiesta } = await supabase.rpc("documento_email_richiesta", richiesta);
+    if (erroreRichiesta) throw erroreRichiesta;
+    if (stato?.stato === "diversa") {
+      return json({ error: "Questa richiesta è già stata usata con un destinatario o testo diverso." }, 409);
+    }
+    if (stato?.stato !== "inoltra") return json(stato ?? { stato: "incerto" });
+
+    const registraEsito = async (esito: Record<string, unknown>) => {
+      const { error } = await supabase.rpc("documento_email_richiesta", { ...richiesta, p_esito: esito });
+      if (error) console.warn("send-documento-email: esito non salvato", error.message);
+    };
+    const metadata = { documento_id: doc.id, tipo: doc.tipo, documento_email_request_id: requestId };
+    const idempotencyKey = `documento-email/${doc.id}/${requestId}`;
 
     // Send via unified pipeline (quota-aware + auto-logged).
     let result = await sendEmailUnified({
@@ -187,7 +214,8 @@ Deno.serve(async (req) => {
       html:         emailHtml,
       templateName: "documento_send",
       adminClient:  supabase,
-      metadata:     { documento_id: doc.id, tipo: doc.tipo },
+      metadata,
+      idempotencyKey,
     });
 
     if (!result.ok && String((result.body as any)?.error ?? "").toLowerCase().includes("no provider configured")) {
@@ -199,24 +227,39 @@ Deno.serve(async (req) => {
         html:         emailHtml,
         templateName: "documento_send",
         adminClient:  supabase,
-        metadata:     { documento_id: doc.id, tipo: doc.tipo, fallback_stream: true },
+        metadata:     { ...metadata, fallback_stream: true },
+        idempotencyKey,
       });
     }
 
     if (!result.ok) {
       console.error("Email send failed:", result);
+      if (!rifiutoEmailCerto(result)) {
+        await registraEsito({ stato: "incerto" });
+        return json({ stato: "incerto" });
+      }
       const msg =
         result.status === 402
           ? "Crediti email insufficienti — ricarica il wallet per continuare."
-          : `Invio email fallito (status ${result.status})`;
-      return json({ error: msg }, result.status === 402 ? 402 : 500);
+          : `Invio email rifiutato (status ${result.status})`;
+      await registraEsito({ stato: "rifiutato", error: msg });
+      return json({ stato: "rifiutato", error: msg }, result.status === 402 ? 402 : 422);
     }
 
-    // Legacy billing_sync_log entry (indexed by document id). L'email è partita: un
+    const esito = {
+      stato: "inviato",
+      success: true,
+      over_quota: result.overQuota ?? false,
+      charged_eur: result.chargedEur ?? 0,
+      is_free: result.isFree ?? false,
+    };
+    await registraEsito(esito);
+
+    // Registro tecnico della fatturazione. L'email è partita: un
     // errore del registro non deve dire il contrario, o la si rispedisce pagandola due volte.
     const { error: errRegistro } = await supabase.from("billing_sync_log").insert({
       company_id: doc.company_id,
-      invoice_id: doc.id,
+      documento_fiscale_id: doc.id,
       provider: "email",
       direction: "push",
       action: "send_documento_email",
@@ -225,18 +268,14 @@ Deno.serve(async (req) => {
         to: to_email,
         subject: emailSubject,
         provider_message_id: result.providerMessageId ?? null,
+        request_id: requestId,
         over_quota: result.overQuota ?? false,
         charged_eur: result.chargedEur ?? 0,
       } as any,
     });
     if (errRegistro) console.warn("send-documento-email: registro non scritto", errRegistro.message);
 
-    return json({
-      success:     true,
-      over_quota:  result.overQuota ?? false,
-      charged_eur: result.chargedEur ?? 0,
-      is_free:     result.isFree ?? false,
-    });
+    return json(esito);
   } catch (e) {
     console.error("send-documento-email error:", e);
     return json({ error: String(e) }, 500);

@@ -63,8 +63,6 @@ export async function scriviTimbratura(d: DatiTimbratura): Promise<EsitoScrittur
   throw error;
 }
 
-type RpcCambio = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-
 /**
  * Cambio di posto. Con la rete lo fa campo_timbra_cambio_luogo in un colpo solo;
  * senza, si mettono in coda le stesse due righe che scriverebbe lei: uscita dal posto di prima, entrata nel nuovo.
@@ -80,19 +78,16 @@ export async function cambiaLuogoTimbratura(d: {
   accuracy?: number | null;
   note?: string | null;
 }): Promise<EsitoScrittura> {
-  const righeInCoda = () => inCoda([
-    rigaTimbratura({
-      companyId: d.companyId, userId: d.userId, tipo: "uscita", orderId: d.da.orderId, sedeId: d.da.sedeId,
-      quando: new Date(Date.parse(d.quando) - 1000).toISOString(), note: "Cambio luogo",
-    }),
-    rigaTimbratura({
-      companyId: d.companyId, userId: d.userId, tipo: "entrata", orderId: d.a.orderId, sedeId: d.a.sedeId,
-      quando: d.quando, lat: d.lat, lng: d.lng, accuracy: d.accuracy, note: d.note,
-    }),
-  ]);
-  if (senzaRete()) return righeInCoda();
-  const rpc = supabase.rpc.bind(supabase) as unknown as RpcCambio;
-  const { error } = await rpc("campo_timbra_cambio_luogo", {
+  const uscita = rigaTimbratura({
+    companyId: d.companyId, userId: d.userId, tipo: "uscita", orderId: d.da.orderId, sedeId: d.da.sedeId,
+    quando: new Date(Date.parse(d.quando) - 1000).toISOString(), note: "Cambio luogo",
+  });
+  const entrata = rigaTimbratura({
+    companyId: d.companyId, userId: d.userId, tipo: "entrata", orderId: d.a.orderId, sedeId: d.a.sedeId,
+    quando: d.quando, lat: d.lat, lng: d.lng, accuracy: d.accuracy, note: d.note,
+  });
+  if (senzaRete()) return inCoda([uscita, entrata]);
+  const { error } = await supabase.rpc("campo_timbra_cambio_luogo", {
     p_order_id: d.a.orderId,
     p_sede_id: d.a.sedeId,
     p_quando: d.quando,
@@ -100,9 +95,10 @@ export async function cambiaLuogoTimbratura(d: {
     p_lng: d.lng ?? null,
     p_accuracy: d.accuracy ?? null,
     p_note: d.note ?? null,
+    p_id_uscita: uscita.id,
+    p_id_entrata: entrata.id,
   });
   if (!error) return { inCoda: false };
-  // Una risposta persa qui lascerebbe un doppio cambio: nel dubbio di rete vale solo l'errore chiaro di fetch.
-  if (erroreDiRete(error)) return righeInCoda();
+  if (erroreDiRete(error)) return inCoda([uscita, entrata]);
   throw error;
 }

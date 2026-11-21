@@ -4,19 +4,7 @@ import { loadMaterialCoverage, loadUnmappedPurchaseOrders } from "./useMaterialP
 import type { ContestoAcquisti, MaterialeEsistente } from "@/lib/distinta/pianoAcquisti";
 import type { VoceMagazzino } from "@/lib/distinta/collegaArticoli";
 import type { ConteggioTavola } from "@/lib/distinta/confrontaTavole";
-
-/** Nessun risultato troncato scambiato per assenza di ordini o giacenze. */
-async function pagine<T>(leggi: (da: number, a: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
-  const out: T[] = [];
-  for (let pagina = 0; pagina < 100; pagina++) {
-    const { data, error } = await leggi(pagina * 500, pagina * 500 + 499);
-    if (error) throw error;
-    if (!Array.isArray(data)) throw new Error("Lettura del piano acquisti incompleta");
-    out.push(...data as T[]);
-    if (data.length < 500) return out;
-  }
-  throw new Error("Troppi dati per verificare gli acquisti: restringi la commessa");
-}
+import { leggiPaginePiano as pagine } from "@/lib/distinta/leggiPaginePiano";
 
 export function usePianoAcquistiComputo(companyId: string, orderId: string | null, enabled: boolean, nuovaCommessa = false) {
   return useQuery({

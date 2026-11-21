@@ -31,8 +31,7 @@ export function useBudgetRows(anno: number) {
     queryKey: ["cg", "budget-rows", anno, companyId] as const,
     enabled: !!companyId,
     queryFn: async (): Promise<BudgetRow[]> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("cg_budget")
         .select("*")
       // Solo QUESTA azienda: la sicurezza del database fa vedere al super admin
@@ -42,7 +41,7 @@ export function useBudgetRows(anno: number) {
         .eq("anno", anno)
         .order("codice");
       if (error) throw error;
-      return (data ?? []) as BudgetRow[];
+      return data ?? [];
     },
     staleTime: 60_000,
   });
@@ -97,21 +96,28 @@ export function useUpsertBudget() {
     mutationFn: async (input: {
       anno: number;
       codice: string;
-      importo: number;
+      importo: number | null;
       note?: string | null;
     }) => {
       // company_id esplicito: la colonna non ha un valore predefinito e la
       // regola di sicurezza lo vuole uguale all'azienda dell'utente. Senza,
       // ogni salvataggio del budget veniva rifiutato («row-level security»).
       if (!companyId) throw new Error("Azienda non riconosciuta: ricarica la pagina.");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      if (input.importo === null) {
+        const { data, error } = await supabase.from("cg_budget").delete()
+          .eq("company_id", companyId).eq("anno", input.anno).eq("codice", input.codice)
+          .select("id");
+        if (error) throw error;
+        if (!data?.length) throw new Error("Budget già rimosso o permessi insufficienti.");
+        return null;
+      }
+      const { data, error } = await supabase
         .from("cg_budget")
         .upsert({ ...input, company_id: companyId }, { onConflict: "company_id,anno,codice" })
         .select()
         .single();
       if (error) throw error;
-      return data as BudgetRow;
+      return data;
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["cg", "budget-rows", vars.anno] });

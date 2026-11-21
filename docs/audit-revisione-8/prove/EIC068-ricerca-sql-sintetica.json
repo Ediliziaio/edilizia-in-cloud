@@ -1,0 +1,42 @@
+{
+  "ambiente": "PGlite locale",
+  "righe": 40000,
+  "azienda": 30000,
+  "ripetizioni": 9,
+  "query": {
+    "prima": "select o.id from orders_visible o where o.company_id = 1 and o.deleted_at is null and o.visible and (o.description ilike '%Rossi%' or o.order_code ilike '%Rossi%' or o.client_name ilike '%Rossi%') order by o.id limit 20",
+    "dopo": "select o.id from orders_visible o left join profiles p on p.id = o.customer_id and (p.first_name ilike '%Rossi%' or p.last_name ilike '%Rossi%')\n  where o.company_id = 1 and o.deleted_at is null and o.visible and (o.description ilike '%Rossi%' or o.order_code ilike '%Rossi%' or o.client_name ilike '%Rossi%' or p.id is not null) order by o.id limit 20"
+  },
+  "baseline": {
+    "mediana_ms": 16.541,
+    "massimo_ms": 16.657,
+    "risultati": []
+  },
+  "conProfilo": {
+    "mediana_ms": 44.194,
+    "massimo_ms": 45.339,
+    "risultati": [
+      3000,
+      4000,
+      5000,
+      6000,
+      7000,
+      8000,
+      9000,
+      10000,
+      11000,
+      12000,
+      13000,
+      14000,
+      15000,
+      16000,
+      17000,
+      18000,
+      19000,
+      20000,
+      21000,
+      22000
+    ]
+  },
+  "limite": "Predicato SQL con filtri sintetici. Esclude PostgREST, RLS effettiva, latenza di rete e tempi browser."
+}

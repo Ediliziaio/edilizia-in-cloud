@@ -3,14 +3,8 @@
  *
  * Chiamato ogni 5 min da pg_cron. Per ogni automation_flow con
  * `bulk_trigger_config` valorizzato e `next_run_at <= now()`:
- *   1. Resolve target users via RPC bulk_scheduler_resolve_targets
- *   2. Per ogni target:
- *      a. Resolve variabili context-aware (cantiere_oggi, ore, ecc.)
- *      b. Render template OR chiama LLM (mode=ai_generated)
- *      c. Per ogni canale in preferred_order: prova send, fallback se fail
- *      d. Log in automation_execution_log
- *   3. Update next_run_at via cronTickToDate
- *   4. Log riassunto in bulk_scheduler_runs
+ * Ogni occorrenza materializza i destinatari, riprende i gruppi rimanenti
+ * e aggiorna next_run_at quando tutti hanno un esito persistito.
  *
  * Auth: x-cron-secret header (INTERNAL_CRON_SECRET env var). Vedi
  * silvio-morning-brief per stesso pattern.
@@ -22,9 +16,10 @@ import { isInternalRequest, requireInternalSecret } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Cron expression → next fire date. cron-parser è la lib standard.
-import cronParser from "https://esm.sh/cron-parser@4.9.0";
+import { parseExpression } from "https://esm.sh/cron-parser@4.9.0";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { BatchPersistenceError, checkDeliveryResponse, mustStopFallback, runScheduledBatch, type DeliveryControl, type Recipient } from "./batch.ts";
 interface BulkTriggerConfig {
   type: "bulk_scheduler";
   cron: string;
@@ -48,14 +43,9 @@ interface FlowToRun {
   config: BulkTriggerConfig;
 }
 
-interface TargetUser {
-  user_id: string;
-  first_name: string;
-  email: string;
-}
-
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
-const MAX_TARGETS_PER_RUN = 200;
+const MAX_TARGETS_PER_BATCH = 200;
+const MAX_BATCH_MS = 55_000;
 
 serveConMetriche("automation-bulk-scheduler-runner", async (req: Request) => {
   const cors = getCorsHeaders(req);
@@ -102,10 +92,12 @@ serveConMetriche("automation-bulk-scheduler-runner", async (req: Request) => {
 
     const results: Array<{ flow_id: string; status: string; sent: number; failed: number; error?: string }> = [];
 
+    const deadline = Date.now() + MAX_BATCH_MS;
     for (const flow of flows) {
+      if (Date.now() >= deadline) break;
       console.log("[bulk-scheduler] processing flow", flow.flow_id, flow.flow_name);
       try {
-        const result = await runFlow(supabase, flow);
+        const result = await runFlow(supabase, flow, deadline);
         results.push(result);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -126,87 +118,26 @@ serveConMetriche("automation-bulk-scheduler-runner", async (req: Request) => {
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function runFlow(supabase: any, flow: FlowToRun): Promise<{ flow_id: string; status: string; sent: number; failed: number }> {
-  const config = flow.config;
-  const scheduledFor = config.next_run_at ? new Date(config.next_run_at) : new Date();
-
-  // 1. Crea run log entry
-  const { data: runRow } = await supabase
-    .from("bulk_scheduler_runs")
-    .insert({
-      flow_id: flow.flow_id,
-      company_id: flow.company_id,
-      scheduled_for: scheduledFor.toISOString(),
-      status: "running",
-    })
-    .select("id")
-    .single();
-  const runId = runRow?.id as string | undefined;
-
-  // 2. Resolve target users
-  const { data: targets, error: tErr } = await supabase.rpc("bulk_scheduler_resolve_targets", {
-    p_company_id: flow.company_id,
-    p_target_type: config.target.type,
-    p_target_value: config.target.value,
+async function runFlow(supabase: any, flow: FlowToRun, deadline: number) {
+  const due = flow.config.next_run_at;
+  if (!due) throw new Error("Occorrenza senza scadenza");
+  const result = await runScheduledBatch<BulkTriggerConfig>(supabase, flow.flow_id, due, {
+    maxTargets: MAX_TARGETS_PER_BATCH,
+    deadline,
+    nextRun: (config) => {
+      try {
+        return parseExpression(config.cron, {
+          tz: config.timezone ?? "Europe/Rome",
+          currentDate: new Date(),
+        }).next().toDate().toISOString();
+      } catch {
+        return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+    },
+    send: (occurrence, recipient, control) =>
+      sendToUser(supabase, { ...occurrence, flow_id: flow.flow_id }, recipient, control),
   });
-  if (tErr) {
-    if (runId) await supabase.from("bulk_scheduler_runs").update({ status: "failed", finished_at: new Date().toISOString(), error_summary: tErr.message }).eq("id", runId);
-    throw new Error(`resolve_targets: ${tErr.message}`);
-  }
-
-  const users: TargetUser[] = (targets ?? []).slice(0, MAX_TARGETS_PER_RUN);
-  console.log(`[bulk-scheduler] flow ${flow.flow_id} targets=${users.length}`);
-
-  // 3. Per ogni utente: render + send
-  const channelCounts: Record<string, number> = {};
-  let sentOk = 0;
-  let sentFailed = 0;
-
-  for (const user of users) {
-    try {
-      const { messageBody, channelUsed } = await sendToUser(supabase, flow, user);
-      sentOk++;
-      channelCounts[channelUsed] = (channelCounts[channelUsed] ?? 0) + 1;
-      void messageBody;
-    } catch (e) {
-      sentFailed++;
-      console.warn(`[bulk-scheduler] user ${user.user_id} fail:`, e);
-    }
-  }
-
-  // 4. Calcola next_run_at via cron-parser (libreria standard)
-  let nextRunAt: Date;
-  try {
-    const interval = cronParser.parseExpression(config.cron, {
-      tz: config.timezone ?? "Europe/Rome",
-      currentDate: new Date(),
-    });
-    nextRunAt = interval.next().toDate();
-  } catch (e) {
-    console.error(`[bulk-scheduler] cron parse fail "${config.cron}":`, e);
-    // Fallback: next run +24h per evitare loop
-    nextRunAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  }
-
-  await supabase.rpc("bulk_scheduler_mark_executed", {
-    p_flow_id: flow.flow_id,
-    p_next_run_at: nextRunAt.toISOString(),
-  });
-
-  // 5. Aggiorna run log
-  const finalStatus = sentFailed === 0 ? "success" : sentOk === 0 ? "failed" : "partial";
-  if (runId) {
-    await supabase.from("bulk_scheduler_runs").update({
-      status: finalStatus,
-      finished_at: new Date().toISOString(),
-      targets_resolved: users.length,
-      sent_ok: sentOk,
-      sent_failed: sentFailed,
-      channel_breakdown: channelCounts,
-    }).eq("id", runId);
-  }
-
-  return { flow_id: flow.flow_id, status: finalStatus, sent: sentOk, failed: sentFailed };
+  return { flow_id: flow.flow_id, ...result };
 }
 
 /**
@@ -215,7 +146,7 @@ async function runFlow(supabase: any, flow: FlowToRun): Promise<{ flow_id: strin
  * preferred_order dell'utente, con fallback se non disponibile/fallisce.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function sendToUser(supabase: any, flow: FlowToRun, user: TargetUser): Promise<{ messageBody: string; channelUsed: string }> {
+async function sendToUser(supabase: any, flow: FlowToRun, user: Recipient, control: DeliveryControl): Promise<string | null> {
   const config = flow.config;
 
   // 1. Resolve variabili context-aware per questo utente
@@ -231,11 +162,12 @@ async function sendToUser(supabase: any, flow: FlowToRun, user: TargetUser): Pro
   }
 
   // 3. Carica preferred order + tutte le credenziali canale dell'utente
-  const { data: prefs } = await supabase
+  const { data: prefs, error: prefsErr } = await supabase
     .from("user_messaging_channels")
     .select("preferred_order, silvio_chat_enabled, telegram_chat_id, telegram_verified_at, whatsapp_phone, whatsapp_verified_at, email_enabled, email_override, quiet_from, quiet_to, quiet_timezone")
     .eq("user_id", user.user_id)
     .maybeSingle();
+  if (prefsErr) throw new BatchPersistenceError("Lettura preferenze destinatario");
 
   // 3.a Quiet hours: se l'utente ha impostato un range silenzio e siamo dentro,
   // skippiamo questo target SENZA marcare come failed. È una preferenza esplicita.
@@ -247,30 +179,30 @@ async function sendToUser(supabase: any, flow: FlowToRun, user: TargetUser): Pro
       timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
     });
     const nowHM = fmt.format(now); // "HH:MM"
-    const from = prefs.quiet_from as string;
-    const to = prefs.quiet_to as string;
+    const from = String(prefs.quiet_from).slice(0, 5);
+    const to = String(prefs.quiet_to).slice(0, 5);
     const inQuiet = from <= to
       ? nowHM >= from && nowHM < to              // range normale es. 22:00-07:00 sarebbe inverso
       : nowHM >= from || nowHM < to;             // range che attraversa mezzanotte
     if (inQuiet) {
-      throw new Error(`In quiet hours (${from}-${to} ${tz})`);
+      return null;
     }
   }
 
   const flowChannels = (config.channels ?? []).map((c) => c.type);
   const userOrder: string[] = (prefs?.preferred_order as string[]) ?? ["silvio_chat", "email"];
   // Intersect: solo canali che il flow vuole E che l'utente ammette
-  const effective = userOrder.filter((c) => flowChannels.includes(c));
+  const effective = userOrder.filter((c) => flowChannels.some((channel) => channel === c));
   const candidates = effective.length > 0 ? effective : flowChannels.length > 0 ? flowChannels : ["silvio_chat"];
 
   // 4. Prova ogni canale finché uno non funziona
   for (const channel of candidates) {
     try {
-      await sendViaChannel(supabase, flow, user, prefs, channel, messageBody);
-      return { messageBody, channelUsed: channel };
+      await sendViaChannel(supabase, flow, user, prefs, channel, messageBody, control);
+      return channel;
     } catch (e) {
       console.warn(`[bulk-scheduler] channel ${channel} fail for ${user.user_id}:`, e);
-      if (!config.use_fallback) throw e;
+      if (mustStopFallback(e) || !config.use_fallback) throw e;
     }
   }
 
@@ -293,7 +225,7 @@ async function sendToUser(supabase: any, flow: FlowToRun, user: TargetUser): Pro
  * in `preferred_order` se use_fallback=true.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, prefs: any, channel: string, body: string): Promise<void> {
+async function sendViaChannel(supabase: any, flow: FlowToRun, user: Recipient, prefs: any, channel: string, body: string, control: DeliveryControl): Promise<void> {
   // ── SILVIO CHAT (in-app) ──────────────────────────────────────────────
   if (channel === "silvio_chat") {
     if (prefs && prefs.silvio_chat_enabled === false) throw new Error("silvio_chat disabilitato per utente");
@@ -303,14 +235,20 @@ async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, 
     if (chanErr || !channelId) {
       throw new Error(`no silvio channel: ${chanErr?.message ?? "rpc returned null"}`);
     }
-    const { error: insErr } = await supabase.from("internal_chat_messages").insert({
+    const { error: insErr } = await supabase.from("internal_chat_messages").upsert({
+      id: user.id,
       channel_id: channelId,
       sender_id: SILVIO_SENDER_ID,
       company_id: flow.company_id,
       content: `📅 ${flow.flow_name}\n\n${body}`,
       message_type: "text",
-    });
-    if (insErr) throw new Error(`insert silvio msg: ${insErr.message}`);
+    }, { onConflict: "id", ignoreDuplicates: true });
+    if (insErr) {
+      if (!/^(22|23|42)/.test(insErr.code ?? "")) {
+        throw new BatchPersistenceError("Esito scrittura chat da verificare");
+      }
+      throw new Error(`insert silvio msg: ${insErr.message}`);
+    }
     return;
   }
 
@@ -326,19 +264,21 @@ async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, 
   <hr style="margin-top: 24px; border: none; border-top: 1px solid #e2e8f0;">
   <p style="font-size: 11px; color: #94a3b8;">Messaggio automatico — preferenze in /azienda/impostazioni/notifiche</p>
 </div>`;
-    const result = await sendEmailUnified({
-      companyId: flow.company_id,
-      stream: "transactional",
-      to: toEmail,
-      subject: flow.flow_name,
-      html,
-      text: body,
-      templateName: "bulk_scheduler_message",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      adminClient: supabase as any,
-      metadata: { flow_id: flow.flow_id, recipient_user_id: user.user_id },
+    await control.external(channel, async () => {
+      const result = await sendEmailUnified({
+        companyId: flow.company_id,
+        stream: "transactional",
+        to: toEmail,
+        subject: flow.flow_name,
+        html,
+        text: body,
+        templateName: "bulk_scheduler_message",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        adminClient: supabase as any,
+        metadata: { flow_id: flow.flow_id, recipient_user_id: user.user_id, bulk_delivery_id: user.id },
+      });
+      checkDeliveryResponse(result.status, result.ok, "Invio email non confermato");
     });
-    if (!result.success) throw new Error(`email send fail: ${result.error ?? "unknown"}`);
     return;
   }
 
@@ -350,23 +290,25 @@ async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, 
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
-    const resp = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-cron-secret": cronSecret,
-      },
-      body: JSON.stringify({
-        company_id: flow.company_id,
-        to: phone,
-        type: "text",
-        text: { body: `📅 ${flow.flow_name}\n\n${body}` },
-      }),
+    await control.external(channel, async () => {
+      const resp = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
+        method: "POST",
+        signal: AbortSignal.timeout(12_000),
+        headers: {
+          "Content-Type": "application/json",
+          "x-cron-secret": cronSecret,
+        },
+        body: JSON.stringify({
+          company_id: flow.company_id,
+          idempotency_key: user.id,
+          to: phone,
+          type: "text",
+          text: { body: `📅 ${flow.flow_name}\n\n${body}` },
+        }),
+      });
+      const result = await resp.json().catch(() => null);
+      checkDeliveryResponse(resp.status, resp.ok && result?.success === true, "Invio WhatsApp non confermato");
     });
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      throw new Error(`whatsapp-send ${resp.status}: ${errText.slice(0, 200)}`);
-    }
     return;
   }
 
@@ -393,19 +335,20 @@ async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, 
     if (!botCfg?.bot_token) throw new Error("Bot Telegram non configurato");
     if (botCfg.enabled === false) throw new Error("Bot Telegram disabilitato");
 
-    const resp = await fetch(`https://api.telegram.org/bot${botCfg.bot_token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: mapping.telegram_user_id,
-        text: `📅 *${escapeTelegramMd(flow.flow_name)}*\n\n${body}`,
-        parse_mode: "Markdown",
-      }),
+    await control.external(channel, async () => {
+      const resp = await fetch(`https://api.telegram.org/bot${botCfg.bot_token}/sendMessage`, {
+        method: "POST",
+        signal: AbortSignal.timeout(12_000),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: mapping.telegram_user_id,
+          text: `📅 *${escapeTelegramMd(flow.flow_name)}*\n\n${body}`,
+          parse_mode: "Markdown",
+        }),
+      });
+      const result = await resp.json().catch(() => null);
+      checkDeliveryResponse(resp.status, resp.ok && result?.ok === true, "Invio Telegram non confermato");
     });
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      throw new Error(`telegram sendMessage ${resp.status}: ${errText.slice(0, 200)}`);
-    }
     return;
   }
 
@@ -451,7 +394,7 @@ function escapeTelegramMd(s: string): string {
  * blocca il render. È meglio un messaggio con "n.d." che un fail totale.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function resolveVariables(supabase: any, companyId: string, user: TargetUser): Promise<Record<string, string>> {
+async function resolveVariables(supabase: any, companyId: string, user: Recipient): Promise<Record<string, string>> {
   const todayDate = new Date();
   const today = todayDate.toISOString().slice(0, 10);
   const dateLong = todayDate.toLocaleDateString("it-IT", {

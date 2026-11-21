@@ -180,8 +180,8 @@ describe("generate-room-render con la pianta", () => {
   it("rilegge la pianta PRIMA di prendere in carico la sessione e scalare il credito", () => {
     const carica = src.indexOf("await caricaPiantaDelRender(");
     expect(carica).toBeGreaterThan(src.indexOf("await canAccessCompany("));
-    expect(carica).toBeLessThan(src.indexOf('"claim_render_vertical_session"'));
-    expect(carica).toBeLessThan(src.indexOf("await deductRenderCreditSafe("));
+    expect(carica).toBeLessThan(src.indexOf('"claim_render_stanza_lavoro"'));
+    expect(carica).toBeLessThan(src.indexOf('"addebita_render_stanza_lavoro"'));
   });
 
   it("misure dal database, pianta della stessa azienda, immagine solo dalla cartella dell'azienda", () => {

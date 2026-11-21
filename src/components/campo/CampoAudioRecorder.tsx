@@ -8,14 +8,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, RotateCcw, Check, Loader2 } from "lucide-react";
 import type { JSX } from "react";
 import { CAMPO_AUDIO_MAX_SECONDI, CAMPO_AUDIO_MIN_SECONDI } from "@/lib/campo/dettaTesto";
+import { cn } from "@/lib/utils";
+import "./CampoAudioRecorder.css";
 
 // Un solo limite per registratore e server: prima il registratore si fermava a 2 minuti e il hook ne accettava 30.
 const MAX_DURATION_SEC = CAMPO_AUDIO_MAX_SECONDI;
 const MIN_DURATION_SEC = CAMPO_AUDIO_MIN_SECONDI;
 // Per la voce bastano 64 kbit/s: metà del peso di prima da caricare con la rete del cantiere.
 const BITRATE_BPS = 64_000;
+const ALTEZZE_ONDA = [7, 12, 20, 29, 15, 26, 32, 18, 28, 36, 21, 31, 23, 15, 24, 17, 10, 6];
 
-type RecorderState = "idle" | "requesting" | "recording" | "stopped" | "error";
+type RecorderState = "idle" | "requesting" | "recording" | "finalizing" | "stopped" | "error";
 
 interface CampoAudioRecorderProps {
   onConfirm: (blob: Blob, durationSec: number, mimeType: string) => void | Promise<void>;
@@ -56,6 +59,7 @@ export default function CampoAudioRecorder({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [ascoltato, setAscoltato] = useState(0);
   const [confirming, setConfirming] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -63,6 +67,7 @@ export default function CampoAudioRecorder({
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<number | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const ondaRef = useRef<HTMLDivElement | null>(null);
   const mimeRef = useRef<string>("audio/webm");
   const mountedRef = useRef(false);
   const runRef = useRef(0);
@@ -125,11 +130,66 @@ export default function CampoAudioRecorder({
     };
   }, [disposeRecording, releasePreview]);
 
+  useEffect(() => {
+    if (state !== "recording" || !streamRef.current || !ondaRef.current || typeof window.matchMedia !== "function") return;
+    const stream = streamRef.current;
+    const barre = Array.from(ondaRef.current.querySelectorAll("span"));
+    const movimento = window.matchMedia("(prefers-reduced-motion: no-preference)");
+    const Audio = window.AudioContext;
+    if (!Audio) return;
+
+    let audio: AudioContext | undefined;
+    let sorgente: MediaStreamAudioSourceNode | undefined;
+    let frame = 0;
+
+    const fermaOnda = () => {
+      cancelAnimationFrame(frame);
+      sorgente?.disconnect();
+      sorgente = undefined;
+      if (audio) void audio.close().catch(() => {});
+      audio = undefined;
+      barre.forEach(barra => { barra.style.transform = ""; });
+    };
+    const seguiPreferenza = () => {
+      fermaOnda();
+      if (!movimento.matches) return;
+      // Il grafico è facoltativo: dove Web Audio è sospeso, timer e audio restano operativi.
+      try {
+        audio = new Audio();
+        const analizzatore = audio.createAnalyser();
+        analizzatore.fftSize = 128;
+        const frequenze = new Uint8Array(analizzatore.frequencyBinCount);
+        sorgente = audio.createMediaStreamSource(stream);
+        sorgente.connect(analizzatore);
+        void audio.resume().catch(() => {});
+        let ultimo = 0;
+        const aggiorna = (tempo: number) => {
+          if (tempo - ultimo >= 65) {
+            analizzatore.getByteFrequencyData(frequenze);
+            barre.forEach((barra, i) => {
+              const intensita = frequenze[1 + i] / 255;
+              barra.style.transform = `scaleY(${0.24 + 0.83 * intensita})`;
+            });
+            ultimo = tempo;
+          }
+          frame = requestAnimationFrame(aggiorna);
+        };
+        frame = requestAnimationFrame(aggiorna);
+      } catch { fermaOnda(); }
+    };
+    seguiPreferenza();
+    movimento.addEventListener?.("change", seguiPreferenza);
+    return () => {
+      movimento.removeEventListener?.("change", seguiPreferenza);
+      fermaOnda();
+    };
+  }, [state]);
+
   // Monotono: una correzione dell'orologio del telefono non cambia le ore dell'audio.
   const readDuration = (): number => Math.max(0, Math.min(MAX_DURATION_SEC, Math.floor((performance.now() - startedAtRef.current) / 1000)));
 
   const startRecording = async (): Promise<void> => {
-    if (disabled || confirmingRef.current || stateRef.current === "requesting" || stateRef.current === "recording") return;
+    if (disabled || confirmingRef.current || (stateRef.current !== "idle" && stateRef.current !== "error")) return;
     const run = ++runRef.current;
     const isCurrent = () => mountedRef.current && runRef.current === run;
     stateRef.current = "requesting";
@@ -221,6 +281,8 @@ export default function CampoAudioRecorder({
         );
       } else if (error.name === "NotFoundError") {
         setErrorMsg("Microfono non trovato sul dispositivo.");
+      } else if (error.name === "NotReadableError") {
+        setErrorMsg("Il microfono è occupato. Chiudi le altre app che lo usano e riprova.");
       } else {
         setErrorMsg("Impossibile accedere al microfono");
       }
@@ -232,6 +294,8 @@ export default function CampoAudioRecorder({
   const stopRecording = (): void => {
     stopTimer();
     if (mediaRecorderRef.current?.state === "recording") {
+      stateRef.current = "finalizing";
+      setState("finalizing");
       try { mediaRecorderRef.current.stop(); }
       catch {
         runRef.current += 1;
@@ -251,6 +315,7 @@ export default function CampoAudioRecorder({
     setAudioUrl(null);
     setAudioBlob(null);
     setElapsed(0);
+    setAscoltato(0);
     durationRef.current = 0;
     stateRef.current = "idle";
     setErrorMsg(null);
@@ -296,6 +361,7 @@ export default function CampoAudioRecorder({
     playingRequestRef.current = false;
     playbackWantedRef.current = false;
     setConfirming(true);
+    setErrorMsg(null);
     audioElRef.current?.pause();
     setIsPlaying(false);
     try {
@@ -308,124 +374,124 @@ export default function CampoAudioRecorder({
     }
   };
 
-  // ─── Render ──
+  const pronto = state === "stopped" && audioUrl !== null;
+  const registra = state === "recording";
+  const inAttesa = state === "requesting" || state === "finalizing";
+  const riproduzione = elapsed > 0 ? Math.min(1, ascoltato / elapsed) : 0;
+  const titolo: Record<RecorderState, string> = {
+    idle: "Tocca per registrare",
+    error: "Tocca per registrare",
+    requesting: "Accesso al microfono…",
+    recording: "Registrazione in corso",
+    finalizing: "Preparo l’audio…",
+    stopped: "Registrazione pronta",
+  };
+
   return (
-    <div className="space-y-4">
-      {errorMsg && (
-        <div
-          role="alert"
-          className="rounded-xl bg-red-50 border border-red-300 p-3 text-sm text-red-800"
-        >
-          {errorMsg}
-        </div>
-      )}
+    <div className="space-y-2.5" data-registratore={state}>
+      {errorMsg && <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">{errorMsg}</p>}
 
-      {/* Idle: bottone record */}
-      {(state === "idle" || state === "error") && (
-        <div className="flex flex-col items-center gap-3 py-4">
-          <button
-            type="button"
-            onClick={startRecording}
-            disabled={disabled || confirming}
-            aria-label="Inizia registrazione"
-            className="w-24 h-24 rounded-full bg-red-500 text-white flex items-center justify-center shadow-2xl shadow-red-500/30 active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Mic className="w-10 h-10" strokeWidth={2.5} />
-          </button>
-          <p className="text-sm text-foreground font-medium">Tocca per registrare</p>
-          <p className="text-xs text-muted-foreground">Max {MAX_DURATION_SEC / 60} minuti</p>
-        </div>
-      )}
-
-      {/* Requesting */}
-      {state === "requesting" && (
-        <div className="flex flex-col items-center gap-3 py-4">
-          <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
-            <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
-          </div>
-          <p className="text-sm text-muted-foreground">Accesso al microfono…</p>
-        </div>
-      )}
-
-      {/* Recording */}
-      {state === "recording" && (
-        <div className="flex flex-col items-center gap-3 py-4">
-          <button
-            type="button"
-            onClick={stopRecording}
-            aria-label="Ferma registrazione"
-            className="relative w-24 h-24 rounded-full bg-red-600 text-white flex items-center justify-center shadow-2xl shadow-red-500/50 active:scale-95 transition-transform"
-          >
-            <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-40" />
-            <Square className="w-9 h-9 fill-white relative" strokeWidth={0} />
-          </button>
-          <div className="font-mono text-3xl font-bold text-foreground tabular-nums">
-            {formatTime(elapsed)}
-          </div>
-          <div className="w-48 h-1 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-red-500 transition-all duration-1000"
-              style={{ width: `${(elapsed / MAX_DURATION_SEC) * 100}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">Registrazione in corso… tocca stop per terminare</p>
-        </div>
-      )}
-
-      {/* Stopped: player + azioni */}
-      {state === "stopped" && audioUrl && (
-        <div className="space-y-3">
-          <div className="rounded-xl bg-muted/60 border p-4">
-            <audio
-              ref={audioElRef}
-              src={audioUrl}
-              onEnded={() => { playbackWantedRef.current = false; setIsPlaying(false); }}
-              className="hidden"
-            />
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={togglePlay}
-                disabled={disabled || confirming}
-                aria-label={isPlaying ? "Pausa" : "Riproduci"}
-                className="w-12 h-12 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center active:scale-95 transition-transform"
-              >
-                {isPlaying ? (
-                  <Pause className="w-6 h-6" />
-                ) : (
-                  <Play className="w-6 h-6 ml-0.5" />
-                )}
-              </button>
-              <div className="flex-1">
-                <p className="text-sm text-foreground font-medium">Registrazione pronta</p>
-                <p className="text-xs text-muted-foreground font-mono">{formatTime(elapsed)}</p>
-              </div>
+      <div className="campo-audio-entrata rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background p-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {pronto ? (
+            <button
+              type="button"
+              onClick={togglePlay}
+              disabled={disabled || confirming}
+              aria-label={isPlaying ? "Pausa" : "Riproduci"}
+              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm outline-offset-4 motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
+            >
+              {isPlaying ? <Pause className="size-5" aria-hidden="true" /> : <Play className="ml-0.5 size-5" aria-hidden="true" />}
+            </button>
+          ) : registra ? (
+            <button
+              type="button"
+              onClick={stopRecording}
+              aria-label="Ferma registrazione"
+              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-sm outline-offset-4 motion-safe:transition-transform motion-safe:active:scale-95"
+            >
+              <Square className="size-4 fill-current" aria-hidden="true" />
+            </button>
+          ) : inAttesa ? (
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-background text-primary">
+              <Loader2 className="size-5 motion-safe:animate-spin" aria-hidden="true" />
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={disabled || confirming}
+              aria-label="Inizia registrazione"
+              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm outline-offset-4 motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
+            >
+              <Mic className="size-5" aria-hidden="true" />
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
+            <p role="status" className="text-sm font-semibold text-foreground">{titolo[state]}</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {registra && <span className="size-2 shrink-0 rounded-full bg-red-600" aria-hidden="true" />}
+              {pronto || registra || state === "finalizing" ? (
+                <span className="font-mono tabular-nums" role="timer" aria-label="Durata della registrazione">{formatTime(elapsed)}</span>
+              ) : <span>Fino a {MAX_DURATION_SEC / 60} minuti</span>}
             </div>
           </div>
+          <div
+            ref={ondaRef}
+            aria-hidden="true"
+            data-ascolto={isPlaying}
+            className={cn("campo-audio-onda flex h-9 w-[28%] min-w-8 max-w-28 shrink-0 items-center justify-center gap-[2px]",
+              registra ? "text-red-600 dark:text-red-400" : "text-primary")}
+          >
+            {ALTEZZE_ONDA.map((altezza, i) => <span key={i} className="min-w-0 max-w-[3px] flex-1 rounded-full bg-current opacity-70" style={{ height: altezza }} />)}
+          </div>
+        </div>
 
-          {elapsed < MIN_DURATION_SEC && <p role="status" className="text-sm text-muted-foreground">Registra almeno 3 secondi. Tocca Riprova.</p>}
+        {(pronto || registra) && <div aria-hidden="true" className="mt-3 h-1 overflow-hidden rounded-full bg-primary/10">
+          <div className={cn("h-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-200", registra ? "bg-red-600" : "bg-primary")}
+            style={{ transform: `scaleX(${pronto ? riproduzione : elapsed / MAX_DURATION_SEC})` }} />
+        </div>}
 
-          <div className="flex gap-2">
+        {pronto && <audio
+          ref={audioElRef}
+          src={audioUrl}
+          preload="metadata"
+          onTimeUpdate={event => setAscoltato(event.currentTarget.currentTime)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => { playbackWantedRef.current = false; setIsPlaying(false); setAscoltato(0); }}
+          className="hidden"
+        />}
+      </div>
+
+      {state === "requesting" && (
+        <button type="button" className="min-h-11 rounded-lg px-2 text-sm font-semibold text-primary" onClick={resetRecording}>
+          Annulla richiesta
+        </button>
+      )}
+
+      {pronto && (
+        <>
+          {elapsed < MIN_DURATION_SEC && <p role="status" className="text-sm text-muted-foreground">Registra almeno {MIN_DURATION_SEC} secondi. Tocca Riprova.</p>}
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)] gap-2">
             <button
               type="button"
               onClick={resetRecording}
               disabled={disabled || confirming}
-              className="flex-1 h-12 rounded-xl bg-background border text-foreground font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border bg-background px-2 text-sm font-semibold text-foreground motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
             >
-              <RotateCcw className="w-4 h-4" />
-              Riprova
+              <RotateCcw className="size-4 shrink-0" aria-hidden="true" /> Riprova
             </button>
             <button
               type="button"
               onClick={handleConfirm}
               disabled={disabled || !confirmAvailable || confirming || elapsed < MIN_DURATION_SEC}
-              className="flex-1 h-12 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-40"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl bg-primary px-2 py-2 text-center text-sm font-bold text-primary-foreground motion-safe:transition-transform motion-safe:active:scale-95 disabled:opacity-50"
             >
-              <Check className="w-5 h-5" />
+              {confirming ? <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" /> : <Check className="size-4 shrink-0" aria-hidden="true" />}
               {confirmLabel}
             </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

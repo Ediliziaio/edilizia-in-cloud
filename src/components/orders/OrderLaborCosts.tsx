@@ -12,7 +12,7 @@ import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { usePermissions } from "@/hooks/usePermissions";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { campoRoles, campoAssignmentError } from "@/lib/orders/campoAssignmentForm";
-import { accessiCommessaKey, caricaAccessiCommessa } from "@/hooks/useAccessiCommessa";
+import { accessiCommessaKey, caricaAccessiCommessa, fonteAccesso, useTogliAccessoAMano } from "@/hooks/useAccessiCommessa";
 import { toast } from "sonner";
 import { formatDateIt, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO } from "date-fns";
@@ -51,6 +51,7 @@ interface CampoAssignment {
   note?: string | null;
   /** Accesso dato dalla squadra (lo toglie la squadra stessa). */
   da_squadra_id?: string | null;
+  da_lavori?: boolean;
   profile: {
     id: string;
     first_name: string | null;
@@ -209,19 +210,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore assegnazione"),
   });
 
-  const rimuoviCampoMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!canEdit) throw new Error("Non hai il permesso di gestire le assegnazioni");
-      const { data: removed, error } = await supabase.from("order_campo_assignments").delete().eq("id", id).eq("order_id", orderId).select("id").maybeSingle();
-      if (error) throw error;
-      if (!removed) throw new Error("Assegnazione non rimossa: verifica i permessi e ricarica");
-    },
-    onSuccess: () => {
-      toast.success("Assegnazione esplicita rimossa", { description: "Eventuali accessi da lavorazioni o contratti restano invariati." });
-      refreshWorkQueries(queryClient, orderId); setRemoveTarget(null);
-    },
-    onError: () => toast.error("Errore rimozione"),
-  });
+  const rimuoviCampoMutation = useTogliAccessoAMano(orderId);
 
   // ── Derived data ─────────────────────────────────────────────
   const assegnazioniOperai = assegnazioni.filter((a) => a.role_type === "employee");
@@ -355,7 +344,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                   </div>
                 </div>
               </div>
-              {canEdit && (
+              {canEdit && fonteAccesso(capocantiere) === "a_mano" && (
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
                   aria-label="Rimuovi assegnazione esplicita del capocantiere"
                   onClick={() => setRemoveTarget(capocantiere)}
@@ -429,7 +418,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                             )}
                           </div>
                         </div>
-                        {canEdit && (
+                        {canEdit && fonteAccesso(a) === "a_mano" && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
                             aria-label={`Rimuovi assegnazione esplicita ${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}`}
                             onClick={() => setRemoveTarget(a)} disabled={rimuoviCampoMutation.isPending}>
@@ -460,7 +449,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
                             )}
                           </div>
                         </div>
-                        {canEdit && (
+                        {canEdit && fonteAccesso(a) === "a_mano" && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
                             aria-label={`Rimuovi assegnazione esplicita ${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}`}
                             onClick={() => setRemoveTarget(a)} disabled={rimuoviCampoMutation.isPending}>
@@ -569,7 +558,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={rimuoviCampoMutation.isPending}>Annulla</AlertDialogCancel>
-              <Button variant="destructive" disabled={rimuoviCampoMutation.isPending} onClick={() => removeTarget && rimuoviCampoMutation.mutate(removeTarget.id)}>Rimuovi assegnazione</Button>
+              <Button variant="destructive" disabled={!canEdit || rimuoviCampoMutation.isPending} onClick={() => removeTarget && rimuoviCampoMutation.mutate(removeTarget.id, { onSuccess: () => setRemoveTarget(null) })}>Rimuovi assegnazione</Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

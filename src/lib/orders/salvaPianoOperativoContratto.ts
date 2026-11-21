@@ -1,9 +1,22 @@
 import { supabase } from "@/integrations/supabase/client";
 import { articoliDalPiano, type PianoOperativoContratto } from "./pianoOperativoContratto";
 import { salvaFasiDiPartenza, type FasePerServer } from "./pianificazioneAvvio";
+import type { OrigineRiga } from "@/lib/distinta/generaDistinta";
 
 type Riga = Record<string, unknown>;
 export interface ArticoloManifest { position: number; name: string; quantity: number; chiave_materiale?: string | null }
+const colonneArticoli = "id,name,position,quantity,purchase_price,chiave_materiale,riferimento,phase_id,origini,updated_at";
+
+function fonteMateriale(origine: OrigineRiga): string {
+  const dati = Object.entries(origine).filter(([chiave]) =>
+    chiave !== "verifica_acquisto" &&
+    !(origine.tipo === "contratto" && ["voce_id", "subphase_id"].includes(chiave))
+  );
+  return JSON.stringify(Object.fromEntries(dati), (_key, value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+  });
+}
 
 export async function idPianoContratto(orderId: string, riferimento: string): Promise<string> {
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${orderId}|${riferimento}`)));
@@ -79,12 +92,12 @@ export async function salvaPianoOperativoContratto(input: {
     }
   }
   for (let i = 0; i < daInserire.length; i += 200) await checked(db.from("order_work_phase_voci").upsert(daInserire.slice(i, i + 200), { onConflict: "id", ignoreDuplicates: true }));
-  let articoli = await leggi("order_items", "id,name,position,quantity,purchase_price,chiave_materiale,riferimento,phase_id,origini", false);
+  let articoli = await leggi("order_items", colonneArticoli, false);
   const daCreare = input.aggiungiArticoli ? articoliDalPiano(piano).filter(m => !articoli.some(a => a.chiave_materiale === m.chiave_materiale || a.riferimento === m.riferimento && a.name === m.name)) : [];
   if (daCreare.length) {
     if (input.vatRate == null || !Number.isFinite(input.vatRate) || input.vatRate < 0 || input.vatRate > 100) throw new Error("Conferma l'IVA della commessa prima di aggiungere gli articoli.");
     await checked(db.rpc("commessa_aggiungi_voci", { p_commessa: orderId, p_voci: daCreare.map(a => ({ ...a, vat_rate: input.vatRate, phase_id: faseId.get(piano.materiali.find(m => m.chiave === a.chiave_materiale)?.phase_id ?? "") ?? null })) }));
-    articoli = await leggi("order_items", "id,name,position,quantity,purchase_price,chiave_materiale,riferimento,phase_id,origini", false);
+    articoli = await leggi("order_items", colonneArticoli, false);
   }
   for (const m of piano.materiali) {
     let candidate = articoli.filter(a => a.chiave_materiale === m.chiave);
@@ -99,15 +112,23 @@ export async function salvaPianoOperativoContratto(input: {
     if (!candidate.length) continue; // L'utente può avere escluso un articolo nell'anteprima.
     if (candidate.length !== 1) throw new Error(`Articolo non univoco: ${m.riferimento}. Non sono stati creati duplicati.`);
     const a = candidate[0];
-    const origini = m.origini.map(o => {
+    const precedenti = (Array.isArray(a.origini) ? a.origini : []) as OrigineRiga[];
+    const haConferme = precedenti.some(o => o?.verifica_acquisto?.stato === "confermata");
+    if (haConferme && JSON.stringify(precedenti.map(fonteMateriale).sort()) !== JSON.stringify(m.origini.map(fonteMateriale).sort())) {
+      throw new Error(`La fonte di «${String(a.name)}» è cambiata. Rivedi il materiale confermato prima di riapplicare il piano.`);
+    }
+    const origini = (haConferme ? precedenti : m.origini).map(o => {
       if (o.tipo !== "contratto") return o;
       const link = perLavorazione.get(o.posizione_ref);
-      return { ...o, ...(link ? { voce_id: link.voce, subphase_id: link.sottofase } : {}) };
+      if (!link) return o;
+      return { ...o, voce_id: o.voce_id ?? link.voce, subphase_id: o.subphase_id ?? link.sottofase };
     });
-    const aggiornate = await checked<Riga[]>(db.from("order_items").update({ chiave_materiale: m.chiave, ...(!a.riferimento ? { riferimento: m.riferimento } : {}),
-      origini, quantita_calcolata: m.quantita_calcolata,
+    let modifica = db.from("order_items").update({ chiave_materiale: m.chiave, ...(!a.riferimento ? { riferimento: m.riferimento } : {}),
+      origini, ...(!haConferme ? { quantita_calcolata: m.quantita_calcolata } : {}),
       ...(!a.chiave_materiale ? { prezzo_da_definire: Number(a.purchase_price ?? 0) <= 0 } : {}),
-      ...(a.phase_id ? {} : { phase_id: m.phase_id ? faseId.get(m.phase_id) ?? null : null }) }).eq("id", a.id).eq("order_id", orderId).select("id"));
-    if (!aggiornate?.length) throw new Error("Collegamento dell'articolo non salvato: verifica i permessi della commessa.");
+      ...(a.phase_id ? {} : { phase_id: m.phase_id ? faseId.get(m.phase_id) ?? null : null }) }).eq("id", a.id).eq("order_id", orderId);
+    modifica = a.updated_at ? modifica.eq("updated_at", a.updated_at) : modifica.is("updated_at", null);
+    const aggiornate = await checked<Riga[]>(modifica.select("id"));
+    if (!aggiornate?.length) throw new Error("Collegamento dell'articolo non salvato: verifica i permessi o aggiorna la commessa se l'articolo è cambiato.");
   }
 }

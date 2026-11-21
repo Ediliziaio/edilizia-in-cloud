@@ -1,7 +1,7 @@
 vi.mock("@/components/orders/ControlloDocumentoCard", () => ({ ControlloDocumentoCard: (): null => null }));
 vi.mock("@/components/acquisti/StoricoAcquistiCard",()=>({StoricoAcquistiCard:():null=>null}));
 import "@testing-library/jest-dom/vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({conferma:vi.fn(), cambiaStato:vi.fn(), ricevuti:0,vociListino:[] as Array<Record<string, unknown>>, status:"confermato", canEdit:true, orderId:"commessa-1" as string | null, orderUpdate:vi.fn(), update:vi.fn().mockResolvedValue(undefined), pdf:vi.fn(), download:vi.fn(), error:vi.fn()}));
@@ -114,7 +114,10 @@ it("mantiene le righe parziali e nasconde quelle ricevute nel filtro residui", (
   view.rerender(<MemoryRouter><PurchaseOrderDetail /></MemoryRouter>);
   expect(screen.getByText("Tutti gli articoli sono stati ricevuti.")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Solo righe da ricevere" }));
-  expect(screen.getByLabelText("Quantità ricevuta")).toHaveValue(2880);
+  const riga = screen.getByRole("row", { name: /TEGOLE SELECTUM NERO 12 BANCALI/ });
+  const colonnaRicevuto = screen.getByRole("columnheader", { name: "Ricevuto" }) as HTMLTableCellElement;
+  expect(within(riga).getAllByRole("cell")[colonnaRicevuto.cellIndex].textContent).toBe((2880).toLocaleString("it-IT"));
+  expect(within(riga).queryByLabelText("Quantità ricevuta")).not.toBeInTheDocument();
 });
 
 it("registra la conferma dell’ordine inviato solo dopo la scelta esplicita", async () => {

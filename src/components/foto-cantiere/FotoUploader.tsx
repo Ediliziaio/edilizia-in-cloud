@@ -6,23 +6,29 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
 interface Props {
-  onUpload: (params: { files: FileList; descrizione?: string }) => Promise<unknown>;
+  onUpload: (params: { files: ArrayLike<File>; descrizione?: string }) => Promise<{ mancanti: File[] }>;
   isUploading: boolean;
 }
 
 export function FotoUploader({ onUpload, isUploading }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [descrizione, setDescrizione] = useState('');
+  const [mancanti, setMancanti] = useState<File[]>([]);
+  const [errore, setErrore] = useState(false);
 
   const handleCarica = async () => {
-    const files = fileInputRef.current?.files;
-    if (!files || files.length === 0) return;
-
-    await onUpload({ files, descrizione: descrizione.trim() || undefined });
-
-    // Clear inputs after upload
+    const files = mancanti.length > 0 ? mancanti : Array.from(fileInputRef.current?.files ?? []);
+    if (files.length === 0) return;
+    try {
+      const esito = await onUpload({ files, descrizione: descrizione.trim() || undefined });
+      setMancanti(esito.mancanti);
+      setErrore(false);
+      if (esito.mancanti.length === 0) setDescrizione('');
+    } catch {
+      setMancanti(files);
+      setErrore(true);
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
-    setDescrizione('');
   };
 
   return (
@@ -42,6 +48,8 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
             type="file"
             accept="image/*"
             multiple
+            disabled={isUploading}
+            onChange={() => { setMancanti([]); setErrore(false); }}
             // Niente `capture`: forzerebbe la fotocamera, rendendo irraggiungibili le foto già scattate
             // (e ignorando `multiple`). Il telefono propone da solo «Scatta foto» o «Libreria».
             className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
@@ -62,9 +70,16 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
           />
         </div>
 
+        {mancanti.length > 0 && (
+          <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p>{errore ? "Caricamento interrotto" : "Foto da completare"}</p>
+            <ul>{mancanti.map((file, i) => <li key={i} className="break-all">{file.name}</li>)}</ul>
+            <p className="mt-1">Le foto già caricate o in attesa di rete sono conservate. Se chiudi, dovrai riselezionare quelle mancanti.</p>
+          </div>
+        )}
         <div className="flex flex-col gap-2">
           <Button onClick={handleCarica} disabled={isUploading} className="w-full sm:w-auto">
-            {isUploading ? 'Caricamento...' : 'Carica Foto'}
+            {isUploading ? 'Caricamento...' : mancanti.length ? 'Riprova mancanti' : 'Carica foto'}
           </Button>
           <p className="text-xs text-gray-500">
             Le coordinate GPS verranno acquisite automaticamente se disponibili

@@ -57,7 +57,8 @@ const NESSUNA_SIGLA: string[] = [];
 
 export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }) {
   const { data: r, isLoading, isError, refetch } = useRiepilogoGenerale(generaleId);
-  const quote = useQuoteCostiComuni(r);
+  const costiComuni = useQuoteCostiComuni(r);
+  const { quote } = costiComuni;
   const permissions = usePermissions();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -178,18 +179,24 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
             {r.figlie.map((f) => <FigliaCard key={f.id} f={f} permessi={r.permessi} commerciale={immobiliare} />)}
           </ul>
         ) : (
-          <TabellaFiglie r={r} t={totali} puoModificare={puoModificare} quote={quote} analisi={!immobiliare || analisiUnita} />
+          <TabellaFiglie r={r} t={totali} puoModificare={puoModificare} quote={quote} costiInAttesa={costiComuni.inAttesa} analisi={!immobiliare || analisiUnita} />
         )}
       </section>
   );
 
   const panoramica = (
     <>
+      {costiComuni.errore && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <p>Costi comuni non disponibili. Il margine che li include è in attesa di aggiornamento.</p>
+          <Button size="sm" variant="outline" disabled={costiComuni.ricarica} onClick={() => void costiComuni.riprova()}>Riprova</Button>
+        </div>
+      )}
       {!immobiliare && <>
         <DocumentoContrattoAppalto riepilogo={r} puoModificare={puoModificare} />
         {elencoCommesse}
       </>}
-      <QuadroGenerale r={r} t={totali} quote={quote} puoModificare={puoModificare} />
+      <QuadroGenerale r={r} t={totali} quote={quote} costiInAttesa={costiComuni.inAttesa} puoModificare={puoModificare} />
 
       {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il
           resto». «Completa l'operazione» sta attaccato ai numeri perché spiega proprio perché
@@ -338,7 +345,7 @@ function Numero({ etichetta, valore, nota, tono, tipo = "valore" }: { etichetta:
  * Il quadro in cima: una card sola con i quattro numeri (valore, come va, cosa devono pagarti,
  * cosa resta) e sotto il valore che «scala», dall'assegnato all'incassato, sulla stessa base.
  */
-function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; t: TotaliGenerale; quote: QuoteCostiComuni | null; puoModificare: boolean }) {
+function QuadroGenerale({ r, t, quote, costiInAttesa, puoModificare }: { r: RiepilogoGenerale; t: TotaliGenerale; quote: QuoteCostiComuni | null; costiInAttesa: boolean; puoModificare: boolean }) {
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const appalto = r.generale.modello === "appalto";
   const n = useGeneralePianoNumeri(r);
@@ -350,13 +357,14 @@ function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; 
   const di = (id: NumeroChiave["id"]) => numeri.find((x) => x.id === id)?.valore ?? null;
   // Senza un costo registrato il margine sarebbe tutto il ricavo: un numero verde che non dice niente.
   const senzaCosti = !piano && r.permessi.margini && (t.costo ?? 0) === 0 && (quote?.totale ?? 0) === 0;
-  const margine = senzaCosti ? null : di("margine");
+  const margine = (!piano && !quote) || senzaCosti ? null : di("margine");
   // Un'operazione immobiliare che non ha ancora venduto né fatturato sta costruendo: la testata
   // parla di spesa contro budget, non di «da incassare 0 €» e barre di vendita vuote (14/11/2026).
   const inVendita = r.figlie.some((f) => !!f.statoVendita && f.statoVendita !== "libera") || (t.fatturato ?? 0) > 0 || (t.incassato ?? 0) > 0;
   const costruzione = !appalto && !inVendita;
   const budget = r.permessi.costi && n.piano ? n.piano.confronto.totali.costi.previsto : null;
-  const speso = r.permessi.costi ? (n.piano ? n.piano.confronto.totali.costi.reale : (t.costo ?? 0) + (quote?.totale ?? 0)) : null;
+  const spesoReale = n.piano?.confronto.totali.costi.reale ?? (quote ? (t.costo ?? 0) + quote.totale : null);
+  const speso = r.permessi.costi ? spesoReale : null;
   const budgetCompleto = n.piano?.budgetCompleto !== false;
   const conCapitale = numeri.some((x) => x.id === "capitale") && r.permessi.margini && n.piano?.calendarioCompleto !== false;
   const conMargine = r.permessi.margini && margine !== null;
@@ -479,16 +487,18 @@ function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; 
         {costruzione && r.permessi.importi && !conMargine ? null : r.permessi.margini ? (
           <Numero
             tipo="margine"
-            etichetta={piano ? "Margine a finire" : quote || r.figlie.length === 0 ? "Margine dell'operazione" : `Margine delle ${def.figlia.tante.toLowerCase()}`}
+            etichetta={piano ? "Margine a finire" : "Margine dell'operazione"}
             valore={euro(margine)}
             tono={margine !== null && margine < 0 ? "rosso" : margine !== null && margine > 0 ? "verde" : undefined}
-            nota={senzaCosti
+            nota={!piano && !quote
+              ? (costiInAttesa ? "costi comuni in caricamento" : "costi comuni non disponibili")
+              : senzaCosti
               ? "nessun costo registrato"
               : piano
                 ? "stima dal piano economico"
                 : quote
                   ? (quote.totale > 0 ? `${def.figlia.tante.toLowerCase()} ${euro(t.margine)} − costi comuni ${euro(quote.totale)}` : "ricavi meno costi registrati")
-                  : "senza i costi comuni registrati sulla generale"}
+                  : undefined}
           />
         ) : (
           <Numero etichetta="Avanzamento" valore={`${Math.round(t.avanzamento)}%`} />
@@ -570,10 +580,11 @@ function Avanzamento({ valore, fasi, aMisura }: { valore: number; fasi?: number 
   );
 }
 
-function TabellaFiglie({ r, t, puoModificare, quote, analisi }: { r: RiepilogoGenerale; t: TotaliGenerale; puoModificare: boolean; quote: QuoteCostiComuni | null; analisi: boolean }) {
+function TabellaFiglie({ r, t, puoModificare, quote, costiInAttesa, analisi }: { r: RiepilogoGenerale; t: TotaliGenerale; puoModificare: boolean; quote: QuoteCostiComuni | null; costiInAttesa: boolean; analisi: boolean }) {
   // Il margine di ogni commessa è «pieno»: meno la sua quota dei costi comuni, se ce ne sono.
   const conQuote = !!quote && quote.totale > 0;
-  const pieno = (f: FigliaGenerale) => (f.margine === null ? null : f.margine - (quote?.perFiglia.get(f.id)?.importo ?? 0));
+  const pieno = (f: FigliaGenerale) => (!quote || f.margine === null ? null : f.margine - (quote.perFiglia.get(f.id)?.importo ?? 0));
+  const statoMargine = costiInAttesa ? "In caricamento" : "Non disponibile";
   const [azione, setAzione] = useState<{ figlia: FigliaGenerale; tipo: AzioneFiglia } | null>(null);
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const p = r.permessi;
@@ -618,7 +629,9 @@ function TabellaFiglie({ r, t, puoModificare, quote, analisi }: { r: RiepilogoGe
                   title={conQuote && f.margine !== null ? `Margine diretto ${euro(f.margine)} − quota costi comuni ${euro(quote!.perFiglia.get(f.id)?.importo ?? 0)}` : undefined}
                 >
                   {/* Senza costi registrati il margine sarebbe tutto il ricavo: meglio dirlo. */}
-                  {f.costo === 0 && !conQuote ? <span className="text-xs text-muted-foreground">costi da registrare</span> : euro(pieno(f))}
+                  {!quote
+                    ? <span className="text-xs text-muted-foreground">{statoMargine}</span>
+                    : f.costo === 0 && !conQuote ? <span className="text-xs text-muted-foreground">costi da registrare</span> : euro(pieno(f))}
                   {conQuote && f.margine !== null && !f.divisa && (
                     <span className="block text-[11px] text-muted-foreground">quota comuni −{euro(quote!.perFiglia.get(f.id)?.importo ?? 0)}</span>
                   )}
@@ -658,6 +671,7 @@ function TabellaFiglie({ r, t, puoModificare, quote, analisi }: { r: RiepilogoGe
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(t.fatturato)}</td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(t.incassato)}</td>}
               {p.margini && analisi && (() => {
+                if (!quote) return <td className="px-2 py-2 text-right text-xs font-normal text-muted-foreground">{statoMargine}</td>;
                 const totale = t.margine !== null && conQuote ? t.margine - quote!.totale : t.margine;
                 if (t.costo === 0 && !conQuote) return <td className="px-2 py-2 text-right text-xs font-normal text-muted-foreground">—</td>;
                 return <td className={cn("px-2 py-2 text-right tabular-nums", totale !== null && totale < 0 && "text-destructive")}>{euro(totale)}</td>;

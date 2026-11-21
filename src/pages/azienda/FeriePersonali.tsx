@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
-import { useCreateRichiesta } from "@/hooks/useRichieste";
+import { annullaRichiestaPersonale, useCreateRichiesta } from "@/hooks/useRichieste";
 import { useAuth } from "@/contexts/AuthContext";
 import type { HrRichiesta, RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { cn } from "@/lib/utils";
@@ -182,18 +182,19 @@ export default function FeriePersonali() {
 
   // ── Annulla richiesta ─────────────────────────────────────────────────
   const handleAnnulla = async (id: string) => {
+    if (!profilo?.id) return;
     setAnnullandoId(id);
     try {
-      const { error } = await supabase
-        .from("hr_richieste")
-        .update({ stato: "annullata" } as any)
-        .eq("id", id);
-      if (error) throw error;
-      toast.success("Richiesta annullata");
-      qc.invalidateQueries({ queryKey: ["my-richieste"] });
-    } catch (e: any) {
-      toast.error("Errore: " + e.message);
+      const annullata = await annullaRichiestaPersonale(id, profilo.id, profilo.company_id);
+      if (annullata) toast.success("Richiesta annullata");
+      else toast.info("La richiesta è già stata aggiornata. Controlla il nuovo stato.");
+    } catch (errore) {
+      toast.error("Impossibile annullare la richiesta", {
+        description: typeof errore === "object" && errore !== null && "message" in errore
+          ? String(errore.message) : "Riprova tra poco.",
+      });
     } finally {
+      await qc.invalidateQueries({ queryKey: ["my-richieste", profilo.id] });
       setAnnullandoId(null);
     }
   };

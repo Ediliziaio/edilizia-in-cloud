@@ -93,10 +93,10 @@ describe("Il backup di ogni notte", () => {
 describe("Un backup grande in più chiamate", () => {
   const funzione = leggi("supabase/functions/company-backup/index.ts");
 
-  it("si ferma tra un blocco e l'altro e l'indice dice da dove ripartire", () => {
+  it("si ferma fra i blocchi e salva un checkpoint di ripresa", () => {
     expect(funzione).toContain("testoScritto >= TETTO_TESTO_PER_CHIAMATA");
     expect(funzione).toContain("sospeso = { tabella: t, n, dopo, limite }");
-    expect(funzione).toContain("indice.ripresa = { ...sospeso, data, elenco: voci, chiamata: chiamata + 1 }");
+    expect(funzione).toContain("indice.ripresa = { ...sospeso, token, elenco: voci, chiamata: chiamata + 1 }");
     expect(funzione).toContain("completo: !sospeso && completo");
   });
 

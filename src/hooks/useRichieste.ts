@@ -64,6 +64,20 @@ async function updateRichiestaStatoRpc({
   throw new Error(error.message || "Aggiornamento richiesta HR non riuscito");
 }
 
+export async function annullaRichiestaPersonale(id: string, profiloId: string, companyId: string) {
+  const { data, error } = await supabase
+    .from("hr_richieste")
+    .update({ stato: "annullata", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("profilo_id", profiloId)
+    .eq("company_id", companyId)
+    .eq("stato", "in_attesa")
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 function inclusiveDays(start: string, end: string) {
   const startTime = new Date(`${start}T12:00:00`).getTime();
   const endTime = new Date(`${end}T12:00:00`).getTime();

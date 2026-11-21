@@ -1,5 +1,5 @@
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ import {
   Settings, AlertCircle, Plus, Search, List, Columns3, ClipboardList, FileText,
   AlertTriangle, CheckCircle2, CircleDashed,
 } from "lucide-react";
-import { addDays } from "date-fns";
+import { addDays, format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
@@ -50,12 +50,15 @@ type ContrattoManutenzione = {
 /** Piano con quel che serve per pianificare/completare + il legame all'impianto. */
 type PianoAttivo = {
   id: string;
+  impianto_id: string | null;
   titolo: string;
   frequenza_tipo: string;
   frequenza_giorni: number | null;
   prossima_scadenza: string | null;
+  ultima_esecuzione: string | null;
   tecnico_preferito: string | null;
-  contratto: { nome_contratto: string | null; customer_id: string | null; impianto_id: string | null } | null;
+  impianto: { customer_id: string } | null;
+  contratto: { nome_contratto: string } | null;
 };
 
 /** `incorporata`: dentro Assistenza (scheda «Manutenzioni»); `actionsSlot`: dove
@@ -66,6 +69,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const operazioniCompletamento = useRef(new Map<string, string>());
   const [search, setSearch] = useState("");
   // Pillola attiva (per STATO, non per tipo): "all" · "urgenti" (scadenza
   // imminente = scadute o in scadenza) · "in_regola" · "senza_piano" · "__contratti__".
@@ -93,12 +97,12 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       let query = supabase
         .from("impianti_cliente")
         .select(soloMie
-          ? "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name), contratti:contratti_manutenzione!inner(piani:piani_manutenzione!inner(tecnico_preferito))"
+          ? "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name), piani:piani_manutenzione!piani_manutenzione_impianto_company_fkey!inner(tecnico_preferito)"
           : "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("created_at", { ascending: false });
-      if (soloMie) query = query.eq("contratti.piani.tecnico_preferito", user!.id);
+      if (soloMie) query = query.eq("piani.tecnico_preferito", soloMie);
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ImpiantoCliente[];
@@ -133,7 +137,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       if (!effectiveCompany?.id) return [];
       let query = supabase
         .from("piani_manutenzione")
-        .select("id, titolo, frequenza_tipo, frequenza_giorni, prossima_scadenza, tecnico_preferito, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id)")
+        .select("id, impianto_id, titolo, frequenza_tipo, frequenza_giorni, prossima_scadenza, ultima_esecuzione, tecnico_preferito, impianto:impianti_cliente!piani_manutenzione_impianto_company_fkey(customer_id), contratto:contratti_manutenzione(nome_contratto)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("prossima_scadenza", { ascending: true });
@@ -149,7 +153,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const pianoPerImpianto = useMemo(() => {
     const m = new Map<string, PianoAttivo>();
     for (const p of piani) {
-      const imp = p.contratto?.impianto_id;
+      const imp = p.impianto_id;
       if (!imp) continue;
       const cur = m.get(imp);
       if (!cur || (p.prossima_scadenza ?? "9999") < (cur.prossima_scadenza ?? "9999")) m.set(imp, p);
@@ -181,10 +185,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const pianificaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
       if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      const customerId = piano.contratto?.customer_id;
-      if (!customerId || !effectiveCompany?.id) throw new Error("Dati mancanti");
+      const customerId = piano.impianto?.customer_id;
+      if (!piano.impianto_id || !customerId || !effectiveCompany?.id) throw new Error("Dati dell’impianto mancanti");
       const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
-      const prossima = addDays(new Date(), giorni).toISOString().split("T")[0];
+      const prossima = format(addDays(new Date(), giorni), "yyyy-MM-dd");
       const { error: ticketErr } = await supabase.from("tickets").insert({
         company_id: effectiveCompany.id,
         customer_id: customerId,
@@ -193,15 +197,18 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         status: "aperto",
         priority: "normale",
         assigned_to: piano.tecnico_preferito || null,
-        impianto_id: piano.contratto?.impianto_id ?? null,
-      } as never);
+        impianto_id: piano.impianto_id,
+      });
       if (ticketErr) throw ticketErr;
       const { error: pianoErr } = await supabase.from("piani_manutenzione").update({ prossima_scadenza: prossima }).eq("id", piano.id);
       if (pianoErr) throw pianoErr;
     },
-    onSuccess: () => {
+    onSuccess: (_, piano) => {
       toast.success("Intervento pianificato e ticket creato");
       queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["piani-impianto", piano.impianto_id] });
+      queryClient.invalidateQueries({ queryKey: ["interventi-impianto", piano.impianto_id] });
+      queryClient.invalidateQueries({ queryKey: ["cal-manutenzioni", effectiveCompany?.id] });
     },
     onError: (err: Error) => toast.error(err.message || "Errore nella pianificazione"),
   });
@@ -209,25 +216,29 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const completaMutation = useMutation({
     mutationFn: async (piano: PianoAttivo) => {
       if (permissions.solaLettura) throw new Error("Modalità di sola lettura");
-      if (!effectiveCompany?.id) return;
-      const todayIso = new Date().toISOString().split("T")[0];
-      const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
-      const prossima = addDays(new Date(), giorni).toISOString().split("T")[0];
-      const { error: eErr } = await supabase.from("esecuzioni_manutenzione").insert({
-        piano_id: piano.id,
-        tecnico_id: piano.tecnico_preferito || null,
-        data_esecuzione: todayIso,
-        esito: "ok",
-        note: "Manutenzione completata dalla lista",
+      if (!piano.impianto_id || !effectiveCompany?.id) throw new Error("Impianto non disponibile");
+      const todayIso = format(new Date(), "yyyy-MM-dd");
+      const chiave = JSON.stringify([piano.id, todayIso, piano.ultima_esecuzione, piano.prossima_scadenza]);
+      const operazione = operazioniCompletamento.current.get(chiave) ?? crypto.randomUUID();
+      operazioniCompletamento.current.set(chiave, operazione);
+      const { error } = await supabase.rpc("manutenzione_registra_esecuzione", {
+        p_piano_id: piano.id,
+        p_impianto_id: piano.impianto_id,
+        p_operazione: operazione,
+        p_data: todayIso,
+        p_note: "Manutenzione completata dalla lista",
+        p_da_elenco: true,
+        p_ultima_attesa: piano.ultima_esecuzione,
+        p_scadenza_attesa: piano.prossima_scadenza,
       });
-      if (eErr) throw eErr;
-      const { error: pErr } = await supabase.from("piani_manutenzione")
-        .update({ ultima_esecuzione: todayIso, prossima_scadenza: prossima })
-        .eq("company_id", effectiveCompany.id).eq("id", piano.id);
-      if (pErr) throw pErr;
+      if (error) throw error;
+      operazioniCompletamento.current.delete(chiave);
     },
-    onSuccess: () => {
+    onSuccess: (_, piano) => {
       toast.success("Manutenzione completata");
+      queryClient.invalidateQueries({ queryKey: ["piani-impianto", piano.impianto_id] });
+      queryClient.invalidateQueries({ queryKey: ["esecuzioni-impianto", piano.impianto_id] });
+      queryClient.invalidateQueries({ queryKey: ["cal-manutenzioni", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
     },
     onError: (err: Error) => toast.error(err.message || "Completamento non riuscito"),

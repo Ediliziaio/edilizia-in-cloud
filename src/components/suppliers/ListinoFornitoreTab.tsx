@@ -69,6 +69,7 @@ interface TestataListino {
 interface ListinoEsistente {
   listino: { id: string; sconto_default_pct: number } | null;
   voci: RigaVoce[];
+  revisione: number | null;
 }
 
 /** Il nome da mostrare nella tendina, con lo stato se non e' in vigore. */
@@ -79,10 +80,13 @@ function etichetta(l: TestataListino): string {
 }
 
 export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
+  const companyId = useEffectiveCompanyId();
   const [sceltoId, setSceltoId] = useState<string | null>(null);
+  const [ricaricaEditor, setRicaricaEditor] = useState(0);
   // Le voci modificate e non salvate vivono dentro l'editor: cambiando listino
   // l'editor si rimonta e le perderebbe in silenzio, quindi prima si chiede.
   const [sporco, setSporco] = useState(false);
+  const [listinoBozza, setListinoBozza] = useState<TestataListino | null>(null);
   const [daConfermare, setDaConfermare] = useState<string | null>(null);
   const permessi = usePermissions();
   const puoModificare = permessi.canEditSettingsSuppliers || permessi.canManageSuppliers || permessi.canEditSettingsPricing;
@@ -115,28 +119,35 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
 
   const lista = testate.data ?? [];
   // La scelta dell'utente vince; al primo caricamento si apre quello in vigore.
-  const corrente = lista.find((l) => l.id === sceltoId) ?? listinoDiOggi(lista);
+  const corrente = sporco
+    ? lista.find((l) => l.id === listinoBozza?.id) ?? listinoBozza
+    : lista.find((l) => l.id === sceltoId) ?? listinoDiOggi(lista);
 
   const voci = useQuery({
-    queryKey: ["listino-fornitore-editor", supplierId, corrente?.id ?? null],
-    enabled: !testate.isLoading && !testate.isError,
-    queryFn: async (): Promise<RigaVoce[]> => {
-      if (!corrente) return [];
-      const { data, error } = await (supabase as any)
-        .from("listino_fornitore_voci")
-        .select("id, codice, descrizione, unita, prezzo, sconto_pct, immagine_url")
-        .eq("listino_id", corrente.id)
-        .order("sort_order");
+    queryKey: ["listino-fornitore-editor", supplierId, corrente?.id ?? null, companyId],
+    enabled: !testate.isLoading && !testate.isError && Boolean(companyId),
+    queryFn: async (): Promise<Pick<ListinoEsistente, "revisione" | "voci">> => {
+      if (!corrente) return { revisione: null, voci: [] };
+      const { data, error } = await supabase.rpc("leggi_voci_listino_fornitore", {
+        p_listino: corrente.id, p_fornitore: supplierId, p_azienda: companyId!,
+      });
       if (error) throw error;
-      return (data ?? []).map((v: Record<string, unknown>) => ({
-        id: String(v.id),
-        codice: String(v.codice ?? ""),
-        descrizione: String(v.descrizione ?? ""),
-        unita: String(v.unita ?? ""),
-        prezzo: Number(v.prezzo ?? 0),
-        sconto_pct: Number(v.sconto_pct ?? 0),
-        immagine_url: v.immagine_url ?? null,
-      }));
+      const snapshot = data as { revisione: number; voci: Array<Record<string, unknown>> } | null;
+      if (!snapshot || !Number.isSafeInteger(snapshot.revisione) || !Array.isArray(snapshot.voci)) {
+        throw new Error("Versione del listino non disponibile. Ricarica la scheda.");
+      }
+      return {
+        revisione: snapshot.revisione,
+        voci: snapshot.voci.map((v) => ({
+          id: String(v.id),
+          codice: String(v.codice ?? ""),
+          descrizione: String(v.descrizione ?? ""),
+          unita: String(v.unita ?? ""),
+          prezzo: Number(v.prezzo ?? 0),
+          sconto_pct: Number(v.sconto_pct ?? 0),
+          immagine_url: typeof v.immagine_url === "string" ? v.immagine_url : null,
+        })),
+      };
     },
     staleTime: 30_000,
   });
@@ -149,7 +160,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
     );
   }
 
-  if (testate.isError || voci.isError) {
+  if ((testate.isError && !testate.data) || (voci.isError && !voci.data)) {
     return (
       <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -226,14 +237,28 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
         </div>
       ) : (
         <ListinoEditor
-          key={`${supplierId}:${corrente?.id ?? "nuovo"}`}
+          key={`${companyId}:${supplierId}:${corrente?.id ?? "nuovo"}:${ricaricaEditor}`}
           supplierId={supplierId}
           inVigore={!corrente || !fuoriVigore}
-          onModificato={() => setSporco(true)}
+          onModificato={() => {
+            if (!sporco) setListinoBozza(corrente ?? null);
+            setSporco(true);
+          }}
           onSalvato={() => setSporco(false)}
+          onRicarica={async () => {
+            const teste = await testate.refetch();
+            if (teste.isError) throw new Error("Impossibile ricaricare le testate del listino.");
+            if (corrente && teste.data?.some((l) => l.id === corrente.id)) {
+              const righe = await voci.refetch();
+              if (righe.isError) throw new Error("Impossibile ricaricare le voci del listino.");
+            }
+            setSporco(false);
+            setRicaricaEditor((n) => n + 1);
+          }}
           esistente={{
             listino: corrente ? { id: corrente.id, sconto_default_pct: corrente.sconto_default_pct } : null,
-            voci: voci.data ?? [],
+            voci: voci.data?.voci ?? [],
+            revisione: voci.data?.revisione ?? null,
           }}
         />
       )}
@@ -417,6 +442,7 @@ function ListinoEditor({
   inVigore,
   onModificato,
   onSalvato,
+  onRicarica,
 }: {
   supplierId: string;
   esistente: ListinoEsistente;
@@ -425,18 +451,27 @@ function ListinoEditor({
   /** Si chiama alla prima modifica: il guscio deve sapere che c'e' del lavoro da salvare. */
   onModificato: () => void;
   onSalvato: () => void;
+  onRicarica: () => Promise<void>;
 }) {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const permessi = usePermissions();
   // Il listino del fornitore lo modifica chi gestisce i fornitori o il listino:
   // è la regola del database dal 26/09/2026. Gli altri lo consultano.
-  const puoModificare = permessi.canEditSettingsSuppliers || permessi.canManageSuppliers || permessi.canEditSettingsPricing;
+  const puoModificare = !permessi.solaLettura && (permessi.canEditSettingsSuppliers || permessi.canManageSuppliers || permessi.canEditSettingsPricing);
 
   const [voci, setVoci] = useState<RigaVoce[]>(() => esistente.voci);
   const [incollaAperto, setIncollaAperto] = useState(false);
   const [testoIncolla, setTestoIncolla] = useState("");
   const [filtro, setFiltro] = useState("");
+  const [conflitto, setConflitto] = useState(false);
+  const base = useRef({ id: esistente.listino?.id ?? null, revisione: esistente.revisione });
+  const modifiche = useRef(0);
+
+  const modificaBozza = () => {
+    modifiche.current += 1;
+    onModificato();
+  };
 
   const visibili = useMemo(() => {
     const q = filtro.toLowerCase().trim();
@@ -449,14 +484,14 @@ function ListinoEditor({
   }, [voci, filtro]);
 
   const aggiorna = (id: string, patch: Partial<RigaVoce>) => {
-    onModificato();
+    modificaBozza();
     setVoci((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
   const importaIncollato = () => {
     const { voci: nuove, scartate } = parseVociIncollate(testoIncolla);
     if (nuove.length > 0) {
-      onModificato();
+      modificaBozza();
       setVoci((r) => [
         ...r,
         ...nuove.map((v) => ({
@@ -486,67 +521,46 @@ function ListinoEditor({
   };
 
   const salvaMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ righe, versioneBozza }: { righe: RigaVoce[]; versioneBozza: number }) => {
       if (!companyId) throw new Error("Contesto azienda mancante");
-      const valide = voci.filter((v) => v.descrizione.trim().length > 0);
-
-      // Testata: la si crea alla prima occasione, poi si riusa.
-      let listinoId = esistente.listino?.id ?? "";
-      if (!listinoId) {
-        const { data: nuovo, error } = await (supabase as any)
-          .from("listini_fornitore")
-          .insert({ company_id: companyId, supplier_id: supplierId })
-          .select("id")
-          .single();
-        if (error) throw error;
-        listinoId = nuovo.id;
-      }
-
-      // Voci: prima il nuovo, poi via il vecchio — mai una perdita.
-      const nuoviIds: string[] = [];
-      if (valide.length > 0) {
-        const rows = valide.map((v, i) => {
-          const id = crypto.randomUUID();
-          nuoviIds.push(id);
-          return {
-            id,
-            company_id: companyId,
-            listino_id: listinoId,
-            codice: v.codice.trim() || null,
-            descrizione: v.descrizione.trim(),
-            unita: v.unita.trim() || null,
-            prezzo: v.prezzo || 0,
-            sconto_pct: v.sconto_pct || 0,
-            immagine_url: v.immagine_url ?? null,
-            sort_order: i,
-          };
-        });
-        const { error } = await (supabase as any)
-          .from("listino_fornitore_voci")
-          .insert(rows);
-        if (error) throw error;
-      }
-      let del = (supabase as any)
-        .from("listino_fornitore_voci")
-        .delete()
-        .eq("listino_id", listinoId);
-      if (nuoviIds.length > 0) del = del.not("id", "in", `(${nuoviIds.join(",")})`);
-      const { error: eDel } = await del;
-      if (eDel) throw eDel;
-      return valide.length;
-    },
-    onSuccess: (n) => {
-      queryClient.invalidateQueries({ queryKey: ["listino-fornitore-testate", supplierId] });
-      queryClient.invalidateQueries({ queryKey: ["listino-fornitore-editor", supplierId] });
-      queryClient.invalidateQueries({ queryKey: ["listino-fornitore-voci", supplierId] });
-      onSalvato();
-      toast.success(`Listino salvato: ${n} ${n === 1 ? "voce" : "voci"}`, {
-        description: inVigore
-          ? "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore."
-          : "Questo listino non è in vigore: sugli ordini i prezzi vengono proposti come non aggiornati finché le date non lo rimettono in corso.",
+      const valide = righe.filter((v) => v.descrizione.trim().length > 0);
+      const { data, error } = await supabase.rpc("salva_voci_listino_fornitore", {
+        p_azienda: companyId, p_fornitore: supplierId,
+        p_listino: base.current.id, p_revisione: base.current.revisione,
+        p_voci: valide.map((v, i) => ({
+          id: v.id, codice: v.codice, descrizione: v.descrizione, unita: v.unita,
+          prezzo: v.prezzo, sconto_pct: v.sconto_pct, immagine_url: v.immagine_url ?? null, sort_order: i,
+        })),
       });
+      if (error) throw error;
+      const risposta = data as { id: string; revisione: number; totale: number } | null;
+      if (!risposta?.id || !Number.isSafeInteger(risposta.revisione)) {
+        throw new Error("Salvataggio non confermato. Ricarica la scheda prima di riprovare.");
+      }
+      return { risposta, versioneBozza };
     },
-    onError: (e: Error) => toast.error("Salvataggio non riuscito", { description: e.message }),
+    onSuccess: async ({ risposta, versioneBozza }) => {
+      base.current = { id: risposta.id, revisione: risposta.revisione };
+      const bozzaInvariata = versioneBozza === modifiche.current;
+      if (bozzaInvariata) onSalvato();
+      const n = risposta.totale;
+      toast.success(`Listino salvato: ${n} ${n === 1 ? "voce" : "voci"}`, {
+        description: !bozzaInvariata ? "Le modifiche successive sono ancora da salvare."
+          : inVigore ? "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore."
+          : "Il listino è fuori validità. Controlla le date prima di usare i prezzi.",
+      });
+      await Promise.all(["testate", "editor", "voci"].map((chiave) =>
+        queryClient.invalidateQueries({ queryKey: [`listino-fornitore-${chiave}`, supplierId] })));
+    },
+    onError: (e) => {
+      if ("code" in e && e.code === "PT409") setConflitto(true);
+      else toast.error("Salvataggio non riuscito", { description: e.message });
+    },
+  });
+  const primaCreazioneInCorso = !esistente.listino && salvaMutation.isPending;
+  const ricarica = useMutation({
+    mutationFn: onRicarica,
+    onError: (e) => toast.error("Ricaricamento non riuscito", { description: e.message }),
   });
 
   return (
@@ -561,14 +575,15 @@ function ListinoEditor({
         <div className="flex-1" />
         {puoModificare && (
           <>
-            <Button variant="outline" size="sm" onClick={() => setIncollaAperto(true)}>
+            <Button variant="outline" size="sm" disabled={primaCreazioneInCorso} onClick={() => setIncollaAperto(true)}>
               <ClipboardPaste className="h-4 w-4 mr-1" />Incolla da Excel
             </Button>
             <Button
               size="sm"
               variant="outline"
+              disabled={primaCreazioneInCorso}
               onClick={() => {
-                onModificato();
+                modificaBozza();
                 setVoci((r) => [
                   ...r,
                   { id: crypto.randomUUID(), codice: "", descrizione: "", unita: "", prezzo: 0, sconto_pct: 0 },
@@ -577,13 +592,22 @@ function ListinoEditor({
             >
               <Plus className="h-4 w-4 mr-1" />Voce
             </Button>
-            <Button size="sm" disabled={salvaMutation.isPending} onClick={() => salvaMutation.mutate()}>
+            <Button size="sm" disabled={salvaMutation.isPending || conflitto} onClick={() => salvaMutation.mutate({ righe: voci, versioneBozza: modifiche.current })}>
               {salvaMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Salva listino
             </Button>
           </>
         )}
       </div>
+
+      {conflitto && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p>Il listino è stato aggiornato da un’altra sessione. Le tue modifiche sono ancora nella griglia.</p>
+          <Button variant="outline" size="sm" disabled={ricarica.isPending} onClick={() => ricarica.mutate()}>
+            Scarta la bozza e ricarica
+          </Button>
+        </div>
+      )}
 
       {voci.length === 0 ? (
         <p className="text-sm text-muted-foreground py-6 text-center">
@@ -609,7 +633,7 @@ function ListinoEditor({
               {visibili.map((v) => (
                 <tr key={v.id} className="border-b last:border-0">
                   <td className="p-1">
-                    <Input aria-label={`Codice voce ${v.codice || v.descrizione || v.id}`} value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
+                    <Input aria-label={`Codice voce ${v.codice || v.descrizione || v.id}`} value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <div className="flex items-center gap-2">
@@ -621,18 +645,18 @@ function ListinoEditor({
                           className="h-9 w-9 shrink-0 rounded border bg-white object-contain"
                         />
                       )}
-                      <Input aria-label={`Descrizione voce ${v.codice || v.descrizione || v.id}`} value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
+                      <Input aria-label={`Descrizione voce ${v.codice || v.descrizione || v.id}`} value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                     </div>
                   </td>
                   <td className="p-1">
-                    <Input aria-label={`Unità di misura voce ${v.codice || v.descrizione || v.id}`} value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
+                    <Input aria-label={`Unità di misura voce ${v.codice || v.descrizione || v.id}`} value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <Input
                       aria-label={`Prezzo voce ${v.codice || v.descrizione || v.id}`}
                       type="number" min={0} step="0.01"
                       value={Number.isFinite(v.prezzo) ? v.prezzo : 0}
-                      readOnly={!puoModificare}
+                      readOnly={!puoModificare || primaCreazioneInCorso}
                       onChange={(e) => aggiorna(v.id, { prezzo: parseFloat(e.target.value) || 0 })}
                       className="h-8 text-sm text-right"
                     />
@@ -642,7 +666,7 @@ function ListinoEditor({
                       aria-label={`Sconto percentuale voce ${v.codice || v.descrizione || v.id}`}
                       type="number" min={0} max={100} step="0.5"
                       value={Number.isFinite(v.sconto_pct) ? v.sconto_pct : 0}
-                      readOnly={!puoModificare}
+                      readOnly={!puoModificare || primaCreazioneInCorso}
                       onChange={(e) => aggiorna(v.id, { sconto_pct: parseFloat(e.target.value) || 0 })}
                       className="h-8 text-sm text-right"
                     />
@@ -654,8 +678,8 @@ function ListinoEditor({
                     {puoModificare && (
                       <Button
                         variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => { onModificato(); setVoci((r) => r.filter((x) => x.id !== v.id)); }}
-                        aria-label="Rimuovi voce"
+                        onClick={() => { modificaBozza(); setVoci((r) => r.filter((x) => x.id !== v.id)); }}
+                        aria-label="Rimuovi voce" disabled={primaCreazioneInCorso}
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
@@ -694,7 +718,7 @@ function ListinoEditor({
           />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIncollaAperto(false)}>Annulla</Button>
-            <Button onClick={importaIncollato} disabled={!testoIncolla.trim()}>
+            <Button onClick={importaIncollato} disabled={!testoIncolla.trim() || primaCreazioneInCorso}>
               Leggi le righe
             </Button>
           </div>

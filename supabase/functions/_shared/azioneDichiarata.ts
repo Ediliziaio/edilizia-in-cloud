@@ -38,8 +38,17 @@ export function dichiaraAzione(testo: string): boolean {
 
 export interface ChiamataStrumento {
   name: string;
-  /** Anteprima del risultato: se contiene un errore, lo strumento non ha scritto. */
+  success?: boolean;
+  proposal_id?: string | null;
+  /** Compatibilità con le chiamate già registrate senza un esito esplicito. */
   result_preview?: string | null;
+}
+
+export function esitoStrumenti(chiamate: readonly { success: boolean }[]) {
+  if (chiamate.length === 0) return "senza_strumenti";
+  const riuscite = chiamate.filter(chiamata => chiamata.success).length;
+  if (riuscite === 0) return "fallito";
+  return riuscite === chiamate.length ? "riuscito" : "parziale";
 }
 
 /**
@@ -49,7 +58,8 @@ export interface ChiamataStrumento {
 export function dichiaraAzioneNonEseguita(testo: string, chiamate: ChiamataStrumento[]): boolean {
   if (!testo || !dichiaraAzione(testo)) return false;
   const scritturaRiuscita = chiamate.some(
-    (c) => eStrumentoCheScrive(c.name) && !/"error"\s*:/.test(c.result_preview ?? ""),
+    (c) => eStrumentoCheScrive(c.name) && !c.proposal_id
+      && (c.success ?? !/"error"\s*:/.test(c.result_preview ?? "")),
   );
   return !scritturaRiuscita;
 }
@@ -61,3 +71,19 @@ export const RICHIAMO_AZIONE_NON_ESEGUITA =
   "che la esegua, quindi NON è avvenuta. Se l'utente l'ha chiesta e hai i dati, chiama ora " +
   "lo strumento giusto. Altrimenti riscrivi la risposta dicendo chiaramente cosa NON hai " +
   "fatto e cosa ti serve per farlo. Non dichiarare mai come fatta un'azione non eseguita.";
+/** Una nuova inferenza non può cambiare il permesso o fornire la conferma dell'utente. */
+export function politicaErroreStrumento(codice: string | undefined): "autorizzazione" | "attesa_utente" | "riprova" {
+  if (codice && /^(forbidden_|actor_|session_|permissions_)/.test(codice)) {
+    return "autorizzazione";
+  }
+  switch (codice) {
+    case "needs_clarification":
+    case "invalid_confirmation":
+    case "payment_method_required":
+    case "insufficient_credits":
+    case "servizio_non_disponibile":
+      return "attesa_utente";
+    default:
+      return "riprova";
+  }
+}

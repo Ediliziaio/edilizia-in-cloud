@@ -25,11 +25,15 @@ function parseAmount(v: unknown): number {
 function parseDate(v: unknown): string | null {
   if (!v) return null;
   const s = String(v).trim();
-  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
-  if (m) { const y = m[3].length === 2 ? `20${m[3]}` : m[3]; return `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`; }
-  return null;
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?=$|[T\s])/);
+  const italiana = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4}|\d{2})(?=$|\s)/);
+  if (!iso && !italiana) return null;
+  const [, a, m, b] = iso ?? italiana!;
+  const anno = iso ? a : b.length === 2 ? `20${b}` : b;
+  const giorno = iso ? b : a;
+  const data = `${anno}-${m.padStart(2, "0")}-${giorno.padStart(2, "0")}`;
+  const utc = new Date(`${data}T00:00:00Z`);
+  return Number.isFinite(utc.getTime()) && utc.toISOString().slice(0, 10) === data ? data : null;
 }
 function detect(headers: string[], keys: string[]): string {
   const h = headers.find((x) => keys.some((k) => x.toLowerCase().includes(k)));
@@ -83,7 +87,13 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
         ws.eachRow((row, rn) => {
           if (rn === 1) return;
           const o: Record<string, string> = {};
-          hdr.forEach((h, i) => (o[h] = String(row.getCell(i + 1).value ?? "").trim()));
+          hdr.forEach((h, i) => {
+            const valore = row.getCell(i + 1).value;
+            // ExcelJS rappresenta le date civili in UTC.
+            o[h] = valore instanceof Date && Number.isFinite(valore.getTime())
+              ? valore.toISOString().slice(0, 10)
+              : String(valore ?? "").trim();
+          });
           rows.push(o);
         });
       }
@@ -207,6 +217,11 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
                   </div>
                 )}
                 <PreviewList rows={fileRows} />
+                {rawRows.length > fileRows.length && (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    {rawRows.length - fileRows.length === 1 ? "1 riga esclusa" : `${rawRows.length - fileRows.length} righe escluse`}. Controlla le colonne della data e dell’importo.
+                  </p>
+                )}
                 <DialogFooter>
                   <Button onClick={() => doImport(fileRows)} disabled={bulkInsert.isPending || !fileRows.length}>
                     {bulkInsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Importa {fileRows.length} movimenti

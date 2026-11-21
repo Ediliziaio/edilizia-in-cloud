@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "npm:stripe@14";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
@@ -8,6 +8,7 @@ import { sendPlatformCapiEvent } from "../_shared/capiPlatform.ts";
 import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
 import { notificaInterna } from "../_shared/notificaInterna.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
+import { confermaPagamentoSms, SMS_CHECKOUT_TYPE } from "../_shared/smsCheckout.ts";
 
 const APP_BASE = "https://app.ediliziaincloud.com";
 
@@ -28,7 +29,7 @@ function getSubscriptionPeriod(sub: any): { start: string | null; end: string | 
 }
 
 async function logStripeEvent(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   eventId: string,
   eventType: string,
   companyId: string | null,
@@ -54,7 +55,7 @@ async function logStripeEvent(
 }
 
 async function getCompanyByStripeCustomer(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   stripeCustomerId: string
 ) {
   const { data } = await supabase
@@ -70,7 +71,7 @@ async function getCompanyByStripeCustomer(
 }
 
 async function upsertSubscriptionInvoice(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   companyId: string,
   invoice: any,
   stripeCustomerId: string
@@ -104,7 +105,7 @@ async function upsertSubscriptionInvoice(
 }
 
 async function handleInvoiceCreated(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   invoice: any
 ) {
   const stripeCustomerId = invoice.customer;
@@ -123,7 +124,7 @@ async function handleInvoiceCreated(
 // o dell'aggiunta-carta, senza pretendere una ricarica manuale separata. Aggiorna
 // solo lo stripe_payment_method_id (non tocca soglia/importo/enabled del cliente).
 async function saveCardForAutoTopup(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   stripeSecretKey: string,
   companyId: string,
   customerId: string | null,
@@ -182,7 +183,7 @@ function motivoAddonWhatsApp(subscriptionId: string): string {
 
 /** L'abbonamento è l'add-on WhatsApp? Metadati, poi override registrato, poi Stripe. */
 async function eAddonWhatsApp(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   companyId: string,
   subscriptionId: string | null | undefined,
   metadata: Record<string, unknown> | null | undefined,
@@ -214,7 +215,7 @@ async function eAddonWhatsApp(
 }
 
 async function attivaAddonWhatsApp(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   companyId: string,
   subscriptionId: string,
   prezzoEur: number | null,
@@ -248,7 +249,7 @@ async function attivaAddonWhatsApp(
 }
 
 async function disattivaAddonWhatsApp(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   companyId: string,
   subscriptionId: string,
   perche: string,
@@ -274,7 +275,7 @@ async function disattivaAddonWhatsApp(
 
 /** Stato dell'abbonamento dell'add-on → add-on acceso o spento. */
 async function aggiornaAddonWhatsApp(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   companyId: string,
   subscription: any,
 ) {
@@ -300,7 +301,7 @@ const ABBONAMENTO_AGENTI_AI = "ai_subscription";
 
 /** L'abbonamento è quello degli Agenti AI? Metadati, poi ai_subscriptions, poi Stripe. */
 async function eAbbonamentoAgentiAI(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   subscriptionId: string | null | undefined,
   metadata: Record<string, unknown> | null | undefined,
   stripeSecretKey?: string,
@@ -357,7 +358,7 @@ function statoAgentiAI(statoStripe: string): string | null {
  * non la si crea qui: la registra il checkout.
  */
 async function aggiornaAbbonamentoAgentiAI(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   subscriptionId: string,
   campi: { status: string; current_period_end?: string },
 ) {
@@ -376,12 +377,17 @@ async function aggiornaAbbonamentoAgentiAI(
 }
 
 async function handleCheckoutCompleted(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   session: any,
   stripeSecretKey: string
 ) {
   const companyId = session.metadata?.company_id;
   const metadataType = session.metadata?.type;
+
+  if (metadataType === SMS_CHECKOUT_TYPE) {
+    await confermaPagamentoSms(session, (dati) => supabase.rpc("sms_accredita_checkout", dati));
+    return;
+  }
   if (!companyId) return;
 
   // ── Setup Card (aggiunta carta senza addebito → sblocca gli strumenti a costo) ──
@@ -812,7 +818,7 @@ async function handleCheckoutCompleted(
 }
 
 async function handleInvoicePaid(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   invoice: any,
   stripeSecretKey: string
 ) {
@@ -978,7 +984,7 @@ async function handleInvoicePaid(
 }
 
 async function handleInvoicePaymentFailed(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   invoice: any,
   stripeSecretKey: string
 ) {
@@ -1147,7 +1153,7 @@ async function handleInvoicePaymentFailed(
 }
 
 async function handleSubscriptionDeleted(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   subscription: any
 ) {
   const stripeCustomerId = subscription.customer;
@@ -1210,7 +1216,7 @@ async function handleSubscriptionDeleted(
 }
 
 async function handleSubscriptionUpdated(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   subscription: any
 ) {
   const stripeCustomerId = subscription.customer;
@@ -1331,7 +1337,7 @@ async function handleSubscriptionUpdated(
 // ─── Referral Attribution ─────────────────────────────────
 
 async function handleReferralAttribution(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   stripeCustomerId: string
 ) {
   try {
@@ -1359,11 +1365,15 @@ async function handleReferralAttribution(
       .maybeSingle();
 
     if (referrer?.referral_code) {
-      await supabase.rpc('record_referral_conversion', {
+      const { error } = await supabase.rpc('record_referral_conversion', {
         p_referral_code: referrer.referral_code,
         p_company_id: company.id,
         p_status: 'active',
-      }).catch((e: unknown) => console.error('[stripe-webhook] record_referral_conversion error:', e));
+      });
+      if (error) {
+        console.error('[stripe-webhook] record_referral_conversion error:', error);
+        return;
+      }
     }
 
     if (existing) return; // Già attribuito
@@ -1434,7 +1444,8 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
     }
 
     let event: Stripe.Event;
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" });
+    // Keep the webhook's configured API version when using the older Stripe SDK.
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" as Stripe.LatestApiVersion });
     try {
       // P0-5: in Deno NON usare constructEvent() sync — stripe-node l'ha
       // scritta sopra `require('crypto').createHmac()` che è Node API.
@@ -1464,8 +1475,10 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Extract company_id for logging
-    const obj = event.data?.object || {};
-    const companyId = obj.metadata?.company_id || null;
+    const eventObject = event.data?.object;
+    const companyId = eventObject && "metadata" in eventObject ? eventObject.metadata?.company_id || null : null;
+    const customer = eventObject && "customer" in eventObject ? eventObject.customer : null;
+    const customerId = typeof customer === "string" ? customer : customer?.id;
 
     // ── Idempotency con CLAIM ATOMICO ─────────────────────────────────────
     // Il vecchio pattern SELECT('processed')→UPSERT('processing') aveva una
@@ -1535,12 +1548,12 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
       "customer.subscription.updated",
       "customer.subscription.deleted",
     ];
-    if (CUSTOMER_SCOPED_EVENTS.includes(event.type) && obj.customer) {
-      const scopedCompany = await getCompanyByStripeCustomer(supabase, obj.customer);
+    if (CUSTOMER_SCOPED_EVENTS.includes(event.type) && customerId) {
+      const scopedCompany = await getCompanyByStripeCustomer(supabase, customerId);
       if (!scopedCompany) {
         await logStripeEvent(
           supabase, event.id, event.type, null, event.data,
-          "processed", `company_not_found:${obj.customer}`,
+          "processed", `company_not_found:${customerId}`,
         );
         return new Response(JSON.stringify({ received: true, skipped: "company_not_found" }), {
           headers: secureHeaders,
@@ -1561,30 +1574,37 @@ Deno.serve(conMetriche("stripe-webhook", async (req) => {
     try {
       switch (event.type) {
         case "checkout.session.completed":
-          await handleCheckoutCompleted(supabase, obj, stripeSecretKey);
+          await handleCheckoutCompleted(supabase, event.data.object, stripeSecretKey);
+          break;
+        case "checkout.session.async_payment_succeeded":
+          if (event.data.object.metadata?.type === SMS_CHECKOUT_TYPE) {
+            await handleCheckoutCompleted(supabase, event.data.object, stripeSecretKey);
+          }
           break;
         case "invoice.paid":
-          await handleInvoicePaid(supabase, obj, stripeSecretKey);
+          await handleInvoicePaid(supabase, event.data.object, stripeSecretKey);
           break;
         case "invoice.payment_failed":
-          await handleInvoicePaymentFailed(supabase, obj, stripeSecretKey);
+          await handleInvoicePaymentFailed(supabase, event.data.object, stripeSecretKey);
           break;
         case "customer.subscription.deleted":
-          await handleSubscriptionDeleted(supabase, obj);
+          await handleSubscriptionDeleted(supabase, event.data.object);
           break;
-        case "customer.subscription.created":
+        case "customer.subscription.created": {
+          const subscription = event.data.object;
           // Attribuisce il referral al primo abbonamento attivo: quello del
           // piano, non l'add-on WhatsApp o gli Agenti AI comprati dopo.
-          if (obj.metadata?.type !== ADDON_WHATSAPP && obj.metadata?.type !== ABBONAMENTO_AGENTI_AI) {
-            await handleReferralAttribution(supabase, obj.customer);
+          if (customerId && subscription.metadata?.type !== ADDON_WHATSAPP && subscription.metadata?.type !== ABBONAMENTO_AGENTI_AI) {
+            await handleReferralAttribution(supabase, customerId);
           }
-          await handleSubscriptionUpdated(supabase, obj);
+          await handleSubscriptionUpdated(supabase, subscription);
           break;
+        }
         case "customer.subscription.updated":
-          await handleSubscriptionUpdated(supabase, obj);
+          await handleSubscriptionUpdated(supabase, event.data.object);
           break;
         case "invoice.created":
-          await handleInvoiceCreated(supabase, obj);
+          await handleInvoiceCreated(supabase, event.data.object);
           break;
       }
 

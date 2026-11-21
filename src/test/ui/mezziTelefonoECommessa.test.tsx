@@ -67,8 +67,8 @@ const furgone: MezzoInCarico = {
   stato: "in_servizio", contatore: 84000, contatore_unita: "km", contatore_aggiornato_il: "2026-09-20",
   foto_path: null, su_mezzo_id: null,
   documenti: [
-    { id: "d1", categoria: "assicurazione", titolo: "Polizza 2026", ente: null, data_scadenza: "2027-03-01", alert_giorni_prima: 30, file_path: `${AZ}/m1/polizza-2026.pdf`, file_name: "polizza-2026.pdf" },
-    { id: "d0", categoria: "assicurazione", titolo: "Polizza 2025", ente: null, data_scadenza: "2026-03-01", alert_giorni_prima: 30, file_path: `${AZ}/m1/polizza-2025.pdf`, file_name: "polizza-2025.pdf" },
+    { id: "d1", categoria: "assicurazione", titolo: "Polizza RCA", ente: null, data_scadenza: "2027-03-01", alert_giorni_prima: 30, file_path: `${AZ}/m1/polizza-2026.pdf`, file_name: "polizza-2026.pdf" },
+    { id: "d0", categoria: "assicurazione", titolo: "Polizza RCA", ente: null, data_scadenza: "2026-03-01", alert_giorni_prima: 30, file_path: `${AZ}/m1/polizza-2025.pdf`, file_name: "polizza-2025.pdf" },
     { id: "d2", categoria: "revisione", titolo: null, ente: null, data_scadenza: "2026-09-01", alert_giorni_prima: 30, file_path: null, file_name: null },
   ],
 };
@@ -89,11 +89,10 @@ describe("Il mio mezzo, dal telefono", () => {
     expect(within(scheda).getByText("Attrezzi a bordo")).toBeTruthy();
     expect(within(scheda).getByText("Demolitore Hilti")).toBeTruthy();
 
-    expect(within(scheda).getByText("Polizza 2026")).toBeTruthy();
-    expect(within(scheda).queryByText("Polizza 2025")).toBeNull();
+    expect(within(scheda).getAllByText("Polizza RCA")).toHaveLength(1);
     expect(within(scheda).getByText(/revisione: scadenza passata/i)).toBeTruthy();
 
-    const apri = within(scheda).getByRole("link", { name: "Apri Polizza 2026" });
+    const apri = within(scheda).getByRole("link", { name: "Apri Polizza RCA" });
     expect(apri.getAttribute("href")).toBe("https://firmato.example/polizza-2026");
     expect(apri.getAttribute("target")).toBe("_blank");
   });

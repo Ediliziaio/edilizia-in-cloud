@@ -52,6 +52,12 @@ export function NotificationsRealtime({
   useEffect(() => {
     if (!companyId || !userId) return;
 
+    const listKey = queryKeys.notifications.list(companyId, userId);
+    const unreadKey = queryKeys.notifications.unread(companyId, userId);
+    const invalidateMessages = () => {
+      void queryClient.invalidateQueries({ queryKey: listKey });
+      void queryClient.invalidateQueries({ queryKey: unreadKey });
+    };
     const channelId = `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
 
     const channel = supabase
@@ -66,10 +72,8 @@ export function NotificationsRealtime({
         },
         (payload) => {
           const newNotif = payload.new as Notification;
-          queryClient.setQueryData<Notification[]>(
-            queryKeys.notifications.list(companyId, userId),
-            (old = []) => [newNotif, ...old]
-          );
+          if (newNotif.company_id !== companyId || newNotif.is_dismissed) return;
+          invalidateMessages();
 
           toast(newNotif.title, {
             description: newNotif.body ?? undefined,
@@ -86,6 +90,13 @@ export function NotificationsRealtime({
           });
           playNotificationSound();
         }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          if (payload.new.company_id === companyId) invalidateMessages();
+        },
       );
     // 2026-05-27 (audit error handling): subscribeChannel logga e segnala se
     // la connessione realtime muore. Senza, l'utente vedeva la dashboard
@@ -95,9 +106,7 @@ export function NotificationsRealtime({
       onDead: () => {
         // Refetch on dead channel as safety net (le notifiche dovrebbero
         // ancora arrivare al prossimo polling staleTime).
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.notifications.list(companyId, userId),
-        });
+        invalidateMessages();
       },
     });
 
@@ -149,6 +158,7 @@ export function useNotifications(enabled = true) {
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
   const userId = profile?.id;
+  const unreadKey = queryKeys.notifications.unread(companyId, userId);
 
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
     queryKey: queryKeys.notifications.list(companyId, userId),
@@ -159,7 +169,9 @@ export function useNotifications(enabled = true) {
         .eq("company_id", companyId!)
         .eq("user_id", userId!)
         .eq("is_dismissed", false)
+        .order("is_read", { ascending: true })
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .limit(50);
       if (error) throw error;
       return data as Notification[];
@@ -167,6 +179,25 @@ export function useNotifications(enabled = true) {
     enabled: enabled && !!companyId && !!userId,
     // 2026-05-27: alzato da 30s a 2min — il realtime push tiene la cache
     // fresca, il polling era solo safety-net per eventi persi (raro).
+    staleTime: 2 * 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: totaleNonLette } = useQuery({
+    queryKey: unreadKey,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .eq("user_id", userId!)
+        .eq("is_dismissed", false)
+        .eq("is_read", false);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: enabled && !!companyId && !!userId,
     staleTime: 2 * 60_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: true,
@@ -245,9 +276,14 @@ export function useNotifications(enabled = true) {
   }, [notifications, gruppiLifecycle, companyId, userId]);
 
   /** Il numero sul pallino rosso: messaggi non letti + avvisi ancora aperti. */
-  const unreadCount = notificheUnificate.filter((n) => !n.is_read).length;
-  /** Solo i messaggi veri: "Tutte lette" e l'auto-lettura lavorano su questi. */
-  const unreadMessagesCount = notifications.filter((n) => !n.is_read).length;
+  const visibleUnreadMessagesCount = notifications.filter((n) => !n.is_read).length;
+  const unreadMessagesCount = totaleNonLette ?? visibleUnreadMessagesCount;
+  const unreadCount = unreadMessagesCount + gruppiLifecycle.length;
+  const tutteLeNonLetteVisibili = totaleNonLette !== undefined && totaleNonLette === visibleUnreadMessagesCount;
+  const aggiornaMessaggi = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) }),
+    queryClient.invalidateQueries({ queryKey: unreadKey }),
+  ]);
 
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
@@ -257,6 +293,7 @@ export function useNotifications(enabled = true) {
         .from("notifications")
         .update({ is_read: true })
         .eq("id", id)
+        .eq("company_id", companyId!)
         .eq("user_id", userId!);
       if (error) throw error;
     },
@@ -267,11 +304,7 @@ export function useNotifications(enabled = true) {
         (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
     },
-    onError: () => {
-      // Revert optimistic update on error
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
-    },
+    onSettled: aggiornaMessaggi,
   });
 
   const markAllAsRead = useMutation({
@@ -290,10 +323,9 @@ export function useNotifications(enabled = true) {
       );
     },
     onError: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
       toast.error("Errore", { description: "Impossibile segnare tutte le notifiche come lette." });
     },
+    onSettled: aggiornaMessaggi,
   });
 
   const dismiss = useMutation({
@@ -313,6 +345,7 @@ export function useNotifications(enabled = true) {
         .from("notifications")
         .update({ is_dismissed: true })
         .eq("id", id)
+        .eq("company_id", companyId!)
         .eq("user_id", userId!);
       if (error) throw error;
     },
@@ -332,15 +365,16 @@ export function useNotifications(enabled = true) {
     },
     onError: () => {
       // Revert optimistic update on error
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
     },
+    onSettled: aggiornaMessaggi,
   });
 
   return {
     notifications: notificheUnificate,
     unreadCount,
     unreadMessagesCount,
+    tutteLeNonLetteVisibili,
     isLoading: isLoading || lifecycleLoading,
     markAsRead: markAsRead.mutate,
     markAllAsRead: markAllAsRead.mutate,

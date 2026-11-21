@@ -500,14 +500,12 @@ export function useCostiSullaGenerale(generaleId: string | undefined, enabled = 
     enabled: !!generaleId && enabled,
     staleTime: 30_000,
     meta: { silent: true },
-    queryFn: async ({ signal }): Promise<number | null> => {
-      try {
-        const [dati] = await leggiEconomiaCommesse<{ consuntivo: number | null }>([generaleId!], { colonne: "consuntivo", signal });
-        const n = Number(dati?.consuntivo ?? 0);
-        return Number.isFinite(n) ? n : 0;
-      } catch {
-        return null;
-      }
+    queryFn: async ({ signal }): Promise<number> => {
+      const [dati] = await leggiEconomiaCommesse<{ consuntivo: number | string | null }>([generaleId!], { colonne: "consuntivo", signal });
+      const consuntivo = dati?.consuntivo;
+      const totale = typeof consuntivo === "string" && consuntivo.trim() ? Number(consuntivo) : consuntivo;
+      if (typeof totale !== "number" || !Number.isFinite(totale)) throw new Error("Totale dei costi comuni non disponibile.");
+      return totale;
     },
   });
 }
@@ -523,19 +521,15 @@ export function useIncassiUnita(orderId: string | undefined) {
     meta: { silent: true },
     queryFn: async (): Promise<{ incassi: number; permute: number; cassa:number; daCollegare:number }> => {
       const vuoto = { incassi: 0, permute: 0,cassa:0,daCollegare:0 };
-      try {
-        const { data: u, error } = await db.from("unita_immobiliari").select("id").eq("order_id", orderId!).maybeSingle();
-        if (error) throw error;
-        if (!u) return vuoto;
-        const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo, tipo,importo_cassa,prima_nota_id").eq("unita_id", (u as { id: string }).id).is('stornato_at',null);
-        if (e2) throw e2;
-        return ((m ?? []) as { importo: number | string; tipo: string;importo_cassa:number|null;prima_nota_id:string|null }[]).reduce(
-          (t, x) => (x.tipo === "permuta" ? { ...t, permute: t.permute + Number(x.importo || 0) } : { ...t, incassi: t.incassi + Number(x.importo || 0),cassa:t.cassa+(x.prima_nota_id?Number(x.importo_cassa??0):0),daCollegare:t.daCollegare+(x.prima_nota_id?0:1) }),
-          vuoto,
-        );
-      } catch (e) {
-        throw e;
-      }
+      const { data: u, error } = await db.from("unita_immobiliari").select("id").eq("order_id", orderId!).maybeSingle();
+      if (error) throw error;
+      if (!u) return vuoto;
+      const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo, tipo,importo_cassa,prima_nota_id").eq("unita_id", (u as { id: string }).id).is('stornato_at',null);
+      if (e2) throw e2;
+      return ((m ?? []) as { importo: number | string; tipo: string;importo_cassa:number|null;prima_nota_id:string|null }[]).reduce(
+        (t, x) => (x.tipo === "permuta" ? { ...t, permute: t.permute + Number(x.importo || 0) } : { ...t, incassi: t.incassi + Number(x.importo || 0),cassa:t.cassa+(x.prima_nota_id?Number(x.importo_cassa??0):0),daCollegare:t.daCollegare+(x.prima_nota_id?0:1) }),
+        vuoto,
+      );
     },
   });
 }

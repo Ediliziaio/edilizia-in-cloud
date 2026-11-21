@@ -8,7 +8,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+import { useEffect } from "react";
 import type {
   SmsWallet,
   SmsWalletTransazione,
@@ -20,6 +20,30 @@ import type {
 const WALLET_KEY       = "sms-wallet";
 const TRANSAZIONI_KEY  = "sms-wallet-transazioni";
 const PACCHETTI_KEY    = "sms-pacchetti-crediti";
+
+export function useSmsRicaricaEsito(sessionId: string | null) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const queryClient = useQueryClient();
+  const ricevuta = useQuery({
+    queryKey: ["sms-checkout-ricevuta", companyId, sessionId],
+    enabled: !!companyId && !!sessionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sms_checkout_receipts").select("credit_cents, credited_at")
+        .eq("company_id", companyId!).eq("checkout_id", sessionId!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: (q) => q.state.data || q.state.dataUpdateCount + q.state.errorUpdateCount >= 12 ? false : 2500,
+    refetchIntervalInBackground: false,
+  });
+  useEffect(() => {
+    if (!ricevuta.data || !companyId) return;
+    void queryClient.invalidateQueries({ queryKey: [WALLET_KEY, companyId] });
+    void queryClient.invalidateQueries({ queryKey: [TRANSAZIONI_KEY, companyId] });
+  }, [ricevuta.data, companyId, queryClient]);
+  return ricevuta;
+}
 
 // ─── Transazioni paginate (hook separato — regola hooks) ──────────────────────
 
@@ -76,7 +100,7 @@ export function useSmsWallet() {
   });
 
   // ─── Pacchetti ───────────────────────────────────────────
-  const { data: pacchetti = [], isLoading: isLoadingPacchetti } = useQuery({
+  const { data: pacchetti = [], isLoading: isLoadingPacchetti, isError: errorePacchetti, refetch: ricaricaPacchetti } = useQuery({
     queryKey: [PACCHETTI_KEY],
     queryFn: async (): Promise<SmsPacchettoCrediti[]> => {
       const { data, error } = await supabase
@@ -90,38 +114,25 @@ export function useSmsWallet() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // ─── Crea PaymentIntent Stripe ───────────────────────────
+  // ─── Avvia il pagamento su Stripe Checkout ─────────────────────────────
   const ricaricaMutation = useMutation({
-    mutationFn: async (pacchetto_id: string): Promise<SmsRicaricaResponse> => {
+    mutationFn: async ({ pacchetto_id, operazione_id }: Pick<SmsRicaricaRequest, "pacchetto_id" | "operazione_id">): Promise<SmsRicaricaResponse> => {
       if (!companyId) throw new Error("Azienda non selezionata");
       const { data, error } = await supabase.functions.invoke<SmsRicaricaResponse>(
-        "sms-crea-payment-intent",
-        { body: { company_id: companyId, pacchetto_id } satisfies SmsRicaricaRequest }
+        "create-checkout-session",
+        { body: { company_id: companyId, type: "sms_credits", pacchetto_id, operazione_id } satisfies SmsRicaricaRequest },
       );
-      if (error) throw new Error(error.message || "Errore nell'avvio del pagamento");
-      if (!data?.client_secret) throw new Error("Pagamento non inizializzato");
+      if (error) {
+        const contesto: unknown = error.context;
+        const risposta = contesto instanceof Response
+          ? await contesto.json().catch((): null => null)
+          : null;
+        throw new Error(typeof risposta?.error === "string" ? risposta.error : "Impossibile aprire il pagamento. Riprova.");
+      }
+      if (!data?.url || !data.session_id) throw new Error("Pagamento non inizializzato");
       return data;
     },
-    onError: (err: Error) => toast.error(err.message),
   });
-
-  // ─── Polling post-pagamento ──────────────────────────────
-  const pollingWalletAggiornato = async (creditiAttesi: number, maxTentative = 10): Promise<boolean> => {
-    for (let i = 0; i < maxTentative; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const { data } = await supabase
-        .from("sms_wallet")
-        .select("crediti")
-        .eq("company_id", companyId!)
-        .maybeSingle();
-      if (data && Number(data.crediti) >= creditiAttesi) {
-        queryClient.invalidateQueries({ queryKey: [WALLET_KEY, companyId] });
-        queryClient.invalidateQueries({ queryKey: [TRANSAZIONI_KEY, companyId] });
-        return true;
-      }
-    }
-    return false;
-  };
 
   // ─── Computed ────────────────────────────────────────────
   const creditiResidui = wallet ? wallet.crediti - wallet.crediti_riservati : 0;
@@ -137,9 +148,10 @@ export function useSmsWallet() {
     pacchetti,
     isLoadingWallet,
     isLoadingPacchetti,
-    creaRicarica: (pacchetto_id: string) => ricaricaMutation.mutateAsync(pacchetto_id),
+    errorePacchetti,
+    ricaricaPacchetti,
+    creaRicarica: ricaricaMutation.mutateAsync,
     isRicaricando: ricaricaMutation.isPending,
-    pollingWalletAggiornato,
     creditiResidui,
     isSottoSoglia,
     isBlocco,

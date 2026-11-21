@@ -1,12 +1,14 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, Download, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { LinkAllegatoTicket } from "./LinkAllegatoTicket";
+import { completaAllegato, preparaAllegato, type AllegatoDaCaricare } from "@/lib/tickets/caricaAllegato";
+import { Upload, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 
 interface TicketAttachmentsProps {
   ticketId: string;
@@ -20,30 +22,33 @@ const ALLOWED_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-function getFileName(url: string): string {
-  try {
-    const parts = url.split("/");
-    const last = parts[parts.length - 1];
-    // Remove UUID prefix if present (format: uuid_filename)
-    const underscoreIdx = last.indexOf("_");
-    if (underscoreIdx > 30) return decodeURIComponent(last.substring(underscoreIdx + 1));
-    return decodeURIComponent(last);
-  } catch {
-    return "file";
-  }
+export function TicketAttachments(props: TicketAttachmentsProps) {
+  return <AllegatiPerTicket key={props.ticketId} {...props} />;
 }
 
-function isImage(url: string): boolean {
-  return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
-}
-
-export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
+function AllegatiPerTicket({ ticketId }: TicketAttachmentsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
   const { user } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
+  const [mancanti, setMancanti] = useState<AllegatoDaCaricare[]>([]);
+  const daCompletare = useRef<AllegatoDaCaricare[]>([]);
+  const inCorso = useRef(false);
+  useEffect(() => {
+    const primaDiUscire = (event: BeforeUnloadEvent) => {
+      if (daCompletare.current.length === 0) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", primaDiUscire);
+    return () => {
+      window.removeEventListener("beforeunload", primaDiUscire);
+      if (daCompletare.current.length > 0) {
+        toast({ title: "Allegati ancora da completare", description: "I file già collegati restano nel ticket. Per quelli mancanti torna a selezionare i file." });
+      }
+    };
+  }, []);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -61,7 +66,7 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
     setIsDragging(false);
     dragCounter.current = 0;
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) uploadMutation.mutate(files);
+    aggiungi(files);
   };
 
   const { data: attachments = [], isLoading, isError, refetch } = useQuery({
@@ -80,50 +85,58 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async (fileDaInviare: AllegatoDaCaricare[]) => {
       if (!user?.id) throw new Error("Sessione non valida. Ricarica la pagina e riprova.");
-
-      for (const file of files) {
-        if (file.size > MAX_FILE_SIZE) throw new Error(`"${file.name}" supera il limite di 10MB`);
-        if (!ALLOWED_TYPES.includes(file.type)) throw new Error(`"${file.name}": tipo file non supportato`);
+      const falliti: AllegatoDaCaricare[] = [];
+      for (const allegato of fileDaInviare) {
+        try {
+          await completaAllegato(allegato, ticketId, user.id);
+        } catch {
+          falliti.push(allegato);
+        }
       }
-
-      for (const file of files) {
-        const path = `${ticketId}/${crypto.randomUUID()}_${file.name}`;
-
-        const { error: uploadErr } = await supabase.storage
-          .from("ticket-attachments")
-          .upload(path, file, { contentType: file.type });
-        if (uploadErr) throw uploadErr;
-
-        const { data: signedData, error: signedErr } = await supabase.storage
-          .from("ticket-attachments")
-          .createSignedUrl(path, 60 * 60 * 24);
-        if (signedErr) throw signedErr;
-
-        const { error: msgErr } = await supabase.from("ticket_messages").insert({
-          ticket_id: ticketId,
-          sender_id: user.id,
-          message: `📎 ${file.name}`,
-          attachment_url: signedData?.signedUrl || path,
-        });
-        if (msgErr) throw msgErr;
-      }
+      return falliti;
     },
-    onSuccess: () => {
-      toast({ title: "Caricato", description: "Allegato caricato con successo." });
+    onSuccess: (falliti, inviati) => {
+      daCompletare.current = falliti;
+      setMancanti(falliti);
+      if (falliti.length > 0) {
+        toast({ title: `${falliti.length} allegati da completare`, description: "Riprova mancanti per completare i file in elenco." });
+      } else {
+        toast({ title: inviati.length === 1 ? "Allegato caricato" : "Allegati caricati" });
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customerTickets.messages(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
     },
     onError: (err: Error) => {
-      toast({ title: "Errore", description: err.message, variant: "destructive" });
+      toast({ title: "Caricamento non completato", description: err.message, variant: "destructive" });
     },
+    onSettled: () => { inCorso.current = false; },
   });
+
+  const invia = (files: AllegatoDaCaricare[]) => {
+    if (inCorso.current || files.length === 0) return;
+    inCorso.current = true;
+    daCompletare.current = files;
+    setMancanti(files);
+    uploadMutation.mutate(files);
+  };
+  const aggiungi = (files: File[]) => {
+    if (inCorso.current || daCompletare.current.length > 0) return;
+    const validi = files.filter((file) => {
+      const errore = file.size > MAX_FILE_SIZE ? "Supera il limite di 10 MB" :
+        !ALLOWED_TYPES.includes(file.type) ? "Tipo file non supportato" : null;
+      if (errore) toast({ title: errore, description: file.name, variant: "destructive" });
+      return !errore;
+    });
+    invia(validi.map((file) => preparaAllegato(ticketId, file)));
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) uploadMutation.mutate(files);
+    aggiungi(files);
     e.target.value = "";
   };
 
@@ -145,10 +158,11 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">Allegati</CardTitle>
           <Button
+            aria-label="Carica allegati"
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            disabled={uploadMutation.isPending}
+            disabled={uploadMutation.isPending || mancanti.length > 0}
             onClick={() => fileInputRef.current?.click()}
           >
             {uploadMutation.isPending ? (
@@ -168,6 +182,14 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
         </div>
       </CardHeader>
       <CardContent>
+        {mancanti.length > 0 && !uploadMutation.isPending && (
+          <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+            <p className="font-medium">Allegati da completare</p>
+            <ul className="my-2 space-y-1">{mancanti.map((a) => <li key={a.id} className="break-all">{a.file.name}</li>)}</ul>
+            <Button variant="outline" size="sm" onClick={() => invia(mancanti)}>Riprova mancanti</Button>
+            <Button variant="ghost" size="sm" onClick={() => { daCompletare.current = []; setMancanti([]); }}>Rimuovi dalla coda</Button>
+          </div>
+        )}
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Caricamento...</p>
         ) : isError ? (
@@ -183,28 +205,10 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
           <p className="text-xs text-muted-foreground text-center py-2">Nessun allegato</p>
         ) : (
           <div className="space-y-2 max-h-60 overflow-y-auto">
-            {attachments.map((a) => {
-              const url = a.attachment_url!;
-              const name = getFileName(url);
-              const img = isImage(url);
-              return (
-                <a
-                  key={a.id}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group"
-                >
-                  {img ? (
-                    <img width={32} height={32} src={url} alt={name} className="h-8 w-8 rounded object-cover flex-shrink-0" loading="lazy" />
-                  ) : (
-                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <span className="text-xs truncate flex-1">{name}</span>
-                  <Download className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                </a>
-              );
-            })}
+            {attachments.map((a) => (
+              <LinkAllegatoTicket key={a.id} ticketId={ticketId} riferimento={a.attachment_url!}
+                className="w-full p-2 transition-colors hover:bg-muted/50" />
+            ))}
           </div>
         )}
       </CardContent>

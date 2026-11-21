@@ -44,6 +44,7 @@ const FOGLIO_MOBILE =
   "max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100";
 
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  overlayClassName?: string;
   /** Dimensioni leggibili condivise; omesso mantiene il comportamento esistente. */
   ampiezza?: "modulo" | "spazio" | "conferma";
   /** Con scorrevole, solo il corpo scorre; form e layout propri usano contenuta. */
@@ -53,7 +54,7 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, onOpenAutoFocus, ampiezza, struttura = "libera", ...props }, ref) => {
+>(({ className, children, onOpenAutoFocus, ampiezza, struttura = "libera", overlayClassName, ...props }, ref) => {
   const cls = typeof className === "string" ? className : "";
   const elementi = struttura === "scorrevole" ? React.Children.toArray(children) : [];
   const testata = elementi.filter(e => React.isValidElement(e) && e.type === DialogHeader);
@@ -68,7 +69,7 @@ const DialogContent = React.forwardRef<
       : "p-4 sm:p-6";
   return (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       onOpenAutoFocus={focusInizialeMobile(onOpenAutoFocus)}

@@ -110,13 +110,23 @@ describe("tavole selezionate: server e isolamento aziendale", () => {
   });
   it("la verifica precede l'addebito nel flusso di produzione", () => {
     const src = readFileSync(join(process.cwd(), "supabase/functions/generate-room-render/index.ts"), "utf8");
-    expect(src.indexOf("await caricaTavoleMateriali(")).toBeLessThan(src.indexOf("await deductRenderCreditSafe("));
+    const verifica = src.indexOf("await caricaTavoleMateriali(");
+    const presaInCarico = src.indexOf('await supabase.rpc("claim_render_stanza_lavoro"');
+    const addebito = src.indexOf('await supabase.rpc("addebita_render_stanza_lavoro"');
+    expect(verifica).toBeGreaterThanOrEqual(0);
+    expect(presaInCarico).toBeGreaterThan(verifica);
+    expect(addebito).toBeGreaterThan(presaInCarico);
   });
-  it("un errore iniziale chiude solo la sessione autorizzata e non rilegge il body già consumato", () => {
+  it("chiude solo il tentativo acquisito dopo il controllo di accesso", () => {
     const src = readFileSync(join(process.cwd(), "supabase/functions/generate-room-render/index.ts"), "utf8");
+    const controllo = src.indexOf("if (!allowed)");
+    const presaInCarico = src.indexOf('if (!claim?.claimed) return acceptedRenderResponse(session_id)');
+    const chiusura = src.indexOf("terminaLavoro = async");
     expect(src).not.toContain("req.clone()");
-    expect(src).toContain("if (sessionAutorizzata && refundableSessionId && refundableCompanyId)");
-    expect(src.indexOf("sessionAutorizzata = true")).toBeGreaterThan(src.indexOf("if (!allowed)"));
-    expect(src).toMatch(/\.eq\("id", refundableSessionId\)\s*\.eq\("company_id", refundableCompanyId\)/);
+    expect(controllo).toBeGreaterThanOrEqual(0);
+    expect(presaInCarico).toBeGreaterThan(controllo);
+    expect(chiusura).toBeGreaterThan(presaInCarico);
+    expect(src).toMatch(/rpc\("termina_render_stanza_lavoro",\s*\{\s*_company_id: companyId,\s*_session_id: session_id,\s*_preso_il: presoIl/);
+    expect(src).toContain('await terminaLavoro?.(message === "insufficient_credits" ? null : message)');
   });
 });

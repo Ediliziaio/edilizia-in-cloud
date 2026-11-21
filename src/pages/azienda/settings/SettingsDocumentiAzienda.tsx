@@ -159,10 +159,11 @@ function scadenzaDaRinnovo(dataDocumento: string, mesi: number | null): string {
   if (!mesi) return '';
   const [a, m, g] = dataDocumento.split('-').map(Number);
   if (!a || !m || !g) return '';
-  const d = new Date(a, m - 1, g);
-  if (Number.isNaN(d.getTime())) return '';
-  d.setMonth(d.getMonth() + mesi);
-  return dataISO(d);
+  const meseRinnovo = new Date(a, m - 1 + mesi, 1);
+  if (Number.isNaN(meseRinnovo.getTime())) return '';
+  const ultimoGiorno = new Date(meseRinnovo.getFullYear(), meseRinnovo.getMonth() + 1, 0).getDate();
+  meseRinnovo.setDate(Math.min(g, ultimoGiorno));
+  return dataISO(meseRinnovo);
 }
 
 /**

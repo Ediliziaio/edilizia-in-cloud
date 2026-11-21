@@ -112,7 +112,7 @@ export function UserNotificationsTab() {
   const companyId = (effectiveCompany as any)?.id as string | undefined;
   const { toast } = useToast();
 
-  const { data: prefsData, isLoading } = useUserNotifPrefs(userId);
+  const { data: prefsData, isLoading, isError, isFetching, refetch } = useUserNotifPrefs(userId);
   const saveMutation = useSaveUserNotifPrefs(userId, companyId);
 
   const { data: userProfile } = useQuery({
@@ -156,6 +156,7 @@ export function UserNotificationsTab() {
     section.events.every((evt) => prefs[prefKey(evt.key, channel)]);
 
   const handleSave = async () => {
+    if (!prefsData || isError) return;
     try {
       await saveMutation.mutateAsync(prefs);
       toast({ title: "Preferenze salvate", description: "Le impostazioni di notifica sono state aggiornate." });
@@ -169,6 +170,20 @@ export function UserNotificationsTab() {
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (!prefsData || isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+          <span>Impossibile caricare le preferenze di notifica.</span>
+          <Button type="button" variant="outline" size="sm" disabled={isFetching || !userId} onClick={() => void refetch()}>
+            Riprova
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 

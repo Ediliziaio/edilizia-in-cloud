@@ -6,6 +6,8 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { createOrGetStripeCustomer } from "../_shared/stripeHelpers.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
+import { centesimiValidi, SMS_CHECKOUT_TYPE } from "../_shared/smsCheckout.ts";
 
 Deno.serve(conMetriche("create-checkout-session", async (req) => {
   if (req.method === "OPTIONS") {
@@ -70,6 +72,68 @@ Deno.serve(conMetriche("create-checkout-session", async (req) => {
     // Use service role for DB reads
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+
+    if (type === SMS_CHECKOUT_TYPE) {
+      const json = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), {
+        status, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const { pacchetto_id, operazione_id } = body;
+      if (typeof pacchetto_id !== "string" || !uuid.test(pacchetto_id) ||
+          typeof operazione_id !== "string" || !uuid.test(operazione_id)) {
+        return json({ error: "Seleziona un pacchetto SMS valido e riprova." }, 400);
+      }
+      try {
+        await requireCompanyAccess(supabaseAdmin, userId, company_id, getCorsHeaders(req));
+      } catch (err) {
+        if (err instanceof Response) return err;
+        throw err;
+      }
+      const { data: pacchetto, error: packageError } = await supabaseAdmin.from("sms_pacchetti_crediti")
+        .select("nome,importo_eur,crediti_eur,bonus_percentuale")
+        .eq("id", pacchetto_id).eq("attivo", true).maybeSingle();
+      if (packageError) throw packageError;
+      if (!pacchetto) return json({ error: "Il pacchetto SMS non è più disponibile." }, 404);
+      const amount = Math.round(Number(pacchetto.importo_eur) * 100);
+      const credit = Math.round(Number(pacchetto.crediti_eur) * (100 + Number(pacchetto.bonus_percentuale ?? 0)));
+      if (!centesimiValidi(amount) || !centesimiValidi(credit)) return json({ error: "Importi del pacchetto SMS non validi." }, 400);
+
+      const { data: company, error: companyError } = await supabaseAdmin.from("companies")
+        .select("id,name,email,stripe_customer_id").eq("id", company_id).maybeSingle();
+      if (companyError) throw companyError;
+      if (!company) return json({ error: "Azienda non trovata." }, 404);
+      const customer = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      const appUrl = (Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com").replace(/\/$/, "");
+      const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Idempotency-Key": `sms-checkout:${company_id}:${pacchetto_id}:${operazione_id}`,
+        },
+        body: new URLSearchParams({
+          customer,
+          mode: "payment",
+          "payment_method_types[0]": "card",
+          "line_items[0][price_data][currency]": "eur",
+          "line_items[0][price_data][unit_amount]": String(amount),
+          "line_items[0][price_data][product_data][name]": `Crediti SMS · ${pacchetto.nome}`,
+          "line_items[0][quantity]": "1",
+          success_url: `${appUrl}/azienda/sms?ricarica=in_attesa&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${appUrl}/azienda/sms?ricarica=annullata`,
+          "metadata[company_id]": company_id,
+          "metadata[type]": SMS_CHECKOUT_TYPE,
+          "metadata[amount_cents]": String(amount),
+          "metadata[credit_cents]": String(credit),
+        }),
+      });
+      const session = await response.json();
+      if (!response.ok || !session.id || !session.url) {
+        return json({ error: "Impossibile aprire il pagamento Stripe. Riprova." }, 502);
+      }
+      return json({ url: session.url, session_id: session.id });
+    }
 
     // ─── SETUP CARD (aggiungi carta senza addebito: sblocca gli strumenti a costo) ───
     // Funziona anche per aziende FREE senza stripe_customer_id: lo crea al volo.

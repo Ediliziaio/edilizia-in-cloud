@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -18,7 +18,8 @@ import {
   getTicketPriorityLabel,
 } from "@/lib/formatters";
 import { TicketChat } from "@/components/tickets/TicketChat";
-import type { CustomerTicketDetail as CustomerTicketDetailType, TicketMessage } from "@/types/tickets";
+import type { CustomerTicketDetail as CustomerTicketDetailType } from "@/types/tickets";
+import { useTicketMessages } from "@/hooks/useTicketMessages";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 
 export default function CustomerTicketDetail() {
@@ -65,38 +66,17 @@ export default function CustomerTicketDetail() {
     })();
   }, [ticket?.id, user?.id, queryClient]);
 
-  const { data: messages = [], isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: queryKeys.customerTickets.messages(ticket?.id),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ticket_messages")
-        .select("id, message, sender_id, created_at, attachment_url")
-        .eq("ticket_id", ticket!.id)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-
-      const senderIds = [...new Set((data || []).map((m) => m.sender_id).filter(Boolean))];
-      const profilesMap: Record<string, { first_name: string; last_name: string }> = {};
-      if (senderIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, first_name, last_name")
-          .eq("company_id", (ticket as any).company_id)
-          .in("id", senderIds);
-        if (profilesError) throw profilesError;
-        for (const p of profiles || []) {
-          profilesMap[p.id] = { first_name: p.first_name, last_name: p.last_name };
-        }
-      }
-
-      return (data || []).map((m) => ({
-        ...m,
-        sender: profilesMap[m.sender_id] || null,
-      })) as TicketMessage[];
-    },
-    enabled: !!ticket?.id && !!user?.id,
-    staleTime: 30 * 1000,
-  });
+  const {
+    messages, isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages, olderMessages,
+  } = useTicketMessages(
+    user?.id ? ticket?.id : undefined,
+    queryKeys.customerTickets.messages(ticket?.id),
+    companyId ?? undefined,
+  );
+  const chatInvalidateKeys = useMemo(() => [
+    queryKeys.customerTickets.messages(id),
+    ["customer-tickets"],
+  ], [id]);
 
   if (ticketLoading || messagesLoading) {
     return (
@@ -187,12 +167,10 @@ export default function CustomerTicketDetail() {
       <TicketChat
         ticketId={ticket.id}
         messages={messages}
+        olderMessages={olderMessages}
         disabled={isResolved}
         disabledMessage="Questo ticket è stato risolto. Per nuove richieste, apri un nuovo ticket."
-        invalidateKeys={[
-          ["ticket-messages", id!],
-          ["customer-tickets"],
-        ]}
+        invalidateKeys={chatInvalidateKeys}
       />
     </div>
   );

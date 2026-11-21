@@ -174,9 +174,9 @@ export function AppCantiere({
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => { if (!o && !togli.isPending) setDaTogliere(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Togliere {daTogliere ? nomeAccesso(daTogliere) : ""} dall'app?</AlertDialogTitle>
+            <AlertDialogTitle>Rimuovere l’accesso manuale di {daTogliere ? nomeAccesso(daTogliere) : ""}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Non vedrà più questa commessa sul telefono. Quello che ha già registrato resta.
+              Le abilitazioni da lavorazioni o squadre restano attive. I rapportini già registrati restano disponibili.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -186,10 +186,10 @@ export function AppCantiere({
               className="bg-rose-600 text-white hover:bg-rose-700"
               onClick={(e) => {
                 e.preventDefault();
-                if (daTogliere) togli.mutate(daTogliere.id, { onSettled: () => setDaTogliere(null) });
+                if (daTogliere) togli.mutate(daTogliere.id, { onSuccess: () => setDaTogliere(null) });
               }}
             >
-              Togli
+              Rimuovi accesso manuale
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

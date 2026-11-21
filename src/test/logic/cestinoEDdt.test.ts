@@ -41,10 +41,12 @@ describe("fattura da DDT", () => {
     expect(f).not.toHaveProperty("stato");
   });
 
-  it("l'editor legge davvero il parametro e aggancia il DDT", () => {
+  it("l'editor usa la conversione atomica per il DDT", () => {
     const editor = readFileSync("src/pages/azienda/fatturazione/EditorDocumento.tsx", "utf8");
     expect(editor).toContain('searchParams.get("from_ddt")');
     expect(editor).toContain("datiFatturaDaDdt(");
-    expect(editor).toMatch(/ddt_fattura_id: doc\.id/);
+    expect(editor).toContain("daDdtId: fromDdtParam");
+    const hook = readFileSync("src/hooks/useDocumentiFiscali.ts", "utf8");
+    expect(hook).toContain('supabase.rpc("documento_fattura_da_ddt"');
   });
 });

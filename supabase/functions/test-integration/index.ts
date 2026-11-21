@@ -39,52 +39,52 @@ Deno.serve(async (req) => {
     // Configurazione browser: Static satellite non è disponibile per gli account SEE.
     if (integration === "google_maps") {
       const configurazione = await configurazioneMapsBrowser(getPlatformSetting);
-      const esito = {ok:configurazione.configured,message:configurazione.configured
-        ? "Chiave della mappa interattiva configurata. Verifica immagini e domini aprendo il tetto nel configuratore."
-        : configurazione.message};
+      const esito = {
+        ok: configurazione.configured,
+        verifica: "configurazione",
+        message: configurazione.configured
+          ? "Chiave della mappa interattiva configurata. Verifica immagini e domini aprendo il tetto nel configuratore."
+          : configurazione.message,
+      };
       return new Response(JSON.stringify(esito), {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    // Read settings from key-value store
-    const { data: allSettings } = await supabaseAdmin
-      .from("platform_settings")
-      .select("key, value");
-
-    const settings = new Map<string, string>();
-    (allSettings ?? []).forEach((s: any) => settings.set(s.key, s.value));
-
     let ok = false;
     let message = "";
+    let verifica: "connessione" | "formato" | undefined;
 
     switch (integration) {
       case "stripe": {
-        const secretKey = settings.get("stripe_secret_key") || Deno.env.get("STRIPE_SECRET_KEY") || "";
+        verifica = "connessione";
+        const secretKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
         if (!secretKey) { message = "Stripe secret key non configurata"; break; }
         try {
           const res = await fetch("https://api.stripe.com/v1/balance", {
             headers: { Authorization: `Bearer ${secretKey}` },
+            signal: AbortSignal.timeout(8000),
           });
-          if (res.ok) { ok = true; message = "Stripe connesso correttamente"; }
-          else {
-            const body = await res.json();
-            message = body?.error?.message || `HTTP ${res.status}`;
-          }
-        } catch (e: any) { message = e.message; }
+          ok = res.ok;
+          message = ok ? "Stripe connesso correttamente" : `Stripe ha rifiutato la verifica (HTTP ${res.status}).`;
+        } catch {
+          message = "Stripe non raggiungibile. Riprova tra poco.";
+        }
         break;
       }
 
       case "google_calendar": {
-        const clientId = settings.get("google_calendar_client_id") || "";
+        verifica = "formato";
+        const clientId = (await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID")).trim();
         if (!clientId) { message = "Client ID non configurato"; break; }
-        ok = clientId.includes(".apps.googleusercontent.com");
+        ok = /^[\w-]+\.apps\.googleusercontent\.com$/.test(clientId);
         message = ok ? "Formato Client ID valido" : "Formato Client ID non valido";
         break;
       }
 
       case "meta": {
-        const appId = settings.get("meta_app_id") || "";
+        verifica = "formato";
+        const appId = (await getPlatformSetting("meta_app_id", "META_APP_ID")).trim();
         if (!appId) { message = "Meta App ID non configurato"; break; }
         ok = /^\d{10,}$/.test(appId);
         message = ok ? "Formato Meta App ID valido" : "Formato App ID non valido (deve essere numerico)";
@@ -96,12 +96,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ ok, message }),
+      JSON.stringify({ ok, message, verifica }),
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: err instanceof Error ? err.message : "Verifica non riuscita" }),
       { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }

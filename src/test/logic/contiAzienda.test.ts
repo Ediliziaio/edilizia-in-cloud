@@ -72,6 +72,8 @@ describe("i conti dell'azienda in fattura", () => {
   it("l'IBAN si pulisce e si controlla", () => {
     expect(pulisciIbanConto(" it09 b053 8722 8000 0003 5200 769 ")).toBe(BPER);
     expect(ibanValido(BPER)).toBe(true);
+    expect(ibanValido(" it60 x054 2811 1010 0000 0123 456 ")).toBe(true);
+    expect(ibanValido("IT00X0542811101000000123456")).toBe(false);
     expect(ibanValido("IT09B05387228000000352007")).toBe(false);
     expect(ibanValido("")).toBe(false);
   });

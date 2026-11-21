@@ -670,16 +670,18 @@ export default function SubappaltatoreDetail() {
 
   // ── Approva / Contesta SAL ───────────────────────────────────────────────
   const [contestaNote, setContestaNote] = useState("");
-  const [contestaSALId, setContestaId] = useState<string | null>(null);
+  const [salDaContestare, setSalDaContestare] = useState<SALSubappaltatore | null>(null);
 
   const approvaSALMutation = useMutation({
-    mutationFn: async (salId: string) => {
+    mutationFn: async (sal: SALSubappaltatore) => {
+      if (sal.revisione === undefined) throw new Error("Versione del SAL non disponibile. Ricarica la scheda.");
       const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "verificato" })
-        .eq("id", salId)
-        // Solo da ricevuto o contestato: un SAL già pagato non torna «verificato» (lista ferma su un'altra scheda).
-        .in("stato", ["ricevuto", "contestato"])
+        .eq("id", sal.id)
+        .eq("company_id", sal.company_id)
+        .eq("revisione", sal.revisione)
+        .eq("stato", "ricevuto")
         .select("id");
       if (error) throw error;
       if (!data?.length) throw new Error("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
@@ -691,15 +693,22 @@ export default function SubappaltatoreDetail() {
       queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
-    onError: (err: Error) => toast.error(err.message || "Errore durante l'approvazione"),
+    onError: (err: Error) => {
+      toast.error(err.message || "Errore durante l’approvazione");
+      void ricaricaSal();
+    },
   });
 
   const contestaSALMutation = useMutation({
-    mutationFn: async ({ id, note }: { id: string; note: string }) => {
+    mutationFn: async ({ sal, note }: { sal: SALSubappaltatore; note: string }) => {
+      if (sal.revisione === undefined) throw new Error("Versione del SAL non disponibile. Ricarica la scheda.");
       const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "contestato", note_contestazione: note } as never)
-        .eq("id", id)
+        .eq("id", sal.id)
+        .eq("company_id", sal.company_id)
+        .eq("revisione", sal.revisione)
+        .eq("stato", sal.stato)
         .in("stato", ["ricevuto", "verificato"])
         .select("id");
       if (error) throw error;
@@ -708,7 +717,7 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success("SAL contestato", { description: "Se era fatto dalle misure, le misure tornano libere: puoi rifare il SAL da «Lavori e quantità»." });
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
-      setContestaId(null);
+      setSalDaContestare(null);
       setContestaNote("");
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
       // La contestazione annulla la ritenuta del SAL (trigger): anche il registro delle ritenute si rilegge.
@@ -717,7 +726,10 @@ export default function SubappaltatoreDetail() {
       queryClient.invalidateQueries({ queryKey: chiaviContratti.salTutti(id) });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
-    onError: (err: Error) => toast.error(err.message || "Errore durante la contestazione"),
+    onError: (err: Error) => {
+      toast.error(err.message || "Errore durante la contestazione");
+      void ricaricaSal();
+    },
   });
 
   // ── Registra pagamento SAL ───────────────────────────────────────────────
@@ -1120,7 +1132,7 @@ export default function SubappaltatoreDetail() {
             <SALContabilita key={`${companyId}:${contratto?.id}`} sal={salList} contratto={contratto?.numero_contratto || 'Contratto'}
               canWrite={permessi.canEditOrders && permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts && !permessi.solaLettura}
               approvazioneInCorso={approvaSALMutation.isPending}
-              onVerbale={setSalVerbale} onApprova={sid => approvaSALMutation.mutate(sid)} onContesta={setContestaId}
+              onVerbale={setSalVerbale} onApprova={(sal) => approvaSALMutation.mutate(sal)} onContesta={setSalDaContestare}
               onPagamento={setPaymentSAL} />
           )}
         </TabsContent>
@@ -1294,7 +1306,7 @@ export default function SubappaltatoreDetail() {
       {paymentSAL && <SalPaymentDialog key={paymentSAL.id} sal={paymentSAL} onClose={()=>setPaymentSAL(null)} onSaved={()=>{refreshFinancialQueries(queryClient);void queryClient.invalidateQueries({queryKey:chiaviContratti.salTutti(id)});setPaymentSAL(null);}} />}
 
       {/* Dialog contestazione SAL */}
-      <Dialog open={!!contestaSALId} onOpenChange={() => { setContestaId(null); setContestaNote(""); }}>
+      <Dialog open={!!salDaContestare} onOpenChange={() => { setSalDaContestare(null); setContestaNote(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Contesta SAL</DialogTitle>
@@ -1310,11 +1322,11 @@ export default function SubappaltatoreDetail() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setContestaId(null)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setSalDaContestare(null)}>Annulla</Button>
             <Button
               variant="destructive"
-              onClick={() => contestaSALMutation.mutate({ id: contestaSALId!, note: contestaNote })}
-              disabled={!contestaNote || contestaSALMutation.isPending}
+              onClick={() => salDaContestare && contestaSALMutation.mutate({ sal: salDaContestare, note: contestaNote.trim() })}
+              disabled={!contestaNote.trim() || contestaSALMutation.isPending}
             >
               Conferma contestazione
             </Button>

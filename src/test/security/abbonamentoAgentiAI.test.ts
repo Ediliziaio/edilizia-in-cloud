@@ -145,7 +145,7 @@ describe("Agenti AI · disdetta, rinnovi e addebiti non toccano il piano", () =>
 
   it("un loro abbonamento nuovo non attribuisce il referral del piano", () => {
     const ramo = webhook.split('case "customer.subscription.created":')[1]?.split("break;")[0] ?? "";
-    expect(ramo).toMatch(/obj\.metadata\?\.type !== ABBONAMENTO_AGENTI_AI/);
+    expect(ramo).toMatch(/subscription\.metadata\?\.type !== ABBONAMENTO_AGENTI_AI/);
     expect(ramo.indexOf("ABBONAMENTO_AGENTI_AI")).toBeLessThan(ramo.indexOf("handleReferralAttribution("));
   });
 });

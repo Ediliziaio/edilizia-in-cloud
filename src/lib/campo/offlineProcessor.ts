@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaChecklistSicurezza";
 import {
   SyncDeferredError,
   SyncPermanentError,
@@ -78,17 +79,15 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
       "Operazione non supportata: contatta l’assistenza. I dati locali sono conservati.",
     );
   if (item.type === "checklist") {
-    const { error } = await supabase
-      .from("checklist_sicurezza")
-      .upsert(payload as never, {
-        onConflict: "company_id,operaio_id,data,turno",
-      });
+    const idChecklist = typeof payload.id === "string" ? payload.id : await syncOperationId(item);
+    const error = await salvaChecklistSicurezza(payload as ChecklistDaSalvare, idChecklist);
+    if (error?.code === "PT409") throw new SyncPermanentError(`${error.message} La checklist locale è ancora in coda.`);
     if (error) throw databaseError(error);
     return;
   }
   // La timbratura porta il suo id da quando è nata: lo stesso del primo tentativo andato male.
-  const id =
-    typeof payload.id === "string" ? payload.id : await syncOperationId(item);
+  const idOriginale = item.type === "foto" ? row?.id : payload.id;
+  const id = typeof idOriginale === "string" ? idOriginale : await syncOperationId(item);
   let table: "foto_cantiere" | "campo_timbrature";
   let insert: Record<string, unknown>;
   if (item.type === "foto") {
@@ -104,17 +103,25 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
       throw new SyncPermanentError(
         "Allegato senza giornaliero: contenuto locale conservato, contatta l’assistenza.",
       );
-    const { error } = await supabase.storage
-      .from(photo.bucket)
-      .upload(photo.path, photo.blob, {
-        contentType: photo.contentType,
-        upsert: false,
-      });
+    const storage = supabase.storage.from(photo.bucket);
+    const { error } = await storage.upload(photo.path, photo.blob, {
+      contentType: photo.contentType,
+      upsert: false,
+    });
     const exists =
       error &&
       ((error as { statusCode?: string }).statusCode === "409" ||
         error.message.toLowerCase().includes("already exists"));
     if (error && !exists) throw new Error(error.message);
+    if (exists) {
+      const { data: copia, error: lettura } = await storage.download(photo.path);
+      if (lettura || !copia) throw new Error("Impossibile verificare il file già caricato.");
+      const [locale, salvata] = await Promise.all([photo.blob.arrayBuffer(), copia.arrayBuffer()]);
+      const bytes = new Uint8Array(salvata);
+      if (locale.byteLength !== salvata.byteLength || !new Uint8Array(locale).every((valore, indice) => valore === bytes[indice])) {
+        throw new SyncPermanentError("Il percorso contiene un altro file. La foto sul dispositivo è conservata.");
+      }
+    }
     table = "foto_cantiere";
     insert = { ...photo.riga, storage_path: photo.path, id };
   } else if (item.type === "timbratura") {
@@ -135,6 +142,7 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
             .eq("id", id)
             .eq("company_id", row?.company_id as string)
             .eq("uploaded_by", owner as string)
+            .eq("storage_path", String(insert.storage_path))
         : supabase
             .from("campo_timbrature")
             .select("id")

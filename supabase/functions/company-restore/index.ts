@@ -35,6 +35,7 @@
  * La logica di ripristino sta nel database: qui si scaricano i file e si passa
  * il testimone. Le regole senza rete stanno in _shared/ripristinoBlocchi.ts.
  */
+import { CARTELLA_BACKUP_BLOCCHI } from "../_shared/backupBlocchi.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { apriBackup } from "../_shared/backupCompressi.ts";
@@ -404,9 +405,11 @@ serveConMetriche("company-restore", async (req) => {
         const { data } = await db.storage.from(BUCKET).list(cartella, { limit: 100, sortBy: { column: "name", order: "desc" } });
         // Le cartelle con una data per nome sono backup a blocchi: si legge
         // l'indice (piccolo) per dire quante righe tiene e se è completo.
-        // Solo le ultime sei: ogni indice è un file da scaricare.
-        const aBlocchi = (data ?? []).filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.name)).slice(0, 6);
+        // Si contano solo gli indici leggibili. I tentativi interrotti non occupano un posto.
+        let trovati = 0;
+        const aBlocchi = (data ?? []).filter((o) => CARTELLA_BACKUP_BLOCCHI.test(o.name));
         for (const o of aBlocchi) {
+          if (trovati === 6) break;
           const percorso = `${cartella}/${o.name}/indice.json`;
           const { data: blob } = await db.storage.from(BUCKET).download(percorso);
           if (!blob) continue; // cartella senza indice: backup mai arrivato in fondo
@@ -424,6 +427,7 @@ serveConMetriche("company-restore", async (req) => {
               tabelle: (indice.tabelle ?? []).length,
               ...(ultimeProve.has(percorso) ? { ultima_prova: ultimeProve.get(percorso) } : {}),
             });
+            trovati += 1;
           } catch {
             // indice illeggibile: non lo si mostra come backup
           }

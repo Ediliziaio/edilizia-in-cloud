@@ -214,6 +214,7 @@ export function mapAppointmentToEditData(apt: CalendarAppointment): AppointmentD
     appointment_type: apt.appointment_type,
     assigned_to: apt.assigned_to,
     order_id: apt.order_id,
+    ticket_id: apt.ticket_id,
     is_completed: apt.is_completed,
     status: apt.status || "confermato",
     reminder_minutes: apt.reminder_minutes ?? null,

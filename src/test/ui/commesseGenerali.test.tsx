@@ -21,8 +21,12 @@ const m = vi.hoisted(() => ({
   salvaCliente: vi.fn(),
   navigate: vi.fn(),
   quote: null as null | { totale: number; criterio: string; motivo: string; perFiglia: Map<string, { importo: number; parte: number; base: number }> },
+  costoErrore: false,
+  riprovaCosto: vi.fn(),
 }));
-vi.mock("@/hooks/useQuoteCostiComuni", () => ({ useQuoteCostiComuni: () => m.quote }));
+vi.mock("@/hooks/useQuoteCostiComuni", () => ({
+  useQuoteCostiComuni: () => ({ quote: m.quote, errore: m.costoErrore, riprova: m.riprovaCosto }),
+}));
 
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: (): { piano: null } => ({ piano: null }) }));
@@ -106,7 +110,9 @@ beforeEach(() => {
   m.salva.mockReset();
   m.salvaDati.mockReset();
   m.navigate.mockReset();
-  m.quote = null;
+  m.quote = { totale: 0, criterio: "parti_uguali", motivo: "", perFiglia: new Map() };
+  m.costoErrore = false;
+  m.riprovaCosto.mockReset();
   m.unita = undefined;
 });
 afterEach(cleanup);
@@ -344,6 +350,16 @@ describe("le schede dei moduli", () => {
 });
 
 describe("costi comuni nella panoramica", () => {
+  it("sospende il margine della singola lavorazione quando i costi comuni non sono leggibili", () => {
+    m.quote = null;
+    m.costoErrore = true;
+    disegna();
+    const riga = screen.getByRole("link", { name: /Scuola Collodi/ }).closest("tr")!;
+    expect(within(riga).getByText("Non disponibile")).toBeVisible();
+    expect(within(riga).queryByText(/-60\.000\s+€/)).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Riprova" }));
+    expect(m.riprovaCosto).toHaveBeenCalledOnce();
+  });
   it("il margine diventa quello dell'operazione e ogni commessa porta la sua quota", () => {
     m.quote = { totale: 50_000, criterio: "importo", motivo: "Ripartiti in proporzione all'importo.", perFiglia: new Map([["a", { importo: 31_250, parte: 0.625, base: 1 }], ["b", { importo: 18_750, parte: 0.375, base: 1 }]]) };
     disegna();

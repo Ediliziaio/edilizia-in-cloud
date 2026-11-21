@@ -28,6 +28,7 @@ import { caricaArchivioDelDocumento, condizioniDelPdf, documentoPartito } from "
 import { leggiBozzaDelPreventivo, unisciBozza } from "../_shared/bozzaDelPreventivo.ts";
 import { scaricaScheda, schedeDaAllegare } from "../_shared/schedeProdotto.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
+import { leggiPdfVincolato } from "./pdfVincolato.ts";
 
 const DEFAULT_T = {
   layout: "classic",
@@ -450,57 +451,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── Documento già firmato: non si sovrascrive ───
-    // Il cliente ha firmato (OTP) proprio QUEL file, e documento_hash è la sua
-    // impronta: rigenerare con upsert sullo stesso percorso cancellerebbe la
-    // prova. Restituiamo il PDF firmato così com'è.
-    if (!bozza && quote.signed_at && quote.pdf_storage_path) {
-      const { data: giaFirmato } = await supabaseAdmin.storage
-        .from("quote-pdfs")
-        .createSignedUrl(quote.pdf_storage_path, 3600);
-      if (giaFirmato?.signedUrl) {
+    if (!bozza && !isPreview) {
+      const vincolato = await leggiPdfVincolato(supabaseAdmin, quote);
+      if (vincolato && "errore" in vincolato) return errorResponse(vincolato.errore, vincolato.stato, corsH);
+      if (vincolato) {
         attivita?.chiudi("completata", "pdf_pronto");
-        return jsonResponse({
-          success: true,
-          pdf_path: quote.pdf_storage_path,
-          signed_url: giaFirmato.signedUrl,
-          gia_firmato: true,
-          message: "Preventivo già firmato dal cliente: il PDF firmato non viene rigenerato.",
-        }, 200, corsH);
+        return jsonResponse(vincolato, 200, corsH);
       }
     }
 
-    // ─── Documento in firma: non si sovrascrive ───
-    // Con una richiesta di firma aperta il cliente sta firmando QUEL file, e la
-    // sua impronta è sulla richiesta: rigenerarlo sullo stesso percorso cambiava
-    // il documento sotto la firma. Per cambiarlo si rimanda la firma, che prima
-    // annulla la richiesta aperta e poi congela il PDF nuovo.
-    if (!bozza && quote.pdf_storage_path) {
-      const { data: inFirma } = await supabaseAdmin
-        .from("signature_requests")
-        .select("id")
-        .eq("quote_id", quote.id)
-        .in("status", ["pending", "otp_verified"])
-        .limit(1);
-      if (inFirma && inFirma.length > 0) {
-        const { data: congelato } = await supabaseAdmin.storage
-          .from("quote-pdfs")
-          .createSignedUrl(quote.pdf_storage_path, 3600);
-        if (congelato?.signedUrl) {
-          attivita?.chiudi("completata", "pdf_pronto");
-          return jsonResponse({
-            success: true,
-            pdf_path: quote.pdf_storage_path,
-            signed_url: congelato.signedUrl,
-            in_firma: true,
-            message: "Preventivo in firma dal cliente: si mostra il PDF inviato, non se ne genera uno nuovo.",
-          }, 200, corsH);
-        }
-      }
-    }
-
-    // Unico motore per i preventivi: qui restano autorizzazione e dati. Dal 07/11/2026 il preventivo classico
-    // è semplice — copertina, tabella col prezzo e il pagamento, condizioni, firma (adattatoreGenerico).
     // L'azienda di cui si leggono i file del modello (logo, copertina, timbro), dal
     // contenitore riservato e col service role: solo dalla sua cartella.
     const aziendaDeiFile = isPreview ? aziendaAnteprima : quote?.company_id ?? null;
@@ -666,27 +625,33 @@ Deno.serve(async (req) => {
 
     // ─── Save to storage ───
     const pdfBytes = await pdfDoc.save();
-    const fileName = `${quote.company_id}/${quote.quote_number.replace(/\//g, "-")}.pdf`;
+    const fileName = `${quote.company_id}/preventivi/${quote.id}/${crypto.randomUUID()}/${quote.quote_number.replace(/\//g, "-")}.pdf`;
 
     const { error: uploadErr } = await supabaseAdmin.storage
       .from("quote-pdfs")
-      .upload(fileName, pdfBytes, { contentType: "application/pdf", upsert: true });
+      .upload(fileName, pdfBytes, { contentType: "application/pdf", upsert: false });
 
     if (uploadErr) {
       console.error("Upload error:", uploadErr);
       return errorResponse("Errore upload PDF: " + uploadErr.message, 500, corsH);
     }
 
-    // Update del record e firma URL sono indipendenti: in parallelo
-    const [salvato, signedRes] = await Promise.all([
-      supabaseAdmin
-        .from("quotes")
-        .update({ pdf_storage_path: fileName, pdf_generated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("id", quote_id).select("id").maybeSingle(),
-      supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(fileName, 3600),
-    ]);
-    const signedData = signedRes.data;
-    if (!salvato.error && salvato.data?.id === quote_id && signedData?.signedUrl) attivita?.chiudi("completata", "pdf_pronto");
+    const aggiorna = supabaseAdmin.from("quotes")
+      .update({ pdf_storage_path: fileName, pdf_generated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", quote_id)
+      .eq("company_id", quote.company_id)
+      .is("signed_at", null);
+    const { data: collegato, error: erroreCollegamento } = await (quote.updated_at
+      ? aggiorna.eq("updated_at", quote.updated_at)
+      : aggiorna.is("updated_at", null)
+    ).select("id").maybeSingle();
+    if (erroreCollegamento) return errorResponse("Il collegamento del PDF non è confermato. Riprova.", 503, corsH);
+    if (!collegato) {
+      await supabaseAdmin.storage.from("quote-pdfs").remove([fileName]);
+      return errorResponse("Il preventivo è cambiato. Ricaricalo e riprova.", 409, corsH);
+    }
+    const { data: signedData } = await supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(fileName, 3600);
+    if (signedData?.signedUrl) attivita?.chiudi("completata", "pdf_pronto");
 
     return jsonResponse({
       success: true,

@@ -191,6 +191,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           .insert({
             company_id: companyId,
             contratto_id: contrattoId ?? null,
+            impianto_id: impiantoId,
             titolo: titoloManutenzione.trim(),
             frequenza_tipo: frequenza,
             prossima_scadenza: primaManutenzione || null,

@@ -747,7 +747,7 @@ function usePermessiGrezzi(): Permissions {
 
       if (error) {
         logger.error("Error fetching permissions:", error);
-        return null;
+        throw new Error(error.message || "Errore nella verifica permessi");
       }
       return data;
     },
@@ -791,7 +791,7 @@ function usePermessiGrezzi(): Permissions {
       );
       if (error) {
         logger.error("Error fetching view-as permissions:", error);
-        return null;
+        throw new Error(error.message || "Errore nella verifica permessi simulati");
       }
       return data;
     },
@@ -862,8 +862,7 @@ function usePermessiGrezzi(): Permissions {
     if (viewAsNeedsDbFetch) {
       if (viewAsLoading) return { ...NO_PERMISSIONS, isLoading: true };
       if (viewAsLoadError) return { ...NO_PERMISSIONS, loadError: viewAsLoadError };
-      // viewAsPermsRow può essere null se l'utente non ha una riga in staff_permissions:
-      // in quel caso ricadiamo su NO_PERMISSIONS (fail-safe) ma non blocchiamo l'UI.
+      if (!viewAsPermsRow) return NO_PERMISSIONS;
       const vistaCome = mapDbRowToPermissions(viewAsPermsRow);
       return SOLO_LETTURA_PER_RUOLO.includes(viewAsRole || "") ? senzaScritture(vistaCome) : vistaCome;
     }
@@ -935,6 +934,7 @@ function usePermessiGrezzi(): Permissions {
       return { ...NO_PERMISSIONS, loadError: permissionsLoadError };
     }
 
+    if (!permissions) return NO_PERMISSIONS;
     const mappati = mapDbRowToPermissions(permissions);
     // Dipendenti e subappaltatori (14/11/2026): nel database i permessi d'ufficio passano da
     // has_permission / has_permission_for_company, che li danno solo a staff, amministratori e

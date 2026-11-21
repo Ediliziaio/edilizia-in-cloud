@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, isBefore, startOfDay, parse } from "date-fns";
+import { format, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -67,65 +67,23 @@ export default function PublicAppointmentManage() {
 
   // Orari liberi del giorno scelto: stessa fonte della pagina di prenotazione.
   const dataStr = giorno ? format(giorno, "yyyy-MM-dd") : null;
-  const { data: fasce = [] } = useQuery({
-    queryKey: ["gestione-disponibilita", app?.calendar_id],
+  const {
+    data: orari = [], isPending: orariInCaricamento, isError: erroreOrari, refetch: rileggiOrari,
+  } = useQuery({
+    queryKey: ["gestione-orari-autorevoli", token, dataStr],
     queryFn: async () => {
-      if (!app?.calendar_id) return [];
-      const { data, error } = await supabase
-        .from("marketing_calendar_availability")
-        .select("day_of_week, start_time, end_time, specific_date")
-        .eq("calendar_id", app.calendar_id)
-        .eq("is_enabled", true);
-      if (error) throw error;
-      return data ?? [];
+      const { data, error } = await supabase.functions.invoke("public-booking-gestisci", {
+        body: { token, action: "orari", date: dataStr },
+      });
+      if (error || !Array.isArray(data?.slots)) throw new Error("Disponibilità non disponibile.");
+      return data.slots as string[];
     },
-    enabled: !!app?.calendar_id && modo === "sposta",
+    enabled: !!app && !!token && !!dataStr && modo === "sposta",
+    staleTime: 15_000,
+    refetchInterval: 60_000,
   });
-  const { data: presi = [] } = useQuery({
-    queryKey: ["gestione-presi", app?.calendar_id, dataStr],
-    queryFn: async () => {
-      if (!app?.calendar_id || !dataStr) return [];
-      const { data, error } = await supabase
-        .from("public_appointment_slots")
-        .select("id, appointment_time, appointment_end_time")
-        .eq("calendar_id", app.calendar_id)
-        .eq("appointment_date", dataStr)
-        .or("is_blocked_slot.is.null,is_blocked_slot.eq.false");
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!app?.calendar_id && !!dataStr && modo === "sposta",
-  });
-
-  const orari = useMemo(() => {
-    if (!giorno || !app || !dataStr) return [];
-    const durata = app.duration_minutes || 30;
-    const dow = giorno.getDay();
-    const perData = fasce.filter((f) => f.specific_date === dataStr);
-    const valide = perData.length ? perData : fasce.filter((f) => f.specific_date === null && f.day_of_week === dow);
-    const preavvisoMs = Math.max(0, app.min_notice_minutes ?? 0) * 60_000;
-    const out: string[] = [];
-    for (const f of valide) {
-      const inizio = parse(String(f.start_time).slice(0, 5), "HH:mm", giorno);
-      const fine = parse(String(f.end_time).slice(0, 5), "HH:mm", giorno);
-      let cur = inizio;
-      while (cur.getTime() + durata * 60_000 <= fine.getTime()) {
-        const hhmm = format(cur, "HH:mm");
-        const s = cur.getTime(), e = s + durata * 60_000;
-        const occupato = presi.some((p) => {
-          if (p.id === app.id) return false; // il proprio non blocca
-          const ps = parse(String(p.appointment_time).slice(0, 5), "HH:mm", giorno).getTime();
-          const pe = p.appointment_end_time
-            ? parse(String(p.appointment_end_time).slice(0, 5), "HH:mm", giorno).getTime()
-            : ps + durata * 60_000;
-          return s < pe && e > ps;
-        });
-        if (!occupato && s > adesso + preavvisoMs) out.push(hhmm);
-        cur = new Date(cur.getTime() + durata * 60_000);
-      }
-    }
-    return [...new Set(out)].sort();
-  }, [giorno, app, dataStr, fasce, presi, adesso]);
+  const oggiRoma = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(adesso);
+  const ultimoGiorno = format(addDays(new Date(`${oggiRoma}T12:00:00`), GIORNI_AVANTI), "yyyy-MM-dd");
 
   const azione = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
@@ -144,7 +102,13 @@ export default function PublicAppointmentManage() {
       return data as { stato: "annullato" | "spostato" };
     },
     onSuccess: (d) => { setEsito(d.stato); void refetch(); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, azione) => {
+      toast.error(e.message);
+      if (azione.action === "sposta") {
+        setSlot(null);
+        void rileggiOrari();
+      }
+    },
   });
 
   if (isLoading) {
@@ -198,11 +162,21 @@ export default function PublicAppointmentManage() {
             <Calendar
               mode="single" selected={giorno} onSelect={(d) => { setGiorno(d); setSlot(null); }}
               locale={it}
-              disabled={(d) => isBefore(d, startOfDay(new Date())) || isBefore(addDays(new Date(), GIORNI_AVANTI), d)}
+              disabled={(d) => {
+                const giornoIso = format(d, "yyyy-MM-dd");
+                return giornoIso < oggiRoma || giornoIso > ultimoGiorno;
+              }}
               className="rounded-md border"
             />
             {giorno && (
-              orari.length ? (
+              erroreOrari ? (
+                <div className="flex items-center justify-between gap-2 text-sm" role="alert">
+                  <span>Impossibile caricare gli orari.</span>
+                  <Button variant="outline" size="sm" onClick={() => void rileggiOrari()}>Riprova</Button>
+                </div>
+              ) : orariInCaricamento ? (
+                <p className="text-sm text-muted-foreground" role="status">Carico gli orari…</p>
+              ) : orari.length ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {orari.map((o) => (
                     <Button key={o} variant={slot === o ? "default" : "outline"} size="sm" onClick={() => setSlot(o)}>{o}</Button>
@@ -213,7 +187,7 @@ export default function PublicAppointmentManage() {
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => { setModo("vista"); setSlot(null); }}>Annulla</Button>
               <Button
-                disabled={!giorno || !slot || azione.isPending}
+                disabled={!slot || !orari.includes(slot) || erroreOrari || azione.isPending}
                 onClick={() => azione.mutate({ action: "sposta", date: dataStr, time: slot })}
               >
                 {azione.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Conferma nuovo orario

@@ -49,6 +49,12 @@ export interface EmailSendResult {
   providerUsed?: string;
 }
 
+export function rifiutoEmailCerto(result: EmailSendResult): boolean {
+  const motivo = (result.body as { error?: unknown } | null)?.error;
+  return (typeof motivo === "string" && /no provider configured|nessun destinatario/i.test(motivo))
+    || (result.status >= 400 && result.status < 500 && ![408, 409, 425].includes(result.status));
+}
+
 /**
  * Load provider settings from platform_settings.
  * stream = "marketing" | "transactional"
@@ -160,34 +166,34 @@ async function fetchWithRetry(
   url: string,
   init: RequestInit,
   maxAttempts = 3,
-  baseDelayMs = 1000,
-  timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+  conservaEsitoIncerto = false,
 ): Promise<Response> {
-  let lastResponse: Response | undefined;
-  let lastError: unknown;
+  let esitoIncerto = false;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort("email-provider-timeout"), timeoutMs);
+    const timeout = setTimeout(() => controller.abort("email-provider-timeout"), DEFAULT_FETCH_TIMEOUT_MS);
     let res: Response;
     try {
       res = await fetch(url, { ...init, signal: controller.signal });
     } catch (err) {
-      lastError = err;
+      esitoIncerto = true;
       if (attempt >= maxAttempts) throw err;
-      await new Promise((r) => setTimeout(r, retryDelayMs(undefined, attempt, baseDelayMs)));
+      await new Promise((r) => setTimeout(r, retryDelayMs(undefined, attempt, 1000)));
       continue;
     } finally {
       clearTimeout(timeout);
     }
 
-    if (!isRetryableStatus(res.status)) return res;
-    lastResponse = res;
-    if (attempt < maxAttempts) {
-      await new Promise((r) => setTimeout(r, retryDelayMs(res, attempt, baseDelayMs)));
+    esitoIncerto ||= res.status >= 500 || res.status === 408 || res.status === 425;
+    if (!isRetryableStatus(res.status) || attempt === maxAttempts) {
+      if (conservaEsitoIncerto && esitoIncerto && !res.ok) {
+        throw new Error("Esito dell’invio email incerto dopo più risposte del provider.");
+      }
+      return res;
     }
+    await new Promise((r) => setTimeout(r, retryDelayMs(res, attempt, 1000)));
   }
-  if (!lastResponse && lastError) throw lastError;
-  return lastResponse!;
+  throw new Error("Nessun tentativo di invio email eseguito.");
 }
 
 /**
@@ -202,6 +208,7 @@ export async function sendViaProvider(
     domain?: string;
     stream?: "marketing" | "transactional";
     disableNativeTracking?: boolean;
+    idempotencyKey?: string;
     smtp?: SmtpConfig;
     /**
      * Elastic Email: forza la CLASSE messaggio "transactional" (endpoint
@@ -224,6 +231,7 @@ export async function sendViaProvider(
   const fromName = extractName(req.from);
   const stream = opts?.stream ?? "transactional";
   const disableNativeTracking = opts?.disableNativeTracking ?? (stream === "marketing");
+  const maxAttempts = opts?.idempotencyKey && provider !== "resend" ? 1 : 3;
 
   switch (provider) {
     case "smtp": {
@@ -286,7 +294,7 @@ export async function sendViaProvider(
       }
       body = JSON.stringify(payload);
       // SendGrid returns message ID in x-message-id response header — do early return
-      const sgRes = await fetchWithRetry(url, { method: "POST", headers, body });
+      const sgRes = await fetchWithRetry(url, { method: "POST", headers, body }, maxAttempts);
       const sgMsgId = sgRes.headers.get("x-message-id") || undefined;
       const sgJson = await sgRes.json().catch(() => ({}));
       return {
@@ -393,6 +401,7 @@ export async function sendViaProvider(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       };
+      if (opts?.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
       const payload: Record<string, unknown> = {
         from: req.from,
         to: req.to,
@@ -415,7 +424,7 @@ export async function sendViaProvider(
     }
   }
 
-  const res = await fetchWithRetry(url, { method: "POST", headers, body });
+  const res = await fetchWithRetry(url, { method: "POST", headers, body }, maxAttempts, Boolean(opts?.idempotencyKey));
   const json = await res.json().catch(() => ({}));
 
   return {
@@ -447,8 +456,13 @@ export async function sendViaProviderWithFailover(
     stream?: "marketing" | "transactional";
     disableNativeTracking?: boolean;
     elasticTransactionalClass?: boolean;
+    idempotencyKey?: string;
   },
 ): Promise<EmailSendResult> {
+  // Un provider di riserva non può sapere se il primo ha già accettato l'email.
+  if (opts?.idempotencyKey) {
+    return sendViaProvider(primarySettings.provider, primarySettings.apiKey, req, { ...opts, stream });
+  }
   const failoverRaw = await getPlatformSetting(`email_${stream}_failover_providers`);
   const failoverProviders = parseProviderList(failoverRaw)
     .filter((provider) => provider && provider !== primarySettings.provider);

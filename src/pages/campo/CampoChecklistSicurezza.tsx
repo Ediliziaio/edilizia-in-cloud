@@ -67,10 +67,11 @@ export default function CampoChecklistSicurezza(): JSX.Element {
       }
     }
 
-    const ok = await conferma(null, gps);
+    const esito = await conferma(null, gps);
     setConfermando(false);
-    if (ok) {
-      toast.success("Checklist confermata — buon lavoro!", { duration: 3000 });
+    if (esito) {
+      if (esito === "accodata") toast.info("Checklist salvata sul dispositivo. Invio in attesa di connessione.");
+      else toast.success("Checklist confermata — buon lavoro!", { duration: 3000 });
       setTimeout(() => navigate("/campo"), 800);
     } else {
       toast.error(error ?? "Impossibile confermare la checklist");

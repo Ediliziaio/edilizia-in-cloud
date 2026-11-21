@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
-  Camera, X, Minus, Plus, Loader2, Send,
+  Camera, X, Minus, Plus, Loader2, Send, CalendarDays, ClipboardPenLine, LogIn, Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
@@ -56,17 +56,17 @@ import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
 import { avanzateDelRapportino, fasiLavorateDelRapportino, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
-import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
+import { correggiPresenzeRapportino, presenzeRapportino, stessaPresenza, validateRapportinoHours, type CampoHoursDraft, type RapportinoPresenza } from "@/lib/campo/rapportinoHours";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { assertReportDay, campoWorkDay, giorniIndietroValidi, giorniSceglibili, messaggioScadenzaRapportino, reportDayAllowed, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 import { isClientReport } from "@/lib/campo/reportKind";
-import { RapportinoVoceInput } from "@/components/campo/RapportinoVoceInput";
+import { RapportinoVoceInput, type PropostaRapportino } from "@/components/campo/RapportinoVoceInput";
 import { DettaTesto } from "@/components/campo/DettaTesto";
+import { accodaTesto } from "@/lib/campo/dettaTesto";
 import { useFormDraft } from "@/hooks/campo/useFormDraft";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
-import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
 
 const TOTAL_STEPS = 2;
 
@@ -115,6 +115,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const dayLabel = validWorkDay(workDay) ? format(new Date(`${workDay}T12:00:00`), "d MMMM yyyy", { locale: it }) : "Data non valida";
 
   const [step, setStep] = useState(1);
+  const inizioRapportino = useRef<HTMLDivElement>(null);
+  const campoDescrizione = useRef<HTMLTextAreaElement>(null);
 
   // Step 1
   const [descrizione, setDescrizione] = useState("");
@@ -127,6 +129,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const modificaOre = (value: CampoHoursDraft) => { oreModificate.current = true; setOreLavorate(value); };
   const [oreStraordinario, setOreStraordinario] = useState(0);
   const [percentuale, setPercentuale] = useState(0);
+  const avanzamentoModificato = useRef(false);
   // Fasi dichiarate: phase_id → nuovo avanzamento raggiunto (0-100)
   const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
   // Materiali usati oggi: key (order_item id o "libero_<n>") → nome+quantità
@@ -160,6 +163,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
     campiValori: {} as Record<string, unknown>, arrivo: ARRIVO_VUOTO,
     sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], sottofasiAvanzate: {} as Record<string, { quantita?: number; percentuale?: number }>, presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
+    presenzeModificate: {} as Record<string, true>,
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
   const bozzaAttivata = useRef(false);
@@ -281,7 +285,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // del cantiere (cosa fatto, foto, materiali, avanzamento) lo fa il capocantiere.
   const soloOreAllOperaio = flusso.soloOre;
   // Le parti che questa azienda usa e i suoi campi. Spegnere nasconde solo l'inserimento: quello che è già scritto resta.
-  const { schema: moduloCantiere } = useModuloRapportino(orderId);
+  const { schema: moduloCantiere, isLoading: moduloInCaricamento } = useModuloRapportino(orderId);
   const parti = moduloCantiere.blocchi;
   // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
   // sul giornaliero normale sono 2 step.
@@ -308,11 +312,15 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori, arrivo }),
-    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori, arrivo]);
+  const [presenzeModificate, setPresenzeModificate] = useState<Record<string, true>>({});
+  const segnaPresenzeModificate = (chiavi: string[]) => setPresenzeModificate(prev => ({
+    ...prev, ...Object.fromEntries(chiavi.map(chiave => [chiave, true as const])),
+  }));
+  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, presenzeModificate, firmaClienteNome, campiValori, arrivo }),
+    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, presenzeModificate, firmaClienteNome, campiValori, arrivo]);
   useEffect(() => {
     if (!ripresaDecisa || !companyId || !user?.id) return;
-    if (bozzaAttivata.current || bozzaCorrente.arrivo.mezzoId || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
+    if (bozzaAttivata.current || avanzamentoModificato.current || bozzaCorrente.arrivo.mezzoId || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.presenzeModificate).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
       bozzaAttivata.current = true;
       aggiornaBozza(bozzaCorrente);
     }
@@ -326,6 +334,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
     setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []); setSottofasiAvanzate(b.sottofasiAvanzate && typeof b.sottofasiAvanzate === "object" ? b.sottofasiAvanzate : {});
     setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || ""); setCampiValori(b.campiValori || {});
+    setPresenzeModificate(b.presenzeModificate || {});
     setArrivo(b.arrivo ?? ARRIVO_VUOTO);
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
@@ -342,6 +351,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     },
   });
   const togglePresenza = (m: MembroSquadra) => {
+    segnaPresenzeModificate([m.key]);
     setPresenzeSel(prev => {
       const next = { ...prev };
       if (m.key in next) delete next[m.key];
@@ -358,7 +368,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     id: string; created_at: string; stato: string | null; motivo_rifiuto: string | null;
     descrizione_lavori: string | null; ore_lavorate: number | null; ore_straordinario: number | null;
     foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number; foto?: string[] }[] | null;
-    presenze: { employee_id?: string; subappaltatore_id?: string; ore?: number }[] | null;
+    presenze: RapportinoPresenza[] | null;
     materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string; stock_item_id?: string; fase_id?: string }[] | null;
     meteo: string | null; percentuale_avanzamento: number | null;
     lavoro_completato?: boolean | null; firma_cliente_url?: string | null; campi_extra?: unknown;
@@ -400,7 +410,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // fine lavori e firma del cliente sono suoi; senza capo l'avanzamento sta in «Altro» e il collaudo resta a passi.
   const semplice = !!ruoloCampo && !faSquadra && (ruoloCampo.esisteCapo || !lavoro_completato);
   const totalSteps = lavoro_completato ? 3 : semplice ? 1 : TOTAL_STEPS;
-  const verificaInCorso = !!ruoloLoading || !!esistenteLoading || !!regoleLoading || !!protocollo.isLoading;
+  const verificaInCorso = !!ruoloLoading || !!esistenteLoading || !!regoleLoading || !!protocollo.isLoading || moduloInCaricamento;
   const verificaFallita = !!ruoloError || !!esistenteError || !!regoleError || !!protocollo.isError;
   const clienteNonConsentito = lavoro_completato && !!ruoloCampo && !puoDichiararePercentuali;
   const campiModulo = useMemo(() => campiPerContesto(moduloCantiere, {
@@ -409,7 +419,6 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     subappaltatore: isSubappaltatore,
     soloOre: soloOreAllOperaio,
   }), [moduloCantiere, ruoloCampo, faSquadra, lavoro_completato, isSubappaltatore, soloOreAllOperaio]);
-  const vocaleVisibile = voceAperta && !lavoro_completato && !soloOreAllOperaio && !flusso.soloTimbratura && !bloccatoDaEsistente;
   // Il respinto si rimanda anche oltre la scadenza: è l'ufficio che lo ha chiesto.
   // Quanti giorni indietro lo decide l'azienda (Impostazioni → Rapportini e presenze); lo controlla anche il database.
   const giorniIndietro = giorniIndietroValidi(regole.giorniIndietro);
@@ -418,6 +427,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const dayAllowedBase = validWorkDay(workDay) && reportDayAllowed(workDay, undefined, giorniIndietro);
   const ultimoGiornoInvio = validWorkDay(workDay) ? shiftWorkDay(workDay, giorniIndietro) : today;
   const dayAllowed = dayAllowedBase || daRifare;
+  // Anche un link diretto alla voce attende le regole, la verifica del ruolo e della giornata.
+  const puoCompilareAVoce = !!ruoloCampo && !!orderId && !verificaInCorso && !verificaFallita && dayAllowed
+    && !lavoro_completato && !soloOreAllOperaio && !flusso.soloTimbratura && !bloccatoDaEsistente
+    && (ripresaDecisa || daRifare);
+  const vocaleVisibile = voceAperta && puoCompilareAVoce && step === 1;
   const giornoOk = () => daRifare || reportDayAllowed(workDay, undefined, giorniIndietro);
   const controllaGiorno = () => { if (!daRifare) assertReportDay(workDay, undefined, giorniIndietro); };
 
@@ -475,23 +489,24 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     return () => { cancelled = true; };
   }, [daRifare, rapportinoGiaOggi]);
   useEffect(() => {
-    // Le presenze si agganciano alle persone della squadra, che arriva dopo.
-    if (!daRifare || !rapportinoGiaOggi || presenzeRiapertoFatto.current || squadra.length === 0) return;
+    if (!ripresaDecisa || !daRifare || !rapportinoGiaOggi || presenzeRiapertoFatto.current || squadra.length === 0) return;
     let cancelled = false;
     void Promise.resolve().then(() => {
       if (cancelled || presenzeRiapertoFatto.current) return;
       presenzeRiapertoFatto.current = true;
       const salvate = Array.isArray(rapportinoGiaOggi.presenze) ? rapportinoGiaOggi.presenze : [];
       if (salvate.length === 0) return;
-      const next: Record<string, CampoHoursDraft> = {};
-      for (const p of salvate) {
-        const m = squadra.find(x => (p.employee_id && x.employee_id === p.employee_id) || (p.subappaltatore_id && x.subappaltatore_id === p.subappaltatore_id));
-        if (m) next[m.key] = Number(p.ore) > 0 ? Number(p.ore) : "";
-      }
-      setPresenzeSel(next);
+      setPresenzeSel(prev => {
+        const next = { ...prev };
+        for (const p of salvate) {
+          const m = squadra.find(x => stessaPresenza(p, x));
+          if (m && !(m.key in presenzeModificate)) next[m.key] = Number(p.ore) > 0 ? Number(p.ore) : "";
+        }
+        return next;
+      });
     });
     return () => { cancelled = true; };
-  }, [daRifare, rapportinoGiaOggi, squadra]);
+  }, [ripresaDecisa, daRifare, rapportinoGiaOggi, squadra, presenzeModificate]);
 
   // Azienda in cui il rapportino lo fa il capocantiere: l'operaio timbra e scrive
   // descrizione, foto, materiali, ma non le ore. Solo se il cantiere ha davvero
@@ -829,16 +844,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
       // Inserisci rapportino — oppure, se l'ufficio lo aveva respinto, aggiorna lo stesso e rimandalo
       controllaGiorno(); // Recheck after permission lookup / slow uploads.
-      const presenzeDaInviare = !confermaCliente && registraSquadra && Object.keys(presenzeSel).length > 0
-        ? squadra
-            .filter(m => m.key in presenzeSel)
-            .map(m => ({
-              ...(m.employee_id ? { employee_id: m.employee_id } : {}),
-              ...(m.subappaltatore_id ? { subappaltatore_id: m.subappaltatore_id } : {}),
-              nome: m.nome,
-              ore: presenzeSel[m.key],
-            }))
-        : null;
+      const puoScriverePresenze = !confermaCliente && registraSquadra;
+      const presenzeDaInviare = puoScriverePresenze ? presenzeRapportino(squadra, presenzeSel) : [];
       const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
       const campiExtra = [...componiValori(campiModulo, campiValori, campiPrecedenti, fasiPerCampi), ...arrivoDaSalvare];
       const campi = {
@@ -868,6 +875,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       };
       let inserted: { id: string };
       if (daRifare && rapportinoGiaOggi) {
+        const presenzeCorrette = puoScriverePresenze
+          ? correggiPresenzeRapportino(rapportinoGiaOggi.presenze, squadra, presenzeSel, presenzeModificate)
+          : undefined;
         const { data: aggiornato, error: updError } = await supabase
           .from("campo_rapportini")
           .update({
@@ -877,7 +887,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             approvato: false,
             // Sul rimando si riscrive tutto quello che l'operaio vede nel modulo
             ...(parti.fasi ? { fasi_lavorate: fasiLavorate } : {}),
-            presenze: presenzeDaInviare ?? [],
+            ...(presenzeCorrette ? { presenze: presenzeCorrette } : {}),
             ...(parti.materiali ? { materiali_usati: materialiPayload } : {}),
             ...firme,
           })
@@ -903,7 +913,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
             // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
             // I subappaltatori sono presenza registrata, non costo orario.
-            ...(presenzeDaInviare ? { presenze: presenzeDaInviare } : {}),
+            ...(presenzeDaInviare.length > 0 ? { presenze: presenzeDaInviare } : {}),
             // Materiali confermati oggi (facoltativi): stesso formato del vocale
             ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
             ...firme,
@@ -978,28 +988,39 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const firmeMancanti = lavoro_completato && (!firmaCliente || !firmaClienteNome.trim());
   const isUltimoStep = step >= totalSteps;
 
+  const cambiaPassaggio = (passaggio: number) => {
+    setStep(passaggio);
+    requestAnimationFrame(() => inizioRapportino.current?.scrollIntoView?.({ block: "start" }));
+  };
+
+  const tornaAScrivere = () => {
+    setVoceAperta(false);
+    requestAnimationFrame(() => campoDescrizione.current?.scrollIntoView?.({ block: "nearest" }));
+  };
+
   const goNext = () => {
-    if (verificaInCorso || verificaFallita || clienteNonConsentito) return;
+    if (vocaleVisibile || verificaInCorso || verificaFallita || clienteNonConsentito) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
     // Quelli per fase stanno più avanti, per chi ha due passi: si chiedono all'invio.
     const mancaOra = isUltimoStep ? campiMancanti : step === 1 ? mancantiRapportino : [];
     if (mancaOra.length > 0) { setErroriCampi(true); toast.error(`Compila: ${mancaOra.join(", ")}`); return; }
-    if (step < totalSteps) setStep(s => s + 1);
+    if (step < totalSteps) cambiaPassaggio(step + 1);
     else salva();
   };
 
   // Dati "sudati" nel form: uscire per sbaglio (freccia indietro col pollice)
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
-    descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
+    avanzamentoModificato.current || descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
     fotoUrls.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
-    Object.keys(presenzeSel).length > 0 ||
+    Object.keys(presenzeSel).length > 0 || Object.keys(presenzeModificate).length > 0 ||
     Object.keys(materialiSel).length > 0 || Object.keys(mezziSel).length > 0 ||
     !!firmaOperaio || !!firmaCliente || firmaClienteNome.trim().length > 0;
 
   const goBack = () => {
     if (saving || uploadingFoto) return;
+    if (vocaleVisibile) { tornaAScrivere(); return; }
     if (step === 1) {
       if (datiInseriti && !window.confirm(bozza.saveError ? "La bozza non è stata salvata sul telefono. Uscendo potresti perdere i dati: continuare?" : "Vuoi uscire dal rapportino? La bozza resta sul telefono, ma non è inviata. Le firme vanno raccolte di nuovo.")) {
         return;
@@ -1013,7 +1034,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       setFirmaCliente(null);
     }
     if (step === 2) setFirmaOperaio(null);
-    setStep(s => s - 1);
+    cambiaPassaggio(step - 1);
   };
 
   // Blocchi riusati: nel passo 2 per chi gestisce il cantiere, dentro «Altro da segnalare» per
@@ -1034,7 +1055,10 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   max={100}
                   step={5}
                   value={percentuale}
-                  onChange={e => setPercentuale(Number(e.target.value))}
+                  onChange={e => {
+                    avanzamentoModificato.current = true;
+                    setPercentuale(Number(e.target.value));
+                  }}
                   className="w-full accent-primary"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
@@ -1072,11 +1096,14 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 {dalleTimbrature && timbratiDaSelezionare.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setPresenzeSel(prev => {
-                      const next = { ...prev };
-                      for (const m of timbratiDaSelezionare) next[m.key] = proponiOre(m.ore_timbrate, m.timbratura_aperta);
-                      return next;
-                    })}
+                    onClick={() => {
+                      segnaPresenzeModificate(timbratiDaSelezionare.map(m => m.key));
+                      setPresenzeSel(prev => {
+                        const next = { ...prev };
+                        for (const m of timbratiDaSelezionare) next[m.key] = proponiOre(m.ore_timbrate, m.timbratura_aperta);
+                        return next;
+                      });
+                    }}
                     className="mb-3 min-h-11 rounded-full border border-primary px-4 text-sm font-semibold text-primary"
                   >
                     Seleziona chi ha timbrato ({timbratiDaSelezionare.length})
@@ -1136,7 +1163,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                       <button
                         key={h}
                         type="button"
-                        onClick={() => setPresenzeSel(prev => Object.fromEntries(Object.keys(prev).map(k => [k, h])))}
+                        onClick={() => {
+                          const chiavi = squadra.filter(m => m.key in presenzeSel).map(m => m.key);
+                          segnaPresenzeModificate(chiavi);
+                          setPresenzeSel(prev => ({ ...prev, ...Object.fromEntries(chiavi.map(k => [k, h])) }));
+                        }}
                         className="min-h-11 rounded-full border border-border bg-muted px-4 text-sm font-semibold"
                       >
                         {h} h
@@ -1163,9 +1194,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                           step={0.1}
                           inputMode="decimal"
                           value={presenzeSel[m.key]}
-                          onChange={e =>
-                            setPresenzeSel(prev => ({ ...prev, [m.key]: e.target.value === "" ? "" : Number(e.target.value) }))
-                          }
+                          onChange={e => {
+                            segnaPresenzeModificate([m.key]);
+                            const ore = e.target.value === "" ? "" : Number(e.target.value);
+                            setPresenzeSel(prev => ({ ...prev, [m.key]: ore }));
+                          }}
                           className="h-11 w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-base"
                           aria-label={`Ore di ${m.nome}`}
                         />
@@ -1492,51 +1525,60 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   );
   // Chi fa la squadra dichiara le ore con le presenze: le sue ore personali compaiono solo se in cantiere non c'è nessuno da segnare.
   const mostraOrePersonali = !registraSquadra || (!squadraLoading && (squadra.length === 0 || Object.keys(presenzeSel).length === 0));
-  const applicaVocale = (d: RapportinoVocaleDraft) => {
-    if ((descrizione.trim() || Object.keys(materialiSel).length) && !window.confirm("La proposta vocale sostituirà il testo e i materiali riconosciuti. Vuoi inserirla nel modulo?")) return;
-    if (!soloOreAllOperaio) {
-      setDescrizione([d.dati_estratti.lavorazione, d.dati_estratti.note].filter(Boolean).join(" — ") || d.trascrizione || "");
-      const materiali = (d.dati_estratti.materiali ?? []).filter(m => m.nome?.trim() && Number.isFinite(m.quantita) && m.quantita > 0);
-      if (materiali.length) setMaterialiSel(restoreRapportinoMaterials(materiali));
-    }
-    const ore = d.dati_estratti.ore_lavorate;
-    // Non rimpiazza le timbrature con una stima AI e non registra ore di altre persone.
-    if (!oreNonMie && mostraOrePersonali && oreRilevate == null && typeof ore === "number" && Number.isFinite(ore) && ore >= 0 && ore <= 24) modificaOre(ore);
-    setVoceAperta(false);
-    toast.info("Proposta vocale inserita: controlla ore, lavori e materiali prima di inviare.");
+  // La proposta completa i campi disponibili senza sostituire ore, materiali o testo già inseriti.
+  const puoSuggerireOre = !oreNonMie && mostraOrePersonali && oreRilevate == null && oreLavorate === "";
+  const puoSuggerireMateriali = parti.materiali && Object.keys(materialiSel).length === 0;
+  const applicaVocale = (proposta: PropostaRapportino) => {
+    if (!puoCompilareAVoce) return;
+    setDescrizione(testo => accodaTesto(testo, proposta.descrizione));
+    if (puoSuggerireMateriali && proposta.materiali.length) setMaterialiSel(restoreRapportinoMaterials(proposta.materiali));
+    if (puoSuggerireOre && proposta.ore !== null) modificaOre(proposta.ore);
+    tornaAScrivere();
+    toast.success("Proposta inserita. Controlla il rapportino prima di inviarlo.");
   };
 
   if (!verificaInCorso && !verificaFallita && !lavoro_completato && flusso.soloTimbratura && !daRifare) return (
-    <div className="mx-auto max-w-lg space-y-4 p-4">
-      <h1 className="text-xl font-bold">Il giornaliero lo compila il responsabile</h1>
+    <section className="mx-auto max-w-lg space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
+      <h1 className="text-lg font-bold leading-snug">Il giornaliero lo compila il responsabile</h1>
       <RapportinoSiteContext orderId={orderId} companyId={companyId} />
-      <p>La tua azienda ha scelto un giornaliero di squadra. Tu timbra entrata e uscita; foto e segnalazioni si aggiungono dal cantiere.</p>
-      <button type="button" className="min-h-12 w-full rounded-xl bg-primary px-4 text-primary-foreground" onClick={() => navigate(`/campo/timbratura?order_id=${orderId}`)}>Entrata e uscita</button>
-      <button type="button" className="min-h-12 w-full rounded-xl border px-4" onClick={() => navigate(`/campo/lavoro/${orderId}`)}>Apri il cantiere</button>
-    </div>
+      <p className="text-sm text-muted-foreground">Registra entrata e uscita. Puoi aggiungere foto e segnalazioni dalla scheda del cantiere.</p>
+      <div className="space-y-2">
+        <button type="button" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground" onClick={() => navigate(`/campo/timbratura?order_id=${orderId}`)}>
+          <LogIn className="size-5" aria-hidden="true" /> Entrata e uscita
+        </button>
+        <button type="button" className="min-h-12 w-full rounded-xl border px-4 font-semibold" onClick={() => navigate(`/campo/lavoro/${orderId}`)}>Apri il cantiere</button>
+      </div>
+    </section>
   );
 
+  const titoloRapportino = lavoro_completato ? "Collaudo col cliente" : registraSquadra ? "Rapportino di squadra" : soloOreAllOperaio ? "Rapportino ore" : "Rapportino giornaliero";
+  const titoloPasso = step === 1 ? (parti.foto ? "Lavoro e foto" : "Dati della giornata") : step === 2 ? "Controlla i dati" : "Firma del cliente";
+  const dettagliDaAggiungere = new Intl.ListFormat("it", { type: "conjunction" })
+    .format(["la descrizione", ...(parti.foto ? ["le foto"] : []), ...(parti.materiali ? ["i materiali"] : [])]);
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col bg-background pb-24 md:pb-0">
+    <div ref={inizioRapportino} className="mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:pb-0">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
-        <button
+      <div className="flex items-start gap-3 rounded-t-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:sticky md:top-0 md:z-10 md:px-4">
+        <button type="button"
           onClick={goBack}
           aria-label="Indietro nel rapportino"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
+          disabled={saving || uploadingFoto}
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border bg-muted/60 disabled:opacity-50"
         >
-          <ArrowLeft className="w-5 h-5 text-foreground" />
+          <ArrowLeft className="size-5 text-foreground" aria-hidden="true" />
         </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-muted-foreground">{lavoro_completato ? "Collaudo col cliente" : "Rapportino"}</p>
-          {totalSteps > 1 && <p className="mt-1 text-xs text-muted-foreground">{step === 1 ? "1 · Lavoro e foto" : step === 2 ? "2 · Controlla i dati" : "3 · Firma del cliente"}</p>}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-bold leading-tight text-foreground">{titoloRapportino}</h1>
           <RapportinoSiteContext orderId={orderId} companyId={companyId} />
-          <div className={`mt-2 h-1.5 w-full rounded-full bg-muted ${totalSteps === 1 ? "hidden" : ""}`}>
-            <div
-              className="h-1.5 rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${(step / totalSteps) * 100}%` }}
-            />
-          </div>
+          {totalSteps > 1 && <>
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">{step} di {totalSteps} · {titoloPasso}</p>
+            <div role="progressbar" aria-label="Avanzamento del modulo" aria-valuemin={0} aria-valuemax={totalSteps} aria-valuenow={step}
+              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full origin-left rounded-full bg-primary motion-safe:transition-transform motion-safe:duration-200"
+                style={{ transform: `scaleX(${step / totalSteps})` }} />
+            </div>
+          </>}
         </div>
       </div>
 
@@ -1544,10 +1586,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-5">
         {lavoro_completato && <p className="rounded-xl bg-primary/5 px-3 py-2 text-sm text-muted-foreground">Documento da mostrare al cliente prima della firma. Non è il normale riepilogo di fine giornata.</p>}
         {verificaInCorso && <p role="status" className="text-sm text-muted-foreground">Verifico cantiere e rapporti già inviati…</p>}
-        {!ripresaDecisa && !daRifare && !bloccatoDaEsistente && <div role="status" className="space-y-2 rounded-xl border bg-muted/40 p-3 text-sm">
-          <p>C’è una bozza salvata su questo telefono per questo cantiere e questa giornata. Non è ancora inviata all’ufficio.</p>
-          <button type="button" className="min-h-11 text-primary underline" onClick={riprendiBozza}>Riprendi la bozza</button>{" "}
-          <button type="button" className="min-h-11 text-primary underline" onClick={() => { bozza.clearDraft(); setRipresaDecisa(true); }}>Parti da un modulo vuoto</button>
+        {!ripresaDecisa && !daRifare && !bloccatoDaEsistente && <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+          <p role="status"><strong>Bozza sul telefono.</strong> Puoi riprendere il rapportino di questa giornata.</p>
+          <div className="flex flex-wrap gap-x-3">
+            <button type="button" className="min-h-11 rounded-xl bg-primary px-3 font-semibold text-primary-foreground" onClick={riprendiBozza}>Riprendi la bozza</button>
+            <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => { bozza.clearDraft(); setRipresaDecisa(true); }}>Parti da un modulo vuoto</button>
+          </div>
         </div>}
         {bozza.saveError && <p role="alert" className="text-sm text-destructive">{bozza.saveError}</p>}
         {ripresaDecisa && bozza.lastSaved && <p role="status" className="text-xs text-muted-foreground">Bozza salvata sul telefono · non ancora inviata all’ufficio{tipo === "client" ? ". La firma del cliente va raccolta di nuovo." : ""}</p>}
@@ -1575,13 +1619,15 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         <fieldset disabled={saving || (!ripresaDecisa && !daRifare)} className="min-w-0 space-y-3 border-0 p-0 md:space-y-4">
         {step === 1 && (
           <>
-            <div className="flex items-center gap-2">
-              <label htmlFor="rapportino-giornata" className="shrink-0 text-sm font-semibold">Giornata di lavoro</label>
-              <UniformSelect id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto}
+            <div className="flex items-center gap-2 rounded-xl border bg-muted/25 px-2.5 py-1.5">
+              <label htmlFor="rapportino-giornata" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-semibold">
+                <CalendarDays className="size-4 shrink-0 text-primary" aria-hidden="true" /> Giornata di lavoro
+              </label>
+              <UniformSelect id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto || vocaleVisibile}
                 onChange={e => {
                   if (datiInseriti && !window.confirm("Cambiare giornata apre un altro modulo. La bozza resta sul telefono, salvo errori di salvataggio; le firme vanno raccolte di nuovo. Continuare?")) return;
                   const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
-                }} className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm">
+                }} className="h-11 w-[47%] min-w-0 rounded-lg border bg-background px-2 text-base md:text-sm">
                 {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
                 {giorniSelezionabili.map((g) => (
                   <option key={g} value={g}>
@@ -1592,37 +1638,48 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             </div>
             {/* La scadenza si dice solo quando conta: oggi per oggi non serve leggerla. */}
             {(daRifare || workDay !== today) && <p className="text-xs text-muted-foreground">{daRifare ? "Correzione richiesta dall’ufficio: puoi rimandarla anche dopo la scadenza originale." : dayAllowed ? ultimoGiornoInvio === today ? "Da inviare entro oggi alle 23:59." : ultimoGiornoInvio === shiftWorkDay(today, 1) ? "Da inviare entro domani alle 23:59." : `Da inviare entro il ${format(new Date(`${ultimoGiornoInvio}T12:00:00`), "dd/MM")} alle 23:59.` : "Giornata fuori termine."}</p>}
-            {!confermaCliente && registraSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
-            {!confermaCliente && registraSquadra && bloccoSquadra}
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="min-w-0 text-base font-black text-foreground md:text-xl">
+            <div className="space-y-2">
+              <h2 className="text-base font-bold text-foreground md:text-xl">
                 {lavoro_completato ? "Quali lavori conferma il cliente?" : soloOreAllOperaio
                   ? (workDay === today ? "Le tue ore di oggi" : "Le tue ore di questa giornata")
                   : (workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?")}
               </h2>
-              {!lavoro_completato && !flusso.soloTimbratura && !soloOreAllOperaio && !bloccatoDaEsistente && (
-                <button type="button" disabled={saving || verificaInCorso || verificaFallita} className="min-h-10 shrink-0 rounded-xl border px-3 text-sm font-semibold" onClick={() => setVoceAperta(true)}>Compila parlando</button>
+              {puoCompilareAVoce && !vocaleVisibile && (
+                <button type="button" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 text-sm font-semibold text-primary motion-safe:transition-transform motion-safe:active:scale-[0.98]"
+                  onClick={() => setVoceAperta(true)}>
+                  <Mic className="size-4" aria-hidden="true" /> Compila parlando
+                </button>
               )}
             </div>
-            {vocaleVisibile && orderId && <RapportinoVoceInput orderId={orderId} workDay={workDay} onApply={applicaVocale} onClose={() => setVoceAperta(false)} />}
+            {vocaleVisibile && orderId && <RapportinoVoceInput
+              orderId={orderId} workDay={workDay}
+              proponiOre={puoSuggerireOre} proponiMateriali={puoSuggerireMateriali}
+              onApply={applicaVocale} onClose={tornaAScrivere}
+            />}
             {/* Con «ore_proprie» l'operaio manda solo le ore: il racconto, le foto
                 e i materiali li scrive il capocantiere per tutto il cantiere. */}
             {soloOreAllOperaio ? (
               <p className="text-sm text-muted-foreground">Qui segni solo le tue ore. Il racconto del cantiere, le foto e i materiali li scrive il capocantiere.</p>
-            ) : (
-              <textarea
-                aria-label={lavoro_completato ? "Lavori da confermare con il cliente" : "Lavori svolti nella giornata"}
-                className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-                rows={5}
-                placeholder={lavoro_completato ? "Descrivi i lavori conclusi che il cliente sta confermando, gli eventuali problemi e le note concordate." : "Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."}
-                value={descrizione}
-                onChange={e => setDescrizione(e.target.value)}
-              />
+            ) : !vocaleVisibile && (
+              <div className="space-y-2 rounded-2xl border bg-background p-3">
+                <label htmlFor="rapportino-lavori" className="flex items-center gap-2 text-sm font-semibold">
+                  <ClipboardPenLine className="size-4 text-primary" aria-hidden="true" /> Descrizione dei lavori
+                </label>
+                <textarea
+                  ref={campoDescrizione}
+                  id="rapportino-lavori"
+                  aria-label={lavoro_completato ? "Lavori da confermare con il cliente" : "Lavori svolti nella giornata"}
+                  className="block w-full resize-y rounded-xl border border-border bg-muted/35 px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 md:text-sm"
+                  rows={3}
+                  placeholder={lavoro_completato ? "Descrivi i lavori conclusi e le note concordate." : "Es. Installati i telai delle finestre al primo piano."}
+                  value={descrizione}
+                  onChange={e => setDescrizione(e.target.value)}
+                />
+                {!bloccatoDaEsistente && <DettaTesto value={descrizione} onChange={setDescrizione} companyId={companyId} contesto="rapportino" campo="descrizione" etichetta="Descrizione dei lavori" disabled={saving || verificaInCorso || verificaFallita || !dayAllowed} />}
+              </div>
             )}
-            {/* Detta: aggiunge in fondo testo pulito, senza fatti nuovi. «Compila parlando» resta l'estrazione dei campi. */}
-            {!soloOreAllOperaio && !bloccatoDaEsistente && (
-              <DettaTesto value={descrizione} onChange={setDescrizione} companyId={companyId} contesto="rapportino" campo="descrizione" etichetta="Descrizione dei lavori" disabled={saving || vocaleVisibile} />
-            )}
+            {!confermaCliente && registraSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
+            {!confermaCliente && registraSquadra && bloccoSquadra}
             {/* Il meteo non si sceglie: si compila da solo dalle previsioni del cantiere (vedi sopra). Se uno lo scrive nella descrizione va bene. */}
             {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
             {confermaCliente ? <p className="rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground">Ore e presenze si registrano nel giornaliero. Questa conferma non aggiunge altre ore e non le conta una seconda volta.</p> : oreNonMie ? (
@@ -1630,8 +1687,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 <p className="text-sm font-semibold">Le tue ore le registra il capocantiere</p>
                 <p className="text-xs text-muted-foreground">
                   {oreRegistrateDalCapo
-                    ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}). Non vanno scritte due volte: qui aggiungi descrizione, foto e materiali.`
-                    : "In questa azienda il rapportino del cantiere lo fa il capocantiere. Tu timbri entrata e uscita; qui puoi aggiungere descrizione, foto e materiali."}
+                    ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}).`
+                    : "Il capocantiere registra le ore della squadra."}{" "}
+                  {soloOreAllOperaio ? "Puoi indicare eventuali ore aggiuntive." : `Qui puoi aggiungere ${dettagliDaAggiungere}.`}
                 </p>
                 <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
                   {oreRegistrateDalCapo
@@ -1653,7 +1711,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   {dayTime.isError ? "Timbrature non disponibili: inserisci le ore oppure riprova." :
                     anomalieTimbrature ? "Ci sono timbrature da verificare: indica le ore effettive." :
                     oreRilevate != null ? `Rilevate ${oreRilevate} h, pause escluse.` :
-                    "Nessuna ora attribuita da proporre. Per sole foto o note, indica 0."}
+                    soloOreAllOperaio ? "Indica le ore effettive." :
+                    `Nessuna ora attribuita da proporre. Per ${parti.foto ? "sole foto o note" : "una nota"}, indica 0.`}
                 </p>
                 {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>Riprova timbrature</button>}
                 <div className="mt-3 flex items-center gap-3">
@@ -1967,7 +2026,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {saving ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <><Loader2 className="size-5 motion-safe:animate-spin" aria-hidden="true" /> Invio in corso…</>
             ) : !isUltimoStep ? (
               <>
                 Avanti

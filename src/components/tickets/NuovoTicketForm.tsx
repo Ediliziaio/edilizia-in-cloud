@@ -11,6 +11,7 @@ import { useState, useRef, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { completaAllegato, preparaAllegato, type AllegatoDaCaricare } from "@/lib/tickets/caricaAllegato";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
@@ -63,7 +64,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
   const pendingRef = useRef(false);
   const createdTicketRef = useRef<string | null>(null);
   const messageSentRef = useRef(false);
-  const filesProgressRef = useRef(new Map<File, { path: string; messageSent: boolean }>());
+  const filesProgressRef = useRef(new Map<File, { allegato: AllegatoDaCaricare; completato: boolean }>());
   const [createdTicketId, setCreatedTicketId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -222,30 +223,11 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
       }
 
       for (const file of pendingFiles) {
-        let progress = filesProgressRef.current.get(file);
-        if (progress?.messageSent) continue;
-        if (!progress) {
-          const path = `${ticketId}/${crypto.randomUUID()}-${file.name}`;
-          const { error: upErr } = await supabase.storage
-            .from("ticket-attachments")
-            .upload(path, file, { contentType: file.type });
-          if (upErr) throw upErr;
-          progress = { path, messageSent: false };
-          filesProgressRef.current.set(file, progress);
-        }
-        const { data: signedData } = await supabase.storage
-          .from("ticket-attachments")
-          .createSignedUrl(progress.path, 60 * 60 * 24);
-        const { error: msgErr } = await supabase
-          .from("ticket_messages")
-          .insert({
-            ticket_id: ticketId,
-            sender_id: user.id,
-            message: `📎 ${file.name}`,
-            attachment_url: signedData?.signedUrl || progress.path,
-          });
-        if (msgErr) throw msgErr;
-        filesProgressRef.current.set(file, { ...progress, messageSent: true });
+        const progress = filesProgressRef.current.get(file) ?? { allegato: preparaAllegato(ticketId, file), completato: false };
+        if (progress.completato) continue;
+        filesProgressRef.current.set(file, progress);
+        await completaAllegato(progress.allegato, ticketId, user.id);
+        progress.completato = true;
       }
 
       try {
@@ -294,6 +276,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated, onPendin
   const canSubmit = customerId && subject.trim();
   const submitLabel = createMutation.isPending
     ? undefined
+    : createdTicketId && pendingFiles.length > 0 ? "Riprova mancanti"
     : createdTicketId ? "Completa ticket" : "Crea ticket";
 
   return (

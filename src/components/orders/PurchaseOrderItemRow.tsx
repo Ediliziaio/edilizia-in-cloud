@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
 import { Trash2, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import type { AggiornamentoRigaOda, PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
@@ -83,7 +82,6 @@ export function PurchaseOrderItemRow({
   );
   const [disc, setDisc] = useInputDraft(String(item.discount_percent));
   const [vat, setVat] = useInputDraft(aliquotaNormalizzata(item.vat_rate));
-  const [received, setReceived] = useInputDraft(String(item.quantity_received));
   const [savingCount, setSavingCount] = useState(0);
   const saving = savingCount > 0;
   const queue = useRef<Promise<unknown>>(Promise.resolve());
@@ -292,39 +290,8 @@ export function PurchaseOrderItemRow({
       </td>
       {showReceived && (
         <>
-        <td className="p-1">
-          <Input
-            aria-label="Quantità ricevuta"
-            type="number"
-            min="0"
-            max={item.quantity}
-            value={received}
-            onChange={(e) => setReceived(e.target.value)}
-            onBlur={() => {
-              const n = Number(received);
-              if (
-                !received.trim() ||
-                !Number.isFinite(n) ||
-                n < 0 ||
-                n > item.quantity
-              ) {
-                setReceived(String(item.quantity_received));
-                toast.error(
-                  `Indica una quantità ricevuta tra 0 e ${item.quantity}.`,
-                );
-                return;
-              }
-              if (n !== item.quantity_received)
-                void save(
-                  {
-                    quantity_received: n,
-                    received_date: format(new Date(), "yyyy-MM-dd"),
-                  },
-                  () => setReceived(String(item.quantity_received)),
-                );
-            }}
-            className="h-8 w-16 text-right text-sm"
-          />
+        <td className="whitespace-nowrap p-2 text-right tabular-nums">
+          {(item.quantity_received ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 4 })}
         </td>
         <td className="whitespace-nowrap p-2 text-right tabular-nums">
           {Math.max(0, item.quantity - (item.quantity_received ?? 0)).toLocaleString("it-IT", { maximumFractionDigits: 4 })}

@@ -65,16 +65,17 @@ it("avvia letture e realtime solo quando servono e li sospende se la voce non è
     expect(result.current.conversazioni).toBe(2);
     expect(result.current.attivita.data?.total).toBe(0);
     expect(result.current.posta.data?.unread).toBe(0);
+    expect(result.current.notifiche.tutteLeNonLetteVisibili).toBe(true);
   });
   expect(richieste.letture.mock.calls.flat().sort()).toEqual([
     "conversazioni_non_lette", "email_inbox", "get_internal_chat_sidebar_state",
-    "lifecycle_notifications", "notifications", "tasks_personali_e_aree",
+    "lifecycle_notifications", "notifications", "notifications", "tasks_personali_e_aree",
   ]);
   expect(richieste.apriCanale).toHaveBeenCalledTimes(1);
 
   rerender({ pronti: false });
   await act(() => client.invalidateQueries());
-  expect(richieste.letture).toHaveBeenCalledTimes(6);
+  expect(richieste.letture).toHaveBeenCalledTimes(7);
   expect(richieste.chiudiCanale).toHaveBeenCalledTimes(1);
   unmount();
   client.clear();

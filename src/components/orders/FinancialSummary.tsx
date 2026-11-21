@@ -1082,6 +1082,7 @@ export function FinancialSummaryReadOnly({
     const amount = displayAmount ?? inst.amount;
     const partialPaid = Number(inst.fattura?.importo_pagato ?? 0);
     const quotaRipartita = inst.documento_quota_lorda != null;
+    const incassoRegistrato = inst.id ? incassiRegistrati[inst.id] : undefined;
     const isPartial = !inst.is_paid && partialPaid > 0 && partialPaid < amount;
     if (amount <= 0 && inst.type !== 'balance') return null;
 
@@ -1100,7 +1101,7 @@ export function FinancialSummaryReadOnly({
     }[stato];
     // La data si legge nel selettore accanto quando c'è: qui non si ripete. Resta per le scadute (con i giorni).
     const quando = inst.is_paid
-      ? (inst.paid_date && !canEditDate ? `il ${formatPaymentDate(inst.paid_date)}` : null)
+      ? (inst.paid_date && (!canEditDate || incassoRegistrato) ? `il ${formatPaymentDate(inst.paid_date)}` : null)
       : scaduta && inst.expected_date
         ? `doveva entrare il ${formatPaymentDate(inst.expected_date)} · da ${giorniDa(inst.expected_date)} giorni`
         : aEvento
@@ -1153,8 +1154,10 @@ export function FinancialSummaryReadOnly({
             <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato incasso ${inst.label}`}>
               <button
                 type="button" role="radio" aria-checked={!inst.is_paid}
+                disabled={!!incassoRegistrato}
+                title={incassoRegistrato ? "Per riaprire la rata, elimina l’incasso dalla Prima Nota." : undefined}
                 onClick={() => inst.is_paid && onInstallmentPaidToggle(inst, false)}
-                className={cn("flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-2.5",
+                className={cn("flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:opacity-60 sm:px-2.5",
                   !inst.is_paid ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" : "text-muted-foreground hover:bg-muted")}
               >
                 <Clock className="h-3 w-3 max-sm:hidden" />Da incassare
@@ -1170,7 +1173,7 @@ export function FinancialSummaryReadOnly({
             </div>
           )}
           {/* Data: si corregge da qui. Incassata → data dell'incasso; da incassare → data prevista. */}
-          {amount > 0 && (inst.is_paid ? canEditDate && !quotaRipartita : canEditExpected) && (
+          {amount > 0 && (inst.is_paid ? canEditDate && !quotaRipartita && !incassoRegistrato : canEditExpected) && (
             <span className="max-sm:hidden"><DatePickerField
               label={inst.is_paid ? "Data incasso" : "Data prevista"}
               date={inst.is_paid ? (inst.paid_date ? new Date(inst.paid_date) : undefined) : (inst.expected_date ? new Date(inst.expected_date) : undefined)}
@@ -1181,7 +1184,7 @@ export function FinancialSummaryReadOnly({
               c'e' aggancio idempotente). Con una fattura interna l'incasso lo scrive la fattura: un secondo
               sarebbe un doppione (e il database lo rifiuta). */}
           {conPrimaNota && orderId && inst.is_paid && !!inst.id && amount > 0 && !inst.documento_fiscale_id && (
-            <RegistraIncassoPrimaNota inst={inst} amount={amount} orderId={orderId} orderCode={orderCode} entryId={incassiRegistrati[inst.id]} />
+            <RegistraIncassoPrimaNota inst={inst} amount={amount} orderId={orderId} orderCode={orderCode} entryId={incassoRegistrato} />
           )}
         </div>
         {dettaglioDocumento && <div className="income-rate-invoice sm:col-span-2">{dettaglioDocumento}</div>}

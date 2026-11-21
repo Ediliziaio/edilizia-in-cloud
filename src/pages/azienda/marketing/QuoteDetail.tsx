@@ -304,6 +304,15 @@ export default function QuoteDetail() {
     );
   }
 
+  if (quote.deleted_at) {
+    return <section className="rounded-xl border border-amber-300 bg-amber-50 p-6" aria-label="Preventivo nel cestino">
+      <h1 className="text-xl font-semibold">{quote.quote_number} · Preventivo nel cestino</h1>
+      <p className="mt-2 text-sm">{quote.title}</p>
+      <p className="mt-3 text-sm">Apri il Cestino dalla lista Preventivi per ripristinarlo.</p>
+      <Button className="mt-4" variant="outline" onClick={() => navigate("/azienda/marketing/preventivi")}>Torna ai preventivi</Button>
+    </section>;
+  }
+
   const sc = QUOTE_STATUS_CONFIG[quote.status as keyof typeof QUOTE_STATUS_CONFIG] || QUOTE_STATUS_CONFIG.bozza;
   // Documento di firma di un preventivo di modulo (Tetti, Bagni…): voci, prezzi e
   // commessa stanno nel modulo. Modificarlo, duplicarlo o convertirlo da qui

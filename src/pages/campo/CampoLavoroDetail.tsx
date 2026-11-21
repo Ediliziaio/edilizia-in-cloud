@@ -19,7 +19,7 @@ import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottof
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  ArrowLeft, MapPin, Phone, Plus, AlertCircle,
+  ArrowLeft, MapPin, Phone, AlertCircle,
   CheckCircle, Clock, Loader2, FileText, PenLine,
   Send, Download, FileCheck,
 	  ClipboardSignature, ShieldCheck, Package, Wrench,
@@ -815,8 +815,10 @@ export default function CampoLavoroDetail() {
   const withOrderContext = (path: string) => `${path}${orderContextQuery ? `?${orderContextQuery}` : ""}`;
   const timbraturaUrl = withOrderContext("/campo/timbratura");
   const rapportinoManualeUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino`);
-  const rapportinoVocaleUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino-vocale`);
-  const soloTimbratura = flussoPersona(regoleRapporti.data ?? REGOLE_COME_OGGI, ruoloRapporti ?? {}, isSubappaltatore).soloTimbratura && !rapportinoDaRifare(statoRapportinoOggi);
+  const flussoRapportino = flussoPersona(regoleRapporti.data ?? REGOLE_COME_OGGI, ruoloRapporti ?? {}, isSubappaltatore);
+  const soloTimbratura = flussoRapportino.soloTimbratura && !rapportinoDaRifare(statoRapportinoOggi);
+  const regoleDaVerificare = !!regoleRapporti.isLoading || !!regoleRapporti.isError || !!ruoloRapportiLoading || !!ruoloRapportiError;
+  const azioneRapportino = flussoRapportino.soloOre ? "Registra le tue ore" : "Scrivi il rapportino";
   // `data` apre il rapportino di quel giorno: se era respinto o in bozza si riapre già compilato.
   const rapportinoDelGiornoUrl = (giorno: string) => {
     const params = new URLSearchParams(orderContextQuery);
@@ -836,7 +838,7 @@ export default function CampoLavoroDetail() {
   // Il rapportino di oggi, aperto per correggerlo se era stato respinto o lasciato in bozza.
   const rapportinoDiOggiUrl = rapportinoDelGiornoUrl(today);
   const passiGiornata: Record<PassoGiornata, { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" }> = {
-    "rapportino-vocale": { label: "Scrivi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoManualeUrl), tone: "primary" },
+    "rapportino-vocale": { label: azioneRapportino, icon: ClipboardList, onClick: () => navigate(rapportinoManualeUrl), tone: "primary" },
     "correggi-rapportino": { label: "Correggi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
     "completa-rapportino": { label: "Completa il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
     "timbra-entrata": { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" },
@@ -1134,23 +1136,27 @@ export default function CampoLavoroDetail() {
         {/* ── Tab: Rapportini ── */}
         {activeTab === "rapportini" && (
           <div className="space-y-3">
-            <div className="rounded-2xl border bg-background p-4">
-              <h2 className="font-bold">La giornata per l’ufficio</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Ore, lavori, foto e materiali. Il cliente non firma qui: quello è il Collaudo.</p>
-            </div>
-            {soloTimbratura ? (
-              <p className="rounded-xl border bg-muted/40 p-3 text-sm">Il rapportino lo compila il responsabile. Tu registra entrata e uscita; lo storico resta consultabile.</p>
-            ) : (
-              /* Un solo bottone: dentro il modulo c'è già «Compila parlando» per dettarlo a voce. */
-              <button
-                type="button"
-                onClick={() => navigate(rapportinoManualeUrl)}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3.5 text-base font-bold text-primary-foreground transition-transform active:scale-[0.98]"
-              >
-                <Plus className="h-5 w-5" />
-                Scrivi il rapportino
-              </button>
-            )}
+            <section className="space-y-3 rounded-2xl border bg-background p-3 sm:p-4">
+              <h2 className="font-bold">{soloTimbratura ? "Rapportino del responsabile" : flussoRapportino.soloOre ? "Le tue ore in cantiere" : "Rapportino di cantiere"}</h2>
+              {regoleRapporti.isError ? <div role="alert" className="text-sm text-foreground">
+                <p>Non riesco a leggere le regole del rapportino.</p>
+                <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => void regoleRapporti.refetch()}>Riprova le regole</button>
+              </div> : regoleDaVerificare ? <p role="status" className="text-sm text-muted-foreground">Verifico come compili il rapportino…</p> : <>
+                <p className="text-sm text-muted-foreground">{soloTimbratura
+                  ? "Segna entrata e uscita. Il responsabile compila il giornaliero."
+                  : flussoRapportino.soloOre
+                    ? "Qui registri le tue ore. Il responsabile racconta i lavori."
+                    : "Apri il modulo per scrivere o raccontare i lavori. Lo storico è qui sotto."}</p>
+                <button
+                  type="button"
+                  onClick={() => navigate(soloTimbratura ? timbraturaUrl : rapportinoManualeUrl)}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-bold text-primary-foreground motion-safe:transition-transform motion-safe:active:scale-[0.98]"
+                >
+                  {soloTimbratura ? <LogIn className="size-5" aria-hidden="true" /> : <ClipboardList className="size-5" aria-hidden="true" />}
+                  {soloTimbratura ? "Entrata e uscita" : azioneRapportino}
+                </button>
+              </>}
+            </section>
 
             {vedeRapportiniCantiere && <p className="text-sm text-muted-foreground">Rapportini del cantiere. Puoi firmare o correggere soltanto quelli compilati da te; l’approvazione spetta all’ufficio.</p>}
             {ruoloRapportiError ? <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>Non riesco a verificare quali rapportini puoi consultare.</p><button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Rileggi il ruolo</button></div> : rapportiniLoading || ruoloRapportiLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
@@ -1291,7 +1297,7 @@ export default function CampoLavoroDetail() {
       {activeTab === "descrizione" && <div className="sticky -bottom-28 bg-background border-t border-border px-4 py-3 z-20 pb-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-0 md:pb-3">
         <button
           onClick={nextStickyAction.onClick}
-          disabled={!!regoleRapporti.isLoading || !!regoleRapporti.isError || !!ruoloRapportiLoading || !!ruoloRapportiError}
+          disabled={regoleDaVerificare}
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]",
             nextStickyAction.tone === "success" ? "bg-emerald-600" : "bg-primary",

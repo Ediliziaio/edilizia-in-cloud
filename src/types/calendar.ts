@@ -195,6 +195,7 @@ export interface CalendarAppointment {
   appointment_type: string;
   assigned_to: string | null;
   order_id: string | null;
+  ticket_id?: string | null;
   calendar_id?: string | null;
   is_completed: boolean;
   company_id: string;

@@ -19,6 +19,7 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
  */
 
 type FlowBody = {
+  company_id?: string;
   flow?: "change_plan" | "cancel";
   plan_id?: string;
   billing_period?: "monthly" | "yearly";
@@ -41,7 +42,7 @@ Deno.serve(async (req) => {
     // Body opzionale: le chiamate legacy arrivano senza JSON.
     let body: FlowBody = {};
     try {
-      body = (await req.json()) as FlowBody;
+      body = (await req.json()) ?? {};
     } catch {
       body = {};
     }
@@ -49,33 +50,46 @@ Deno.serve(async (req) => {
     // Azienda su cui l'utente sta lavorando: quella scelta nel selettore o quella
     // impersonata dal super admin. Prima si leggeva sempre il profilo, e chi
     // impersonava un'azienda apriva il portale della propria o nessun portale.
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    let companyId: string | null = profile?.company_id ?? null;
+    const requestedCompanyId = body.company_id;
+    if (requestedCompanyId !== undefined && (
+      typeof requestedCompanyId !== "string" ||
+      !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(requestedCompanyId)
+    )) {
+      return errorResponse("Azienda non valida", 400, corsH);
+    }
 
     const supabaseUtente = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      global: { headers: {
+        Authorization: req.headers.get("Authorization") ?? "",
+        ...(requestedCompanyId ? { "x-azienda-scheda": requestedCompanyId } : {}),
+      } },
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data: aziendaEffettiva } = await supabaseUtente.rpc("get_effective_company_id");
-    if (typeof aziendaEffettiva === "string") companyId = aziendaEffettiva;
-
-    if (!companyId) return errorResponse("Azienda non trovata", 404, corsH);
+    const { data: companyId, error: companyContextError } = await supabaseUtente.rpc("get_effective_company_id");
+    if (companyContextError) return errorResponse("Impossibile verificare l’azienda. Riprova.", 503, corsH);
+    if (
+      companyId === "00000000-0000-0000-0000-000000000000" ||
+      (requestedCompanyId && companyId !== requestedCompanyId)
+    ) {
+      return errorResponse("Accesso all’azienda non autorizzato", 403, corsH);
+    }
+    if (typeof companyId !== "string" || !companyId) return errorResponse("Azienda non trovata", 404, corsH);
 
     // Il portale Stripe gestisce l'abbonamento dell'azienda a EiC: annullarlo o
     // cambiare piano vale per tutti. Lo apre solo il super admin o un
     // amministratore di quell'azienda (25/09/2026: prima, sull'azienda del
     // proprio profilo, bastava averci un profilo, anche da cliente del portale).
-    const { data: adminAzienda } = await supabaseUtente.rpc("can_manage_company_people", { p_company_id: companyId });
+    const { data: adminAzienda, error: adminError } = await supabaseUtente.rpc("can_manage_company_people", { p_company_id: companyId });
+    if (adminError) return errorResponse("Impossibile verificare i permessi. Riprova.", 503, corsH);
     let amministra = adminAzienda === true;
-    if (!amministra && companyId === profile?.company_id) {
+    if (!amministra) {
       // L'area Produttori (ProduttoreFatturazione): il suo amministratore ha il
       // ruolo produttore_admin sull'azienda del proprio profilo.
-      const { data: ruoli } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
-      amministra = (ruoli ?? []).some((r: { role: string }) => r.role === "produttore_admin");
+      const { data: profile } = await supabaseAdmin.from("profiles").select("company_id").eq("id", userId).single();
+      if (companyId === profile?.company_id) {
+        const { data: ruoli } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+        amministra = (ruoli ?? []).some((r: { role: string }) => r.role === "produttore_admin");
+      }
     }
     if (!amministra) {
       return errorResponse("Solo un amministratore dell'azienda può gestire l'abbonamento", 403, corsH);
@@ -105,7 +119,7 @@ Deno.serve(async (req) => {
         status: "all",
         limit: 10,
       });
-      const activeSub = subs.data.find((s) => ACTIVE_SUB_STATUSES.has(s.status));
+      const activeSub = subs.data.find((s: Stripe.Subscription) => ACTIVE_SUB_STATUSES.has(s.status));
 
       if (!activeSub) {
         console.warn(`[customer-portal] flow=${body.flow} richiesto ma nessuna subscription attiva per ${company.stripe_customer_id} — fallback portale generico`);

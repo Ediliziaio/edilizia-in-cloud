@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   dichiaraAzione,
   dichiaraAzioneNonEseguita,
+  esitoStrumenti,
   eStrumentoCheScrive,
+  politicaErroreStrumento,
 } from "../../../supabase/functions/_shared/azioneDichiarata";
 
 /**
@@ -35,6 +37,23 @@ describe("Silvio: azione dichiarata ma non eseguita", () => {
     expect(dichiaraAzioneNonEseguita("✅ Attività creata", chiamate)).toBe(true);
   });
 
+  it("riconosce il fallimento anche se l'anteprima si interrompe prima del campo errore", () => {
+    const chiamate = [{ name: "crea_task", success: false, result_preview: '{"success":false,"data":"…' }];
+    expect(dichiaraAzioneNonEseguita("✅ Attività creata", chiamate)).toBe(true);
+  });
+
+  it("una proposta in attesa di conferma non prova che la scrittura sia avvenuta", () => {
+    const chiamate = [{ name: "crea_task", success: true, proposal_id: "in-attesa" }];
+    expect(dichiaraAzioneNonEseguita("✅ Attività creata", chiamate)).toBe(true);
+  });
+
+  it("distingue fallimento, risultati misti, successo e risposta senza strumenti", () => {
+    expect(esitoStrumenti([{ success: false }])).toBe("fallito");
+    expect(esitoStrumenti([{ success: true }, { success: false }])).toBe("parziale");
+    expect(esitoStrumenti([{ success: true }])).toBe("riuscito");
+    expect(esitoStrumenti([])).toBe("senza_strumenti");
+  });
+
   it("uno strumento che legge non conta come esecuzione", () => {
     const chiamate = [{ name: "get_fatture_scadute", result_preview: "{\"righe\":3}" }];
     expect(dichiaraAzioneNonEseguita("Ho inviato il sollecito a Mario Bianchi.", chiamate)).toBe(true);
@@ -58,5 +77,22 @@ describe("Silvio: azione dichiarata ma non eseguita", () => {
     expect(eStrumentoCheScrive("get_fatture_scadute")).toBe(false);
     expect(eStrumentoCheScrive("lista_commesse")).toBe(false);
     expect(eStrumentoCheScrive("analizza_documento")).toBe(false);
+  });
+});
+
+describe("Errori degli strumenti di Silvio", () => {
+  it.each(["forbidden_scope", "actor_required", "permissions_unavailable", "session_expired"])(
+    "ferma il turno su %s",
+    (code) => expect(politicaErroreStrumento(code)).toBe("autorizzazione"),
+  );
+
+  it.each(["needs_clarification", "invalid_confirmation", "insufficient_credits", "payment_method_required"])(
+    "attende un intervento dell’utente su %s",
+    (code) => expect(politicaErroreStrumento(code)).toBe("attesa_utente"),
+  );
+
+  it("consente di riprovare dopo un problema tecnico", () => {
+    expect(politicaErroreStrumento("execution_failed")).toBe("riprova");
+    expect(politicaErroreStrumento(undefined)).toBe("riprova");
   });
 });

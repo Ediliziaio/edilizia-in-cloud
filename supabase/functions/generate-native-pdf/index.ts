@@ -1,7 +1,7 @@
 import { puoGestireDocumento, puoLeggereDocumento } from "../_shared/permessoDocumentoFiscale.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
-import { getCorsHeaders } from "../_shared/headers.ts";
+import { errorResponse, getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 // La pagina del documento (contenuto e aspetto) sta in documentoHtml.ts.
@@ -93,13 +93,19 @@ Deno.serve(async (req) => {
 
       if (uploadErr) {
         console.error("Upload error:", uploadErr);
+        return errorResponse("Non è stato possibile archiviare il documento. Riprova.", 502, getCorsHeaders(req));
       }
 
-      // Update pdf_url
-      await supabase
+      const { data: collegato, error: updateError } = await supabase
         .from("documenti_fiscali")
         .update({ pdf_url: filePath })
-        .eq("id", doc.id);
+        .eq("id", doc.id)
+        .select("id")
+        .maybeSingle();
+      if (updateError || !collegato) {
+        console.error("Collegamento del documento non confermato:", doc.id, updateError);
+        return errorResponse("Archiviazione del documento non confermata. Riprova.", 503, getCorsHeaders(req));
+      }
 
       return new Response(JSON.stringify({ html, pdf_url: filePath }), {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
