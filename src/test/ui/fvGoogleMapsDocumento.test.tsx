@@ -34,4 +34,24 @@ describe("Google nel documento: caricamento reale prima della stampa",()=>{
     await vi.advanceTimersByTimeAsync(1);mocks.auth[0]();await rejected;
     expect(d.querySelector('[data-fv-google-ready]')).toBeNull();
   });
+  it.each(["pronta", "timeout"])("prepara anche la stampa fuori vista e ripristina pagina e iframe (%s)",async esito=>{
+    const iframe=document.createElement("iframe");
+    iframe.style.cssText="position:fixed;left:-10000px;top:12px;width:794px;height:1123px";
+    document.body.appendChild(iframe);
+    vi.spyOn(iframe,"getBoundingClientRect").mockReturnValue({left:-10000,right:-9206,top:12,bottom:1135,width:794,height:1123,x:-10000,y:12,toJSON:()=>({})});
+    const d=iframe.contentDocument!,win=iframe.contentWindow!;
+    d.body.innerHTML=documento().body.innerHTML;
+    const scroll=vi.spyOn(win,"scrollTo").mockImplementation(()=>{});
+    Object.defineProperty(win,"scrollY",{value:123,configurable:true});
+    vi.spyOn(d.querySelector('[data-fv-google-pdf]')!,"getBoundingClientRect").mockReturnValue({left:0,right:640,top:5000,bottom:5440,width:640,height:440,x:0,y:5000,toJSON:()=>({})});
+    const p=preparaMappeDocumentoFv(d);
+    const rejected=esito==="timeout" ? expect(p).rejects.toThrow("non sono arrivate") : null;
+    await vi.advanceTimersByTimeAsync(1);
+    expect(iframe.style.left).toBe("0px");expect(iframe.style.opacity).toBe("0");
+    expect(scroll).toHaveBeenCalledWith({left:0,top:5099,behavior:"instant"});
+    if(esito==="pronta"){mocks.maps[0].events.tilesloaded();(await p)();}
+    else {await vi.advanceTimersByTimeAsync(20001);await rejected;}
+    expect(scroll).toHaveBeenLastCalledWith({left:0,top:123,behavior:"instant"});
+    expect(iframe.style.left).toBe("-10000px");expect(iframe.style.top).toBe("12px");expect(iframe.style.opacity).toBe("");
+  });
 });
