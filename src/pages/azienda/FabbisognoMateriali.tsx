@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFabbisognoMateriali, useImpostaDataFabbisogno, useOrdinaDalFabbisogno } from "@/hooks/useFabbisognoMateriali";
+import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
 import { usePermissions } from "@/hooks/usePermissions";
 import { gruppiDaOrdinare, ordinabile } from "@/lib/acquisti/ordinaDalFabbisogno";
 import { apertaFabbisogno, avanzamentoFasi, differenze, nomeBreve, suggerisciFornitori, ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type FornitoreStorico, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
@@ -192,6 +193,9 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
           <Link to="/azienda/impostazioni/acquisti-materiali">Giorni di consegna e promemoria</Link>
         </Button>
       </header>}
+
+      {effectiveCompany?.id && <EccezioniOperative key={effectiveCompany.id + (orderId ?? "")}
+        companyId={effectiveCompany.id} tipo="cantiere" commessaId={orderId} />}
 
       {!orderId && <div className="flex flex-wrap gap-2" role="list" aria-label="Riepilogo">
         {(["ritardo", "settimana", "mese", "dopo", "senza_data", "da_verificare"] as Urgenza[]).map((u) => (

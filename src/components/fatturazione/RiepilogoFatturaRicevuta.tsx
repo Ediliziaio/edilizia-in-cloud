@@ -47,6 +47,7 @@ import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/o
 import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
 import { FatturaRicevutaCompletaDialog } from "./FatturaRicevutaCompletaDialog";
 import { useExpensePaymentDetail } from "@/hooks/useExpensePaymentDetail";
+import { VerificaPrimaDelPagamento } from "@/components/operazioni/VerificaPrimaDelPagamento";
 import { ExpensePaymentSummary } from "@/components/orders/ExpensePaymentSummary";
 import "./riepilogo-ricevuta.css";
 
@@ -641,6 +642,8 @@ function ContenutoRiepilogo({
                 </dd>
 
               </dl>
+              {!nota && companyId && !saldata &&
+                <VerificaPrimaDelPagamento companyId={companyId} fatturaId={String(f.id)} />}
               {azioni.extraCollegamenti?.(d)}
             </section>
 

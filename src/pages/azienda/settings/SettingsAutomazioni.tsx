@@ -14,6 +14,7 @@ import { AUTOMATISMI, type Automatismo } from "@/components/settings/automazioni
 import { MisuraAutomazioni } from "@/components/settings/automazioni/MisuraAutomazioni";
 import { DaFareAcquisti } from "@/components/settings/automazioni/DaFareAcquisti";
 import { SoglieCollegamentiCard } from "@/components/settings/automazioni/SoglieCollegamenti";
+import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
 
 const TONO: Record<string, string> = {
   neutro: "text-muted-foreground",
@@ -107,7 +108,11 @@ export default function SettingsAutomazioni() {
       </div>
       {!puoModificare && <p className="text-xs text-muted-foreground">Gli interruttori li cambia l&apos;amministratore dell&apos;azienda.</p>}
       <SoglieCollegamentiCard companyId={companyId} puoModificare={puoModificare} />
-      {puoConfermare && <DaFareAcquisti companyId={companyId} />}
+      {puoConfermare && <EccezioniOperative key={companyId} companyId={companyId} />}
+      {puoConfermare && <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer text-sm font-medium">Altri controlli acquisti</summary>
+        <div className="pt-3"><DaFareAcquisti companyId={companyId} /></div>
+      </details>}
       <MisuraAutomazioni companyId={companyId} />
     </div>
   );
