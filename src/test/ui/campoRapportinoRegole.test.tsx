@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoRapportino from "@/pages/campo/CampoRapportino";
 import { summarizeCampoTime } from "@/lib/campo/timeSummary";
 import { REGOLE_COME_OGGI, type RegoleCampo } from "@/lib/campo/regoleCampo";
+import type { RapportinoVocaleDraft } from "@/hooks/campo/useRapportinoVocale";
+import { SCHEMA_COME_OGGI, type ModuloSchema } from "../../../supabase/functions/_shared/moduliCantiere";
 
 type Membro = {
   key: string; employee_id?: string; subappaltatore_id?: string; nome: string; squadra?: string | null;
@@ -18,12 +20,16 @@ const state = vi.hoisted(() => ({
   oreGia: null as { ore: number; da: string } | null,
   fasi: [] as unknown[], sottofasi: [] as unknown[],
   verificaErrore: false, verificaCaricamento: false,
+  params: "", proposta: null as RapportinoVocaleDraft | null, modulo: undefined as ModuloSchema | undefined,
 }));
-vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
+vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(state.params), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isSubappaltatore: false }) }));
 vi.mock("@/hooks/useGPS", () => ({ useGPS: () => ({ requestPosition: vi.fn() }) }));
 vi.mock("@/hooks/useWeatherForecast", () => ({ useWeatherForecast: () => ({ data: undefined as Map<string, { code: number }> | undefined }) }));
+vi.mock("@/hooks/campo/useRapportinoVocale", () => ({ useRapportinoVocale: () => ({
+  draft: state.proposta, uploading: false, transcribing: false, error: null as string | null, processAudio: vi.fn(), resetDraft: vi.fn(),
+}) }));
 vi.mock("@/hooks/campo/useCampoDayTime", () => ({ useCampoDayTime: () => ({
   summary: summarizeCampoTime([], { start: new Date("2026-09-24T00:00:00Z"), end: new Date("2026-09-25T00:00:00Z"), now: new Date("2026-09-24T18:00:00Z"), includeOpen: true }),
   isSuccess: true, isError: false, refetch: vi.fn(),
@@ -40,6 +46,7 @@ vi.mock("@tanstack/react-query", () => ({
     queryKey[0] === "campo-ruolo" ? state.role :
     queryKey[0] === "campo-squadra" ? state.crew :
     queryKey[0] === "campo-regole-ordine" ? state.regole :
+    queryKey[0] === "modulo-rapportino" ? state.modulo :
     queryKey[0] === "campo-ore-gia-registrate" ? state.oreGia :
     queryKey[0] === "campo-rapportino-gia-oggi" ? state.gia :
     queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
@@ -69,6 +76,7 @@ beforeEach(() => {
   state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
   state.fasi = []; state.sottofasi = [];
   state.verificaErrore = false; state.verificaCaricamento = false;
+  state.params = ""; state.proposta = null; state.modulo = undefined;
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -176,6 +184,37 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Torna a scrivere" }));
     expect(screen.getByRole("button", { name: "Avanti" })).toBeEnabled();
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+  it("un link vocale aspetta il ruolo e resta nel flusso di sole ore quando lo sceglie l'azienda", () => {
+    state.params = "input=voce";
+    state.verificaCaricamento = true;
+    const view = render(<CampoRapportino />);
+    expect(screen.queryByRole("button", { name: "Inizia registrazione" })).toBeNull();
+    state.role = { isCapocantiere: false, esisteCapo: true };
+    state.regole = { chiCompila: "ore_proprie", oreDalle: "capo", avvisoScostamentoMinuti: null };
+    state.verificaCaricamento = false;
+    view.rerender(<CampoRapportino />);
+    expect(screen.queryByRole("button", { name: "Inizia registrazione" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Compila parlando" })).toBeNull();
+    expect(ore()).toBeVisible();
+  });
+  it("inserisce la proposta solo su conferma e conserva testo e ore già scritti", () => {
+    state.role = { isCapocantiere: false, esisteCapo: true };
+    state.modulo = { ...SCHEMA_COME_OGGI, blocchi: { ...SCHEMA_COME_OGGI.blocchi, materiali: false } };
+    state.proposta = { trascrizione: "Ho posato i telai", dati_estratti: { lavorazione: "Posati due telai", ore_lavorate: 8,
+      materiali: [{ nome: "Telaio", quantita: 2, unita: "pz" }] }, audio_duration_sec: 7 };
+    render(<CampoRapportino />);
+    fireEvent.change(screen.getByLabelText("Lavori svolti nella giornata"), { target: { value: "Controllato il primo piano" } });
+    fireEvent.change(ore()!, { target: { value: "6.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Compila parlando" }));
+    expect(screen.getByText("Controlla la proposta vocale")).toBeVisible();
+    expect(screen.queryByText("Ore proposte")).toBeNull();
+    expect(screen.queryByText("Materiali proposti")).toBeNull();
+    expect(state.insert).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Inserisci nel rapportino" }));
+    expect(screen.getByLabelText("Lavori svolti nella giornata")).toHaveValue("Controllato il primo piano\nPosati due telai");
+    expect(ore()).toHaveValue(6.5);
     expect(state.insert).not.toHaveBeenCalled();
   });
   it("se il rapportino lo fa il capo, propone solo timbratura e cantiere", () => {
@@ -327,7 +366,7 @@ describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
   it("il rapportino non propone più di trasformarsi in collaudo", () => {
     render(<CampoRapportino />);
     avanti();
-    expect(screen.getByText("Rapportino")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Rapportino di squadra" })).toBeInTheDocument();
     expect(screen.queryByText("Collaudo col cliente")).toBeNull();
     expect(screen.queryByText("Lavoro completato")).toBeNull();
     expect(screen.queryByText("Firma del cliente")).toBeNull();

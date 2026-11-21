@@ -93,6 +93,17 @@ it("non avvia il microfono se il permesso arriva dopo l'uscita", async () => {
   expect(recorder).toBeUndefined();
   expect(vi.getTimerCount()).toBe(0);
 });
+it("annulla l’accesso al microfono anche se il permesso arriva dopo", async () => {
+  let resolve!: (value: unknown) => void;
+  gum.mockReturnValue(new Promise(r => { resolve = r; }));
+  render(<CampoAudioRecorder onConfirm={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Inizia registrazione" }));
+  fireEvent.click(screen.getByRole("button", { name: "Annulla richiesta" }));
+  await act(async () => resolve(stream()));
+  expect(stopTrack).toHaveBeenCalledOnce();
+  expect(recorder).toBeUndefined();
+  expect(screen.getByRole("button", { name: "Inizia registrazione" })).toBeEnabled();
+});
 it("un errore ferma il timer e un onstop tardivo non crea un'anteprima", async () => {
   render(<CampoAudioRecorder onConfirm={vi.fn()} />); await start();
   const lateStop = recorder!.onstop;
