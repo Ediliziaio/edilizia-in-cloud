@@ -14,6 +14,7 @@ export type DisegnoCommercialeFv = {
   industriale?: {versione:1;posa:"aderente"|"sud"|"est_ovest";inclinazione:number;interfila:number;costi?:{strutturaModulo:number;inverterAggiuntivi:number;prezzoInverter:number}};
   rilievo?: {versione:1;id:string;nome:string};
   schema3d?: {altezza:number;pendenza:number};
+  vistePdf?: { satellite: boolean; pianta: boolean; treD: boolean };
   mappa?: MappaFv;
 };
 const EPS = 0.00001;
@@ -261,7 +262,13 @@ export function leggiDisegnoCommerciale(raw: unknown): DisegnoCommercialeFv | nu
   if(raw.schema3d!==undefined){const a=raw.schema3d;if(!record(a)||!finito(a.altezza)||a.altezza<2||a.altezza>150||!finito(a.pendenza)||a.pendenza<0||a.pendenza>75)return null;schema3d={altezza:a.altezza,pendenza:a.pendenza};}
   const mappa=raw.mappa===undefined?undefined:leggiMappaFv(raw.mappa);
   if(raw.mappa!==undefined&&(!mappa||mappa.falde.length!==falde.length||mappa.falde.some(f=>!falde.some(q=>q.id===f.id))))return null;
-  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),...(mappa?{mappa}:{}),
+  let vistePdf: DisegnoCommercialeFv["vistePdf"];
+  if (raw.vistePdf !== undefined) {
+    const v = raw.vistePdf;
+    if (!record(v) || typeof v.satellite !== "boolean" || typeof v.pianta !== "boolean" || typeof v.treD !== "boolean") return null;
+    vistePdf = { satellite: v.satellite, pianta: v.pianta, treD: v.treD };
+  }
+  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),...(mappa?{mappa}:{}),...(vistePdf?{vistePdf}:{}),
     modulo: { corto: m.corto, lungo: m.lungo, stimato: m.stimato !== false }, distanzaBordo: raw.distanzaBordo, spazioModuli: raw.spazioModuli };
 }
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

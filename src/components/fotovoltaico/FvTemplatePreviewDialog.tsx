@@ -1,4 +1,5 @@
 import type {CampioneEditorFv} from "./FvPersonalizzazionePagine";
+import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
 // ─────────────────────────────────────────────────────────────────────────────
 // FvTemplatePreviewDialog — anteprima COMPLETA del preventivo Fotovoltaico
 // dentro l'editor template (parità col modulo Serramenti). Renderizza lato client
@@ -88,6 +89,7 @@ export default function FvTemplatePreviewDialog({
       )}</div>`;
     }
   }, [open, form, companyName, logoUrl,renderCampione]);
+  const mappe = useGoogleMapsDocumentoFv(html);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,8 +102,10 @@ export default function FvTemplatePreviewDialog({
             Il PDF finale può variare leggermente.
           </p>
         </DialogHeader>
+        {mappe.errore && <p role="alert" className="bg-amber-50 px-4 py-2 text-xs">{mappe.errore}</p>}
         <iframe
           srcDoc={html}
+          onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
           title="Anteprima preventivo Fotovoltaico"
           className="w-full h-[80vh] border-0 bg-white"
         />

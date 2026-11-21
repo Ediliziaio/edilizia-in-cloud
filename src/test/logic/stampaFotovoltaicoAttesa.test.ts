@@ -1,5 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
+const { preparaMappa } = vi.hoisted(() => ({ preparaMappa: vi.fn() }));
+vi.mock("@/lib/fotovoltaico/googleMapsDocumento", () => ({ preparaMappeDocumentoFv: preparaMappa }));
+beforeEach(() => { preparaMappa.mockReset(); preparaMappa.mockResolvedValue(() => {}); });
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); document.body.innerHTML = ""; });
 
@@ -21,6 +24,24 @@ function browser(ready: Promise<unknown>) {
 }
 
 describe("Stampa FV originale: nessuna attesa infinita e nessuna stampa prematura", () => {
+  it("aspetta anche la foto Google prima di aprire il dialogo PDF", async () => {
+    let done!: () => void;
+    preparaMappa.mockReturnValue(new Promise<void>(resolve => { done = resolve; }));
+    const b = browser(Promise.resolve());
+    const pending = stampaPreventivoNativo("<html>Foto Google</html>", "Preventivo QA");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(b.print).not.toHaveBeenCalled();
+    preparaMappa.mockClear(); done();
+    await vi.advanceTimersByTimeAsync(200); await pending;
+    expect(b.print).toHaveBeenCalledTimes(1);
+  });
+  it("non stampa una mappa vuota se il caricamento Google fallisce", async () => {
+    preparaMappa.mockRejectedValue(new Error("Google non ha autorizzato la mappa"));
+    const b = browser(Promise.resolve());
+    await expect(stampaPreventivoNativo("<html>Foto Google</html>", "Preventivo QA")).rejects.toThrow("non ha autorizzato");
+    expect(b.print).not.toHaveBeenCalled();
+    expect(document.body.contains(b.frame)).toBe(false);
+  });
   it("aspetta i caratteri e conserva il frame fino alla chiusura della stampa", async () => {
     let done!: () => void;
     const b = browser(new Promise<void>(resolve => { done = resolve; }));

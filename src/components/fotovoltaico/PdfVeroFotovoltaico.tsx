@@ -14,6 +14,7 @@ import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { LARGHEZZA_A4_PX, useFitScale } from "@/components/shared/livePreview/useFitScale";
+import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
 
 interface Props {
   progettoId: string;
@@ -26,6 +27,7 @@ interface Props {
 
 export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Props) {
   const [html, setHtml] = useState<string | null>(null);
+  const mappe = useGoogleMapsDocumentoFv(html);
   const [pagine, setPagine] = useState<number | null>(null);
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState("");
@@ -87,6 +89,7 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
+      {mappe.errore && <p role="alert" className="border-b bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
       <div ref={fit.ref} className="flex-1 overflow-auto">
         {errore && !html ? (
           <div className="m-3 space-y-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
@@ -101,6 +104,7 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
             <div style={{ width: LARGHEZZA_A4_PX, height: `${100 / scala}%`, transform: `scale(${scala})`, transformOrigin: "top left" }}>
               <iframe
                 srcDoc={html}
+                onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
                 sandbox="allow-same-origin"
                 title="Il documento vero del preventivo fotovoltaico"
                 className="border-0 bg-white"

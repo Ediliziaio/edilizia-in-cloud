@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Printer, ZoomIn, ZoomOut } from "lucide-react";
+import { useGoogleMapsDocumentoFv } from "@/hooks/useGoogleMapsDocumentoFv";
 
 /** Legge lo stesso documento emesso, senza popup e senza reimpaginarlo. */
 export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }: {
@@ -20,6 +21,7 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
   const [pagine, setPagine] = useState<string[]>([]);
   const [pagina, setPagina] = useState(0);
   const paginaCorrente = useRef(0);
+  const mappe = useGoogleMapsDocumentoFv(html);
   useEffect(() => () => cleanup.current?.(), [html]);
   useEffect(() => {
     if (!host) return;
@@ -57,6 +59,10 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
     };
     win.addEventListener("scroll", scorri, { passive: true });
     cleanup.current = () => win.removeEventListener("scroll", scorri);
+    preparaMappe();
+  };
+  const preparaMappe = () => {
+    mappe.carica(frame.current?.contentDocument);
   };
   const documento = useMemo(() => html?.replace(/<\/head>/i,
     '<style>@media screen{html,body{margin:0!important;padding:0!important;background:#f1f5f9!important}.pdf-action-bar{display:none!important}.page{margin:0 auto 16px!important;box-shadow:none!important}}</style></head>'), [html]);
@@ -66,6 +72,8 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
         <DialogTitle className="text-base">Preventivo {numero}</DialogTitle>
         <p className="text-xs text-slate-500">Documento emesso, con le schede tecniche allegate.</p>
       </DialogHeader>
+      {mappe.caricando && <p role="status" className="border-b bg-slate-50 px-4 py-2 text-sm">Caricamento della vista Google del tetto prima della stampa…</p>}
+      {mappe.errore && <div role="alert" className="border-b bg-amber-50 px-4 py-2 text-sm">{mappe.errore} <button type="button" className="underline" onClick={preparaMappe}>Riprova mappa</button></div>}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-white px-3 py-2" role="toolbar" aria-label="Comandi anteprima preventivo">
         <Button variant="outline" size="icon" aria-label="Riduci anteprima" onClick={() => setZoom(Math.max(.2, scale - .1))}><ZoomOut size={16}/></Button>
         <Button variant="outline" onClick={() => { setZoom(null); setFit("width"); }}>Adatta larghezza</Button>
@@ -80,7 +88,7 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
           <Button variant="outline" size="icon" aria-label="Pagina successiva del preventivo" disabled={pagina >= pagine.length - 1} onClick={() => vai(pagina + 1)}><ChevronRight size={16}/></Button>
         </div>
         <div className="flex-1"/>
-        <Button onClick={onPrint} disabled={loading}><Printer size={16} className="mr-2"/>Stampa / Salva PDF</Button>
+        <Button onClick={onPrint} disabled={loading || mappe.caricando || !!mappe.errore}><Printer size={16} className="mr-2"/>Stampa / Salva PDF</Button>
       </div>
       <div ref={setHost} className="h-[70dvh] min-h-0 flex-1 overflow-auto bg-slate-100 p-3">
         <div className="relative mx-auto" style={{ width: 794 * scale, height: Math.max(1, viewport.height - 24) }}>

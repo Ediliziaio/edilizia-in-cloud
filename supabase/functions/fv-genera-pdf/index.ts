@@ -42,6 +42,8 @@ import { caricaDatiSocietari, righeSocietarie } from "../_shared/datiSocietari.t
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
 import { leggiDisegnoCommerciale, pannelliDaRivedere } from "../_shared/fvDisegnoCommerciale.ts";
 import { preventivoSenzaMappa } from "../_shared/fvModalitaProgettazione.ts";
+import { vistePdfTetto } from "../_shared/fvVistePdf.ts";
+import { inquadraturaSatellitePdf, type SatelliteDocumentoFv } from "../_shared/fvSatelliteDocumento.ts";
 import { PIANO_ALTEZZA, PIANO_LARGHEZZA, PIANO_ZOOM, leggiPiano } from "../_shared/fvPianoTetto.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
@@ -320,7 +322,14 @@ Deno.serve(async (req: Request) => {
     if (disegnoCommerciale && pannelliDaRivedere(disegnoCommerciale).length) return errorResponse("Riposiziona i pannelli fuori falda o sovrapposti prima di generare il PDF.", 400, corsHeaders);
     const senzaMappa = preventivoSenzaMappa(prog.layout_overlay) || !!disegnoCommerciale;
     const googleMapsKey = senzaMappa ? "" : (await getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY")) || "";
-    if (satLat && satLng && googleMapsKey) {
+    let satelliteTetto: SatelliteDocumentoFv | null = null;
+    if (disegnoCommerciale && vistePdfTetto(disegnoCommerciale).satellite) {
+      const vista = inquadraturaSatellitePdf(disegnoCommerciale);
+      // La mappa viene caricata dall'SDK JavaScript ufficiale nell'app prima
+      // dell'anteprima e della stampa. Non scarica né conserva tile o chiavi.
+      if (vista) satelliteTetto = { ...vista, provider: "google" };
+    }
+    if (!disegnoCommerciale && satLat && satLng && googleMapsKey) {
       const fetchSatImg = (zoom: number) =>
         urlToB64(
           `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${zoom}&size=640x480&scale=2&maptype=satellite&format=jpg&key=${googleMapsKey}`,
@@ -835,6 +844,7 @@ Deno.serve(async (req: Request) => {
       },
       map_images: mapImages,
       piano_tetto: pianoTetto,
+      satellite_tetto: satelliteTetto,
       cantieri_foto: cantieriFotoB64.filter((s): s is string => Boolean(s)),
       // Il voto su Google, Trustpilot… scritto nel Profilo azienda: la pagina «Dicono di noi».
       voti_online: (company as { recensioni_online?: unknown }).recensioni_online ?? [],
