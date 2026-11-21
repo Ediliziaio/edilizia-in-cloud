@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   templates: [] as unknown[],
   fetchError: null as unknown,
   isLoading: false,
+  leggiModelliClassici: vi.fn(),
   upsert: vi.fn(),
   remove: vi.fn(),
   errore: vi.fn(),
@@ -40,14 +41,17 @@ vi.mock("@/contexts/AuthContext", () => ({
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useQuoteTemplates", () => ({
-  useQuoteTemplates: () => ({
-    templates: state.templates,
-    defaultTemplate: null as unknown,
-    isLoading: state.isLoading,
-    fetchError: state.fetchError,
-    upsertTemplate: { mutateAsync: state.upsert, isPending: false },
-    deleteTemplate: { mutateAsync: state.remove, isPending: false },
-  }),
+  useQuoteTemplates: () => {
+    state.leggiModelliClassici();
+    return {
+      templates: state.templates,
+      defaultTemplate: null as unknown,
+      isLoading: state.isLoading,
+      fetchError: state.fetchError,
+      upsertTemplate: { mutateAsync: state.upsert, isPending: false },
+      deleteTemplate: { mutateAsync: state.remove, isPending: false },
+    };
+  },
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -149,6 +153,7 @@ beforeEach(() => {
   state.permissions = { isAdmin: true, isLoading: false, canEditSettingsPricing: true, canViewSettingsPricing: true };
   state.fetchError = null;
   state.isLoading = false;
+  state.leggiModelliClassici.mockClear();
   state.upsert.mockReset().mockResolvedValue({ id: "nuovo" });
   state.remove.mockReset().mockResolvedValue(undefined);
   state.errore.mockReset();
@@ -169,18 +174,20 @@ describe("pagina pubblica del preventivatore unificato", () => {
     const prima = JSON.stringify(state.templates);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/azienda/impostazioni/template-preventivi${suffisso}`]}><SettingsQuoteTemplatesUnificato /><Indirizzo /></MemoryRouter></QueryClientProvider>);
-    expect(screen.getByTestId("builder-unico")).toBeInTheDocument();
+    expect(await screen.findByTestId("builder-unico")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Preventivo / computo metrico", selected: true })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Offerte complete" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Libreria modelli" })).not.toBeInTheDocument();
     await waitFor(() => expect(indirizzo()).toBe("/azienda/impostazioni/template-preventivi?tab=computo"));
     expect(JSON.stringify(state.templates)).toBe(prima); expect(state.upsert).not.toHaveBeenCalled(); expect(state.remove).not.toHaveBeenCalled();
+    expect(state.leggiModelliClassici).not.toHaveBeenCalled();
   });
   it("mantiene i collegamenti ai moduli di settore", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti"]}><SettingsQuoteTemplatesUnificato /><Indirizzo /></MemoryRouter></QueryClientProvider>);
     expect(screen.getByText("Pannello Moduli")).toBeInTheDocument(); expect(screen.queryByTestId("builder-unico")).not.toBeInTheDocument();
     expect(indirizzo()).toContain("modulo=serramenti");
+    expect(state.leggiModelliClassici).not.toHaveBeenCalled();
   });
 });
 

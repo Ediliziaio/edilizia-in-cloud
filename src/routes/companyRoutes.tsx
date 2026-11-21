@@ -199,7 +199,7 @@ const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/Setti
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCreditsRedirect = lazy(() => import("@/pages/azienda/settings/SettingsCreditsRedirect"));
 const SettingsModelliPdf = lazy(() => import("@/pages/azienda/settings/SettingsModelliPdf"));
-const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
+const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates/ModelliPreventivi"));
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
