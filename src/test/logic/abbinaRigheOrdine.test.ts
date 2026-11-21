@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DDTRigaNuova } from "@/hooks/useDDTRicezione";
 import { abbinaRigheAgliOrdiniCitati, ordiniCitatiNellaBolla } from "@/lib/ddt/ordiniCitati";
 import { abbinamentiCerti, abbinamentiCertiPiuOrdini, arriviDaRegistrare, ordinateNonInBolla, ordiniDellaBolla, righeOrdinePerRiga, type RigaBollaDaAbbinare, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 
@@ -7,13 +8,15 @@ const ordine = (c: Partial<RigaOrdine> & { id: string; description: string }): R
 
 describe("ordini citati prima di registrare il DDT", () => {
   it("distingue lo stesso SKU sui due ordini solo quando la riga cita quale ordine", () => {
-    const catalogo = [1, 2, 3].map(n => ({
+    const catalogo = [1, 2, 3].map<Parameters<typeof ordiniCitatiNellaBolla>[6][number]>(n => ({
       id: `ordine-${n}`, company_id: "azienda", supplier_id: n === 3 ? "altro" : "fornitore",
       oda_number: `ODA-2026-000${n}`, supplier_reference: null, issue_date: "2026-11-20",
       status: "inviato", order_id: null, delivery_warehouse_id: null,
     }));
-    const righe = ["Tubo ODA-2026-0002", "Tubo", "Tubo ODA-2026-0003"].map(descrizione => ({
-      descrizione, codice_articolo: "T1", unita_misura: "pz", quantita: 2, company_id: "azienda",
+    const righe = ["Tubo ODA-2026-0002", "Tubo", "Tubo ODA-2026-0003"].map<DDTRigaNuova>((descrizione, posizione) => ({
+      descrizione, posizione, codice_articolo: "T1", unita_misura: "pz", quantita: 2,
+      origine: "manuale", prezzo_unitario: null, importo: null, iva_percentuale: null, order_item_id: null,
+      testo_grezzo: null, note: null,
     }));
     const esito = ordiniCitatiNellaBolla(
       "azienda", "fornitore", "2026-11-21", "ODA-2026-0001, ODA-2026-0002", "", righe, catalogo,

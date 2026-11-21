@@ -416,7 +416,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     const tipo = s.tipo ?? "ingresso";
                     const poiScelto = s.ordineAcquisto === "__fuori__" ? null : s.ordineAcquisto ?? r.purchase_order_item_id;
                     const destinazioniPreviste = controlloOrdini.data?.righe.find((i) => i.id === poiScelto)?.destinazioni_previste ?? [];
-                    const residuiDestinazione = poiScelto ? residuiDestinazioni.data?.get(poiScelto) : undefined;
+                    const residuiDestinazione = poiScelto ? residuiDestinazioni.data?.[poiScelto] : undefined;
                     const articoli =
                       (dest === "cantiere"
                         ? catalogo.data?.commessa.filter(

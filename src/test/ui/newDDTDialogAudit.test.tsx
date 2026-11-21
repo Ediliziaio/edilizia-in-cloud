@@ -139,6 +139,9 @@ describe("Nuovo DDT in un solo passaggio (12/11/2026)", () => {
     });
     open(null);
     fireEvent.click(screen.getByRole("button", { name: "Carica foto finta" }));
+    const lettura = screen.getByRole("switch", { name: "Leggi con l'AI" });
+    expect(lettura).not.toBeChecked();
+    fireEvent.click(lettura);
     compila();
     expect(await screen.findByDisplayValue("Coppi")).toBeInTheDocument();
     expect(screen.getByLabelText("Prezzo riga 1")).toHaveValue(1.2);
@@ -153,7 +156,7 @@ describe("Nuovo DDT in un solo passaggio (12/11/2026)", () => {
   it("senza l'AI non parte nessuna lettura e togliendo la spunta non si carica", async () => {
     open(null);
     fireEvent.click(screen.getByRole("button", { name: "Carica foto finta" }));
-    fireEvent.click(screen.getByRole("switch", { name: "Leggi con l'AI" }));
+    expect(screen.getByRole("switch", { name: "Leggi con l'AI" })).not.toBeChecked();
     compila();
     expect(m.invoke).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Numero bolla"), { target: { value: "B-1" } });

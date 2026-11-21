@@ -602,7 +602,7 @@ function ContenutoPurchaseOrderDetail() {
                           supplierId={order.supplier_id}
                           commessaPrincipaleId={order.order_id}
                           item={item}
-                          residuiDestinazioni={residuiDestinazioni?.get(item.id)}
+                          residuiDestinazioni={residuiDestinazioni?.[item.id]}
                           isEditable={isEditable}
                           inversioneContabile={!!documentoInvio.inversioneContabile}
                           showReceived={mostraRicezione}

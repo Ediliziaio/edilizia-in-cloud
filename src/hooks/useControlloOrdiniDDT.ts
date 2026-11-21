@@ -21,7 +21,7 @@ export function useResiduiDestinazioni(companyId: string | undefined, ordini: st
     queryFn: async () => {
       const { data, error } = await db.rpc("oda_residui_destinazioni", { p_company: companyId, p_ordini: ids });
       if (error) throw error;
-      return new Map((data as ResiduiDestinazioniRiga[] ?? []).map(r => [r.riga_id, r]));
+      return Object.fromEntries((data as ResiduiDestinazioniRiga[] ?? []).map(r => [r.riga_id, r]));
     },
   });
 }
