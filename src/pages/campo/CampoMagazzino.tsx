@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { CampoScorteFurgone } from "@/components/campo/CampoScorteFurgone";
 import { CampoInventario } from "@/components/campo/CampoInventario";
 import { CampoPrelievi } from "@/components/campo/CampoPrelievi";
 import { Button } from "@/components/ui/button";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
+import { bozzeCantieriPrelievo } from "@/lib/campo/bozzaPrelievo";
 import { cn } from "@/lib/utils";
 
 const schede = [
@@ -20,14 +21,16 @@ export default function CampoMagazzino() {
   const config = useCampoMagazzinoConfig();
   const [parametri] = useSearchParams();
   const cantiereIniziale = parametri.get("order_id")?.trim() || undefined;
+  const apriBozza = parametri.get("riprendi") === "1";
 
   return <Magazzino key={`${config.companyId}:${config.userId}:${cantiereIniziale ?? ""}`}
-    config={config} cantiereIniziale={cantiereIniziale} />;
+    config={config} cantiereIniziale={cantiereIniziale} apriBozza={apriBozza} />;
 }
 
-function Magazzino({ config, cantiereIniziale }: {
+function Magazzino({ config, cantiereIniziale, apriBozza }: {
   config: ReturnType<typeof useCampoMagazzinoConfig>;
   cantiereIniziale?: string;
+  apriBozza: boolean;
 }) {
   const [schedaScelta, setSchedaScelta] = useState<Scheda>();
   const vedeInventario = !config.isError && !!config.data && config.data.livello !== "nessuno";
@@ -68,7 +71,8 @@ function Magazzino({ config, cantiereIniziale }: {
           </div>
         )}
         {vedeInventario && (
-          <div hidden={scheda !== "inventario"}>
+          <div hidden={scheda !== "inventario"} className="space-y-4">
+            {puoPrelevare && !cantiereIniziale && <BozzeDaRiprendere companyId={config.companyId} userId={config.userId} />}
             <CampoInventario
               key={config.data!.livello}
               companyId={config.companyId}
@@ -77,6 +81,7 @@ function Magazzino({ config, cantiereIniziale }: {
               puoPrelevare={puoPrelevare}
               richiedeConferma={config.data!.conferma}
               cantiereIniziale={cantiereIniziale}
+              apriBozza={apriBozza}
               onRegistrato={() => setSchedaScelta("prelievi")}
             />
           </div>
@@ -84,6 +89,36 @@ function Magazzino({ config, cantiereIniziale }: {
         {scheda === "prelievi" && <CampoPrelievi companyId={config.companyId} puoPrelevare={puoPrelevare} />}
         {scheda === "furgone" && <CampoScorteFurgone companyId={config.companyId} />}
       </div>
+    </section>
+  );
+}
+
+function BozzeDaRiprendere({ companyId, userId }: { companyId: string; userId: string }) {
+  const [bozze, setBozze] = useState(() => bozzeCantieriPrelievo(companyId, userId));
+  useEffect(() => {
+    const aggiorna = () => setBozze(bozzeCantieriPrelievo(companyId, userId));
+    window.addEventListener("storage", aggiorna);
+    return () => window.removeEventListener("storage", aggiorna);
+  }, [companyId, userId]);
+  if (!bozze.length) return null;
+
+  return (
+    <section aria-labelledby="bozze-prelievi" className="rounded-xl border bg-card p-3">
+      <h2 id="bozze-prelievi" className="px-2 text-sm font-semibold">Prelievi da riprendere</h2>
+      <ul className="mt-1 divide-y">
+        {bozze.map(({ cantiere, bozza }) => (
+          <li key={cantiere}>
+            <Link to={`/campo/magazzino?order_id=${encodeURIComponent(cantiere)}&riprendi=1`}
+              className="flex min-h-12 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm">
+              <span className="min-w-0 break-words">
+                <span className="block font-medium">{bozza.nomeCantiere || bozza.righe[0].articolo.name}</span>
+                <span className="text-xs text-muted-foreground">{bozza.inVerifica ? "Invio da verificare" : "Bozza da inviare"}</span>
+              </span>
+              <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

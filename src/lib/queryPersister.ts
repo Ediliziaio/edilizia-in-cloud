@@ -156,6 +156,8 @@ const PERSIST_WHITELIST = new Set<string>([
   "campo-assignments",
   "campo-sedi",
   "campo-mia-giornata",
+  // Permette di rivedere le bozze locali dopo una riapertura senza rete.
+  "campo-magazzino-config",
 ]);
 
 export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
