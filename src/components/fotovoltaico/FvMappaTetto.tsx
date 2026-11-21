@@ -259,7 +259,7 @@ export function FvMappaTetto(
   };
   return (
     <section
-      className="rounded-2xl border border-slate-200 bg-white p-4 mb-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
+      className="fv-mappa-editor rounded-2xl border border-slate-200 bg-white p-4 mb-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
       aria-label="Selezione tetto e falde sulla mappa"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
