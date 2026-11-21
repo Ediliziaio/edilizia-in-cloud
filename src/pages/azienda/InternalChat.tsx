@@ -34,6 +34,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useInternalChatUpdates } from "@/hooks/useInternalChatUpdates";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { CampoDettaMessaggio } from "@/components/campo/CampoDettaMessaggio";
+import { accodaTesto } from "@/lib/campo/dettaTesto";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { righeAvvisiLettura } from "@/lib/documenti/avvisiLettura";
 import { toast } from "sonner";
@@ -1265,9 +1267,10 @@ interface InternalChatProps {
   /** Quando true rimuove l'auto-altezza (h-calc) e riempie il contenitore.
    *  Usato dai tab di ChatHub così la barra tab non sfora il viewport. */
   embedded?: boolean;
+  areaCampo?: boolean;
 }
 
-export default function InternalChat({ companyIdOverride, embedded }: InternalChatProps = {}) {
+export default function InternalChat({ companyIdOverride, embedded, areaCampo = false }: InternalChatProps = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { role, profile: currentUserProfile, isImpersonating } = useAuth();
@@ -2969,6 +2972,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 >
                   {aiTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" strokeWidth={2.4} />}
                 </Button>
+              ) : areaCampo ? (
+                <CampoDettaMessaggio
+                  key={`${companyId}:${selectedChannelId}`}
+                  disabled={aiTyping || isAttaching}
+                  onTesto={testo => setNewMsg(attuale => accodaTesto(attuale, testo))}
+                />
               ) : (
                 <Button
                   variant="ghost"

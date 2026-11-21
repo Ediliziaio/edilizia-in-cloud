@@ -1,5 +1,6 @@
 /** Ingresso vocale: sceglie il cantiere e apre lo STESSO modulo del giornaliero. */
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ChevronRight, HardHat, Mic } from "lucide-react";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { cantieriAperti } from "@/lib/campo/cantieriAperti";
 
@@ -15,15 +16,32 @@ export default function CampoRapportinoVoce() {
     return "/campo/lavoro/" + encodeURIComponent(id) + "/rapportino?" + next;
   };
   if (orderId) return <Navigate to={url(orderId)} replace />;
-  if (assegnazioni.isLoading) return <p role="status" className="p-4">Carico i tuoi cantieri…</p>;
-  if (assegnazioni.isError) return <div role="alert" className="space-y-2 p-4"><p>Non riesco a leggere i cantieri. Non creo una nota scollegata.</p><button className="min-h-11 text-primary underline" onClick={() => void assegnazioni.refetch()}>Riprova</button></div>;
+  if (assegnazioni.isLoading) return <p role="status" className="mx-auto max-w-lg rounded-xl border bg-background p-4 text-sm text-muted-foreground">Carico i tuoi cantieri…</p>;
+  if (assegnazioni.isError) return <div role="alert" className="mx-auto max-w-lg rounded-xl border bg-background p-4 text-sm">
+    <p>Non riesco a leggere i cantieri.</p>
+    <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => void assegnazioni.refetch()}>Riprova</button>
+  </div>;
   if (aperti.length === 1) return <Navigate to={url(aperti[0].order_id)} replace />;
-  return <div className="mx-auto max-w-lg space-y-3 p-4">
-    <h1 className="text-xl font-bold">Rapportino di oggi</h1>
-    <p className="text-sm text-muted-foreground">Per quale cantiere? Puoi parlare o scrivere: il rapportino è sempre lo stesso.</p>
-    {aperti.map(a => <button key={a.order_id} className="min-h-14 w-full rounded-xl border bg-background p-3 text-left" onClick={() => navigate(url(a.order_id))}>
-      <span className="block font-semibold">{a.order.order_code || "Cantiere"}</span><span className="block text-sm text-muted-foreground">{a.order.description || a.order.indirizzo_lavori}</span>
+  return <div className="mx-auto max-w-lg space-y-3">
+    <header className="flex items-center gap-3 rounded-2xl border border-primary/15 bg-background p-4">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Mic className="size-5" aria-hidden="true" />
+      </span>
+      <div>
+        <h1 className="text-lg font-bold">Scegli il cantiere</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">Apri il rapportino del cantiere in cui hai lavorato.</p>
+      </div>
+    </header>
+    {aperti.map(a => <button type="button" key={a.order_id}
+      className="flex min-h-16 w-full items-center gap-3 rounded-xl border bg-background p-3 text-left outline-offset-2 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
+      onClick={() => navigate(url(a.order_id))}>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary"><HardHat className="size-4" aria-hidden="true" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{a.order.order_code || "Cantiere"}</span>
+        <span className="block break-words text-sm text-muted-foreground">{a.order.description || a.order.indirizzo_lavori}</span>
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>)}
-    {!aperti.length && <p role="status">Nessun cantiere aperto assegnato. Chiedi all’ufficio.</p>}
+    {!aperti.length && <p role="status" className="rounded-xl border bg-background p-4 text-sm">Nessun cantiere aperto assegnato. Chiedi all’ufficio.</p>}
   </div>;
 }

@@ -50,24 +50,24 @@ export function DettaTesto({ value, onChange, companyId, contesto, campo, etiche
           disabled={disabled || occupato}
           onClick={() => { pulisciErrore(); setAperto(true); }}
           aria-label={`Detta: ${etichetta}`}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold text-foreground disabled:opacity-40"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold text-foreground disabled:opacity-40"
         >
-          <Mic className="h-4 w-4" /> Detta
+          <Mic className="size-4 text-primary" aria-hidden="true" /> Detta il testo
         </button>
       )}
       {aperto && (
         <div className="rounded-xl border bg-muted/30 p-3">
           <div className="mb-1 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">Detta {etichetta.toLowerCase()}</p>
-            <button type="button" disabled={occupato} onClick={() => setAperto(false)} aria-label="Chiudi dettatura" className="rounded p-1 disabled:opacity-40">
-              <X className="h-4 w-4" />
+            <button type="button" disabled={occupato} onClick={() => setAperto(false)} aria-label="Chiudi dettatura" className="flex size-11 shrink-0 items-center justify-center rounded-lg disabled:opacity-40">
+              <X className="size-4" aria-hidden="true" />
             </button>
           </div>
           <p className="text-xs text-muted-foreground">Parla pure come ti viene: sistemo punteggiatura e parole, senza aggiungere niente. Il testo va in fondo al campo.</p>
           <CampoAudioRecorder onConfirm={conferma} disabled={disabled || occupato} confirmLabel="Trascrivi" />
           {occupato && (
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> {lavoro === "carico" ? "Carico l’audio…" : "Trascrivo e sistemo il testo…"}
+              <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> {lavoro === "carico" ? "Carico l’audio…" : "Trascrivo e sistemo il testo…"}
             </p>
           )}
         </div>
