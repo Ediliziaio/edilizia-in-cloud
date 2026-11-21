@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 import {
-  Activity, AlertCircle, Brain, CheckCircle2, Clock3, Database, Edit2, EyeOff, Eye,
+  Activity, AlertCircle, Brain, ChevronDown, Clock3, Edit2, EyeOff, Eye,
   FilterX, Link2, Plus, Search, ShieldAlert, Sparkles, Trash2,
 } from "lucide-react";
 
@@ -345,68 +345,24 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     };
   }, [effectiveCompany?.id, qc]);
 
-  // ── Statistiche aggregate (header dashboard) ───────────────────────────
-  // Calcolate sul subset filtrato dal server (filterPersona/filterType/
-  // showDisabled): mostrano sempre quello che l'utente sta VEDENDO.
-  // - byType: distribuzione tra fact/preference/decision/pattern/avoid
-  // - bySource: quante auto-popolate vs manuali (capire se l'AI sta
-  //   effettivamente imparando)
-  // - hits: somma hit count = quante volte le memorie sono state usate
-  // - latestAdd: timestamp ultima memoria creata (heartbeat del sistema)
   const stats = useMemo(() => {
-    const byType: Record<MemoryRow["memory_type"], number> = {
-      fact: 0, preference: 0, decision: 0, pattern: 0, avoid: 0,
-    };
-    let manual = 0;
-    let auto = 0;
-    let demo = 0;
-    let real = 0;
-    let hits = 0;
-    let latestAddTs = 0;
-    let lowConfidence = 0;
-    let neverUsed = 0;
-    let stale = 0;
-    let disabled = 0;
     const personasWithMemories = new Set<string>();
+    let demo = 0;
+    let hits = 0;
+    let daVerificare = 0;
     for (const m of normalizedRealMemories) {
-      byType[m.memory_type] = (byType[m.memory_type] ?? 0) + 1;
       if (isDemoMemory(m)) demo++;
-      else real++;
-      if (!isDemoMemory(m) && isManualMemory(m)) manual++;
-      else if (!isDemoMemory(m)) auto++;
-      if (!m.enabled) disabled++;
-      if (isLowConfidence(m)) lowConfidence++;
-      if (isNeverUsed(m)) neverUsed++;
-      if (isStale(m)) stale++;
+      if (isLowConfidence(m) || isNeverUsed(m) || isStale(m)) daVerificare++;
       if (m.enabled && knownPersonaKeys.has(m.persona_key)) personasWithMemories.add(m.persona_key);
       hits += m.hits_count ?? 0;
-      const ts = m.created_at ? new Date(m.created_at).getTime() : 0;
-      if (ts > latestAddTs) latestAddTs = ts;
     }
-    const personasWithoutMemories = personasForMemory.filter((persona) => !personasWithMemories.has(persona.persona_key));
-    const coveragePct = personasForMemory.length > 0
-      ? Math.round((personasWithMemories.size / personasForMemory.length) * 100)
-      : 0;
-    const healthPct = normalizedRealMemories.length > 0
-      ? Math.max(0, Math.round(100 - ((lowConfidence + neverUsed + stale) / Math.max(1, normalizedRealMemories.length * 3)) * 100))
-      : 0;
     return {
       total: normalizedRealMemories.length,
-      byType,
-      manual,
-      auto,
       demo,
-      real,
       hits,
-      lowConfidence,
-      neverUsed,
-      stale,
-      disabled,
-      coveragePct,
-      healthPct,
+      daVerificare,
       personasWithMemories: personasWithMemories.size,
-      personasWithoutMemories,
-      latestAdd: latestAddTs > 0 ? new Date(latestAddTs) : null,
+      personasWithoutMemories: personasForMemory.length - personasWithMemories.size,
     };
   }, [knownPersonaKeys, normalizedRealMemories, personasForMemory]);
 
@@ -414,7 +370,6 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     () => personasForMemory.map((persona) => {
       const personaMemories = memories.filter((memory) => memory.enabled && memory.persona_key === persona.persona_key);
       const weakCount = personaMemories.filter((memory) => isLowConfidence(memory) || isNeverUsed(memory) || isStale(memory)).length;
-      const topMemory = [...personaMemories].sort((a, b) => (b.hits_count ?? 0) - (a.hits_count ?? 0))[0];
       return {
         persona,
         count: personaMemories.length,
@@ -422,7 +377,6 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         healthPct: personaMemories.length > 0
           ? Math.max(0, Math.round(100 - (weakCount / personaMemories.length) * 100))
           : 0,
-        topMemory,
       };
     }),
     [memories, personasForMemory],
@@ -554,21 +508,12 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       {embedded && (
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight">Centro controllo memoria</h2>
+            <h2 className="text-lg font-semibold tracking-tight">Memoria degli assistenti</h2>
             <p className="text-xs text-muted-foreground">
-              Dati reali, memorie demo e qualità della conoscenza AI nello stesso posto.
+              Cerca, correggi o aggiungi ciò che gli assistenti ricordano della tua azienda.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => setQualityFilter("demo")}
-            >
-              <Sparkles className="h-4 w-4" />
-              Completa personas
-            </Button>
             <Button onClick={openCreate} size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
               Aggiungi memoria
@@ -577,141 +522,60 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         </div>
       )}
 
-      <Card className="overflow-hidden border-orange-200 bg-gradient-to-br from-orange-50 via-white to-slate-50 dark:from-orange-950/20 dark:via-background dark:to-background">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-                  <Database className="h-3 w-3" />
-                  {stats.real} reali
-                </Badge>
-                {stats.demo > 0 && (
-                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                    <Sparkles className="h-3 w-3" />
-                    Memorie demo {stats.demo}
-                  </Badge>
-                )}
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                  <CheckCircle2 className="h-3 w-3" />
-                  {stats.coveragePct}% copertura
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Memorie salvate per gli assistenti AI.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  I contatori riguardano le memorie salvate. Gli esempi demo non sono salvati né usati nelle risposte. Fatti e sintesi delle conversazioni sono una memoria distinta, soggetta ai permessi.
-                </p>
-                {isDemoCompany && (
-                  <Button type="button" size="sm" variant="outline" className="mt-2" aria-pressed={showDemoExamples}
-                    onClick={() => setDemoExamplesCompany(showDemoExamples ? null : effectiveCompany?.id ?? null)}>
-                    {showDemoExamples ? "Torna alle memorie salvate" : "Vedi esempi demo (non salvati)"}
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
-              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
-                <p className="text-xl font-bold tabular-nums">{stats.personasWithMemories}/{personasForMemory.length}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">assistenti</p>
-              </div>
-              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
-                <p className="text-xl font-bold tabular-nums">{stats.healthPct}%</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">salute</p>
-              </div>
-              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
-                <p className="text-xl font-bold tabular-nums">{stats.lowConfidence + stats.neverUsed + stats.stale}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">attenzioni</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {isDemoCompany && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2">
+          <span className="text-xs text-muted-foreground">{showDemoExamples ? "Anteprima dimostrativa" : "Esempi di memoria disponibili nella demo"}</span>
+          <Button type="button" size="sm" variant="outline" className="gap-1.5" aria-pressed={showDemoExamples}
+            onClick={() => { setDemoExamplesCompany(showDemoExamples ? null : effectiveCompany?.id ?? null); setQualityFilter("all"); }}>
+            <Sparkles className="size-3.5" />
+            {showDemoExamples ? "Torna alle memorie salvate" : "Vedi esempi demo"}
+          </Button>
+        </div>
+      )}
 
       {memoriesError && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <span>Non riesco a caricare le memorie salvate. I contatori non sono disponibili: non significa che le memorie siano state cancellate.</span>
+          <span>Caricamento delle memorie non riuscito. Riprova per aggiornare elenco e contatori.</span>
           <Button size="sm" variant="outline" onClick={() => void retryMemories()}>Riprova</Button>
         </div>
       )}
-      {/* Stats dashboard — aggiornate in realtime via Supabase subscription */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
-        <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Totale memorie</div>
-          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.total}</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.real} reali · {stats.demo} demo
-          </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-xs text-muted-foreground">Memorie salvate</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{isLoading || memoriesError ? "—" : stats.total}</p>
+          {stats.demo > 0 && <p className="text-xs text-muted-foreground">{stats.demo} demo</p>}
         </div>
-        <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Copertura</div>
-          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.coveragePct}%</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.personasWithMemories}/{personasForMemory.length} assistenti coperti
-          </div>
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-xs text-muted-foreground">Assistenti con memoria</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{isLoading || memoriesError ? "—" : stats.personasWithMemories + "/" + personasForMemory.length}</p>
         </div>
-        <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Utilizzi totali</div>
-          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.hits}</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
-            quante volte caricate nei prompt AI
-          </div>
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-xs text-muted-foreground">Utilizzi delle memorie</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{isLoading || memoriesError ? "—" : stats.hits}</p>
         </div>
-        <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Da verificare</div>
-          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.lowConfidence + stats.neverUsed + stats.stale}</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.neverUsed} mai usate · {stats.lowConfidence} poco sicure
-          </div>
-        </div>
-        <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Per tipo</div>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {Object.entries(stats.byType).filter(([, n]) => n > 0).map(([t, n]) => (
-              <Badge key={t} variant="outline" className={cn("text-[10px] h-5 px-1.5", TYPE_LABEL[t as MemoryRow["memory_type"]].color)}>
-                {TYPE_LABEL[t as MemoryRow["memory_type"]].label}: {n}
-              </Badge>
-            ))}
-            {stats.total === 0 && <span className="text-xs text-muted-foreground">—</span>}
-          </div>
-        </div>
-        <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ultima aggiunta</div>
-          <div className="text-sm font-semibold mt-0.5">
-            {stats.latestAdd
-              ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(stats.latestAdd)
-              : "—"}
-          </div>
-          <div className="text-[11px] text-emerald-600 mt-0.5 flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Si aggiorna da solo
-          </div>
-        </div>
+        <button type="button" aria-pressed={qualityFilter === "needs_attention"}
+          disabled={isLoading || !!memoriesError}
+          onClick={() => setQualityFilter(qualityFilter === "needs_attention" ? "all" : "needs_attention")}
+          className={cn("rounded-xl border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            qualityFilter === "needs_attention" ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30" : "bg-card hover:bg-muted/40")}>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ShieldAlert className="size-3.5 text-amber-700 dark:text-amber-300" aria-hidden="true" /> Da verificare
+          </span>
+          <span className="mt-1 block text-xl font-semibold tabular-nums">{isLoading || memoriesError ? "—" : stats.daVerificare}</span>
+        </button>
       </div>
 
-      <div className="rounded-xl border bg-card p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold">Ricordi per assistente</p>
-            <p className="text-xs text-muted-foreground">
-              Tocca un assistente per vedere i suoi ricordi e capire dove l'AI sa di più.
-            </p>
-          </div>
-          {stats.personasWithoutMemories.length > 0 ? (
-            <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
-              <ShieldAlert className="h-3 w-3" />
-              {stats.personasWithoutMemories.length} {stats.personasWithoutMemories.length === 1 ? "assistente senza ricordi" : "assistenti senza ricordi"}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-              <CheckCircle2 className="h-3 w-3" />
-              Tutti gli assistenti hanno dei ricordi
-            </Badge>
+      <details className="group rounded-xl border bg-card p-3">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+          Ricordi per assistente
+          {!isLoading && !memoriesError && stats.personasWithoutMemories > 0 && (
+            <span className="text-xs font-normal text-muted-foreground">
+              {stats.personasWithoutMemories} senza memorie
+            </span>
           )}
-        </div>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        </summary>
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
           {personaHealth.map(({ persona, count, healthPct, weakCount }) => (
             <button
               key={persona.persona_key}
@@ -741,7 +605,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
             </button>
           ))}
         </div>
-      </div>
+      </details>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">

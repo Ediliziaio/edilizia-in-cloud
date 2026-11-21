@@ -157,7 +157,8 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
   const entry = leggi("scripts/preventivi-render/entry.tsx");
 
   it("il generico passa dal documento edile", () => {
-    expect(src).toContain("const disegnato = await renderGenericoConClausole({");
+    expect(src).toContain("const disegna = () => renderGenericoConClausole({");
+    expect(src).toContain('attivita?.misura("compone_pdf", disegna) ?? disegna()');
     expect(src).toContain("const pdfDoc = await PDFDocument.load(disegnato.pdf);");
     expect(entry).toContain("export const renderGenerico = (input: Parameters<typeof datiGenerici>[0]) => render(datiGenerici(input));");
     expect(entry).toContain("<DocumentoEdilePDF dati={pronto} />");

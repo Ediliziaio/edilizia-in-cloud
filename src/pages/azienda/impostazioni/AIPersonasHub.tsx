@@ -1,11 +1,12 @@
 /**
  * AIPersonasHub — v8.6.73 (rev. 2026-05-22)
  *
- * Hub unificato per le 18 AI Personas — fonde 4 viste in una pagina sola:
+ * Hub degli assistenti AI:
  *   1. 💬 Chat        — interfaccia conversazionale (era /azienda/assistente-ai)
  *   2. 🧠 Memoria     — fatti/preferenze/decisioni che le AI ricordano (era /impostazioni/ai-memoria)
  *   3. 🕸️ Cervello    — knowledge graph interattivo 3D (reagraph WebGL)
  *   4. 📜 Sessioni    — storico conversazioni (placeholder, futuro)
+ *   5. Attività    — passaggi effettivi delle elaborazioni supportate
  *
  * Razionale UX:
  * Prima erano 2 pagine separate ("Assistente AI" vs "Memoria AI Personas") con
@@ -21,17 +22,20 @@
  * Il tab attivo è persisted in URL via ?tab=... per condivisione link + history.
  */
 import { useSearchParams } from "react-router-dom";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Brain, MessageSquare, History, Network } from "lucide-react";
+import { Activity, Brain, MessageSquare, History, Network } from "lucide-react";
+import { useAttivitaAi } from "@/hooks/useAttivitaAi";
+import { raggruppaAttivita, statoAttivita } from "@/lib/ai/attivita";
 
 const AssistenteAIPage = lazy(() => import("@/pages/azienda/AssistenteAIPage"));
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
 const AIPersonasSessionsTab = lazy(() => import("./AIPersonasSessionsTab"));
 const AIBrainGraph = lazy(() => import("@/components/ai/AIBrainGraph"));
+const AttivitaAiTab = lazy(() => import("./AttivitaAiTab"));
 
-const VALID_TABS = ["chat", "memoria", "cervello", "sessioni"] as const;
+const VALID_TABS = ["chat", "memoria", "cervello", "sessioni", "attivita"] as const;
 type TabKey = (typeof VALID_TABS)[number];
 
 function isValidTab(v: string | null): v is TabKey {
@@ -61,6 +65,11 @@ export default function AIPersonasHub() {
   }, []);
   const tabParam = searchParams.get("tab");
   const activeTab: TabKey = isValidTab(tabParam) ? tabParam : "memoria";
+  const attivita = useAttivitaAi(activeTab === "attivita");
+  const inCorso = raggruppaAttivita(attivita.righe, attivita.dataUpdatedAt)
+    .filter(riga => statoAttivita(riga, attivita.dataUpdatedAt) === "in_corso").length;
+  const [chatVisitata, setChatVisitata] = useState(activeTab === "chat");
+  if (activeTab === "chat" && !chatVisitata) setChatVisitata(true);
 
   const handleTabChange = (next: string) => {
     const sp = new URLSearchParams(searchParams);
@@ -71,7 +80,7 @@ export default function AIPersonasHub() {
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="flex h-auto max-w-full flex-wrap">
+        <TabsList aria-label="Assistente AI" className="flex h-auto min-h-11 max-w-full flex-wrap justify-start gap-1 rounded-xl border bg-muted/45">
           <TabsTrigger value="chat" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Chat
@@ -82,17 +91,28 @@ export default function AIPersonasHub() {
           </TabsTrigger>
           <TabsTrigger value="cervello" className="gap-2">
             <Network className="h-4 w-4" />
-            Mappa della memoria
+            Mappa<span className="sr-only sm:not-sr-only"> della memoria</span>
           </TabsTrigger>
           <TabsTrigger value="sessioni" className="gap-2">
             <History className="h-4 w-4" />
-            Conversazioni precedenti
+            Conversazioni<span className="sr-only sm:not-sr-only"> precedenti</span>
+          </TabsTrigger>
+          <TabsTrigger value="attivita" className="gap-2 sm:ml-auto">
+            <Activity className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+            Attività AI
+            {inCorso > 0 && (
+              <span className="rounded-full bg-sky-100 px-1.5 text-[11px] font-semibold tabular-nums text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                aria-label={`${inCorso} in corso`}>
+                {inCorso}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="mt-4">
+        <TabsContent value="chat" forceMount={chatVisitata ? true : undefined}
+          className={activeTab === "chat" ? "mt-4" : "hidden"}>
           <Suspense fallback={<TabSkeleton />}>
-            <AssistenteAIPage embedded />
+            <AssistenteAIPage key={attivita.ambito} embedded />
           </Suspense>
         </TabsContent>
 
@@ -113,6 +133,12 @@ export default function AIPersonasHub() {
             <AIPersonasSessionsTab />
           </Suspense>
         </TabsContent>
+
+        <TabsContent value="attivita" className="mt-4">
+          <Suspense fallback={<TabSkeleton />}>
+            <AttivitaAiTab key={attivita.ambito} dati={attivita} apriChat={() => handleTabChange("chat")} />
+          </Suspense>
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -125,7 +151,7 @@ function CervelloSkeleton() {
     <div className="flex h-[500px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950">
       <div className="flex flex-col items-center gap-3">
         <Brain className="h-10 w-10 animate-pulse text-orange-400" />
-        <p className="text-sm text-slate-300">Caricamento cervello AI…</p>
+        <p className="text-sm text-slate-300">Caricamento della mappa…</p>
       </div>
     </div>
   );

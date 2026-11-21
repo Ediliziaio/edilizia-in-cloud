@@ -57,6 +57,9 @@ function dataIso(v: unknown): string | null {
 export async function registraMerceDaWhatsApp(ctx: ToolCtx, merce: MerceDaRegistrare): Promise<ToolResult<{ id: string; foto: boolean }>> {
   if (!ctx.user_id && !ctx.employee_id) return errResult("no_identity", "Non riesco a identificarti: chiedi all'ufficio di controllare il tuo numero in anagrafica.");
   const foto = await copiaFotoDocumento(ctx, merce.orderId);
+  if (merce.tipo === "scontrino" && ctx.mediaCorrente && !foto) {
+    return errResult("scontrino_foto_non_collegata", "La foto resta in WhatsApp del gestionale. Non sono riuscito a collegarla a Merce presa.");
+  }
   const { data, error } = await ctx.supabase.rpc("campo_acquisto_registra_whatsapp", {
     p_company_id: ctx.company_id,
     p_user_id: ctx.user_id,
@@ -75,7 +78,7 @@ export async function registraMerceDaWhatsApp(ctx: ToolCtx, merce: MerceDaRegist
       ...(r.unita ? { unita: r.unita } : {}),
     })),
     p_foto_path: foto,
-    p_lettura: { fonte: "whatsapp", messaggio: ctx.requestId ?? null, ...(merce.lettura ?? {}) },
+    p_lettura: { fonte: "whatsapp", messaggio: ctx.sourceMessageId ?? ctx.requestId ?? null, ...(merce.lettura ?? {}) },
     p_note: merce.note ?? null,
   });
   if (error || typeof data !== "string") {

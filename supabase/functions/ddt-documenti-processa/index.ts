@@ -7,6 +7,7 @@ import {
   errorResponse,
 } from "../_shared/headers.ts";
 import { processaDocumento } from "./worker.ts";
+// Il worker registra le fasi osservabili nell’attività AI della commessa.
 // 11/11/2026: carta mancante, abbonamento sospeso e credito AI finito chiudono
 // subito il lavoro in «error» con un messaggio vero (vedi messaggioBloccoLettura
 // in worker.ts), invece di «Lettura non riuscita… puoi riprovare».
@@ -21,6 +22,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const interno = cronSecretValido(req);
     if (interno) {
+      if (typeof body.id === "string" && /^[0-9a-f-]{36}$/i.test(body.id)) id = body.id;
       db = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -61,7 +63,7 @@ Deno.serve(async (req: Request) => {
       }
     }
     const lavoro = (async () => {
-      for (let n = 0; n < (interno ? 3 : 1); n++) {
+      for (let n = 0; n < (interno && !id ? 3 : 1); n++) {
         const esito = await processaDocumento(db, id);
         if (esito.stato === "nessun_lavoro") break;
       }

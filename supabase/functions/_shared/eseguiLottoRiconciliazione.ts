@@ -19,6 +19,7 @@ export async function eseguiLottoRiconciliazione({
   userId,
   verifica,
   chiuse = [],
+  onAnalisi,
 }: {
   db: SupabaseClient;
   c: ContestoRiconciliazione;
@@ -27,6 +28,7 @@ export async function eseguiLottoRiconciliazione({
   verifica: () => Promise<boolean>;
   /** Righe già chiuse dalle regole: all'AI vanno solo le altre, e nell'unione rientrano queste. */
   chiuse?: PropostaRigaAI[];
+  onAnalisi?: (avanzamento: { completati: number; totale: number }, modello?: string) => void;
 }) {
   const piano = pianificaLotti(c, chiuse),
     companyId = c.fattura.company_id;
@@ -87,6 +89,8 @@ export async function eseguiLottoRiconciliazione({
   let nonValida = false;
   try {
     const lotto = contestoLotto(c, piano[job.indice]);
+    const statoLotto = { completati: Number(job.indice), totale: piano.length };
+    onAnalisi?.(statoLotto);
     const risposta = await aiRouterComplete({
       supabase: db,
       taskKey: "fattura_riconcilia",
@@ -99,6 +103,7 @@ export async function eseguiLottoRiconciliazione({
       guardProviderRequest: true,
       idempotencyKey: `fattura-lotti-v1:${companyId}:${job.id}:${job.indice}:${job.tentativi}`,
     });
+    onAnalisi?.(statoLotto, risposta.modelUsed);
     let proposta: PropostaRiconciliazione;
     try {
       proposta = validaPropostaRiconciliazione(

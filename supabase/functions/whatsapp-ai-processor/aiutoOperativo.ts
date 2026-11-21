@@ -11,12 +11,14 @@ export function chiedeCantieriDiOggi(testo: string): boolean {
 export function guidaOperativa(strumenti: ReadonlySet<string>, ruolo: string): string {
   const righe: string[] = [];
   if (strumenti.has("carica_ddt")) righe.push("• Per una bolla, manda la foto e un vocale con il cantiere.");
-  if (strumenti.has("crea_rapportino")) righe.push("• Racconta lavori e ore, anche con un vocale nella tua lingua.");
+  if (strumenti.has("crea_rapportino")) righe.push("• Racconta lavori e ore, anche con un vocale nella tua lingua. Se compili per la squadra, puoi dire «Marco 8 ore, Francesco 6 ore».");
   if (strumenti.has("crea_attivita_ufficio")) righe.push("• «Chiedi ad Acquisti tre controtelai per domani»");
   if (strumenti.has("elenca_miei_cantieri_oggi") && ruolo === "operaio") righe.push("• «Dove lavoro oggi?»");
-  if (strumenti.has("crea_segnalazione")) righe.push("• Segnala un problema e allega una foto se aiuta a capirlo.");
+  if (strumenti.has("crea_segnalazione")) righe.push("• «Apri un ticket di assistenza. La serratura è bloccata al cantiere Rossi»");
+  if (strumenti.has("segnala_mezzo")) righe.push("• «Segnala un guasto sul furgone AB123CD. La spia motore è accesa»");
+  if (strumenti.has("carica_scontrino")) righe.push("• Fotografa lo scontrino e dimmi se hai pagato tu o l’azienda.");
   if (strumenti.has("apri_fatture_cliente")) righe.push("• «Mandami le fatture del cliente Rossi»");
   if (strumenti.has("get_quadro_incassi") || strumenti.has("scadenze_fatture")) righe.push("• «Quanto devo incassare questo mese?»");
-  if (strumenti.has("crea_preventivo_ai")) righe.push("• Per un preventivo, descrivi l’intervento, le misure e il cliente.");
+  if (strumenti.has("crea_preventivo_ai")) righe.push("• Per un preventivo, detta cliente, lavori, misure e aliquota IVA verificata. Puoi chiedere il PDF qui.");
   return righe.length ? ["*Cosa puoi fare qui*", ...righe].join("\n") : "Descrivi quello che ti serve e preparo la richiesta.";
 }

@@ -19,14 +19,14 @@ describe("AI memory page knowledge console contract", () => {
   it("surfaces memory quality instead of only CRUD totals", () => {
     expect(source).toContain("qualityFilter");
     expect(source).toContain("personasWithoutMemories");
-    expect(source).toContain("lowConfidence");
-    expect(source).toContain("neverUsed");
-    expect(source).toContain("Centro controllo memoria");
+    expect(source).toContain("isLowConfidence(m) || isNeverUsed(m) || isStale(m)");
+    expect(source).toContain("stats.daVerificare");
+    expect(source).toContain("Memoria degli assistenti");
   });
 
   it("uses operational actions and clearer filter labels", () => {
     expect(source).toContain("Includi disabilitate");
-    expect(source).toContain("Completa personas");
+    expect(source).toContain("Vedi esempi demo");
     expect(source).toContain("Vedi nel Cervello");
   });
 });

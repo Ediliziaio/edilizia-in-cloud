@@ -354,7 +354,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
   return (
     <div className={cn(
       "flex flex-col gap-4",
-      embedded ? "h-[calc(100vh-12rem)]" : "h-[calc(100vh-4rem)]",
+      embedded ? "xl:h-[calc(100dvh-12rem)] xl:min-h-[34rem]" : "h-[calc(100vh-4rem)]",
     )}>
       {!embedded && (
         <>
@@ -381,7 +381,8 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
       )}
 
       {embedded && (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">Chat con gli assistenti</h2>
           <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
             <Plus className="h-4 w-4" /> Nuova chat
           </Button>
@@ -392,15 +393,15 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
 
         {/* ─── SIDEBAR SX: persona selector + sessioni ─────────────────── */}
-        <div className="col-span-12 md:col-span-3 flex flex-col gap-3 min-h-0">
+        <div className="col-span-12 flex min-h-0 max-h-72 flex-col gap-3 md:col-span-4 md:max-h-none xl:col-span-3">
           {!activeSessionId && !activePersonaKey ? (
             <Card className="flex-1 min-h-0 flex flex-col">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Scegli una persona AI</CardTitle>
+                <CardTitle className="text-sm">Scegli un assistente</CardTitle>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Cerca…"
+                    placeholder="Cerca un assistente"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9 h-9"
@@ -417,7 +418,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                     <Alert>
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
-                        Nessuna persona disponibile per il tuo ruolo.
+                        {search.trim() ? "Nessun assistente trovato." : "Nessun assistente disponibile per il tuo ruolo."}
                       </AlertDescription>
                     </Alert>
                   ) : (
@@ -441,7 +442,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
             <Card className="flex-1 min-h-0 flex flex-col">
               <CardHeader className="pb-3 flex-row items-start justify-between">
                 <CardTitle className="text-sm">Conversazioni recenti</CardTitle>
-                <Button size="sm" variant="ghost" onClick={handleNewChat} title="Cambia persona">
+                <Button size="sm" variant="ghost" onClick={handleNewChat} title="Cambia assistente" aria-label="Cambia assistente">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </CardHeader>
@@ -476,9 +477,10 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
         </div>
 
         {/* ─── CENTRO: chat interface ──────────────────────────────────── */}
-        <div className="col-span-12 md:col-span-6 flex flex-col gap-3 min-h-0">
+        <div className={cn("col-span-12 flex min-h-[26rem] flex-col gap-3 md:col-span-8 xl:min-h-0",
+          activePersona ? "xl:col-span-7" : "xl:col-span-9")}>
           <Card className="flex-1 min-h-0 flex flex-col">
-            {activePersona ? (
+            {activePersona && (
               <CardHeader className="pb-3 flex-row items-center gap-3 border-b">
                 <PersonaIcon icon={activePersona.icon} color={activePersona.color} size="sm" />
                 <div className="flex-1">
@@ -488,12 +490,6 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                 <Badge variant="outline" className="text-xs">
                   {activePersona.recommended_tier_key}
                 </Badge>
-              </CardHeader>
-            ) : (
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-base text-muted-foreground">
-                  Seleziona una persona dalla sidebar per iniziare
-                </CardTitle>
               </CardHeader>
             )}
 
@@ -546,7 +542,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                 ) : !activePersona ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <MessageSquare className="h-12 w-12 mx-auto opacity-30 mb-3" />
-                    <p className="text-sm">Nessuna persona selezionata</p>
+                    <p className="text-sm">Scegli un assistente per iniziare.</p>
                   </div>
                 ) : messagesLoading && (messages ?? []).length === 0 ? (
                   <div className="space-y-3">
@@ -575,7 +571,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                   }}
                   placeholder={activePersona
                     ? `Chiedi a ${activePersona.display_name}…`
-                    : "Seleziona prima una persona"}
+                    : "Scegli un assistente"}
                   rows={1}
                   className="resize-none min-h-[40px] max-h-32"
                   disabled={!activePersonaKey || sendMut.isPending}
@@ -584,6 +580,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                   onClick={handleSend}
                   disabled={!activePersonaKey || !draftMessage.trim() || sendMut.isPending}
                   size="icon"
+                  aria-label="Invia messaggio"
                   className="h-10 w-10 shrink-0"
                 >
                   {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -597,67 +594,69 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
         </div>
 
         {/* ─── SIDEBAR DX: meta sessione ───────────────────────────────── */}
-        <div className="col-span-12 md:col-span-3 flex flex-col gap-3 min-h-0">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs flex items-center gap-1.5">
-                <Coins className="h-3.5 w-3.5" /> Sessione corrente
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Messaggi</span>
-                <span className="font-mono">{messages?.length ?? 0}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Token in / out</span>
-                <span className="font-mono">
-                  {(messages ?? []).reduce((s, m) => s + (m.tokens_in ?? 0), 0)}
-                  {" / "}
-                  {(messages ?? []).reduce((s, m) => s + (m.tokens_out ?? 0), 0)}
-                </span>
-              </div>
-              {showRunMeta && (
-                <>
-                  <Separator />
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Costo sessione</span>
-                    <span className="font-mono font-semibold">{fmtEur(totalSessionCost, 4)}</span>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {activePersona && (
+        {activePersona && (
+          <aside aria-label="Dettagli della conversazione" className="col-span-12 flex min-h-0 flex-col gap-3 xl:col-span-2">
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription className="text-xs">Persona attiva</CardDescription>
+                <CardDescription className="text-xs flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5" /> Sessione corrente
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <PersonaIcon icon={activePersona.icon} color={activePersona.color} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate">{activePersona.display_name}</div>
-                    <div className="text-[10px] text-muted-foreground">{activePersona.short_label}</div>
-                  </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Messaggi</span>
+                  <span className="font-mono">{messages?.length ?? 0}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">{activePersona.mission}</p>
-                <div className="flex flex-wrap gap-1">
-                  <Badge variant="outline" className="text-[10px]">{activePersona.recommended_tier_key}</Badge>
-                  <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABEL[activePersona.category]}</Badge>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Token in / out</span>
+                  <span className="font-mono">
+                    {(messages ?? []).reduce((s, m) => s + (m.tokens_in ?? 0), 0)}
+                    {" / "}
+                    {(messages ?? []).reduce((s, m) => s + (m.tokens_out ?? 0), 0)}
+                  </span>
                 </div>
+                {showRunMeta && (
+                  <>
+                    <Separator />
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Costo sessione</span>
+                      <span className="font-mono font-semibold">{fmtEur(totalSessionCost, 4)}</span>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
-          )}
 
-          <Alert className="text-xs">
-            <AlertDescription>
-              Ogni messaggio scala dal saldo AI dell'azienda. Vedi consumi in
-              {" "}<a href="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">Impostazioni → Crediti</a>.
-            </AlertDescription>
-          </Alert>
-        </div>
+            {activePersona && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription className="text-xs">Assistente attivo</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <PersonaIcon icon={activePersona.icon} color={activePersona.color} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate">{activePersona.display_name}</div>
+                      <div className="text-[10px] text-muted-foreground">{activePersona.short_label}</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{activePersona.mission}</p>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline" className="text-[10px]">{activePersona.recommended_tier_key}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{CATEGORY_LABEL[activePersona.category]}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Alert className="text-xs">
+              <AlertDescription>
+                Ogni messaggio scala dal saldo AI dell'azienda. Vedi consumi in
+                {" "}<a href="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">Impostazioni → Crediti</a>.
+              </AlertDescription>
+            </Alert>
+          </aside>
+        )}
 
       </div>
     </div>

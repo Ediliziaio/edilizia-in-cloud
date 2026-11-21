@@ -40,6 +40,7 @@ const linea: WANumber = { id: "linea-demo", company_id: azienda, purpose: "bot_o
 const env: Record<string, string> = {
   SUPABASE_URL: "https://locale.invalid", SUPABASE_SERVICE_ROLE_KEY: "service-locale",
   INTERNAL_WORKER_KEY: "worker-locale", APP_URL: "https://app.locale.invalid",
+  PROACTIVE_CRON_SECRET: "cron-locale",
 };
 const installaDeno = (serve?: (handler: Handler) => void) =>
   vi.stubGlobal("Deno", { env: { get: (key: string) => env[key] }, serve });
@@ -49,6 +50,7 @@ let db: DbMinimo;
 let consegne: Riga[];
 let sfondo: Promise<unknown>[];
 let originali: Map<string, Blob>;
+let lettureAccodate: string[];
 
 function richiesta(percorso: string, body: Riga) {
   return new Request(env.SUPABASE_URL + "/functions/v1/" + percorso, {
@@ -110,13 +112,14 @@ beforeEach(() => {
   sfondo = [];
   consegne = [];
   originali = new Map();
+  lettureAccodate = [];
   vi.stubGlobal("EdgeRuntime", { waitUntil: (p: Promise<unknown>) => sfondo.push(p) });
   const magazzinoFile = (bucket: string, path: string) => bucket + "/" + path;
   Object.assign(db, { storage: { from: (bucket: string) => ({
     download: async (path: string) => ({ data: originali.get(magazzinoFile(bucket, path)), error: null as null }),
     upload: async (path: string, data: Uint8Array, options: { contentType: string }) => {
       originali.set(magazzinoFile(bucket, path), new Blob([new Uint8Array(data)], { type: options.contentType }));
-      return { error: null as null };
+      return { data: { path }, error: null as null };
     },
   }) } });
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -127,6 +130,12 @@ beforeEach(() => {
     if (url.endsWith("/whatsapp-send")) {
       consegne.push(JSON.parse(String(init?.body)));
       return rispostaJson({ success: true, meta_message_id: "wamid.risposta" + consegne.length });
+    }
+    if (url.endsWith("/ddt-documenti-processa")) {
+      const id = JSON.parse(String(init?.body)).id;
+      expect(db.tabelle.ddt_document_jobs.find(j => j.id === id)).toMatchObject({ status: "queued" });
+      lettureAccodate.push(id);
+      return new Response(null, { status: 202 });
     }
     throw new Error("Chiamata di rete inattesa nella prova locale: " + url);
   }));
@@ -170,26 +179,86 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
-  it("archivia l'originale prima dell'OCR fallito e usa il vocale in coda sulla stessa bozza con una sola risposta", async () => {
+  it.each(["invio lento", "rifiuto Meta"])("mostra la scrittura durante il vocale e risponde anche con %s", async (esitoMeta) => {
+    Object.assign(db.tabelle.ai_whatsapp_numbers[0], {
+      phone_number_id: "123456", access_token_encrypted: "token-fittizio",
+    });
+    db.rpcs.resolve_company_feature = () => ({ is_enabled: true });
+    const fetchLocale = fetch;
+    let notificaAvvio!: (init: RequestInit) => void;
+    const avvioIndicatore = new Promise<RequestInit>(resolve => { notificaAvvio = resolve; });
+    const fetcher = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url) === "https://graph.facebook.com/v25.0/123456/messages") {
+        notificaAvvio(init!);
+        if (esitoMeta === "rifiuto Meta") return new Response(null, { status: 429 });
+        return new Promise<Response>((_resolve, reject) => {
+          init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
+        });
+      }
+      return fetchLocale(url, init);
+    });
+    vi.stubGlobal("fetch", fetcher);
+
+    m.transcribe.mockImplementationOnce(async () => {
+      await avvioIndicatore;
+      return { testo: "Rapportino di oggi a PROVA-SIMULA. Ho montato 3 porte.", lingua: "italian" };
+    });
+    m.ai.mockResolvedValueOnce(chiediConferma("crea_rapportino", {
+      cantiere_hint: "PROVA-SIMULA", attivita: ["Montate 3 porte"],
+    }));
+    const vocale = await registra({ id: "wamid.vocale-indicatore", type: "audio", audio: { id: "345682", voice: true } }, new Blob(["vocale demo"]));
+    await elabora(vocale);
+
+    const indicatore = await avvioIndicatore;
+    expect(JSON.parse(String(indicatore.body))).toEqual({
+      messaging_product: "whatsapp", status: "read", message_id: "wamid.vocale-indicatore", typing_indicator: { type: "text" },
+    });
+    expect(indicatore.signal?.aborted).toBe(true);
+    expect(consegne).toEqual([expect.objectContaining({
+      interactive: expect.objectContaining({ body: { text: expect.stringContaining("Montate 3 porte") } }),
+    })]);
+
+    const duplicato = await gestore(richiesta("whatsapp-ai-processor", { message_id: vocale.id }));
+    expect(await duplicato.json()).toMatchObject({ skip: "already_processed" });
+    expect(fetcher.mock.calls.filter(([url]) => String(url).startsWith("https://graph.facebook.com/"))).toHaveLength(1);
+  });
+
+  it("accoda la lettura e consente al vocale di destinare la stessa bolla prima dell'OCR", async () => {
     const foto = await registra({ id: "wamid.foto-demo", type: "image", image: { id: "234567" } },
       new Blob([new Uint8Array([255, 216, 255, 1])], { type: "image/jpeg" }));
     vi.setSystemTime(new Date("2026-11-20T10:00:07Z"));
     const vocale = await registra({ id: "wamid.voce-demo", type: "audio", audio: { id: "345678", voice: true } }, new Blob(["vocale demo"]));
     m.ai.mockResolvedValue({ choices: [{ message: { content: "DDT\nBolla di prova" } }] });
-    m.router.mockImplementation(async () => {
-      expect(db.tabelle.ddt_document_jobs).toEqual([expect.objectContaining({ source_key: foto.id, status: "da_leggere" })]);
-      throw new Error("OCR simulato indisponibile");
-    });
     m.transcribe.mockResolvedValue({ testo: "Carica questa bolla in prova simula.", lingua: "italian", durata: 7 });
     await elabora(foto);
     expect(consegne).toEqual([expect.objectContaining({ text: expect.stringContaining("Prova Simula") })]);
     expect(db.tabelle.ddt_document_jobs).toEqual([expect.objectContaining({
-      source_key: foto.id, order_id: cantiere, destinazione: "cantiere", status: "da_leggere", whatsapp_voice_message_id: vocale.id,
+      source_key: foto.id, order_id: cantiere, destinazione: "cantiere", status: "queued", whatsapp_voice_message_id: vocale.id,
       files: [expect.objectContaining({ bucket: "ddt-documenti" })],
     })]);
     expect([...originali.keys()].filter(path => path.startsWith("ddt-documenti/"))).toHaveLength(1);
     expect(vocale.processing_status).toBe("processed");
     expect(m.charge).toHaveBeenCalledTimes(1);
+    expect(lettureAccodate).toEqual([db.tabelle.ddt_document_jobs[0].id]);
+    expect(m.router).not.toHaveBeenCalled();
+    const fotoMonitor = db.tabelle.ai_attivita_live.find(r => r.flusso === "whatsapp");
+    expect(fotoMonitor).toMatchObject({
+      attore: "Andrea Demo", stato: "completata", fase: "destinazione_ddt", bolla_id: db.tabelle.ddt_document_jobs[0].id,
+      passaggi: expect.arrayContaining([
+        expect.objectContaining({ fase: "allegato_salvato" }),
+        expect.objectContaining({ fase: "bolla_accodata" }),
+      ]),
+    });
+    expect(db.tabelle.ai_attivita_live).toContainEqual(expect.objectContaining({
+      stato: "completata", fase: "risposta_inviata", bolla_id: db.tabelle.ddt_document_jobs[0].id,
+      passaggi: expect.arrayContaining([
+        expect.objectContaining({ fase: "trascrizione", durata_ms: expect.any(Number) }),
+        expect.objectContaining({ fase: "vocale_ricevuto" }),
+        expect.objectContaining({ fase: "invio_risposta", durata_ms: expect.any(Number) }),
+      ]),
+    }));
+    expect(JSON.stringify(fotoMonitor)).not.toContain(mittente);
+    expect(JSON.stringify(fotoMonitor)).not.toContain("Prova Simula");
   });
 
   it("mette in cima il cantiere della timbratura e raggiunge il ventesimo senza superare dieci opzioni", async () => {
@@ -229,21 +298,21 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     const ultima = [...ids].at(-1)!;
     await elabora(await tap("wamid.destinazione", { id: ultima, title: "Cantiere scelto" }));
     expect(db.tabelle.ddt_document_jobs).toEqual([expect.objectContaining({
-      status: "review", source_key: foto.id, order_id: ultima.split(":").at(-1), destinazione: "cantiere",
+      status: "queued", source_key: foto.id, order_id: ultima.split(":").at(-1), destinazione: "cantiere",
     })]);
     expect(m.ai).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["romanian", "Astăzi la PROVA-SIMULA eu am lucrat 8 ore și Marco Demo 4 ore. Am montat 3 uși."],
-    ["polish", "Dziś w PROVA-SIMULA pracowałem 8 godzin, a Marco Demo 4 godziny. Zamontowaliśmy 3 drzwi."],
+    ["romanian", "Astăzi la PROVA-SIMULA eu am lucrat 8 ore și Marco 4 ore. Am montat 3 uși."],
+    ["polish", "Dziś w PROVA-SIMULA pracowałem 8 godzin, a Marco 4 godziny. Zamontowaliśmy 3 drzwi."],
   ])("traduce il rapportino (%s), mostra le ore individuali e registra solo dopo il Sì", async (lingua, originale) => {
     const messaggio = await registra({ id: "wamid.rapportino-demo", type: "audio", audio: { id: "345679", voice: true } }, new Blob(["vocale demo"]));
-    const italiano = "Oggi a PROVA-SIMULA io ho lavorato 8 ore e Marco Demo 4 ore. Abbiamo montato 3 porte.";
+    const italiano = "Oggi a PROVA-SIMULA io ho lavorato 8 ore e Marco 4 ore. Abbiamo montato 3 porte.";
     m.transcribe.mockResolvedValue({ testo: originale, lingua, durata: 11 });
     m.router.mockResolvedValue({ content: JSON.stringify({ testo_italiano: italiano }) });
     m.ai.mockResolvedValue(chiediConferma("crea_rapportino", { cantiere_hint: "PROVA-SIMULA", attivita: ["Montate 3 porte"],
-      persone: [{ nome: "io", ore: 8 }, { nome: "Marco Demo", ore: 4 }] }));
+      persone: [{ nome: "io", ore: 8 }, { nome: "Marco", ore: 4 }] }));
     await elabora(messaggio);
     expect(messaggio.ai_extracted_data).toMatchObject({ lingua_audio: lingua, trascrizione_originale: originale, trascrizione_italiana: italiano });
     const domanda = consegne[0].interactive;
@@ -254,6 +323,99 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     expect(db.tabelle.campo_rapportini).toEqual([expect.objectContaining({
       order_id: cantiere, whatsapp_message_id: messaggio.id, stato: "inviato", descrizione_lavori: "Montate 3 porte",
       presenze: [expect.objectContaining({ employee_id: "dip-a", ore: 8 }), expect.objectContaining({ employee_id: "dip-m", ore: 4 })],
+    })]);
+    expect(m.ai).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["cognome", "pulsante", "vocale"])("chiarisce quale Marco con %s e conserva le ore del vocale", async (modalita) => {
+    const squadra = [
+      { employee_id: "dip-m", nome: "Marco Demo" },
+      { employee_id: "dip-v", nome: "Marco Verdi" },
+      { employee_id: "dip-f", nome: "Francesco Blu" },
+      { employee_id: "dip-va", nome: "Valerio Rossi" },
+    ];
+    db.rpcs.whatsapp_contesto_rapportino = ({ p_order, p_day }) => {
+      expect(p_order).toBe(cantiere);
+      expect(p_day).toBe("2026-11-20");
+      return { persone: squadra, solo_ore: false, solo_timbratura: false, giorni_indietro: 7 };
+    };
+    m.transcribe.mockResolvedValueOnce({
+      testo: "Oggi a PROVA-SIMULA Marco 8 ore, Francesco 6 ore, Valerio 4 ore. Abbiamo montato 3 porte.",
+      lingua: "italian", durata: 11,
+    });
+    m.ai.mockResolvedValueOnce(chiediConferma("crea_rapportino", {
+      cantiere_hint: "PROVA-SIMULA", attivita: ["Montate 3 porte"], note: "Manca la quarta porta",
+      persone: [{ nome: "Marco", ore: 8 }, { nome: "Francesco", ore: 6 }, { nome: "Valerio", ore: 4 }],
+    }));
+    const vocale = await registra({ id: "wamid.squadra-vocale", type: "audio", audio: { id: "345680", voice: true } }, new Blob(["vocale demo"]));
+    await elabora(vocale);
+
+    const scelta = consegne[0].interactive as InteractivePayload;
+    expect(scelta.body.text).toContain("Quale Marco ha lavorato 8 ore?");
+    expect(scelta.body.text).toContain("Marco Demo");
+    expect(scelta.body.text).toContain("Marco Verdi");
+    if (scelta.type !== "button") throw new Error("Attesi due nomi e Annulla");
+    const verdi = scelta.action.buttons.find(b => b.reply.title.includes("Marco Verdi"))!.reply;
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+
+    await elabora(await registra({ id: "wamid.squadra-si-prematuro", type: "text", text: { body: "Sì" } }));
+    expect(consegne[1].interactive).toEqual(scelta);
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+
+    if (modalita === "cognome") {
+      await elabora(await registra({ id: "wamid.squadra-cognome", type: "text", text: { body: "Verdi" } }));
+    } else if (modalita === "pulsante") {
+      await elabora(await registra({ id: "wamid.squadra-pulsante", type: "interactive", interactive: { button_reply: verdi } }));
+    } else {
+      m.transcribe.mockResolvedValueOnce({ testo: "Marco Verdi.", lingua: "italian", durata: 3 });
+      await elabora(await registra({ id: "wamid.squadra-risposta-voce", type: "audio", audio: { id: "345681", voice: true } }, new Blob(["secondo vocale"])));
+    }
+    const riepilogo = consegne[2].interactive as InteractivePayload;
+    expect(riepilogo.body.text).toMatch(/Marco Verdi.*8 h[\s\S]*Francesco Blu.*6 h[\s\S]*Valerio Rossi.*4 h/);
+    expect(riepilogo.body.text).toContain("Montate 3 porte");
+    expect(riepilogo.body.text).toContain("Vocale allegato");
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+
+    await elabora(await registra({ id: "wamid.squadra-scelta-scaduta", type: "interactive", interactive: { button_reply: verdi } }));
+    expect(consegne[3].text).toContain("domanda precedente");
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+
+    await elabora(await registra({ id: "wamid.squadra-si-finale", type: "text", text: { body: "Sì" } }));
+    expect(db.tabelle.campo_rapportini).toEqual([expect.objectContaining({
+      order_id: cantiere, data_lavoro: "2026-11-20", whatsapp_message_id: vocale.id, stato: "inviato",
+      descrizione_lavori: "Montate 3 porte", note: "Manca la quarta porta",
+      presenze: [
+        { employee_id: "dip-v", nome: "Marco Verdi", ore: 8 },
+        { employee_id: "dip-f", nome: "Francesco Blu", ore: 6 },
+        { employee_id: "dip-va", nome: "Valerio Rossi", ore: 4 },
+      ],
+    })]);
+    expect(m.ai).toHaveBeenCalledTimes(1);
+  });
+
+  it("dopo la scelta del cantiere chiede una conferma separata con le persone esatte", async () => {
+    const altro = "00000000-0000-4000-8000-000000000023";
+    db.tabelle.orders.push({ id: altro, company_id: azienda, order_code: "SECONDO", description: "Secondo cantiere",
+      status: "in_corso", work_start_date: "2026-11-20" });
+    db.tabelle.order_campo_assignments.push({ company_id: azienda, order_id: altro, user_id: "utente-a" });
+    db.rpcs.whatsapp_contesto_rapportino = ({ p_order }) => ({
+      persone: [{ employee_id: "dip-m", nome: "Marco " + (p_order === altro ? "Verdi" : "Demo") }],
+      solo_ore: false, solo_timbratura: false, giorni_indietro: 7,
+    });
+    m.ai.mockResolvedValueOnce(chiediConferma("crea_rapportino", { persone: [{ nome: "Marco", ore: 8 }] }));
+    const messaggio = await registra({ id: "wamid.squadra-senza-cantiere", type: "text", text: { body: "Rapportino di oggi: Marco 8 ore" } });
+    await elabora(messaggio);
+    const scelta = consegne[0].interactive as InteractivePayload;
+    expect(scelta.body.text).toContain("Poi ti mostro le ore per persona da confermare.");
+    if (scelta.type !== "button") throw new Error("Attesi due cantieri e Annulla");
+    const destinazione = scelta.action.buttons.find(b => b.reply.title === "Secondo cantiere")!.reply;
+    await elabora(await registra({ id: "wamid.squadra-cantiere", type: "interactive", interactive: { button_reply: destinazione } }));
+    expect(consegne[1].interactive).toMatchObject({ body: { text: expect.stringMatching(/Marco Verdi.*8 h[\s\S]*Secondo cantiere/) } });
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+    await elabora(await registra({ id: "wamid.squadra-cantiere-si", type: "text", text: { body: "Sì" } }));
+    expect(db.tabelle.campo_rapportini).toEqual([expect.objectContaining({
+      order_id: altro, whatsapp_message_id: messaggio.id, stato: "inviato",
+      presenze: [{ employee_id: "dip-m", nome: "Marco Verdi", ore: 8 }],
     })]);
     expect(m.ai).toHaveBeenCalledTimes(1);
   });
@@ -274,6 +436,161 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     })]);
     expect(consegne[1].text).toContain("Attività inviata a Acquisti");
     expect(m.ai).toHaveBeenCalledTimes(1);
+  });
+
+  it("porta in Merce presa lo scontrino originale dopo il vocale del pagante e la conferma", async () => {
+    const esborso = randomUUID();
+    db.rpcs.campo_acquisto_registra_whatsapp = () => esborso;
+    m.ai.mockResolvedValueOnce({ choices: [{ message: { content: "SCONTRINO\nFerramenta demo" } }] });
+    m.router.mockResolvedValueOnce({ content: JSON.stringify({
+      document_type: "scontrino", supplier_name: "Ferramenta demo", ddt_date: "2026-11-20", total_amount: 23.45,
+    }) });
+    const foto = await registra({ id: "wamid.scontrino", type: "image", image: { id: "234570" } },
+      new Blob([new Uint8Array([255, 216, 255, 2])], { type: "image/jpeg" }));
+    await elabora(foto);
+    expect(foto.ai_extracted_data).toMatchObject({ scontrino_wa: { importo: 23.45 }, operational_triage: { intent: "scontrino" } });
+    expect(consegne[0].text).toContain("L’hai pagato tu");
+    m.transcribe.mockResolvedValueOnce({ testo: "L’ho pagato io, per il cantiere PROVA-SIMULA.", lingua: "italian", durata: 4 });
+    await elabora(await registra({ id: "wamid.scontrino-voce", type: "audio", audio: { id: "345682" } }, new Blob(["vocale"])));
+    const proposta = consegne[1].interactive as InteractivePayload;
+    expect(proposta.body.text).toContain("Pagato da te");
+    expect(proposta.body.text).toContain("23,45");
+    expect(db.rpcChiamate.some(r => r.nome === "campo_acquisto_registra_whatsapp")).toBe(false);
+    if (proposta.type !== "button") throw new Error("Attesa conferma");
+    await elabora(await registra({ id: "wamid.scontrino-ok", type: "interactive", interactive: {
+      button_reply: proposta.action.buttons[0].reply,
+    } }));
+    expect(db.rpcChiamate.filter(r => r.nome === "campo_acquisto_registra_whatsapp")).toEqual([expect.objectContaining({
+      args: expect.objectContaining({ p_order_id: cantiere, p_tipo_documento: "scontrino", p_totale: 23.45,
+        p_modalita: "pagato_da_me", p_foto_path: expect.stringContaining("/acquisti/"), p_lettura: { fonte: "whatsapp", messaggio: foto.id } }),
+    })]);
+    expect(foto).toMatchObject({ linked_record_id: esborso, linked_record_type: "campo_acquisti", cantiere_id: cantiere });
+  });
+
+  it("mantiene l'allegato incerto in attesa e lo instrada quando l'utente cita la foto", async () => {
+    m.ai.mockResolvedValueOnce({ choices: [{ message: { content: "INCERTO\nTesto sfocato" } }] });
+    const foto = await registra({ id: "wamid.allegato-sfocato", type: "image", image: { id: "234571" } },
+      new Blob([new Uint8Array([255, 216, 255, 3])], { type: "image/jpeg" }));
+    await elabora(foto);
+    expect(foto).toMatchObject({ ai_intent: "unknown", media_storage_path: expect.any(String) });
+    expect(consegne[0].text).toContain("Allegato salvato");
+    expect(db.tabelle.ai_attivita_live[0]).toMatchObject({ stato: "in_attesa", fase: "da_smistare" });
+    expect(db.tabelle.ddt_document_jobs ?? []).toHaveLength(0);
+    await elabora(await registra({ id: "wamid.allegato-sfocato-risposta", type: "text",
+      context: { id: "wamid.allegato-sfocato" }, text: { body: "È una bolla per il cantiere PROVA-SIMULA" },
+    }));
+    expect(foto.ai_intent).toBe("ddt");
+    expect(db.tabelle.ddt_document_jobs).toEqual([expect.objectContaining({ order_id: cantiere, status: "queued", source_key: foto.id })]);
+    expect(m.ai).toHaveBeenCalledTimes(1);
+  });
+
+  it("apre in Assistenza il ticket dettato, con il cantiere corretto", async () => {
+    m.transcribe.mockResolvedValueOnce({
+      testo: "Apri un ticket di manutenzione. La serratura è bloccata al cantiere PROVA-SIMULA.", lingua: "italian", durata: 7,
+    });
+    const vocale = await registra({ id: "wamid.ticket-vocale", type: "audio", audio: { id: "345683" } }, new Blob(["vocale"]));
+    await elabora(vocale);
+    expect(db.tabelle.tickets).toEqual([expect.objectContaining({
+      id: vocale.id, category: "manutenzione", order_id: cantiere, descrizione: expect.stringContaining("serratura"), status: "aperto",
+    })]);
+    expect(consegne[0].text).toContain("Ticket aperto in Assistenza");
+    expect(m.ai).not.toHaveBeenCalled();
+  });
+
+  it("registra il guasto sul mezzo in carico e lascia in chat quello riferito a un altro mezzo", async () => {
+    db.tabelle.hr_profili = [{ id: "profilo-a", company_id: azienda, user_id: "utente-a", attivo: true }];
+    db.tabelle.mezzi = [
+      { id: "furgone", company_id: azienda, nome: "Furgone 1", targa: "AB123CD", assegnato_hr_profilo_id: "profilo-a" },
+      { id: "altro-furgone", company_id: azienda, nome: "Furgone 2", targa: "CD456EF", assegnato_hr_profilo_id: "profilo-b" },
+    ];
+    const arriva = (id: string, body: string) => registra({ id, type: "text", text: { body } });
+    const problema = await arriva("wamid.guasto", "Segnala un guasto sul furgone AB123CD. La spia motore è accesa.");
+    await elabora(problema);
+    await elabora(await arriva("wamid.guasto-altro", "Segnala un guasto sul furgone CD456EF. La spia motore è accesa."));
+    expect(db.tabelle.mezzi_segnalazioni).toEqual([expect.objectContaining({
+      id: problema.id, mezzo_id: "furgone", hr_profilo_id: "profilo-a", tipo: "guasto",
+    })]);
+    expect(consegne[0].text).toContain("Furgone 1");
+    expect(consegne[1].text).toContain("Quale mezzo?");
+    expect(consegne[1].text).not.toContain("Furgone 2");
+    expect(m.ai).not.toHaveBeenCalled();
+  });
+
+  it("usa un solo passaggio AI per il rapporto rumeno con ore verificabili", async () => {
+    const originale = "Raportul de azi la PROVA-SIMULA: Andrea 8 ore, Marco 4 ore. Am montat 3 uși.";
+    const italiano = "Rapportino di oggi a PROVA-SIMULA: Andrea 8 ore, Marco 4 ore. Abbiamo montato 3 porte.";
+    m.transcribe.mockResolvedValueOnce({ testo: originale, lingua: "romanian", durata: 10 });
+    m.router.mockResolvedValueOnce({ content: JSON.stringify({ testo_italiano: italiano, rapportino: {
+      data_lavoro: "oggi", cantiere_hint: "PROVA-SIMULA", persone: [{ nome: "Andrea", ore: 8 }, { nome: "Marco", ore: 4 }],
+      attivita: ["Abbiamo montato 3 porte"],
+    } }) });
+    await elabora(await registra({ id: "wamid.rapportino-rapido", type: "audio", audio: { id: "345684" } }, new Blob(["vocale"])));
+    expect(consegne[0].interactive).toMatchObject({ body: { text: expect.stringMatching(/Andrea Demo.*8 h[\s\S]*Marco Demo.*4 h/) } });
+    expect(m.router).toHaveBeenCalledOnce();
+    expect(m.ai).not.toHaveBeenCalled();
+    expect(db.tabelle.campo_rapportini ?? []).toHaveLength(0);
+  });
+
+  it("passa dal computo dettato al preventivo verificabile e consegna il PDF alla stessa chat dopo il bottone", async () => {
+    const quoteId = randomUUID();
+    const path = azienda + "/" + quoteId + ".pdf";
+    db.tabelle.user_roles = [{ user_id: "utente-a", role: "company_admin" }];
+    db.rpcs.silvio_context_actor_roles = () => ["company_admin"];
+    db.rpcs.silvio_create_quote_draft = args => {
+      db.tabelle.quotes = [{ id: quoteId, company_id: azienda, client_name: args.p_client_name, quote_number: "OFF-DEMO", source: "silvio" }];
+      return { success: true, quote_id: quoteId, quote_number: "OFF-DEMO", status: "bozza",
+        items_count: 1, subtotal_eur: 1000, vat_eur: 220, total_eur: 1220 };
+    };
+    const messaggio = await registra({ id: "wamid.computo-vocale", type: "audio", audio: { id: "345685" } }, new Blob(["vocale"]));
+    const fetchLocale = fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).endsWith("/ai-genera-preventivo-v2")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          company_id: azienda, per_utente: "utente-a", descrizione: "Posa di 40 mq di pavimento",
+          ai_richiesta_id: messaggio.id,
+        });
+        return rispostaJson({ success: true, sezioni: [{ righe: [{
+          nome: "Posa pavimento", quantita: 40, unita_misura: "mq", unit_price: 25, item_category: "posa",
+        }] }] });
+      }
+      if (String(url).endsWith("/generate-quote-pdf")) {
+        expect(db.tabelle.quotes[0].id).toBe(quoteId);
+        db.tabelle.quotes[0].pdf_storage_path = path;
+        return rispostaJson({ pdf_path: path, signed_url: env.SUPABASE_URL + "/storage/v1/object/sign/quote-pdfs/" + path + "?token=locale" });
+      }
+      return fetchLocale(url, init);
+    }));
+    m.transcribe.mockResolvedValueOnce({ testo: "Fammi un preventivo per Rossi, posa di 40 metri quadrati, IVA 22 per cento e mandami qui il PDF.",
+      lingua: "italian", durata: 10 });
+    m.ai.mockResolvedValueOnce({ choices: [{ message: { content: null, tool_calls: [{
+      id: "richiesta-computo", type: "function", function: { name: "crea_preventivo_ai",
+        arguments: JSON.stringify({ cliente_nome: "Rossi", descrizione: "Posa di 40 mq di pavimento", iva: 22 }) },
+    }] } }] });
+    await elabora(messaggio);
+    const proposta = consegne[0].interactive as InteractivePayload;
+    expect(proposta.body.text).toContain("40 mq ×");
+    expect(proposta.body.text).toContain("ti mando il PDF in questa chat");
+    expect(db.tabelle.quotes ?? []).toHaveLength(0);
+    if (proposta.type !== "button") throw new Error("Atteso bottone preventivo");
+    await elabora(await registra({ id: "wamid.computo-si", type: "interactive", interactive: {
+      button_reply: proposta.action.buttons[0].reply,
+    } }));
+    expect(db.rpcs.silvio_create_quote_draft).toBeDefined();
+    expect(db.rpcChiamate.filter(r => r.nome === "silvio_create_quote_draft")).toEqual([expect.objectContaining({
+      args: expect.objectContaining({ p_items: [expect.objectContaining({ quantity: 40, unit_of_measure: "mq", unit_price: 25, item_type: "labor" })] }),
+    })]);
+    expect(consegne.filter(r => r.type === "document")).toEqual([expect.objectContaining({ to: mittente, wa_number_id: linea.id })]);
+    expect(db.tabelle.quotes[0]).toMatchObject({ id: quoteId, ai_richiesta_id: messaggio.id, pdf_storage_path: path });
+    expect(m.ai).toHaveBeenCalledTimes(1);
+    expect(db.tabelle.ai_attivita_live).toContainEqual(expect.objectContaining({
+      flusso: "preventivo", assistente: "WhatsApp", stato: "completata", fase: "pdf_inviato",
+      richiesta: { tipo: "preventivo", id: messaggio.id, risorsa_id: quoteId },
+      passaggi: expect.arrayContaining([
+        expect.objectContaining({ fase: "compone_pdf", durata_ms: expect.any(Number) }),
+        expect.objectContaining({ fase: "pdf_pronto" }),
+        expect.objectContaining({ fase: "invio_risposta", durata_ms: expect.any(Number) }),
+      ]),
+    }));
   });
 
   it("presenta all'operaio le funzioni abilitate e legge le assegnazioni di oggi senza AI", async () => {

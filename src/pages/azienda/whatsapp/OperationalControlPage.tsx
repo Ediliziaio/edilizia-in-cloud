@@ -80,6 +80,7 @@ type OperationalMessage = {
   from_phone: string;
   linked_record_id: string | null;
   linked_record_type: string | null;
+  media_storage_path: string | null;
   message_type: string;
   content_text: string | null;
   processing_status: string | null;
@@ -145,10 +146,11 @@ function intentLabel(intent: WhatsAppOperationalIntent) {
     attivita_ufficio: "Attività ufficio",
     presenze: "Presenze",
     segnalazione: "Segnalazioni",
+    scontrino: "Scontrini",
     domanda: "Domande",
     conferma: "Conferme",
     annulla: "Annullamenti",
-    unknown: "Da capire",
+    unknown: "Da smistare",
   } satisfies Record<WhatsAppOperationalIntent, string>;
   return labels[intent];
 }
@@ -204,7 +206,7 @@ export default function OperationalControlPage() {
         : withClientTimeout(
           supabase
             .from("whatsapp_messages")
-            .select("id, metadata, created_at, from_phone, message_type, content_text, processing_status, processing_error, wa_number_id, ai_intent, ai_confidence, ai_extracted_data, linked_record_type, linked_record_id, cantiere_id")
+            .select("id, metadata, created_at, from_phone, message_type, content_text, processing_status, processing_error, wa_number_id, ai_intent, ai_confidence, ai_extracted_data, linked_record_type, linked_record_id, cantiere_id, media_storage_path")
             .eq("company_id", companyId!)
             .eq("direction", "inbound")
             .in("wa_number_id", operativeNumberIds)
@@ -317,6 +319,7 @@ export default function OperationalControlPage() {
   const messagesToReview = useMemo(
     () => triagedMessages.filter(({ message, triage }) =>
       (!message.metadata || typeof message.metadata !== "object" || Array.isArray(message.metadata) || !message.metadata.manually_reviewed_at) &&
+      !(message.linked_record_id && ["campo_acquisti", "prima_nota_entries", "tickets", "mezzi_segnalazioni"].includes(message.linked_record_type ?? "")) &&
       (triage.requiresReview || REVIEW_STATUSES.has(message.processing_status ?? "")),
     ),
     [triagedMessages],
@@ -332,6 +335,7 @@ export default function OperationalControlPage() {
       attivita_ufficio: 0,
       presenze: 0,
       segnalazione: 0,
+      scontrino: 0,
       domanda: 0,
       conferma: 0,
       annulla: 0,
@@ -414,7 +418,7 @@ export default function OperationalControlPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(["rapportino", "ddt", "foto_cantiere", "presenze", "segnalazione", "domanda", "conferma", "unknown"] as WhatsAppOperationalIntent[])
+            {(["rapportino", "ddt", "scontrino", "foto_cantiere", "presenze", "segnalazione", "domanda", "conferma", "unknown"] as WhatsAppOperationalIntent[])
               .filter((intent) => intentCounts[intent] > 0 || ["rapportino", "ddt", "foto_cantiere", "segnalazione"].includes(intent))
               .map((intent) => (
                 <div key={intent} className="rounded-lg border bg-background p-3">
@@ -445,6 +449,12 @@ export default function OperationalControlPage() {
                     const linkedId = message.cantiere_id || (message.linked_record_type === "orders" ? message.linked_record_id : null);
                     if (linkedId) navigate(`/azienda/ordini/${linkedId}`);
                   }}
+                  onOpenAttachment={message.media_storage_path?.startsWith(companyId + "/") ? async () => {
+                    const path = message.media_storage_path!;
+                    const { data, error } = await supabase.storage.from("whatsapp-media").createSignedUrl(path, 300);
+                    if (error || !data?.signedUrl) toast.error("Allegato non disponibile");
+                    else window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                  } : undefined}
                   onMarkDone={() => markMessageReviewed.mutate(message.id)}
                   marking={markMessageReviewed.isPending}
                 />
@@ -455,7 +465,8 @@ export default function OperationalControlPage() {
               <p className="text-sm font-semibold">Regole attive</p>
               <div className="mt-3 space-y-3 text-xs text-muted-foreground">
                 <RoutingRule label="Rapportini" text="audio/testo di fine giornata -> rapportino da approvare." />
-                <RoutingRule label="DDT" text="foto/documento merce -> conferma responsabile prima di registrare." />
+                <RoutingRule label="DDT" text="Originale in Documenti in ingresso, lettura delle righe in background." />
+                <RoutingRule label="Scontrini" text="Foto archiviata. Chi ha pagato e commessa determinano la pratica da verificare." />
                 <RoutingRule label="Foto" text="immagini cantiere -> diario commessa se il cantiere è chiaro." />
                 <RoutingRule label="Sicurezza" text="incidenti o rischi -> priorità alta e escalation." />
               </div>
@@ -600,12 +611,14 @@ function TriageQueueItem({
   message,
   triage,
   onOpenLinked,
+  onOpenAttachment,
   onMarkDone,
   marking,
 }: {
   message: OperationalMessage;
   triage: WhatsAppOperationalTriage;
   onOpenLinked: () => void;
+  onOpenAttachment?: () => void;
   onMarkDone: () => void;
   marking: boolean;
 }) {
@@ -629,6 +642,11 @@ function TriageQueueItem({
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          {onOpenAttachment && (
+            <Button size="sm" variant="outline" onClick={onOpenAttachment}>
+              <FileText className="mr-1 h-3.5 w-3.5" />Apri allegato
+            </Button>
+          )}
           {hasLinkedOrder ? (
             <Button size="sm" variant="outline" onClick={onOpenLinked}>
               <ExternalLink className="mr-1 h-3.5 w-3.5" />

@@ -109,7 +109,7 @@ export async function caricaScontrino(ctx: ToolCtx, args: Args): Promise<ToolRes
   const descrizione = [esercente ? `Scontrino ${esercente}` : "Scontrino",
     cantiere && !orderId ? `(cantiere: ${cantiere})` : ""].filter(Boolean).join(" ").slice(0, 300);
 
-  const { error } = await ctx.supabase.from("prima_nota_entries").insert({
+  const { data, error } = await ctx.supabase.from("prima_nota_entries").insert({
     company_id: ctx.company_id,
     direction: "uscita",
     amount: importo,
@@ -121,9 +121,9 @@ export async function caricaScontrino(ctx: ToolCtx, args: Args): Promise<ToolRes
     is_auto: false,
     auto_source: "whatsapp_scontrino",
     notes: "Registrato da WhatsApp (foto scontrino)",
-  });
-  if (error) return errResult("insert", "Non sono riuscito a registrare la spesa. Riprova, oppure inseriscila dall'app in Prima Nota.");
+  }).select("id").single();
+  if (error || !data?.id) return errResult("insert", "Non ho la conferma del salvataggio. Controlla la spesa in Prima Nota.");
 
   const dove = orderId ? " sul cantiere" : cantiere ? ` (cantiere «${cantiere}» da abbinare nell'app)` : "";
-  return okResult({ importo, order_id: orderId }, `💶 Spesa di € ${importo.toLocaleString("it-IT", { minimumFractionDigits: 2 })}${esercente ? ` da ${esercente}` : ""} registrata${dove}.`);
+  return okResult({ prima_nota_id: data.id, importo, order_id: orderId }, `💶 Spesa di € ${importo.toLocaleString("it-IT", { minimumFractionDigits: 2 })}${esercente ? ` da ${esercente}` : ""} registrata${dove}.`);
 }

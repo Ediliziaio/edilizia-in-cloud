@@ -11,12 +11,12 @@ import {
 } from "@/lib/ddt/documentiPersistenti";
 import { RevisioneDocumento } from "@/components/ddt/DocumentiInIngresso";
 
-export function useDocumentiInIngresso(enabled = true) {
+export function useDocumentiInIngresso(enabled = true, documentoId?: string) {
   const { effectiveCompany } = useAuth();
   const ripresaLocale = useOfflineSync({
     companyId: effectiveCompany?.id ?? null,
   });
-  const query = useDocumentiDDT(false, undefined, false, enabled);
+  const query = useDocumentiDDT(false, undefined, !!documentoId, enabled, documentoId);
   const qc = useQueryClient();
   const [aperto, setAperto] = useState<DocumentoPersistente | null>(null);
   const [riprovando, setRiprovando] = useState<string | null>(null);

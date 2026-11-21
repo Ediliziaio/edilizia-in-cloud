@@ -9,17 +9,18 @@
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { sceltaCantiere } from "../shared/sceltaCantiere.ts";
+import { requireSiteAccess } from "../shared/siteAccess.ts";
 
 export const creaSegnalazioneDef: Omit<ToolDef, "handler"> = {
   name: "crea_segnalazione",
   description:
-    "Apre un ticket per un problema o un'anomalia su un cantiere (come «Ticket» nell'app Campo). L'ufficio riceve subito l'avviso.",
+    "Apre un ticket in Assistenza per un problema, intervento o manutenzione in cantiere. Usa segnala_mezzo per i veicoli e le attrezzature.",
   parameters: {
     type: "object",
     properties: {
       descrizione: { type: "string" },
       urgenza: { type: "string", enum: ["alta", "media", "bassa"] },
-      tipo_problema: { type: "string", description: "Categoria: sicurezza, qualità, tempistica, materiali, altro" },
+      tipo_problema: { type: "string", description: "Categoria: assistenza, manutenzione, sicurezza, qualità, tempistica, materiali, altro" },
       order_id: { type: "string" },
       cantiere_hint: { type: "string" },
       photo_urls: { type: "array", items: { type: "string" } },
@@ -64,8 +65,12 @@ export async function creaSegnalazione(
   let motivo: string | null = null;
   if (!orderId) {
     const scelta = await sceltaCantiere(ctx, { hint: args.cantiere_hint ?? null }).catch((): null => null);
-    if (scelta?.proposto) { orderId = scelta.proposto.id; motivo = scelta.proposto.motivo; }
+    if (scelta?.proposto && (!args.cantiere_hint || scelta.proposto.motivo === "come mi hai scritto")) {
+      orderId = scelta.proposto.id;
+      motivo = scelta.proposto.motivo;
+    }
   }
+  if (orderId) await requireSiteAccess(ctx, orderId);
 
   const urgenza = args.urgenza ?? "media";
   const priorita = PRIORITA[urgenza] ?? PRIORITA.media;
@@ -86,6 +91,7 @@ export async function creaSegnalazione(
   const { data: ticket, error } = await ctx.supabase
     .from("tickets")
     .insert({
+      ...(ctx.sourceMessageId ? { id: ctx.sourceMessageId } : {}),
       company_id: ctx.company_id,
       order_id: orderId,
       created_by: ctx.user_id,
@@ -106,13 +112,16 @@ export async function creaSegnalazione(
 
   if (error || !ticket?.id) return errResult("ticket_non_creato", "Non sono riuscito ad aprire la segnalazione. Riprova, oppure chiama l'ufficio se è urgente.");
 
-  await avvisaUfficio(ctx, ticket.id, `${urgenza === "alta" ? "Urgente: " : ""}problema dal cantiere`,
+  const avviso = avvisaUfficio(ctx, ticket.id, `${urgenza === "alta" ? "Urgente: " : ""}problema dal cantiere`,
     `${chi}${cantiere ? ` su ${cantiere}` : ""}: ${breve}`).catch((): undefined => undefined);
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+  if (runtime) runtime.waitUntil(avviso);
+  else await avviso;
 
   const emoji = urgenza === "alta" ? "🔴" : urgenza === "media" ? "🟠" : "🟡";
-  const dove = cantiere ? ` su ${cantiere}${motivo ? ` (${motivo})` : ""}` : "";
+  const dove = cantiere ? ` su ${cantiere}${motivo ? ` (${motivo})` : ""}` : " con cantiere da abbinare";
   return okResult({ id: ticket.id, urgenza },
-    `${emoji} Segnalazione aperta${dove}. L'ufficio l'ha ricevuta adesso.`);
+    `${emoji} Ticket aperto in Assistenza${dove}.`);
 }
 
 /**

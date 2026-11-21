@@ -18,6 +18,8 @@ export interface ToolCtx {
   sourceMessageId?: string;
   sentAt?: string;
   transcript?: string;
+  /** Identità verificate e vincolate al riepilogo del rapportino. */
+  rapportinoPersoneIds?: readonly (string | null)[];
   kind: "operaio" | "ufficio" | "admin" | "unknown";
   /** Il file arrivato con questo messaggio, già salvato nel bucket (foto del DDT, foto di cantiere, vocale). */
   mediaCorrente?: { storagePath: string; url: string; tipo: string } | null;

@@ -49,7 +49,7 @@ interface Misura {
 }
 
 interface AIQuotePanelProps {
-  onRigheGenerate: (sezioni: SezionePreventivoAiConfermata[]) => void | Promise<void>;
+  onRigheGenerate: (sezioni: SezionePreventivoAiConfermata[], richiestaId?: string) => void | Promise<void>;
   companyId: string;
   tipoLavoro?: string;
   pianoInstallazione?: number;
@@ -104,6 +104,7 @@ function AIQuotePanelSession({
   const [stato, setStato] = useState<"idle" | "generando" | "risultato" | "errore">("idle");
   const isGenerating = stato === "generando";
   const [risultato, setRisultato] = useState<SezionePreventivoAi[] | null>(null);
+  const [richiestaAi, setRichiestaAi] = useState<string>();
   const riepilogo = useMemo(() => riepilogoPreventivoAi(risultato ?? []), [risultato]);
   const [isInserting, setIsInserting] = useState(false);
   const insertingRef = useRef(false);
@@ -326,6 +327,8 @@ function AIQuotePanelSession({
       if (error) throw new Error(error.message);
       const { sezioni, avvertenze, note } = leggiPreventivoAi(data);
       setRisultato(sezioni);
+      setRichiestaAi(typeof data === "object" && data && "ai_richiesta_id" in data
+        && typeof data.ai_richiesta_id === "string" ? data.ai_richiesta_id : undefined);
       setAvvertenze(avvertenze);
       setNote(note);
       setStato("risultato");
@@ -820,7 +823,8 @@ function AIQuotePanelSession({
                     try {
                     const confermate = confermaPreventivoAi(risultato);
                     const righeTot = risultato.flatMap((s) => s.righe);
-                    await onRigheGenerate(confermate);
+                    if (richiestaAi) await onRigheGenerate(confermate, richiestaAi);
+                    else await onRigheGenerate(confermate);
                     if (!mountedRef.current) return;
                     captureVelocityEvent("preventivatore.ai.insert", {
                       righe_count: righeTot.length,

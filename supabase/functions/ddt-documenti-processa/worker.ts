@@ -10,6 +10,7 @@ import { bytesToBase64 } from "../_shared/base64.ts";
 import { parteFileDdt } from "../_shared/lettoreDdt.ts";
 import { tipoFileDdt } from "../_shared/tipoFileDdt.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
+import { avviaAttivitaAi } from "../_shared/aiAttivitaLive.ts";
 export interface DocumentoFile {
   path: string;
   name: string;
@@ -70,6 +71,10 @@ export async function processaDocumento(
   if (claimError) throw claimError;
   const j: DocumentoJob | undefined = jobs?.[0];
   if (!j) return { stato: "nessun_lavoro" };
+  const attivita = avviaAttivitaAi(db, {
+    companyId: j.company_id, userId: j.created_by, flusso: "ddt", fase: "prepara_documento",
+    assistente: j.source === "whatsapp" ? "WhatsApp" : null, bollaId: j.id,
+  });
   try {
     if (!Array.isArray(j.files) || !j.files.length || j.files.length > 12)
       throw new Error("File del documento non validi");
@@ -167,7 +172,7 @@ export async function processaDocumento(
       j.file_hash
     )
       throw new Error("L’originale non corrisponde al documento acquisito");
-    const ai = await aiRouterComplete({
+    const ai = await attivita.misura("documento_in_lettura", () => aiRouterComplete({
       supabase: db,
       taskKey: "pdf_vision_extract",
       companyId: j.company_id,
@@ -188,10 +193,11 @@ export async function processaDocumento(
       ],
       params: { temperature: 0, max_tokens: 10000 },
       responseFormat: { type: "json_object" },
-    });
+    }));
     const parsed = leggiJsonDalModello(ai.content);
     if (!parsed) throw new Error("Lettura non riuscita: risposta incompleta");
     const risultato = normalizeDdtPayload(parsed);
+    attivita.passo("salvataggio", ai.modelUsed);
     const { data: updated, error } = await db
       .from("ddt_document_jobs")
       .update({
@@ -208,6 +214,7 @@ export async function processaDocumento(
       .eq("status", "processing")
       .select("id");
     if (error) throw error;
+    if (updated?.length) attivita.chiudi("in_attesa", "lettura_pronta");
     return { id: j.id, stato: updated?.length ? "review" : "lease_scaduta" };
   } catch (e) {
     const blocco = messaggioBloccoLettura(e);
@@ -233,6 +240,7 @@ export async function processaDocumento(
       .eq("lease_id", j.lease_id)
       .eq("status", "processing");
     if (error) throw error;
+    if (riprova) attivita.chiudi("in_attesa", "lettura_da_riprovare");
     console.error(
       JSON.stringify({
         fn: "ddt-documenti-processa",
@@ -241,5 +249,7 @@ export async function processaDocumento(
       }),
     );
     return { id: j.id, stato: riprova ? "queued" : "error" };
+  } finally {
+    attivita.chiudi("errore", "errore");
   }
 }

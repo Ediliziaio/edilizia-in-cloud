@@ -215,6 +215,8 @@ export function ConfrontoFatturaDialog({
   companyId,
   ordineIds,
   puoModificare,
+  daAttivita = false,
+  analisiDaAprire,
   onClose,
   onVersioneCompleta,
 }: {
@@ -222,23 +224,26 @@ export function ConfrontoFatturaDialog({
   companyId: string;
   ordineIds: string[];
   puoModificare: boolean;
+  daAttivita?: boolean;
+  analisiDaAprire?: string;
   onClose: () => void;
   onVersioneCompleta?: () => void;
 }) {
   const [parametri] = useSearchParams();
   const id = String(fattura.id),
     q = useConfrontoFattura(companyId, id, ordineIds);
-  const ultimaSelezioneAI = useUltimaSelezioneConfrontoAI(companyId, id);
+  const ultimaSelezioneAI = useUltimaSelezioneConfrontoAI(companyId, id, analisiDaAprire);
   const fornitoreId = fattura.fornitore_id
     ? String(fattura.fornitore_id)
     : null;
   const documenti = useMemo(() => q.data?.documenti ?? [], [q.data?.documenti]);
   const [attivo, setAttivo] = useState("");
   const [pannelloMobile,setPannelloMobile]=useState("sinistra");
-  const [filtroRighe,setFiltroRighe]=useState("tutte");
+  const [filtroRighe,setFiltroRighe]=useState(daAttivita && analisiDaAprire ? "differenze" : "tutte");
   const [selezione, setSelezione] = useState<Set<string> | null>(null);
+  const [analisiRichiesta, setAnalisiRichiesta] = useState(analisiDaAprire);
   const [controllo, setControllo] = useState(false);
-  const [revisioneAperta, setRevisioneAperta] = useState(false);
+  const [revisioneAperta, setRevisioneAperta] = useState(!!analisiDaAprire);
   const [rigaAttiva, setRigaAttiva] = useState<number | null>(null);
   const [aggiungi, setAggiungi] = useState(false);
   const [vistaDocumento, setVistaDocumento] = useState("righe");
@@ -326,6 +331,7 @@ export function ConfrontoFatturaDialog({
     fatturaId: id,
     documenti: selezioneAI,
     revisioneDati: `${q.dataUpdatedAt}:${JSON.stringify(righe)}`,
+    analisiId: selezione ? undefined : analisiRichiesta,
   });
   const analisiAI = ai.dati.data?.analisi;
   const datiAllineatiAI =
@@ -566,7 +572,10 @@ export function ConfrontoFatturaDialog({
             title="Propone corrispondenze tra articoli con descrizioni diverse. Usa i crediti AI dell’azienda; la conferma resta tua."
             onClick={() => {
               setRevisioneAperta(true);
-              if (!analisiAI) ai.analizza.mutate();
+              if (!analisiAI) {
+                setAnalisiRichiesta(undefined);
+                ai.analizza.mutate();
+              }
             }}
           >
             {ai.analizza.isPending ? (

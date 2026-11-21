@@ -9,6 +9,8 @@ import { errResult, okResult, type ToolCtx, type ToolResult } from "../shared/ty
 import { isWhatsAppReceipt } from "../../../_shared/whatsappReceipt.ts";
 import { requireQuoteModelAccess } from "../../../_shared/quoteModelAccess.ts";
 import { runWhatsAppTool } from "../../../_shared/whatsappOperations.ts";
+import { avviaAttivitaAi, type AttivitaLive } from "../../../_shared/aiAttivitaLive.ts";
+import { idAttivitaValido } from "../../../../../shared/aiAttivita.ts";
 import { requireDocumentConversation, verifiedDocumentUrl } from "../shared/documentDestination.ts";
 
 interface Args {
@@ -17,7 +19,7 @@ interface Args {
   modello_richiesto?: string;
 }
 interface QuoteRow { id: string; company_id: string; quote_number: string | null; client_name: string | null;
-  deleted_at: string | null; source: string | null; pdf_storage_path: string | null }
+  deleted_at: string | null; source: string | null; pdf_storage_path: string | null; ai_richiesta_id?: string | null }
 
 export const inviaPdfPreventivoDef = {
   name: "invia_pdf_preventivo",
@@ -46,7 +48,7 @@ function nomeFile(testo: string): string {
     "Preventivo";
 }
 
-export async function inviaPdfPreventivo(ctx: ToolCtx, args: Args): Promise<ToolResult> {
+export async function inviaPdfPreventivo(ctx: ToolCtx, args: Args, attivita?: AttivitaLive): Promise<ToolResult> {
   if (!ctx.user_id) return errResult("no_user", "Per mandarti il PDF serve il tuo accesso all'app.");
   try {
     await requireDocumentConversation(ctx);
@@ -63,14 +65,14 @@ export async function inviaPdfPreventivo(ctx: ToolCtx, args: Args): Promise<Tool
   let q: QuoteRow | null = null;
   if (UUID_RE.test(idArg)) {
     const { data, error } = await ctx.supabase
-      .from("quotes").select("id, company_id, quote_number, client_name, deleted_at, source, pdf_storage_path")
+      .from("quotes").select("id, company_id, quote_number, client_name, deleted_at, source, pdf_storage_path, ai_richiesta_id")
       .eq("company_id", ctx.company_id).eq("id", idArg).is("deleted_at", null).maybeSingle();
     if (error) return errResult("quote_lookup_failed", "Lettura preventivo non disponibile. Nessun PDF inviato.");
     q = data;
   } else if (numero) {
     // Ritrovo il preventivo dal numero, nell'azienda del numero WhatsApp.
     const { data, error } = await ctx.supabase
-      .from("quotes").select("id, company_id, quote_number, client_name, deleted_at, source, pdf_storage_path")
+      .from("quotes").select("id, company_id, quote_number, client_name, deleted_at, source, pdf_storage_path, ai_richiesta_id")
       .eq("company_id", ctx.company_id).ilike("quote_number", numero.replace(/[\\%_]/g, "\\$&")).is("deleted_at", null).limit(2);
     if (error) return errResult("quote_lookup_failed", "Lettura preventivo non disponibile. Nessun PDF inviato.");
     if ((data?.length ?? 0) > 1) return errResult("quote_ambiguous", "Più preventivi corrispondono al numero: indica l’ID esatto.");
@@ -99,62 +101,80 @@ export async function inviaPdfPreventivo(ctx: ToolCtx, args: Args): Promise<Tool
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!base || !chiave) return errResult("sender_unavailable", "Invio non disponibile. Apri il preventivo nell’app.");
   const intestazioni = { "Content-Type": "application/json", Authorization: `Bearer ${chiave}` };
+  const monitor = attivita ?? (idAttivitaValido(q.ai_richiesta_id) ? avviaAttivitaAi(ctx.supabase, {
+    companyId: ctx.company_id, userId: ctx.user_id, flusso: "preventivo", fase: "pdf_in_preparazione", assistente: "WhatsApp",
+    richiesta: { tipo: "preventivo", id: q.ai_richiesta_id, risorsa_id: quoteId },
+  }) : undefined);
   try {
-  return await runWhatsAppTool(ctx.supabase, ctx.company_id, `pdf:${ctx.requestId}:${quoteId}`, "invia_pdf_preventivo",
-    { quote_id: quoteId, user: ctx.user_id, phone: ctx.phone, number: ctx.waNumberId }, async () => {
-  const pdfRes = await fetch(`${base}/functions/v1/generate-quote-pdf`, {
-    method: "POST",
-    headers: intestazioni,
-    body: JSON.stringify({ quote_id: quoteId, per_utente: ctx.user_id }),
-    signal: AbortSignal.timeout(40_000),
-  });
-  const pdf = await pdfRes.json().catch((): null => null) as { signed_url?: string | null; pdf_path?: string; error?: string } | null;
-  const link = typeof pdf?.signed_url === "string" ? pdf.signed_url : null;
-  if (!pdfRes.ok || pdf?.error || !link) {
-    console.error(JSON.stringify({ level: "error", fn: "invia_pdf_preventivo", passo: "pdf", status: pdfRes.status, errore: pdf?.error ?? null }));
-    return errResult("pdf_non_generato", "Non sono riuscito a preparare il PDF. Riprova tra poco oppure aprilo dall'app, in Preventivi.");
-  }
-  if (typeof pdf?.pdf_path !== "string" || !pdf.pdf_path.startsWith(`${ctx.company_id}/`)) {
-    return errResult("pdf_non_verificato", "Il PDF restituito non appartiene al percorso verificato dell’azienda. Nessun invio avviato.");
-  }
-  const verifiedLink = verifiedDocumentUrl(link, base, pdf.pdf_path);
-  await requireDocumentConversation(ctx);
-  await requireQuoteModelAccess(ctx.supabase, ctx.company_id, ctx.user_id!);
-  const { data: current, error: currentError } = await ctx.supabase.from("quotes").select("id, source, pdf_storage_path")
-    .eq("company_id", ctx.company_id).eq("id", quoteId).is("deleted_at", null).maybeSingle();
-  if (currentError || !current || String(current.source ?? "").startsWith("modulo:") || current.pdf_storage_path !== pdf.pdf_path) {
-    return errResult("pdf_non_verificato", "Il collegamento del documento è cambiato o non è verificabile. Controllalo nell’app: nessun invio avviato.");
-  }
+    const esito = await runWhatsAppTool(ctx.supabase, ctx.company_id, `pdf:${ctx.requestId}:${quoteId}`, "invia_pdf_preventivo",
+      { quote_id: quoteId, user: ctx.user_id, phone: ctx.phone, number: ctx.waNumberId }, async () => {
+      const genera = async () => {
+        const risposta = await fetch(`${base}/functions/v1/generate-quote-pdf`, {
+          method: "POST",
+          headers: intestazioni,
+          body: JSON.stringify({ quote_id: quoteId, per_utente: ctx.user_id }),
+          signal: AbortSignal.timeout(40_000),
+        });
+        const pdf = await risposta.json().catch((): null => null) as { signed_url?: string | null; pdf_path?: string; error?: string } | null;
+        return { pdfRes: risposta, pdf };
+      };
+      const { pdfRes, pdf } = await (monitor?.misura("compone_pdf", genera) ?? genera());
+      const link = typeof pdf?.signed_url === "string" ? pdf.signed_url : null;
+      if (!pdfRes.ok || pdf?.error || !link) {
+        console.error(JSON.stringify({ level: "error", fn: "invia_pdf_preventivo", passo: "pdf", status: pdfRes.status, errore: pdf?.error ?? null }));
+        return errResult("pdf_non_generato", "Non sono riuscito a preparare il PDF. Riprova tra poco oppure aprilo dall'app, in Preventivi.");
+      }
+      if (typeof pdf?.pdf_path !== "string" || !pdf.pdf_path.startsWith(`${ctx.company_id}/`)) {
+        return errResult("pdf_non_verificato", "Il PDF restituito non appartiene al percorso verificato dell’azienda. Nessun invio avviato.");
+      }
+      const verifiedLink = verifiedDocumentUrl(link, base, pdf.pdf_path);
+      await requireDocumentConversation(ctx);
+      await requireQuoteModelAccess(ctx.supabase, ctx.company_id, ctx.user_id!);
+      const { data: current, error: currentError } = await ctx.supabase.from("quotes").select("id, source, pdf_storage_path")
+        .eq("company_id", ctx.company_id).eq("id", quoteId).is("deleted_at", null).maybeSingle();
+      if (currentError || !current || String(current.source ?? "").startsWith("modulo:") || current.pdf_storage_path !== pdf.pdf_path) {
+        return errResult("pdf_non_verificato", "Il collegamento del documento è cambiato o non è verificabile. Controllalo nell’app: nessun invio avviato.");
+      }
+      monitor?.passo("pdf_pronto");
 
-  const titolo = `Preventivo ${q.quote_number ?? ""}`.trim();
-  let inv: Response;
-  try { inv = await fetch(`${base}/functions/v1/whatsapp-send`, {
-    method: "POST",
-    headers: intestazioni,
-    body: JSON.stringify({
-      company_id: ctx.company_id,
-      ...(ctx.requestId ? { idempotency_key: `pdf:${ctx.requestId}:${quoteId}` } : {}),
-      wa_number_id: ctx.waNumberId || null,
-      to: ctx.phone,
-      type: "document",
-      document: {
-        link: verifiedLink,
-        filename: `${nomeFile(titolo)}.pdf`,
-        caption: q.client_name ? `${titolo} — ${q.client_name}` : titolo,
-      },
-    }),
-    signal: AbortSignal.timeout(30_000),
-  }); } catch {
-    return errResult("invio_esito_sconosciuto", "PDF pronto, ma non so se è partito. Controlla la conversazione nell’app e riprova tu.");
-  }
-  const receipt = await inv.json().catch((): null => null);
-  if (!inv.ok || !isWhatsAppReceipt(receipt)) {
-    console.error(JSON.stringify({ level: "error", fn: "invia_pdf_preventivo", passo: "invio", status: inv.status }));
-    return errResult("invio_non_confermato", "Il PDF è pronto ma l’invio WhatsApp non è confermato. Verifica la conversazione prima di riprovare; puoi aprirlo dall’app.");
-  }
-  return okResult({ inviato: true, provider_accepted: true, delivered: false, customer_sent: false, quote_number: q.quote_number, meta_message_id: receipt.meta_message_id }, `📄 ${titolo}: inviato, WhatsApp l'ha accettato. Se non ti arriva tra poco, riprova.`);
-  });
+      const titolo = `Preventivo ${q.quote_number ?? ""}`.trim();
+      const invia = async () => {
+        const response = await fetch(`${base}/functions/v1/whatsapp-send`, {
+          method: "POST",
+          headers: intestazioni,
+          body: JSON.stringify({
+            company_id: ctx.company_id,
+            ...(ctx.requestId ? { idempotency_key: `pdf:${ctx.requestId}:${quoteId}` } : {}),
+            wa_number_id: ctx.waNumberId || null,
+            to: ctx.phone,
+            type: "document",
+            document: {
+              link: verifiedLink,
+              filename: `${nomeFile(titolo)}.pdf`,
+              caption: q.client_name ? `${titolo} — ${q.client_name}` : titolo,
+            },
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return { inv: response, receipt: await response.json().catch((): null => null) };
+      };
+      let consegna: Awaited<ReturnType<typeof invia>>;
+      try {
+        consegna = await (monitor?.misura("invio_risposta", invia) ?? invia());
+      } catch {
+        return errResult("invio_esito_sconosciuto", "PDF pronto, ma non so se è partito. Controlla la conversazione nell’app e riprova tu.");
+      }
+      const { inv, receipt } = consegna;
+      if (!inv.ok || !isWhatsAppReceipt(receipt)) {
+        console.error(JSON.stringify({ level: "error", fn: "invia_pdf_preventivo", passo: "invio", status: inv.status }));
+        return errResult("invio_non_confermato", "Il PDF è pronto ma l’invio WhatsApp non è confermato. Verifica la conversazione prima di riprovare; puoi aprirlo dall’app.");
+      }
+      return okResult({ inviato: true, provider_accepted: true, delivered: false, customer_sent: false, quote_number: q.quote_number, meta_message_id: receipt.meta_message_id }, `📄 ${titolo}: inviato, WhatsApp l'ha accettato. Se non ti arriva tra poco, riprova.`);
+    });
+    monitor?.chiudi(esito.ok ? "completata" : "errore", esito.ok ? "pdf_inviato" : "errore");
+    return esito;
   } catch {
+    monitor?.chiudi("errore", "errore");
     return errResult("invio_non_verificabile", "Operazione o documento non verificabili. Nessun nuovo invio confermato: controlla gli esiti nell’app prima di riprovare.");
   }
 }

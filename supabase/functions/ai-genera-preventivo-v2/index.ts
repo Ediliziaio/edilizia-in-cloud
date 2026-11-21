@@ -7,6 +7,8 @@ import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { avviaAttivitaAi, type AttivitaLive } from "../_shared/aiAttivitaLive.ts";
+import { idAttivitaValido } from "../../../shared/aiAttivita.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { type CellaGrigliaAi, type CondizioneAsseAi, type PrezziFamigliaAi, prezzoFamigliaAi } from "../_shared/prezzoFamigliaAi.ts";
@@ -195,6 +197,7 @@ Deno.serve(async (req) => {
   }
 
   const corsH = getCorsHeaders(req);
+  let attivita: AttivitaLive | undefined;
   try {
     const body = await req.json();
     // Ingresso interno del bot operativo (28/09/2026): chiave di servizio +
@@ -234,6 +237,13 @@ Deno.serve(async (req) => {
       const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, corsH);
       if (paymentBlock) return paymentBlock;
     }
+    const richiestaId = interna && idAttivitaValido(body.ai_richiesta_id) ? body.ai_richiesta_id : crypto.randomUUID();
+    attivita = avviaAttivitaAi(supabaseAdmin, {
+      companyId: company_id, userId, flusso: "preventivo",
+      fase: "richiesta_ricevuta", assistente: interna ? "WhatsApp" : null,
+      richiesta: { tipo: "preventivo", id: richiestaId },
+    });
+    attivita.passo("listino");
 
     // FASE 8.5: leggi vertical della company per scegliere il system prompt.
     const { data: company } = await supabaseAdmin
@@ -744,8 +754,9 @@ REGOLE OUTPUT:
     // Migrato ad aiRouter — task `preventivo_genera` (claude-haiku-4.5 primary, ~93% saving vs opus)
     // Per modalità foto: serve vision capability → uso `vision_cantiere` task (gpt-4o-mini)
     let rawText = "";
+    let modelloUsato: string | undefined;
     try {
-      const result = await aiRouterComplete({
+      const result = await attivita.misura("voci_preventivo", () => aiRouterComplete({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabase: supabaseAdmin as any,
         taskKey: isFotoMode ? "vision_cantiere" : "preventivo_genera",
@@ -763,8 +774,9 @@ REGOLE OUTPUT:
         companyId: company_id,
         userId,
         idempotencyKey: aiIdempotencyKey,
-      });
+      }));
       rawText = result.content;
+      modelloUsato = result.modelUsed;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("aborted")) {
@@ -794,6 +806,7 @@ REGOLE OUTPUT:
     }
 
     // Enrich righe with unit_price (FASE 7.1: corretto per modalità mq / griglia)
+    attivita.passo("prezzi_preventivo", modelloUsato);
     const prodottiMap = new Map<string, ArticleTemplateRow>(
       (prodotti ?? []).map((p) => [p.id, p]),
     );
@@ -993,13 +1006,17 @@ REGOLE OUTPUT:
       avvertenze.push(...enrichmentWarnings);
     }
 
-    return jsonResponse(leggiPreventivoAi({
+    const pronto = leggiPreventivoAi({
       schema_version: 1,
       sezioni: parsedData.sezioni,
       note: parsedData.note,
       avvertenze,
-    }));
+    });
+    attivita.chiudi("in_attesa", "bozza_pronta");
+    return jsonResponse({ ...pronto, ai_richiesta_id: richiestaId });
   } catch (err) {
     return errorResponse(err instanceof Error ? err.message : String(err));
+  } finally {
+    attivita?.chiudi("errore", "errore");
   }
 });

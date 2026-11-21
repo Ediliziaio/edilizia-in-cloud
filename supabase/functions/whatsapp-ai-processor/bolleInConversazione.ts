@@ -99,7 +99,8 @@ export async function riprendiOriginaleBolla(ctx: ToolCtx, fotoId?: string | nul
   const { data, error } = await (riferimento ? query.eq("wa_message_id", riferimento) : query.eq("id", fotoId!)).maybeSingle();
   if (error) throw new Error("originale_bolla_non_reperibile");
   if (!data?.media_storage_path || !data.media_storage_path.startsWith(`${ctx.company_id}/`) || !percorsoStorageSicuro(data.media_storage_path)) return null;
-  return { id: data.id as string, media: { storagePath: data.media_storage_path as string, url: data.media_url ?? "", tipo: data.message_type } };
+  return { id: data.id as string, media: { storagePath: data.media_storage_path as string, url: data.media_url ?? "", tipo: data.message_type },
+    estrazione: data.ai_extracted_data };
 }
 
 export async function magazziniPerBolla(ctx: ToolCtx): Promise<{ id: string; name: string }[]> {
@@ -129,6 +130,7 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
   scelta?: SceltaDestinazioneBolla;
   mostraScelta?: boolean;
   posticipa?: (testo: string) => Promise<boolean>;
+  onBollaIndividuata?: (id: string) => void;
 }): Promise<string | DomandaDestinazioneBolla | null> {
   const allegato = TIPI_DOCUMENTO.includes(input.tipo);
   if (allegato ? !input.ddtLetto : !["text", "audio"].includes(input.tipo)) return null;
@@ -178,6 +180,7 @@ export async function trattaBollaInConversazione(ctx: ToolCtx, input: {
   }
 
   const [bolla] = ammesse;
+  input.onBollaIndividuata?.(bolla.id);
   const d = datiBolla(bolla);
   const etichetta = d.numero ? `Bolla n. ${d.numero}` : "Bolla";
   const fotoId = String(messaggi.data.find(r => r.id === bolla.source_key || r.ai_extracted_data?.ddt_job_id === bolla.id)?.id ?? input.id);

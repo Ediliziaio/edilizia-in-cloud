@@ -12,6 +12,8 @@ import { renderGenericoConClausole } from "../_shared/preventivoRenderer.mjs";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { avviaAttivitaAi, type AttivitaLive } from "../_shared/aiAttivitaLive.ts";
+import { idAttivitaValido } from "../../../shared/aiAttivita.ts";
 import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
 import { preventivoVisibile, type ClienteDiChiChiama } from "../_shared/preventivoVisibile.ts";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
@@ -74,6 +76,7 @@ Deno.serve(async (req) => {
 
   const corsH = getCorsHeaders(req);
   const startedAt = Date.now();
+  let attivita: AttivitaLive | undefined;
   try {
     const body = await req.json();
     // Chiamata interna del bot operativo WhatsApp (27/09/2026): chiave di
@@ -246,9 +249,15 @@ Deno.serve(async (req) => {
       // Il contratto minimo evita l'espansione ricorsiva dei generici del client in Deno.
       // Un preventivo nuovo in bozza non c'è ancora: da vedere c'è solo quello salvato.
       if (quote.id) {
-      if (!interna && !(await preventivoVisibile(comeChiChiama as unknown as ClienteDiChiChiama, quote.id))) {
-        return errorResponse("Preventivo non trovato", 404, corsH);
-      }
+        if (!interna && !(await preventivoVisibile(comeChiChiama as unknown as ClienteDiChiChiama, quote.id))) {
+          return errorResponse("Preventivo non trovato", 404, corsH);
+        }
+        if (!interna && !bozza && idAttivitaValido(quote.ai_richiesta_id)) {
+          attivita = avviaAttivitaAi(supabaseAdmin, {
+            companyId: quote.company_id, userId, flusso: "preventivo", fase: "pdf_in_preparazione",
+            richiesta: { tipo: "preventivo", id: quote.ai_richiesta_id, risorsa_id: quote.id },
+          });
+        }
       }
       // La bozza prende il posto di quello che si può cambiare scrivendo; identità, stato e firma restano del database.
       if (bozza) quote = unisciBozza(quote, bozza);
@@ -265,6 +274,7 @@ Deno.serve(async (req) => {
           .from("quote-pdfs")
           .createSignedUrl(quote.pdf_storage_path, 3600);
         if (!delModulo?.signedUrl) return errorResponse("PDF del preventivo del modulo non disponibile.", 404, corsH);
+        attivita?.chiudi("completata", "pdf_pronto");
         return jsonResponse({
           success: true,
           pdf_path: quote.pdf_storage_path,
@@ -449,6 +459,7 @@ Deno.serve(async (req) => {
         .from("quote-pdfs")
         .createSignedUrl(quote.pdf_storage_path, 3600);
       if (giaFirmato?.signedUrl) {
+        attivita?.chiudi("completata", "pdf_pronto");
         return jsonResponse({
           success: true,
           pdf_path: quote.pdf_storage_path,
@@ -476,6 +487,7 @@ Deno.serve(async (req) => {
           .from("quote-pdfs")
           .createSignedUrl(quote.pdf_storage_path, 3600);
         if (congelato?.signedUrl) {
+          attivita?.chiudi("completata", "pdf_pronto");
           return jsonResponse({
             success: true,
             pdf_path: quote.pdf_storage_path,
@@ -544,7 +556,7 @@ Deno.serve(async (req) => {
     company = { ...company, logo_url: t.show_logo === false ? null : logo, brand_logo_dark_url: t.show_logo === false ? null : logoChiaro };
     // Il PDF e le clausole che stampa da approvare a parte: chi manda in firma le passa alla pagina di firma,
     // così il cliente approva quelle del suo preventivo e non le condizioni standard (31/10/2026).
-    const disegnato = await renderGenericoConClausole({
+    const disegna = () => renderGenericoConClausole({
       // Le opzioni del singolo preventivo passano da `opzione`: il PDF che va in FIRMA
       // ha sempre le condizioni (per_firma), e le note escono solo se lo step
       // «Documenti e PDF» le lascia accese.
@@ -565,6 +577,7 @@ Deno.serve(async (req) => {
       company,
       template: t,
     });
+    const disegnato = await (attivita?.misura("compone_pdf", disegna) ?? disegna());
     const pdfDoc = await PDFDocument.load(disegnato.pdf);
     const clausoleStampate: Array<{ id: string; testo: string }> = (disegnato.clausole as string[]).map((testo, i) => ({ id: `doc-${i + 1}`, testo }));
 
@@ -665,14 +678,15 @@ Deno.serve(async (req) => {
     }
 
     // Update del record e firma URL sono indipendenti: in parallelo
-    const [, signedRes] = await Promise.all([
+    const [salvato, signedRes] = await Promise.all([
       supabaseAdmin
         .from("quotes")
         .update({ pdf_storage_path: fileName, pdf_generated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("id", quote_id),
+        .eq("id", quote_id).select("id").maybeSingle(),
       supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(fileName, 3600),
     ]);
     const signedData = signedRes.data;
+    if (!salvato.error && salvato.data?.id === quote_id && signedData?.signedUrl) attivita?.chiudi("completata", "pdf_pronto");
 
     return jsonResponse({
       success: true,
@@ -685,6 +699,8 @@ Deno.serve(async (req) => {
     if (e instanceof TemplateCompositionError) return errorResponse(e.message, 422, corsH);
     console.error("generate-quote-pdf error:", e);
     return errorResponse("Errore interno", 500, corsH);
+  } finally {
+    attivita?.chiudi("errore", "errore");
   }
 });
 

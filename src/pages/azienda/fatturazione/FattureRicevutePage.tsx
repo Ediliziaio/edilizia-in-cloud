@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
+import { idAttivitaValido } from "../../../../shared/aiAttivita";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
@@ -340,7 +341,9 @@ export default function FattureRicevutePage() {
   };
 
   // Dai Tipi dei fornitori si arriva qui con le fatture di quel fornitore già cercate.
-  const [parametri] = useSearchParams();
+  const [parametri, setParametri] = useSearchParams();
+  const fatturaDaAprire = parametri.get("fattura");
+  const analisiDaAprire = parametri.get("analisi");
   const [searchQuery, setSearchQuery] = useState(() => parametri.get("cerca") ?? "");
   const [statoFilter, setStatoFilter] = useState("all");
   const [tipoFilter, setTipoFilter] = useState("all");
@@ -382,7 +385,7 @@ export default function FattureRicevutePage() {
     setMeseScelto(null);
   };
   // La fattura aperta nel riepilogo leggibile (righe, totali, collegamenti).
-  const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
+  const [riepilogoId, setRiepilogoId] = useState<string | null>(() => idAttivitaValido(fatturaDaAprire) ? fatturaDaAprire : null);
   const [fatturaVista, setFatturaVista] = useState<(FatturaRicevutaVista & { origine: FatturaRicevuta }) | null>(null);
   const [esportando, setEsportando] = useState<string | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
@@ -1948,7 +1951,16 @@ export default function FattureRicevutePage() {
       <RiepilogoFatturaRicevuta
         fatturaId={riepilogoId}
         companyId={companyId}
-        onClose={() => setRiepilogoId(null)}
+        apriConfronto={riepilogoId === fatturaDaAprire && parametri.get("confronto") === "1"}
+        analisiDaAprire={riepilogoId === fatturaDaAprire && idAttivitaValido(analisiDaAprire) ? analisiDaAprire : undefined}
+        onClose={() => {
+          setRiepilogoId(null);
+          if (fatturaDaAprire) {
+            const sp = new URLSearchParams(parametri);
+            for (const chiave of ["fattura", "confronto", "analisi"]) sp.delete(chiave);
+            setParametri(sp, { replace: true });
+          }
+        }}
         azioni={(() => {
           const f = fatture.find((x) => x.id === riepilogoId);
           if (!f) return {};
