@@ -1,17 +1,11 @@
-import { usePermissions } from "@/hooks/usePermissions";
-import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 /**
  * WarehouseMovementsTab — registro globale dei movimenti di magazzino.
  *
  * Vista d'insieme di tutti i carichi/scarichi (warehouse_movements) della company
  * nel periodo selezionato, con filtri tipo/periodo/ricerca, riepilogo e export CSV.
- * Risolve nomi articolo / commessa / operatore con query mirate (no embed FK-name
- * guessing) per robustezza.
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { readAllOrderRows } from "@/lib/orders/listScope";
 import { Link } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -31,6 +25,10 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { exportToCSV, type CsvColumn } from "@/lib/csvExport";
+import { usePermissions } from "@/hooks/usePermissions";
+import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
+import { leggiMovimentiMagazzino } from "@/lib/magazzino/registroMovimenti";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Props {
   companyId: string;
@@ -38,28 +36,6 @@ interface Props {
 }
 
 type PeriodKey = "7" | "30" | "90" | "all";
-
-interface RawMovement {
-  id: string;
-  stock_item_id: string;
-  movement_type: string;
-  rientro_commessa: boolean;
-  quantity: number;
-  notes: string | null;
-  created_at: string;
-  performed_by: string | null;
-  order_id: string | null;
-  lot_number: string | null;
-  unit_cost: number | null;
-  warehouse_id: string | null;
-}
-
-interface MovementRow extends RawMovement {
-  itemName: string;
-  unit: string | null;
-  orderCode: string | null;
-  performerName: string | null;
-}
 
 const PERIOD_LABEL: Record<PeriodKey, string> = {
   "7": "Ultimi 7 giorni",
@@ -83,64 +59,10 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
   }, [period]);
 
   const { data: rows = [], isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["warehouse-movements-registry", companyId, warehouseFilter, sinceISO, canViewCosts],
+    queryKey: [...queryKeys.warehouse.movementsRegistry(companyId), warehouseFilter, sinceISO, canViewCosts],
     enabled: !!companyId,
     staleTime: 1000 * 60 * 2,
-    queryFn: async (): Promise<MovementRow[]> => {
-      // Tutte le pagine: con .limit(1000) lo storico si fermava a mille righe
-      // senza dirlo (Demo 2 ne ha più di diciottomila), ed esportazione e
-      // ricerca vedevano solo quelle.
-      const movements = await readAllOrderRows<RawMovement>((da, a) => {
-        let q = supabase
-          .from("warehouse_movements")
-          .select(`id, stock_item_id, movement_type, quantity, notes, created_at, performed_by, order_id, lot_number, warehouse_id, rientro_commessa${canViewCosts ? ",unit_cost" : ""}`)
-          .eq("company_id", companyId)
-          .order("created_at", { ascending: false })
-          .order("id");
-        if (warehouseFilter) q = q.eq("warehouse_id", warehouseFilter);
-        if (sinceISO) q = q.gte("created_at", sinceISO);
-        return q.range(da, a) as unknown as PromiseLike<{ data: RawMovement[] | null; error: unknown }>;
-      }, 1000);
-      if (movements.length === 0) return [];
-
-      const stockIds = [...new Set(movements.map((m) => m.stock_item_id).filter(Boolean))];
-      const orderIds = [...new Set(movements.map((m) => m.order_id).filter(Boolean))] as string[];
-      const userIds = [...new Set(movements.map((m) => m.performed_by).filter(Boolean))] as string[];
-
-      // a blocchi: mille id in un .in() fanno un indirizzo troppo lungo
-      const aBlocchi = async <T,>(tabella: string, colonne: string, ids: string[]): Promise<{ data: T[] }> => {
-        const out: T[] = [];
-        for (let i = 0; i < ids.length; i += 150) {
-          const { data, error } = await (supabase as any).from(tabella).select(colonne).in("id", ids.slice(i, i + 150));
-          if (error) throw error;
-          out.push(...((data ?? []) as T[]));
-        }
-        return { data: out };
-      };
-      const [stockRes, orderRes, userRes] = await Promise.all([
-        aBlocchi<{ id: string; name: string; unita_misura: string | null }>("warehouse_stock", "id, name, unita_misura", stockIds as string[]),
-        aBlocchi<{ id: string; order_code: string | null }>("orders", "id, order_code", orderIds),
-        aBlocchi<{ id: string; first_name: string | null; last_name: string | null }>("profiles", "id, first_name, last_name", userIds),
-      ]);
-
-      const nameById = new Map((stockRes.data ?? []).map((s: { id: string; name: string }) => [s.id, s.name]));
-      const unitById = new Map(stockRes.data.map((s) => [s.id, s.unita_misura]));
-      const orderById = new Map((orderRes.data ?? []).map((o: { id: string; order_code: string | null }) => [o.id, o.order_code]));
-      const userById = new Map(
-        (userRes.data ?? []).map((u: { id: string; first_name: string | null; last_name: string | null }) =>
-          [u.id, `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || null],
-        ),
-      );
-
-      return movements.map((m) => ({
-        ...m,
-        unit: unitById.get(m.stock_item_id) ?? null,
-        notes: m.rientro_commessa && /^Rientro dal cantiere · uscita [0-9a-f-]{36}$/.test(m.notes ?? "") ? "Reso da cantiere collegato all’uscita originale" : m.notes,
-        itemName: nameById.get(m.stock_item_id) ?? "Articolo eliminato",
-        orderCode: m.order_id ? orderById.get(m.order_id) ?? m.order_id.slice(0, 8) : null,
-        performerName: m.performed_by ? userById.get(m.performed_by) ?? null : null,
-      }));
-    },
+    queryFn: ({ signal }) => leggiMovimentiMagazzino(companyId, { warehouseId: warehouseFilter, since: sinceISO, canViewCosts }, signal),
   });
 
   const filtered = useMemo(() => {
@@ -152,7 +74,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
         r.itemName.toLowerCase().includes(norm) ||
         (r.notes?.toLowerCase().includes(norm) ?? false) ||
         (r.lot_number?.toLowerCase().includes(norm) ?? false) ||
-        (r.orderCode?.toLowerCase().includes(norm) ?? false)
+        (r.orderCode?.toLowerCase().includes(norm) ?? false) ||
+        (r.performerName?.toLowerCase().includes(norm) ?? false)
       );
     });
   }, [rows, typeFilter, query]);
@@ -205,7 +128,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca articolo, lotto, commessa o nota…"
+                aria-label="Cerca nei movimenti"
+                placeholder="Cerca articolo, commessa, operatore…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="pl-9"
@@ -231,11 +155,11 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-2">
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="hidden sm:inline">Aggiorna</span>
+              <span className="sr-only sm:not-sr-only">Aggiorna</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">CSV</span>
+              <span className="sr-only sm:not-sr-only">CSV</span>
             </Button>
           </div>
         </CardContent>
@@ -284,10 +208,10 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="whitespace-nowrap">Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Articolo</TableHead>
-                    <TableHead className="text-center">Qtà</TableHead>
+                    <TableHead className="whitespace-nowrap max-sm:px-2">Data</TableHead>
+                    <TableHead className="max-sm:px-2">Tipo</TableHead>
+                    <TableHead className="max-sm:px-2">Articolo</TableHead>
+                    <TableHead className="text-right max-sm:px-2 sm:text-center">Qtà</TableHead>
                     <TableHead className="hidden md:table-cell">Lotto</TableHead>
                     <TableHead className="hidden lg:table-cell">Commessa</TableHead>
                     <TableHead className="hidden lg:table-cell">Operatore</TableHead>
@@ -297,24 +221,32 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                 <TableBody>
                   {filtered.slice(0, mostrate).map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {format(new Date(m.created_at), "dd/MM/yy HH:mm", { locale: it })}
+                      <TableCell className="text-sm text-muted-foreground max-sm:px-2 sm:whitespace-nowrap">
+                        <time dateTime={m.created_at} className="max-sm:text-xs">{format(new Date(m.created_at), "dd/MM/yy HH:mm")}</time>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-sm:px-2">
                         <Badge
                           variant={m.movement_type === "carico" ? "default" : "destructive"}
                           className={m.movement_type === "carico"
-                            ? "gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400"
-                            : "gap-1"}
+                            ? "gap-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400 max-sm:px-1"
+                            : "gap-1 max-sm:px-1"}
                         >
                           {m.movement_type === "carico"
-                            ? <ArrowDownToLine className="h-3 w-3" />
-                            : <ArrowUpFromLine className="h-3 w-3" />}
+                            ? <ArrowDownToLine aria-hidden className="hidden h-3 w-3 sm:block" />
+                            : <ArrowUpFromLine aria-hidden className="hidden h-3 w-3 sm:block" />}
                           {m.rientro_commessa ? "Reso da cantiere" : m.movement_type === "carico" ? "Carico" : "Scarico"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[180px] truncate text-sm font-medium">{m.itemName}</TableCell>
-                      <TableCell className={`text-center font-semibold tabular-nums ${m.movement_type === "carico" ? "text-emerald-600" : "text-red-600"}`}>
+                      <TableCell className="max-w-[180px] text-sm font-medium max-sm:px-2">
+                        <div className="break-words lg:truncate" title={m.itemName}>{m.itemName}</div>
+                        <div className="space-y-0.5 text-xs font-normal text-muted-foreground lg:hidden">
+                          {m.order_id && m.orderCode && (
+                            <Link to={`/azienda/ordini/${m.order_id}`} className="block break-words font-medium text-primary hover:underline">{m.orderCode}</Link>
+                          )}
+                          {m.performerName && <p className="break-words">{m.performerName}</p>}
+                        </div>
+                      </TableCell>
+                      <TableCell className={`text-right text-sm font-semibold tabular-nums max-sm:px-2 sm:text-center ${m.movement_type === "carico" ? "text-emerald-600" : "text-red-600"}`}>
                         {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))} {m.unit ?? "unità non indicata"}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{m.lot_number || "—"}</TableCell>

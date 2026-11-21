@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Riga { stock_item_id: string; name: string; quantita: number; unita?: string | null }
 interface PrelievoRow {
@@ -84,6 +85,11 @@ export function PrelieviCampoCard() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["prelievi-campo-attesa"] });
       qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      if (v.tipo === "approva" && companyId) {
+        const orderId = prelievi.find(p => p.id === v.id)?.order_id;
+        void qc.invalidateQueries({ queryKey: queryKeys.warehouse.movementsRegistry(companyId) });
+        if (orderId) void qc.invalidateQueries({ queryKey: ["order-material-usage", orderId, companyId] });
+      }
       toast.success(v.tipo === "approva" ? "Prelievo approvato: giacenza scaricata" : v.tipo === "rifiuta" ? "Prelievo rifiutato" : "DDT generato (bozza)");
     },
     onError: (e: unknown) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : "Riprova." }),

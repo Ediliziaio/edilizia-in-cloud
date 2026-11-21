@@ -122,6 +122,7 @@ export function useRegisterUscita() {
       qc.invalidateQueries({ queryKey: ["warehouse-uscite"] });
       qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
       qc.invalidateQueries({ queryKey: ["warehouse-movements"] });
+      if (effectiveCompany?.id) void qc.invalidateQueries({ queryKey: queryKeys.warehouse.movementsRegistry(effectiveCompany.id) });
       qc.invalidateQueries({ queryKey: ["order-material-usage"] });
       qc.invalidateQueries({ queryKey: ["warehouse-uscite-order"] });
     },
