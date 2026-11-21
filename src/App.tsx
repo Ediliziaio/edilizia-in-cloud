@@ -35,7 +35,7 @@ import { createIdbPersister, shouldPersistQuerySafe } from "@/lib/queryPersister
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { BannerCookie } from "@/components/legal/BannerCookie";
 import { toast } from "sonner";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { PaymentGateDialog } from "@/components/billing/PaymentGateDialog";
 import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
@@ -247,7 +247,15 @@ const AccountantCompaniesList = lazy(() => import("@/pages/accountant/Accountant
 const AccountantCompanyDetail = lazy(() => import("@/pages/accountant/AccountantCompanyDetail"));
 const AccountantInbox = lazy(() => import("@/pages/accountant/AccountantInbox"));
 const AccountantTeam = lazy(() => import("@/pages/accountant/AccountantTeam"));
+const AccountantTeamJoin = lazy(() => import("@/pages/accountant/AccountantTeamJoin"));
 const AccountantSettings = lazy(() => import("@/pages/accountant/AccountantSettings"));
+
+function StudioRoute() {
+  const { userRoles } = useAuth();
+  return <ProtectedRoute allowedRoles={userRoles?.includes("accountant") ? undefined : ["accountant", "super_admin"]}>
+    <AccountantLayout />
+  </ProtectedRoute>;
+}
 const AccountantRequests = lazy(() => import("@/pages/accountant/AccountantRequests"));
 
 // Funzionalità sub-pages
@@ -755,6 +763,7 @@ const Gestionale = () => (
               <Route path="/referral-login" element={<ReferralLogin />} />
               <Route path="/produttore-login" element={<ProduttoreLogin />} />
               <Route path="/commercialista-login" element={<CommercialistaLogin />} />
+              <Route path="/commercialista/invito" element={<AccountantTeamJoin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/seleziona-azienda" element={<ProtectedRoute><Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}><SelezionaAzienda /></Suspense></ProtectedRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -831,9 +840,7 @@ const Gestionale = () => (
                   import.meta.env.DEV ? (
                     <AccountantLayout />
                   ) : (
-                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
-                      <AccountantLayout />
-                    </ProtectedRoute>
+                    <StudioRoute />
                   )
                 }
               >

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useCurrentCommercialistaAccessMode } from "@/hooks/accountant/useAccountantPortalData";
 
@@ -9,6 +9,7 @@ export function DelegatedCompanyContent({ companyId, effectiveCompanyId, childre
   children: ReactNode;
 }) {
   const delega = useCurrentCommercialistaAccessMode(companyId, true);
+  const { pathname } = useLocation();
 
   if (delega.isLoading || (delega.data && !delega.isError && effectiveCompanyId !== companyId)) {
     return <p role="status" className="p-6 text-sm text-muted-foreground">Apertura dell’azienda delegata…</p>;
@@ -22,5 +23,14 @@ export function DelegatedCompanyContent({ companyId, effectiveCompanyId, childre
       </div>
     );
   }
-  return <>{children}</>;
+  const commessa = pathname.match(/^\/azienda\/ordini\/([0-9a-f-]{36})\/?$/i)?.[1];
+  const proposta = new URLSearchParams({ azienda: companyId ?? "" });
+  if (commessa) proposta.set("commessa", commessa);
+  return <>
+    {delega.data === "approval_required" && <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2.5 text-sm">
+      <span>Accesso con approvazione</span>
+      <Button asChild size="sm" variant="outline"><Link to={`/commercialista/richieste?${proposta}`}>Proponi modifica</Link></Button>
+    </div>}
+    {children}
+  </>;
 }

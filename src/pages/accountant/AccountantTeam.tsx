@@ -1,11 +1,10 @@
 /**
  * /commercialista/team — collaboratori dello studio.
  * Mostra i membri del firm (owner, admin, collaborator, viewer).
- * Per ora read-only; in iterazione successiva: invite member.
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ShieldCheck, User, Users } from "lucide-react";
+import { Loader2, ShieldCheck, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,8 @@ import { useSEO } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
 import { caricaProfiliPerId } from "@/lib/profilesLookup";
 import { useAccountantFirm } from "@/hooks/accountant/useAccountantPortalData";
+import { InvitiTeamStudio } from "@/components/accountant/InvitiTeamStudio";
+import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 
 interface TeamMemberRow {
   id: string;
@@ -42,9 +43,10 @@ export default function AccountantTeam() {
   const { data: firm } = useAccountantFirm();
   const firmId = firm?.id ?? null;
 
-  const { data: members = [], isLoading } = useQuery({
+  const { data: members = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["accountant", "team", firmId],
     enabled: !!firmId,
+    retry: retryAuthorizedRead,
     queryFn: async (): Promise<TeamMemberRow[]> => {
       if (!firmId) return [];
       // user_id punta ad auth.users: l'embed `profiles!…` rispondeva 400 e la
@@ -55,10 +57,7 @@ export default function AccountantTeam() {
         .eq("firm_id", firmId)
         .neq("status", "suspended")
         .order("created_at", { ascending: true });
-      if (error) {
-        console.error("[AccountantTeam]", error);
-        return [];
-      }
+      if (error) throw error;
       const righe = (data || []) as Array<Omit<TeamMemberRow, "profile">>;
       const profili = await caricaProfiliPerId(righe.map((r) => r.user_id));
       return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
@@ -74,16 +73,12 @@ export default function AccountantTeam() {
             Collaboratori che hanno accesso ai dati di {firm?.name}.
           </p>
         </div>
-        <Button variant="outline" disabled className="gap-2">
-          <Users className="h-4 w-4" />
-          Invita collaboratore
-          <Badge variant="secondary" className="ml-1">Presto</Badge>
-        </Button>
       </header>
+      {firmId && <InvitiTeamStudio key={firmId} studioId={firmId} />}
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Membri attivi</CardTitle>
+          <CardTitle className="text-base">Membri dello studio</CardTitle>
           <CardDescription>{members.length} persone collegate</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -93,7 +88,8 @@ export default function AccountantTeam() {
               Caricamento...
             </div>
           )}
-          {!isLoading && members.length === 0 && (
+          {isError && <p role="alert" className="p-4 text-sm">Impossibile caricare i membri. <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button></p>}
+          {!isError && !isLoading && members.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">
               Nessun membro nello studio.
             </div>

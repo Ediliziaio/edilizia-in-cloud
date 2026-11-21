@@ -97,6 +97,15 @@ export function useAccountantFirm() {
     staleTime: 60_000,
     queryFn: async (): Promise<AccountantFirmRow | null> => {
       if (!userId) return null;
+      const scelto = typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(`studio-scelto-${userId}`);
+      if (scelto) {
+        const { data, error } = await supabase.from("accountant_firm_members")
+          .select("accountant_firms!inner(*)").eq("user_id", userId)
+          .eq("firm_id", scelto).eq("status", "active").maybeSingle();
+        if (error) throw error;
+        const alternativo = data?.accountant_firms as AccountantFirmRow | null | undefined;
+        if (alternativo && alternativo.status !== "archived") return alternativo;
+      }
 
       // 1. Cerca firm dove è owner
       const { data: ownedFirms, error: ownerError } = await supabase

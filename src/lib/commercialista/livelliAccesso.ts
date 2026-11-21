@@ -8,9 +8,7 @@
 export type AccessMode = "read_only" | "operational" | "approval_required";
 
 // Cosa fa ogni livello DAVVERO nel portale studio (usePermissions.ts): «Operativo»
-// sblocca la modifica di commesse, magazzino, clienti e ticket; gli altri due
-// restano in sola lettura. Per «Con approvazione» la parte che manda le richieste
-// non è ancora collegata a nessuna schermata del portale: lo diciamo.
+// sblocca la modifica di commesse, magazzino, clienti e ticket.
 export const ACCESS_MODE_OPTIONS: Array<{ value: AccessMode; label: string; description: string }> = [
   {
     value: "read_only",
@@ -25,6 +23,6 @@ export const ACCESS_MODE_OPTIONS: Array<{ value: AccessMode; label: string; desc
   {
     value: "approval_required",
     label: "Con approvazione",
-    description: "Per ora guarda soltanto, come in «Solo lettura». Le modifiche che proporrà le approvi tu.",
+    description: "Consulta i dati e invia proposte di modifica. L’azienda decide quali approvare.",
   },
 ];

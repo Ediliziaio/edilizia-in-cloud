@@ -6,6 +6,10 @@
  */
 
 import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { NuovaRichiestaStudio } from "@/components/accountant/NuovaRichiestaStudio";
+import { RichiestaStudioDettagli } from "@/components/accountant/RichiestaStudioDettagli";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,7 +25,7 @@ import {
   useMyChangeRequests,
   type ChangeRequestRow,
 } from "@/hooks/accountant/useAccountantChangeRequests";
-import { useAccountantCompanies } from "@/hooks/accountant/useAccountantPortalData";
+import { useAccountantCompanies, useAccountantFirm } from "@/hooks/accountant/useAccountantPortalData";
 
 function StatusBadge({ status }: { status: ChangeRequestRow["status"] }) {
   if (status === "pending")
@@ -66,6 +70,8 @@ function resourceLabel(t: string) {
     ticket: "Ticket",
     foto_cantiere: "Foto cantiere",
     bank_transaction: "Movimento bancario",
+    commessa_descrizione: "Descrizione commessa",
+    proposta: "Richiesta libera",
   };
   return map[t] ?? t;
 }
@@ -73,8 +79,11 @@ function resourceLabel(t: string) {
 export default function AccountantRequests() {
   useSEO({ title: "Le mie richieste — Studio", noindex: true });
 
-  const { data: requests = [], isLoading } = useMyChangeRequests();
-  const { data: companies = [] } = useAccountantCompanies();
+  const [params] = useSearchParams();
+  const { data: firm } = useAccountantFirm();
+  const { data: requests = [], isLoading, isError, refetch } = useMyChangeRequests();
+  const { data: companies = [], isSuccess: deleghePronte } = useAccountantCompanies();
+  const aziendeApprovazione = companies.filter(riga => riga.status === "active" && riga.access_mode === "approval_required");
 
   const companyById = useMemo(() => {
     const m = new Map<string, string>();
@@ -95,10 +104,13 @@ export default function AccountantRequests() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Le mie richieste</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Storico delle modifiche che hai proposto alle aziende clienti
-          (modalità "approvazione richiesta").
+          Proponi una modifica alle aziende che ti hanno dato accesso «Con approvazione» e segui l’esito.
         </p>
       </header>
+      {firm && deleghePronte && <NuovaRichiestaStudio key={params.toString()} studioId={firm.id} aziende={aziendeApprovazione}
+        aziendaIniziale={params.get("azienda") ?? ""} commessaIniziale={params.get("commessa") ?? ""} />}
+      {isError && <div role="alert" className="flex items-center gap-2 text-sm">Impossibile caricare lo storico.
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>}
 
       {isLoading && (
         <Card>
@@ -109,7 +121,7 @@ export default function AccountantRequests() {
         </Card>
       )}
 
-      {!isLoading && requests.length === 0 && (
+      {!isError && !isLoading && requests.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
             <ListChecks className="h-12 w-12 text-muted-foreground/40" />
@@ -204,6 +216,7 @@ function RequestsSection({
                 })}
               </span>
             </div>
+            <RichiestaStudioDettagli richiesta={req} />
             {req.decision_note && (
               <p className="mt-2 rounded border-l-2 border-muted bg-muted/40 p-2 text-xs italic text-muted-foreground">
                 Nota azienda: {req.decision_note}

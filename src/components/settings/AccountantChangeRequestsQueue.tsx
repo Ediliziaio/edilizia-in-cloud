@@ -28,7 +28,7 @@ import {
   type ChangeRequestRow,
 } from "@/hooks/accountant/useAccountantChangeRequests";
 import { useAuth } from "@/contexts/AuthContext";
-import { previewPayload } from "@/lib/commercialista/anteprimaRichiesta";
+import { RichiestaStudioDettagli } from "@/components/accountant/RichiestaStudioDettagli";
 
 function operationLabel(op: string) {
   if (op === "create") return "Crea";
@@ -47,6 +47,8 @@ function resourceLabel(t: string) {
     ticket: "Ticket",
     foto_cantiere: "Foto cantiere",
     bank_transaction: "Movimento bancario",
+    commessa_descrizione: "Descrizione commessa",
+    proposta: "Richiesta libera",
   };
   return map[t] ?? t;
 }
@@ -54,12 +56,13 @@ function resourceLabel(t: string) {
 export function AccountantChangeRequestsQueue() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
-  const { data: requests = [], isLoading } = useCompanyPendingChangeRequests(companyId);
+  const { data: requests = [], isLoading, isError, refetch } = useCompanyPendingChangeRequests(companyId);
   const decide = useDecideChangeRequest();
   const [dialogState, setDialogState] = useState<
     { req: ChangeRequestRow; decision: "approved" | "rejected" } | null
   >(null);
   const [note, setNote] = useState("");
+  const [errore, setErrore] = useState("");
 
   if (isLoading) {
     return (
@@ -72,19 +75,25 @@ export function AccountantChangeRequestsQueue() {
     );
   }
 
+  if (isError) return <div role="alert" className="flex items-center gap-2 text-sm">Impossibile caricare le richieste.
+    <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>;
+
   if (requests.length === 0) {
     return null; // niente badge se non ci sono richieste
   }
 
   async function confirmDecision() {
     if (!dialogState) return;
-    await decide.mutateAsync({
-      requestId: dialogState.req.id,
-      decision: dialogState.decision,
-      note: note.trim() || undefined,
-    });
-    setDialogState(null);
-    setNote("");
+    setErrore("");
+    try {
+      await decide.mutateAsync({
+        requestId: dialogState.req.id,
+        decision: dialogState.decision,
+        note: note.trim() || undefined,
+      });
+      setDialogState(null);
+      setNote("");
+    } catch (error) { setErrore(error instanceof Error ? error.message : "Impossibile registrare la decisione."); }
   }
 
   return (
@@ -134,6 +143,7 @@ export function AccountantChangeRequestsQueue() {
                   onClick={() => {
                     setDialogState({ req, decision: "rejected" });
                     setNote("");
+                    setErrore("");
                   }}
                 >
                   <XCircle className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
@@ -146,6 +156,7 @@ export function AccountantChangeRequestsQueue() {
                   onClick={() => {
                     setDialogState({ req, decision: "approved" });
                     setNote("");
+                    setErrore("");
                   }}
                 >
                   <CheckCircle2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
@@ -153,9 +164,7 @@ export function AccountantChangeRequestsQueue() {
                 </Button>
               </div>
             </div>
-            <p className="mt-2 line-clamp-2 break-words text-xs text-muted-foreground">
-              {previewPayload(req.payload)}
-            </p>
+            <RichiestaStudioDettagli richiesta={req} />
           </div>
         ))}
       </CardContent>
@@ -168,7 +177,9 @@ export function AccountantChangeRequestsQueue() {
             </DialogTitle>
             <DialogDescription>
               {dialogState?.decision === "approved"
-                ? "Il commercialista vedrà che l'hai approvata. La modifica non si applica da sola: va registrata a mano nei dati dell'azienda."
+                ? dialogState.req.resource_type === "commessa_descrizione"
+                  ? "Con la conferma viene salvata la descrizione proposta sulla commessa."
+                  : "La decisione sarà visibile al commercialista. Registra poi la modifica nei dati dell’azienda."
                 : "Scrivi al commercialista perché la rifiuti: lo vedrà accanto alla richiesta."}
             </DialogDescription>
           </DialogHeader>
@@ -182,7 +193,9 @@ export function AccountantChangeRequestsQueue() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={4}
+            maxLength={1000}
           />
+          {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogState(null)} disabled={decide.isPending}>
               Annulla
