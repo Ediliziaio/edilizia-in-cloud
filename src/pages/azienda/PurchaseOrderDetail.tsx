@@ -12,6 +12,7 @@ import { documentoDaOrdineAcquisto } from "@/lib/documentiOperativi/daOrdineAcqu
 import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
 import { NumeroOdaModificabile } from "@/components/orders/NumeroOdaModificabile";
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
+import { useResiduiDestinazioni } from "@/hooks/useControlloOrdiniDDT";
 import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
 import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
 import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
@@ -100,6 +101,8 @@ function ContenutoPurchaseOrderDetail() {
   const aspettoGenerale = useAspettoOperativo();
   const { effectiveCompany } = useAuth();
   const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem, impostaIvaRighe } = usePurchaseOrderDetail(odaId || null);
+  const { data: residuiDestinazioni } = useResiduiDestinazioni(effectiveCompany?.id,
+    odaId && items.some(i => i.destinazioni_previste?.length) ? [odaId] : []);
   // Prezzi d'acquisto del fornitore: alimentano il suggerimento sulle righe.
   const { voci: vociFornitore } = useVociListinoFornitore(
     (order as { supplier_id?: string | null } | undefined)?.supplier_id ?? null,
@@ -599,6 +602,7 @@ function ContenutoPurchaseOrderDetail() {
                           supplierId={order.supplier_id}
                           commessaPrincipaleId={order.order_id}
                           item={item}
+                          residuiDestinazioni={residuiDestinazioni?.get(item.id)}
                           isEditable={isEditable}
                           inversioneContabile={!!documentoInvio.inversioneContabile}
                           showReceived={mostraRicezione}

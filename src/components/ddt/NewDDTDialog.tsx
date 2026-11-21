@@ -65,6 +65,10 @@ import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
 import { abbinaFornitore, type FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import { erroreVerificaDDT } from "@/lib/ddt/verificaNuovoDDT";
 import { problemiBolla } from "@/lib/ddt/righeBolla";
+import { abbinaRigheAgliOrdiniCitati, ordiniCitatiNellaBolla, riferimentoOrdineLetto } from "@/lib/ddt/ordiniCitati";
+import type { RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { documentiDb } from "@/lib/ddt/documentiPersistenti";
 import {
   avvisaEsitoCarico, caricaAlSalvataggio, mostraSpuntaCarico,
 } from "@/lib/ddt/caricoAlSalvataggio";
@@ -134,12 +138,14 @@ export function NewDDTDialog({
   // ── Documento e testata ───────────────────────────
   const [pagine, setPagine] = useState<LocalFile[]>([]);
   const [extraFiles, setExtraFiles] = useState<LocalFile[]>([]);
-  const [conAI, setConAI] = useState(true);
+  const [conAI, setConAI] = useState(false);
   const [poId, setPoId] = useState(prefillPurchaseOrderId ?? "");
   const [orderId, setOrderId] = useState<string | null>(prefillOrderId ?? null);
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
   const [numero, setNumero] = useState("");
   const [data, setData] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [riferimentiOrdini, setRiferimentiOrdini] = useState("");
+  const [collegaCitati, setCollegaCitati] = useState(true);
 
   // ── Quello che l'AI ha letto ──────────────────────
   const [lettura, setLettura] = useState<"no" | "in_corso" | "fatta" | "errore">("no");
@@ -222,7 +228,9 @@ export function NewDDTDialog({
     setRighe((attuali) => (attuali.length ? attuali : letta.righe));
     const totale = quantitaTotale(letta.righe);
     setQty((q) => q || (totale > 0 ? String(totale) : ""));
-    setAiLettura(grezzo && typeof grezzo === "object" ? (grezzo as Record<string, unknown>) : null);
+    const documento = grezzo && typeof grezzo === "object" ? (grezzo as Record<string, unknown>) : null;
+    setAiLettura(documento);
+    setRiferimentiOrdini(v => v || riferimentoOrdineLetto(documento));
     setAiConfidenza(letta.confidenza);
     setAiAvvisi(letta.avvisi);
     setFornitoreLetto(letta.fornitoreNome);
@@ -252,8 +260,9 @@ export function NewDDTDialog({
     if (open) return;
     const timerId = window.setTimeout(() => {
       setFase("scelta");
-      setPagine([]); setExtraFiles([]); setConAI(true);
+      setPagine([]); setExtraFiles([]); setConAI(false);
       setPoId(prefillPurchaseOrderId ?? ""); setOrderId(prefillOrderId ?? null);
+      setRiferimentiOrdini(""); setCollegaCitati(true);
       setSupplierId(undefined); setNumero(""); setData(format(new Date(), "yyyy-MM-dd"));
       setLettura("no"); setRighe([]); setAiLettura(null); setAiConfidenza(null); setAiAvvisi([]); setFornitoreLetto(null);
       setTrasportoACuraDi(null); setPorto(null); setCorriere(""); setTargaMezzo(""); setAutistaNome("");
@@ -267,6 +276,23 @@ export function NewDDTDialog({
 
   const availablePOs = useMemo(() => orders.filter((o) => o.status !== "annullato"), [orders]);
   const selectedPO = useMemo(() => availablePOs.find((o) => o.id === poId) ?? null, [availablePOs, poId]);
+  const supplierEffettivo = selectedPO?.supplier_id ?? supplierId ?? null;
+  const citati = useMemo(() => ordiniCitatiNellaBolla(
+    companyId ?? "", supplierEffettivo, data, riferimentiOrdini, note, righe, availablePOs,
+  ), [companyId, supplierEffettivo, data, riferimentiOrdini, note, righe, availablePOs]);
+  const idsCitati = citati.ordini.map(o => o.id);
+  const righeOrdiniCitati = useQuery({
+    queryKey: ["ddt-righe-ordini-citati", companyId, idsCitati],
+    enabled: open && fase === "compila" && !!companyId && idsCitati.length > 0,
+    queryFn: () => loadCatalogPages<RigaOrdine & { order_items?: { gruppo_id?: string; measure_status?: string } | null }>(
+      (a,b) => documentiDb.from("purchase_order_items")
+        .select("id,purchase_order_id,description,sku,unit_of_measure,quantity,quantity_received,order_items(gruppo_id,measure_status)")
+        .eq("company_id", companyId).in("purchase_order_id", idsCitati).order("id").range(a,b),
+    ),
+  });
+  const abbinamentiCitati = abbinaRigheAgliOrdiniCitati(righe, (righeOrdiniCitati.data ?? []).map(o => ({
+    ...o, su_misura: !!o.order_items?.gruppo_id || !!o.order_items?.measure_status,
+  })), citati.perRiga);
 
   // «In cantiere» si può dire solo se si sa quale: con l'ODA la commessa arriva
   // dall'ordine, altrimenti è quella scelta a mano.
@@ -280,7 +306,7 @@ export function NewDDTDialog({
   });
   // Con l'ODA e «ricevuto completo» la merce la carica già l'arrivo dell'ordine.
   const caricoDallOrdine = !!poId && (stato === "ricevuto" || stato === "verificato");
-  const spuntaCarico = !caricoDallOrdine && mostraSpuntaCarico({
+  const spuntaCarico = !citati.citati && !caricoDallOrdine && mostraSpuntaCarico({
     destinazione: destinazioneEffettiva,
     puoMagazzino: permessi.canEditWarehouse && !permessi.solaLettura,
   });
@@ -355,21 +381,25 @@ export function NewDDTDialog({
     }
     return conGuardia(async () => {
       const created = await createDDT.mutateAsync({
+        soloDocumento: citati.citati,
+        ordini_citati: collegaCitati ? idsCitati : [],
         purchase_order_id: poId || null,
         order_id: poId ? null : orderId,
-        supplier_id: poId ? null : supplierId ?? null,
+        supplier_id: collegaCitati && idsCitati.length > 0 ? supplierEffettivo : (poId ? null : supplierId ?? null),
         destinazione: destinazioneEffettiva,
         magazzinoFacoltativo: nessunMagazzino,
         trasporto_a_cura_di: trasportoACuraDi,
         porto,
-        righe,
+        righe: righe.map((r, i) => collegaCitati && abbinamentiCitati[i]
+          ? { ...r, purchase_order_item_id: abbinamentiCitati[i]?.id, abbinamento: "auto" }
+          : r),
         ai_lettura: aiLettura,
         ai_confidenza: aiConfidenza,
         ai_avvisi: aiAvvisi,
         numero_ddt: numero.trim(),
         data_ricezione: data,
-        quantita_ricevuta: parseFloat(qty) || quantitaTotale(righe) || 0,
-        stato,
+        quantita_ricevuta: citati.citati ? 0 : parseFloat(qty) || quantitaTotale(righe) || 0,
+        stato: citati.citati && stato !== "non_conforme" ? "atteso" : stato,
         note: note.trim() || null,
         warehouse_id: warehouseId,
         corriere: corriere.trim() || null,
@@ -533,8 +563,8 @@ export function NewDDTDialog({
         onRigheChange={setRighe}
         fornitoreLetto={supplierId ? null : fornitoreLetto}
         ordineAcquisto={selectedPO ? `${selectedPO.oda_number}${selectedPO.suppliers?.name ? ` · ${selectedPO.suppliers.name}` : ""}` : null}
-        testataExtra={
-          !prefillPurchaseOrderId && availablePOs.length > 0 ? (
+        testataExtra={<>
+          {!prefillPurchaseOrderId && availablePOs.length > 0 && (
             <div className="col-span-2 space-y-1 text-xs font-medium text-muted-foreground sm:col-span-4">
               Ordine d'acquisto (facoltativo)
               <Select value={poId || "nessuno"} onValueChange={(v) => setPoId(v === "nessuno" ? "" : v)}>
@@ -551,8 +581,30 @@ export function NewDDTDialog({
                 </SelectContent>
               </Select>
             </div>
-          ) : null
-        }
+          )}
+          <div className="col-span-2 space-y-1 sm:col-span-4">
+            <Label htmlFor="ddt-ordini-citati">Riferimenti ordini d’acquisto</Label>
+            <Input id="ddt-ordini-citati" value={riferimentiOrdini} onChange={e => setRiferimentiOrdini(e.target.value)}
+              placeholder="Numeri degli ordini sulla bolla, separati da virgole" />
+            {citati.ordini.length > 0 && <>
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={collegaCitati} onChange={e => setCollegaCitati(e.target.checked)} />
+                Collega {citati.ordini.map(o => o.numero).join(", ")}
+              </label>
+              {righeOrdiniCitati.isFetching && <p role="status" className="text-xs">Verifica delle righe d’ordine in corso.</p>}
+              {righeOrdiniCitati.isError && <p role="alert" className="text-xs">Righe d’ordine da verificare dopo il salvataggio.</p>}
+              {collegaCitati && abbinamentiCitati.some(Boolean) && <ul className="text-xs text-muted-foreground">
+                {abbinamentiCitati.map((o, i) => o && (
+                  <li key={i}>{righe[i].codice_articolo} · {citati.ordini.find(p => p.id === o.purchase_order_id)?.numero}</li>
+                ))}
+              </ul>}
+            </>}
+            {citati.pendenti.length > 0 && <p role="alert" className="text-xs text-amber-800 dark:text-amber-300">
+              Ordini da verificare. {citati.pendenti.join(", ")}
+            </p>}
+            {citati.citati && <p className="text-xs text-muted-foreground">Conferma le quantità in Consegne dopo il salvataggio.</p>}
+          </div>
+        </>}
         stato={
           lettura === "in_corso" ? (
             <p role="status" className="flex items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-xs">

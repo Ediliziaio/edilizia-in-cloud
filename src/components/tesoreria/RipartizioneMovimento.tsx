@@ -11,7 +11,7 @@ import { combinazioneEsatta, fmtEur, leggiImporto } from "@/lib/finance/reconcil
 
 export interface CandidatoRipartizione {
   key: string;
-  tipo: "documento" | "invoice" | "scadenza";
+  tipo: "documento" | "invoice" | "scadenza" | "rata_fornitore" | "ricevuta";
   id: string;
   titolo: string;
   sottotitolo?: string;

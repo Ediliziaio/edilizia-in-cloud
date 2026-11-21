@@ -3,6 +3,28 @@ import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import type { RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 import type { DDTRicezione } from "./useDDTRicezione";
+import type { DestinazioneRigaOda } from "./usePurchaseOrders";
+
+export interface ResiduiDestinazioniRiga {
+  riga_id: string;
+  destinazioni: Array<DestinazioneRigaOda & { consegnata: number; residua: number; eccedenza: number }>;
+  non_attribuita: number;
+  fuori_piano: number;
+  da_verificare: boolean;
+}
+
+export function useResiduiDestinazioni(companyId: string | undefined, ordini: string[]) {
+  const ids = [...new Set(ordini)].sort();
+  return useQuery({
+    queryKey: ["oda-residui-destinazioni", companyId, ids],
+    enabled: !!companyId && ids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await db.rpc("oda_residui_destinazioni", { p_company: companyId, p_ordini: ids });
+      if (error) throw error;
+      return new Map((data as ResiduiDestinazioniRiga[] ?? []).map(r => [r.riga_id, r]));
+    },
+  });
+}
 
 export interface OrdineCollegatoDDT {
   id: string;

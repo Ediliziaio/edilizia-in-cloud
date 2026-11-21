@@ -25,7 +25,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
-import { useControlloOrdiniDDT } from "@/hooks/useControlloOrdiniDDT";
+import { useControlloOrdiniDDT, useResiduiDestinazioni } from "@/hooks/useControlloOrdiniDDT";
 import { quantitaResiduaDDT } from "@/lib/ddt/riepilogoConsegne";
 
 interface Scelta {
@@ -66,6 +66,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       permessi.canEditWarehouse);
   const righe = useDDTRighe(ddt.id);
   const controlloOrdini = useControlloOrdiniDDT(ddt);
+  const residuiDestinazioni = useResiduiDestinazioni(ddt.company_id, (controlloOrdini.data?.ordini ?? []).map(o => o.id));
   // Senza magazzini (11/11/2026) le righe partono per il cantiere: la commessa
   // della bolla se c'è, altrimenti si sceglie. Il magazzino non si propone.
   const elencoMagazzini = useWarehouses();
@@ -415,6 +416,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                     const tipo = s.tipo ?? "ingresso";
                     const poiScelto = s.ordineAcquisto === "__fuori__" ? null : s.ordineAcquisto ?? r.purchase_order_item_id;
                     const destinazioniPreviste = controlloOrdini.data?.righe.find((i) => i.id === poiScelto)?.destinazioni_previste ?? [];
+                    const residuiDestinazione = poiScelto ? residuiDestinazioni.data?.get(poiScelto) : undefined;
                     const articoli =
                       (dest === "cantiere"
                         ? catalogo.data?.commessa.filter(
@@ -547,7 +549,9 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                             {tipo === "ingresso" && destinazioniPreviste.length > 0 && (
                               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                                 <span className="text-muted-foreground">Destinazioni previste</span>
-                                {destinazioniPreviste.map(d => (
+                                {destinazioniPreviste.map(d => {
+                                  const residue = residuiDestinazione?.destinazioni.find(x => x.tipo === d.tipo && x.id === d.id);
+                                  return (
                                   <Button key={`${d.tipo}:${d.id}`} type="button" size="sm" variant="outline"
                                     className="h-7 px-2 text-xs"
                                     disabled={d.tipo === "magazzino" && !permessi.canEditWarehouse}
@@ -558,9 +562,21 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                       warehouseId: d.tipo === "magazzino" ? d.id : undefined,
                                       articolo: "",
                                     })}>
-                                    {d.nome ?? (d.tipo === "commessa" ? "Cantiere" : "Magazzino")} · {numero(d.quantita)}
+                                    {d.nome ?? (d.tipo === "commessa" ? "Cantiere" : "Magazzino")} · {
+                                      residue ? `${numero(residue.residua)} da consegnare` : numero(d.quantita)
+                                    }
+                                    {!!residue?.eccedenza && ` · ${numero(residue.eccedenza)} in più`}
                                   </Button>
-                                ))}
+                                );})}
+                                {(residuiDestinazione?.da_verificare || !!residuiDestinazione?.fuori_piano) && (
+                                  <p className="basis-full text-amber-800 dark:text-amber-300">
+                                    {residuiDestinazione.non_attribuita > 0
+                                      ? `${numero(residuiDestinazione.non_attribuita)} ricevuti con destinazione da attribuire. `
+                                      : residuiDestinazione.da_verificare ? "Verifica le quantità registrate. " : ""}
+                                    {residuiDestinazione.fuori_piano > 0 && `${numero(residuiDestinazione.fuori_piano)} consegnati fuori piano.`}
+                                  </p>
+                                )}
+                                {residuiDestinazioni.isError && <p className="basis-full text-muted-foreground">Residui per destinazione da verificare.</p>}
                               </div>
                             )}
                             {tipo === "ingresso" && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Inserisci solo la merce accettata: quantità mancanti o danneggiate restano da gestire. I servizi e i resi si registrano con l’operazione dedicata.</p>}

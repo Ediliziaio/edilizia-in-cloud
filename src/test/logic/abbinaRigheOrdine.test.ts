@@ -1,8 +1,32 @@
 import { describe, expect, it } from "vitest";
+import { abbinaRigheAgliOrdiniCitati, ordiniCitatiNellaBolla } from "@/lib/ddt/ordiniCitati";
 import { abbinamentiCerti, abbinamentiCertiPiuOrdini, arriviDaRegistrare, ordinateNonInBolla, ordiniDellaBolla, righeOrdinePerRiga, type RigaBollaDaAbbinare, type RigaOrdine } from "@/lib/ddt/abbinaRigheOrdine";
 
 const bolla = (c: Partial<RigaBollaDaAbbinare> & { id: string; descrizione: string }): RigaBollaDaAbbinare => ({ codice_articolo: null, quantita: null, ...c });
 const ordine = (c: Partial<RigaOrdine> & { id: string; description: string }): RigaOrdine => ({ sku: null, unit_of_measure: "pz", quantity: 1, quantity_received: 0, ...c });
+
+describe("ordini citati prima di registrare il DDT", () => {
+  it("distingue lo stesso SKU sui due ordini solo quando la riga cita quale ordine", () => {
+    const catalogo = [1, 2, 3].map(n => ({
+      id: `ordine-${n}`, company_id: "azienda", supplier_id: n === 3 ? "altro" : "fornitore",
+      oda_number: `ODA-2026-000${n}`, supplier_reference: null, issue_date: "2026-11-20",
+      status: "inviato", order_id: null, delivery_warehouse_id: null,
+    }));
+    const righe = ["Tubo ODA-2026-0002", "Tubo", "Tubo ODA-2026-0003"].map(descrizione => ({
+      descrizione, codice_articolo: "T1", unita_misura: "pz", quantita: 2, company_id: "azienda",
+    }));
+    const esito = ordiniCitatiNellaBolla(
+      "azienda", "fornitore", "2026-11-21", "ODA-2026-0001, ODA-2026-0002", "", righe, catalogo,
+    );
+    expect(esito.ordini.map(o => o.id)).toEqual(["ordine-1", "ordine-2"]);
+    expect(esito.pendenti).toEqual(["ODA-2026-0003"]);
+    const righeOrdine = [1, 2].map(n => ordine({
+      id: `riga-${n}`, purchase_order_id: `ordine-${n}`, description: "Tubo", sku: "T1", quantity: 4,
+    }));
+    expect(abbinaRigheAgliOrdiniCitati(righe, righeOrdine, esito.perRiga).map(r => r?.id ?? null))
+      .toEqual(["riga-2", null, null]);
+  });
+});
 
 describe("abbinamento bolla ↔ ordine", () => {
   it("il codice uguale basta", () => {

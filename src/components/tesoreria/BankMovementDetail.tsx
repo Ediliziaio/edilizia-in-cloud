@@ -360,7 +360,7 @@ function Detail({
                   {m.links.financial.map((f, i) => (
                     <li key={f.id ?? `legacy-${i}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5">
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {f.existing_payment ? "Pagamento registrato" : f.kind === "scadenza" ? "Scadenza" : "Documento"}
+                        {f.existing_payment ? "Pagamento registrato" : f.kind === "quota_fornitore" ? "Quota pagata" : f.kind === "scadenza" ? "Scadenza" : "Documento"}
                       </span>
                       <span className="min-w-0 flex-1 truncate max-sm:basis-full max-sm:order-first" title={f.note ?? f.label}>
                         {f.url ? (
@@ -597,6 +597,8 @@ function Detail({
                 ? "Verrà annullato l’abbinamento e stornato il pagamento della differenza creato da questa riconciliazione. Gli altri pagamenti restano invariati."
                 : remove?.existing_payment
                 ? "Il pagamento già registrato verrà conservato. Sarà rimossa soltanto l’associazione a questo movimento bancario."
+                : remove?.kind === "quota_fornitore"
+                ? "La quota tornerà da pagare sulla fattura o sulla rata."
                 : "L’abbinamento sarà annullato con le regole del documento: gli incassi creati dalla riconciliazione possono essere stornati. Le altre quote del bonifico restano collegate."}
             </AlertDialogDescription>
           </AlertDialogHeader>

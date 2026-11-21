@@ -30,6 +30,10 @@ const bolla = (...numeri) => numeri.map(n => `(${id(n)},${id(1)},${id(2)},'${n}/
 const link = (fattura, ddt, numero = ddt) => `(${id(1)},${id(fattura)},${ddt == null ? "null" : id(ddt)},'${numero}/A','${data}','xml')`;
 const riga = (n, ddt, q, prezzo = "null", codice = "A81") => `(${id(n)},${id(1)},${id(ddt)},'${codice}','Adesivo A81','kg',${q},${prezzo},null)`;
 const arrivo = (n, ddt, r, q, m = 11, o = 10) => `(${id(n)},${id(1)},${id(ddt)},${id(r)},'ingresso',null,${q},'kg','cantiere',${id(o)},${id(m)})`;
+const dieci = Array.from({length:10}, (_, i) => [601+i, i+1, 21+i]);
+const riferimenti = dieci.map(([n,r]) => [`${n}/A`,r]);
+const voci = dieci.map(([,r,prezzo]) => [r,"A81",1,prezzo]);
+const indipendenti = dieci.slice(0,8);
 
 const sql = `
 begin;
@@ -81,6 +85,7 @@ ${estratto("20290404290000_acquisti_ddt_nelle_descrizioni", "create or replace f
 ${migrazione("20290421100000_documenti_prezzi_materiali_preparati")}
 ${migrazione("20290423110000_fatture_ddt_permessi_documenti")}
 ${migrazione("20290502081500_prezzi_certi_fatture_ddt_commessa")}
+${migrazione("20290504092500_prezzi_ddt_indipendenti")}
 
 insert into companies values(${id(1)});
 insert into profiles values(${id(3)});
@@ -192,6 +197,50 @@ select set_config('test.prezzi_uid',${id(3)}::text,true);
 set local role authenticated;
 do $$begin assert fattura_ddt_riepilogo(${id(21)})->'prezzi'->>'stato'='aggiornata'; end $$;
 reset role;
+
+insert into order_items(id,order_id,natura_riga,purchase_price,prezzo_da_definire,prezzo_fonte)
+values ${dieci.map(([,r])=>`(${id(800+r)},${id(10)},'materiale',5,true,'listino')`).join(",")};
+insert into ddt_ricezione values ${bolla(...indipendenti.map(([n])=>n))};
+insert into ddt_righe values ${indipendenti.map(([n,r])=>riga(700+r,n,1)).join(",")};
+insert into ddt_consegne values ${indipendenti.map(([n,r])=>arrivo(900+r,n,700+r,1,800+r)).join(",")};
+insert into fatture_ricevute(id,company_id,fornitore_id,cedente_piva,cedente_cf,tipo_documento,stato,xml_raw,indice_corpo)
+values ${f(40,xml(riferimenti,voci))};
+insert into fattura_ddt(company_id,fattura_ricevuta_id,ddt_ricezione_id,numero_ddt,data_ddt,origine)
+values ${dieci.map(([n,r])=>link(40,r<=8?n:null,n)).join(",")};
+
+-- Anche un DDT assente può contendere una riga. Senza la ripartizione
+-- univoca nell'XML, quella fattura richiede la verifica manuale.
+update fatture_ricevute set xml_raw=${xml([...riferimenti.slice(0,9), ["610/A",1]],voci)} where id=${id(40)};
+do $$begin
+  assert private.ddt_piano_prezzi(${id(40)})->>'stato'='da_verificare';
+  assert private.ddt_piano_prezzi(${id(40)})->'righe' is null;
+end $$;
+update fatture_ricevute set xml_raw=${xml(riferimenti,voci)} where id=${id(40)};
+do $$declare p jsonb:=private.ddt_piano_prezzi(${id(40)}); begin
+  assert jsonb_array_length(p->'righe')=8, p::text;
+  assert jsonb_path_query_array(p,'$.ddt_pendenti[*].numero')='["609/A","610/A"]', p::text;
+  assert (select count(*)=0 from ddt_valorizzazioni where fattura_id=${id(40)});
+end $$;
+select pg_temp.svuota_coda();
+do $$declare p jsonb:=private.ddt_prezzi_stato(${id(40)}); begin
+  assert p->>'stato'='parziale' and p->>'ddt_valorizzati'='8' and p->>'ddt_totali'='10', p::text;
+  assert (select count(*)=8 from ddt_valorizzazioni where fattura_id=${id(40)});
+  assert (select count(*)=8 from order_items where id between ${id(801)} and ${id(808)} and prezzo_fonte='fattura');
+  assert (select purchase_price=28 from order_items where id=${id(808)});
+end $$;
+
+-- Quando il nono DDT si completa, si sblocca soltanto la nuova parte.
+insert into ddt_ricezione values ${bolla(609)};
+insert into ddt_righe values ${riga(709,609,1)};
+insert into ddt_consegne values ${arrivo(909,609,709,1,809)};
+update fattura_ddt set ddt_ricezione_id=${id(609)} where fattura_ricevuta_id=${id(40)} and numero_ddt='609/A';
+select pg_temp.svuota_coda();
+do $$declare p jsonb:=private.ddt_prezzi_stato(${id(40)}); begin
+  assert p->>'ddt_valorizzati'='9' and jsonb_path_query_array(p,'$.ddt_pendenti[*].numero')='["610/A"]', p::text;
+  assert (select count(*)=9 from ddt_valorizzazioni where fattura_id=${id(40)});
+  assert (select purchase_price=29 from order_items where id=${id(809)});
+  assert (select purchase_price=5 from order_items where id=${id(810)});
+end $$;
 rollback;
 `;
 
