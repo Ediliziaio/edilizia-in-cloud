@@ -24,3 +24,32 @@ it('non converte risposte mancanti o errori di accesso in crediti a zero',async(
   rpc.mockResolvedValueOnce({data:[],error:null});
   await expect(caricaImportiFinanziari('demo',[{id:'ordine'}])).rejects.toThrow('non è più disponibile');
 });
+it('riusa soltanto gli importi del riepilogo e chiede gli ID che mancano', async () => {
+  rpc.mockClear().mockResolvedValueOnce({
+    data: [{ id: 'nuova', order_type: 'cliente', incasso_unita_lordo: 35 }], error: null,
+  });
+  const giaLetti = new Map([['ordine', {
+    order_type: 'cliente' as const, incasso_unita_lordo: 20, descrizione: 'precedente',
+  }]]);
+  const righe = [{ id: 'ordine', descrizione: 'attuale' }, { id: 'nuova', descrizione: 'altra' }];
+  const dati = await caricaImportiFinanziari('demo', righe, undefined, giaLetti);
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('commesse_importi_finanziari', {
+    p_company_id: 'demo', p_ids: ['nuova'],
+  });
+  expect(dati.map(({ id, descrizione, incasso_unita_lordo }) => ({ id, descrizione, incasso_unita_lordo }))).toEqual([
+    { id: 'ordine', descrizione: 'attuale', incasso_unita_lordo: 20 },
+    { id: 'nuova', descrizione: 'altra', incasso_unita_lordo: 35 },
+  ]);
+});
+
+it('con tutti gli importi già letti evita la richiesta e rispetta la cancellazione', async () => {
+  rpc.mockClear();
+  const giaLetti = new Map([['ordine', { incasso_unita_lordo: 90 }]]);
+  const abort = new AbortController();
+  expect(await caricaImportiFinanziari('demo', [{ id: 'ordine' }], abort.signal, giaLetti))
+    .toMatchObject([{ incasso_unita_lordo: 90 }]);
+  abort.abort();
+  await expect(caricaImportiFinanziari('demo', [{ id: 'ordine' }], abort.signal, giaLetti))
+    .rejects.toMatchObject({ name: 'AbortError' });
+  expect(rpc).not.toHaveBeenCalled();
+});

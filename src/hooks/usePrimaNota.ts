@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -135,17 +136,31 @@ export interface PrimaNotaFilters {
   accountLabel?: string;
 }
 
-export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, pageSize: number = 50) {
+export function usePrimaNota(
+  filters: PrimaNotaFilters = {},
+  page = 1,
+  pageSize = 50,
+  { includeMonthlyChart = true }: { includeMonthlyChart?: boolean } = {},
+) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
-  // Il conto filtra insieme elenco, saldo, grafico ed esportazione.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const applyConto = (q: any) => {
-    if (filters.bankAccountId) q = q.eq("bank_account_id", filters.bankAccountId);
-    if (filters.liquiditaId) q = q.eq("conto_liquidita_id", filters.liquiditaId);
-    if (filters.accountLabel) q = q.ilike("account_label", `${filters.accountLabel}%`);
-    return q;
+  const filtriConto = {
+    p_bank_account_id: filters.bankAccountId || undefined,
+    p_conto_liquidita_id: filters.liquiditaId || undefined,
+    p_account_label_pattern: filters.accountLabel ? `${filters.accountLabel}%` : undefined,
+  };
+  const ricerca = filters.search?.trim();
+  const parametri = {
+    ...filtriConto,
+    p_company_id: companyId!,
+    p_from_date: filters.fromDate || undefined,
+    p_to_date: filters.toDate || undefined,
+    p_direction: filters.direction || undefined,
+    p_category: filters.category || undefined,
+    p_is_auto: filters.isAuto ?? undefined,
+    p_auto_source: filters.autoSource || undefined,
+    p_description_pattern: ricerca ? `%${ricerca}%` : undefined,
   };
 
   // Un unico posto per i filtri → lista, saldo ed export restano allineati.
@@ -153,20 +168,22 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   //  solo la pagina corrente: due incoerenze sui numeri, ora rimosse.)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applyFilters = (q: any) => {
-    if (filters.fromDate) q = q.gte("entry_date", filters.fromDate);
-    if (filters.toDate) q = q.lte("entry_date", filters.toDate);
-    if (filters.direction) q = q.eq("direction", filters.direction);
-    if (filters.category) q = q.eq("category", filters.category);
-    if (filters.isAuto === true) q = q.eq("is_auto", true);
-    if (filters.isAuto === false) q = q.eq("is_auto", false);
-    if (filters.autoSource) q = q.eq("auto_source", filters.autoSource);
-    if (filters.search?.trim()) q = q.ilike("description", `%${filters.search.trim()}%`);
-    return applyConto(q);
+    if (parametri.p_from_date) q = q.gte("entry_date", parametri.p_from_date);
+    if (parametri.p_to_date) q = q.lte("entry_date", parametri.p_to_date);
+    if (parametri.p_direction) q = q.eq("direction", parametri.p_direction);
+    if (parametri.p_category) q = q.eq("category", parametri.p_category);
+    if (parametri.p_is_auto !== undefined) q = q.eq("is_auto", parametri.p_is_auto);
+    if (parametri.p_auto_source) q = q.eq("auto_source", parametri.p_auto_source);
+    if (parametri.p_description_pattern) q = q.ilike("description", parametri.p_description_pattern);
+    if (parametri.p_bank_account_id) q = q.eq("bank_account_id", parametri.p_bank_account_id);
+    if (parametri.p_conto_liquidita_id) q = q.eq("conto_liquidita_id", parametri.p_conto_liquidita_id);
+    if (parametri.p_account_label_pattern) q = q.ilike("account_label", parametri.p_account_label_pattern);
+    return q;
   };
 
   const entriesQuery = useQuery({
     queryKey: [...queryKeys.primaNota.list(companyId, filters), page, pageSize],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       let query = applyFilters(
         supabase
           .from("prima_nota_entries")
@@ -177,7 +194,9 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       query = query
         .range((page - 1) * pageSize, page * pageSize - 1)
         .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .abortSignal(signal);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -186,7 +205,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       const stornate = new Set<string>();
       if (ids.length) {
         const { data: storni, error: erroreStorni } = await supabase.from("prima_nota_entries")
-          .select("reversal_of").eq("company_id", companyId!).in("reversal_of", ids);
+          .select("reversal_of").eq("company_id", companyId!).in("reversal_of", ids)
+          .abortSignal(signal);
         if (erroreStorni) throw erroreStorni;
         for (const r of storni ?? []) if (r.reversal_of) stornate.add(r.reversal_of);
       }
@@ -197,15 +217,6 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     gcTime: 15 * 60 * 1000,
   });
 
-  // Il saldo deve rispecchiare la lista filtrata. Con soli filtri di data usiamo
-  // la RPC server-side (SUM completa, nessun cap). Con filtri extra (direzione/
-  // categoria/ricerca/auto) aggreghiamo lato client sulle righe filtrate, così i
-  // KPI combaciano con ciò che l'utente vede (prima mostravano l'intero periodo).
-  const hasNonDateFilter = !!(
-    filters.direction || filters.category || filters.search?.trim() ||
-    filters.isAuto != null || filters.autoSource || filters.bankAccountId || filters.liquiditaId || filters.accountLabel
-  );
-
   const saldoQuery = useQuery({
     queryKey: [
       ...queryKeys.primaNota.saldo(companyId, filters.fromDate, filters.toDate),
@@ -213,61 +224,39 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       filters.isAuto ?? "", filters.autoSource ?? "",
       filters.bankAccountId ?? "", filters.liquiditaId ?? "", filters.accountLabel ?? "",
     ],
-    queryFn: async () => {
-      if (!hasNonDateFilter) {
-        const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
-          p_company_id: companyId!,
-          p_from_date: filters.fromDate || undefined,
-          p_to_date: filters.toDate || undefined,
-        });
-        if (error) throw error;
-        return data as unknown as PrimaNotaSaldo;
-      }
-      const { data, error } = await applyFilters(
-        supabase.from("prima_nota_entries").select("amount, direction").eq("company_id", companyId!)
-      ).limit(50000);
+    queryFn: async ({ signal }): Promise<PrimaNotaSaldo> => {
+      const { data, error } = await supabase.rpc("prima_nota_riepilogo_filtrato", parametri).abortSignal(signal);
       if (error) throw error;
-      let entrate = 0, uscite = 0;
-      for (const r of ((data as { amount: number | null; direction: string }[]) ?? [])) {
-        const amt = Number(r.amount) || 0;
-        if (r.direction === "entrata") entrate += amt; else uscite += amt;
-      }
-      const round2 = (n: number) => Math.round(n * 100) / 100;
-      return { entrate: round2(entrate), uscite: round2(uscite), saldo: round2(entrate - uscite), entry_count: data?.length ?? 0 };
+      return data?.[0] ?? { entrate: 0, uscite: 0, saldo: 0, entry_count: 0 };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 
-  // Grafico "ultimi 6 mesi": aggregazione mensile su TUTTE le registrazioni degli
-  // ultimi 6 mesi, indipendente da paginazione e dai filtri di lista. Prima il
-  // grafico leggeva la lista paginata/filtrata (default = solo mese corrente, 50
-  // righe) → mostrava un solo mese.
+  // Il grafico mantiene il proprio periodo e il conto scelto, indipendenti
+  // dai filtri dell'elenco. La prima pagina dei movimenti parte per prima.
+  const oggi = new Date();
+  const daMese = format(startOfMonth(subMonths(oggi, 5)), "yyyy-MM-dd");
+  const aMese = format(endOfMonth(oggi), "yyyy-MM-dd");
   const monthlyChartQuery = useQuery({
-    queryKey: ["primaNota", "chart6m", companyId, filters.bankAccountId ?? "", filters.liquiditaId ?? "", filters.accountLabel ?? ""],
-    queryFn: async () => {
-      const since = new Date();
-      since.setDate(1);
-      since.setMonth(since.getMonth() - 5);
-      const sinceStr = since.toLocaleDateString("en-CA"); // yyyy-MM-dd, locale
-      const { data, error } = await applyConto(supabase
-        .from("prima_nota_entries")
-        .select("amount, direction, entry_date")
-        .eq("company_id", companyId!)
-        .gte("entry_date", sinceStr)
-        .limit(50000));
+    queryKey: [...queryKeys.primaNota.all, "chart6m", companyId, daMese, aMese, filtriConto],
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase.rpc("prima_nota_riepilogo_filtrato", {
+        ...filtriConto,
+        p_company_id: companyId!,
+        p_from_date: daMese,
+        p_to_date: aMese,
+        p_monthly: true,
+      }).abortSignal(signal);
       if (error) throw error;
       const buckets: Record<string, { entrate: number; uscite: number }> = {};
-      for (const r of ((data as { amount: number | null; direction: string; entry_date: string }[]) ?? [])) {
-        const key = r.entry_date.slice(0, 7); // "yyyy-MM"
-        const b = (buckets[key] ??= { entrate: 0, uscite: 0 });
-        const amt = Number(r.amount) || 0;
-        if (r.direction === "entrata") b.entrate += amt; else b.uscite += amt;
+      for (const r of data ?? []) {
+        if (r.mese) buckets[r.mese.slice(0, 7)] = { entrate: r.entrate, uscite: r.uscite };
       }
       return buckets;
     },
-    enabled: !!companyId,
+    enabled: !!companyId && includeMonthlyChart && entriesQuery.isSuccess,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
@@ -499,6 +488,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     saldo: saldoQuery.data,
     isSaldoLoading: saldoQuery.isLoading,
     saldoError: saldoQuery.error,
+    ricaricaSaldo: saldoQuery.refetch,
     monthlyChart: monthlyChartQuery.data,
     create: createMutation,
     remove: deleteMutation,

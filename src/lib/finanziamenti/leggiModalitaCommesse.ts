@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { withAbortableClientTimeout, withClientTimeout } from "@/lib/query-timeout";
 import type { ModalitaCostoFinanziaria } from "./costoFinanziaria";
-import { caricaImportiFinanziari } from '@/lib/orders/importiFinanziari';
+import { caricaImportiFinanziari, type ImportiFinanziari } from '@/lib/orders/importiFinanziari';
 
 type Commessa = { id: string; payment_type?: string | null; financing_cost?: number | null; financing_cost_mode?: ModalitaCostoFinanziaria | null };
 /** Lettura compatibile durante l'aggiornamento: solo una colonna realmente assente
@@ -35,6 +35,12 @@ async function leggiModalitaFinanziamenti<T extends Commessa>(companyId: string,
   }
   return rows.map(row => modes.has(row.id) ? { ...row, financing_cost_mode: modes.get(row.id)! } : row);
 }
-export async function leggiModalitaCommesse<T extends Commessa>(companyId:string,rows:T[],signal?: AbortSignal) {
-  return caricaImportiFinanziari(companyId,await leggiModalitaFinanziamenti(companyId,rows,signal),signal);
+export async function leggiModalitaCommesse<T extends Commessa>(
+  companyId: string,
+  rows: T[],
+  signal?: AbortSignal,
+  leggiImportiGiaCaricati?: () => ReadonlyMap<string, ImportiFinanziari> | undefined,
+) {
+  const conModalita = await leggiModalitaFinanziamenti(companyId, rows, signal);
+  return caricaImportiFinanziari(companyId, conModalita, signal, leggiImportiGiaCaricati?.());
 }

@@ -110,6 +110,7 @@ function OrdersListInner() {
   const [nuovaGenerale, setNuovaGenerale] = useState<ModelloGenerale | null>(null);
   const mappaGenerali = useMappaGenerali();
   const queryClient = useQueryClient();
+  const [apertoAlle] = useState(Date.now);
   const refreshOrderScope = useCallback(() => {
     for (const key of ["orders", "orders-global-stats", "orders-pipeline", "orders-monthly-sales-chart"])
       void queryClient.invalidateQueries({queryKey:[key]});
@@ -302,8 +303,9 @@ function OrdersListInner() {
     : null;
 
   // Il perimetro del pregresso alimenta i filtri prima dei totali aziendali.
+  const chiavePerimetro = ["orders-global-stats", "perimetro-gestione-v1", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets] as const;
   const { data: gestione, dataUpdatedAt: gestioneResultAt, isError: errorePerimetro, refetch: ricaricaPerimetro } = useQuery({
-    queryKey: ["orders-global-stats", "perimetro-gestione-v1", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets],
+    queryKey: chiavePerimetro,
     queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       const companyId = effectiveCompany?.id;
       if (!companyId) throw new Error("Azienda non disponibile.");
@@ -391,17 +393,8 @@ function OrdersListInner() {
   const fetchOrderRows = (from: number, to: number, filtroFocus = focusIds, signal?: AbortSignal) =>
     readOrdersPage({ ...filtriLettura, focusIds: filtroFocus }, from, to, signal);
 
-  const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, gestione?.supportOrderIds],
-    queryFn: ({ signal }) => withAbortableClientTimeout((readSignal) =>
-      fetchOrderRows((page - 1) * pageSize, page * pageSize - 1, focusIds, readSignal), "Elenco commesse", 20_000, signal),
-    enabled: !!effectiveCompany?.id && viewMode === "table" && focusReady && !isLoadingStatuses && !isStatusesError,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
-
-  // Con ordinamento dal più recente, una pagina piena dell'anno corrente
-  // è anche la prima pagina del perimetro con il pregresso.
+  // Con ordinamento dal più recente, le commesse dell'anno corrente vengono
+  // prima del pregresso. Mostriamole anche se ne arrivano meno di una pagina.
   const puoAnticipareElenco = viewMode === "table" && isYearCorrente && scopeGroup === "all" && page === 1
     && sortField === "created_at" && sortDir === "desc" && controlFocus === "all"
     && statusFilter === "all" && paymentIds === null && generaliFilter === "all" && customerFilter === "all"
@@ -410,6 +403,25 @@ function OrdersListInner() {
     && countActiveFilters(sidebarFilters) === 0 && monthFilter === "all"
     && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
     && !expectedDateRange.from && !expectedDateRange.to;
+  const chiaveElenco = ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, gestione?.supportOrderIds] as const;
+  const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
+    queryKey: chiaveElenco,
+    queryFn: ({ signal }) => withAbortableClientTimeout((readSignal) => {
+      const importiDellaPrimaLettura = () => {
+        const stato = queryClient.getQueryState(chiavePerimetro);
+        // Riuso fra richieste della stessa apertura. Un aggiornamento della
+        // lista o del riepilogo continua a leggere gli importi dal server.
+        if (!puoAnticipareElenco || !gestione || gestioneResultAt < apertoAlle
+          || stato?.dataUpdatedAt !== gestioneResultAt || stato.fetchStatus !== "idle"
+          || stato.isInvalidated || queryClient.getQueryState(chiaveElenco)?.dataUpdatedAt) return undefined;
+        return new Map(gestione.rows.map(ordine => [ordine.id, ordine]));
+      };
+      return readOrdersPage(filtriLettura, (page - 1) * pageSize, page * pageSize - 1, readSignal, importiDellaPrimaLettura);
+    }, "Elenco commesse", 20_000, signal),
+    enabled: !!effectiveCompany?.id && viewMode === "table" && focusReady && !isLoadingStatuses && !isStatusesError,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
   const {data: primaPagina} = useQuery({
     queryKey: ["orders", effectiveCompany?.id, "prima-pagina", currentYear, pageSize, soloPrimoLivello],
     enabled: !!effectiveCompany?.id && puoAnticipareElenco && !ordersResult,
@@ -419,7 +431,7 @@ function OrdersListInner() {
     staleTime: 60_000,
     retry: false,
   });
-  const mostraPrimaPagina = puoAnticipareElenco && !ordersResult && primaPagina?.orders.length === pageSize;
+  const mostraPrimaPagina = puoAnticipareElenco && !ordersResult && (primaPagina?.orders.length ?? 0) > 0;
   const rawOrders = ordersResult?.orders ?? (mostraPrimaPagina ? primaPagina!.orders : EMPTY_ORDERS);
   const conteggioInAttesa = !isStatusesError && !scopeError && !isOrdersError && (mostraPrimaPagina || isOrdersFetching || !ordersResult);
   const elencoInizializzato = !!ordersResult || mostraPrimaPagina || isOrdersError || viewMode === "pipeline";

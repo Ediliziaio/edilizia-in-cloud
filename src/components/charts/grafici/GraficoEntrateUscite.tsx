@@ -119,3 +119,5 @@ export function GraficoEntrateUscite({
     </Comparsa>
   );
 }
+
+export default GraficoEntrateUscite;

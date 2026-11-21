@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { Suspense, useState, useMemo } from "react";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -13,7 +14,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import { ModificaCollegamentiMovimento } from "@/components/prima-nota/ModificaCollegamentiMovimento";
 import { AnteprimaAllegato } from "@/components/prima-nota/AnteprimaAllegato";
@@ -42,6 +42,8 @@ import { linkFattura, linkTesoreriaMovimento } from "@/lib/finance/collegamentiF
 import { AllineamentoPrimaNota } from "@/components/prima-nota/AllineamentoPrimaNota";
 import { useContiPrimaNota } from "@/hooks/useContiPrimaNota";
 import { StornaPagamentiCosto } from "@/components/prima-nota/StornaPagamentiCosto";
+
+const GraficoEntrateUscite = lazyWithRetry(() => import("@/components/charts/grafici/GraficoEntrateUscite"));
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -107,7 +109,7 @@ function PrimaNotaInner() {
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
 
-  const { entries, isLoading, erroreElenco, ricaricaElenco, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, removeMany, update, updateNotes, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, erroreElenco, ricaricaElenco, totalCount, totalPages, saldo, isSaldoLoading, saldoError, ricaricaSaldo, monthlyChart, create, remove, removeMany, update, updateNotes, fetchAllForExport } = usePrimaNota({
     fromDate: cercaSuTutteLeDate ? undefined : fromDate,
     toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
@@ -116,7 +118,7 @@ function PrimaNotaInner() {
     bankAccountId: contoFiltro.startsWith("banca:") ? contoFiltro.slice(6) : undefined,
     liquiditaId: contoFiltro.startsWith("conto:") ? contoFiltro.slice(6) : undefined,
     accountLabel: contoFiltro === "cassa" ? "cassa" : undefined,
-  }, page, pageSize);
+  }, page, pageSize, { includeMonthlyChart: !isMobile });
   const selezione = useSelezioneRighe(entries, JSON.stringify([effectiveCompany?.id, page, pageSize, fromDate, toDate, direction, search, autoView, contoFiltro]));
   const eliminabili = selezione.selezionate.filter((e) => !perchePrimaNotaNonEliminabile(e));
   const escluse = selezione.selezionate.flatMap((e) => {
@@ -294,6 +296,7 @@ function PrimaNotaInner() {
   // Nei KPI di testata i centesimi non servono e troncano: 0 decimali
   // come nel pannello navy delle Commesse.
   const eurTondo = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
+  const testoSaldo = isSaldoLoading ? "…" : saldoError && !saldo ? "—" : undefined;
   return (
     <div className="space-y-6 max-sm:space-y-3">
       <AllineamentoPrimaNota company={effectiveCompany?.id} open={allineaAperto} onOpenChange={setAllineaAperto} />
@@ -373,13 +376,13 @@ function PrimaNotaInner() {
       {/* I numeri del periodo filtrato, nella stessa veste delle fatture e dello Scadenzario
           (16/11/2026): riquadri chiari con l'entrata a cascata, al posto della testata blu. */}
       <div className="grid grid-cols-2 gap-2 max-sm:hidden lg:grid-cols-4">
-        <NumeroVeloce indice={0} etichetta="Entrate" valore={saldo?.entrate || 0} testo={isSaldoLoading ? "…" : undefined} tono="buono" nota="nel periodo filtrato" />
-        <NumeroVeloce indice={1} etichetta="Uscite" valore={saldo?.uscite || 0} testo={isSaldoLoading ? "…" : undefined} tono={(saldo?.uscite || 0) > 0 ? "cattivo" : "neutro"} nota="nel periodo filtrato" />
+        <NumeroVeloce indice={0} etichetta="Entrate" valore={saldo?.entrate || 0} testo={testoSaldo} tono="buono" nota="nel periodo filtrato" />
+        <NumeroVeloce indice={1} etichetta="Uscite" valore={saldo?.uscite || 0} testo={testoSaldo} tono={(saldo?.uscite || 0) > 0 ? "cattivo" : "neutro"} nota="nel periodo filtrato" />
         <NumeroVeloce
           indice={2}
           etichetta="Saldo netto"
           valore={saldo?.saldo || 0}
-          testo={isSaldoLoading ? "…" : undefined}
+          testo={testoSaldo}
           tono={(saldo?.saldo || 0) >= 0 ? "buono" : "cattivo"}
           nota="entrate meno uscite"
         />
@@ -390,7 +393,11 @@ function PrimaNotaInner() {
           Controllo di Gestione e delle fatture (fondo a puntini, barre sfumate, tooltip a
           scheda, totali sopra). Vetrina → non su mobile (bastano i numeri sopra). */}
       {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
-        <GraficoEntrateUscite dati={chartData} />
+        <ErrorBoundary fallback={<p role="alert" className="text-sm text-muted-foreground">Grafico non disponibile.</p>}>
+          <Suspense fallback={null}>
+            <GraficoEntrateUscite dati={chartData} />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Mobile: entrate e uscite del periodo, nome e cifra (al posto del
@@ -398,10 +405,16 @@ function PrimaNotaInner() {
       <KpiMobili
         className="sm:hidden"
         voci={[
-          { label: "Entrate", valore: isSaldoLoading ? "…" : eurTondo(saldo?.entrate || 0), tono: "text-green-700" },
-          { label: "Uscite", valore: isSaldoLoading ? "…" : eurTondo(saldo?.uscite || 0), tono: "text-destructive" },
+          { label: "Entrate", valore: testoSaldo ?? eurTondo(saldo?.entrate || 0), tono: "text-green-700" },
+          { label: "Uscite", valore: testoSaldo ?? eurTondo(saldo?.uscite || 0), tono: "text-destructive" },
         ]}
       />
+      {saldoError && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>{saldo ? "Totali in attesa di aggiornamento." : "Totali non disponibili."}</span>
+          <Button variant="link" size="sm" onClick={() => void ricaricaSaldo()}>Riprova</Button>
+        </div>
+      )}
 
       {/* Mobile: ricerca e bottone dei filtri. */}
       <CercaConFiltri

@@ -5,6 +5,7 @@ import type {OrderWithDetails} from "@/lib/orderUtils";
 import type {OrdersFilterState} from "@/components/orders/OrdersFilterSidebar";
 import type {DateRange} from "@/pages/azienda/OrdersList/constants";
 import {format} from "date-fns";
+import type { ImportiFinanziari } from "@/lib/orders/importiFinanziari";
 
 export interface OrdersReaderFilters {
   companyId: string | undefined;
@@ -46,10 +47,17 @@ export const soloQuesteCommesse = (companyId: string, ids: string[]): OrdersRead
 });
 
 /** The same scoped reader serves table, pipeline and exports. Filters precede range. */
-export async function readOrdersPage(filters: OrdersReaderFilters, from: number, to: number, signal?: AbortSignal): Promise<{orders: OrderWithDetails[]; totalCount: number}> {
+export async function readOrdersPage(
+  filters: OrdersReaderFilters,
+  from: number,
+  to: number,
+  signal?: AbortSignal,
+  leggiImportiGiaCaricati?: () => ReadonlyMap<string, ImportiFinanziari> | undefined,
+): Promise<{orders: OrderWithDetails[]; totalCount: number}> {
   const {companyId, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir} = filters;
 
       if (!companyId) return { orders: [] as OrderWithDetails[], totalCount: 0 };
+      const completaImporti = (righe: OrderWithDetails[]) => leggiModalitaCommesse(companyId, righe, signal, leggiImportiGiaCaricati);
 
       // Join filters are resolved before the main order query and pagination.
       let allowedOrderIds: string[] | null = filters.periodIds ?? null;
@@ -228,15 +236,15 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           for (const row of (data ?? []) as unknown as OrderWithDetails[]) byId.set(row.id, row);
         }
         const pageRows = pageIds.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
-        return { orders: await leggiModalitaCommesse(companyId, pageRows, signal), totalCount: matching.length };
+        return { orders: await completaImporti(pageRows), totalCount: matching.length };
       }
       const query = buildQuery(columns, allowedOrderIds, to !== Infinity);
       if (to === Infinity) {
         const rows = await readAllOrderRows((start, end) => query.range(start, end));
-        return { orders: await leggiModalitaCommesse(companyId, rows.slice(from) as unknown as OrderWithDetails[], signal), totalCount: rows.length };
+        return { orders: await completaImporti(rows.slice(from) as unknown as OrderWithDetails[]), totalCount: rows.length };
       }
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
       // Le date delle varianti (offline_signed_on…) mancano nei tipi generati: ci sono nel database.
-      return { orders: await leggiModalitaCommesse(companyId, (data ?? []) as unknown as OrderWithDetails[], signal), totalCount: count ?? 0 };
+      return { orders: await completaImporti((data ?? []) as unknown as OrderWithDetails[]), totalCount: count ?? 0 };
 }
