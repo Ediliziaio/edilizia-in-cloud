@@ -2,7 +2,6 @@ import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useRef, useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Building2, TrendingUp, Star, Clock } from "lucide-react";
-import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 
 interface Stat {
   icon: React.ElementType;
@@ -67,7 +66,7 @@ function StatCard({ stat, isVisible, delay }: { stat: Stat; isVisible: boolean; 
 
   return (
     <div
-      className="flex flex-col items-center text-center p-6 md:p-8 transition-all duration-700"
+      className="relative z-10 flex h-full flex-col items-center rounded-2xl border border-gray-200 bg-white p-5 text-center shadow-sm transition-all duration-700 hover:-translate-y-1 hover:border-eic-orange/40 hover:shadow-lg md:p-7"
       style={{
         transitionDelay: isVisible ? `${delay}ms` : "0ms",
         opacity: isVisible ? 1 : 0,
@@ -77,7 +76,7 @@ function StatCard({ stat, isVisible, delay }: { stat: Stat; isVisible: boolean; 
       {/* Icon */}
       <div
         className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
-        style={{ backgroundColor: "rgba(249, 116, 21, 0.15)", border: "1px solid rgba(249, 116, 21, 0.25)" }}
+        style={{ backgroundColor: "#FFF1E6", border: "1px solid rgba(249, 116, 21, 0.3)" }}
       >
         <stat.icon size={22} color="#F97415" />
       </div>
@@ -98,10 +97,10 @@ function StatCard({ stat, isVisible, delay }: { stat: Stat; isVisible: boolean; 
       </div>
 
       {/* Label */}
-      <p className="text-white font-semibold text-base md:text-lg mb-1">{stat.label}</p>
+      <p className="text-[#111111] font-semibold text-base md:text-lg mb-1">{stat.label}</p>
 
       {/* Sublabel */}
-      <p className="text-white/40 text-xs md:text-sm leading-relaxed max-w-[180px]">{stat.sublabel}</p>
+      <p className="text-gray-500 text-xs md:text-sm leading-relaxed max-w-[180px]">{stat.sublabel}</p>
     </div>
   );
 }
@@ -110,33 +109,9 @@ export default function StatsSection() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.2 });
 
   return (
-    <section style={{ backgroundColor: "#111111" }} className="py-12 md:py-20 relative overflow-hidden">
-      {/* Subtle grid */}
-      <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.2) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
-
-      {/* Bordo top luminoso */}
-      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.7) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.7) 70%, transparent 100%)" }} />
-      {/* Bordo bottom */}
-      <div className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.25) 50%, transparent 100%)" }} />
-
-      {/* Glow orbs — intensificati */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[400px] rounded-full blur-[130px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.24) 0%, transparent 65%)" }} />
-      <div className="absolute bottom-0 right-1/4 w-[450px] h-[350px] rounded-full blur-[120px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.09) 0%, transparent 100%)" }} />
-
-      <FloatingEdiliziaIcons variant={0} />
+    <section className="py-12 md:py-20 relative overflow-hidden bg-white">
+      <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+      <div className="pointer-events-none absolute top-0 left-1/4 h-[360px] w-[480px] rounded-full blur-[120px]" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
       <div ref={ref} className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Heading */}
         <div
@@ -149,40 +124,34 @@ export default function StatsSection() {
           <p
             className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest"
             style={{
-              color: "#F97415",
-              backgroundColor: "rgba(249, 116, 21, 0.12)",
-              border: "1px solid rgba(249, 116, 21, 0.25)",
+              color: "#C2560C",
+              backgroundColor: "#FFF7ED",
+              border: "1px solid #FED7AA",
             }}
           >
             Il lavoro collegato
           </p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] mb-4">
             Più controllo, <span style={{ color: "#F97415" }}>ogni giorno</span>
           </h2>
         </div>
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
-          {stats.map((stat, i) => (
-            <div
-              key={i}
-              className="relative"
-              style={{
-                borderRight: i < stats.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-              }}
-            >
-              {/* Divider on mobile: bottom border for top row */}
-              {i < 2 && (
-                <div
-                  className="absolute bottom-0 left-6 right-6 h-px md:hidden"
-                  style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
-                />
-              )}
-              <StatCard stat={stat} isVisible={isVisible} delay={150 + i * 120} />
-            </div>
-          ))}
+        {/* Le quattro schede, collegate da un filo su cui scorrono i dati */}
+        <div className="relative">
+          <svg aria-hidden="true" viewBox="0 0 1000 40" preserveAspectRatio="none" className="pointer-events-none absolute left-0 right-0 top-1/2 hidden h-10 w-full -translate-y-1/2 md:block">
+            <path d="M60 20H940" stroke="#FED7AA" strokeWidth="3" strokeDasharray="6 8" />
+            {[0, 1, 2, 3].map((k) => (
+              <circle key={k} r="5" cy="0" fill="#F97415">
+                <animateMotion dur="5s" begin={`${-k * 1.25}s`} repeatCount="indefinite" path="M60 20H940" />
+              </circle>
+            ))}
+          </svg>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
+            {stats.map((stat, i) => (
+              <StatCard key={i} stat={stat} isVisible={isVisible} delay={150 + i * 120} />
+            ))}
+          </div>
         </div>
-
       </div>
     </section>
   );

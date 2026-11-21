@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { useState, useMemo, useEffect } from "react";
 import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { Link, useSearchParams } from "react-router-dom";
@@ -259,7 +260,8 @@ export default function Blog() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="bg-[#111111] pt-36 pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-36 pb-20">
+        <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto px-6 text-center">
           <p className="text-eic-orange font-semibold text-sm uppercase tracking-widest mb-4">
             Edilizia in Cloud Blog

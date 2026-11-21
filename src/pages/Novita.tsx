@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles, Wrench, Smartphone, LayoutDashboard, FileText, Bot } from "lucide-react";
@@ -144,7 +145,8 @@ export default function Novita() {
       <LandingNavbar />
 
       {/* HERO */}
-      <section className="bg-[#111111] pt-28 pb-14 px-4 md:pt-36 md:pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-28 pb-14 px-4 md:pt-36 md:pb-20">
+        <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
 <div className="min-w-0">
           <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/25">

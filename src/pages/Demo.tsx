@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState } from "react";
@@ -274,8 +275,9 @@ export default function Demo() {
       {/* Hero */}
       <section
         style={{ background: "linear-gradient(135deg, #111111 0%, #111111 100%)" }}
-        className="pt-28 sm:pt-36 pb-14 sm:pb-20 px-5 sm:px-6 text-center"
+        className="relative isolate overflow-hidden pt-28 sm:pt-36 pb-14 sm:pb-20 px-5 sm:px-6 text-center"
       >
+        <HeroRete className="-z-10" />
         <div className="max-w-3xl mx-auto">
           <div
             className="inline-block px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold tracking-widest uppercase mb-5 sm:mb-6"

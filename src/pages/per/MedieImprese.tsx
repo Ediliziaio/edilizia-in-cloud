@@ -17,11 +17,12 @@ const config: PerTipoConfig = {
   badge: "Per Medie Imprese Edili (10-50 dipendenti)",
   heroTitle: (
     <>
-      <span className="text-white">Gestisci 10 cantieri</span>{" "}
-      <span className="text-eic-orange">come se fosse uno solo</span>
+      <span className="text-white">Gestionale per medie imprese edili.</span>{" "}
+      <span className="text-eic-orange">Dieci cantieri come se fosse uno.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Ruoli chiari, presenze, costi e margini di tutti i cantieri aggiornati in tempo reale, senza Excel sparsi.",
+  heroDettaglio:
     "A 30 dipendenti e 8 cantieri attivi succede sempre la stessa cosa: il responsabile cantiere lavora con i suoi Excel, il CFO riceve i dati con due settimane di ritardo, l'HR insegue le presenze su WhatsApp e i margini reali nessuno li conosce davvero. Edilizia in Cloud è la prima piattaforma pensata per medie imprese edili: ruoli e deleghe chiari, dati consolidati in tempo reale, zero ERP enterprise da 200.000 euro l'anno.",
   heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
 

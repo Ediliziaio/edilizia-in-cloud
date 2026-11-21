@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Serramentisti e Installatori di Infissi",
   heroTitle: (
     <>
-      <span className="text-white">Aumenta i margini. Blinda la cassa. Controlla ogni commessa.</span>{" "}
-      <span className="text-eic-orange">Il gestionale con AI per chi produce e posa serramenti.</span>
+      <span className="text-white">Gestionale per serramentisti.</span>{" "}
+      <span className="text-eic-orange">Preventivi, ordini e pose senza errori.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Preventivo su misura in pochi minuti, ordini ai fornitori dal preventivo, pose a calendario e margine di ogni commessa.",
+  heroDettaglio:
     "Non è solo un preventivatore: è il sistema che governa tutta l'azienda. Il margine reale di ogni commessa lo vedi mentre lavori (+12% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, ordini e pose filano senza errori — e sì, il preventivo esce in 60 secondi. Con l'AI che ti avvisa prima che un problema diventi un costo.",
   heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
 

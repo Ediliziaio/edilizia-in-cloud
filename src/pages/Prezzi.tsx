@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { marketingMessages } from "@/lib/marketing/messages";
 import { useState, useEffect, Fragment } from "react";
 import { useSEO } from "@/hooks/useSEO";
@@ -305,9 +306,10 @@ export default function Prezzi() {
 
       {/* ── 1. HERO ─────────────────────────────────────────────────────────── */}
       <section
-        className="pt-28 pb-10 px-4 text-center"
+        className="relative isolate overflow-hidden pt-28 pb-10 px-4 text-center"
         style={{ background: "linear-gradient(160deg, #111111 0%, #111111 100%)" }}
       >
+        <HeroRete className="-z-10" />
         {/* Badge */}
         <div className="inline-flex items-center gap-2 bg-white/10 text-white border border-white/20 rounded-full px-4 py-1.5 text-xs font-bold tracking-widest mb-6 uppercase">
           <span className="relative flex h-2 w-2">

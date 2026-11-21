@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useAlzaChat } from "@/hooks/useAlzaChat";
 import { ShieldCheck, ArrowRight, Star } from "lucide-react";
 import { openContactModal } from "@/components/landing/QuickContactModal";
 
@@ -12,14 +13,9 @@ export default function StickyBottomBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Quando la barra è visibile alza il FAB della chat pubblica (stessa zona
-  // fixed bottom-right): PublicChatWidget legge --eic-chat-lift sul bottom.
-  useEffect(() => {
-    document.documentElement.style.setProperty("--eic-chat-lift", visible ? "64px" : "0px");
-    return () => {
-      document.documentElement.style.setProperty("--eic-chat-lift", "0px");
-    };
-  }, [visible]);
+  // Quando la barra è visibile alza i pulsanti fissi (WhatsApp, chat) della sua altezza vera.
+  const barRef = useRef<HTMLDivElement>(null);
+  useAlzaChat(barRef, visible);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -28,6 +24,7 @@ export default function StickyBottomBar() {
 
   return (
     <div
+      ref={barRef}
       className={`fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-[#111111] via-[#1e2f52] to-[#111111] text-white transition-transform duration-500 ${
         visible ? "translate-y-0" : "translate-y-full"
       }`}

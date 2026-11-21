@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Carpenterie Metalliche e Strutture in Acciaio",
   heroTitle: (
     <>
-      <span className="text-white">Software per carpenteria metallica: officina e cantiere non si parlano.</span>{" "}
-      <span className="text-eic-orange">Una commessa sola: distinte, DDT, posa e avanzamento.</span>
+      <span className="text-white">Software per carpenteria metallica.</span>{" "}
+      <span className="text-eic-orange">Officina e cantiere su una commessa sola.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Distinte, DDT, posa e ore di officina nello stesso posto. Il margine lo vedi mentre la commessa avanza.",
+  heroDettaglio:
     "In officina la produzione corre, in cantiere la posa aspetta — e nessuno sa a che punto siamo. Edilizia in Cloud è il software per carpenterie metalliche: ogni commessa tiene insieme produzione in officina e posa in cantiere, con distinte materiali collegate, DDT per le spedizioni, avanzamento documentato con foto e ore di officina e di posa separate. Il margine reale lo vedi mentre la commessa avanza — non quando l'acciaio è già montato e pagato.",
   heroImage: "/hero/stock/cantiere-1504328345606-1400.webp",
 

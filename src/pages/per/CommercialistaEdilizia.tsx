@@ -14,11 +14,12 @@ const config: PerTipoConfig = {
   badge: "Per Commercialisti e Studi Fiscali",
   heroTitle: (
     <>
-      <span className="text-white">I tuoi clienti edili</span>{" "}
-      <span className="text-eic-orange">parlano la stessa lingua</span>
+      <span className="text-white">Software edilizia per commercialisti.</span>{" "}
+      <span className="text-eic-orange">Tutti i clienti edili in un posto solo.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Documenti, cassetto fiscale e scadenze dei tuoi clienti edili in un'unica piattaforma, con il tuo accesso da commercialista.",
+  heroDettaglio:
     "Hai 30+ clienti edili e ognuno ti manda i documenti come gli pare: WhatsApp, email, foto sgranate, PDF a fine mese. Cassa edile, DURC, F24 specifici dell'edilizia ti rubano ore di lavoro per ogni cliente. Con Edilizia in Cloud gestisci tutti i tuoi clienti edili da un'unica piattaforma multi-azienda: accesso ruolo-based commercialista, sync automatico cassetto fiscale SDI, F24 cassa edile pre-compilato. In white-label, con il tuo brand.",
   heroImage: "/hero/stock/cantiere-1581094288338-1400.webp",
 

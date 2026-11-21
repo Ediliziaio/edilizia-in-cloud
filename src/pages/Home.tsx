@@ -184,9 +184,11 @@ export default function Home() {
 
       {/* content-visibility:auto via .cv-auto-tall: il browser skip rendering
           delle sezioni fuori dal viewport iniziale → main thread libero.
-          Ordine di vendita (2026-06): problema → soluzione → prova sociale →
-          meccanismo (AI) → catalogo moduli. Prima l'AI showcase veniva
-          mostrata a freddo, prima di aver agitato il problema. */}
+          Ordine di vendita (2026-11): problema → soluzione (il filo della
+          commessa) → chi la guida (il cervello di Silvio, subito dopo, perché è
+          ciò che ci distingue) → video → moduli → prova sociale vicino alla
+          decisione (recensioni, garanzia, piani). L'AI resta dopo il problema,
+          come voleva l'ordine di giugno: non arriva a freddo. */}
       <Suspense fallback={<SectionFallback />}>
         <div className="cv-auto-tall">
           <PainPointsSection />
@@ -195,16 +197,16 @@ export default function Home() {
           <SolutionSection />
         </div>
         <div className="cv-auto-tall">
-          <HomeVideoGallery />
-        </div>
-        <div className="cv-auto">
-          <TestimonialsSection />
-        </div>
-        <div className="cv-auto-tall">
           <AISystemShowcaseSection />
         </div>
         <div className="cv-auto-tall">
+          <HomeVideoGallery />
+        </div>
+        <div className="cv-auto-tall">
           <ModulesSection />
+        </div>
+        <div className="cv-auto">
+          <TestimonialsSection />
         </div>
         <div className="cv-auto">
           <GuaranteeSection />

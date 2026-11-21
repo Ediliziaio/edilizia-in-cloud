@@ -1,3 +1,5 @@
+import MestiereEsploso from "@/components/landing/MestiereEsploso";
+import { FunzioniMestiere } from "@/components/landing/SilvioAlLavoro";
 import { marketingMessages } from "@/lib/marketing/messages";
 import type { ReactElement } from "react";
 import { useSEO } from "@/hooks/useSEO";
@@ -105,6 +107,8 @@ export interface PerTipoConfig {
   badge: string;
   heroTitle: ReactElement;
   heroSubtitle: string;
+  /** Il testo lungo di prima: resta nella pagina, chiuso sotto «Come funziona in pratica». */
+  heroDettaglio?: string;
   heroImage: string;
   // Social proof strip
   socialProof: Array<{ initials: string; name: string; city: string; months: number; gradient: string }>;
@@ -222,6 +226,12 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
   const heroAnim = useScrollAnimation();
   const socialAnim = useScrollAnimation({ threshold: 0.1 });
   const problemsAnim = useScrollAnimation();
+  // Il mestiere al centro della rete: dal percorso della pagina («/per/muratori» → «Muratori»).
+  const mestiereSlug = config.seoCanonical.replace(/\/$/, "").split("/").pop() ?? "";
+  const mestiere = (() => {
+    const t = mestiereSlug.replace(/-/g, " ");
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  })();
   const featuresAnim = useScrollAnimation();
   const roiAnim = useScrollAnimation();
   const transAnim = useScrollAnimation();
@@ -296,24 +306,20 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         .hero-particle-2{animation:float2 5s ease-in-out infinite 1s}
         .hero-particle-3{animation:float3 9s ease-in-out infinite 2s}
       `}</style>
-      <section className="relative overflow-hidden pt-20 md:pt-32 pb-16 md:pb-28 bg-[#0d0d0d]">
+      <section className="relative overflow-hidden pt-24 md:pt-32 pb-16 md:pb-24 bg-white">
         {/* Background image with parallax */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.13]"
-          style={{ backgroundImage: `url(${config.heroImage})` }}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(13,13,13,0.3) 0%, rgba(13,13,13,0.8) 60%, rgba(13,13,13,1) 100%)" }} />
+        <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
         {/* Glow orbs */}
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 60%, transparent 100%)" }} />
-        <div className="absolute top-10 right-0 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.20) 0%, transparent 65%)" }} />
+        <div className="absolute top-10 right-0 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
         {/* Floating particle orbs */}
         <div className="hero-particle-1 absolute top-[15%] left-[8%] w-3 h-3 rounded-full bg-eic-orange/40 blur-sm pointer-events-none" />
         <div className="hero-particle-2 absolute top-[30%] right-[12%] w-2 h-2 rounded-full bg-eic-orange/30 blur-sm pointer-events-none" />
         <div className="hero-particle-3 absolute bottom-[20%] left-[20%] w-4 h-4 rounded-full bg-eic-orange/20 blur-md pointer-events-none" />
 
-        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+        <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-6xl mx-auto px-6 grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+          <div className="min-w-0 text-center lg:text-left">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange-deep text-xs font-bold uppercase tracking-widest">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-ping flex-shrink-0" />
@@ -321,34 +327,48 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             </span>
           </div>
           <div className={`transition-all duration-700 delay-100 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <h1 className="text-3xl sm:text-4xl md:text-6xl font-extrabold text-white leading-tight mb-6">
+            <h1 className="text-3xl sm:text-4xl xl:text-5xl font-extrabold text-[#111111] leading-tight mb-6 [&_.text-white]:!text-[#111111]">
               {config.heroTitle}
             </h1>
           </div>
           <div className={`transition-all duration-700 delay-200 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <p className="text-white/65 text-base md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+            <p className="text-gray-600 text-base md:text-lg max-w-2xl mx-auto lg:mx-0 mb-4 leading-relaxed">
               {config.heroSubtitle}
             </p>
+            {config.heroDettaglio ? (
+              <details className="mb-8 max-w-2xl mx-auto lg:mx-0 text-sm text-gray-600 text-left">
+                <summary className="cursor-pointer font-semibold text-gray-800">Come funziona in pratica</summary>
+                <p className="mt-3 leading-relaxed">{config.heroDettaglio}</p>
+              </details>
+            ) : <div className="mb-6" />}
           </div>
-          <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-300 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <div className={`flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 transition-all duration-700 delay-300 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <Link to="/demo/" className="w-full sm:w-auto px-8 py-4 rounded-full bg-eic-orange text-white font-bold text-lg hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
               Prova Gratis 31 Giorni →
             </Link>
-            <Link to="/prezzi/" className="w-full sm:w-auto px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all">
+            <Link to="/prezzi/" className="w-full sm:w-auto px-8 py-4 rounded-full border border-gray-300 text-[#111111] font-semibold hover:border-eic-orange hover:text-eic-orange-dark transition-all">
               Scopri i piani
             </Link>
           </div>
-          <div className={`flex flex-wrap items-center justify-center gap-6 mt-8 transition-all duration-700 delay-400 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <div className={`flex flex-wrap items-center justify-center lg:justify-start gap-6 mt-8 transition-all duration-700 delay-400 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             {[
               { Icon: Star, label: "4.9/5 stelle · oltre 150 aziende" },
               { Icon: Clock, label: "Avvio assistito" },
               { Icon: Shield, label: "GDPR" },
             ].map(({ Icon, label }, i) => (
-              <span key={i} className="flex items-center gap-2 text-white/45 text-sm">
+              <span key={i} className="flex items-center gap-2 text-gray-500 text-sm">
                 <Icon size={14} className="text-eic-orange flex-shrink-0" />
                 {label}
               </span>
             ))}
+          </div>
+          </div>
+          <div className={`min-w-0 transition-all duration-700 delay-200 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+            <MestiereEsploso
+              mestiere={mestiereSlug}
+              titolo={`Per ${mestiere.toLowerCase()}`}
+              moduli={config.modules.map((m) => ({ name: m.name, desc: m.desc, icon: m.icon }))}
+            />
           </div>
         </div>
       </section>
@@ -430,40 +450,15 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 {config.verticalFeaturesSubtitle ?? "Ogni funzionalità è stata costruita attorno a come lavora davvero la tua impresa — non attorno a come funziona il software."}
               </p>
             </div>
-            <div className="space-y-6">
-              {config.verticalFeatures.map((feat, i) => (
-                <div
-                  key={i}
-                  className={`grid md:grid-cols-12 gap-0 rounded-2xl border border-gray-200 overflow-hidden hover:border-eic-orange/30 hover:shadow-lg transition-all duration-500 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
-                  style={{ transitionDelay: `${150 + i * 100}ms` }}
-                >
-                  {/* Left: icon + problem */}
-                  <div className="md:col-span-3 bg-[#f8f9fa] p-6 md:p-8 flex flex-col items-start justify-center gap-4 border-b md:border-b-0 md:border-r border-gray-200">
-                    <div className="w-12 h-12 rounded-xl bg-eic-orange/10 flex items-center justify-center">
-                      <feat.icon className="w-6 h-6 text-eic-orange" />
-                    </div>
-                    <p className="text-[#111111] font-extrabold text-sm uppercase tracking-wide leading-snug">
-                      {feat.problem}
-                    </p>
-                  </div>
-                  {/* Center: solution */}
-                  <div className="md:col-span-6 p-6 md:p-8 flex items-center">
-                    <p className="text-gray-600 text-sm md:text-base leading-relaxed">{feat.solution}</p>
-                  </div>
-                  {/* Right: economic benefit */}
-                  <div className="md:col-span-3 bg-[#111111] p-6 md:p-8 flex flex-col items-center justify-center text-center gap-2">
-                    <p className="text-eic-orange text-2xl md:text-3xl font-extrabold">{feat.economicBenefit}</p>
-                    <p className="text-white/50 text-xs uppercase tracking-widest">{feat.benefitLabel}</p>
-                  </div>
-                </div>
-              ))}
+            <div className={`transition-all duration-700 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+              <FunzioniMestiere features={config.verticalFeatures} />
             </div>
           </div>
         </section>
       )}
 
       {/* ── ROI — QUANTO STAI PERDENDO ── */}
-      <section className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
+      <section className="py-16 md:py-24 bg-[#f8fafc] relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 60%, transparent 100%)" }} />
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(249,116,21,0.10) 0%, transparent 100%)" }} />
         <div ref={roiAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 relative z-10">
@@ -471,10 +466,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-red-400 bg-red-400/10 border border-red-400/20">
               Hai già calcolato?
             </span>
-            <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3">
+            <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Quanto ti costa <span className="text-red-400">NON avere il controllo</span>
             </h2>
-            <p className="text-white/50 text-lg max-w-2xl mx-auto">
+            <p className="text-gray-500 text-lg max-w-2xl mx-auto">
               La maggior parte degli imprenditori edili scopre solo a fine anno quanto ha perso. Ecco i numeri medi per un'azienda come la tua.
             </p>
           </div>
@@ -492,35 +487,35 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 style={{ transitionDelay: `${150 + i * 100}ms` }}
               >
                 <div className="text-3xl mb-3">{item.icon}</div>
-                <p className="text-3xl font-extrabold text-white mb-2">{item.value}</p>
-                <p className="text-white/50 text-sm leading-snug">{item.label}</p>
+                <p className="text-3xl font-extrabold text-[#111111] mb-2">{item.value}</p>
+                <p className="text-gray-500 text-sm leading-snug">{item.label}</p>
               </div>
             ))}
           </div>
 
           {/* Total + comparison */}
-          <div className={`rounded-2xl border border-white/10 bg-white/[0.04] p-6 md:p-8 transition-all duration-700 delay-400 ${roiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          <div className={`rounded-2xl border border-gray-200 bg-white p-6 md:p-8 transition-all duration-700 delay-400 ${roiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="text-center md:text-left">
-                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Scenario illustrativo annuo</p>
+                <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">Scenario illustrativo annuo</p>
                 <p className="text-4xl md:text-5xl font-extrabold text-red-400">{config.roi.totalLoss}</p>
               </div>
-              <div className="text-white/30 text-3xl font-thin hidden md:block">vs</div>
+              <div className="text-gray-400 text-3xl font-thin hidden md:block">vs</div>
               <div className="text-center md:text-left">
-                <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Risparmio effettivo</p>
+                <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">Risparmio effettivo</p>
                 <p className="text-4xl md:text-5xl font-extrabold text-eic-orange">Da misurare</p>
-                <p className="text-white/30 text-xs mt-1">sui tuoi dati, prima e dopo</p>
+                <p className="text-gray-400 text-xs mt-1">sui tuoi dati, prima e dopo</p>
               </div>
               <div className="text-center">
                 <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-eic-orange/50 bg-eic-orange/10">
-                  <p className="text-white/40 text-[10px] uppercase tracking-wide">Verifica</p>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-wide">Verifica</p>
                   <p className="text-3xl font-extrabold text-eic-orange">Su misura</p>
-                  <p className="text-white/40 text-[10px]">nella tua impresa</p>
+                  <p className="text-gray-500 text-[10px]">nella tua impresa</p>
                 </div>
               </div>
             </div>
-            <div className="mt-6 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-white/40 text-sm">
+            <div className="mt-6 pt-5 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-gray-500 text-sm">
                 {marketingMessages.savingsDetail}
               </p>
               <Link to="/demo/" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-eic-orange text-white font-bold text-sm hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
@@ -581,7 +576,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
       </section>
 
       {/* ── STATS ── */}
-      <section ref={statsAnim.ref as React.RefObject<HTMLDivElement>} className="py-14 md:py-20 bg-[#111111] relative overflow-hidden">
+      <section ref={statsAnim.ref as React.RefObject<HTMLDivElement>} className="py-14 md:py-20 bg-[#f8fafc] relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.10) 0%, transparent 100%)" }} />
         <div className="relative z-10 max-w-5xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 text-center">
@@ -594,8 +589,8 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 <p className="text-4xl md:text-5xl font-extrabold text-eic-orange mb-2">
                   <StatCounter value={s.value} trigger={statsAnim.isVisible} />
                 </p>
-                <p className="text-white font-bold text-sm mb-1">{s.label}</p>
-                <p className="text-white/40 text-xs">{s.sublabel}</p>
+                <p className="text-[#111111] font-bold text-sm mb-1">{s.label}</p>
+                <p className="text-gray-500 text-xs">{s.sublabel}</p>
               </div>
             ))}
           </div>
@@ -637,7 +632,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
 
       {/* ── SILVIO AI (optional) ── */}
       {config.aiShowcase && (
-        <section className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
+        <section className="py-16 md:py-24 bg-[#f8fafc] relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
           <div className="absolute top-0 left-1/4 w-[500px] h-[400px] rounded-full blur-[130px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.2) 0%, transparent 65%)" }} />
           <div className="absolute bottom-0 right-1/4 w-[450px] h-[350px] rounded-full blur-[120px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
@@ -655,31 +650,31 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-orange-200 bg-eic-orange/10 border border-eic-orange/25">
                 Silvio · La regia AI
               </span>
-              <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3">{config.aiShowcase.title}</h2>
-              <p className="text-white/55 text-lg max-w-2xl mx-auto">{config.aiShowcase.subtitle}</p>
+              <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">{config.aiShowcase.title}</h2>
+              <p className="text-gray-500 text-lg max-w-2xl mx-auto">{config.aiShowcase.subtitle}</p>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               {config.aiShowcase.actions.map((a, i) => (
                 <div
                   key={a.title}
-                  className={`rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:border-orange-300/35 hover:bg-white/[0.09] ${aiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                  className={`rounded-2xl border border-gray-200 bg-white p-5 backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:border-orange-300/35 hover:bg-gray-50 ${aiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                   style={{ transitionDelay: `${150 + i * 90}ms` }}
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-eic-orange/15 text-eic-orange">
                       <a.icon className="h-5 w-5" />
                     </div>
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white/55">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gray-500">
                       {a.tag}
                     </span>
                   </div>
-                  <h3 className="font-bold text-white mb-1.5">{a.title}</h3>
-                  <p className="text-white/55 text-sm leading-relaxed">{a.desc}</p>
+                  <h3 className="font-bold text-[#111111] mb-1.5">{a.title}</h3>
+                  <p className="text-gray-500 text-sm leading-relaxed">{a.desc}</p>
                 </div>
               ))}
             </div>
             {config.aiShowcase.note && (
-              <p className={`text-center text-white/45 mt-10 text-sm md:text-base transition-all duration-700 delay-500 ${aiAnim.isVisible ? "opacity-100" : "opacity-0"}`}>
+              <p className={`text-center text-gray-500 mt-10 text-sm md:text-base transition-all duration-700 delay-500 ${aiAnim.isVisible ? "opacity-100" : "opacity-0"}`}>
                 {config.aiShowcase.note}
               </p>
             )}
@@ -717,7 +712,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
       )}
 
       {/* ── CASE STUDY ── */}
-      <section className="py-16 md:py-28 bg-[#111111] relative overflow-hidden">
+      <section className="py-16 md:py-28 bg-[#f8fafc] relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-[150px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div ref={caseAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 relative z-10">
@@ -725,21 +720,21 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange-deep bg-eic-orange/10 border border-eic-orange/20">
               Caso Studio Reale
             </span>
-            <h2 className="text-2xl md:text-4xl font-extrabold text-white">
+            <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111]">
               Risultati concreti. <span className="text-eic-orange">Numeri veri.</span>
             </h2>
           </div>
 
-          <div className={`grid md:grid-cols-5 gap-0 rounded-3xl overflow-hidden border border-white/10 transition-all duration-700 delay-200 ${caseAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <div className={`grid md:grid-cols-5 gap-0 rounded-3xl overflow-hidden border border-gray-200 transition-all duration-700 delay-200 ${caseAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             {/* Left: story */}
-            <div className="md:col-span-3 bg-white/[0.05] p-7 md:p-10">
+            <div className="md:col-span-3 bg-white p-7 md:p-10">
               <div className="flex items-center gap-4 mb-6">
                 <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${cs.gradient} flex items-center justify-center text-white font-extrabold text-lg flex-shrink-0`}>
                   {cs.initials}
                 </div>
                 <div>
-                  <p className="text-white font-bold">{cs.company}</p>
-                  <p className="text-white/50 text-xs">{cs.city} · {cs.sector}</p>
+                  <p className="text-[#111111] font-bold">{cs.company}</p>
+                  <p className="text-gray-500 text-xs">{cs.city} · {cs.sector}</p>
                   <span className="inline-block mt-1 px-2 py-0.5 bg-eic-orange/20 text-eic-orange text-xs font-bold rounded-full">Fatturato {cs.revenue}</span>
                 </div>
               </div>
@@ -748,26 +743,26 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                   <Star key={s} className="w-4 h-4 fill-amber-400 text-amber-400" />
                 ))}
               </div>
-              <blockquote className="text-white text-base md:text-lg italic leading-relaxed mb-6">
+              <blockquote className="text-[#111111] text-base md:text-lg italic leading-relaxed mb-6">
                 "{cs.quote}"
               </blockquote>
-              <p className="text-white/50 text-sm">
-                — <strong className="text-white/70">{cs.person}</strong>, {cs.role}
+              <p className="text-gray-500 text-sm">
+                — <strong className="text-gray-600">{cs.person}</strong>, {cs.role}
               </p>
             </div>
             {/* Right: metrics */}
-            <div className="md:col-span-2 bg-eic-orange/10 border-t border-white/10 md:border-t-0 md:border-l border-white/10 p-7 md:p-8 flex flex-col justify-center gap-6">
+            <div className="md:col-span-2 bg-eic-orange/10 border-t border-gray-200 md:border-t-0 md:border-l border-gray-200 p-7 md:p-8 flex flex-col justify-center gap-6">
               {cs.metrics.map((m, i) => (
                 <div key={i}>
-                  <p className="text-white/50 text-xs uppercase tracking-wide mb-2">{m.label}</p>
+                  <p className="text-gray-500 text-xs uppercase tracking-wide mb-2">{m.label}</p>
                   <div className="flex items-center gap-3">
                     <span className="text-red-300/70 line-through text-sm">{m.before}</span>
                     <ArrowRight className="w-3 h-3 text-eic-orange flex-shrink-0" />
-                    <span className="text-white font-bold">{m.after}</span>
+                    <span className="text-[#111111] font-bold">{m.after}</span>
                   </div>
                 </div>
               ))}
-              <div className="mt-2 pt-4 border-t border-white/10">
+              <div className="mt-2 pt-4 border-t border-gray-200">
                 <Link to="/casi-studio/" className="inline-flex items-center gap-2 text-eic-orange text-sm font-bold hover:underline">
                   Leggi tutti i casi studio <ArrowRight size={14} />
                 </Link>

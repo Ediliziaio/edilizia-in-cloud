@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Piccole Imprese Edili e Artigiani",
   heroTitle: (
     <>
-      <span className="text-white">Anche tu fai le fatture</span>{" "}
-      <span className="text-eic-orange">la domenica sera?</span>
+      <span className="text-white">Gestionale per piccole imprese edili.</span>{" "}
+      <span className="text-eic-orange">Basta fatture la domenica sera.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Preventivi, cantieri e fatture in un posto solo: la burocrazia si sbriga in fretta e tu torni a fare l'imprenditore.",
+  heroDettaglio:
     "Sei in 3-4 persone. Il cantiere lo gestisci tu. Le fatture le fai tu. I preventivi li scrivi a mano. La domenica sera finisci con Excel e la pila di scontrini davanti. Con Edilizia in Cloud la burocrazia si fa in 30 minuti al giorno — e tu torni a essere un imprenditore, non un impiegato.",
   heroImage: "/hero/stock/cantiere-1504307651254-1400.webp",
 

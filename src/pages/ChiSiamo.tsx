@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { Link } from "react-router-dom";
 import { ArrowRight, HardHat, Users, ChartNoAxesCombined } from "lucide-react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
@@ -34,7 +35,8 @@ export default function ChiSiamo() {
     <JsonLd id="jsonld-organization-chisiamo" data={{ "@context": "https://schema.org", "@type": "Organization", "@id": `${SITE_URL}/#organization`, name: "Edilizia in Cloud", legalName: "Domus Group S.r.l.", url: SITE_URL, vatID: "IT13132010961", address: { "@type": "PostalAddress", streetAddress: "Via Aurelio Saffi 29", postalCode: "20123", addressLocality: "Milano", addressCountry: "IT" }, email: "info@ediliziaincloud.com" }} />
     <JsonLd id="jsonld-faq-chisiamo" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faqs.map(f => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }} />
     <main>
-      <header className="bg-[#111111] px-5 pt-28 pb-14 sm:px-6 md:pt-36 md:pb-20 text-white">
+      <header className="relative isolate overflow-hidden bg-[#111111] px-5 pt-28 pb-14 sm:px-6 md:pt-36 md:pb-20 text-white">
+        <HeroRete className="-z-10" />
         <div className="mx-auto max-w-7xl grid lg:grid-cols-[1fr_1.05fr] gap-10 lg:gap-14 items-center">
           <div>
             <p className="text-sm font-semibold text-orange-300">Chi siamo · Edilizia in Cloud</p>

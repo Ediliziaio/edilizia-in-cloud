@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { useMemo } from "react";
 import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { Link, useParams, Navigate } from "react-router-dom";
@@ -156,7 +157,8 @@ export default function BlogCategory() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="bg-[#111111] pt-36 pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-36 pb-20">
+        <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto px-6">
           {/* Back link */}
           <Link

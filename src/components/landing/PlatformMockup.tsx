@@ -30,9 +30,10 @@
 import {
   ClipboardCheck, Mail, TrendingUp, MessagesSquare, Sparkles, HardHat, Package,
   Users, Receipt, Landmark, Wallet, Megaphone, Bot, Search, Bell, ChevronRight,
-  PanelLeft, AlertCircle, CalendarDays, Plus, SlidersHorizontal,
+  PanelLeft, AlertCircle, CalendarDays, Plus, SlidersHorizontal, MousePointer2,
 } from "lucide-react";
 import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
+import { useEffect, useState } from "react";
 
 /* Palette del gestionale (src/index.css): primario blu, sfondi chiari. */
 const BLU = "#1A73E8";
@@ -96,6 +97,45 @@ const X0 = 34, X1 = 294, Y0 = 8, Y1 = 90;
 const yScala = (v: number, max: number) => Y1 - ((Y1 - Y0) * v) / max;
 
 export default function PlatformMockup() {
+  // Il gestionale "vive": ogni pochi secondi Silvio nota la commessa sotto margine,
+  // la evidenzia, propone le azioni e poi le manda. Fasi: 0 calma, 1 nota, 2 propone, 3 fatto.
+  const [fase, setFase] = useState(0);
+  const [giri, setGiri] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const durate = [2600, 1600, 3600, 2400];
+    let t: number;
+    const giro = (f: number) => {
+      t = window.setTimeout(() => {
+        const n = (f + 1) % 4;
+        setFase(n);
+        if (n === 3) setGiri((g) => (g + 1) % 5);
+        giro(n);
+      }, durate[f]);
+    };
+    giro(0);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // Ogni volta che Silvio chiude il giro, entra l'acconto sollecitato: l'incassato sale
+  // davvero, contando. Dopo qualche giro si riparte, così i numeri restano credibili.
+  const incassatoTarget = 268400 + giri * 3200;
+  const [incassato, setIncassato] = useState(268400);
+  useEffect(() => {
+    let raf = 0;
+    const da = incassato;
+    const t0 = performance.now();
+    const passo = (now: number) => {
+      const k = Math.min(1, (now - t0) / 900);
+      setIncassato(Math.round(da + (incassatoTarget - da) * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) raf = requestAnimationFrame(passo);
+    };
+    raf = requestAnimationFrame(passo);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incassatoTarget]);
+  const euro = (n: number) => `€ ${n.toLocaleString("it-IT")}`;
+
   const larghezzaGruppo = (X1 - X0) / MESI.length;
   const larghezzaBarra = 11;
   const passoCassa = (X1 - X0) / (CASSA.length - 1);
@@ -103,6 +143,15 @@ export default function PlatformMockup() {
 
   return (
     <div className="gsap-dashboard relative mx-auto mb-8 mt-10 max-w-5xl">
+      <style>{`
+        .eic-silvio-scan { animation: eic-silvio-scan 2.4s cubic-bezier(0.45, 0, 0.3, 1) forwards; top: 0; }
+        @keyframes eic-silvio-scan { from { top: -10%; opacity: 0; } 15% { opacity: 1; } to { top: 30%; opacity: 1; } }
+        .eic-silvio-cursor { animation: eic-silvio-cursor 3.4s ease-in-out forwards; left: 92%; top: 120%; }
+        @keyframes eic-silvio-cursor { 0% { left: 92%; top: 140%; opacity: 0; } 25% { opacity: 1; } 65% { left: 46%; top: 45%; } 72% { transform: scale(0.85); } 80% { transform: scale(1); left: 46%; top: 45%; } 100% { left: 46%; top: 45%; opacity: 1; } }
+        .eic-silvio-press { animation: eic-silvio-press 3.4s ease-in-out forwards; }
+        @keyframes eic-silvio-press { 0%, 68% { transform: scale(1); } 74% { transform: scale(0.92); background: #F97415; color: #fff; } 100% { background: #F97415; color: #fff; } }
+        @media (prefers-reduced-motion: reduce) { .eic-silvio-scan, .eic-silvio-cursor, .eic-silvio-press { animation: none; } }
+      `}</style>
       {/* Alone dietro alla finestra, come prima */}
       <div className="pointer-events-none absolute -inset-8 rounded-full bg-eic-orange/15 blur-[80px] animate-pulse-glow" />
 
@@ -177,8 +226,8 @@ export default function PlatformMockup() {
                   <p className="flex flex-wrap items-center gap-x-3 text-[9.5px]" style={{ color: GRIGIO }}>
                     <span><b style={{ color: INCHIOSTRO }}>12</b> commesse</span>
                     <span>Venduto <b className="tabular-nums" style={{ color: INCHIOSTRO }}>€ 412.800</b></span>
-                    <span>Incassato <b className="tabular-nums text-emerald-700">€ 268.400</b></span>
-                    <span>Da incassare <b className="tabular-nums text-amber-700">€ 144.400</b></span>
+                    <span>Incassato <b className="tabular-nums text-emerald-700">{euro(incassato)}</b></span>
+                    <span>Da incassare <b className="tabular-nums text-amber-700">{euro(412800 - incassato)}</b></span>
                   </p>
                 </div>
                 <span className="flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-semibold text-white" style={{ background: BLU }}>
@@ -206,7 +255,15 @@ export default function PlatformMockup() {
               </div>
 
               {/* Tabella (OrdersTable): Codice · Cliente · Descrizione · Stato · Imponibile · Incassato · Margine */}
-              <div className="overflow-hidden rounded-lg border bg-white" style={{ borderColor: BORDO }}>
+              <div className="relative overflow-hidden rounded-lg border bg-white" style={{ borderColor: BORDO }}>
+                {/* Silvio legge le commesse: una riga di luce scorre fino a quella sotto margine */}
+                {fase === 0 && (
+                  <div key={giri} aria-hidden className="eic-silvio-scan pointer-events-none absolute inset-x-0 z-10 h-7">
+                    <div className="h-full w-full bg-gradient-to-b from-transparent via-orange-400/25 to-transparent" />
+                    <div className="absolute inset-x-0 top-1/2 h-[1.5px] bg-eic-orange/70 shadow-[0_0_10px_rgba(249,116,21,0.8)]" />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-eic-orange px-1.5 py-[1px] text-[7.5px] font-black uppercase tracking-wider text-white">Silvio legge…</span>
+                  </div>
+                )}
                 <table className="w-full border-collapse text-[10px]">
                   <thead>
                     <tr className="text-left text-[8.5px] uppercase tracking-wide" style={{ color: GRIGIO, background: "#FAFBFC" }}>
@@ -223,7 +280,15 @@ export default function PlatformMockup() {
                     {COMMESSE.map((c, i) => {
                       const basso = c.margine < 20;
                       return (
-                        <tr key={c.codice} className="border-t" style={{ borderColor: BORDO, background: basso ? "#FFFBEB" : undefined }}>
+                        <tr
+                          key={c.codice}
+                          className="border-t transition-colors duration-500"
+                          style={{
+                            borderColor: BORDO,
+                            background: basso ? (fase >= 1 ? "#FEF3C7" : "#FFFBEB") : undefined,
+                            boxShadow: basso && fase >= 1 && fase < 3 ? "inset 3px 0 0 #F59E0B" : undefined,
+                          }}
+                        >
                           <td className="whitespace-nowrap px-2.5 py-[6px] font-mono text-[9.5px] font-semibold" style={{ color: BLU }}>{c.codice}</td>
                           <td className="px-2 py-[6px] font-medium">{c.cliente}</td>
                           <td className="hidden max-w-[150px] truncate px-2 py-[6px] lg:table-cell" style={{ color: GRIGIO }}>{c.descrizione}</td>
@@ -384,6 +449,44 @@ export default function PlatformMockup() {
           </div>
         </div>
       </div>
+      </div>
+
+      {/* L'avviso di Silvio: compare, propone, conferma. */}
+      <div
+        aria-live="polite"
+        className="pointer-events-none absolute -bottom-6 right-2 z-20 w-[min(92%,330px)] text-left transition-all duration-500 sm:-right-4 md:-right-8"
+        style={{ opacity: fase >= 2 ? 1 : 0, transform: fase >= 2 ? "translateY(0) scale(1)" : "translateY(14px) scale(0.96)" }}
+      >
+        <div className="flex gap-3 rounded-2xl border border-orange-200 bg-white p-3 shadow-[0_18px_40px_-12px_rgba(249,116,21,0.45)]">
+          <span className="relative block h-11 w-11 shrink-0 overflow-hidden rounded-full bg-orange-50 ring-2 ring-orange-200">
+            <img src="/images/silvio/silvio-busto.png" alt="" width={44} height={44} loading="lazy" decoding="async" className="absolute left-1/2 top-[4%] h-[115%] w-[115%] max-w-none -translate-x-1/2" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-wider text-eic-orange-dark">Silvio</p>
+            {fase === 2 ? (
+              <>
+                <p className="mt-0.5 text-[12.5px] font-semibold leading-snug text-[#111111]">Bagno Ferrari è al 19%, sotto il tuo minimo del 20%.</p>
+                <p className="mt-1 text-[11px] leading-snug text-gray-500">Ho preparato 3 azioni:</p>
+                <div className="relative mt-1.5 flex flex-wrap gap-1">
+                  {["Verifica ore", "Sollecito acconto", "Nota al capocantiere"].map((a, i) => (
+                    <span
+                      key={a}
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${i === 1 ? "eic-silvio-press border-eic-orange bg-orange-50 text-eic-orange-dark" : "border-gray-200 bg-white text-gray-600"}`}
+                    >
+                      {a}
+                    </span>
+                  ))}
+                  <MousePointer2 aria-hidden className="eic-silvio-cursor absolute h-4 w-4 fill-white text-[#111111]" />
+                </div>
+              </>
+            ) : (
+              <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] font-semibold leading-snug text-emerald-700">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white">✓</span>
+                Sollecito inviato: acconto incassato, +3.200 €.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

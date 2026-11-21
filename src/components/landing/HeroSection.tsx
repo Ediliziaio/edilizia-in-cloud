@@ -1,5 +1,5 @@
 import { marketingMessages } from "@/lib/marketing/messages";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 // GSAP + ScrollTrigger ora lazy: PageSpeed desktop flaggava 90KB di
 // JS + 2.7s di Script Evaluation per animazioni decorative non critiche
 // al LCP (testo "Aumenta margini..."). L'effetto è eseguito dopo il primo
@@ -9,6 +9,7 @@ import {
   Shield, Zap,
 } from "lucide-react";
 import PlatformMockup from "@/components/landing/PlatformMockup";
+import HeroRete from "@/components/landing/HeroRete";
 
 const floatingIcons: Array<{ Icon: typeof HardHat; top: string; left?: string; right?: string; size: number; delay: string; anim: string }> = [
   { Icon: HardHat, top: "10%", left: "5%", size: 48, delay: "0s", anim: "animate-float" },
@@ -24,7 +25,6 @@ const floatingIcons: Array<{ Icon: typeof HardHat; top: string; left?: string; r
 
 
 
-const typingWords = ["i tuoi margini", "la tua cassa", "i tuoi cantieri", "il tuo marketing"];
 
 const microBadges = [
   { Icon: Shield, label: "GDPR Compliant" },
@@ -35,26 +35,6 @@ const microBadges = [
 export default function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const backgroundRef = useRef<HTMLImageElement>(null);
-
-  // Typing animation state
-  const [, setWordIndex] = useState(0);
-  const [displayWord, setDisplayWord] = useState(typingWords[0]);
-  const [fadeState, setFadeState] = useState<"in" | "out">("in");
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFadeState("out");
-      setTimeout(() => {
-        setWordIndex((prev) => {
-          const next = (prev + 1) % typingWords.length;
-          setDisplayWord(typingWords[next]);
-          return next;
-        });
-        setFadeState("in");
-      }, 350);
-    }, 2200);
-    return () => clearInterval(interval);
-  }, []);
 
   // GSAP caricato dopo il primo paint via dynamic import.
   // PERF: Prima import statico a top-level caricava ~90KB sincronicamente
@@ -179,6 +159,9 @@ export default function HeroSection() {
         backgroundSize: "60px 60px",
       }} />
 
+      {/* La rete viva sopra la foto: palline che si collegano e si scostano dal mouse */}
+      <HeroRete />
+
       {/* Floating construction icons */}
       {floatingIcons.map(({ Icon, top, left, right, size, delay, anim }, i) => (
         <div
@@ -224,28 +207,12 @@ export default function HeroSection() {
                 ("gestionale edilizia"): chi la cercava trovava una pagina che
                 non lo diceva nel titolo principale. La prima riga resta (è il
                 testo LCP), la seconda dice cosa siamo. */}
-            <span className="mt-2 block text-eic-orange text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
-              Il gestionale edilizia con AI che tiene tutto sotto controllo.
+            <span className="mt-3 block text-eic-orange text-[clamp(1.35rem,2.6vw,2.4rem)] md:mt-4">
+              Il gestionale edilizia con AI che te lo dice ogni giorno.
             </span>
           </h1>
 
-          {/* Titolo con parola che cambia */}
-          <div className="mb-3 text-lg font-bold text-white/90 sm:text-2xl md:text-3xl lg:text-4xl">
-            Controlla{" "}
-            <span
-              className="inline-block min-w-[118px] text-eic-orange transition-all duration-350 sm:min-w-[160px] md:min-w-[250px]"
-              style={{
-                opacity: fadeState === "in" ? 1 : 0,
-                transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
-                transition: "opacity 0.35s ease, transform 0.35s ease",
-              }}
-            >
-              {displayWord}
-            </span>{" "}
-            in tempo reale
-          </div>
-
-          <p className="text-sm md:text-base text-white/70 mb-0 max-w-xl mx-auto">
+          <p className="text-base md:text-lg text-white/75 mb-0 max-w-2xl mx-auto">
             Preventivi, fasi, squadre, ore, materiali e fatture collegati alla commessa. Dall’ufficio al cantiere, vedi costi previsti, costi reali e margine senza ricopiare i dati.
           </p>
         </div>
@@ -289,7 +256,7 @@ export default function HeroSection() {
       {/* Bottom gradient fade */}
       {/* Sfuma verso la sezione dei numeri che segue (#111111): verso il bianco
           lasciava una fascia grigia fra due sezioni scure. */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#111111] to-transparent md:h-24" />
+      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent md:h-24" />
     </section>
   );
 }

@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 import OperationalStory from "@/components/marketing/OperationalStory";
-import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { visualThemeForFeature, marketingVisualIntro } from "@/lib/marketing/visuals";
 import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
+import ModuloRete from "@/components/landing/ModuloRete";
+import { CartePrimaDopo, PassiAnimati } from "@/components/landing/SilvioAlLavoro";
+import { useAlzaChat } from "@/hooks/useAlzaChat";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -301,6 +303,18 @@ export default function FunzionalitaPageTemplate({
     audience: { "@type": "Audience", audienceType: config.audience },
   };
 
+  // La barra arancione in basso (solo telefono e tablet) alza WhatsApp e chat sopra di sé.
+  const stickyRef = useRef<HTMLDivElement>(null);
+  useAlzaChat(stickyRef);
+
+  // La rete dell'hero: il modulo della pagina al centro, i moduli collegati intorno.
+  const isSelf = (to?: string) => !!to && to.replace(/\/$/, "").endsWith(`/${config.slug}`);
+  const reteCenter = config.familyItems.find((f) => isSelf(f.to));
+  const reteItems = [
+    ...config.familyItems.filter((f) => !isSelf(f.to)),
+    ...config.integrationPillars.map((p) => ({ ...p, to: undefined as string | undefined })),
+  ].slice(0, 6);
+
   return (
     <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
       <JsonLd id={`jsonld-breadcrumb-${config.slug}`} data={breadcrumbLd} />
@@ -317,49 +331,48 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="hero-title"
-        className="relative overflow-hidden bg-[#0b0b0b] pt-32 pb-24 sm:pt-36"
+        className="relative overflow-hidden bg-white pt-32 pb-24 sm:pt-36"
       >
         {/* Background effects */}
         <div className="pointer-events-none absolute inset-0">
           <div
-            className="absolute inset-0 opacity-[0.07]"
+            className="absolute inset-0 opacity-70"
             style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.5) 1px, transparent 1px)",
-              backgroundSize: "50px 50px",
+              backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
             }}
           />
-          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-eic-orange/30 blur-3xl" />
-          <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-blue-500/20 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/2 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
+          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-orange-200/50 blur-3xl" />
+          <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-blue-200/40 blur-3xl" />
+          <div className="absolute -bottom-24 left-1/2 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-orange-100/60 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-4">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <div className="min-w-0 text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full border border-eic-orange/40 bg-eic-orange/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange-dark">
               <Sparkles className="h-3.5 w-3.5" />
               {config.heroBadge}
             </span>
             <h1
               id="hero-title"
-              className="mt-6 text-3xl font-bold tracking-tight leading-tight text-white sm:text-4xl xl:text-5xl"
+              className="mt-6 text-3xl font-bold tracking-tight leading-tight text-[#111111] sm:text-4xl xl:text-5xl"
             >
               {config.heroH1Lead}{" "}
-              <span className="bg-gradient-to-br from-orange-300 to-eic-orange bg-clip-text text-transparent">
+              <span className="bg-gradient-to-br from-eic-orange to-eic-orange-dark bg-clip-text text-transparent">
                 {config.heroH1Highlight}
               </span>
 
             </h1>
             {/* Prima la definizione (cio' che un motore AI cita), poi il
                 sottotitolo (cio' che convince chi legge). */}
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/80">{marketingVisualIntro[visualThemeForFeature(config.slug)]}</p>
-            <details className="mt-4 max-w-2xl mx-auto lg:mx-0 text-sm text-white/70"><summary className="cursor-pointer font-semibold text-white/85">Come si usa nel lavoro quotidiano</summary>{config.definizione && <p className="mt-3 leading-relaxed">{config.definizione}</p>}<p className="mt-3 leading-relaxed">{config.heroSubheadline}</p></details>
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-gray-600">{marketingVisualIntro[visualThemeForFeature(config.slug)]}</p>
+            <details className="mt-4 max-w-2xl mx-auto lg:mx-0 text-sm text-gray-600"><summary className="cursor-pointer font-semibold text-gray-800">Come si usa nel lavoro quotidiano</summary>{config.definizione && <p className="mt-3 leading-relaxed">{config.definizione}</p>}<p className="mt-3 leading-relaxed">{config.heroSubheadline}</p></details>
 
             {/* Reassurance points */}
-            <ul className="mx-auto mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-white/70">
+            <ul className="mx-auto mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-600">
               {config.reassurancePoints.map((p) => (
                 <li key={p} className="inline-flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                   {p}
                 </li>
               ))}
@@ -377,7 +390,7 @@ export default function FunzionalitaPageTemplate({
               {config.heroSecondaryCta && (
                 <Link
                   to={config.heroSecondaryCtaTo ?? "/funzionalita"}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur transition-colors hover:bg-white/10 sm:text-base"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-[#111111] transition-colors hover:border-eic-orange hover:text-eic-orange-dark sm:text-base"
                 >
                   {config.heroSecondaryCta}
                 </Link>
@@ -389,15 +402,15 @@ export default function FunzionalitaPageTemplate({
               {config.proofPoints.map((p) => (
                 <li
                   key={p}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/70 backdrop-blur"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600"
                 >
-                  <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                  <CheckCircle2 className="h-3 w-3 text-emerald-500" />
                   {p}
                 </li>
               ))}
             </ul>
           </div>
-          <MarketingVisual theme={visualThemeForFeature(config.slug)} priority tone="dark" caption={`Illustrazione · ${config.vertical}`} className="text-white/70" />
+          <ModuloRete center={{ title: config.vertical, icon: reteCenter?.icon }} items={reteItems} />
           </div>
 
           {/* Objective row */}
@@ -405,18 +418,18 @@ export default function FunzionalitaPageTemplate({
             {config.objectiveRow.map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left text-white backdrop-blur"
+                className="rounded-2xl border border-gray-200 bg-white p-5 text-left text-[#111111] shadow-sm"
               >
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-eic-orange-dark">
                   {label}
                 </div>
-                <div className="mt-1 text-sm font-semibold text-white/90">{value}</div>
+                <div className="mt-1 text-sm font-semibold text-gray-800">{value}</div>
               </div>
             ))}
           </div>
 
           {/* Trust strip */}
-          <div className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-x-6 gap-y-3 text-white/60">
+          <div className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-x-6 gap-y-3 text-gray-500">
             {TRUST_BADGES.map((t) => (
               <span key={t.label} className="inline-flex items-center gap-2 text-xs">
                 <t.icon className="h-4 w-4 text-eic-orange" />
@@ -612,33 +625,7 @@ export default function FunzionalitaPageTemplate({
               {config.baSubheadline}
             </p>
           </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2">
-            {config.baAreas.map((a) => (
-              <div
-                key={a.title}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur"
-              >
-                <div className="border-b border-white/10 bg-slate-950/40 p-5">
-                  <h3 className="text-base font-bold text-white">{a.title}</h3>
-                </div>
-                <div className="grid gap-4 p-5 sm:grid-cols-2">
-                  <div className="rounded-xl bg-slate-800/60 p-4 ring-1 ring-white/5">
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
-                      Prima
-                    </div>
-                    <p className="text-xs leading-relaxed text-white/70">{a.before}</p>
-                  </div>
-                  <div className="rounded-xl bg-gradient-to-br from-orange-500/20 to-eic-amber/10 p-4 ring-1 ring-orange-400/30">
-                    <div className="mb-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.18em] text-orange-300">
-                      <Sparkles className="h-3 w-3" />
-                      Dopo
-                    </div>
-                    <p className="text-xs leading-relaxed text-white/90">{a.after}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <CartePrimaDopo areas={config.baAreas} />
         </div>
       </section>
 
@@ -665,24 +652,7 @@ export default function FunzionalitaPageTemplate({
               {config.mechanismSubheadline}
             </p>
           </div>
-          <ol className="mt-12 grid gap-5 sm:grid-cols-3">
-            {config.mechanismSteps.map((s, i) => (
-              <li
-                key={s.title}
-                id={`step-${i + 1}`}
-                className="relative rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6"
-              >
-                <div className="absolute -top-3 left-6 inline-flex h-7 items-center rounded-full bg-eic-orange px-3 text-[11px] font-black uppercase tracking-wider text-white shadow">
-                  Step {i + 1}
-                </div>
-                <div className="mt-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-eic-orange">
-                  <s.icon className="h-5 w-5" />
-                </div>
-                <h3 className="mt-4 text-base font-bold text-[#111111]">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.text}</p>
-              </li>
-            ))}
-          </ol>
+          <PassiAnimati steps={config.mechanismSteps} />
           <div className="mt-10 text-center">
             <Link
               to="/demo/"
@@ -1111,7 +1081,7 @@ export default function FunzionalitaPageTemplate({
       <LandingFooter />
 
       {/* Sticky mobile CTA */}
-      <div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
+      <div ref={stickyRef} className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
         <Link
           to="/demo/"
           className="flex items-center justify-between gap-3 rounded-2xl bg-eic-orange px-5 py-3.5 text-white shadow-2xl ring-1 ring-orange-300/50"

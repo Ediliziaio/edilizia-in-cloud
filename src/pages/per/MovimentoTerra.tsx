@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Imprese di Movimento Terra, Scavi e Demolizioni",
   heroTitle: (
     <>
-      <span className="text-white">Software per movimento terra: a fine mese le ore macchina non tornano mai.</span>{" "}
+      <span className="text-white">Software per movimento terra.</span>{" "}
       <span className="text-eic-orange">Mezzi, gasolio e noli sulla commessa giusta.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Ore macchina dal telefono, gasolio e noli caricati sul cantiere giusto, margine visibile mentre scavi.",
+  heroDettaglio:
     "L'escavatore ha lavorato tutto il mese, ma su quali cantieri — e a che costo? Edilizia in Cloud è il software per le imprese di movimento terra: le ore macchina di ogni mezzo si registrano dal telefono con i rapportini di giornata, gasolio, manutenzioni e noli si caricano come costi sulla commessa giusta, e il margine di ogni cantiere si vede mentre scavi — non a fine anno. Con DDT e fattura elettronica compresi.",
   heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
 

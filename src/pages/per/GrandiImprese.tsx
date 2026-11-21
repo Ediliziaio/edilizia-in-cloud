@@ -17,11 +17,12 @@ const config: PerTipoConfig = {
   badge: "Per Grandi Imprese Edili e General Contractor",
   heroTitle: (
     <>
-      <span className="text-white">50+ persone, 30 cantieri,</span>{" "}
-      <span className="text-eic-orange">un'unica fonte di verità</span>
+      <span className="text-white">Gestionale per grandi imprese edili.</span>{" "}
+      <span className="text-eic-orange">Tutti i cantieri, un'unica fonte di verità.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Più società e decine di cantieri in una sola vista per la direzione, accanto al gestionale contabile che già usi.",
+  heroDettaglio:
     "Hai 3 società operative, 18-30 cantieri attivi e un CdA che alle 9 del lunedì vuole sapere quanto sta perdendo il cantiere di Lecce. Oggi i dati arrivano dal gestionale contabile, da 4 Excel diversi, da PEC e da WhatsApp del direttore tecnico. Edilizia in Cloud consolida tutto il gruppo in un'unica dashboard direzionale CFO/CEO real-time e si affianca al gestionale contabile che già usi: fatture in XML FatturaPA, prima nota e registro IVA in CSV, automazioni che avvisano gli altri sistemi quando succede qualcosa.",
   heroImage: "/hero/stock/cantiere-1600585154526-1400.webp",
 

@@ -1,4 +1,4 @@
-import MarketingVisual from "@/components/marketing/MarketingVisual";
+import ModuloRete from "@/components/landing/ModuloRete";
 import { useState, useMemo } from "react";
 import { useSEO, SITE_URL, WIKIDATA_ENTITY } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -275,7 +275,20 @@ export default function Funzionalita() {
             </div>
           </div>
         </div>
-<MarketingVisual theme="automation" priority caption="Illustrazione editoriale · Edilizia in Cloud" />
+<ModuloRete
+          center={{ title: "Edilizia in Cloud", icon: LayoutDashboard }}
+          items={[
+            ...CATEGORIES.map((c) => ({
+              title: c.label.replace(" & ", " e "),
+              text: c.items.map((i) => i.label).join(" · "),
+              icon: c.items[0].icon,
+              to: `#${c.id}`,
+            })),
+            { title: "Render AI", text: RENDER_AI.map((i) => i.label).join(" · "), icon: Sparkles },
+          ]}
+          badgeLeft={`${TOTAL_COUNT} funzionalità`}
+          badgeRight="Un solo flusso"
+        />
 </div>
       </section>
 

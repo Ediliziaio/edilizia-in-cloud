@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import SilvioCervello from "@/components/landing/SilvioCervello";
+import { agentGroups } from "@/components/landing/silvioReparti";
 import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import {
   ArrowRight,
@@ -484,6 +486,22 @@ function SystemSection() {
             </div>
           </div>
         </div>
+
+        <FadeUp className="mt-16 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div>
+            <span className="inline-flex rounded-full bg-eic-orange/10 px-4 py-2 text-sm font-black uppercase tracking-[0.16em] text-eic-orange">
+              Una sola regia
+            </span>
+            <h3 className="mt-5 text-3xl font-black leading-tight text-eic-navy md:text-4xl">
+              19 persone AI, un solo cervello che le coordina.
+            </h3>
+            <p className="mt-4 text-lg leading-8 text-eic-muted">
+              Direzione, finanza, cantieri, vendite e regole: ogni reparto ha le sue persone AI. Silvio sta al centro,
+              legge i dati dell'impresa e accende il reparto giusto. Passa sul cervello per vederli lavorare.
+            </p>
+          </div>
+          <SilvioCervello groups={agentGroups} />
+        </FadeUp>
       </div>
     </section>
   );

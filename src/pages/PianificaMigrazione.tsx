@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import EditorialVideo from "@/components/marketing/EditorialVideo";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
@@ -377,9 +378,10 @@ export default function PianificaMigrazione() {
 
       {/* ── HERO ── */}
       <section
-        className="relative pt-28 sm:pt-36 pb-14 sm:pb-20 px-5 sm:px-6 overflow-hidden"
+        className="relative isolate pt-28 sm:pt-36 pb-14 sm:pb-20 px-5 sm:px-6 overflow-hidden"
         style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #111111 100%)" }}
       >
+        <HeroRete className="-z-10" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] pointer-events-none"
           style={{ background: "radial-gradient(ellipse at top, rgba(249,116,21,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
 

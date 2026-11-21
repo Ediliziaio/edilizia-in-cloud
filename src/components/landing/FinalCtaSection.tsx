@@ -1,5 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { Building2, Shield, Clock, Star, ArrowRight, Phone, TrendingDown } from "lucide-react";
+import { Shield, Clock, Star, ArrowRight, Phone, TrendingDown } from "lucide-react";
 
 // Icone edilizia floating
 // Schema esplicito per evitare cast `as any` sul positioning (left | right).
@@ -33,8 +33,7 @@ export default function FinalCtaSection() {
   return (
     <section
       id="cta-finale"
-      className="py-16 md:py-32 relative overflow-hidden"
-      style={{ background: "#0a0a0a" }}
+      className="py-16 md:py-32 relative overflow-hidden bg-white"
     >
       {/* Bordo top luminoso */}
       <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
@@ -53,7 +52,6 @@ export default function FinalCtaSection() {
             animationDelay: p.delay,
             animationDuration: p.dur,
             transform: `rotate(${p.rot}deg)`,
-            filter: `drop-shadow(0 0 ${Math.round(p.size / 4)}px rgba(249,116,21,0.5))`,
           }}
         >
           <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -74,7 +72,7 @@ export default function FinalCtaSection() {
 
         {/* Headline */}
         <h2
-          className={`text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-5 leading-tight transition-all duration-700 ${
+          className={`text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] mb-5 leading-tight transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -82,11 +80,11 @@ export default function FinalCtaSection() {
           <span className="text-eic-orange">VERI della tua azienda?</span>
         </h2>
         <p
-          className={`text-white/60 text-lg md:text-xl mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
+          className={`text-gray-600 text-lg md:text-xl mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Prenota la tua <strong className="text-white">demo personalizzata di 30 minuti</strong>: ti mostriamo il software sui dati della tua impresa, identifichiamo insieme i primi sprechi e ti diciamo se fa per te. Senza impegno.
+          Prenota la tua <strong className="text-[#111111]">demo personalizzata di 30 minuti</strong>: ti mostriamo il software sui dati della tua impresa, identifichiamo insieme i primi sprechi e ti diciamo se fa per te. Senza impegno.
         </p>
 
         {/* Urgenza onesta: costo dell'attesa, non countdown artificiale.
@@ -98,25 +96,31 @@ export default function FinalCtaSection() {
           }`}
         >
           <TrendingDown className="w-5 h-5 shrink-0 text-eic-orange" />
-          <span className="text-white/80 text-sm font-medium text-left">
+          <span className="text-gray-700 text-sm font-medium text-left">
             Su 500.000€ di fatturato, il 5% di margine perso sono <strong className="text-eic-orange">oltre 2.000€ al mese</strong>. Ogni mese senza numeri è margine che non recuperi più.
           </span>
         </div>
 
         {/* Central box */}
         <div
-          className={`border border-eic-orange/40 rounded-2xl md:rounded-3xl p-6 md:p-12 bg-eic-orange/5 backdrop-blur max-w-3xl mx-auto transition-all duration-700 delay-300 ${
+          className={`border border-eic-orange/40 rounded-2xl md:rounded-3xl p-6 md:p-12 bg-orange-50/60 shadow-sm max-w-3xl mx-auto transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           }`}
         >
           {/* Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 rounded-2xl bg-eic-orange/15 border border-eic-orange/30 flex items-center justify-center animate-pulse-glow">
-              <Building2 className="w-10 h-10 text-eic-orange" />
-            </div>
+            <img
+              src="/images/silvio/silvio-ciao.png"
+              alt="Silvio, la regia AI di Edilizia in Cloud, che saluta"
+              width={160}
+              height={160}
+              loading="lazy"
+              decoding="async"
+              className="animate-float h-32 w-32 object-contain md:h-40 md:w-40"
+            />
           </div>
 
-          <p className="text-white/60 text-base mb-8 font-medium">
+          <p className="text-gray-600 text-base mb-8 font-medium">
             Demo gratuita di 30 minuti + prova di 31 giorni senza carta. Avvio assistito. Nessun impegno.
           </p>
 
@@ -133,7 +137,7 @@ export default function FinalCtaSection() {
             </button>
             <a
               href="tel:+393501780908"
-              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl border border-white/20 text-white font-bold text-base md:text-lg hover:border-white/40 hover:bg-white/5 hover:scale-105 transition-all duration-300"
+              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl border border-gray-300 text-[#111111] font-bold text-base md:text-lg hover:border-eic-orange hover:bg-gray-50 hover:scale-105 transition-all duration-300"
             >
               <Phone className="w-5 h-5 text-eic-orange" />
               Oppure chiama: <span className="whitespace-nowrap">350 178 0908</span>
@@ -141,17 +145,17 @@ export default function FinalCtaSection() {
           </div>
 
           {/* Micro-promises */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 text-white/70 text-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 text-gray-600 text-sm">
             <span className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-eic-orange" />
               Dati al sicuro
             </span>
-            <span className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />
+            <span className="hidden sm:block w-1 h-1 rounded-full bg-gray-300" />
             <span className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-eic-orange" />
               Risposta entro 24h
             </span>
-            <span className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />
+            <span className="hidden sm:block w-1 h-1 rounded-full bg-gray-300" />
             <span className="flex items-center gap-2">
               <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
               4.9/5 stelle
@@ -165,14 +169,14 @@ export default function FinalCtaSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <p className="text-white/35 text-sm leading-relaxed">
-            <strong className="text-white/55">P.S.</strong> Se stai leggendo fin qui, sai già che qualcosa deve cambiare. L'istinto ti ha portato dove sei oggi, ma non ti porterà dove vuoi essere domani. I numeri sì.
+          <p className="text-gray-500 text-sm leading-relaxed">
+            <strong className="text-gray-600">P.S.</strong> Se stai leggendo fin qui, sai già che qualcosa deve cambiare. L'istinto ti ha portato dove sei oggi, ma non ti porterà dove vuoi essere domani. I numeri sì.
           </p>
-          <p className="text-white/35 text-sm leading-relaxed">
-            <strong className="text-white/55">P.P.S.</strong> Su un fatturato di 500.000€, anche solo il 5% di margine perso sono 2.083€/mese che stai regalando. Ogni mese senza controllo è un mese in perdita.
+          <p className="text-gray-500 text-sm leading-relaxed">
+            <strong className="text-gray-600">P.P.S.</strong> Su un fatturato di 500.000€, anche solo il 5% di margine perso sono 2.083€/mese che stai regalando. Ogni mese senza controllo è un mese in perdita.
           </p>
-          <p className="text-white/35 text-sm leading-relaxed">
-            <strong className="text-white/55">P.P.P.S.</strong> 30 minuti di demo gratuita per vedere se fa per te. Zero rischi. Zero impegni. Solo chiarezza.
+          <p className="text-gray-500 text-sm leading-relaxed">
+            <strong className="text-gray-600">P.P.P.S.</strong> 30 minuti di demo gratuita per vedere se fa per te. Zero rischi. Zero impegni. Solo chiarezza.
           </p>
         </div>
       </div>

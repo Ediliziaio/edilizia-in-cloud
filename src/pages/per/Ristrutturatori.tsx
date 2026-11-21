@@ -14,11 +14,13 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-eic-orange">Controlla ogni cantiere di ristrutturazione.</span>
+      <span className="text-white">Gestionale per ristrutturatori.</span>{" "}
+      <span className="text-eic-orange">Margini, varianti e SAL sotto controllo.</span>
     </>
   ),
-  heroSubtitle: "Non è solo un software per varianti e bonus: è il sistema che governa tutta l'azienda. Il margine reale di ogni cantiere lo vedi mentre lavori (+18% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, varianti e SAL filano senza contestazioni — e sì, la documentazione bonus esce con checklist sempre aggiornate. Con l'AI che ti avvisa prima che una variante non tracciata diventi una perdita.",
+  heroSubtitle: "Vedi il margine di ogni cantiere mentre lavori, tracci le varianti e tieni in ordine SAL e documenti dei bonus.",
+  heroDettaglio:
+    "Non è solo un software per varianti e bonus: è il sistema che governa tutta l'azienda. Il margine reale di ogni cantiere lo vedi mentre lavori (+18% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, varianti e SAL filano senza contestazioni — e sì, la documentazione bonus esce con checklist sempre aggiornate. Con l'AI che ti avvisa prima che una variante non tracciata diventi una perdita.",
 
   heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
 

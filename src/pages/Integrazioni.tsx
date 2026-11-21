@@ -1,6 +1,7 @@
-import MarketingVisual from "@/components/marketing/MarketingVisual";
+import ModuloRete from "@/components/landing/ModuloRete";
 import { Link } from "react-router-dom";
-import { ArrowRight, CheckCircle2, Zap, ExternalLink } from "lucide-react";
+import { ArrowRight, CalendarDays, CheckCircle2, Zap, ExternalLink, Receipt, Calculator, Ruler, MessageCircle, Workflow, Cloud } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { useSEO } from "@/hooks/useSEO";
@@ -55,6 +56,26 @@ const INTEGRATIONS: Integration[] = [
 ];
 
 const CATEGORIES = [...new Set(INTEGRATIONS.map((i) => i.category))];
+
+// La rete dell'hero: una pallina per ogni famiglia con almeno un collegamento attivo.
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "Fatturazione Elettronica": Receipt,
+  "Contabilità & Commercialista": Calculator,
+  "Prezzari & Computi": Ruler,
+  "CRM & Marketing": MessageCircle,
+  "Calendari": CalendarDays,
+  "Automazioni & Sviluppatori": Workflow,
+};
+const RETE_INTEGRAZIONI = CATEGORIES.map((cat) => {
+  const attive = INTEGRATIONS.filter((i) => i.category === cat && i.status === "attiva");
+  return { cat, attive };
+})
+  .filter((c) => c.attive.length > 0)
+  .map(({ cat, attive }) => ({
+    title: cat.replace(" & ", " e "),
+    text: attive.map((i) => i.name).join(" · "),
+    icon: CATEGORY_ICONS[cat] ?? Zap,
+  }));
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Fatturazione Elettronica": "bg-blue-100 text-blue-700",
@@ -124,18 +145,20 @@ export default function Integrazioni() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="bg-[#111111] pt-36 pb-20">
-        <div className="max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+      <section className="relative overflow-hidden bg-white pt-36 pb-20">
+        <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+        <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-orange-200/50 blur-3xl" />
+        <div className="relative max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
 <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-50 border border-orange-200 mb-6">
             <Zap size={14} className="text-eic-orange" />
-            <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">Integrazioni</span>
+            <span className="text-eic-orange-dark text-xs font-bold uppercase tracking-widest">Integrazioni</span>
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] mb-6 leading-tight">
             Si collega ai programmi<br />
             <span className="text-eic-orange">che già usi</span>
           </h1>
-          <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10">
+          <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto mb-10">
             Fatturazione elettronica, programmi di fatturazione, prezzari regionali,
             WhatsApp, posta e calendari. Qui trovi cosa funziona oggi e cosa è in arrivo.
           </p>
@@ -147,12 +170,12 @@ export default function Integrazioni() {
             ].map((s, i) => (
               <div key={i} className="text-center">
                 <p className="text-2xl font-extrabold text-eic-orange">{s.value}</p>
-                <p className="text-white/50 text-xs mt-1">{s.label}</p>
+                <p className="text-gray-500 text-xs mt-1">{s.label}</p>
               </div>
             ))}
           </div>
         </div>
-<MarketingVisual theme="automation" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+<ModuloRete center={{ title: "Edilizia in Cloud", icon: Cloud }} items={RETE_INTEGRAZIONI} badgeLeft="Collegamenti attivi" badgeRight="Sincronizzati" />
 </div>
       </section>
 

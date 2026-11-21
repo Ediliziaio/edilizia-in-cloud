@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Imprese di Cartongesso e Opere a Secco",
   heroTitle: (
     <>
-      <span className="text-white">Gestionale per cartongessisti: i metri quadri li posi tu, i conti li fa lui.</span>{" "}
-      <span className="text-eic-orange">Preventivi al mq e squadre su più cantieri, senza fogli.</span>
+      <span className="text-white">Gestionale per cartongessisti.</span>{" "}
+      <span className="text-eic-orange">Preventivi al mq e squadre sotto controllo.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Preventivo al metro quadro in pochi minuti, squadre su più cantieri con timbrature e foto, acconti e SAL sempre in ordine.",
+  heroDettaglio:
     "Tre squadre su tre cantieri e i mq posati segnati su tre blocchetti diversi. Edilizia in Cloud è il gestionale per cartongessisti: fai il preventivo al metro quadro in pochi minuti — pareti, contropareti, controsoffitti con i tuoi prezzi — segui le squadre sparse su più cantieri con timbrature GPS e rapportini con foto, e tieni acconti e SAL brevi sotto controllo fino all'ultima fattura elettronica.",
   heroImage: "/hero/stock/cantiere-1621905251189-1400.webp",
 

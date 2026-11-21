@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, ClipboardList, Users, Package, BarChart3 } from "lucide-react";
 import { useSEO } from "@/hooks/useSEO";
@@ -33,7 +34,8 @@ export default function ImpreseCostuzione() {
     <JsonLd id="jsonld-faq-imprese-edili" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: impreseFaq.map(f => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }} />
     <JsonLd id="jsonld-breadcrumb-imprese-edili" data={{ "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" }, { "@type": "ListItem", position: 2, name: "Gestionale per imprese edili", item: "https://www.ediliziaincloud.com/per/imprese-edili/" }] }} />
     <main>
-      <header className="bg-[#101820] px-5 pb-16 pt-32 text-white md:pb-24">
+      <header className="relative isolate overflow-hidden bg-[#101820] px-5 pb-16 pt-32 text-white md:pb-24">
+        <HeroRete className="-z-10" />
         <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1fr_1.15fr]">
           <div><p className="mb-5 text-xs font-bold uppercase tracking-[.18em] text-eic-orange">Edilizia in Cloud · Imprese edili</p>
             <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-5xl">Il gestionale per imprese edili.<span className="mt-2 block text-eic-orange">Dal preventivo ai costi del cantiere.</span></h1>

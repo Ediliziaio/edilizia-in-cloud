@@ -1,6 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Star, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 import { useRef, useState } from "react";
 
 // Le aziende della strip DEVONO coincidere con quelle delle testimonianze
@@ -93,23 +92,13 @@ export default function TestimonialsSection() {
   };
 
   return (
-    <section className="py-14 md:py-32 bg-[#111111] overflow-hidden relative">
-      {/* Background glow */}
-      {/* Luminous top border */}
-      <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.7) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.7) 70%, transparent 100%)" }} />
-      {/* Glow orbs — intensificati */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full blur-[140px] pointer-events-none"
-        style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
-      <FloatingEdiliziaIcons variant={4} />
+    <section className="py-14 md:py-32 bg-[#f8fafc] overflow-hidden relative">
+      <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+      <div className="pointer-events-none absolute top-0 left-1/2 h-[420px] w-[800px] -translate-x-1/2 rounded-full blur-[140px]" style={{ background: "radial-gradient(ellipse, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
 
       <div ref={ref} className="max-w-7xl mx-auto px-6 relative z-10">
 
-        <p className="text-center text-white/60 text-sm mb-6">
+        <p className="text-center text-gray-500 text-sm mb-6">
           Le esperienze riportate sono individuali: non rappresentano una media né un risultato economico garantito.
         </p>
 
@@ -118,11 +107,11 @@ export default function TestimonialsSection() {
           <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">
             Casi Studio Reali
           </p>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] mb-4">
             Imprenditori Edili. Risultati{" "}
             <span className="text-eic-orange">Reali.</span>
           </h2>
-          <p className="text-white/60 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
             Ecco cosa ottengono le imprese edili che passano a Edilizia in Cloud.
           </p>
         </div>
@@ -136,14 +125,14 @@ export default function TestimonialsSection() {
           {clientBadges.map((badge, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 bg-white/[0.05] border border-white/10 rounded-xl p-3 backdrop-blur"
+              className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-3 shadow-sm"
             >
               <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${badge.gradient} flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
                 {badge.initials}
               </div>
               <div className="min-w-0">
-                <p className="text-white/90 font-semibold text-xs leading-tight line-clamp-2">{badge.name}</p>
-                <p className="text-white/40 text-[10px]">{badge.city} · Cliente da {badge.months} mesi</p>
+                <p className="text-[#111111] font-semibold text-xs leading-tight line-clamp-2">{badge.name}</p>
+                <p className="text-gray-500 text-[10px]">{badge.city} · Cliente da {badge.months} mesi</p>
               </div>
             </div>
           ))}
@@ -154,14 +143,14 @@ export default function TestimonialsSection() {
           {/* Desktop nav arrows */}
           <button
             onClick={() => scrollTo(activeIndex - 1)}
-            className="hidden md:flex absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/10 border border-white/20 items-center justify-center text-white hover:bg-white/20 transition-all duration-200 hover:scale-110"
+            className="hidden md:flex absolute -left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm items-center justify-center text-[#111111] hover:border-eic-orange hover:text-eic-orange transition-all duration-200 hover:scale-110"
             aria-label="Testimonianza precedente"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={() => scrollTo(activeIndex + 1)}
-            className="hidden md:flex absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/10 border border-white/20 items-center justify-center text-white hover:bg-white/20 transition-all duration-200 hover:scale-110"
+            className="hidden md:flex absolute -right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm items-center justify-center text-[#111111] hover:border-eic-orange hover:text-eic-orange transition-all duration-200 hover:scale-110"
             aria-label="Testimonianza successiva"
           >
             <ChevronRight className="w-5 h-5" />
@@ -177,7 +166,7 @@ export default function TestimonialsSection() {
             {testimonials.map((t, i) => (
               <div
                 key={i}
-                className={`testimonial-card flex-shrink-0 w-[85vw] md:w-[calc(33.333%-14px)] bg-white/[0.06] backdrop-blur border border-white/10 rounded-2xl p-7 flex flex-col transition-all duration-700 hover:border-white/20 hover:bg-white/[0.09] ${
+                className={`testimonial-card flex-shrink-0 w-[85vw] md:w-[calc(33.333%-14px)] bg-white border border-gray-200 shadow-sm rounded-2xl p-7 flex flex-col transition-all duration-700 hover:border-eic-orange/40 hover:shadow-lg ${
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
                 }`}
                 style={{
@@ -191,9 +180,9 @@ export default function TestimonialsSection() {
                     {t.initials}
                   </div>
                   <div>
-                    <p className="font-bold text-white text-sm">{t.company}</p>
-                    <p className="text-white/40 text-xs mt-0.5">{t.city} · {t.sector}</p>
-                    <p className="text-white/30 text-xs">Fatt. {t.revenue}</p>
+                    <p className="font-bold text-[#111111] text-sm">{t.company}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{t.city} · {t.sector}</p>
+                    <p className="text-gray-400 text-xs">Fatt. {t.revenue}</p>
                   </div>
                 </div>
 
@@ -205,27 +194,27 @@ export default function TestimonialsSection() {
                 </div>
 
                 {/* Quote */}
-                <p className="text-white/80 italic text-lg leading-relaxed mb-6 flex-1">
+                <p className="text-gray-700 italic text-lg leading-relaxed mb-6 flex-1">
                   "{t.quote}"
                 </p>
 
                 {/* Before / After */}
-                <div className="flex items-stretch gap-2 rounded-xl overflow-hidden border border-white/10">
-                  <div className="flex-1 bg-red-500/10 p-3 border-r border-white/10">
-                    <p className="text-red-400 text-[10px] font-bold uppercase tracking-wide mb-1">Prima</p>
-                    <p className="text-red-300 font-semibold text-xs leading-snug">{t.before}</p>
+                <div className="flex items-stretch gap-2 rounded-xl overflow-hidden border border-gray-200">
+                  <div className="flex-1 bg-red-50 p-3 border-r border-gray-200">
+                    <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide mb-1">Prima</p>
+                    <p className="text-red-700 font-semibold text-xs leading-snug">{t.before}</p>
                   </div>
-                  <div className="flex items-center px-1 text-white/30">
+                  <div className="flex items-center px-1 text-gray-300">
                     <ArrowRight className="w-4 h-4 flex-shrink-0" />
                   </div>
-                  <div className="flex-1 bg-eic-orange/10 p-3">
-                    <p className="text-eic-orange text-[10px] font-bold uppercase tracking-wide mb-1">Dopo</p>
-                    <p className="text-[#4dd4be] font-semibold text-xs leading-snug">{t.after}</p>
+                  <div className="flex-1 bg-emerald-50 p-3">
+                    <p className="text-emerald-600 text-[10px] font-bold uppercase tracking-wide mb-1">Dopo</p>
+                    <p className="text-emerald-800 font-semibold text-xs leading-snug">{t.after}</p>
                   </div>
                 </div>
 
                 {/* Person */}
-                <p className="text-white/40 text-xs mt-4 text-right">
+                <p className="text-gray-500 text-xs mt-4 text-right">
                   — {t.person}, {t.role}
                 </p>
               </div>
@@ -249,7 +238,7 @@ export default function TestimonialsSection() {
                   className={`block rounded-full transition-all duration-300 ${
                     i === activeIndex
                       ? "w-6 h-2 bg-eic-orange"
-                      : "w-2 h-2 bg-white/20 group-hover:bg-white/40"
+                      : "w-2 h-2 bg-gray-300 group-hover:bg-gray-400"
                   }`}
                 />
               </button>

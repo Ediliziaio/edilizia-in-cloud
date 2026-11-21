@@ -14,11 +14,13 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-eic-orange">Il gestionale con AI per chi installa fotovoltaico.</span>
+      <span className="text-white">Gestionale per installatori fotovoltaico.</span>{" "}
+      <span className="text-eic-orange">Margine per impianto, cassa e pratiche GSE.</span>
     </>
   ),
-  heroSubtitle: "Non è solo un software per le pratiche GSE: è il sistema che governa tutta l'azienda. Il margine reale per kWp lo vedi mentre lavori (+12% medio per impianto), la cassa la conosci a 90 giorni, le squadre sono coordinate senza WhatsApp — e sì, le pratiche GSE escono con template automatici. Con l'AI che ti avvisa prima che un problema diventi una perdita.",
+  heroSubtitle: "Vedi il margine di ogni impianto mentre lavori, coordini le squadre senza WhatsApp e prepari le pratiche GSE dai modelli.",
+  heroDettaglio:
+    "Non è solo un software per le pratiche GSE: è il sistema che governa tutta l'azienda. Il margine reale per kWp lo vedi mentre lavori (+12% medio per impianto), la cassa la conosci a 90 giorni, le squadre sono coordinate senza WhatsApp — e sì, le pratiche GSE escono con template automatici. Con l'AI che ti avvisa prima che un problema diventi una perdita.",
 
   heroImage: "/hero/stock/cantiere-1509391366360-1400.webp",
 

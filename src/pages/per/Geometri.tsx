@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Geometri con Impresa o più Cantieri da Seguire",
   heroTitle: (
     <>
-      <span className="text-white">Gestionale per geometra: basta sere sui computi e telefonate alle imprese.</span>{" "}
-      <span className="text-eic-orange">Cantieri, SAL e documenti in ordine — dal telefono.</span>
+      <span className="text-white">Gestionale per geometri.</span>{" "}
+      <span className="text-eic-orange">Computi, SAL e cantieri in ordine.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Computi e preventivi in pochi minuti, avanzamenti tracciati e documenti condivisi con le imprese. Anche dal telefono.",
+  heroDettaglio:
     "Il computo rifatto tre volte, l'impresa che non manda gli avanzamenti, il committente che chiama te. Edilizia in Cloud è il gestionale per il geometra che segue più cantieri: preventivi e computi pronti in minuti, SAL e avanzamenti tracciati, documenti di commessa archiviati e condivisi con le imprese, margini reali visibili mentre i lavori vanno avanti. Tutto in un unico posto, anche dal telefono in cantiere.",
   heroImage: "/hero/stock/cantiere-1503387762-1400.webp",
 

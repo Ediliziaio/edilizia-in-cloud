@@ -14,11 +14,12 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-eic-orange">Il gestionale con AI per chi manda tecnici in campo.</span>
+      <span className="text-white">Gestionale per impiantisti.</span>{" "}
+      <span className="text-eic-orange">Interventi, tecnici e margini sotto controllo.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Il margine di ogni intervento lo vedi mentre lavori, la fattura parte il giorno stesso e il magazzino del furgone è sempre giusto.",
+  heroDettaglio:
     "Non è solo un'app per i tecnici: è il sistema che governa tutta l'azienda. Il margine reale di ogni intervento lo vedi mentre lavori — ore di trasferta e collaudo comprese (+12% medio) — la fattura parte il giorno stesso (incassi 3 settimane prima), il magazzino furgone è sempre giusto. Con l'AI che ti avvisa prima che un'ora non fatturata diventi margine perso.",
   heroImage: "/hero/stock/cantiere-1562259929-1400.webp",
 

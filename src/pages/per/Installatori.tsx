@@ -15,11 +15,12 @@ const config: PerTipoConfig = {
   badge: "Per Installatori e Tecnici in Campo",
   heroTitle: (
     <>
-      <span className="text-white">Gestionale per installatori: dieci interventi al giorno, zero fogli in furgone.</span>{" "}
-      <span className="text-eic-orange">Rapportino, materiale e fattura chiusi sul posto.</span>
+      <span className="text-white">Gestionale per installatori.</span>{" "}
+      <span className="text-eic-orange">Rapportino e fattura chiusi sul posto.</span>
     </>
   ),
-  heroSubtitle:
+  heroSubtitle: "Rapportino con foto dal telefono in due minuti, materiale scalato dal furgone, fattura elettronica subito dopo l'intervento.",
+  heroDettaglio:
     "L'intervento è finito da ore, ma il rapportino e la fattura sono ancora da fare. Edilizia in Cloud è il gestionale per installatori che fanno tanti interventi brevi: il rapportino con le foto si compila dal telefono in due minuti, il materiale usato si scala dal magazzino del furgone, e la fattura elettronica parte subito dopo l'intervento — non tre settimane dopo. Meno carta, meno giri a vuoto, incassi più veloci.",
   heroImage: "/hero/stock/cantiere-1581578731548-1400.webp",
 

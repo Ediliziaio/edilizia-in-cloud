@@ -1,6 +1,6 @@
-import MarketingVisual from "@/components/marketing/MarketingVisual";
+import PrimaDopo from "@/components/landing/PrimaDopo";
+import { FileText as PdFileText, MessageCircle as PdMessageCircle, Receipt as PdReceipt, HardHat as PdHardHat, Ruler as PdRuler, Clock as PdClock } from "lucide-react";
 import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
-import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Link } from "react-router-dom";
@@ -252,19 +252,20 @@ export default function VsBuildertrend() {
       <LandingNavbar />
 
       {/* ── HERO ── */}
-      <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
+      <section className="relative overflow-hidden bg-white pt-36 pb-24 px-4 text-center">
+        <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+        <div className="relative max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
           <div className="min-w-0">
-            <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
+            <span className="inline-block bg-orange-50 text-eic-orange-dark text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-orange-200">
               CONFRONTO ONESTO — OTTOBRE 2026
             </span>
-            <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">{H1}</h1>
-            <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
+            <h1 className="text-3xl md:text-5xl font-extrabold text-[#111111] leading-tight mb-6">{H1}</h1>
+            <p className="text-lg text-gray-600 mb-10 max-w-2xl mx-auto lg:mx-0">
               Buildertrend è una piattaforma solida, costruita per i costruttori americani. In Italia però la fattura
               passa dallo SDI, il cantiere chiede il POS e il subappaltatore ha un DURC che scade. Qui vedi cosa dichiara
               Buildertrend e cosa copre Edilizia in Cloud.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <button
                 onClick={openModal}
                 className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
@@ -273,13 +274,13 @@ export default function VsBuildertrend() {
               </button>
               <Link
                 to="/confronto/"
-                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-white/20"
+                className="inline-flex items-center gap-2 bg-white hover:border-eic-orange hover:text-eic-orange-dark text-[#111111] font-semibold px-8 py-4 rounded-2xl transition-colors text-lg border border-gray-300"
               >
                 Tutti i confronti
               </Link>
             </div>
           </div>
-          <MarketingVisual image={confrontoVisuals.buildertrend} priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+          <PrimaDopo prima="più strumenti" pezzi={[{ label: "Cantiere", icon: PdHardHat }, { label: "Fatture SDI", icon: PdReceipt }, { label: "Prezzari", icon: PdRuler }, { label: "Chat WhatsApp", icon: PdMessageCircle }, { label: "Ore", icon: PdClock }, { label: "Bolle", icon: PdFileText }]} />
         </div>
       </section>
 
