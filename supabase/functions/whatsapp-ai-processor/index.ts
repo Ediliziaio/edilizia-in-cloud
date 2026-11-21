@@ -73,6 +73,7 @@ import { elencoPersoneRapportino, rispostaPersonaRapportino } from "./sceltaPers
 import { linguaItaliana, traduciVocaleInItaliano } from "./traduzioneVocale.ts";
 import { chiedeAiutoOperativo, chiedeCantieriDiOggi, guidaOperativa } from "./aiutoOperativo.ts";
 import { elencaMieiCantieriOggi } from "./tools/operaio/elenca_miei_cantieri_oggi.ts";
+import { applicaRitardo, AZIONE_RITARDO, leggiRitardoCronoprogramma, preparaRitardo, puoRipianificare } from "./ritardoCronoprogramma.ts";
 import { avviaProssimoMessaggio, posticipaDomandaBolla } from "./codaConversazione.ts";
 import { avviaLetturaBolla } from "./letturaBollaInCoda.ts";
 import { cercaInvioBolle, destinaInvioBolle, destinazioneDettaPerInvio, type EsitoInvioBolle, messaggioPerTutteLeBolle, posticipaInvioBolle, preletturaInvio, raccogliInvioBolle, recuperaAllegatoInRitardo } from "./invioBolle.ts";
@@ -331,6 +332,7 @@ Deno.serve(async (req) => {
       return termina("processed");
     }
 
+    const ritardoScritto = msg.message_type === "text" ? leggiRitardoCronoprogramma(msg.content_text ?? "") : null;
     // Prima conserviamo l'originale. Il credito AI serve solo alla lettura.
     let mediaCorrente: { storagePath: string; url: string; tipo: string } | null = null;
     let mediaOriginale: Blob | undefined;
@@ -366,7 +368,7 @@ Deno.serve(async (req) => {
       .eq("wa_number_id", msg.wa_number_id)
       .maybeSingle();
     if (sessionError) throw new Error("bot_session_lookup_unavailable");
-    if (!identity.solaLettura && msg.message_type === "text" && operationalTriage.intent === "unknown" &&
+    if (!identity.solaLettura && !ritardoScritto && msg.message_type === "text" && operationalTriage.intent === "unknown" &&
         !chiedeAiutoOperativo(msg.content_text ?? "") && !leggiDestinazioneBolla(msg.content_text ?? "") &&
         !messaggioPerTutteLeBolle(msg.content_text ?? "") &&
         !paganteScontrino(msg.content_text ?? "") && !importoScontrinoDetto(msg.content_text ?? "") && !tipoAllegatoDetto(msg.content_text ?? "")) {
@@ -374,7 +376,9 @@ Deno.serve(async (req) => {
       const rispostaAlRapportino = conferma?.numero_id === msg.wa_number_id && conferma?.azione === "crea_rapportino" &&
         (conferma.rapportino?.scelta || rispostaCantiere(conferma, msg.metadata, msg.message_type, msg.content_text ?? ""));
       // Un cognome o un numero può essere la risposta a una scelta già aperta.
-      if (!rispostaAlRapportino && await forwardToSilvio(msg, msg.content_text ?? "")) {
+      const sceltaPerRitardo = conferma?.numero_id === msg.wa_number_id && conferma?.azione === AZIONE_RITARDO &&
+        rispostaCantiere(conferma, msg.metadata, msg.message_type, msg.content_text ?? "");
+      if (!rispostaAlRapportino && !sceltaPerRitardo && await forwardToSilvio(msg, msg.content_text ?? "")) {
         return termina("processed");
       }
     }
@@ -991,7 +995,9 @@ Deno.serve(async (req) => {
     }
 
     if (!domandaInAttesa && ["text", "audio"].includes(msg.message_type) && chiedeAiutoOperativo(testoDellaRisposta)) {
-      await sendReply(msg, guidaOperativa(new Set([...nomiBot, ...(ponte?.nomi ?? [])]), identity.kind));
+      const ripianifica = !identity.solaLettura && operationalSettings.ai_mode !== "draft_only" &&
+        !vietatiOra.includes(AZIONE_RITARDO) && await puoRipianificare(toolCtx);
+      await sendReply(msg, guidaOperativa(new Set([...nomiBot, ...(ponte?.nomi ?? [])]), identity.kind, ripianifica));
       return termina("processed");
     }
     if (!domandaInAttesa && ["text", "audio"].includes(msg.message_type) &&
@@ -1037,6 +1043,54 @@ Deno.serve(async (req) => {
     }
 
     const inAttesa = statoSessione.conferma && !statoSessione.conferma.proposta_id ? statoSessione.conferma : null;
+    const ritardo = msg.message_type === "audio" ? leggiRitardoCronoprogramma(testoOperativo) : ritardoScritto;
+    const ritardoInAttesa = inAttesa?.azione === AZIONE_RITARDO ? inAttesa : null;
+    const sceltaRitardo = rispostaCantiere(ritardoInAttesa, msg.metadata, msg.message_type, testoDellaRisposta);
+    if (ritardo || (ritardoInAttesa && (sceltaRitardo?.tipo === "cantiere" || userJustConfirmed))) {
+      if (identity.solaLettura || operationalSettings.ai_mode === "draft_only" || vietatiOra.includes(AZIONE_RITARDO) ||
+        !await puoRipianificare(toolCtx)) {
+        await sendReply(msg, "Per aggiornare il cronoprogramma serve un profilo abilitato a modificare le commesse.");
+        return termina("processed");
+      }
+      if (ritardo && "errore" in ritardo) {
+        await sendReply(msg, ritardo.errore);
+        return termina("processed");
+      }
+      if (!ritardo && ritardoInAttesa && !await frozenConfirmationValid(ritardoInAttesa)) {
+        await sessionState.consume();
+        await sendReply(msg, "Il riepilogo è scaduto. Rimanda il messaggio con i giorni di ritardo.");
+        return termina("processed");
+      }
+      if (ritardo || sceltaRitardo?.tipo === "cantiere") {
+        const richiesta = ritardo?.richiesta ?? ritardoInAttesa!.parametri!.richiesta as Parameters<typeof preparaRitardo>[1];
+        const cantiereScelto = !ritardo && sceltaRitardo?.tipo === "cantiere" ? sceltaRitardo.order_id : undefined;
+        const anteprima = await preparaRitardo(toolCtx, richiesta, cantiereScelto);
+        if ("testo" in anteprima) {
+          if (ritardoInAttesa) await sessionState.consume();
+          await sendReply(msg, anteprima.testo);
+        } else {
+          await sessionState.save({ conferma: anteprima.pending });
+          await inviaPreambolo(msg, anteprima.dettagli);
+          await sendInteractiveReply(msg, anteprima.menu as unknown as Record<string, unknown>);
+        }
+        return termina("processed");
+      }
+      if (ritardoInAttesa?.cantieri?.length) {
+        await sendInteractiveReply(msg, elencoCantieri(ritardoInAttesa, "Scegli il cantiere per vedere le nuove date.") as unknown as Record<string, unknown>);
+        return termina("processed");
+      }
+      if (relazione && msg.message_type !== "interactive") {
+        await sendReply(msg, "Tocca «Aggiorna date» nel riepilogo del cronoprogramma.");
+        return termina("processed");
+      }
+      const parametri = ritardoInAttesa!.parametri!;
+      if (!await sessionState.consume()) throw new Error("confirmation_already_consumed");
+      attivita.passo("salvataggio");
+      const esito = await runWhatsAppTool(supabase, msg.company_id, `approval:${ritardoInAttesa!.id}`, AZIONE_RITARDO,
+        parametri, () => applicaRitardo(toolCtx, parametri));
+      await sendReply(msg, esito.user_message ?? "Controlla l’aggiornamento nel cronoprogramma.");
+      return termina(esito.ok ? "processed" : "failed", esito.ok ? undefined : esito.error);
+    }
     const rapportinoInAttesa = inAttesa?.azione === "crea_rapportino";
     const sceltaDelCantiere = rispostaCantiere(inAttesa, msg.metadata, msg.message_type, testoDellaRisposta);
     const chiarimento = inAttesa?.rapportino?.scelta;

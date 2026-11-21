@@ -197,6 +197,55 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
+  it("chiede il cantiere per il ritardo del vocale e applica una volta le date confermate", async () => {
+    db.tabelle.user_roles = [{ user_id: "utente-a", role: "company_admin" }];
+    db.rpcs.silvio_context_actor_roles = () => ["company_admin"];
+    db.rpcs.has_permission_for_company = ({ _user_id, _permission, _company_id }) =>
+      _user_id === "utente-a" && _company_id === azienda && _permission === "can_edit_orders";
+    db.tabelle.orders.push({ ...db.tabelle.orders[0], id: randomUUID(), order_code: "SECONDO", description: "Secondo cantiere" });
+    db.rpcs.cronoprogramma_ritardo_whatsapp = ({ p_azienda, p_utente, p_commessa, p_proposta }) => {
+      expect([p_azienda, p_utente, p_commessa]).toEqual([azienda, "utente-a", cantiere]);
+      if (p_proposta) {
+        expect(p_proposta).toEqual({ versione: "prima", fine: "2026-11-27", fasi: [
+          { id: "posa", inizio: "2026-11-16", fine: "2026-11-25" },
+          { id: "finiture", inizio: "2026-11-26", fine: "2026-11-27" },
+        ], sottofasi: [] });
+        return { ok: true, fine: "2026-11-27", fasi: 2, sottofasi: 0 };
+      }
+      return { versione: "prima", commessa: { titolo: "PROVA-SIMULA", fine: "2026-11-24" }, fasi: [
+        { id: "posa", nome: "Posa serramenti", inizio: "2026-11-16", fine: "2026-11-20", stato: "in_corso", percentuale: 40 },
+        { id: "finiture", nome: "Finiture", inizio: "2026-11-23", fine: "2026-11-24", stato: "da_iniziare", percentuale: 0 },
+      ], sottofasi: [] };
+    };
+    m.transcribe.mockResolvedValueOnce({ testo: "Finiamo la fase Posa serramenti con tre giorni di ritardo.", lingua: "italian", durata: 5 });
+    const vocale = await registra({ id: "wamid.ritardo-cantiere", type: "audio", audio: { id: "510900" } }, new Blob(["ritardo"]));
+    await elabora(vocale);
+    const domanda = consegne.at(-1)?.interactive as InteractivePayload;
+    expect(domanda.body.text).toContain("Su quale cantiere sposto le date di 3 giorni lavorativi?");
+    await elabora(await registra({ id: "wamid.ritardo-scelta", type: "text", text: { body: "PROVA-SIMULA" } }));
+    const anteprima = consegne.at(-1)?.interactive as InteractivePayload;
+    expect(anteprima.body.text).toContain("24/11/2026 → 27/11/2026");
+    expect(anteprima.body.text).toContain("Posa serramenti. Fine 20/11/2026 → 25/11/2026");
+    expect(db.rpcChiamate.filter(r => r.nome === "cronoprogramma_ritardo_whatsapp" && r.args.p_proposta)).toHaveLength(0);
+    if (anteprima.type !== "button") throw new Error("Atteso bottone di conferma");
+    const button_reply = anteprima.action.buttons[0].reply;
+    await elabora(await registra({ id: "wamid.ritardo-conferma", type: "interactive", interactive: { button_reply } }));
+    expect(consegne.at(-1)?.text).toContain("Fine lavori prevista 27/11/2026");
+    expect(consegne.at(-1)?.text).toContain("vista_cantiere=cronoprogramma");
+    await elabora(await registra({ id: "wamid.ritardo-conferma-due", type: "interactive", interactive: { button_reply } }));
+    expect(db.rpcChiamate.filter(r => r.nome === "cronoprogramma_ritardo_whatsapp" && r.args.p_proposta)).toHaveLength(1);
+    expect(m.ai).not.toHaveBeenCalled();
+  });
+
+  it("chiede il profilo autorizzato quando dal campo arriva un ritardo", async () => {
+    const ritardo = await registra({ id: "wamid.ritardo-solo-campo", type: "text",
+      text: { body: "Finiamo in ritardo di 3 giorni al cantiere PROVA-SIMULA" } });
+    await elabora(ritardo);
+    expect(consegne.at(-1)?.text).toContain("serve un profilo abilitato");
+    expect(db.rpcChiamate.some(r => r.nome === "cronoprogramma_ritardo_whatsapp")).toBe(false);
+    expect(m.ai).not.toHaveBeenCalled();
+  });
+
   it.each(["invio lento", "rifiuto Meta"])("mostra la scrittura durante il vocale e risponde anche con %s", async (esitoMeta) => {
     Object.assign(db.tabelle.ai_whatsapp_numbers[0], {
       phone_number_id: "123456", access_token_encrypted: "token-fittizio",
