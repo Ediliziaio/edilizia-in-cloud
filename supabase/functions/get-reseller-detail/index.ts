@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const ctx = await resolveProduttore(req, corsH);
     const reseller = await loadOwnedReseller(
       ctx, resellerId, corsH,
-      "id, name, email, status, billing_comped, payment_method, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)",
+      "id, parent_company_id, name, email, status, billing_comped, payment_method, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)",
     );
     const admin = ctx.supabaseAdmin;
 
