@@ -2268,11 +2268,6 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         if (attachmentsDeleteError) throw attachmentsDeleteError;
       }
 
-      if (quoteId && aiRichiestaId && aiRichiestaId !== existingQuote?.ai_richiesta_id) {
-        const { error: erroreCollegamentoAi } = await supabase.from("quotes").update({ ai_richiesta_id: aiRichiestaId })
-          .eq("id", quoteId).eq("company_id", companyId);
-        if (erroreCollegamentoAi) console.warn("[preventivi] Collegamento all’attività AI non disponibile");
-      }
       // Preventivi V2 — calcolo provvigione teorica (non-blocking)
       if (quoteId && salespersonId) {
         try {
@@ -2289,6 +2284,17 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       if (savedQuoteError) throw savedQuoteError;
       assertSavedQuoteAmounts(savedQuote, { subtotal, discount_amount: discountAmt, vat_amount: vatAmount, total });
       versioneCaricataRef.current = savedQuote.updated_at;
+      if (quoteId && aiRichiestaId && aiRichiestaId !== existingQuote?.ai_richiesta_id) {
+        try {
+          const { data: collegato, error } = await supabase.from("quotes").update({ ai_richiesta_id: aiRichiestaId })
+            .eq("id", quoteId).eq("company_id", companyId).eq("updated_at", savedQuote.updated_at)
+            .select("updated_at").maybeSingle();
+          if (error || !collegato) throw new Error("Collegamento AI non confermato");
+          versioneCaricataRef.current = collegato.updated_at;
+        } catch {
+          console.warn("[preventivi] Collegamento all’attività AI non disponibile");
+        }
+      }
       setLastSavedHash(draftSerialized);
       lastCloudSavedSnapshotRef.current = draftSerialized;
       setAutosaveFailed(false);

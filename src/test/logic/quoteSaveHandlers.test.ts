@@ -92,6 +92,7 @@ describe("QuoteBuilder: protezione locale reale", () => {
 function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
   let version = "v0", writes = 0;
   const headers: Record<string, unknown>[] = [];
+  const linkWrites: { dati: Record<string, unknown>; filtri: Record<string, string> }[] = [];
   const toast = { error: vi.fn(), success: vi.fn(), info: vi.fn() };
   const versionRef = { current: "v0" };
   const rpc = vi.fn(async (name: string) => {
@@ -101,6 +102,7 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
   });
   const context: Record<string, unknown> = {
     Error, console, JSON, companyId: "company-a", user: { id: "user-a" }, id: newQuote ? undefined : "quote-a", isEdit: !newQuote,
+    aiRichiestaId: undefined,
     existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
     partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
     persistLocalDraft: noop, saveInFlightRef: { current: false }, versioneCaricataRef: versionRef,
@@ -118,14 +120,27 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
     navigate: vi.fn(), toast,
     supabase: { rpc, from(table: string) {
       let action = "read", expected: string;
+      let link: Record<string, unknown> | undefined;
+      const filtri: Record<string, string> = {};
       const query = {
-        update(data: Record<string, unknown>) { action = "update"; if (table === "quotes") headers.push(data); return query; },
+        update(data: Record<string, unknown>) {
+          action = "update";
+          if (table === "quotes" && "ai_richiesta_id" in data) link = data;
+          else if (table === "quotes") headers.push(data);
+          return query;
+        },
         insert(data: Record<string, unknown>) { action = "insert"; if (table === "quotes") headers.push(data); return query; },
-        eq(key: string, value: string) { if (key === "updated_at") expected = value; return query; },
-        select() { return query; }, single() { return query; },
+        eq(key: string, value: string) { filtri[key] = value; if (key === "updated_at") expected = value; return query; },
+        select() { return query; }, single() { return query; }, maybeSingle() { return query; },
         then(resolve: (value: unknown) => unknown) {
           if (table === "quotes" && action === "insert") return Promise.resolve({ data: { id: "quote-a" }, error: null }).then(resolve);
           if (table === "quotes" && action === "update") {
+            if (link) {
+              linkWrites.push({ dati: link, filtri });
+              if (expected !== version) return Promise.resolve({ data: null, error: null }).then(resolve);
+              version = `linked-${++writes}`;
+              return Promise.resolve({ data: { updated_at: version }, error: null }).then(resolve);
+            }
             if (expected !== version) return Promise.resolve({ data: [], error: null }).then(resolve);
             version = `header-${++writes}`;
             return Promise.resolve({ data: [{ updated_at: version }], error: null }).then(resolve);
@@ -148,7 +163,7 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
   context.datiTestata = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "datiTestata", context);
   context.righeDaSalvare = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "righeDaSalvare", context);
   return { save: actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "handleSave", context),
-    context, toast, rpc, headers, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
+    context, toast, rpc, headers, linkWrites, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
 }
 describe("QuoteBuilder: salvataggio e recupero reale", () => {
   it("conserva le modifiche durante la prima creazione e poi aggiorna lo stesso preventivo", async () => {
@@ -197,6 +212,19 @@ describe("QuoteBuilder: salvataggio e recupero reale", () => {
     const f = fixture(false); await f.save();
     expect(f.toast.success).toHaveBeenCalledWith("Preventivo aggiornato");
     expect(f.versionRef.current).toBe(f.version());
+    expect(f.linkWrites).toEqual([]);
+  });
+  it("collega la richiesta AI alla versione salvata del preventivo", async () => {
+    const f = fixture(false);
+    const richiesta = "10000000-0000-4000-8000-000000000021";
+    f.context.aiRichiestaId = richiesta;
+    await f.save();
+    expect(f.linkWrites).toEqual([{
+      dati: { ai_richiesta_id: richiesta },
+      filtri: { id: "quote-a", company_id: "company-a", updated_at: "rows-2" },
+    }]);
+    expect(f.versionRef.current).toBe(f.version());
+    expect(f.toast.success).toHaveBeenCalledWith("Preventivo aggiornato");
   });
   it.each([false, true])("riprova dopo errore allegati senza falso conflitto (RPC legacy=%s)", async legacy => {
     const f = fixture(true, legacy); await f.save();

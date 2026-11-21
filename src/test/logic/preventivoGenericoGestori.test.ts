@@ -269,6 +269,7 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
     const toast = { error: vi.fn(), success: vi.fn() };
     const contesto: Record<string, unknown> = {
       Error, console, JSON, companyId: "company-a", user: { id: "user-a" }, id: "quote-a", isEdit: true,
+      aiRichiestaId: undefined,
       existingQuote: { status: "bozza" }, existingItemsLoaded: true, existingAttachmentsLoaded: true,
       partialQuoteId: null, pendingEditNavId: null, recoverableDraft: null, paymentPhases: [], paymentPlanError: (): string | null => null,
       persistLocalDraft: () => {}, saveInFlightRef: { current: false }, versioneCaricataRef: { current: "v0" },

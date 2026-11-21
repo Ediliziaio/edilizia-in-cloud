@@ -3,6 +3,7 @@ import { readQuoteDraft, serializeQuoteDraft, quoteDraftSchema, type QuoteDraft 
 
 describe("bozza completa preventivo classico", () => {
   const draft: QuoteDraft = {
+    aiRichiestaId: "10000000-0000-4000-8000-000000000021",
     step: 2, partialQuoteId: null, contactId: null, clientName: "Cliente prova", clientEmail: "",
     clientPhone: "", clientCompany: "", clientAddress: "", clientFiscalCode: "", clientVatNumber: "", clientCodiceUnivoco: "", tipoClienteScelto: "pa",
     title: "Offerta", description: "Progetto", validityDays: 30, notes: "Nota cliente",
