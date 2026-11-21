@@ -87,7 +87,9 @@ function ContenutoDistinte({ companyId }: { companyId: string }) {
     refetchInterval: 60_000,
   });
   const selezionate = useMemo(() => Object.values(scelte), [scelte]);
-  const aggiorna = () => void qc.invalidateQueries({ queryKey });
+  const aggiorna = (): void => {
+    void qc.invalidateQueries({ queryKey });
+  };
   const apri = (id: string) => { setId(id); setVista("dettaglio"); };
   const azione = useMutation({
     mutationFn: async (tipo: "crea" | "approva" | "annulla" | "esporta") => {

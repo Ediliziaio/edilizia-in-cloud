@@ -8,6 +8,8 @@ const MOTIVI: Record<string, string> = {
   righe: "Verifica le righe del documento originale",
   divisa: "Verifica la valuta del documento",
   rettifica: "La fattura è da rettificare",
+  ddt_su_piu_fatture: "Lo stesso DDT è citato in più fatture. Verifica le quantità attribuite",
+  ordine_su_piu_fatture: "Più fatture citano lo stesso ordine. Verifica a quale fattura si riferisce la consegna",
 };
 
 export function DettagliVerificaPagamento({ esito }: { esito: ControlloPagamento }) {
