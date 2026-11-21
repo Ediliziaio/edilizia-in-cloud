@@ -1,4 +1,5 @@
 import { ascoltaErroreGoogleFv, caricaGoogleMapsFv, type MappaGoogleFvApi } from "@/components/fotovoltaico/tetto/googleMapsJsFv";
+import { massimoZoomGoogleFv } from "@/components/fotovoltaico/tetto/massimoZoomGoogleFv";
 
 const preparazioni = new WeakMap<Document, Promise<() => void>>();
 
@@ -31,8 +32,19 @@ export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Pr
       win?.scrollTo({ left: 0, top: Math.max(0, host.getBoundingClientRect().top + win.scrollY - 24), behavior: "instant" });
       const c = JSON.parse(decodeURIComponent(host.dataset.fvGooglePdf ?? ""));
       if (!Number.isFinite(c.centro?.lat) || Math.abs(c.centro.lat) > 80 || !Number.isFinite(c.centro.lng) || Math.abs(c.centro.lng) > 180 || !Number.isInteger(c.zoom) || c.zoom < 1 || c.zoom > 21 || c.w !== 640 || c.h !== 440) throw new Error("Riferimento della mappa nel documento non valido.");
+      const zoom = Math.min(c.zoom, await massimoZoomGoogleFv(api, c.centro));
+      if (signal?.aborted) throw new Error("Caricamento mappa annullato.");
       const frame = host.querySelector<HTMLElement>("[data-fv-google-frame]")!, nodo = host.querySelector<HTMLElement>("[data-fv-google-map]")!, status = host.querySelector<HTMLElement>("[data-fv-google-status]");
       if (!frame || !nodo) throw new Error("Vista Google del documento incompleta.");
+      if (zoom !== c.zoom) {
+        const svg = frame.querySelector("svg");
+        if (!svg) throw new Error("Il disegno del tetto non può essere allineato alla foto Google.");
+        const gruppo = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+        gruppo.dataset.fvGoogleScale = "true";
+        gruppo.setAttribute("transform", `translate(${c.w / 2} ${c.h / 2}) scale(${2 ** (zoom - c.zoom)}) translate(${-c.w / 2} ${-c.h / 2})`);
+        gruppo.append(...svg.childNodes); svg.append(gruppo);
+        pulizie.push(() => { if (gruppo.parentNode === svg) svg.replaceChildren(...gruppo.childNodes); });
+      }
       if (status) { status.hidden = false; status.textContent = "Caricamento della vista Google del tetto…"; }
       const ridimensiona = () => {
         const scala = Math.min(host.clientWidth / c.w, host.clientHeight / c.h);
@@ -42,7 +54,7 @@ export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Pr
       const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(ridimensiona) : null;
       observer?.observe(host);
       let map: MappaGoogleFvApi | undefined;
-      pulizie.push(() => { observer?.disconnect(); if (map) { api.event?.clearInstanceListeners(map); map.unbindAll(); } nodo.replaceChildren(); delete host.dataset.fvGoogleReady; });
+      pulizie.push(() => { observer?.disconnect(); if (map) { api.event?.clearInstanceListeners(map); map.unbindAll(); } nodo.replaceChildren(); delete host.dataset.fvGoogleReady; delete host.dataset.fvGoogleZoom; });
       await new Promise<void>((resolve, reject) => {
         let finito = false;
         const termina = (errore?: string) => {
@@ -55,7 +67,7 @@ export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Pr
             if (doc !== document) for (const style of document.querySelectorAll("style")) if (style.textContent?.includes(".gm-style") && !doc.querySelector(`style[data-fv-google-style="${[...document.querySelectorAll("style")].indexOf(style)}"]`)) {
               const copia = doc.createElement("style"); copia.dataset.fvGoogleStyle = String([...document.querySelectorAll("style")].indexOf(style)); copia.textContent = style.textContent; doc.head.appendChild(copia);
             }
-            host.dataset.fvGoogleReady = "true"; if (status) status.hidden = true; resolve();
+            host.dataset.fvGoogleReady = "true"; host.dataset.fvGoogleZoom = String(zoom); if (status) status.hidden = true; resolve();
           }
         };
         const annulla = () => termina("Caricamento mappa annullato.");
@@ -64,10 +76,10 @@ export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Pr
         let listener: { remove: () => void } | undefined;
         signal?.addEventListener("abort", annulla, { once: true });
         try {
-          map = new api.Map(nodo, { center: c.centro, zoom: c.zoom, minZoom: c.zoom, maxZoom: c.zoom, mapTypeId: "satellite", renderingType: "RASTER", tilt: 0, heading: 0, disableDefaultUI: true, clickableIcons: false, keyboardShortcuts: false, gestureHandling: "none", draggable: false, scrollwheel: false, isFractionalZoomEnabled: false });
+          map = new api.Map(nodo, { center: c.centro, zoom, minZoom: zoom, maxZoom: zoom, mapTypeId: "satellite", renderingType: "RASTER", tilt: 0, heading: 0, disableDefaultUI: true, clickableIcons: false, keyboardShortcuts: false, gestureHandling: "none", draggable: false, scrollwheel: false, isFractionalZoomEnabled: false });
           listener = map.addListener("tilesloaded", () => {
             const centro = map?.getCenter()?.toJSON();
-            if (!centro || map?.getZoom() !== c.zoom || Math.abs(centro.lat - c.centro.lat) > 1e-8 || Math.abs(centro.lng - c.centro.lng) > 1e-8) termina("La vista Google non è allineata al disegno salvato. Riprova prima di stampare.");
+            if (!centro || map?.getZoom() !== zoom || Math.abs(centro.lat - c.centro.lat) > 1e-8 || Math.abs(centro.lng - c.centro.lng) > 1e-8) termina("La vista Google non è allineata al disegno salvato. Riprova prima di stampare.");
             else termina();
           });
         } catch { termina("Impossibile preparare la vista Google del tetto. Riprova."); }

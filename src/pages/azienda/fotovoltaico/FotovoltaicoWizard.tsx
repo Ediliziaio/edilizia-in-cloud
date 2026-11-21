@@ -4076,7 +4076,7 @@ export function Step5Configurazione({
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" disabled={!!data.kit_bundle_id || (readOnlyMode && !leggiDisegnoCommerciale(data.layout_overlay))}
-              onClick={() => { const ripreso = leggiDisegnoCommerciale(cambiaModalitaProgettazione(data.layout_overlay, false)); const articolo = pannelli.find(p => p.id === data.pannello_id); setDisegnoBozza(ripreso ? { ...ripreso, modulo: articolo?misureModulo(articolo):ripreso.modulo } : geometriaInAttesa); setDisegnoAperto(true); }}>
+              onClick={() => { const ripreso = leggiDisegnoCommerciale(cambiaModalitaProgettazione(data.layout_overlay, false)); setDisegnoBozza(ripreso ?? geometriaInAttesa); setDisegnoAperto(true); }}>
               {leggiDisegnoCommerciale(data.layout_overlay) ? readOnlyMode ? "Visualizza disposizione pannelli" : "Modifica disposizione pannelli" : "Disegna il tetto"}
             </Button>
             {leggiDisegnoCommerciale(data.layout_overlay) && !readOnlyMode && <Button type="button" variant="ghost" size="sm" onClick={() => update("layout_overlay", cambiaModalitaProgettazione(data.layout_overlay, true))}>Escludi il disegno dal PDF</Button>}
