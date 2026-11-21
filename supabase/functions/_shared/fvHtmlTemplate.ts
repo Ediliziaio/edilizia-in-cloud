@@ -24,6 +24,7 @@ import {sezioniEconomiaAzienda,capitoliEconomiaAzienda} from "./fvEconomiaAziend
 
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
 import { leggiDisegnoCommerciale, svgDisegnoCommerciale } from "./fvDisegnoCommerciale.ts";
+import { geometriaTettoDocumento, svgTettoDocumento, tabellaFaldeDocumento } from "./fvTettoDocumento.ts";
 import { preventivoSenzaMappa } from "./fvModalitaProgettazione.ts";
 import { substituteMergeTags } from './quoteTemplateComposer.ts';
 import { contrattoInHtml, leggiTestoRiccoContratto, separaFirmeContratto, segmentaRigaContratto } from './testoRiccoContratto.ts';
@@ -1443,6 +1444,16 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
 /** Il piano di posa: i moduli disegnati in scala sulla vista satellitare, con scala, nord e numeri. */
 function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): string {
   const commerciale = leggiDisegnoCommerciale(d.progetto.layout_overlay);
+  const tetto = commerciale && geometriaTettoDocumento(commerciale);
+  if (tetto) return `<div class="page">
+    ${header(d.progetto.numero, d.azienda.name)}
+    <div class="content"><div class="eyebrow">Il tuo tetto · disegno dalla mappa</div>
+      <h1 class="page-title">Il tetto e i pannelli,<br/>come li hai disegnati.</h1>
+      <p class="page-subtitle">${escHtml(indirizzoCompleto(d.cliente))} · ${tetto.falde.length} ${tetto.falde.length === 1 ? "falda" : "falde"} · ${commerciale!.pannelli.length} moduli · ${fmtNum(d.progetto.potenza_kwp, 2)} kWp.</p>
+      <div style="border:1px solid #DCE5EB;border-radius:12px;overflow:hidden;height:125mm;margin:4mm 0">${svgTettoDocumento(tetto, "pianta")}</div>
+      <div style="display:flex;gap:5mm;font-size:9pt;color:#475569;margin:3mm 0"><span><b style="color:#182f43">■</b> Moduli</span><span><b style="color:#9aaeb9">■</b> Falde</span><span><b style="color:#c18643">■</b> Ostacoli inseriti</span></div>
+      <div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il contorno salvato nel progetto.</strong>Posizione e orientamento delle falde provengono dal disegno sulla mappa. Le quote di questa vista sono in pianta; la pagina successiva riporta superficie inclinata e vista 3D. Misure e posa da confermare nel sopralluogo; questa tavola non costituisce un progetto tecnico dell’impianto.</div></div>
+    </div>${footer(d, pageN, total)}</div>`;
   if (commerciale) return `<div class="page">
     ${header(d.progetto.numero, d.azienda.name)}
     <div class="content"><div class="eyebrow">Il tuo impianto, in pianta</div>
@@ -1489,6 +1500,27 @@ function pagePianoTetto(d: FvPdfTemplateData, pageN: number, total: number): str
     </div>
     ${footer(d, pageN, total)}
   </div>`;
+}
+
+function quantePagineTetto(d: FvPdfTemplateData) {
+  const piano = leggiDisegnoCommerciale(d.progetto.layout_overlay);
+  const tetto = piano && geometriaTettoDocumento(piano);
+  return tetto ? 1 + Math.ceil(tetto.falde.length / 6) : 1;
+}
+
+function pageTetto3D(d: FvPdfTemplateData, pageN: number, total: number, da: number): string {
+  const piano = leggiDisegnoCommerciale(d.progetto.layout_overlay)!;
+  const tetto = geometriaTettoDocumento(piano)!;
+  return `<div class="page">${header(d.progetto.numero, d.azienda.name)}<div class="content">
+    <div class="eyebrow">Il tuo tetto · volume e misure</div>
+    <h1 class="page-title">Le tue falde,<br/>anche in 3D.</h1>
+    <p class="page-subtitle">Stessi contorni e stessi ${tetto.pannelli.length} pannelli della pianta. ${da ? `Dettaglio falde ${da + 1}–${Math.min(da + 6, tetto.falde.length)}.` : ""}</p>
+    <div style="border:1px solid #DCE5EB;border-radius:12px;overflow:hidden;height:96mm;margin:3mm 0">${svgTettoDocumento(tetto, "3d")}</div>
+    <style>.fv-roof-table{width:100%;border-collapse:collapse;font-size:8pt;line-height:1.3;table-layout:fixed;margin:3mm 0}.fv-roof-table th,.fv-roof-table td{padding:2mm 1.5mm;text-align:left;border-bottom:1px solid #dce5eb;overflow-wrap:anywhere}.fv-roof-table th{color:#fff;font-size:7.5pt}.fv-roof-table th:first-child{width:29%}</style>
+    ${tabellaFaldeDocumento(tetto, da)}
+    <p style="font-size:8pt;line-height:1.4;color:#64748b">Superficie = area sulla falda inclinata. Azimut: nord 0°, est 90°, sud 180°. * Pendenza stimata, da verificare. Altezza alla gronda ${fmtNum(tetto.altezza, 1)} m, indicativa.</p>
+    <div class="callout callout-info" style="font-size:9pt"><span class="callout-icon">i</span><div><strong>Ricostruzione geometrica del tetto.</strong>La vista usa le falde tracciate e le pendenze indicate nel progetto; pareti e altezza sono illustrative. La superficie disponibile e la posa si confermano con il rilievo.</div></div>
+  </div>${footer(d, pageN, total)}</div>`;
 }
 
 function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): string {
@@ -2716,7 +2748,7 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   // Il contratto (condizioni, firma, modulo di recesso) si conta con la decisione,
   // che lo porta con sé.
   return 1 + (imageHref(d.render_impianto?.img)?1:0) + (d.economia_azienda&&!modelloAzienda(d.template)?sezioniEconomiaAzienda(d.economia_azienda).length:0) + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
-    count + (isFvPaginaAzienda(page.id)&&d.economia_azienda?capitoliEconomiaAzienda(d.economia_azienda,d.template?.pdf_blocchi)[page.id].length:page.id === "macro_categorie" ? macroPages.length : page.id === "chi_siamo" ? gruppiChiSiamoFv(d).length : page.id === "ambito_offerta" ? gruppiAmbitoOffertaFv(d).length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "schede_prodotti" ? gruppiSchedeProdotti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? d.simulazione_azienda||d.anteprima_dimostrativa?1:1 + quantePagineContratto(d) : 1)
+    count + (page.id === "piano_tetto" ? quantePagineTetto(d) : isFvPaginaAzienda(page.id)&&d.economia_azienda?capitoliEconomiaAzienda(d.economia_azienda,d.template?.pdf_blocchi)[page.id].length:page.id === "macro_categorie" ? macroPages.length : page.id === "chi_siamo" ? gruppiChiSiamoFv(d).length : page.id === "ambito_offerta" ? gruppiAmbitoOffertaFv(d).length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "schede_prodotti" ? gruppiSchedeProdotti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? d.simulazione_azienda||d.anteprima_dimostrativa?1:1 + quantePagineContratto(d) : 1)
   ), 0);
 }
 
@@ -2818,6 +2850,7 @@ function renderFvPdfHtmlBase(d: FvPdfTemplateData): string {
         break;
       case "piano_tetto":
         append(page.id, pagePianoTetto(d, ++pageN, TOTAL));
+        for (let i = 1; i < quantePagineTetto(d); i++) append(page.id, pageTetto3D(d, ++pageN, TOTAL, (i - 1) * 6));
         break;
       case "componenti":
         // Pagina tabellare «Composizione della fornitura» (foto prodotto,
