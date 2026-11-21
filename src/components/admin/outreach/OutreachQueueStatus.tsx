@@ -1,99 +1,93 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Clock, Users, AlertTriangle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Send, Clock, PauseCircle, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
+import { outreachRpc } from "./outreachRpc";
 
-/**
- * Battito del motore invii ("vedere il flusso" a livello campagna): quanti
- * messaggi sono in coda, inviati oggi, quanti contatti sono in cadenza e quando
- * partirà il prossimo invio. Su outreach_send_queue + outreach_enrollments.
- * Si aggiorna da solo ogni 30s. Errore tabella mancante → silenzioso.
- */
+type Giro = { at: string; esito: Record<string, unknown> | null; errore: string | null };
+interface StatoCoda {
+  pronti: number;
+  programmati: number;
+  in_pausa: number;
+  da_verificare: number;
+  inviati_oggi: number;
+  falliti_oggi: number;
+  prossimo: string | null;
+  campagne: {
+    sequenza_id: string | null; sequenza: string | null; brand: string | null;
+    motivo: string | null; n: number; pronti: number; prima_data: string | null;
+  }[];
+}
+const data = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", dateStyle: "medium", timeStyle: "short" });
 
 export function OutreachQueueStatus({ companyId }: { companyId: string }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
   const q = useQuery({
     queryKey: ["outreach-queue-status", companyId],
-    retry: false,
+    refetchInterval: 30_000,
+    queryFn: () => outreachRpc<StatoCoda>("outreach_stato_coda", { p_company: companyId }),
+  });
+  const giri = useQuery({
+    queryKey: ["outreach-ultimi-giri", companyId],
     refetchInterval: 30_000,
     queryFn: async () => {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const iso = todayStart.toISOString();
-      const Q = () => db.from("outreach_send_queue").select("id", { count: "exact", head: true }).eq("company_id", companyId);
-      const [queued, sentToday, failed, active, next] = await Promise.all([
-        Q().eq("status", "queued"),
-        Q().eq("status", "sent").gte("sent_at", iso),
-        Q().eq("status", "failed"),
-        db.from("outreach_enrollments").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "active"),
-        db.from("outreach_send_queue").select("scheduled_for").eq("company_id", companyId).eq("status", "queued").order("scheduled_for", { ascending: true }).limit(1).maybeSingle(),
-      ]);
-      if (queued.error) throw queued.error;
-      // Ultimo giro per funzione (outreach_runs): dispatcher, poll risposte, warm-up.
-      let giri: Record<string, { at: string; esito: Record<string, unknown> | null; errore: string | null }> = {};
-      try {
-        const { data: runs } = await db.from("outreach_runs").select("funzione,started_at,esito,errore").order("started_at", { ascending: false }).limit(40);
-        for (const r of (runs ?? []) as Array<{ funzione: string; started_at: string; esito: Record<string, unknown> | null; errore: string | null }>) {
-          if (!giri[r.funzione]) giri[r.funzione] = { at: r.started_at, esito: r.esito, errore: r.errore };
-        }
-      } catch { giri = {}; }
-      // Etichetta "prossimo invio" calcolata QUI (non in render: purezza) e
-      // rinfrescata dal refetch 30s. Se scheduled_for è nel PASSATO i messaggi
-      // sono già "pronti" e partono al prossimo tick nel limite del cap
-      // warm-up — NON sono in ritardo: dire "un giorno fa" faceva sembrare un
-      // errore. Solo se è futuro mostriamo il "tra…".
-      const nextAt = (next.data?.scheduled_for as string | null) ?? null;
-      let nextLabel = "—";
-      if (nextAt) {
-        const nextMs = new Date(nextAt).getTime();
-        if (Number.isFinite(nextMs)) {
-          if (nextMs <= Date.now()) {
-            nextLabel = "pronte, al prossimo giro";
-          } else {
-            try { nextLabel = formatDistanceToNow(new Date(nextAt), { addSuffix: true, locale: it }); } catch { /* — */ }
-          }
-        }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: runs, error } = await (supabase as any).from("outreach_runs")
+        .select("funzione,started_at,esito,errore").order("started_at", { ascending: false }).limit(40);
+      if (error) throw error;
+      const ultimi: Record<string, Giro> = {};
+      for (const r of runs ?? []) {
+        if (!ultimi[r.funzione]) ultimi[r.funzione] = { at: r.started_at, esito: r.esito, errore: r.errore };
       }
-      return {
-        queued: queued.count ?? 0,
-        sentToday: sentToday.count ?? 0,
-        failed: failed.count ?? 0,
-        active: active.count ?? 0,
-        nextLabel,
-        giri,
-      };
+      return ultimi;
     },
   });
-
-  if (q.isLoading) return <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>;
-  if (q.error) return null;
   const d = q.data;
-  if (!d) return null;
-
-  const idle = d.queued === 0 && d.sentToday === 0 && d.active === 0;
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base"><Send className="h-5 w-5 text-orange-500" /> Motore invii — oggi</CardTitle>
+      <CardHeader className="px-4 py-4 sm:px-5">
+        <CardTitle className="flex items-center gap-2 text-base"><Send className="h-4 w-4 text-primary" /> Stato degli invii</CardTitle>
       </CardHeader>
-      <CardContent>
-        <UltimiGiri giri={d.giri} />
-        {idle ? (
-          <p className="py-2 text-sm text-muted-foreground">
-            Motore fermo: nessun invio in corso. Arruola una lista in una sequenza (scheda <strong>Sequenze</strong>) per avviare il flusso.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Tile icon={Users} label="In cadenza" value={d.active} hint="iscrizioni attive" />
-            <Tile icon={Clock} label="In coda" value={d.queued} hint={d.queued > 0 ? d.nextLabel : "—"} tone="active" />
-            <Tile icon={Send} label="Inviate oggi" value={d.sentToday} tone="good" />
-            <Tile icon={AlertTriangle} label="Fallite" value={d.failed} tone={d.failed > 0 ? "warn" : "default"} />
+      <CardContent className="space-y-3 px-4 pb-4 sm:px-5">
+        {q.isError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+            Coda invii momentaneamente indisponibile.
+            <Button size="sm" variant="outline" onClick={() => void q.refetch()}>Riprova</Button>
           </div>
-        )}
+        ) : d ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
+              <Tile icon={Clock} label="Pronti ora" value={d.pronti} hint={d.pronti > 0 ? "Soggetti a orari e capacità" : undefined} />
+              <Tile icon={Clock} label="Programmati" value={d.programmati} hint={d.prossimo ? data.format(new Date(d.prossimo)) : undefined} />
+              <Tile icon={PauseCircle} label="In pausa" value={d.in_pausa} tone={d.in_pausa ? "warn" : "default"} />
+              <Tile icon={Send} label="Inviati oggi" value={d.inviati_oggi} tone="good" />
+            </div>
+            {(d.da_verificare > 0 || d.falliti_oggi > 0) && <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              {d.da_verificare > 0 && <span>{d.da_verificare.toLocaleString("it-IT")} da verificare</span>}
+              {d.falliti_oggi > 0 && <span>{d.falliti_oggi.toLocaleString("it-IT")} falliti oggi</span>}
+            </p>}
+            {d.campagne.length > 0 && <details className="rounded-lg border px-3 py-2 text-sm">
+              <summary className="cursor-pointer font-medium">Dettaglio per campagna</summary>
+              <ul className="mt-2 divide-y">
+                {d.campagne.map((c) => (
+                  <li key={JSON.stringify([c.sequenza_id, c.brand, c.motivo])} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-xs">
+                    <span className="min-w-36 font-medium">{c.sequenza ?? "Invii singoli"}{c.brand && ` · \${c.brand}`}</span>
+                    <span className="tabular-nums">{c.n.toLocaleString("it-IT")} in coda</span>
+                    <span className="text-muted-foreground">
+                      {c.motivo ?? [c.pronti > 0 && `\${c.pronti.toLocaleString("it-IT")} pronti`,
+                        c.prima_data && `Prossima data \${data.format(new Date(c.prima_data))}`].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>}
+          </>
+        ) : <p role="status" className="text-sm text-muted-foreground">Caricamento della coda…</p>}
+        {giri.isError ? <p className="text-xs text-muted-foreground">Registro degli ultimi giri indisponibile.</p> : giri.data && <UltimiGiri giri={giri.data} />}
       </CardContent>
     </Card>
   );

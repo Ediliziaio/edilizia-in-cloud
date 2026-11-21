@@ -120,12 +120,19 @@ interface StatoStoriaPosta {
 }
 
 export function OutreachMailClient({ companyId }: { companyId: string }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const risposta = params.get("risposta");
+  const replyId = risposta && /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(risposta) ? risposta : undefined;
+  params.delete("risposta");
+  const searchSenzaRisposta = params.toString();
   const {
     conversations, sendersById, senders, brands, unreadBySender, sequenceOptions,
-    isLoading, errored, tableMissing,
+    isLoading, errored, tableMissing, focusedReplyError,
     markRead, markAllRead, archiveRead, setIntent, snoozeConversation, unsnooze,
     signatureForSender,
-  } = useOutreachConversations(companyId);
+  } = useOutreachConversations(companyId, replyId);
   const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi, summarizing, summarizeWithAi } = useReplyComposer(companyId);
   const snippets = useReplySnippets();
 
@@ -146,11 +153,11 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const [contextOverride, setContextOverride] = useState<boolean | null>(null);
 
   // ── La conversazione aperta vive nella cronologia del browser ──
-  const location = useLocation();
-  const navigate = useNavigate();
   const stato = (location.state ?? {}) as StatoStoriaPosta & Record<string, unknown>;
-  const selectedKey = typeof stato.postaConv === "string" ? stato.postaConv : null;
-  const qui = { pathname: location.pathname, search: location.search, hash: location.hash };
+  const selectedKey = risposta
+    ? conversations.find((conv) => replyId && conv.replyIds.includes(replyId))?.key ?? null
+    : typeof stato.postaConv === "string" ? stato.postaConv : null;
+  const qui = { pathname: location.pathname, search: searchSenzaRisposta ? `?${searchSenzaRisposta}` : "", hash: location.hash };
   const statoSenzaPosta = (): Record<string, unknown> => {
     const resto: Record<string, unknown> = { ...stato };
     delete resto.postaConv;
@@ -280,7 +287,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
       if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return;
       if (e.key === "Escape") {
         if (document.querySelector("[role='dialog'][data-state='open'], [role='menu'][data-state='open'], [data-radix-popper-content-wrapper]")) return;
-        if (selectedKey) { e.preventDefault(); chiudi(); }
+        if (selectedKey || risposta) { e.preventDefault(); chiudi(); }
         return;
       }
       const k = e.key.toLowerCase();
@@ -364,6 +371,12 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
   return (
     <div className={cn(MAIL_CLIENT_HEIGHT, "flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm")}>
+      {risposta && !selected && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-sm">
+          {focusedReplyError ? "Caricamento della risposta non riuscito." : "Risposta non disponibile."}
+          <Button variant="outline" size="sm" onClick={chiudi}>Mostra tutte le conversazioni</Button>
+        </div>
+      )}
       {/* ═══ Barra: brand + ricerca + filtri + nuova email ═══ */}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <BrandTabs
@@ -581,6 +594,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               <div className="flex min-w-0 flex-1 flex-col lg:min-w-[380px]">
                 <ThreadPane
                   selected={selected}
+                  focusMessage={replyId ? `r:${replyId}` : undefined}
+                  onMarkRead={replyId && selected.unreadReplyIds.includes(replyId)
+                    ? () => markRead.mutate({ replyIds: [replyId] }) : undefined}
                   brand={brandDi(selected)}
                   sendersById={sendersById}
                   mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
@@ -1101,9 +1117,11 @@ function ConversationRow({
 
 function ThreadPane({
   selected, brand, sendersById, mailbox, signature, snippets, replyText, setReplyText, sending, aiDrafting, onSend, onDraft, onBack,
-  showContext, onToggleContext,
+  showContext, onToggleContext, focusMessage, onMarkRead,
 }: {
   selected: Conversation;
+  focusMessage?: string;
+  onMarkRead?: () => void;
   brand: BrandVista | null;
   /** Per dire da quale casella è partita ogni nostra email. */
   sendersById: Map<string, SenderRow>;
@@ -1130,6 +1148,10 @@ function ThreadPane({
   const canReply = !!(selected.contact?.id || selected.email);
   // Ref alla textarea per l'inserimento snippet/firma al cursore.
   const replyRef = useRef<HTMLTextAreaElement>(null);
+  const targetedMessage = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusMessage) targetedMessage.current?.scrollIntoView?.({ block: "nearest" });
+  }, [focusMessage]);
 
   // Inserisce testo alla posizione del cursore (o in coda) e riposiziona il caret.
   const insertAtCursor = (text: string) => {
@@ -1209,6 +1231,11 @@ function ThreadPane({
             <span>Casella non tracciata</span>
           )}
           {brand && <BrandLabel brand={brand} className="ml-2 sm:hidden" />}
+          {onMarkRead && (
+            <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={onMarkRead}>
+              Segna come letta
+            </Button>
+          )}
         </div>
       </header>
 
@@ -1222,7 +1249,8 @@ function ThreadPane({
             const showDay = i === 0 || !sameDay(m.at, prev?.at ?? null);
             const casella = m.senderAccountId ? sendersById.get(m.senderAccountId)?.email ?? null : null;
             return (
-              <div key={m.id}>
+              <div key={m.id} ref={m.id === focusMessage ? targetedMessage : undefined}
+                className={m.id === focusMessage ? "rounded-xl ring-2 ring-primary/40" : undefined}>
                 {showDay && <ThreadDayDivider iso={m.at} />}
                 <ThreadBubble msg={m} showSubject={showSubject} casella={casella} />
               </div>

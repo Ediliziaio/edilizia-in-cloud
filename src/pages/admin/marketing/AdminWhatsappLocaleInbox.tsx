@@ -270,10 +270,10 @@ export default function AdminWhatsappLocaleInbox() {
         .from("openwa_messages")
         .select("id, number_id, contact_id, wa_chat_id, contact_phone, contact_name, direction, body, media_url, status, error, created_at, read_at")
         .eq("wa_chat_id", selectedChat)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return (data ?? []) as OpenWaMessage[];
+      return ((data ?? []) as OpenWaMessage[]).reverse();
     },
     staleTime: 5_000,
   });
@@ -394,25 +394,28 @@ export default function AdminWhatsappLocaleInbox() {
     return messaggiTutti.filter((m) => (m.body ?? "").toLowerCase().includes(q));
   }, [messaggiTutti, cercaInChat]);
 
-  // La chat linkata puo' stare oltre la prima pagina: si carica finche' non
-  // compare, con un tetto per non scaricare tutto l'archivio.
-  useEffect(() => {
-    const chat = searchParams.get("chat");
-    if (!chat || !threadsQuery.data) return;
-    const trovata = threadsQuery.data.some((r) => r.wa_chat_id === chat);
-    const altrePagine = threadsQuery.data.length >= PER_PAGINA * pagine;
-    if (!trovata && altrePagine && pagine < 20) setPagine((n) => n + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadsQuery.data, searchParams]);
-
   // La chat aperta resta aperta anche se la lista filtrata non la contiene
   // piu' (col filtro "Da leggere" aprirla la segna letta e la lista la
   // scartava un istante dopo → pannello vuoto). Si tiene l'ultima riga vista.
   const trovato = threadsVisibili.find((t) => t.chatId === selectedChat)
     ?? threads.find((t) => t.chatId === selectedChat) ?? null;
   if (trovato) ultimoActiveRef.current = trovato;
+  const ultimo = messaggiTutti.at(-1);
+  const daiMessaggi: Thread | null = ultimo && ultimo.wa_chat_id === selectedChat ? {
+    chatId: ultimo.wa_chat_id,
+    name: ultimo.contact_name || ultimo.contact_phone || ultimo.wa_chat_id.replace(/@.*$/, ""),
+    phone: ultimo.contact_phone,
+    lastAt: ultimo.created_at,
+    lastBody: ultimo.body ?? "",
+    numberId: ultimo.number_id,
+    contactId: ultimo.contact_id,
+    unread: messaggiTutti.filter((m) => m.direction === "inbound" && !m.read_at).length,
+    totale: messaggiTutti.length,
+    stato: "aperta", assegnatoA: null, assegnatoNome: null, noteCount: 0,
+  } : null;
   const active = trovato
-    ?? (ultimoActiveRef.current?.chatId === selectedChat ? ultimoActiveRef.current : null);
+    ?? (ultimoActiveRef.current?.chatId === selectedChat ? ultimoActiveRef.current : null)
+    ?? daiMessaggi;
   const numeroAttivo = active?.numberId ? numeriById.get(active.numberId) ?? null : null;
   const piuNumeri = (numbersQuery.data?.length ?? 0) > 1;
 
@@ -436,14 +439,16 @@ export default function AdminWhatsappLocaleInbox() {
     setSelectedChat(chatId);
     void (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
+      const { error } = await (supabase as any)
         .from("openwa_messages")
         .update({ read_at: new Date().toISOString() })
         .eq("wa_chat_id", chatId)
         .eq("direction", "inbound")
         .is("read_at", null);
+      if (error) { toast.error("Impossibile segnare la conversazione come letta"); return; }
       queryClient.invalidateQueries({ queryKey: ["openwa", "threads"] });
       queryClient.invalidateQueries({ queryKey: ["openwa", "messaggi"] });
+      queryClient.invalidateQueries({ queryKey: ["outreach-oggi"] });
     })();
   };
 
@@ -748,8 +753,18 @@ export default function AdminWhatsappLocaleInbox() {
           {!active ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
               <MessageCircle className="h-10 w-10 opacity-30" />
-              <p className="text-sm">Seleziona una conversazione</p>
-              <p className="text-xs opacity-70">oppure inizia con "Nuovo messaggio"</p>
+              {selectedChat ? (
+                <p className="text-sm" role="status">
+                  {messaggiQuery.isFetching ? "Caricamento della conversazione…"
+                    : messaggiQuery.isError ? "Caricamento della conversazione non riuscito."
+                      : "Conversazione non disponibile."}
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm">Seleziona una conversazione</p>
+                  <p className="text-xs opacity-70">oppure inizia con "Nuovo messaggio"</p>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -775,6 +790,11 @@ export default function AdminWhatsappLocaleInbox() {
                     <Badge variant="secondary" className="gap-1 text-[10px]">
                       <CheckCircle2 className="h-3 w-3" /> chiusa
                     </Badge>
+                  )}
+                  {searchParams.get("chat") === active.chatId && active.unread > 0 && (
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openThread(active.chatId)}>
+                      Segna come letta
+                    </Button>
                   )}
                   <Button
                     variant="ghost" size="icon"

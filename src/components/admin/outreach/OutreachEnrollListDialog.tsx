@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Loader2 } from "lucide-react";
+import { arruolaPagine, chiaveArruolamento, cursoreArruolamento } from "./enrollPages";
 
 /**
  * Arruola una LISTA (tag) in una sequenza, scegliendo la sequenza dal menu.
@@ -18,6 +19,10 @@ export function OutreachEnrollListDialog({ companyId, tag, count, contactable }:
   const [open, setOpen] = useState(false);
   const [sequenceId, setSequenceId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [esito, setEsito] = useState<Awaited<ReturnType<typeof arruolaPagine>> | null>(null);
+  const criteri = { sequence_id: sequenceId, tag };
+  const chiave = chiaveArruolamento(companyId, criteri);
+  const riprendi = sequenceId && (cursoreArruolamento(chiave) || esito?.altri);
 
   const seqs = useQuery({
     queryKey: ["enroll-list-seqs", companyId],
@@ -25,9 +30,10 @@ export function OutreachEnrollListDialog({ companyId, tag, count, contactable }:
     retry: false,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any).from("outreach_sequences")
+      const { data, error } = await (supabase as any).from("outreach_sequences")
         .select("id,name,status").eq("company_id", companyId).neq("status", "archived")
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return (data ?? []) as { id: string; name: string; status: string }[];
     },
   });
@@ -36,20 +42,8 @@ export function OutreachEnrollListDialog({ companyId, tag, count, contactable }:
     if (!sequenceId) { toast.error("Scegli una sequenza"); return; }
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("outreach-enroll", { body: { sequence_id: sequenceId, tag } });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      const enrolled = Number(data?.enrolled ?? 0);
-      if (enrolled > 0) {
-        toast.success(`${enrolled} contatti di "${tag}" iscritti alla sequenza`, {
-          description: data?.truncated
-            ? "Lista molto grande: iscritti i primi contatti. Rilancia l'arruolamento per continuare con i restanti."
-            : undefined,
-        });
-      } else {
-        toast.info("Nessun nuovo iscritto", { description: data?.note ?? "Già iscritti / opt-out / blocklist." });
-      }
-      setOpen(false);
+      const report = await arruolaPagine(criteri, { chiave, quanti: 500, maxGiri: 1 });
+      setEsito(report);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore durante l'iscrizione");
     } finally {
@@ -76,19 +70,29 @@ export function OutreachEnrollListDialog({ companyId, tag, count, contactable }:
           </p>
           <div className="space-y-1">
             <Label className="text-xs">Sequenza</Label>
-            <Select value={sequenceId} onValueChange={setSequenceId}>
+            <Select value={sequenceId} onValueChange={(id) => { setSequenceId(id); setEsito(null); }} disabled={busy}>
               <SelectTrigger className="h-9"><SelectValue placeholder={seqs.isLoading ? "Carico…" : "Scegli una sequenza"} /></SelectTrigger>
               <SelectContent>
                 {(seqs.data ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name} · {s.status}</SelectItem>)}
                 {seqs.data && seqs.data.length === 0 && <SelectItem value="__none__" disabled>Nessuna sequenza: creane una nella scheda Sequenze</SelectItem>}
               </SelectContent>
             </Select>
+            {seqs.isError && <p role="alert" className="text-sm text-destructive">Sequenze indisponibili. <button type="button" className="underline" onClick={() => void seqs.refetch()}>Riprova</button></p>}
           </div>
+          {["draft", "paused"].includes(seqs.data?.find((s) => s.id === sequenceId)?.status ?? "") &&
+            <p className="text-xs text-muted-foreground">Gli iscritti aspetteranno la conferma di avvio dalla scheda Sequenze.</p>}
+          {esito && <div role="status" className="rounded-md border p-3 text-sm">
+            <p className="font-medium">{esito.enrolled} iscritti · {esito.valutati - esito.enrolled} esclusi</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {esito.altri ? "Puoi continuare dalla posizione salvata." : "Hai esaminato tutta la lista."}
+            </p>
+          </div>}
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Annulla</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Chiudi</Button>
           <Button onClick={enroll} disabled={busy || !sequenceId} className="gap-2">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Iscrivi
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            {riprendi ? "Continua dalla posizione salvata" : "Iscrivi"}
           </Button>
         </DialogFooter>
       </DialogContent>

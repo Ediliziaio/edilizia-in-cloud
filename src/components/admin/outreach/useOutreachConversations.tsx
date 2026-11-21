@@ -396,7 +396,7 @@ export function senderStatusColor(status: string): string {
  * Hook condiviso: carica i dati, costruisce le conversazioni, espone mutazioni
  * e azioni. I componenti gestiscono solo selezione/filtri/rendering.
  */
-export function useOutreachConversations(companyId: string) {
+export function useOutreachConversations(companyId: string, replyId?: string) {
   const qc = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -452,15 +452,31 @@ export function useOutreachConversations(companyId: string) {
       return (data ?? []) as ReplyRow[];
     },
   });
+  const focusedReplyQ = useQuery({
+    queryKey: ["outreach-inbox-replies", companyId, "singola", replyId],
+    enabled: !!replyId,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db.from(T_REPLIES).select(REPLY_COLS)
+        .eq("company_id", companyId).eq("id", replyId).maybeSingle();
+      if (error) throw error;
+      return data as ReplyRow | null;
+    },
+  });
+  const replies = useMemo(() => {
+    const current = repliesQ.data ?? [];
+    const focused = focusedReplyQ.data;
+    return focused && !current.some((r) => r.id === focused.id) ? [...current, focused] : current;
+  }, [repliesQ.data, focusedReplyQ.data]);
 
   // Tutte le email mandate a chi ha risposto. Senza, il thread di una risposta
   // arrivata ieri mostrava solo la risposta: la nostra email era già uscita
   // dalle ultime 500 inviate.
   const repliedContactIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const r of repliesQ.data ?? []) if (r.contact_id) ids.add(r.contact_id);
+    for (const r of replies) if (r.contact_id) ids.add(r.contact_id);
     return [...ids].sort();
-  }, [repliesQ.data]);
+  }, [replies]);
 
   const threadSentQ = useQuery({
     queryKey: ["outreach-inbox-thread-sent", companyId, repliedContactIds.length, hashSeed(repliedContactIds.join("|"))],
@@ -484,9 +500,9 @@ export function useOutreachConversations(companyId: string) {
   const referencedContactIds = useMemo(() => {
     const ids = new Set<string>();
     for (const s of sentQ.data ?? []) if (s.contact_id) ids.add(s.contact_id);
-    for (const r of repliesQ.data ?? []) if (r.contact_id) ids.add(r.contact_id);
+    for (const r of replies) if (r.contact_id) ids.add(r.contact_id);
     return [...ids].sort();
-  }, [sentQ.data, repliesQ.data]);
+  }, [sentQ.data, replies]);
 
   const contactsQ = useQuery({
     // hashSeed della lista id: chiave stabile e leggera anche con 1000 uuid.
@@ -621,7 +637,10 @@ export function useOutreachConversations(companyId: string) {
     mutationFn: async ({ replyIds }: { replyIds: string[] }) => {
       if (replyIds.length > 0) await cambiaStato(replyIds, UNREAD, READ);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] }),
+      qc.invalidateQueries({ queryKey: ["outreach-oggi", companyId] }),
+    ]),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
@@ -634,6 +653,7 @@ export function useOutreachConversations(companyId: string) {
     onSuccess: (_res, replyIds) => {
       toast.success(replyIds.length === 1 ? "1 risposta segnata come letta" : `${replyIds.length} risposte segnate come lette`);
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+      qc.invalidateQueries({ queryKey: ["outreach-oggi", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
@@ -797,7 +817,6 @@ export function useOutreachConversations(companyId: string) {
     for (const s of threadSentQ.data ?? []) sentById.set(s.id, s);
     for (const s of sentQ.data ?? []) sentById.set(s.id, s);
     const sent = [...sentById.values()];
-    const replies = repliesQ.data ?? [];
     const contacts = contactsQ.data ?? [];
     const byId = new Map(contacts.map((c) => [c.id, c]));
     const brandDellaCasella = (id: string | null | undefined) =>
@@ -1022,7 +1041,7 @@ export function useOutreachConversations(companyId: string) {
     // Conversazioni ordinate per ultima attività desc.
     list.sort((a, b) => new Date(b.lastAt ?? 0).getTime() - new Date(a.lastAt ?? 0).getTime());
     return list;
-  }, [sentQ.data, threadSentQ.data, repliesQ.data, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data, snoozeStateQ.data, sendersById]);
+  }, [sentQ.data, threadSentQ.data, replies, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data, snoozeStateQ.data, sendersById]);
 
   const counts = useMemo(() => {
     // Solo le risposte scritte da una persona, attive (non archiviate, non
@@ -1065,7 +1084,7 @@ export function useOutreachConversations(companyId: string) {
 
   // Anche le email mandate a chi ha risposto: senza, i thread comparirebbero
   // un attimo monchi.
-  const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading || threadSentQ.isLoading;
+  const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading || threadSentQ.isLoading || focusedReplyQ.isLoading;
   const errored = sentQ.error || repliesQ.error;
   const tableMissing =
     (sentQ.error && isMissingTableError(sentQ.error)) ||
@@ -1084,6 +1103,7 @@ export function useOutreachConversations(companyId: string) {
     isLoading,
     errored,
     tableMissing,
+    focusedReplyError: focusedReplyQ.isError,
     // mutazioni
     markRead,
     markAllRead,

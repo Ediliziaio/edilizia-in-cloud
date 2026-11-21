@@ -67,7 +67,14 @@ function fixture(failure: "insert" | "lost-insert-reply" | "sent-update" | "lost
   };
   const run = async () => {
     const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0 };
-    await handle({ from }, now, result);
+    await handle({
+      from,
+      rpc: (name: string, args: unknown) => {
+        expect(name).toBe("outreach_coda_multicanale");
+        expect(args).toMatchObject({ p_kind: "send", p_channels: ["call"] });
+        return from("outreach_send_queue").eq("status", "queued");
+      },
+    }, now, result);
     return result;
   };
   return { run, row, tasks, advanceEnrollment };

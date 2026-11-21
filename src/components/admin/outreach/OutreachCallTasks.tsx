@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Phone, Loader2, Check, X, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
 
 /**
  * Task chiamate — i promemoria generati dai nodi 'call' delle sequenze. Un nodo
@@ -23,22 +24,24 @@ interface CallTask {
   created_at: string;
 }
 
-export function OutreachCallTasks({ companyId }: { companyId: string }) {
+export function OutreachCallTasks({ companyId, focusId }: { companyId: string; focusId?: string }) {
   const qc = useQueryClient();
 
   const q = useQuery({
-    queryKey: ["outreach-call-tasks", companyId],
+    queryKey: ["outreach-call-tasks", companyId, focusId],
     staleTime: 30_000,
     queryFn: async () => {
       // tabella non nei tipi generati → cast
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const query = (supabase as any)
         .from("outreach_call_tasks")
         .select("id,contact_id,phone,contact_name,company_name,note,due_at,created_at")
         .eq("company_id", companyId)
-        .eq("status", "pending")
-        .order("due_at", { ascending: true })
-        .limit(100);
+        .eq("status", "pending");
+      if (focusId && !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(focusId)) return [];
+      const { data, error } = await (focusId
+        ? query.eq("id", focusId).limit(1)
+        : query.order("due_at", { ascending: true }).limit(100));
       if (error) throw error;
       return (data ?? []) as CallTask[];
     },
@@ -50,11 +53,14 @@ export function OutreachCallTasks({ companyId }: { companyId: string }) {
       const { error } = await (supabase as any)
         .from("outreach_call_tasks")
         .update({ status, done_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .eq("status", "pending");
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["outreach-call-tasks", companyId] });
+      qc.invalidateQueries({ queryKey: ["outreach-oggi", companyId] });
       toast.success(v.status === "done" ? "Chiamata segnata come fatta" : "Task saltato");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
@@ -70,12 +76,13 @@ export function OutreachCallTasks({ companyId }: { companyId: string }) {
           <Phone className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold leading-tight">Task chiamate</h3>
+          <h3 className="text-sm font-semibold leading-tight">{focusId ? "Chiamata da fare" : "Task chiamate"}</h3>
           <p className="text-xs text-muted-foreground">Promemoria dai nodi “Chiamata” delle sequenze</p>
         </div>
         {q.data && tasks.length > 0 && (
           <Badge variant="secondary" className="shrink-0 tabular-nums">{fmt(tasks.length)} da fare</Badge>
         )}
+        {focusId && <Button asChild size="sm" variant="ghost"><Link to="/admin/marketing?tab=lead">Tutte le chiamate</Link></Button>}
       </header>
 
       <div className="p-4">
@@ -90,10 +97,10 @@ export function OutreachCallTasks({ companyId }: { companyId: string }) {
         ) : tasks.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center">
             <Phone className="mx-auto mb-2 h-6 w-6 text-muted-foreground/60" />
-            <p className="text-sm font-medium">Nessuna chiamata in coda</p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="text-sm font-medium">{focusId ? "Chiamata già gestita o non disponibile" : "Nessuna chiamata in coda"}</p>
+            {!focusId && <p className="mt-1 text-xs text-muted-foreground">
               Aggiungi un nodo “Chiamata” a una sequenza (Builder visuale): i promemoria compaiono qui.
-            </p>
+            </p>}
           </div>
         ) : (
           <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
@@ -124,6 +131,7 @@ export function OutreachCallTasks({ companyId }: { companyId: string }) {
                     <Button
                       size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground"
                       title="Salta"
+                      aria-label="Salta chiamata"
                       disabled={setStatus.isPending}
                       onClick={() => setStatus.mutate({ id: t.id, status: "skipped" })}
                     >

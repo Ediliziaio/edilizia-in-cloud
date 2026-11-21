@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { AlarmClock, ArrowRight, CheckCircle2 } from "lucide-react";
 
 /**
@@ -70,7 +71,14 @@ export function OutreachOverdueFollowups({ companyId }: { companyId: string }) {
         )}
       </CardHeader>
       <CardContent className="pt-4">
-        {!has ? (
+        {q.isPending ? (
+          <p role="status" className="text-sm text-muted-foreground">Caricamento dei follow-up…</p>
+        ) : q.isError ? (
+          <div role="alert" className="flex items-center gap-3 text-sm">
+            <span>I follow-up sono momentaneamente indisponibili.</span>
+            <Button size="sm" variant="outline" onClick={() => void q.refetch()}>Riprova</Button>
+          </div>
+        ) : !has ? (
           // In pari: una riga, non un riquadro vuoto che spinge giù il resto.
           <div className="flex items-center gap-2.5 py-1">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
@@ -90,7 +98,7 @@ export function OutreachOverdueFollowups({ companyId }: { companyId: string }) {
               return (
                 <Link
                   key={o.id}
-                  to="/admin/marketing/opportunita"
+                  to={`/admin/marketing/opportunita?apri=${encodeURIComponent(o.id)}`}
                   className="group flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/30 hover:bg-muted/40"
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden />
