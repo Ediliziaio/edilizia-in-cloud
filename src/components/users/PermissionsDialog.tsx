@@ -1,3 +1,5 @@
+import type { LivelloMagazzinoCampo } from "../../../shared/campo-magazzino";
+import { MagazzinoCampoPermission } from "./MagazzinoCampoPermission";
 import { OfficeProfileSelector } from "./OfficeProfileSelector";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -140,6 +142,7 @@ export interface StaffPermissions {
   can_edit_settings_integrations: boolean;
   // ── Speciali ───────────────────────────────────────────
   office_profile?: string | null;
+  magazzino_campo?: LivelloMagazzinoCampo | null;
   only_assigned: boolean;
   /** Vede tutte e sole le commesse dei magazzini a cui è assegnato. Indipendente dal limite del portafoglio CRM. */
   only_my_warehouse: boolean;
@@ -369,6 +372,10 @@ export function PermissionsDialog({
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
           {userRole !== "company_admin" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} />}
           <OfficeAccessSummary permissions={permissions} administrator={userRole === "company_admin"} fieldAccess={userRole === "employee" || userRole === "subcontractor"} />
+          {userRole === "employee" && (
+            <MagazzinoCampoPermission value={permissions.magazzino_campo} soloLettura={permissions.sola_lettura}
+              readOnly={isLoading} onChange={(magazzino_campo) => setPermissions((prev) => ({ ...prev, magazzino_campo }))} />
+          )}
           <PermGroup label="Cruscotto" icon={LayoutGrid} iconColor="text-indigo-600"
             sections={CRUSCOTTO_SECTIONS} permissions={permissions} onToggle={handleToggle} />
           <PermGroup label="Cantieri & Lavori" icon={HardHat} iconColor="text-blue-600"

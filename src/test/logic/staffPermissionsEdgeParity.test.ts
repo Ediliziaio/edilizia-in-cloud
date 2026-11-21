@@ -94,6 +94,14 @@ describe("staff_permissions: parità edge ↔ client", () => {
     expect(buildStaffPermissionsRecord("u", "c", { office_profile: true }).office_profile).toBeNull();
   });
 
+  it("il livello per l'app operaio sopravvive alla creazione senza concedere modifiche d'ufficio", () => {
+    const record = buildStaffPermissionsRecord("u", "c", { magazzino_campo: "prelievi" });
+    expect(record.magazzino_campo).toBe("prelievi");
+    expect(record.can_view_warehouse).toBe(false);
+    expect(record.can_edit_warehouse).toBe(false);
+    expect(buildStaffPermissionsRecord("u", "c", { magazzino_campo: "admin" }).magazzino_campo).toBeNull();
+  });
+
   it("senza payload restituisce i puri default (+ user/company)", () => {
     const record = buildStaffPermissionsRecord("u", "c");
     expect(Object.keys(record).length).toBe(Object.keys(STAFF_PERMISSION_DEFAULTS).length + 2);

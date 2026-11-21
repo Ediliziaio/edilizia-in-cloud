@@ -1,3 +1,4 @@
+import { livelloMagazzinoCampo } from "../../../shared/campo-magazzino";
 import type { StaffPermissions } from "./PermissionsDialog";
 
 export const DEFAULT_PERMISSIONS: StaffPermissions = {
@@ -67,6 +68,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
   office_profile: null,
+  magazzino_campo: null,
   only_assigned: false,
   only_my_warehouse: false,
   sola_lettura: false,
@@ -517,6 +519,8 @@ export function buildStaffPermissionsUpdate(permissions: StaffPermissions): Staf
     (base as Record<keyof StaffPermissions, StaffPermissions[keyof StaffPermissions]>)[key] =
       permissions[key] ?? DEFAULT_PERMISSIONS[key];
   }
+  if (permissions.magazzino_campo === undefined) delete base.magazzino_campo;
+  else base.magazzino_campo = livelloMagazzinoCampo(permissions.magazzino_campo);
   // «Modifica» di Sconti non si mostra più, ma un valore vecchio non resta acceso da
   // solo: se la persona non vede più Sconti, si spegne con la vista (altrimenti
   // continuerebbe ad accendere l'aggregato can_edit_settings senza che nessuno possa togliergliela).

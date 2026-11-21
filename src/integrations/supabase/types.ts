@@ -119881,6 +119881,7 @@ export type Database = {
           created_at: string | null
           id: string
           must_change_password: boolean | null
+          magazzino_campo: string | null
           office_profile: string | null
           only_assigned: boolean
           only_my_warehouse: boolean
@@ -119999,6 +120000,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           must_change_password?: boolean | null
+          magazzino_campo?: string | null
           office_profile?: string | null
           only_assigned?: boolean
           only_my_warehouse?: boolean
@@ -120117,6 +120119,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           must_change_password?: boolean | null
+          magazzino_campo?: string | null
           office_profile?: string | null
           only_assigned?: boolean
           only_my_warehouse?: boolean
@@ -148683,6 +148686,43 @@ export type Database = {
         Returns: Json
       }
       campo_mie_fasi: { Args: { p_order_id: string }; Returns: Json }
+      campo_magazzino_cantieri: {
+        Args: { p_azienda: string }
+        Returns: {
+          description: string | null
+          id: string
+          indirizzo_lavori: string | null
+          order_code: string | null
+        }[]
+      }
+      campo_magazzino_config: {
+        Args: { p_azienda: string }
+        Returns: { conferma: boolean; livello: string }[]
+      }
+      campo_magazzino_inventario: {
+        Args: { p_azienda: string; p_cerca: string; p_offset: number }
+        Returns: {
+          description: string | null
+          disponibile: number
+          id: string
+          internal_code: string | null
+          magazzino: string | null
+          name: string
+          unita_misura: string | null
+          warehouse_id: string | null
+        }[]
+      }
+      campo_magazzino_preleva: {
+        Args: {
+          p_azienda: string
+          p_cantiere: string
+          p_magazzino: string | null
+          p_note: string | null
+          p_richiesta_id: string
+          p_righe: Json
+        }
+        Returns: Json
+      }
       campo_mie_squadre: { Args: never; Returns: string[] }
       campo_mie_squadre_capo: { Args: never; Returns: string[] }
       campo_mie_squadre_esterne: { Args: never; Returns: string[] }

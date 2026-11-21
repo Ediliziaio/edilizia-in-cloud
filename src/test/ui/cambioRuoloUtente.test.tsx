@@ -1,5 +1,5 @@
 import { changeFormControl } from "@/test/helpers/changeFormControl";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -360,4 +360,17 @@ describe("I ruoli si scrivono solo dal database", () => {
     }
     expect(colpevoli).toEqual([]);
   }, TIMEOUT);
+});
+
+
+it("salva dal profilo il livello Magazzino dell’operaio", () => {
+  const save = vi.fn();
+  render(<UserRolesPermissionsTab user={{ ...elena(), role: "employee", permissions: DEFAULT_PERMISSIONS }} onSave={save} />);
+  changeFormControl(screen.getByRole("combobox", { name: /magazzino nell.app operaio/i }), { target: { value: "inventario" } });
+  fireEvent.click(screen.getByRole("button", { name: /salva permessi/i }));
+  expect(save).toHaveBeenCalledWith(expect.objectContaining({
+    magazzino_campo: "inventario",
+    can_view_warehouse: false,
+    can_edit_warehouse: false,
+  }));
 });

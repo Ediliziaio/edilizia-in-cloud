@@ -1,3 +1,4 @@
+import { MagazzinoCampoPermission } from "./MagazzinoCampoPermission";
 import { OrderDataPermissions } from "./OrderDataPermissions";
 import { PipelineVisibilitySelector } from "./PipelineVisibilitySelector";
 import { PermissionsChangeReview } from "./PermissionsChangeReview";
@@ -328,6 +329,7 @@ export function UserRolesPermissionsTab({
             only_my_warehouse: permissions.only_my_warehouse,
             sola_lettura: permissions.sola_lettura, permessi_dettagliati: permissions.permessi_dettagliati,
             pipeline_visibili: permissions.pipeline_visibili,
+            magazzino_campo: newRole === "employee" ? permissions.magazzino_campo ?? "nessuno" : null,
             ...preset,
           }
         : null;
@@ -616,6 +618,11 @@ export function UserRolesPermissionsTab({
         {pendingRoleChange && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Conferma o annulla il cambio di accesso prima di modificare i permessi.</p>}
         <fieldset disabled={!!pendingRoleChange || isChangingRole} className="min-w-0 space-y-5 disabled:opacity-60">
         <OfficeAccessSummary permissions={permissions} administrator={isAdmin} fieldAccess={selectedRole === "employee" || selectedRole === "subcontractor"} />
+        {selectedRole === "employee" && (
+          <MagazzinoCampoPermission value={permissions.magazzino_campo} readOnly={readOnly}
+            soloLettura={permissions.sola_lettura}
+            onChange={(magazzino_campo) => setPermissions((prev) => ({ ...prev, magazzino_campo }))} />
+        )}
         {isAdmin ? (
           <Card>
             <CardContent className="p-6">

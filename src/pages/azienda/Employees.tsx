@@ -1,3 +1,4 @@
+import { MagazzinoCampoPermission } from "@/components/users/MagazzinoCampoPermission";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -458,7 +459,7 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
                   email: createUserEmail,
                   password: createUserPassword || undefined,
                   phone: createUserPhone || undefined,
-                  permissions: syncLegacyMarketingFlags(createUserPermissions),
+                  permissions: syncLegacyMarketingFlags({ ...createUserPermissions, magazzino_campo: createUserPermissions.magazzino_campo ?? "nessuno" }),
                 });
               }
             }} className="space-y-4">
@@ -479,6 +480,8 @@ function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: Emp
                 <p className="text-xs text-muted-foreground">Se lasci vuoto, la password viene generata e te la mostriamo dopo la creazione.</p>
               </div>
 
+              <MagazzinoCampoPermission creation value={createUserPermissions.magazzino_campo} soloLettura={createUserPermissions.sola_lettura}
+                onChange={(magazzino_campo) => setCreateUserPermissions((prev) => ({ ...prev, magazzino_campo }))} />
               <Separator />
 
               <div className="space-y-3">
