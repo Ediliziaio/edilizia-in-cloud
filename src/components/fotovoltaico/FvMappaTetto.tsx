@@ -1,4 +1,5 @@
 import { type PointerEvent, useRef, useState } from "react";
+import "./FvMappaTetto.css";
 import {
   type DimensioniMappaGoogleFv,
   MappaGoogleFv,
@@ -258,7 +259,7 @@ export function FvMappaTetto(
   };
   return (
     <section
-      className="rounded-2xl border border-slate-200 bg-white p-4 mb-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
+      className="fv-mappa-editor rounded-2xl border border-slate-200 bg-white p-4 mb-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
       aria-label="Selezione tetto e falde sulla mappa"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -289,161 +290,8 @@ export function FvMappaTetto(
           ))}
         </ol>
       </div>
-      <div
-        className="my-3 flex flex-wrap items-center gap-2"
-        role="toolbar"
-        aria-label="Strumenti della mappa"
-      >
-        <Button
-          type="button"
-          variant={tool === "sposta" ? "default" : "outline"}
-          aria-pressed={tool === "sposta"}
-          onClick={() => setTool("sposta")}
-        >
-          <Hand className="mr-2 h-4 w-4" />Sposta mappa
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "pin" ? "default" : "outline"}
-          aria-pressed={tool === "pin"}
-          disabled={!modificabile}
-          onClick={() => setTool("pin")}
-        >
-          <MapPin className="mr-2 h-4 w-4" />Scegli o sposta il pin
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "poligono" ? "default" : "outline"}
-          aria-pressed={tool === "poligono"}
-          disabled={!modificabile || !confermato}
-          onClick={() => {
-            setTool("poligono");
-            setPunti([]);
-            setCursore(null);
-          }}
-        >
-          <PenTool className="mr-2 h-4 w-4" />Disegna falda
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "rettangolo" ? "default" : "outline"}
-          aria-pressed={tool === "rettangolo"}
-          disabled={!modificabile || !confermato ||
-            !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
-              altezza <= 100 && Math.abs(rotazione) <= 180)}
-          onClick={() => {
-            setTool("rettangolo");
-            setPunti([]);
-            setCursore(null);
-          }}
-        >
-          <RectangleHorizontal className="mr-2 h-4 w-4" />Falda rettangolare
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "modifica" ? "default" : "outline"}
-          aria-pressed={tool === "modifica"}
-          disabled={!confermato}
-          onClick={() => setTool("modifica")}
-        >
-          <MousePointer2 className="mr-2 h-4 w-4" />Seleziona e sposta
-        </Button>
-        <div className="ml-auto flex gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Avvicina"
-            disabled={zoom >= 21}
-            onClick={() => setZoom((z) => z + 1)}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Allontana"
-            disabled={zoom <= 17}
-            onClick={() => setZoom((z) => z - 1)}
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Centra sul tetto"
-            onClick={() => setCentro(pin)}
-          >
-            <LocateFixed className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-        <p role="status" className="text-sm text-slate-700">
-          {tool === "poligono"
-            ? `${punti.length} vertici · clicca gli angoli e torna sul primo punto per chiudere.`
-            : tool === "rettangolo"
-            ? "Tocca il centro della nuova falda: crea un rettangolo, poi trascinalo e adatta gli angoli."
-            : tool === "pin"
-            ? falde.length
-              ? "Trascina il pin: tutte le falde lo seguono mantenendo le misure. Poi conferma il tetto."
-              : "Clicca sul tetto o trascina il pin, poi conferma la posizione."
-            : tool === "sposta"
-            ? "Trascina la mappa per trovare l’edificio. Il pin indica il tetto scelto."
-            : "Trascina una falda per spostarla, oppure i punti bianchi per correggere gli angoli."}
-        </p>
-        {(!confermato || tool === "pin") && (
-          <Button
-            type="button"
-            disabled={!modificabile}
-            onClick={() => {
-              if (!confermato) {
-                onPosizione({
-                  posizione: pin,
-                  ricerca: { indirizzo, posizione: ricerca },
-                });
-              }
-              setTool("modifica");
-            }}
-          >
-            Conferma tetto
-          </Button>
-        )}
-        {!confermato && (riferimento || piano?.mappa) && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!modificabile}
-            onClick={() => {
-              setPin(origineConfermata);
-              setTool("modifica");
-              setErrore("");
-            }}
-          >
-            Annulla spostamento del tetto
-          </Button>
-        )}
-        {tool === "poligono" && (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!punti.length}
-              onClick={() => setPunti((v) => v.slice(0, -1))}
-            >
-              Annulla vertice
-            </Button>
-            <Button
-              type="button"
-              disabled={punti.length < 3}
-              onClick={() => aggiungi(punti)}
-            >
-              Chiudi falda
-            </Button>
-          </div>
-        )}
-      </div>
-      <div className="mt-3 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0">
+      <div className="fv-mappa-lavoro mt-3">
+        <div className="fv-mappa-vista">
           {satellite.caricando && (
             <p role="status">Caricamento della vista satellitare…</p>
           )}
@@ -463,8 +311,7 @@ export function FvMappaTetto(
             </p>
           )}
           <div
-            className="relative mx-auto w-full overflow-hidden rounded-xl border bg-slate-100"
-            style={{ aspectRatio: "640/440", maxWidth: 900 }}
+            className="fv-mappa-canvas rounded-xl border bg-slate-100"
           >
             <MappaGoogleFv
               key={tentativoMappa}
@@ -492,9 +339,6 @@ export function FvMappaTetto(
               viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
               className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
               style={{
-                aspectRatio: "640/440",
-                maxWidth: 900,
-                marginInline: "auto",
                 display: "block",
                 background: "transparent",
                 clipPath: satellite.pronto ? "inset(0 0 28px 0)" : undefined,
@@ -856,7 +700,167 @@ export function FvMappaTetto(
             immagini non sono salvate nel progetto.
           </p>
         </div>
-        <aside className="min-w-0 rounded-xl bg-slate-50 p-3">
+        <aside className="fv-mappa-laterale" aria-label="Comandi del tetto">
+          <div className="fv-mappa-strumenti">
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Strumenti di disegno</h4>
+      <div
+        className="fv-mappa-tools"
+        role="toolbar"
+        aria-label="Strumenti della mappa"
+      >
+        <Button
+          type="button"
+          variant={tool === "sposta" ? "default" : "outline"}
+          aria-pressed={tool === "sposta"}
+          onClick={() => setTool("sposta")}
+        >
+          <Hand className="h-4 w-4 shrink-0" />Sposta mappa
+        </Button>
+        <Button
+          type="button"
+          variant={tool === "pin" ? "default" : "outline"}
+          aria-pressed={tool === "pin"}
+          aria-label="Scegli o sposta il pin"
+          disabled={!modificabile}
+          onClick={() => setTool("pin")}
+        >
+          <MapPin className="h-4 w-4 shrink-0" />Pin del tetto
+        </Button>
+        <Button
+          type="button"
+          variant={tool === "poligono" ? "default" : "outline"}
+          aria-pressed={tool === "poligono"}
+          disabled={!modificabile || !confermato}
+          onClick={() => {
+            setTool("poligono");
+            setPunti([]);
+            setCursore(null);
+          }}
+        >
+          <PenTool className="h-4 w-4 shrink-0" />Disegna falda
+        </Button>
+        <Button
+          type="button"
+          variant={tool === "rettangolo" ? "default" : "outline"}
+          aria-pressed={tool === "rettangolo"}
+          aria-label="Falda rettangolare"
+          disabled={!modificabile || !confermato ||
+            !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
+              altezza <= 100 && Math.abs(rotazione) <= 180)}
+          onClick={() => {
+            setTool("rettangolo");
+            setPunti([]);
+            setCursore(null);
+          }}
+        >
+          <RectangleHorizontal className="h-4 w-4 shrink-0" />Rettangolo rapido
+        </Button>
+        <Button
+          type="button"
+          variant={tool === "modifica" ? "default" : "outline"}
+          aria-pressed={tool === "modifica"}
+          aria-label="Seleziona e sposta"
+          disabled={!confermato}
+          onClick={() => setTool("modifica")}
+        >
+          <MousePointer2 className="h-4 w-4 shrink-0" />Modifica falde
+        </Button>
+        <div className="fv-mappa-zoom">
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Avvicina"
+            disabled={zoom >= 21}
+            onClick={() => setZoom((z) => z + 1)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Allontana"
+            disabled={zoom <= 17}
+            onClick={() => setZoom((z) => z - 1)}
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            aria-label="Centra sul tetto"
+            onClick={() => setCentro(pin)}
+          >
+            <LocateFixed className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="fv-mappa-aiuto">
+        <p role="status" className="text-xs leading-relaxed text-slate-600">
+          {tool === "poligono"
+            ? `${punti.length} vertici · clicca gli angoli e torna sul primo punto per chiudere.`
+            : tool === "rettangolo"
+            ? "Tocca il centro della nuova falda: crea un rettangolo, poi trascinalo e adatta gli angoli."
+            : tool === "pin"
+            ? falde.length
+              ? "Trascina il pin: tutte le falde lo seguono mantenendo le misure. Poi conferma il tetto."
+              : "Clicca sul tetto o trascina il pin, poi conferma la posizione."
+            : tool === "sposta"
+            ? "Trascina la mappa per trovare l’edificio. Il pin indica il tetto scelto."
+            : "Trascina una falda per spostarla, oppure i punti bianchi per correggere gli angoli."}
+        </p>
+        {(!confermato || tool === "pin") && (
+          <Button
+            type="button"
+            disabled={!modificabile}
+            onClick={() => {
+              if (!confermato) {
+                onPosizione({
+                  posizione: pin,
+                  ricerca: { indirizzo, posizione: ricerca },
+                });
+              }
+              setTool("modifica");
+            }}
+          >
+            Conferma tetto
+          </Button>
+        )}
+        {!confermato && (riferimento || piano?.mappa) && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!modificabile}
+            onClick={() => {
+              setPin(origineConfermata);
+              setTool("modifica");
+              setErrore("");
+            }}
+          >
+            Annulla spostamento del tetto
+          </Button>
+        )}
+        {tool === "poligono" && (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!punti.length}
+              onClick={() => setPunti((v) => v.slice(0, -1))}
+            >
+              Annulla vertice
+            </Button>
+            <Button
+              type="button"
+              disabled={punti.length < 3}
+              onClick={() => aggiungi(punti)}
+            >
+              Chiudi falda
+            </Button>
+          </div>
+        )}
+      </div>
+          </div>
+          <div className="fv-mappa-dettagli">
           <h4 className="mb-3 text-sm font-semibold text-slate-900">
             Il tuo tetto
           </h4>
@@ -1243,9 +1247,17 @@ export function FvMappaTetto(
                     disposizione effettiva, dopo bordi e ostacoli. Aggiungi
                     lucernari e camini nell’editor della fase Impianto.
                   </p>
+
+                </>
+              )}
+            </>
+          )}
+          </div>
+          {confermato && falde.length > 0 && (
+            <div className="fv-mappa-conferma">
                   <Button
                     type="button"
-                    className="mt-3"
+                    className="w-full whitespace-normal"
                     disabled={!modificabile}
                     onClick={salva}
                   >
@@ -1258,9 +1270,7 @@ export function FvMappaTetto(
                       ? "Misure e contorni sono invariati: i pannelli già disposti vengono mantenuti."
                       : "Confermando nuovi contorni o margini prepari una nuova posa: nella fase Impianto scegli il modulo e calcola la disposizione."}
                   </p>
-                </>
-              )}
-            </>
+            </div>
           )}
         </aside>
       </div>

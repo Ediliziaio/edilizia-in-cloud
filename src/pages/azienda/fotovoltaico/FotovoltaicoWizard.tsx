@@ -157,6 +157,7 @@ import { FvBolletteConsumi } from "@/components/fotovoltaico/FvBolletteConsumi";
 import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
 import { spostaPinTettoFv } from "@/lib/fotovoltaico/spostaPinTetto";
 import { FvProfiloEnergetico, FvScenariEnergia } from "@/components/fotovoltaico/FvScenariEnergia";
+import { FvSuggerimentoPannelli } from "@/components/fotovoltaico/FvSuggerimentoPannelli";
 import { leggiAnalisiConsumi, problemiConsumiFv } from "../../../../supabase/functions/_shared/fvBollette";
 import { resaMappaFv } from "../../../../supabase/functions/_shared/fvMappa";
 
@@ -4044,12 +4045,14 @@ export function Step5Configurazione({
         />
       </div>
 
+      <FvSuggerimentoPannelli data={data} pannelli={pannelli} modificabile={!readOnlyMode}
+        onApplica={patch=>{update("numero_pannelli_scelti",patch.numero_pannelli_scelti);update("potenza_kwp",patch.potenza_kwp);}}/>
       {!data.kit_bundle_id&&<FvScenariEnergia data={data} listino={{pannelli,inverter,accumuli}} regoleSconto={regoleDisegno} modificabile={!readOnlyMode} onLayout={p=>update("layout_overlay",p)} onScenario={patch=>{(Object.keys(patch) as Array<keyof typeof patch>).forEach(k=>update(k,patch[k] as never));}}/>}
       <FvCard title="Simulatore del tetto · 2D e 3D (facoltativo)" className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
             {leggiDisegnoCommerciale(data.layout_overlay)
-              ? `${data.numero_pannelli_scelti} pannelli nel disegno, collegati alla configurazione e al PDF.`
+              ? `${leggiDisegnoCommerciale(data.layout_overlay)!.pannelli.length} pannelli nel disegno, collegati alla configurazione e al PDF.`
               : "Disegna le falde in 2D, controlla la posa in 3D oppure importa il rilievo del cliente. Quantità e potenza seguono la disposizione confermata."}
           </p>
           <div className="flex flex-wrap gap-2">

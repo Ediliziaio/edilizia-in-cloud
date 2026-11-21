@@ -579,4 +579,18 @@ describe("Conferma consapevole e cambio fornitura", () => {
     );
     expect(problemiConsumiFv(a, 6000, .24)).toEqual([]);
   });
+  it("mantiene applicati i dati Enel dopo l'arrotondamento del prezzo salvato nel database", () => {
+    const a = analisi([doc({ consumo_annuo_kwh: 2787, spesa_annua: 1148.02 })]);
+    const prezzo = 91.54 / 327;
+    a.correzioni = { consumoAnnuo: 2787, costiEvitabiliAnnui: prezzo * 2787 };
+    const riaperta = leggiAnalisiConsumi(JSON.parse(JSON.stringify(a)))!;
+    expect(problemiConsumiFv(riaperta, 2787, .2799)).toEqual([]);
+    expect(problemiConsumiFv(riaperta, 2787, .28).join(" ")).toContain("Applica al simulatore");
+  });
+  it("riconosce anche l'arrotondamento verso l'alto mantenendo il controllo sul consumo", () => {
+    const a = analisi([doc({ totale_da_pagare: 2400 })]);
+    a.correzioni = { costiEvitabiliAnnui: .27996 * 6000 };
+    expect(problemiConsumiFv(a, 6000, .28)).toEqual([]);
+    expect(problemiConsumiFv(a, 5900, .28).join(" ")).toContain("Applica al simulatore");
+  });
 });

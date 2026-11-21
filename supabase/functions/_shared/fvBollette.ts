@@ -693,7 +693,9 @@ export function problemiConsumiFv(
   if (
     r.consumoAnnuo != null && Math.abs(r.consumoAnnuo - (consumo ?? 0)) > 1 ||
     r.costoEvitabileKwh != null &&
-      Math.abs(r.costoEvitabileKwh - (costo ?? 0)) > .00001
+      // fv_progetti.costo_kwh_attuale è numeric(...,4): la riapertura
+      // può differire dal rapporto esatto fino a mezzo decimillesimo.
+      Math.abs(r.costoEvitabileKwh - (costo ?? 0)) > .000050000001
   ) errori.push("Applica al simulatore i dati confermati nella fase Consumi.");
   if (costo == null || !Number.isFinite(costo) || costo < 0) {
     errori.push(

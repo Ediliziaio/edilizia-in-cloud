@@ -1,0 +1,46 @@
+.fv-mappa-editor { container: fv-tetto / inline-size; }
+.fv-mappa-lavoro {
+  display: grid;
+  grid-template-areas: "strumenti" "mappa" "dettagli" "conferma";
+  gap: 12px;
+}
+.fv-mappa-vista { grid-area: mappa; display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.fv-mappa-canvas { position: relative; width: 100%; height: clamp(260px, 48dvh, 440px); overflow: hidden; }
+.fv-mappa-laterale { display: contents; }
+.fv-mappa-strumenti { grid-area: strumenti; min-width: 0; border-radius: 12px; background: #f8fafc; padding: 12px; }
+.fv-mappa-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.fv-mappa-tools > button { gap: 6px; padding: 8px 10px; font-size: 12px; }
+.fv-mappa-zoom { display: flex; gap: 6px; }
+.fv-mappa-zoom > button { width: 44px; padding: 0; }
+.fv-mappa-aiuto { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.fv-mappa-aiuto > p { flex-basis: 100%; }
+.fv-mappa-aiuto button { height: auto; white-space: normal; font-size: 12px; }
+.fv-mappa-dettagli { grid-area: dettagli; min-width: 0; border-radius: 12px; background: #f8fafc; padding: 12px; }
+.fv-mappa-conferma { grid-area: conferma; border-radius: 12px; background: #f8fafc; padding: 12px; }
+
+@container fv-tetto (min-width: 820px) {
+  .fv-mappa-lavoro {
+    height: clamp(410px, calc(100dvh - 290px), 580px);
+    grid-template-columns: minmax(0, 1fr) 304px;
+    grid-template-rows: auto minmax(80px, 1fr) auto;
+    grid-template-areas: "mappa strumenti" "mappa dettagli" "mappa conferma";
+    column-gap: 12px;
+    row-gap: 0;
+  }
+  .fv-mappa-canvas { height: auto; min-height: 0; flex: 1; }
+  .fv-mappa-strumenti { border-radius: 12px 12px 0 0; border: 1px solid #e2e8f0; border-bottom: 0; }
+  .fv-mappa-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fv-mappa-tools > button { width: 100%; height: auto; white-space: normal; justify-content: flex-start; text-align: left; }
+  .fv-mappa-tools > button:last-of-type { grid-column: 1 / -1; }
+  .fv-mappa-zoom { grid-column: 1 / -1; justify-content: flex-end; padding-top: 2px; }
+  .fv-mappa-dettagli { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; border: 1px solid #e2e8f0; border-top: 0; border-bottom: 0; border-radius: 0; }
+  .fv-mappa-conferma { border: 1px solid #e2e8f0; border-top: 1px solid #e2e8f0; border-radius: 0 0 12px 12px; }
+  .fv-mappa-conferma p { display: none; }
+}
+
+@container fv-tetto (max-width: 819px) {
+  .fv-mappa-strumenti { position: sticky; top: 112px; z-index: 15; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px #0f172a0a; }
+  .fv-mappa-tools { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .fv-mappa-tools > button { flex-shrink: 0; }
+  .fv-mappa-zoom { flex-shrink: 0; }
+}
