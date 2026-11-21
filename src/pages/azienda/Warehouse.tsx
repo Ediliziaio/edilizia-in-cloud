@@ -287,8 +287,7 @@ function WarehousePage() {
   } = useWarehouseData();
   // i riquadri si contano nel database su tutti i dati, non sulla pagina mostrata
   const { data: riepilogo, isLoading: riepilogoLoading, isError: riepilogoError, isFetching: riepilogoFetching, refetch: refetchRiepilogo } = useMagazzinoRiepilogo(warehouseFilter ?? null);
-  // Mobile: lista, da comprare e inventario. Pipeline, calendario, lotti,
-  // valore, arrivi e uscite, movimenti sono da scrivania.
+  // Mobile: lista, da comprare, inventario e movimenti.
   const isMobile = useIsMobile();
   // «Scadenze» non ha più una scheda: apre le giacenze. Stessa regola di
   // vistaEffettiva(), scritta qui perché il React Compiler non perda la

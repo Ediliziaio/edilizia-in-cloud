@@ -27,12 +27,14 @@ describe("Viste del magazzino in quattro gruppi", () => {
     expect(gruppoDi("movements")).toBe("movimenti");
   });
 
-  it("sul telefono: lista, da comprare e inventario; il resto ripiega sulla lista", () => {
+  it("sul telefono rende disponibili lista, da comprare, inventario e movimenti", () => {
     expect(gruppiVisibili(true).map((g) => [g.key, g.viste.map((v) => v.key)])).toEqual([
       ["giacenze", ["stock"]],
       ["preparare", ["list", "purchase_list"]],
+      ["movimenti", ["movements"]],
     ]);
-    expect(vistaEffettiva("movements", true)).toBe("list");
+    expect(vistaEffettiva("movements", true)).toBe("movements");
+    expect(vistaEffettiva("calendar", true)).toBe("list");
     expect(vistaEffettiva("purchase_list", true)).toBe("purchase_list");
   });
 

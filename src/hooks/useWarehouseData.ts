@@ -33,7 +33,7 @@ export function useWarehouseData() {
   const [orderFilter, setOrderFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
-  const [warehouseChoice, setWarehouseFilter] = useState<{companyId: string | undefined; id: string | null}>({companyId, id:null});
+  const [warehouseChoice, setWarehouseFilter] = useState<{ companyId: string | undefined; id: string | null } | null>(null);
   const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
@@ -43,8 +43,9 @@ export function useWarehouseData() {
   // un magazzino visibile (es. magazziniere assegnato a un solo warehouse).
   // Non sovrascrive MAI una selezione già effettuata dall'utente.
   const { warehouses: visibleWarehouses } = useWarehouses(true);
-  const warehouseFilter = (warehouseChoice.companyId === companyId ? warehouseChoice.id : null)
-    ?? (visibleWarehouses.length === 1 ? visibleWarehouses[0].id : null);
+  const warehouseFilter = warehouseChoice && warehouseChoice.companyId === companyId
+    ? warehouseChoice.id
+    : visibleWarehouses.length === 1 ? visibleWarehouses[0].id : null;
 
   // Reset page when filters change
   const setSearchQueryWithReset = useCallback((v: string) => { setSearchQuery(v); setPage(0); }, []);

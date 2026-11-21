@@ -31,6 +31,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
+import { OrderWarehouseExitsCard } from "@/components/orders/OrderWarehouseExitsCard";
 import { PreventivoOrigineCommessa } from "@/components/orders/PreventivoOrigineCommessa";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
@@ -2028,6 +2029,7 @@ function OrderDetailInner() {
             </>}
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
               <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
+              {!permissions.isLoading && permissions.canViewWarehouse && companyId && id && <OrderWarehouseExitsCard companyId={companyId} orderId={id} />}
               <OrderUsciteCard orderId={id!} canViewCosts={permissions.canViewCosts} />
               <OrderSerialsTrackingCard orderId={id!} orderItems={materialItems} />
             </div>}

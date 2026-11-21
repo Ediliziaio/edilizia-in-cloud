@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { queryKeys } from "@/lib/queryKeys";
 import { livelloMagazzinoCampo } from "../../../shared/campo-magazzino";
 
 type CampoRpc = Database["public"]["Functions"];
@@ -105,11 +106,15 @@ export function usePrelievoRegistra(companyId: string) {
       }
       return { id: data.id, stato: data.stato };
     },
-    onSuccess: () => {
+    onSuccess: ({ stato }, { orderId }) => {
       void qc.invalidateQueries({ queryKey: ["campo-warehouse-stock", companyId] });
       void qc.invalidateQueries({ queryKey: ["campo-miei-prelievi", companyId] });
       void qc.invalidateQueries({ queryKey: ["prelievi-campo-attesa", companyId] });
       void qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      if (stato === "consegnato") {
+        void qc.invalidateQueries({ queryKey: queryKeys.warehouse.movementsRegistry(companyId) });
+        void qc.invalidateQueries({ queryKey: ["order-material-usage", orderId, companyId] });
+      }
     },
   });
 }

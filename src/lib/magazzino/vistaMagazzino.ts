@@ -56,8 +56,8 @@ export const GRUPPI_MAGAZZINO: Gruppo[] = [
   { key: "movimenti", label: "Movimenti", viste: [{ key: "movements", label: "Registro" }] },
 ];
 
-/** Sul telefono: lista e da comprare, inventario. Il resto è da scrivania. */
-export const VISTE_MOBILE: ViewMode[] = ["list", "purchase_list", "stock"];
+/** Sul telefono: lista, da comprare, inventario e registro dei movimenti. */
+export const VISTE_MOBILE: ViewMode[] = ["list", "purchase_list", "stock", "movements"];
 
 /** Il gruppo di una vista. «Scadenze», che non ha più una scheda, apre le giacenze. */
 export function gruppoDi(vista: ViewMode): GruppoMagazzino {
