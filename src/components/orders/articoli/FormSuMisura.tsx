@@ -28,6 +28,8 @@ import {
   type EsitoCosto, type PosizioneBozza, type StatoMisure,
 } from "@/lib/orders/gruppiSuMisura";
 import { riferimentoSuccessivo } from "@/lib/preventivo/posizioni";
+import { daListinoFornitoreSuMisura } from "@/lib/orders/materialProcurement";
+import { valoreAsse } from "@/lib/surveys/misureRilievo";
 import type { AxisValue, FamilyAxis, FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 import type { OrderItem } from "../OrderItemsList";
 
@@ -76,17 +78,18 @@ const posizioneVuota = (riferimento: string): PosizioneBozza => ({ chiave: nuova
 const COSTI_DA_TENERE = new Set(["manuale", "ordine", "offerta", "ddt", "fattura"]);
 
 function daRiga(r: OrderItem, indice: number): PosizioneBozza {
+  const dalListino = daListinoFornitoreSuMisura(r);
   return {
     chiave: nuovaChiave(),
     id: `riga-${indice}`,
     riferimento: r.riferimento ?? "",
-    larghezza: r.misure_preventivo?.larghezza_mm ? String(r.misure_preventivo.larghezza_mm) : "",
-    altezza: r.misure_preventivo?.altezza_mm ? String(r.misure_preventivo.altezza_mm) : "",
+    larghezza: String(valoreAsse(r.misure_preventivo, "larghezza_mm") ?? ""),
+    altezza: String(valoreAsse(r.misure_preventivo, "altezza_mm") ?? ""),
     profondita: r.misure_preventivo?.profondita_mm ? String(r.misure_preventivo.profondita_mm) : "",
     dettagli: r.description ?? "",
     pezzi: String(r.quantity),
-    costo: r.purchase_price != null && !r.prezzo_da_definire && (r.purchase_price > 0 || !!r.prezzo_fonte) && (COSTI_DA_TENERE.has(r.prezzo_fonte ?? "") || !r.family_id) ? String(r.purchase_price) : "",
-    bloccata: !!r.status && r.status !== "da_ordinare",
+    costo: r.purchase_price != null && !r.prezzo_da_definire && (r.purchase_price > 0 || !!r.prezzo_fonte) && (dalListino || COSTI_DA_TENERE.has(r.prezzo_fonte ?? "") || !r.family_id) ? String(r.purchase_price) : "",
+    bloccata: dalListino || (!!r.status && r.status !== "da_ordinare"),
   };
 }
 
@@ -372,6 +375,8 @@ function Tabella({
         </div>
         {posizioni.map((p, i) => {
           const esito = esitoDi(p);
+          const salvata = p.id ? righeEsistenti?.[Number(p.id.slice(5))] : undefined;
+          const dalListino = !!salvata && daListinoFornitoreSuMisura(salvata);
           const eliminabile = (p.id ? !!puoTogliereSalvate : posizioni.length > 1) && !p.bloccata;
           return (
             <div key={p.chiave}>
@@ -405,7 +410,7 @@ function Tabella({
               </div>
               {(esito.avviso || p.bloccata) && (
                 <p className={cn("mt-0.5 text-[11px]", esito.fuoriListino ? "text-red-700" : "text-muted-foreground")}>
-                  {p.bloccata ? "Già avviata: non si cambia da qui." : esito.avviso}
+                  {dalListino ? "Fornitura da preventivo. Gestisci le misure definitive in Controllo misure." : p.bloccata ? "Già avviata: non si cambia da qui." : esito.avviso}
                 </p>
               )}
             </div>

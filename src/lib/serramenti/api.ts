@@ -542,6 +542,7 @@ export async function addSerramento(
       listino_voce_id: serramento.listino_voce_id ?? null,
       supplier_catalog_id: serramento.supplier_catalog_id ?? null,
       supplier_product_line_id: serramento.supplier_product_line_id ?? null,
+      ...(serramento.fornitura_listino ? { fornitura_listino: serramento.fornitura_listino } : {}),
       macrocategoria_override_id: serramento.macrocategoria_override_id ?? null,
       // Snapshot scelte assi (variabili prodotto) della family al momento
       // del preventivo. Mappa { axis_codice -> axis_value_id }. Default {}.

@@ -385,17 +385,19 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
       quantita?: number | null;
       valori_assi?: unknown;
       posa_esclusa?: boolean | null;
+      fornitura_listino?: { acquisto_unitario: number } | null;
     }): number | null => {
       const quantita = Math.max(1, Number(riga.quantita ?? 1) || 1);
       const famiglia = riga.family_id ? famigliaById.get(riga.family_id) : undefined;
       const cella = riga.listino_voce_id ? cellaById.get(riga.listino_voce_id) ?? null : null;
       if (!famiglia) {
         // Prodotto non più nel listino attivo: resta il costo della cella, se c'è.
-        const acquisto = Number(cella?.prezzo_acquisto ?? 0);
+        const acquisto = Number(riga.fornitura_listino?.acquisto_unitario ?? cella?.prezzo_acquisto ?? 0);
         return acquisto > 0 ? acquisto * quantita : null;
       }
       const costo = calcolaCostoPosizione({
         family: famiglia,
+        costoAcquistoUnitarioSalvato: riga.fornitura_listino?.acquisto_unitario,
         larghezza: riga.larghezza_mm ?? null,
         altezza: riga.altezza_mm ?? null,
         quantita,

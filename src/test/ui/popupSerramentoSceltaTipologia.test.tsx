@@ -17,6 +17,7 @@ const { dati } = vi.hoisted(() => ({
   dati: { famiglie: [] as unknown[], macro: [] as unknown[], nessuno: [] as unknown[] },
 }));
 
+vi.mock("@/hooks/useOfferteSerramento", () => ({ useOfferteSerramento: () => ({ data: [] as never[], isError: false }) }));
 vi.mock("@/hooks/useFamilies", () => ({ useFamilies: () => ({ families: dati.famiglie, isLoading: false }) }));
 vi.mock("@/hooks/useListinoMacrocategorie", () => ({ useListinoMacrocategorie: () => ({ macrocategorie: dati.macro, isLoading: false }) }));
 vi.mock("@/hooks/useListinoCategorie", () => ({ useListinoCategorie: () => ({ categorie: dati.nessuno, isLoading: false }) }));

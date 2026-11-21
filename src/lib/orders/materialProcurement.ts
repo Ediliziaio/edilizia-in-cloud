@@ -1,5 +1,6 @@
 import { errorePrecisioneOda } from "./preparazioneForniture";
 import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
+import { valoreAsse } from "@/lib/surveys/misureRilievo";
 
 /** Quantities, never inferred from the article name. A purchased service can
  * legitimately be on an OdA; labour classification needs explicit user intent. */
@@ -13,10 +14,47 @@ export interface ProcurementItem {
   supplier_id?: string | null;
   vat_rate?: number | null;
   stock_item_id?: string | null;
+  product_code?: string | null;
+  riferimento?: string | null;
+  specifiche?: string | null;
+  measure_status?: string | null;
+  misure_preventivo?: Record<string, number> | null;
+  misure_da_ordinare?: Record<string, number> | null;
+  axis_selections?: Record<string, unknown> | null;
   status?: string | null;
   /** Unità di misura del materiale (vuota = pezzi). */
   unita_misura?: string | null;
   posizioni?: Array<{ descrizione: string; misure?: string | null; quantita: number }> | null;
+}
+
+export const daListinoFornitoreSuMisura = (item: Pick<ProcurementItem, "axis_selections">) =>
+  item.axis_selections?._fornitura_su_misura === "listino_fornitore";
+
+export function chiaveMisureAcquisto(misure: ProcurementItem["misure_da_ordinare"]): string | null {
+  const l = valoreAsse(misure, "larghezza_mm");
+  const h = valoreAsse(misure, "altezza_mm");
+  return l != null && h != null && positive(l) && positive(h) ? `${l}×${h}` : null;
+}
+
+export function fornituraDaVerificare(item: Pick<ProcurementItem, "axis_selections" | "measure_status" | "misure_da_ordinare" | "misure_preventivo">): boolean {
+  if (!daListinoFornitoreSuMisura(item) || item.measure_status !== "confermato") return false;
+  const chiave = chiaveMisureAcquisto(item.misure_da_ordinare);
+  const verificata = item.axis_selections?._misure_listino_verificate ?? chiaveMisureAcquisto(item.misure_preventivo);
+  return chiave != null && chiave !== verificata;
+}
+
+export function dettaglioFornituraPerOda(item: ProcurementItem): string | null {
+  if (!daListinoFornitoreSuMisura(item)) return null;
+  const l = valoreAsse(item.misure_da_ordinare, "larghezza_mm");
+  const h = valoreAsse(item.misure_da_ordinare, "altezza_mm");
+  return [item.riferimento, item.product_code,
+    l && h ? `${l} × ${h} mm` : null,
+    item.specifiche].filter(Boolean).join(" · ");
+}
+
+export function ivaAcquistoMateriale(item: ProcurementItem): number {
+  const listino = item.axis_selections?._iva_acquisto_listino;
+  return Number(daListinoFornitoreSuMisura(item) && listino != null ? listino : item.vat_rate ?? 22);
 }
 
 export interface ProcurementCoverage {
@@ -55,6 +93,12 @@ export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[])
   const ordini = [...new Map(active.map(r => [r.purchase_orders.id, { id: r.purchase_orders.id, oda_number: r.purchase_orders.oda_number }])).values()];
   let review: string | null = null;
   if (!positive(required)) review = "Quantità prevista non valida";
+  else if (daListinoFornitoreSuMisura(item) && (item.measure_status !== "confermato"
+    || !chiaveMisureAcquisto(item.misure_da_ordinare))) {
+    review = "Conferma le misure del serramento prima di ordinare";
+  } else if (fornituraDaVerificare(item)) {
+    review = "Misure cambiate: verifica il prezzo e il codice con il fornitore";
+  }
   else if (unitaOrdine && (unitaScritta || remaining > 0)) {
     // Never compare boxes/kg/m² with a quantity in another unit, or generate
     // a residual by guessing a ratio. Un articolo senza unità già tutto coperto non ha residuo
@@ -106,14 +150,17 @@ export function procurementLines(items: ProcurementItem[]) {
   return items.flatMap(item => {
     if (!item.id || !positive(item.quantity)) throw new Error("Articolo non salvato o quantità non valida");
     const price = Number(item.purchase_price ?? 0);
+    // La RPC esistente confronta l'IVA della riga di commessa. Il trigger
+    // dell'OdA applica l'aliquota d'acquisto al salvataggio dei serramenti.
     const vat = Number(item.vat_rate ?? 22);
+    const vatAcquisto = ivaAcquistoMateriale(item);
     const precisione = errorePrecisioneOda(price, item.quantity, vat);
     if (precisione) throw new Error(`${item.name}: ${precisione}`);
     if (!Number.isFinite(price) || price < 0 || !Number.isFinite(vat) || vat < 0 || vat > 100) throw new Error("Costo o IVA non validi");
     return (item.posizioni?.length ? item.posizioni.map(p => ({
       description: `${item.name} — ${p.descrizione}${p.misure ? ` ${p.misure}` : ""}`, quantity: p.quantita,
     })) : [{ description: item.name, quantity: item.quantity }]).map(row => {
-      const errore = errorePrecisioneOda(price,row.quantity,vat);
+      const errore = errorePrecisioneOda(price,row.quantity,vatAcquisto);
       if (errore) throw new Error(`${row.description}: ${errore}`);
       return { ...row, order_item_id: item.id!, unit_price: price, vat_rate: vat,
         price_pending: prezzoAcquistoDaDefinire(item), discount_percent: 0, unit_of_measure: unitaMateriale(item) };

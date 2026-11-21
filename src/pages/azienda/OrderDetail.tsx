@@ -1214,6 +1214,7 @@ function OrderDetailInner() {
     ...(item.gruppo_id ? {
       gruppo_id: item.gruppo_id, riferimento: item.riferimento ?? null, family_id: item.family_id ?? null,
       axis_selections: item.axis_selections ?? null, misure_preventivo: item.misure_preventivo ?? null,
+      misure_da_ordinare: item.misure_da_ordinare ?? null,
       measure_status: item.measure_status ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
     } : {}),
     attachments: attachments.filter(att => att.order_item_id === item.id).map(att => ({
@@ -2043,21 +2044,7 @@ function OrderDetailInner() {
                 riepilogo={riepilogo}
                 orderId={id!}
                 orderCode={order.order_code}
-                items={displayItems.map((i) => ({
-                  // id incluso come nella versione mobile: senza, le righe OdA
-                  // create da desktop nascevano con order_item_id nullo e
-                  // l'articolo risultava per sempre "Senza OdA".
-                  id: i.id,
-                  name: i.name,
-                  quantity: i.quantity,
-                  unita_misura: i.unita_misura,
-                  purchase_price: i.purchase_price,
-                  supplier_id: i.supplier_id,
-                  vat_rate: i.vat_rate,
-                  posizioni: i.posizioni,
-                  status: i.status,
-                  stock_item_id: i.stock_item_id,
-                }))}
+                items={displayItems}
               />
             ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>} />
             </div>}

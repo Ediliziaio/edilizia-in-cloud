@@ -13,14 +13,16 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FamilyWithAxes } from "@/types/articleFamily";
+import type { OffertaSerramento } from "@/lib/serramenti/fornitureConfigurazione";
 import { COLORI_FUORI_STANDARD, COLORI_STANDARD, MACRO_SERRAMENTI, finestraSalamander, idColore } from "../fixtures/finestraSalamander";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
 import { CHIAVE_CATALOGO_COLORI, catalogoVuoto, chiaveColore } from "@/lib/serramenti/catalogoColori";
 
 const { dati } = vi.hoisted(() => ({
-  dati: { famiglie: [] as unknown[], macro: [] as unknown[], nessuno: [] as unknown[] },
+  dati: { famiglie: [] as unknown[], macro: [] as unknown[], nessuno: [] as unknown[], offerte: [] as OffertaSerramento[] },
 }));
 
+vi.mock("@/hooks/useOfferteSerramento", () => ({ useOfferteSerramento: () => ({ data: dati.offerte, isError: false }) }));
 vi.mock("@/hooks/useFamilies", () => ({ useFamilies: () => ({ families: dati.famiglie, isLoading: false }) }));
 vi.mock("@/hooks/useListinoMacrocategorie", () => ({ useListinoMacrocategorie: () => ({ macrocategorie: dati.macro, isLoading: false }) }));
 vi.mock("@/hooks/useListinoCategorie", () => ({ useListinoCategorie: () => ({ categorie: dati.nessuno, isLoading: false }) }));
@@ -65,6 +67,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  dati.offerte = [];
   dati.famiglie = [finestraSalamander("f2a")];
   dati.macro = [MACRO_SERRAMENTI];
 });
@@ -425,4 +428,44 @@ describe("popup: la posizione dopo riparte dai colori dell'ultima", () => {
     expect(tinte(vista("interna")).has(BIANCO)).toBe(true);
     expect(tinte(vista("esterna")).has(NERO)).toBe(true);
   });
+});
+
+it.each([
+  { L: 1000, H: 1400, venditaA: 728, venditaB: 810, costoB: 540 },
+  { L: 1200, H: 1500, venditaA: 936, venditaB: 1010, costoB: 690 },
+  { L: 1400, H: 1600, venditaA: 1164.8, venditaB: 1240, costoB: 850 },
+])("cambia listino fornitore mantenendo lo stesso SVG a $L×$H", async ({ L, H, venditaA, venditaB, costoB }) => {
+  const base: Pick<OffertaSerramento, "unita" | "listino" | "acquistoNetto" | "configurazione"> = {
+    unita: "mq", listino: "Demo", acquistoNetto: 350,
+    configurazione: { tipologia: "finestra_2_ante", serie: "Serie A", specifiche: "Doppio vetro", vendita: 520,
+      iva_acquisto: 22, larghezza_mm: null, altezza_mm: null },
+  };
+  dati.offerte = [
+    { ...base, id: "off-a", codice: "A-2A", fornitoreId: "a", fornitore: "Fornitore A" },
+    { ...base, id: "off-b", codice: `B-2A-${L}`, fornitoreId: "b", fornitore: "Fornitore B", unita: "pz", acquistoNetto: costoB,
+      configurazione: { ...base.configurazione, serie: "Serie B", specifiche: "Triplo vetro", vendita: venditaB,
+        larghezza_mm: L, altezza_mm: H } },
+  ];
+  const { onSelect } = await apriLaFinestra();
+  fireEvent.change(screen.getByPlaceholderText("es. 1200"), { target: { value: String(L) } });
+  fireEvent.change(screen.getByPlaceholderText("es. 1400"), { target: { value: String(H) } });
+  const internoIniziale = vista("interna").innerHTML;
+  const esternoIniziale = vista("esterna").innerHTML;
+  await scegli("Scegli listino fornitore", "Fornitore A · Serie A · A-2A");
+  expect(screen.getByText("Doppio vetro")).toBeTruthy();
+  expect(vista("interna").innerHTML).toBe(internoIniziale);
+  expect(vista("esterna").innerHTML).toBe(esternoIniziale);
+  conferma();
+  const rigaA = onSelect.mock.calls.at(-1)?.[0];
+  expect(rigaA).toMatchObject({ prezzo_prodotto: venditaA, fornitura_listino: { codice: "A-2A", supplier_id: "a", larghezza_mm: L, altezza_mm: H } });
+
+  await scegli("Scegli listino fornitore", `Fornitore B · Serie B · B-2A-${L} · ${L} × ${H} mm`);
+  expect(screen.getByText("Triplo vetro")).toBeTruthy();
+  expect(vista("interna").innerHTML).toBe(internoIniziale);
+  expect(vista("esterna").innerHTML).toBe(esternoIniziale);
+  conferma();
+  const rigaB = onSelect.mock.calls.at(-1)?.[0];
+  expect(rigaB).toMatchObject({ prezzo_prodotto: venditaB, fornitura_listino: { codice: `B-2A-${L}`, supplier_id: "b", specifiche: "Triplo vetro", acquisto_unitario: costoB } });
+  expect(rigaA?.disegno_config).toBeDefined();
+  expect(rigaB?.disegno_config).toEqual(rigaA?.disegno_config);
 });

@@ -1159,6 +1159,7 @@ export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   /** Note libere salvate sulla riga BOM (es. "🎁 OMAGGIO · Condizioni: ...",
    *  oppure descrizione di una voce off-listino). */
   note: string | null;
+  serieFornitore: string | null;
   /** Snapshot scelte assi (Variabili Prodotto) della family. Usato dal PDF
    *  per stampare la VERA configurazione scelta dal commerciale (es.
    *  "Profilo: Square +8%") invece dei default della scheda tecnica family. */
@@ -1185,6 +1186,7 @@ export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     supplier_product_line_id: string | null;
     macrocategoria_override_id: string | null;
     note: string | null;
+    serieFornitore: string | null;
     valori_assi: Record<string, string>;
     disegno_config: DisegnoConfig | null;
     scelte_assi: Record<string, string>;
@@ -1198,7 +1200,11 @@ export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     const H = s.altezza_mm ?? null;
     const ci = s.colore_interno ?? "";
     const ce = s.colore_esterno ?? "";
-    const noteVal = s.note ?? null;
+    const fornitura = s.fornitura_listino;
+    const noteVal = [
+      fornitura && [`Codice fornitore ${fornitura.codice}`, fornitura.specifiche].filter(Boolean).join(" · "),
+      s.note,
+    ].filter(Boolean).join("\n") || null;
     const isOmaggio = (s.prezzo_totale ?? 0) === 0 && /\bOMAGGIO\b/i.test(noteVal ?? "");
     const assi = (s.valori_assi ?? {}) as Record<string, string>;
     // KEY include anche valori_assi (snapshot scelte commerciale) e note
@@ -1244,6 +1250,7 @@ export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       supplier_product_line_id: s.supplier_product_line_id ?? null,
       macrocategoria_override_id: s.macrocategoria_override_id ?? null,
       note: noteVal,
+      serieFornitore: fornitura?.serie ?? null,
       valori_assi: assi,
       disegno_config: s.disegno_config ?? null,
       scelte_assi: scelte,
@@ -1278,11 +1285,13 @@ function schedaDelGruppo(
     colore_interno: string;
     colore_esterno: string;
     vetro: string;
+    serieFornitore: string | null;
   },
   etichette: Record<string, EtichettaVariantePdf>,
 ) {
-  return schedaPosizione(
+  const scheda = schedaPosizione(
     Object.entries(g.valori_assi ?? {}).flatMap(([codice, valueId]) => {
+      if (g.serieFornitore && codice !== "apertura") return [];
       const etichetta = g.family_id ? etichette[`${g.family_id}|${codice}|${valueId}`] : undefined;
       return etichetta
         ? [
@@ -1298,8 +1307,9 @@ function schedaDelGruppo(
           ]
         : [];
     }),
-    { coloreInterno: g.colore_interno, coloreEsterno: g.colore_esterno, vetro: g.vetro },
+    { coloreInterno: g.colore_interno, coloreEsterno: g.colore_esterno, vetro: g.serieFornitore ? null : g.vetro },
   );
+  return g.serieFornitore ? { ...scheda, linea: g.serieFornitore } : scheda;
 }
 
 // Format display value di un custom_field per il PDF (select → label, etc).
@@ -2702,9 +2712,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   });
   // Existing catalogue line sheets take priority. With no line sheet, present
   // only families actually used in this quote, never unrelated catalogue stock.
+  const serramentiDiCatalogo = detail.serramenti.filter(r => !r.fornitura_listino);
   const prodottiPresentati: SerramentoPdfLineaPagina[] = lineeDedicate.length > 0
     ? [...new Map(lineeDedicate.map(linea => [linea.id, linea])).values()]
-    : [...new Set(detail.serramenti.map(r => r.family_id).filter(Boolean))].flatMap<SerramentoPdfLineaPagina>(id => {
+    : [...new Set(serramentiDiCatalogo.map(r => r.family_id).filter(Boolean))].flatMap<SerramentoPdfLineaPagina>(id => {
       const family = id ? familiesById[id] : null;
       if (!family) return [];
       const dati = (family.macrocategoria_id ? fieldsByMacro[family.macrocategoria_id] ?? [] : [])
@@ -2719,7 +2730,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       return [{ id: family.id, nome: family.nome || "Prodotto scelto", tipologia: null,
         descrizione: family.descrizione, immagine_url: family.immagine_url, dati,
         scheda_tecnica_url: null, scheda_tecnica_nome: null,
-        prodotti: [...new Set(detail.serramenti.filter(r => r.family_id === id).map(r => r.ambiente).filter(Boolean))].join(", "),
+        prodotti: [...new Set(serramentiDiCatalogo.filter(r => r.family_id === id).map(r => r.ambiente).filter(Boolean))].join(", "),
       }];
     });
   // Se un articolo ha il disegno, nell'allegato la colonna della foto ospita le due viste (da dentro e da fuori).

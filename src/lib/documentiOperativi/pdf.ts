@@ -489,7 +489,9 @@ export function creaPdfOperativo(
             ? "OGGETTO DEI LAVORI"
             : "DESCRIZIONE",
         width: descWidth,
-        value: (r) => [r.descrizione, r.nota].filter(Boolean).join("\n"),
+        value: (r) => [r.descrizione,
+          d.tipo === "materiali" && r.specifiche?.sku ? `Codice: ${r.specifiche.sku}` : null,
+          r.nota].filter(Boolean).join("\n"),
       },
       { title: "U.M.", width: 18, value: (r) => r.unita },
       {

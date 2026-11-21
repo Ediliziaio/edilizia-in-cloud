@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DbMinimo, denoFinto, type Esito } from "../helpers/edgeFinto";
 
-const state = vi.hoisted(() => ({ db: null as unknown as DbMinimo, failure: "", upload: vi.fn() }));
+const state = vi.hoisted(() => ({
+  db: null as unknown as DbMinimo, failure: "", upload: vi.fn(),
+  render: vi.fn((_dati: unknown) => "<!doctype html><html>QA</html>"),
+}));
 vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => state.db }));
 vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({ requireAuth: async () => ({ userId: "u1", supabaseAdmin: state.db }) }));
 vi.mock("../../../supabase/functions/_shared/companyAuth.ts", () => ({ verifyCompanyAccess: async (): Promise<void> => undefined }));
 vi.mock("../../../supabase/functions/_shared/preventivoFirmaAttiva.ts", () => ({ preventivoFirmaAttiva: async () => false }));
-vi.mock("../../../supabase/functions/_shared/srHtmlTemplate.ts", () => ({ renderSrPdfHtml: () => "<!doctype html><html>QA</html>", countSrPdfPages: () => 1 }));
+vi.mock("../../../supabase/functions/_shared/srHtmlTemplate.ts", () => ({ renderSrPdfHtml: state.render, countSrPdfPages: () => 1 }));
 vi.mock("../../../supabase/functions/_shared/immaginiModelloPdf.ts", () => ({ CAMPI_IMMAGINE_SERRAMENTI: [], firmaImmaginiModello: async (v: unknown) => v, firmatarioStorage: () => async (v: unknown) => v }));
 
 // Lo stesso tipo che `Deno.serve` accetta: `denoFinto` consegna il gestore vero cosi' com'e'.
@@ -14,6 +17,7 @@ let handler: (r: Request) => Promise<Response> | Response;
 beforeEach(async () => {
   state.failure = "";
   state.upload.mockReset();
+  state.render.mockClear();
   state.db = new DbMinimo();
   state.db.tabelle.sr_progetti = [{ id: "p1", company_id: "c1", stato: "bozza", code: "SR-QA", cliente_nome: "QA" }];
   state.db.tabelle.companies = [{ id: "c1", name: "Impresa QA" }];
@@ -55,6 +59,23 @@ describe("Generatore SR: mai confermare un documento perso o incompleto", () => 
     const res = await genera();
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, html_url: "https://example.test/qa.html" });
+  });
+  it("passa al documento cliente solo le caratteristiche e il codice della fornitura", async () => {
+    state.db.tabelle.sr_serramenti_progetto = [{
+      progetto_id: "p1", tipologia: "finestra_2ante", materiale: "alluminio", vetro: "vetro generico",
+      larghezza_mm: 1200, altezza_mm: 1500, quantita: 1,
+      fornitura_listino: { serie: "Profilo B 82", specifiche: "PVC, triplo vetro", codice: "B-2A-1200", acquisto_unitario: 690 },
+    }];
+    const res = await genera();
+    expect(res.status).toBe(200);
+    expect(state.render).toHaveBeenCalledWith(expect.objectContaining({ serramenti: [{
+      tipologia_label: expect.any(String), materiale: null, serie: "Profilo B 82", vetro: null,
+      larghezza_mm: 1200, altezza_mm: 1500, quantita: 1,
+      specs_tecniche: [
+        { label: "Codice prodotto", value: "B-2A-1200", unit: null },
+        { label: "Caratteristiche", value: "PVC, triplo vetro", unit: null },
+      ],
+    }] }));
   });
   it("se non si leggono le posizioni non carica un preventivo vuoto", async () => {
     state.failure = "sr_serramenti_progetto";

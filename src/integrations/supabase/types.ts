@@ -67996,6 +67996,7 @@ export type Database = {
       }
       listino_fornitore_voci: {
         Row: {
+          configurazione_serramento: Json | null
           codice: string | null
           company_id: string
           created_at: string
@@ -68010,6 +68011,7 @@ export type Database = {
           unita: string | null
         }
         Insert: {
+          configurazione_serramento?: Json | null
           codice?: string | null
           company_id: string
           created_at?: string
@@ -68024,6 +68026,7 @@ export type Database = {
           unita?: string | null
         }
         Update: {
+          configurazione_serramento?: Json | null
           codice?: string | null
           company_id?: string
           created_at?: string
@@ -119151,6 +119154,7 @@ export type Database = {
       }
       sr_serramenti_progetto: {
         Row: {
+          fornitura_listino: Json | null
           altezza_mm: number | null
           ambiente: string | null
           apertura: string | null
@@ -119189,6 +119193,7 @@ export type Database = {
           vetro_specs: Json | null
         }
         Insert: {
+          fornitura_listino?: Json | null
           altezza_mm?: number | null
           ambiente?: string | null
           apertura?: string | null
@@ -119227,6 +119232,7 @@ export type Database = {
           vetro_specs?: Json | null
         }
         Update: {
+          fornitura_listino?: Json | null
           altezza_mm?: number | null
           ambiente?: string | null
           apertura?: string | null

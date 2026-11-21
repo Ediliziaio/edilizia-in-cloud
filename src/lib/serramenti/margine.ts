@@ -26,6 +26,7 @@ export interface RigaCostoListino {
   quantita?: number | null;
   valori_assi?: unknown;
   posa_esclusa?: boolean | null;
+  fornitura_listino?: { acquisto_unitario: number } | null;
 }
 
 export interface CalcoloMargine {

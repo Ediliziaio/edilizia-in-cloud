@@ -93,6 +93,9 @@ import {
   listinoSenzaPrezzoDiVendita,
 } from "@/lib/serramenti/pricing";
 
+import { useOfferteSerramento } from "@/hooks/useOfferteSerramento";
+import { calcolaFornituraSerramento, type FornituraSerramento } from "@/lib/serramenti/fornitureConfigurazione";
+
 export interface ListinoPickResult {
   family_id: string;
   family_nome: string;
@@ -120,6 +123,7 @@ export interface ListinoPickResult {
   colore_esterno?: string | null;
   /** Il disegno automatico congelato (null se l'articolo non ne ha). */
   disegno_config?: DisegnoConfig | null;
+  fornitura_listino?: FornituraSerramento;
   /** Snapshot modalita_prezzo_base del listino al momento del pick: dice se
    *  misure e pezzi contano nel prezzo (a m², a griglia) o no (a pezzo). */
   modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;
@@ -225,6 +229,7 @@ export function ListinoPickerDialog({
   const [larghezza, setLarghezza] = useState<string>("");
   const [altezza, setAltezza] = useState<string>("");
   const [quantita, setQuantita] = useState<string>("1");
+  const [offertaId, setOffertaId] = useState<string | null>(null);
   const [selectedSupplierProductLineId, setSelectedSupplierProductLineId] = useState<string | null>(null);
   // Selezione assi (variabili prodotto): mappa axis.codice -> axis_value.id.
   // Parte dalla linea della scheda scelta, poi dalle scelte dell'ultima
@@ -257,6 +262,7 @@ export function ListinoPickerDialog({
       setVociScelte({});
       setColori(null);
       setSelectedSupplierProductLineId(null);
+      setOffertaId(null);
     }
   }, [open]);
 
@@ -338,6 +344,13 @@ export function ListinoPickerDialog({
   const altezzaMm = misuraDaTesto(altezza);
   const pezzi = quantitaDaTesto(quantita);
   const numeriNonValidi = larghezzaMm === undefined || altezzaMm === undefined || pezzi === undefined;
+  const { data: offerte = [], isError: erroreOfferte } = useOfferteSerramento(
+    famigliaRiga?.company_id,
+    open && tipo === "principale" ? famigliaRiga?.disegno_tipologia : null,
+  );
+  const offertaScelta = offerte.find((offerta) => offerta.id === offertaId);
+  const fornitura = useMemo(() => offertaScelta ? calcolaFornituraSerramento(offertaScelta, larghezzaMm, altezzaMm) : null,
+    [offertaScelta, larghezzaMm, altezzaMm]);
 
   // Prezzo BASE prodotto via la strategia consolidata `calcolaPrezzoProdotto` (filter "quadrante che contiene le
   // misure", cella contenente piu' piccola). Resta source of truth per griglia/mq/pz. Serve al calcolo e, con
@@ -386,7 +399,7 @@ export function ListinoPickerDialog({
   }, [familyWithAxes, selezione, larghezza, altezza, vociEffettive, formaExtra, coloriTesti, colori]);
   const avvisiDisegno = useMemo(() => anteprimaDisegno?.tipo === "serramento" && larghezzaMm && altezzaMm
     ? controllaMisure(anteprimaDisegno.viste[0].disegno) : [], [anteprimaDisegno, larghezzaMm, altezzaMm]);
-  const articoloDaPrezzare = listinoSenzaPrezzoDiVendita(selectedFamily);
+  const articoloDaPrezzare = !offertaId && listinoSenzaPrezzoDiVendita(selectedFamily);
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
@@ -432,16 +445,16 @@ export function ListinoPickerDialog({
 
   // ─── Calcolo prezzo live ────────────────────────────────────────────────
   const calcolo = useMemo(() => {
-    if (!selectedFamily || !calcBase) return null;
+    if (!selectedFamily || !calcBase || (offertaId && !fornitura)) return null;
     const l = larghezzaMm ?? null;
     const h = altezzaMm ?? null;
     const q = pezzi ?? 1;
 
     // 1. Prezzo BASE prodotto (calcBase, più sopra).
-    const calc = calcBase;
+    const calc: NonNullable<typeof calcBase> = fornitura ? { prezzo: fornitura.vendita_unitaria * q, matchedGrigliaId: null, note: null } : calcBase;
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo base.
-    const prezzoProdotto = familyWithAxes
+    const prezzoProdotto = !fornitura && familyWithAxes
       ? applyMaggiorazioniAssi(calc.prezzo, selezione, familyWithAxes.axes, l, h, q, selectedFamily.modalita_prezzo_base)
       : calc.prezzo;
     const extraAssi = prezzoProdotto - calc.prezzo;
@@ -459,14 +472,14 @@ export function ListinoPickerDialog({
       totale, unitario,
       matchedGrigliaId: calc.matchedGrigliaId,
       supplierCatalogId: calc.supplierCatalogId ?? null,
-      supplierProductLineId: calc.supplierProductLineId ?? selectedSupplierProductLineId ?? null,
+      supplierProductLineId: fornitura ? null : calc.supplierProductLineId ?? selectedSupplierProductLineId ?? null,
       note: calc.note,
       requiresSupplierLine: calc.requiresSupplierLine ?? false,
       missingSupplierLinePricing: calc.missingSupplierLinePricing ?? false,
       fuoriRange: calc.fuoriRange ?? false,
       range: calc.range,
     };
-  }, [selectedFamily, calcBase, familyWithAxes, selezione, larghezzaMm, altezzaMm, pezzi, selectedSupplierProductLineId, tariffePrezzi]);
+  }, [selectedFamily, calcBase, familyWithAxes, selezione, larghezzaMm, altezzaMm, pezzi, selectedSupplierProductLineId, tariffePrezzi, fornitura, offertaId]);
 
   const richiedeMisure = selectedFamily && (
     selectedFamily.modalita_prezzo_base === "mq" ||
@@ -500,6 +513,7 @@ export function ListinoPickerDialog({
     // I due colori partono come nell'ultima posizione (o dal valore di serie), uguali dentro e fuori se è così.
     setColori(tipo === "principale" ? coloriIniziali(r.famiglia.axes ?? [], ordinate.valori, ordinate.voci, preferenzeAssi?.[CODICE_ASSE_COLORE]?.lati) : null);
     setSelectedSupplierProductLineId(null);
+    setOffertaId(null);
     setStep("misure");
   };
 
@@ -558,7 +572,7 @@ export function ListinoPickerDialog({
   }
 
   const handleConferma = () => {
-    if (!selectedFamily || !calcolo || statoColori?.blocca || catalogoNonValido) return;
+    if (!selectedFamily || !calcolo || statoColori?.blocca || catalogoNonValido || (offertaId && !fornitura)) return;
     // Type-guard sulla modalita: il backend è uno dei 4 valori canonici,
     // ma il tipo lato API è generico `string | null` per retrocompat.
     const m = selectedFamily.modalita_prezzo_base;
@@ -579,7 +593,8 @@ export function ListinoPickerDialog({
       supplier_catalog_id: calcolo.supplierCatalogId,
       supplier_product_line_id: calcolo.supplierProductLineId,
       note: calcolo.note,
-      note_tecniche: riepilogoVariantiTecniche(specificheVisibili, specificheTecniche),
+      note_tecniche: fornitura ? [] : riepilogoVariantiTecniche(specificheVisibili, specificheTecniche),
+      ...(fornitura ? { fornitura_listino: fornitura } : {}),
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
       valori_assi: { ...selezione, ...(colori ? snapshotColori(colori, coloriTesti ?? undefined) : {}) },
@@ -873,7 +888,7 @@ export function ListinoPickerDialog({
               </Card>
             )}
 
-            {loadingGriglia && selectedFamily.modalita_prezzo_base === "griglia" && (
+            {!offertaId && loadingGriglia && selectedFamily.modalita_prezzo_base === "griglia" && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" /> Caricamento griglia prezzi…
               </p>
@@ -882,7 +897,7 @@ export function ListinoPickerDialog({
             {/* Scheda tecnica read-only: i campi della tipologia del prodotto
                 scelto (anche arrivando da una ricerca). Si nasconde da sé se la
                 tipologia non ha schema o se il prodotto non ha valori compilati. */}
-            {macroScheda && Object.keys(selectedFamily.custom_field_values ?? {}).length > 0 && (
+            {!offertaId && macroScheda && Object.keys(selectedFamily.custom_field_values ?? {}).length > 0 && (
               <Card className="bg-slate-50 border-slate-200 p-3">
                 <p className="text-[11px] uppercase tracking-wide text-slate-600 font-semibold mb-2">
                   Caratteristiche prodotto
@@ -977,11 +992,33 @@ export function ListinoPickerDialog({
               </Card>
             )}
 
-            {famigliaRiga && <SchedaModelloBestInfissi famiglia={famigliaRiga} />}
-            {famigliaRiga && <VariantiTecnicheProdotto famiglia={famigliaRiga} selezione={axisSelection} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />}
+            {!offertaId && famigliaRiga && <SchedaModelloBestInfissi famiglia={famigliaRiga} />}
+            {!offertaId && famigliaRiga && <VariantiTecnicheProdotto famiglia={famigliaRiga} selezione={axisSelection} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />}
+
+            {(offerte.length > 0 || offertaId) && (
+              <section className="space-y-2 rounded-md border bg-muted/25 p-3" aria-label="Listino fornitore">
+                <Label className="text-xs font-semibold">Listino fornitore</Label>
+                <Select value={offertaId ?? "aziendale"} onValueChange={(v) => setOffertaId(v === "aziendale" ? null : v)}>
+                  <SelectTrigger aria-label="Scegli listino fornitore"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aziendale">Prezzo del listino aziendale</SelectItem>
+                    {offerte.map((offerta) => (
+                      <SelectItem key={offerta.id} value={offerta.id}>
+                        {offerta.fornitore} · {offerta.configurazione.serie} · {offerta.codice}
+                        {offerta.configurazione.larghezza_mm ? ` · ${offerta.configurazione.larghezza_mm} × ${offerta.configurazione.altezza_mm} mm` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {offertaScelta && <p className="whitespace-pre-line text-xs text-muted-foreground">{offertaScelta.configurazione.specifiche}</p>}
+                {fornitura && <p className="text-xs text-muted-foreground">La tariffa include la configurazione descritta dal fornitore. Verifica che le opzioni scelte corrispondano.</p>}
+                {offertaId && !fornitura && <p role="alert" className="text-xs text-amber-800">Scegli una voce disponibile per larghezza e altezza inserite.</p>}
+              </section>
+            )}
+            {erroreOfferte && <p className="text-xs text-amber-800">Listini fornitori temporaneamente indisponibili.</p>}
 
             {/* La scheda della linea scelta: cosa si sta proponendo al cliente. */}
-            {schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}
+            {!offertaId && schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}
 
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
             {(statoColori?.blocca || catalogoNonValido) && <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
@@ -1088,7 +1125,8 @@ export function ListinoPickerDialog({
                   || calcolo.fuoriRange === true
                   || calcolo.requiresSupplierLine === true
                   || calcolo.missingSupplierLinePricing === true
-                  || (selectedFamily?.modalita_prezzo_base === "griglia"
+                  || (!!offertaId && !fornitura)
+                  || (!offertaId && selectedFamily?.modalita_prezzo_base === "griglia"
                     && availableSupplierProductLineIds.length > 0
                     && availableSupplierLines.length === 0)
                   // Blocca se ci sono assi obbligatori senza scelta.

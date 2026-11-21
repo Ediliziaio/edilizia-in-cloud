@@ -392,6 +392,7 @@ export type FamigliaCosto = Pick<
  */
 export function calcolaCostoPosizione(args: {
   family: FamigliaCosto;
+  costoAcquistoUnitarioSalvato?: number | null;
   larghezza: number | null;
   altezza: number | null;
   quantita: number;
@@ -446,6 +447,8 @@ export function calcolaCostoPosizione(args: {
     const stato = verificaColori(asse, leggiColori(asse, { valori_assi: args.selections }), catalogo);
     if (stato.blocca || stato.avvisi.length > 0 || (stato.fasciaId && args.selections?.colore !== stato.fasciaId)) costo = null;
   }
+
+  if (args.costoAcquistoUnitarioSalvato != null) costo = args.costoAcquistoUnitarioSalvato * quantita;
 
   // 3. Posa compresa nel prezzo: stesso calcolo di calcolaPosaInclusa, col costo.
   let posa = 0;

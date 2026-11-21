@@ -639,16 +639,21 @@ Deno.serve(async (req: Request) => {
         materiale?: string | null; serie?: string | null; vetro?: string | null;
         larghezza_mm?: number | null; altezza_mm?: number | null; quantita?: number;
         family_id?: string | null;
+        fornitura_listino?: { codice?: string; serie?: string; specifiche?: string } | null;
       }) => ({
         tipologia_label: s.tipologia_label || TIPOLOGIE_LABELS[s.tipologia] || s.tipologia,
-        materiale: s.materiale ? (MATERIALI_LABELS[s.materiale] ?? s.materiale) : null,
-        serie: s.serie,
-        vetro: s.vetro,
+        materiale: s.materiale && !s.fornitura_listino ? (MATERIALI_LABELS[s.materiale] ?? s.materiale) : null,
+        serie: s.fornitura_listino?.serie ?? s.serie,
+        vetro: s.fornitura_listino ? null : s.vetro,
         larghezza_mm: s.larghezza_mm ?? null,
         altezza_mm: s.altezza_mm ?? null,
         quantita: s.quantita ?? 1,
-        // Scheda tecnica dinamica (campi show_in_pdf=true della macro)
-        specs_tecniche: buildSpecsTecniche(s.family_id),
+        specs_tecniche: s.fornitura_listino
+          ? [
+            ...(s.fornitura_listino.codice ? [{ label: "Codice prodotto", value: s.fornitura_listino.codice, unit: null }] : []),
+            ...(s.fornitura_listino.specifiche ? [{ label: "Caratteristiche", value: s.fornitura_listino.specifiche, unit: null }] : []),
+          ]
+          : buildSpecsTecniche(s.family_id),
       })),
       // Pagine dedicate macrocategoria (storytelling premium): array di
       // {macro_id, nome, descrizione_estesa, immagine_url}. Vuoto se nessuna.

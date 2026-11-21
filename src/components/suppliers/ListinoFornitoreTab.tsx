@@ -47,6 +47,9 @@ import {
   etichettaValidita, giornoItaliano, listinoDiOggi, listinoInScadenza, listinoInVigore,
 } from "@/lib/listino/validitaListino";
 
+import { ConfigurazioneVoceSerramento } from "./ConfigurazioneVoceSerramento";
+import { leggiConfigurazioneFornitore, unitaTariffaSerramento, type ConfigurazioneListinoFornitore } from "@/lib/serramenti/fornitureConfigurazione";
+
 interface RigaVoce {
   id: string;
   codice: string;
@@ -55,6 +58,7 @@ interface RigaVoce {
   prezzo: number;
   sconto_pct: number;
   immagine_url?: string | null;
+  configurazione_serramento?: ConfigurazioneListinoFornitore | null;
 }
 
 interface TestataListino {
@@ -146,6 +150,7 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
           prezzo: Number(v.prezzo ?? 0),
           sconto_pct: Number(v.sconto_pct ?? 0),
           immagine_url: typeof v.immagine_url === "string" ? v.immagine_url : null,
+          configurazione_serramento: leggiConfigurazioneFornitore(v.configurazione_serramento),
         })),
       };
     },
@@ -306,6 +311,7 @@ function ValiditaListino({
 }) {
   // Lo stato parte dal listino aperto; il `key` sul componente lo rifa' da capo
   // quando si cambia listino dalla tendina.
+  const qc = useQueryClient();
   const [dal, setDal] = useState(listino.valido_dal ?? "");
   const [al, setAl] = useState(listino.valido_al ?? "");
   // Chi scrive mentre la `update` precedente e' ancora in volo non deve perdere
@@ -335,6 +341,7 @@ function ValiditaListino({
     onSuccess: (patch) => {
       if ("valido_dal" in patch) confermati.current.dal = patch.valido_dal ?? "";
       if ("valido_al" in patch) confermati.current.al = patch.valido_al ?? "";
+      void qc.invalidateQueries({ queryKey: ["offerte-configurazione-serramento"] });
       onSalvato();
       const senzaScadenza = "valido_al" in patch && patch.valido_al === null;
       const anche = Object.keys(patch).length > 1;
@@ -472,6 +479,8 @@ function ListinoEditor({
     modifiche.current += 1;
     onModificato();
   };
+  const [collegaId, setCollegaId] = useState<string | null>(null);
+  const voceDaCollegare = voci.find((voce) => voce.id === collegaId);
 
   const visibili = useMemo(() => {
     const q = filtro.toLowerCase().trim();
@@ -524,12 +533,19 @@ function ListinoEditor({
     mutationFn: async ({ righe, versioneBozza }: { righe: RigaVoce[]; versioneBozza: number }) => {
       if (!companyId) throw new Error("Contesto azienda mancante");
       const valide = righe.filter((v) => v.descrizione.trim().length > 0);
+      for (const voce of righe) {
+        if (voce.configurazione_serramento && (!voce.descrizione.trim() || !voce.codice.trim()
+          || !unitaTariffaSerramento(voce.unita) || prezzoNetto(voce.prezzo, voce.sconto_pct) <= 0)) {
+          throw new Error(`«${voce.descrizione || "Voce collegata"}» richiede descrizione, codice, costo netto positivo e unità pz o m².`);
+        }
+      }
       const { data, error } = await supabase.rpc("salva_voci_listino_fornitore", {
         p_azienda: companyId, p_fornitore: supplierId,
         p_listino: base.current.id, p_revisione: base.current.revisione,
         p_voci: valide.map((v, i) => ({
           id: v.id, codice: v.codice, descrizione: v.descrizione, unita: v.unita,
           prezzo: v.prezzo, sconto_pct: v.sconto_pct, immagine_url: v.immagine_url ?? null, sort_order: i,
+          configurazione_serramento: v.configurazione_serramento ?? null,
         })),
       });
       if (error) throw error;
@@ -549,8 +565,11 @@ function ListinoEditor({
           : inVigore ? "Da adesso i prezzi vengono suggeriti sulle righe degli ordini a questo fornitore."
           : "Il listino è fuori validità. Controlla le date prima di usare i prezzi.",
       });
-      await Promise.all(["testate", "editor", "voci"].map((chiave) =>
-        queryClient.invalidateQueries({ queryKey: [`listino-fornitore-${chiave}`, supplierId] })));
+      await Promise.all([
+        ...["testate", "editor", "voci"].map((chiave) =>
+          queryClient.invalidateQueries({ queryKey: [`listino-fornitore-${chiave}`, supplierId] })),
+        queryClient.invalidateQueries({ queryKey: ["offerte-configurazione-serramento", companyId] }),
+      ]);
     },
     onError: (e) => {
       if ("code" in e && e.code === "PT409") setConflitto(true);
@@ -647,6 +666,13 @@ function ListinoEditor({
                       )}
                       <Input aria-label={`Descrizione voce ${v.codice || v.descrizione || v.id}`} value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
                     </div>
+                    {puoModificare ? (
+                      <Button variant="link" className="h-7 px-0 text-xs" onClick={() => setCollegaId(v.id)}>
+                        {v.configurazione_serramento ? `Disegno collegato · ${v.configurazione_serramento.serie}` : "Collega al disegno"}
+                      </Button>
+                    ) : v.configurazione_serramento ? (
+                      <p className="px-1 pt-1 text-xs text-muted-foreground">{v.configurazione_serramento.serie}</p>
+                    ) : null}
                   </td>
                   <td className="p-1">
                     <Input aria-label={`Unità di misura voce ${v.codice || v.descrizione || v.id}`} value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare || primaCreazioneInCorso} className="h-8 text-sm" />
@@ -698,6 +724,17 @@ function ListinoEditor({
         </p>
       )}
 
+      {voceDaCollegare && (
+        <ConfigurazioneVoceSerramento
+          nomeVoce={voceDaCollegare.descrizione}
+          corrente={voceDaCollegare.configurazione_serramento}
+          onChiudi={() => setCollegaId(null)}
+          onSalva={(valore) => {
+            aggiorna(voceDaCollegare.id, { configurazione_serramento: valore });
+            setCollegaId(null);
+          }}
+        />
+      )}
       <Dialog open={incollaAperto} onOpenChange={setIncollaAperto}>
         <DialogContent className="max-w-xl">
           <DialogHeader>

@@ -287,6 +287,7 @@ export interface SrSerramentoRow {
    *  piu' linee prodotto condividono la stessa family e le stesse misure. */
   supplier_catalog_id: string | null;
   supplier_product_line_id: string | null;
+  fornitura_listino?: import("@/lib/serramenti/fornitureConfigurazione").FornituraSerramento | null;
   prezzo_unitario: number | null;
   prezzo_totale: number | null;
   /** Snapshot delle scelte sugli ASSI (variabili prodotto) della family al

@@ -79,11 +79,12 @@ export function useCostoPosizioneListino(
       const cella = riga.listino_voce_id ? cellaById.get(riga.listino_voce_id) ?? null : null;
       if (!famiglia) {
         // Prodotto non più nel listino attivo: resta il costo della cella, se c'è.
-        const acquisto = Number(cella?.prezzo_acquisto ?? 0);
+        const acquisto = Number(riga.fornitura_listino?.acquisto_unitario ?? cella?.prezzo_acquisto ?? 0);
         return acquisto > 0 ? acquisto * quantita : null;
       }
       const costo = calcolaCostoPosizione({
         family: famiglia,
+        costoAcquistoUnitarioSalvato: riga.fornitura_listino?.acquisto_unitario,
         larghezza: riga.larghezza_mm ?? null,
         altezza: riga.altezza_mm ?? null,
         quantita,

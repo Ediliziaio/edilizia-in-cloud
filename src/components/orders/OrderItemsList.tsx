@@ -125,6 +125,7 @@ export interface OrderItem {
   axis_selections?: Record<string, string> | null;
   misure_preventivo?: Record<string, number> | null;
   misure_rilevate?: Record<string, number> | null;
+  misure_da_ordinare?: Record<string, number> | null;
   measure_status?: 'da_rilevare' | 'rilevato' | 'confermato' | null;
   /** Posizioni dello stesso bene su misura: a schermo una voce sola. */
   gruppo_id?: string | null;

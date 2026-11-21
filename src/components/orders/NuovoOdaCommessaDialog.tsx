@@ -424,6 +424,7 @@ function RigaModificabile({
       />
       <div className="min-w-[10rem] flex-1">
         <p className="font-medium break-words">{riga.description}</p>
+        {riga.dettaglio_fornitura && <p className="text-xs text-muted-foreground">{riga.dettaglio_fornitura}</p>}
         {nota && <p className="text-xs text-amber-700">{nota}</p>}
       </div>
       {campi}

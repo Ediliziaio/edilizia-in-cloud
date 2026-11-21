@@ -10,7 +10,7 @@ import { totaliRigheOda } from "./articoloAcquisto";
  * order_item_id, così il pianificatore sa cosa è coperto) e righe libere per
  * quello che in commessa non c'è (un sacco di malta, un noleggio).
  */
-import { unitaMateriale, prezzoAcquistoDaDefinire, type ProcurementItem } from "./materialProcurement";
+import { unitaMateriale, prezzoAcquistoDaDefinire, daListinoFornitoreSuMisura, dettaglioFornituraPerOda, ivaAcquistoMateriale, type ProcurementItem } from "./materialProcurement";
 
 export interface RigaNuovoOda {
   /** Chiave locale della riga nel popup. */
@@ -18,6 +18,7 @@ export interface RigaNuovoOda {
   /** L'articolo della commessa da cui viene, se viene da lì. */
   order_item_id: string | null;
   description: string;
+  dettaglio_fornitura?: string | null;
   quantity: number;
   unit_of_measure: string;
   unit_price: number;
@@ -27,6 +28,7 @@ export interface RigaNuovoOda {
   scelta: boolean;
   /** Il fornitore indicato sull'articolo, se c'è. */
   fornitore_articolo?: string | null;
+  vincolo_fornitore?: boolean;
 }
 
 const n = (v: unknown, d = 0) => {
@@ -49,11 +51,13 @@ export function righeDagliArticoli(
       key: `art:${i.id}`,
       order_item_id: i.id!,
       description: i.name,
+      dettaglio_fornitura: dettaglioFornituraPerOda(i),
+      vincolo_fornitore: daListinoFornitoreSuMisura(i),
       quantity: n(i.quantity),
       unit_of_measure: unitaMateriale(i),
       unit_price: n(i.purchase_price),
       price_pending: prezzoAcquistoDaDefinire(i),
-      vat_rate: n(i.vat_rate, 22),
+      vat_rate: ivaAcquistoMateriale(i),
       scelta: !!fornitoreScelto && i.supplier_id === fornitoreScelto,
       fornitore_articolo: i.supplier_id ?? null,
     }));
@@ -104,6 +108,8 @@ export function erroreNuovoOda(input: {
   if (dentro.length === 0)
     return "Aggiungi almeno una riga: spunta un articolo o scrivine una.";
   for (const r of dentro) {
+    if (r.vincolo_fornitore && r.fornitore_articolo !== input.fornitore)
+      return "La riga su misura va ordinata al fornitore del listino scelto.";
     if (!r.description.trim())
       return "Ogni riga ha bisogno di una descrizione.";
     if (!(n(r.quantity) > 0))

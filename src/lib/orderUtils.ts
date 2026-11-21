@@ -350,6 +350,7 @@ export interface OrderItemData {
   family_id?: string | null;
   axis_selections?: Record<string, string> | null;
   misure_preventivo?: Record<string, number> | null;
+  misure_da_ordinare?: Record<string, number> | null;
   measure_status?: "da_rilevare" | "rilevato" | "confermato" | null;
   prezzo_fonte?: string | null;
   unita_misura?: string | null;
@@ -417,6 +418,7 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
     ...(item.gruppo_id ? {
       gruppo_id: item.gruppo_id, riferimento: item.riferimento ?? null, family_id: item.family_id ?? null,
       axis_selections: item.axis_selections ?? null, misure_preventivo: item.misure_preventivo ?? null,
+      misure_da_ordinare: item.misure_da_ordinare ?? null,
       measure_status: item.measure_status ?? null, prezzo_fonte: item.prezzo_fonte ?? null,
     } : {}),
     is_paid: item.is_paid || false,

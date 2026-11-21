@@ -8,6 +8,7 @@
  * cassonetto, persiana), con le sue misure e il modello già usato nel
  * preventivo: vedi ComplementiFinestra e lib/serramenti/complementiFinestra.
  */
+import { toast } from "sonner";
 import { DisegnoDellaRiga } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { AiSerramentiDraftLauncher } from './AiSerramentiDraftLauncher';
 import { useAuth } from '@/contexts/AuthContext';
@@ -235,6 +236,8 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
         listino_voce_id: item.griglia_id ?? null,
         supplier_catalog_id: item.supplier_catalog_id ?? null,
         supplier_product_line_id: item.supplier_product_line_id ?? null,
+        fornitura_listino: item.fornitura_listino,
+        serie: item.fornitura_listino?.serie ?? null,
         valori_assi: item.valori_assi ?? {},
         // Il colore vero scelto dentro la fascia (Grigio antracite dentro «Colore Standard»).
         scelte_assi: item.scelte_assi ?? {},
@@ -322,6 +325,7 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
       listino_voce_id: s.listino_voce_id,
       supplier_catalog_id: s.supplier_catalog_id,
       supplier_product_line_id: s.supplier_product_line_id,
+      fornitura_listino: s.fornitura_listino,
       macrocategoria_override_id: s.macrocategoria_override_id,
       valori_assi: s.valori_assi ?? {},
       scelte_assi: s.scelte_assi ?? {},
@@ -339,6 +343,15 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
   const onPatch = (id: string, patch: Partial<SrSerramentoRow>) => {
     // Ricalcola prezzo totale e m² se cambia qty/misure/prezzo unitario
     const orig = serramenti.find((s) => s.id === id);
+    if (orig?.fornitura_listino && (
+      (patch.larghezza_mm !== undefined && patch.larghezza_mm !== orig.larghezza_mm)
+      || (patch.altezza_mm !== undefined && patch.altezza_mm !== orig.altezza_mm)
+      || patch.valori_assi !== undefined || patch.scelte_assi !== undefined
+      || patch.disegno_config !== undefined || patch.colore_interno !== undefined || patch.colore_esterno !== undefined
+    )) {
+      toast.error("La posizione è legata a un listino fornitore. Per cambiare misure o varianti, aggiungi una nuova posizione dal listino.");
+      return;
+    }
     if (orig) {
       const next = { ...orig, ...patch };
       if (
@@ -1031,6 +1044,12 @@ export function SerramentoRow({
     selections?: Record<string, string>,
     posaEsclusaOverride?: boolean,
   ): number | null => {
+    if (s.fornitura_listino) {
+      const esclusa = posaEsclusaOverride ?? s.posa_esclusa;
+      const q = Q > 0 ? Q : 1;
+      const posa = !esclusa && family ? calcolaPosaInclusa(family, q, tariffePrezzi) / q : 0;
+      return s.fornitura_listino.vendita_unitaria + posa;
+    }
     if (!family) return null;
     if (family.modalita_prezzo_base === "griglia" && griglia.length === 0) return null;
     // A m² o a griglia senza una delle due misure il prezzo non si calcola:
@@ -1604,10 +1623,17 @@ export function SerramentoRow({
               className="h-9 text-xs"
             />
           </div>
+          {s.fornitura_listino && (
+            <div className="order-2 col-span-12 space-y-1 rounded-md border bg-muted/25 p-3 text-xs">
+              <p className="font-medium">{s.fornitura_listino.fornitore} · {s.fornitura_listino.serie} · {s.fornitura_listino.codice}</p>
+              <p className="whitespace-pre-line">{s.fornitura_listino.specifiche}</p>
+              <p className="text-muted-foreground">Per cambiare misure o varianti, aggiungi una nuova posizione dal listino.</p>
+            </div>
+          )}
           {/* Scheda tecnica auto-popolata se la riga è da listino. Read-only:
               le caratteristiche intrinseche del modello (materiale profilo, vetro,
               Uw…) non si modificano qui ma in Listino → Articolo. */}
-          {isFromListino && macroId && family && Object.keys(family.custom_field_values ?? {}).length > 0 && (
+          {!s.fornitura_listino && isFromListino && macroId && family && Object.keys(family.custom_field_values ?? {}).length > 0 && (
             <div className="order-4 col-span-12">
               <div className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-orange-600 font-semibold mb-1.5 flex items-center gap-1">
@@ -1627,7 +1653,7 @@ export function SerramentoRow({
               valori configurati a listino. Cambiando una scelta, il prezzo
               unitario si aggiorna in automatico applicando le maggiorazioni
               (es. cambio Profilo da Etrum 70 a Etrum 82 +€30/m²). */}
-          {isFromListino && s.disegno_config && s.larghezza_mm && s.altezza_mm && chiedeMisureForma(s.disegno_config.tipologia, s.disegno_config.definizione) && (
+          {!s.fornitura_listino && isFromListino && s.disegno_config && s.larghezza_mm && s.altezza_mm && chiedeMisureForma(s.disegno_config.tipologia, s.disegno_config.definizione) && (
             <div className="order-2 col-span-12">
               <MisureForma
                 tipologia={s.disegno_config.tipologia}
@@ -1639,7 +1665,7 @@ export function SerramentoRow({
               />
             </div>
           )}
-          {isFromListino && familyWithAxes && familyWithAxes.axes.length > 0 && (
+          {!s.fornitura_listino && isFromListino && familyWithAxes && familyWithAxes.axes.length > 0 && (
             <div className="order-2 col-span-12">
               <div className="rounded-md border border-blue-100 bg-blue-50/40 p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
@@ -1840,6 +1866,7 @@ export function SerramentoRow({
                 {/* Non valida torna quella salvata; uguale non ricalcola, che riporterebbe il prezzo al listino di oggi. */}
                 <CampoNumeroVivo
                   key={`L-${s.id}`}
+                  readOnly={!!s.fornitura_listino}
                   aria-label="Larghezza in mm"
                   valore={s.larghezza_mm ?? null}
                   daTesto={misuraDaTesto}
@@ -1852,6 +1879,7 @@ export function SerramentoRow({
                 <Label className="flex h-5 items-center text-xs">Altezza (mm)</Label>
                 <CampoNumeroVivo
                   key={`H-${s.id}`}
+                  readOnly={!!s.fornitura_listino}
                   aria-label="Altezza in mm"
                   valore={s.altezza_mm ?? null}
                   daTesto={misuraDaTesto}

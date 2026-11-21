@@ -20,6 +20,8 @@ import {
   type AsseMisura, type FormaMisura, type TipoMisura,
 } from "@/lib/surveys/misureRilievo";
 import { OfficeSelect } from "./OfficeSelect";
+import { chiaveMisureAcquisto, fornituraDaVerificare } from "@/lib/orders/materialProcurement";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 
 /**
  * OrderMeasureControl — "Controllo misure" della commessa.
@@ -42,6 +44,8 @@ interface MeasureItem {
   sfrido: number | null;
   purchase_price: number | null;
   costo_stimato_iniziale: number | null;
+  product_code: string | null;
+  axis_selections: Record<string, string> | null;
   misure_preventivo: MeasureMap | null;
   misure_rilevate: MeasureMap | null;
   misure_da_ordinare: MeasureMap | null;
@@ -53,7 +57,7 @@ interface MeasureItem {
 }
 
 const COLONNE =
-  "id, name, riferimento, quantity, unita_misura, sfrido, purchase_price, costo_stimato_iniziale, misure_preventivo, misure_rilevate, misure_da_ordinare, measure_status, measure_variance, misura_tipo, misura_forma, gioco_posa_mm";
+  "id, name, riferimento, quantity, unita_misura, sfrido, purchase_price, costo_stimato_iniziale, product_code, axis_selections, misure_preventivo, misure_rilevate, misure_da_ordinare, measure_status, measure_variance, misura_tipo, misura_forma, gioco_posa_mm";
 
 const STATUS: Record<string, { label: string; color: string }> = {
   da_rilevare: { label: "Da rilevare", color: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -81,6 +85,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
   const [tipo, setTipo] = useState<TipoMisura | "">("");
   const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [impostazioni, setImpostazioni] = useState<{ gioco: string; soglia: string } | null>(null);
+  const [revisione, setRevisione] = useState<{ item: MeasureItem; codice: string; costo: string } | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
@@ -123,6 +128,36 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
     qc.invalidateQueries({ queryKey: ["order-measure-items", orderId] });
     qc.invalidateQueries({ queryKey: ["order-items", orderId] });
   };
+
+  const revisioneCosto = useMutation({
+    mutationFn: async (p: NonNullable<typeof revisione>) => {
+      const chiave = chiaveMisureAcquisto(p.item.misure_da_ordinare);
+      const costo = Math.round((numeroMisura(p.costo) ?? 0) * 100) / 100;
+      const codice = p.codice.trim();
+      if (!chiave || !codice || costo <= 0 || costo >= 1_000_000_000 || !fornituraDaVerificare(p.item)) {
+        throw new Error("Verifica misure, codice e costo netto d’acquisto.");
+      }
+      const { data, error } = await supabase.from("order_items").update({
+        product_code: codice, purchase_price: costo, prezzo_fonte: "manuale", prezzo_da_definire: false,
+        axis_selections: { ...p.item.axis_selections, _misure_listino_verificate: chiave },
+      }).eq("id", p.item.id).eq("order_id", orderId).eq("measure_status", "confermato")
+        .filter("misure_da_ordinare", "eq", JSON.stringify(p.item.misure_da_ordinare))
+        .filter("axis_selections", "eq", JSON.stringify(p.item.axis_selections))
+        .select("id").maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("La posizione è cambiata. Aggiorna le misure e riprova.");
+    },
+    onSuccess: () => {
+      invalidate();
+      refreshMaterialQueries(qc);
+      setRevisione(null);
+      toast.success("Prezzo e codice confermati per queste misure");
+    },
+    onError: (e) => {
+      invalidate();
+      toast.error((e as Error).message || "Dati d’acquisto non salvati");
+    },
+  });
 
   const save = useMutation({
     mutationFn: async (p: { item: MeasureItem; def: MeasureMap; confirm: boolean }) => {
@@ -247,6 +282,7 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
           const scarto = scartoDellaRiga(item.measure_variance, soglia);
           const cambiate = Object.entries(item.measure_variance ?? {}).filter(([, v]) => v?.delta);
           const costoCambiato = item.costo_stimato_iniziale != null && item.costo_stimato_iniziale !== item.purchase_price;
+          const fornituraDaRivedere = fornituraDaVerificare(item);
           return (
             <div key={item.id} className={`rounded-lg border p-3 ${scarto.oltreSoglia ? "border-amber-400 bg-amber-50/40" : ""}`}>
               <div className="flex items-start justify-between gap-2">
@@ -298,6 +334,16 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
                 </p>
               )}
 
+              {fornituraDaRivedere && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-900">
+                  Verifica il codice e il costo con il fornitore per le misure confermate.
+                  {canEditOrders && canViewCosts && !solaLettura && (
+                    <Button size="sm" variant="outline" onClick={() => setRevisione({
+                      item, codice: item.product_code ?? "", costo: "",
+                    })}>Conferma dati d’acquisto</Button>
+                  )}
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {puoScrivere && (
                   <Button size="sm" variant="outline" className="min-h-9 text-xs" onClick={() => openEdit(item)}>
@@ -347,6 +393,34 @@ export function OrderMeasureControl({ orderId, onProponiVariante }: { orderId: s
           </div>
         )}
       </CardContent>
+
+      <Dialog open={!!revisione} onOpenChange={(o) => !o && !revisioneCosto.isPending && setRevisione(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dati d’acquisto per le misure definitive</DialogTitle>
+            <DialogDescription>
+              {revisione && `${revisione.item.riferimento || revisione.item.name} · ${misureInTesto(revisione.item.misure_da_ordinare, "pz")}`}
+            </DialogDescription>
+          </DialogHeader>
+          {revisione && (
+            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (!revisioneCosto.isPending) revisioneCosto.mutate(revisione); }}>
+              <div className="space-y-1">
+                <Label htmlFor="codice-fornitore-misure">Codice fornitore</Label>
+                <Input id="codice-fornitore-misure" required value={revisione.codice}
+                  onChange={(e) => setRevisione({ ...revisione, codice: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="costo-fornitore-misure">Costo unitario IVA esclusa (€)</Label>
+                <Input id="costo-fornitore-misure" inputMode="decimal" required value={revisione.costo}
+                  onChange={(e) => setRevisione({ ...revisione, costo: e.target.value })} />
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={revisioneCosto.isPending}>Salva dati d’acquisto</Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-sm:p-4">

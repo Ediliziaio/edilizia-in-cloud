@@ -304,7 +304,7 @@ export async function caricaLineeDedicate(
     } catch (err) { console.warn("Immagini delle linee fornitore non disponibili:", err); }
   }
   const righeBom = [...detail.serramenti, ...detail.accessori].flatMap(r => {
-    if (!r.family_id || (r.supplier_product_line_id && !lineeLegacy.has(r.supplier_product_line_id))) return [];
+    if (("fornitura_listino" in r && r.fornitura_listino) || !r.family_id || (r.supplier_product_line_id && !lineeLegacy.has(r.supplier_product_line_id))) return [];
     return [{ family_id: r.family_id, valori_assi: r.valori_assi,
       lineaFornitore: r.supplier_product_line_id ? lineeLegacy.get(r.supplier_product_line_id) : null }];
   });
