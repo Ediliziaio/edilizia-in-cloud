@@ -204,7 +204,7 @@ export function AggiungiArticoloDialog({
     queryKey: ["popup-articoli-listino", companyId],
     enabled: !!companyId && open,
     staleTime: 5 * 60 * 1000,
-    queryFn: () => caricaVociListino(companyId!, { suMisuraIntero: true }),
+    queryFn: () => caricaVociListino(companyId!, { suMisuraIntero: true, uso: "acquisto" }),
   });
 
   const { data: recentiGrezzi = [] } = useQuery({

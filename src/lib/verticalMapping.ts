@@ -17,6 +17,7 @@ const VERTICAL_TO_GALLERY_SLUG: Record<string, string> = {
   serramenti: "serramenti",
   fotovoltaico: "fotovoltaico",
   bagno: "bagno",
+  bagni: "bagno",
   tetti: "tetti",
   cappotto: "cappotto",
   pompe_calore: "pompe_calore",
@@ -30,6 +31,8 @@ const VERTICAL_TO_GALLERY_SLUG: Record<string, string> = {
  * «Tutti i verticali»: per questo nell'admin si sceglie da questo elenco.
  */
 export const VERTICALI_GALLERIA: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "ristrutturazione", label: "Edilizia e ristrutturazioni" },
+  { value: "termoidraulico", label: "Termoidraulica e climatizzazione" },
   { value: "pavimenti", label: "Pavimenti & Rivestimenti" },
   { value: "porte", label: "Porte" },
   { value: "serramenti", label: "Serramenti" },

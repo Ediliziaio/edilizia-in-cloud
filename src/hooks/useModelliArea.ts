@@ -334,6 +334,8 @@ export function useModelliAreaMutations() {
         void qc.invalidateQueries({ queryKey: ["listino-macrocategorie", m.companyId] });
         void qc.invalidateQueries({ queryKey: ["listino-categorie", m.companyId] });
         void qc.invalidateQueries({ queryKey: ["listino-schede-linea", m.companyId] });
+        void qc.invalidateQueries({ queryKey: ["article-combobox-listino", m.companyId] });
+        void qc.invalidateQueries({ queryKey: ["popup-articoli-listino", m.companyId] });
         invalidaListinoNelPreventivatore(qc);
       }
     },

@@ -194,4 +194,6 @@ function invalidateFamilyCaches(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: ["listino-families"] });
   void qc.invalidateQueries({ queryKey: ["article-templates-full"] });
   void qc.invalidateQueries({ queryKey: ["article-templates"] });
+  void qc.invalidateQueries({ queryKey: ["article-combobox-listino"] });
+  void qc.invalidateQueries({ queryKey: ["popup-articoli-listino"] });
 }

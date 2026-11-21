@@ -30,7 +30,7 @@ export function AnteprimaModelloDialog({ modello, onChiudi }: Props) {
           <DialogTitle>{modello.nome}</DialogTitle>
           <DialogDescription>
             {testoContenuto(modello.riepilogo)}
-            {modello.origine_nome && ` · fotografato da ${modello.origine_nome}`}
+            {modello.origine_nome && ` · ${modello.origine_company_id ? "fotografato da " : ""}${modello.origine_nome}`}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-5 overflow-y-auto pr-1">

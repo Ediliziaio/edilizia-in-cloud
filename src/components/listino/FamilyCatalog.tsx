@@ -1464,7 +1464,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
 
       {/* Modelli pronti dalla libreria di piattaforma: si aprono sull'area e
           sulla tipologia che si stanno guardando. */}
-      {isAdmin && companyId && (
+      {isAdmin && companyId && templatePickerOpen && (
         <FamilyTemplatePicker
           open={templatePickerOpen}
           onOpenChange={setTemplatePickerOpen}

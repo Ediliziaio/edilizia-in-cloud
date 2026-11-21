@@ -44,6 +44,8 @@ export interface ProdottoLibreria {
 export interface FiltroProdotti {
   cerca: string;
   categoria: string | null;
+  settore?: string | null;
+  modalita?: string | null;
   tag: string | null;
   soloSpenti: boolean;
 }
@@ -54,6 +56,8 @@ export function filtraProdotti<T extends ProdottoLibreria>(prodotti: T[], f: Fil
   const q = f.cerca.trim().toLowerCase();
   return prodotti.filter((t) => {
     if (f.soloSpenti && t.is_active) return false;
+    if (f.settore && t.vertical_slug !== f.settore) return false;
+    if (f.modalita && t.modalita_prezzo_base !== f.modalita) return false;
     if (f.tag && !(t.tags ?? []).includes(f.tag)) return false;
     if (f.categoria && (t.categoria_slug ?? "") !== f.categoria) return false;
     if (!q) return true;

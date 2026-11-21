@@ -115,9 +115,9 @@ export function ArticleCombobox({
 
   // Listino prodotti (article_families) — opt-in.
   const { data: listino = [] } = useQuery({
-    queryKey: ["article-combobox-listino", companyId],
+    queryKey: ["article-combobox-listino", companyId, modalita],
     enabled: !!companyId && includeListino,
-    queryFn: () => caricaVociListino(companyId!),
+    queryFn: () => caricaVociListino(companyId!, { uso: modalita }),
   });
 
   // Catalogo + Listino uniti (catalogo prima). Il catalogo è oggi spesso vuoto:

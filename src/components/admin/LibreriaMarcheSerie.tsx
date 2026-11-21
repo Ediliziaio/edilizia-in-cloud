@@ -25,6 +25,8 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDateShort } from "@/lib/formatters";
 import { ETICHETTA_FASCIA, ETICHETTA_MATERIALE, type FasciaSerie } from "@/hooks/useSerieSerramenti";
 
 interface Marca {
@@ -51,6 +53,7 @@ interface Serie {
   differenza_pct: number;
   is_active: boolean;
   sort_order: number;
+  updated_at: string;
 }
 
 /** Il nome diventa uno slug stabile: è la chiave della linea nel listino. */
@@ -65,14 +68,19 @@ function slugifica(s: string) {
 
 const MATERIALI = ["pvc", "alluminio", "legno", "legno_alluminio", "acciaio"] as const;
 const FASCE: FasciaSerie[] = ["basic", "medium", "top"];
+const cercaSenzaAccenti = (s: string) => s.toLocaleLowerCase("it").normalize("NFD").replace(/\p{M}/gu, "");
 
 export function LibreriaMarcheSerie() {
   const qc = useQueryClient();
+  const [cerca, setCerca] = useState("");
+  const [materiale, setMateriale] = useState("tutti");
+  const [chiuseFiltrate, setChiuseFiltrate] = useState<Set<string>>(new Set());
+  const [visibilita, setVisibilita] = useState("tutte");
   const [aperte, setAperte] = useState<Set<string>>(new Set());
   const [marcaInModifica, setMarcaInModifica] = useState<Partial<Marca> | null>(null);
   const [serieInModifica, setSerieInModifica] = useState<Partial<Serie> | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-serramenti-libreria"],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,6 +105,23 @@ export function LibreriaMarcheSerie() {
     return mappa;
   }, [data]);
 
+  const ricerca = cercaSenzaAccenti(cerca.trim());
+  const filtriAttivi = !!ricerca || materiale !== "tutti" || visibilita !== "tutte";
+  const risultati = (data?.marche ?? []).flatMap((marca) => {
+    const tutteLeSerie = seriePerMarca.get(marca.id) ?? [];
+    const cercaMarca = cercaSenzaAccenti(marca.nome).includes(ricerca);
+    const serie = tutteLeSerie.filter((voce) => {
+      const attiva = marca.is_active && voce.is_active;
+      return (cercaMarca || cercaSenzaAccenti(voce.nome).includes(ricerca))
+        && (materiale === "tutti" || voce.materiale === materiale)
+        && (visibilita === "tutte" || attiva === (visibilita === "visibili"));
+    });
+    const marcaCorrisponde = cercaMarca
+      && (materiale === "tutti" || marca.materiali.includes(materiale))
+      && (visibilita === "tutte" || marca.is_active === (visibilita === "visibili"));
+    return serie.length || marcaCorrisponde ? [{ marca, serie, tutteLeSerie }] : [];
+  });
+
   const salva = useMutation({
     mutationFn: async (p: { tabella: "serramenti_marche" | "serramenti_serie"; riga: Record<string, unknown> }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,7 +144,7 @@ export function LibreriaMarcheSerie() {
   });
 
   const apriChiudi = (id: string) =>
-    setAperte((prev) => {
+    (filtriAttivi ? setChiuseFiltrate : setAperte)((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -128,16 +153,14 @@ export function LibreriaMarcheSerie() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex-row items-start justify-between gap-2 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-3">
         <div>
           <CardTitle className="text-base flex items-center gap-2">
             <Layers className="h-4 w-4 text-blue-600" aria-hidden="true" />
             Marche e serie di profilo
           </CardTitle>
           <CardDescription>
-            Il livello sopra le tipologie. L'azienda importa una serie e se la
-            ritrova come linea dentro le finestre che ha già, senza duplicare il
-            listino.
+            Le aziende aggiungono le serie di profilo come linee del proprio listino serramenti.
           </CardDescription>
         </div>
         <Button
@@ -145,27 +168,65 @@ export function LibreriaMarcheSerie() {
           size="sm"
           onClick={() => setMarcaInModifica({ nome: "", materiali: ["pvc"], is_active: true, sort_order: 50 })}
         >
-          <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Marca
+          <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Nuova marca
         </Button>
       </CardHeader>
 
       <CardContent className="p-0">
+        {data && (
+          <div className="space-y-2 border-y px-4 py-3">
+            <div className="flex flex-wrap gap-2">
+              <Input className="w-full sm:max-w-xs" aria-label="Cerca marca o serie" placeholder="Cerca marca o serie…" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+              <Select value={materiale} onValueChange={setMateriale}>
+                <SelectTrigger className="w-full sm:w-44" aria-label="Materiale delle serie"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutti i materiali</SelectItem>
+                  {MATERIALI.map((voce) => <SelectItem key={voce} value={voce}>{ETICHETTA_MATERIALE[voce] ?? voce}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={visibilita} onValueChange={setVisibilita}>
+                <SelectTrigger className="w-full sm:w-40" aria-label="Visibilità delle serie"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Tutti gli stati</SelectItem>
+                  <SelectItem value="visibili">Visibili</SelectItem>
+                  <SelectItem value="nascoste">Nascosti</SelectItem>
+                </SelectContent>
+              </Select>
+              {filtriAttivi && (
+                <Button variant="ghost" onClick={() => { setCerca(""); setMateriale("tutti"); setVisibilita("tutte"); }}>Togli i filtri</Button>
+              )}
+            </div>
+            <p role="status" className="text-xs text-muted-foreground">
+              {risultati.length === 1 ? "1 marca" : `${risultati.length} marche`} · {risultati.reduce((totale, { serie }) => totale + serie.length, 0)} serie
+            </p>
+          </div>
+        )}
+        {isError && (
+          <div role="alert" className="flex items-center gap-3 px-4 py-3 text-sm text-destructive">
+            Impossibile caricare marche e serie.
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+          </div>
+        )}
+        {data && risultati.length === 0 && (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            {filtriAttivi ? "Nessuna marca o serie con questi filtri." : "Nessuna marca in libreria."}
+          </p>
+        )}
         {isLoading && (
           <p className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Carico la libreria…
           </p>
         )}
         <ul className="divide-y">
-          {(data?.marche ?? []).map((m) => {
-            const serie = seriePerMarca.get(m.id) ?? [];
-            const aperta = aperte.has(m.id);
+          {risultati.map(({ marca: m, serie, tutteLeSerie }) => {
+            const aperta = filtriAttivi ? !chiuseFiltrate.has(m.id) && serie.length > 0 : aperte.has(m.id);
             return (
               <li key={m.id}>
                 <div className="flex items-center gap-2 px-4 py-2.5">
                   <button
                     type="button"
                     onClick={() => apriChiudi(m.id)}
-                    className="flex items-center gap-2 flex-1 text-left"
+                    className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left"
                     aria-expanded={aperta}
                   >
                     {aperta ? (
@@ -201,7 +262,7 @@ export function LibreriaMarcheSerie() {
                         fascia: "medium",
                         differenza_pct: 0,
                         is_active: true,
-                        sort_order: (serie.at(-1)?.sort_order ?? 0) + 1,
+                        sort_order: (tutteLeSerie.at(-1)?.sort_order ?? 0) + 1,
                       })
                     }
                   >
@@ -221,6 +282,9 @@ export function LibreriaMarcheSerie() {
                             {s.camere ? ` · ${s.camere} camere` : ""}
                             {s.uw_min ? ` · Uw ${s.uw_min}` : ""}
                           </span>
+                          {s.updated_at && (
+                            <span className="block text-xs text-muted-foreground">Aggiornata il {formatDateShort(s.updated_at)}</span>
+                          )}
                         </span>
                         {s.fascia && (
                           <Badge variant="secondary" className="text-[10px]">

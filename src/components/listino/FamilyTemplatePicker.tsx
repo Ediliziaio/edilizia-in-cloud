@@ -13,7 +13,7 @@
  *  - PhotoTemplatePicker → restituisce SOLO URL foto (callback onSelect).
  *  - FamilyTemplatePicker → ESEGUE l'import lato DB e restituisce family_id.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -32,6 +32,7 @@ import {
   useImportArticleFamilyTemplate,
   type ArticleFamilyTemplate,
 } from "@/hooks/useArticleFamilyTemplates";
+import { formatCurrency } from "@/lib/formatters";
 import { etichettaModalita } from "@/lib/listino/prodottiLibreria";
 import { VERTICALI_GALLERIA } from "@/lib/verticalMapping";
 
@@ -62,19 +63,6 @@ export function FamilyTemplatePicker({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [brokenImages, setBrokenImages] = useState<Set<string>>(() => new Set());
 
-  // Reset stato quando il dialog viene chiuso, e ri-allinea il verticale al
-  // pre-filtro del caller all'apertura.
-  useEffect(() => {
-    if (!open) {
-      setSelectedId(null);
-      setBrokenImages(new Set());
-      setSearch("");
-    } else if (initialVertical) {
-      setVertical(initialVertical);
-      setCategoriaFiltro("all");
-    }
-  }, [open, initialVertical]);
-
   const { data: templates = [], isLoading, isError } = useArticleFamilyTemplates({
     vertical: vertical === "all" ? null : vertical,
     search,
@@ -102,8 +90,10 @@ export function FamilyTemplatePicker({
         companyId,
         macrocategoriaId: targetMacrocategoriaId ?? null,
       });
-      toast.success(`Articolo "${selected.nome}" importato dal template`, {
-        description: `Assi e prezzi pre-popolati. Personalizza ora il listino.`,
+      toast.success(`«${selected.nome}» aggiunto al listino`, {
+        description: selected.prezzo_base_vendita === null && !selected.griglia_default
+          ? "Completa il prezzo di vendita nel listino."
+          : "Puoi personalizzare il prodotto nel listino.",
       });
       onImported?.(familyId, selected);
       onOpenChange(false);
@@ -286,6 +276,11 @@ export function FamilyTemplatePicker({
                   {selected.tipologia && <Row label="Tipologia" value={prettyLabel(selected.tipologia)} />}
                   {selected.materiale && <Row label="Materiale" value={prettyLabel(selected.materiale)} />}
                   <Row label="Modalità prezzo" value={etichettaModalita(selected.modalita_prezzo_base)} />
+                  <Row label="Prezzo di vendita" value={selected.griglia_default
+                    ? "Griglia per misura"
+                    : selected.prezzo_base_vendita === null
+                      ? "Da compilare"
+                      : [formatCurrency(selected.prezzo_base_vendita), selected.unit_of_measure].filter(Boolean).join(" / ")} />
                   {selected.vat_rate != null && <Row label="IVA" value={`${selected.vat_rate}%`} />}
                   {selected.unit_of_measure && <Row label="UM" value={selected.unit_of_measure} />}
                 </div>

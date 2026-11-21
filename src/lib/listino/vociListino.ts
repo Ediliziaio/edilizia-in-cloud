@@ -12,19 +12,22 @@ import type { MarkupTipo } from "@/types/articleFamily";
 
 export async function caricaVociListino(
   companyId: string,
-  opzioni: { suMisuraIntero?: boolean } = {},
+  opzioni: { suMisuraIntero?: boolean; uso?: "vendita" | "acquisto" } = {},
 ): Promise<ArticleTemplateData[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
+  const famiglie = sb.from("article_families")
+    .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto, supplier_id, vat_rate, unit_of_measure, prezzo_base_mode, sconto_fornitore_1, sconto_fornitore_2, markup_tipo, markup_valore, vertical, modalita_prezzo_base")
+    .eq("company_id", companyId)
+    .eq("attivo", true)
+    .is("deleted_at", null)
+    .order("nome")
+    .limit(2000);
+  // I modelli senza prezzi di vendita installano gli articoli attivi ma fuori
+  // dai preventivi. Restano selezionabili in acquisto, con il costo da definire.
+  if (opzioni.uso !== "acquisto") famiglie.eq("mostra_preventivo", true);
   const [famRes, catRes, axesRes] = await Promise.all([
-    sb.from("article_families")
-      .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto, supplier_id, vat_rate, unit_of_measure, prezzo_base_mode, sconto_fornitore_1, sconto_fornitore_2, markup_tipo, markup_valore, vertical, modalita_prezzo_base")
-      .eq("company_id", companyId)
-      .eq("attivo", true)
-      .eq("mostra_preventivo", true)
-      .is("deleted_at", null)
-      .order("nome")
-      .limit(2000),
+    famiglie,
     sb.from("listino_categorie").select("id, nome").eq("company_id", companyId),
     // Varianti: assi + valori. Espandiamo SOLO le famiglie con un singolo
     // asse (es. "Potenza"/"Modello") nelle loro varianti, ognuna col suo

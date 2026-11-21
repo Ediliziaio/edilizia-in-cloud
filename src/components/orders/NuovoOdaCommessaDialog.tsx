@@ -81,8 +81,8 @@ export function NuovoOdaCommessaDialog({ open, onOpenChange, orderId, orderCode,
     enabled: open && !!companyId,
   });
   const listino = useQuery({
-    queryKey: ["article-combobox-listino", companyId],
-    queryFn: () => caricaVociListino(companyId!),
+    queryKey: ["article-combobox-listino", companyId, "acquisto"],
+    queryFn: () => caricaVociListino(companyId!, { uso: "acquisto" }),
     enabled: open && !!companyId,
   });
   const perNome = useMemo(() => {

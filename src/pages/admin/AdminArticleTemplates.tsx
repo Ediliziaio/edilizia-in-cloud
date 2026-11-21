@@ -14,7 +14,7 @@
  *
  * RLS: select/insert/update/delete riservati a super_admin (policy aft_*).
  */
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +24,9 @@ import {
   Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers, Library, Tags, MoreHorizontal,
 } from "lucide-react";
 import { GlobalPhotoLibraryPicker } from "@/components/admin/GlobalPhotoLibraryPicker";
+import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import { LibreriaMarcheSerie } from "@/components/admin/LibreriaMarcheSerie";
+import { ImportaCatalogoProntoDialog } from "@/components/admin/listino/ImportaCatalogoProntoDialog";
 import { ModelliAreaTab } from "@/components/admin/listino/ModelliAreaTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -40,58 +42,19 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   FILTRO_VUOTO, MODALITA_PREZZO, categorieProdotti, etichettaModalita, etichettaSlug, filtraProdotti,
   gruppiProdotti, testoConteggio, type FiltroProdotti, type ProdottoLibreria,
 } from "@/lib/listino/prodottiLibreria";
+import { CATALOGHI_PRONTI, preparaModelloArea, preparaVoce, type CatalogoPronto, type VocePronta } from "@/lib/listino/cataloghiPronti";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import { VERTICALI_GALLERIA } from "@/lib/verticalMapping";
 import { cn } from "@/lib/utils";
 interface GridDefault { xs: number[]; ys: number[]; m: (number | null)[][] }
-
-/**
- * Sorgenti importabili nella libreria globale. Le "Base Edilizia" sono NEUTRE
- * (nessun fornitore) — punto di partenza per il listino di qualsiasi azienda.
- * WnD è UN fornitore (serramenti), una sorgente tra le tante: prima era l'unico
- * bottone di import, dando l'impressione sbagliata che la libreria fosse "di WnD".
- * Ogni loader è un dynamic import, così i dataset non pesano sul bundle pagina.
- */
-type LibrarySource = {
-  key: string;
-  gruppo: "base" | "fornitore";
-  label: string;
-  hint: string;
-  load: () => Promise<{ nome: string }[]>;
-};
-const LIBRARY_SOURCES: LibrarySource[] = [
-  {
-    key: "base-piastrelle", gruppo: "base", label: "Base Edilizia · Piastrelle",
-    hint: "Gres, rivestimenti, mosaici, klinker, battiscopa — al m²",
-    load: async () => (await import("@/data/baseArticleTemplates")).BASE_PIASTRELLE_TEMPLATES,
-  },
-  {
-    key: "base-porte", gruppo: "base", label: "Base Edilizia · Porte",
-    hint: "Interne, scorrevoli, vetro, tagliafuoco, blindati — a pezzo",
-    load: async () => (await import("@/data/baseArticleTemplates")).BASE_PORTE_TEMPLATES,
-  },
-  {
-    key: "base-bagno", gruppo: "base", label: "Base Edilizia · Bagno & Sanitari",
-    hint: "Sanitari, docce, rubinetteria, mobili, scaldasalviette — a pezzo",
-    load: async () => (await import("@/data/baseArticleTemplates")).BASE_BAGNO_TEMPLATES,
-  },
-  {
-    key: "base-elettrico", gruppo: "base", label: "Base Edilizia · Elettrico",
-    hint: "Punti, placche, quadri, salvavita, LED, cavi/tubi (al ml)",
-    load: async () => (await import("@/data/baseArticleTemplates")).BASE_ELETTRICO_TEMPLATES,
-  },
-  {
-    key: "wnd", gruppo: "fornitore", label: "Fornitore WnD · Serramenti",
-    hint: "Listino WnD estratto dai PDF (un fornitore)",
-    load: async () => (await import("@/data/wndArticleTemplates")).WND_ARTICLE_TEMPLATES,
-  },
-];
 
 interface Template {
   id: string;
@@ -123,9 +86,9 @@ type Scheda = (typeof SCHEDE)[number];
 
 /** Cosa c'è nella scheda aperta, detto sotto il titolo: niente riquadri in più sopra gli elenchi. */
 const SPIEGAZIONE: Record<Scheda, string> = {
-  aree: "Aree intere prese dal listino di un'azienda: chi le installa ne riceve una copia sua, da modificare.",
-  prodotti: "Un prodotto alla volta, con disegno e griglia prezzi: le aziende li prendono con «Importa → Modelli pronti».",
-  marche: "Marche e serie di profilo dei serramenti.",
+  aree: "Le aziende possono importare e modificare una copia dei modelli di area.",
+  prodotti: "I prodotti visibili sono disponibili alle aziende in «Importa → Modelli pronti».",
+  marche: "Marche e serie di profilo disponibili per i serramenti.",
 };
 
 export default function AdminArticleTemplates() {
@@ -150,61 +113,92 @@ export default function AdminArticleTemplates() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
+  const [catalogo, setCatalogo] = useState<CatalogoPronto | null>(null);
+  const modelloArea = scheda === "aree";
 
   // Lista LEGGERA: solo colonne necessarie, niente jsonb pesanti (griglia/assi).
-  const { data: templates = [], isLoading, isError, error: listError, refetch } = useQuery({
+  const { data: templates = [], isLoading, isFetching, isError, error: listError, refetch } = useQuery({
     queryKey: ["admin-article-templates"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("article_family_templates")
-        .select("id,nome,vertical_slug,categoria_slug,tipologia,tags,modalita_prezzo_base,image_url,is_active,sort_order")
-        .order("vertical_slug", { ascending: true })
-        .order("sort_order", { ascending: true })
-        .order("nome", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as unknown as ProdottoLibreria[];
-    },
+    enabled: scheda === "prodotti",
+    queryFn: () => loadCatalogPages<ProdottoLibreria>((from, to) => supabase
+      .from("article_family_templates")
+      .select("id,nome,vertical_slug,categoria_slug,tipologia,tags,modalita_prezzo_base,image_url,is_active,sort_order")
+      .order("vertical_slug")
+      .order("sort_order")
+      .order("nome")
+      .order("id")
+      .range(from, to)),
   });
 
-  const categorie = useMemo(() => categorieProdotti(templates), [templates]);
+  const settori = useMemo(() => [...new Set(templates.map((t) => t.vertical_slug))]
+    .sort((a, b) => etichettaVerticale(a).localeCompare(etichettaVerticale(b), "it")), [templates]);
+  const categorie = useMemo(() => categorieProdotti(
+    filtro.settore ? templates.filter((t) => t.vertical_slug === filtro.settore) : templates,
+  ), [templates, filtro.settore]);
   const nascosti = useMemo(() => templates.filter((t) => !t.is_active).length, [templates]);
   const filtered = useMemo(() => filtraProdotti(templates, filtro), [templates, filtro]);
   // Raggruppamento per verticale → categoria (collassabile): scala a centinaia di prodotti.
   const groups = useMemo(() => gruppiProdotti(filtered), [filtered]);
   const piuVerticali = new Set(groups.map((g) => g.verticale)).size > 1;
-  const filtriAttivi = filtro.cerca.trim() !== "" || filtro.categoria !== null || filtro.tag !== null || filtro.soloSpenti;
+  const filtriAttivi = filtro.cerca.trim() !== "" || filtro.categoria !== null || filtro.tag !== null || filtro.soloSpenti || !!filtro.settore || !!filtro.modalita;
 
   const toggleGroup = (key: string) =>
     setCollapsed((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.chiave));
   const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.chiave)));
 
-  // Import generico da una qualsiasi sorgente libreria (base neutre o fornitore).
-  // Idempotente per `nome`: reimportare non duplica. Dataset caricati lazy.
-  const [importingKey, setImportingKey] = useState<string | null>(null);
   const importLibrary = useMutation({
-    mutationFn: async (src: LibrarySource) => {
-      const rows = await src.load();
-      const existing = new Set(templates.map((t) => t.nome));
-      const toInsert = rows.filter((r) => !existing.has(r.nome));
-      let ok = 0;
-      for (let i = 0; i < toInsert.length; i += 10) {
-        const batch = toInsert.slice(i, i + 10);
-        const { error } = await supabase.from("article_family_templates").insert(batch as never);
-        if (error) throw error;
-        ok += batch.length;
+    mutationFn: async ({
+      voci, visibili, conPrezzi, modello,
+    }: { voci: VocePronta[]; visibili: boolean; conPrezzi: boolean; modello: CatalogoPronto | null }) => {
+      if (modello) {
+        const riga = await preparaModelloArea(modello, voci, visibili, conPrezzi);
+        const { data, error } = await supabase
+          .from("listino_modelli_area")
+          .upsert(riga, { onConflict: "id", ignoreDuplicates: true })
+          .select("id");
+        if (error?.code === "23505") throw new Error(`Esiste già un modello «${modello.nome}».`);
+        if (error) throw new Error(error.message);
+        return { modello: modello.nome, aggiunte: data.length, giaPresenti: 0, visibili };
       }
-      return { label: src.label, inserted: ok, skipped: rows.length - ok };
-    },
-    onMutate: (src) => setImportingKey(src.key),
-    onSettled: () => setImportingKey(null),
-    onSuccess: (r) => {
-      toast.success(r.label, {
-        description: `${r.inserted === 1 ? "1 prodotto nuovo" : `${r.inserted} prodotti nuovi`}, ${r.skipped} già presenti.`,
+      const righe: TablesInsert<"article_family_templates">[] = voci.map((voce) => {
+        const { assi_default, ...riga } = preparaVoce(voce, visibili, conPrezzi);
+        return { ...riga, assi_default: assi_default as unknown as Json };
       });
-      qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
+      const { data, error } = await supabase
+        .from("article_family_templates")
+        .upsert(righe, { onConflict: "id", ignoreDuplicates: true })
+        .select("id");
+      if (error) throw new Error(error.message);
+      return { modello: null, aggiunte: data.length, giaPresenti: righe.length - data.length, visibili };
     },
-    onError: (e: unknown) => toast.error("Catalogo non aggiunto", { description: (e as Error).message }),
+    onSuccess: async ({ modello, aggiunte, giaPresenti, visibili }) => {
+      if (modello) {
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["listino-modelli-area"] }),
+          qc.invalidateQueries({ queryKey: ["listino-modelli-disponibili"] }),
+        ]);
+        if (aggiunte === 0) toast.info(`Il modello «${modello}» è già presente`);
+        else toast.success(`Modello «${modello}» salvato`, { description: visibili ? "Visibile alle aziende." : "Salvato come nascosto." });
+        setCatalogo(null);
+        return;
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin-article-templates"] }),
+        qc.invalidateQueries({ queryKey: ["article-family-templates"] }),
+      ]);
+      toast.success(`${aggiunte} voci aggiunte`, {
+        description: [
+          aggiunte > 0 ? (visibili ? "Visibili alle aziende." : "Salvate come nascoste.") : null,
+          giaPresenti > 0 ? `${giaPresenti} già in libreria.` : null,
+        ].filter(Boolean).join(" "),
+      });
+      setCatalogo(null);
+    },
+    onError: (e: unknown) => {
+      void qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
+      toast.error("Catalogo non aggiunto", { description: (e as Error).message });
+    },
   });
 
   const del = useMutation({
@@ -269,36 +263,11 @@ export default function AdminArticleTemplates() {
     onError: (e: unknown) => toast.error("Copia non creata", { description: (e as Error).message }),
   });
 
-  const aggiungiCatalogo = (gruppo: LibrarySource["gruppo"]) =>
-    LIBRARY_SOURCES.filter((s) => s.gruppo === gruppo).map((s) => (
-      <DropdownMenuItem
-        key={s.key}
-        disabled={importLibrary.isPending}
-        onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
-        className="flex-col items-start gap-0.5"
-      >
-        <span className="font-medium flex items-center gap-2">
-          {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
-          {s.label}
-        </span>
-        <span className="text-xs text-muted-foreground">{s.hint}</span>
-      </DropdownMenuItem>
-    ));
-
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-[1600px] space-y-4">
+      <BrandPageHeader compact icon={Library} title="Libreria listino" subtitle={SPIEGAZIONE[scheda]} />
       <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Library className="h-5 w-5 text-primary" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria listino</h1>
-              <p className="text-sm text-muted-foreground">{SPIEGAZIONE[scheda]}</p>
-            </div>
-          </div>
-          <TabsList className="h-auto w-full shrink-0 flex-wrap justify-start sm:w-auto">
+          <TabsList className="h-auto max-w-full flex-wrap justify-start">
             <TabsTrigger value="aree" className="gap-1.5">
               <Layers className="h-4 w-4" aria-hidden="true" /> Modelli di area
             </TabsTrigger>
@@ -310,10 +279,26 @@ export default function AdminArticleTemplates() {
               <Tags className="h-4 w-4" aria-hidden="true" /> Marche e serie
             </TabsTrigger>
           </TabsList>
-        </div>
 
         <TabsContent value="aree" className="mt-0">
           <ModelliAreaTab />
+          <section className="mt-6 space-y-3" aria-labelledby="cataloghi-pronti">
+            <div>
+              <h2 id="cataloghi-pronti" className="text-base font-semibold">Cataloghi pronti per settore</h2>
+              <p className="text-sm text-muted-foreground">Scegli un catalogo di base e prepara un modello da installare nel listino aziendale.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {CATALOGHI_PRONTI.filter((item) => item.fonte === "base").map((item) => (
+                <Button key={item.id} variant="outline" className="h-auto min-h-20 justify-between gap-3 whitespace-normal p-3 text-left" onClick={() => setCatalogo(item)}>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{item.nome}</span>
+                    <span className="mt-1 block text-xs font-normal text-muted-foreground">{item.descrizione}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                </Button>
+              ))}
+            </div>
+          </section>
         </TabsContent>
 
         <TabsContent value="marche" className="mt-0">
@@ -335,35 +320,39 @@ export default function AdminArticleTemplates() {
                 onChange={(e) => cambiaFiltro({ cerca: e.target.value })}
               />
             </div>
-            <div className="flex items-center gap-2 sm:ml-auto">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex-1 sm:flex-none" disabled={importLibrary.isPending}>
-                    {importLibrary.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                    <span className="sm:hidden">Cataloghi</span>
-                    <span className="hidden sm:inline">Aggiungi un catalogo</span>
-                    <ChevronDown className="h-4 w-4 ml-1.5 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Cataloghi base, senza fornitore</DropdownMenuLabel>
-                  {aggiungiCatalogo("base")}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Cataloghi di un fornitore</DropdownMenuLabel>
-                  {aggiungiCatalogo("fornitore")}
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+              <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setCatalogo(CATALOGHI_PRONTI[0])}>
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" /> Aggiungi un catalogo
+              </Button>
               <Button className="flex-1 sm:flex-none" onClick={() => setCreatingNew(true)}>
                 <Plus className="h-4 w-4 mr-2" /> Nuovo prodotto
               </Button>
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Settore e modalità del prezzo">
+            <Select value={filtro.settore ?? "tutti"} onValueChange={(value) => cambiaFiltro({ settore: value === "tutti" ? null : value, categoria: null })}>
+              <SelectTrigger className="h-8 w-full sm:w-52" aria-label="Settore del prodotto"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tutti">Tutti i settori</SelectItem>
+                {settori.map((settore) => <SelectItem key={settore} value={settore}>{etichettaVerticale(settore)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filtro.modalita ?? "tutte"} onValueChange={(value) => cambiaFiltro({ modalita: value === "tutte" ? null : value })}>
+              <SelectTrigger className="h-8 w-full sm:w-52" aria-label="Modalità prezzo del prodotto"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tutte">Tutte le modalità prezzo</SelectItem>
+                {MODALITA_PREZZO.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
           {(categorie.length > 1 || nascosti > 0 || filtro.tag) && (
             <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtra i prodotti">
               {categorie.length > 1 && (
                 <>
-                  <Button size="sm" variant={filtro.categoria === null ? "default" : "outline"} className="h-8" onClick={() => cambiaFiltro({ categoria: null })}>
+                  <Button size="sm" variant={filtro.categoria === null ? "default" : "outline"} className="h-8"
+                    aria-pressed={filtro.categoria === null} onClick={() => cambiaFiltro({ categoria: null })}>
                     Tutte
                   </Button>
                   {categorie.map((c) => (
@@ -400,9 +389,9 @@ export default function AdminArticleTemplates() {
           )}
 
           <Card className="overflow-hidden">
-            <div className="flex items-center justify-between gap-2 px-4 py-2">
-              <p className="text-sm font-medium">
-                {isLoading ? "Carico i prodotti…" : testoConteggio(filtered.length, groups.length)}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+              <p role="status" className="text-sm font-medium">
+                {isLoading ? "Caricamento prodotti…" : isError ? "Prodotti" : testoConteggio(filtered.length, groups.length)}
               </p>
               <div className="flex items-center gap-1">
                 {filtriAttivi && (
@@ -449,7 +438,7 @@ export default function AdminArticleTemplates() {
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className={cn("font-medium text-sm truncate", !t.is_active && "text-muted-foreground")}>{t.nome}</span>
+                                <span className={cn("line-clamp-2 break-words text-sm font-medium", !t.is_active && "text-muted-foreground")}>{t.nome}</span>
                                 {!t.is_active && (
                                   <Badge variant="outline" className="shrink-0 text-[10px] border-amber-300 text-amber-700 bg-amber-50">nascosto</Badge>
                                 )}
@@ -541,6 +530,22 @@ export default function AdminArticleTemplates() {
         </TabsContent>
       </Tabs>
 
+      {catalogo && (
+        <ImportaCatalogoProntoDialog
+          key={catalogo.id}
+          catalogo={catalogo}
+          modelloArea={modelloArea}
+          presenti={templates}
+          inCorso={importLibrary.isPending}
+          listaDisponibile={modelloArea || (!isFetching && !isError && !isLoading)}
+          erroreLista={!modelloArea && isError}
+          onRicarica={() => void refetch()}
+          onCatalogo={setCatalogo}
+          onChiudi={() => setCatalogo(null)}
+          onImporta={(voci, visibili, conPrezzi) => importLibrary.mutate({ voci, visibili, conPrezzi, modello: modelloArea ? catalogo : null })}
+        />
+      )}
+
       {editingId && (
         <EditDialogLoader
           id={editingId}
@@ -616,23 +621,40 @@ function EditDialog({ template, categorie, onClose, onSaved }: {
     ? VERTICALI_GALLERIA
     : [...VERTICALI_GALLERIA, { value: f.vertical_slug, label: etichettaSlug(f.vertical_slug) }];
 
-  // Griglia prezzi: headers in state (rari), celle in ref (perf su griglie grandi)
-  const [xs, setXs] = useState<number[]>(template.griglia_default?.xs ?? []);
-  const [ys, setYs] = useState<number[]>(template.griglia_default?.ys ?? []);
-  const mRef = useRef<(number | null)[][]>(
-    (template.griglia_default?.ys ?? []).map((_, i) =>
-      (template.griglia_default?.xs ?? []).map((_, j) => template.griglia_default?.m?.[i]?.[j] ?? null)),
-  );
-  const setX = (j: number, v: number) => setXs((p) => p.map((x, k) => (k === j ? v : x)));
-  const setY = (i: number, v: number) => setYs((p) => p.map((y, k) => (k === i ? v : y)));
-  const addCol = () => { const nx = xs.length ? xs[xs.length - 1] + 50 : 1000; mRef.current.forEach((r) => r.push(null)); setXs([...xs, nx]); };
-  const addRow = () => { const ny = ys.length ? ys[ys.length - 1] + 50 : 1000; mRef.current.push(new Array(xs.length).fill(null)); setYs([...ys, ny]); };
-  const removeCol = (j: number) => { mRef.current.forEach((r) => r.splice(j, 1)); setXs(xs.filter((_, k) => k !== j)); };
-  const removeRow = (i: number) => { mRef.current.splice(i, 1); setYs(ys.filter((_, k) => k !== i)); };
-  const createGrid = () => { mRef.current = [[null]]; setXs([1000]); setYs([1000]); };
+  const [griglia, setGriglia] = useState(() => {
+    const xs = template.griglia_default?.xs ?? [];
+    const ys = template.griglia_default?.ys ?? [];
+    return {
+      xs, ys,
+      valori: ys.map((_, i) => xs.map((_, j) => String(template.griglia_default?.m?.[i]?.[j] ?? ""))),
+    };
+  });
+  const { xs, ys, valori } = griglia;
+  const setX = (j: number, v: number) => setGriglia((g) => ({ ...g, xs: g.xs.map((x, k) => k === j ? v : x) }));
+  const setY = (i: number, v: number) => setGriglia((g) => ({ ...g, ys: g.ys.map((y, k) => k === i ? v : y) }));
+  const addCol = () => setGriglia((g) => ({
+    ...g,
+    xs: [...g.xs, g.xs.length ? g.xs.at(-1)! + 50 : 1000],
+    valori: g.valori.map((riga) => [...riga, ""]),
+  }));
+  const addRow = () => setGriglia((g) => ({
+    ...g,
+    ys: [...g.ys, g.ys.length ? g.ys.at(-1)! + 50 : 1000],
+    valori: [...g.valori, g.xs.map(() => "")],
+  }));
+  const removeCol = (j: number) => setGriglia((g) => ({
+    ...g, xs: g.xs.filter((_, k) => k !== j), valori: g.valori.map((riga) => riga.filter((_, k) => k !== j)),
+  }));
+  const removeRow = (i: number) => setGriglia((g) => ({
+    ...g, ys: g.ys.filter((_, k) => k !== i), valori: g.valori.filter((_, k) => k !== i),
+  }));
+  const createGrid = () => setGriglia({ xs: [1000], ys: [1000], valori: [[""]] });
   const buildGrid = (): GridDefault | null => {
     if (f.modalita_prezzo_base !== "griglia" || !xs.length || !ys.length) return null;
-    const m = ys.map((_, i) => xs.map((_, j) => mRef.current[i]?.[j] ?? null));
+    const m = valori.map((riga) => riga.map((valore) => {
+      const prezzo = Number(valore.trim().replace(",", "."));
+      return valore.trim() && Number.isFinite(prezzo) ? prezzo : null;
+    }));
     return { xs, ys, m };
   };
 
@@ -798,14 +820,17 @@ function EditDialog({ template, categorie, onClose, onSaved }: {
                         {xs.map((_, j) => (
                           <td key={j} className="border p-0">
                             <input
-                              key={`${i}-${j}-${xs.length}x${ys.length}`}
                               className="w-16 px-1 py-0.5 text-right bg-transparent focus:bg-primary/10 outline-none"
-                              defaultValue={mRef.current[i]?.[j] ?? ""}
-                              inputMode="numeric"
+                              aria-label={`Prezzo ${xs[j]} × ${y} mm`}
+                              value={valori[i]?.[j] ?? ""}
+                              inputMode="decimal"
                               onChange={(e) => {
-                                const v = e.target.value.trim();
-                                if (!mRef.current[i]) mRef.current[i] = [];
-                                mRef.current[i][j] = v === "" ? null : Number(v);
+                                const v = e.target.value;
+                                setGriglia((g) => {
+                                  const righe = [...g.valori];
+                                  righe[i] = righe[i].map((cella, k) => k === j ? v : cella);
+                                  return { ...g, valori: righe };
+                                });
                               }}
                             />
                           </td>
