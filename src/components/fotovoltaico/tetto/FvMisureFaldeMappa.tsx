@@ -6,8 +6,8 @@ const numero = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits:
 export function FvMisureFaldeMappa({ piano }: { piano: DisegnoCommercialeFv }) {
   const misure = misureFaldeMappa(piano);
   if (!misure.length) return null;
-  return <details className="fv-roof-map-measures" open>
-    <summary>Misure delle falde dalla mappa <span>{misure.length} {misure.length === 1 ? "falda" : "falde"}</span></summary>
+  return <details className="fv-roof-map-measures">
+    <summary>Misure delle falde dalla mappa <span>{misure.length} {misure.length === 1 ? "falda" : "falde"} · {numero(misure.reduce((totale, f) => totale + f.superficie, 0))} m²</span></summary>
     <div className="fv-roof-measures-scroll">
       <table aria-label="Misure delle falde disegnate sulla mappa">
         <thead><tr><th>Falda</th><th>Area in pianta</th><th>Superficie inclinata</th><th>Pendenza</th><th>Esposizione</th><th>Lati sulla falda</th></tr></thead>
