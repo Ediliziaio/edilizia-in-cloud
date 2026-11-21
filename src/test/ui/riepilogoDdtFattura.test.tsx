@@ -44,6 +44,24 @@ describe('Avvisi DDT della fattura',()=>{
     fireEvent.click(screen.getByRole("button",{name:"Collega DDT"}));
     expect(collega).toHaveBeenCalledOnce();
   });
+  it("mostra gli otto DDT valorizzati e chiede di collegare gli altri due", async () => {
+    const collega = vi.fn();
+    monta({
+      ddt: Array.from({ length: 10 }, (_, i) => bolla(i + 1, i >= 8 ? "mancante" : "collegato")),
+      prezzi: {
+        stato: "parziale",
+        ddt_totali: 10,
+        ddt_valorizzati: 8,
+        ddt_pendenti: [9, 10].map(n => ({ posizione: n, numero: `DDT-${n}`, motivo: "ddt_mancante" })),
+      },
+    }, collega);
+    expect(await screen.findByText("8 di 10 DDT valorizzati.")).toHaveAttribute("role", "status");
+    expect(screen.getByRole("alert", { name: "" })).toHaveTextContent("2 DDT da confermare");
+    expect(screen.getByText("DDT DDT-9")).toBeVisible();
+    expect(screen.getByText("DDT DDT-10")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Collega DDT" }));
+    expect(collega).toHaveBeenCalledOnce();
+  });
   it('porta alla conferma del prezzo sulla bolla della riga ambigua',async()=>{
     monta({ddt:[bolla(1),bolla(2)],prezzi:{stato:"da_verificare",motivo:"articolo",ddt_id:"d2",riga:5}});
     expect(await screen.findByText(/Conferma quale articolo/)).toHaveTextContent("riga 5 della fattura");

@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Trash2, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import type { AggiornamentoRigaOda, PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
+import type { ResiduiDestinazioniRiga } from "@/hooks/useControlloOrdiniDDT";
 import { ArticleCombobox, type ArticleTemplateData } from "./ArticleCombobox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export function PurchaseOrderItemRow({
   vociFornitore,
   supplierId,
   commessaPrincipaleId = null,
+  residuiDestinazioni,
 }: {
   item: PurchaseOrderItem;
   isEditable: boolean;
@@ -60,6 +62,7 @@ export function PurchaseOrderItemRow({
   vociFornitore?: VoceListinoFornitore[];
   supplierId?: string;
   commessaPrincipaleId?: string | null;
+  residuiDestinazioni?: ResiduiDestinazioniRiga;
 }) {
   const [desc, setDesc] = useInputDraft(item.description);
   const [qty, setQty] = useInputDraft(String(item.quantity));
@@ -68,6 +71,7 @@ export function PurchaseOrderItemRow({
   const riepilogoDestinazioni = destinazioni.map(d =>
     `${d.nome ?? (d.tipo === "commessa" ? "Commessa" : "Magazzino")} · ${d.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })}`,
   ).join(" / ");
+  const quantitaLocale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
   const [um, setUm] = useInputDraft(unitaNormalizzata(item.unit_of_measure) || "pz");
   const [pendingText, setPendingText] = useInputDraft(
     item.price_pending ? "yes" : "no",
@@ -220,6 +224,15 @@ export function PurchaseOrderItemRow({
         {riepilogoDestinazioni && (
           <span className="block px-2 pb-1 text-xs text-muted-foreground">{riepilogoDestinazioni}</span>
         )}
+        {residuiDestinazioni && <ul className="space-y-0.5 px-2 pb-1 text-xs text-muted-foreground">
+          {residuiDestinazioni.destinazioni.map(d => <li key={`${d.tipo}:${d.id}`}>
+            {d.nome ?? (d.tipo === "commessa" ? "Commessa" : "Magazzino")} · {quantitaLocale(d.residua)} da consegnare
+            {d.eccedenza > 0 && ` · ${quantitaLocale(d.eccedenza)} in più`}
+          </li>)}
+          {residuiDestinazioni.non_attribuita > 0 && <li>{quantitaLocale(residuiDestinazioni.non_attribuita)} ricevuti con destinazione da attribuire.</li>}
+          {residuiDestinazioni.fuori_piano > 0 && <li>{quantitaLocale(residuiDestinazioni.fuori_piano)} consegnati fuori piano.</li>}
+          {residuiDestinazioni.da_verificare && residuiDestinazioni.non_attribuita === 0 && <li>Verifica le quantità registrate.</li>}
+        </ul>}
         {destinazioniAperte && (
           <DestinazioniRigaOdaDialog item={item} commessaId={commessaPrincipaleId}
             onSave={onUpdate} onClose={() => setDestinazioniAperte(false)} />

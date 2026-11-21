@@ -564,6 +564,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       magazzinoFacoltativo?: boolean;
       /** Facoltativo: in cantiere la merce arriva anche senza ordine. */
       purchase_order_id?: string | null;
+      ordini_citati?: string[];
       /** La commessa su cui va la merce, quando l'ODA non c'è. */
       order_id?: string | null;
       /** Chi ha consegnato, quando l'ODA non c'è. */
@@ -599,9 +600,10 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       if (!companyId) throw new Error("Company non disponibile");
       if (!params.numero_ddt.trim() && !params.numeroFacoltativo) throw new Error("Numero DDT obbligatorio");
       const odaId = params.purchase_order_id ?? null;
+      const ordiniCitati = params.ordini_citati ?? [];
 
       const inCantiere = params.destinazione === "cantiere";
-      const riceviInteroOrdine = !!odaId && !params.soloDocumento && !inCantiere;
+      const riceviInteroOrdine = !!odaId && !params.soloDocumento && !inCantiere && ordiniCitati.length === 0;
       let warehouseId = inCantiere ? null : params.warehouse_id ?? null;
       if (!inCantiere && !warehouseId && odaId) {
         const { data: po } = await supabase
@@ -670,11 +672,11 @@ export function useDDTRicezioneMutations(poId?: string | null) {
         ai_avvisi: params.ai_avvisi && params.ai_avvisi.length > 0 ? params.ai_avvisi : null,
       };
 
-      const { data, error } = await supabase
-        .from("ddt_ricezione")
-        .insert(payload as never)
-        .select()
-        .single();
+      const { data, error } = ordiniCitati.length
+        ? await db.rpc("ddt_registra_con_ordini", {
+            p_dati: payload, p_righe: params.righe ?? [], p_ordini: ordiniCitati,
+          })
+        : await supabase.from("ddt_ricezione").insert(payload as never).select().single();
       if (error) throw error;
 
       const ddtId = (data as { id: string }).id;
@@ -705,7 +707,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       // Le righe lette sulla bolla, subito: sono il documento, non un extra.
       // Se non entrano si avvisa, ma la bolla resta (meglio una bolla senza
       // righe che nessuna bolla).
-      if (params.righe && params.righe.length > 0) {
+      if (!ordiniCitati.length && params.righe && params.righe.length > 0) {
         const { error: errRighe } = await db
           .from("ddt_righe")
           .insert(params.righe.map((r) => ({ ...r, ddt_ricezione_id: ddtId })) as never);

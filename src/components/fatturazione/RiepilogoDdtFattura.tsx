@@ -32,18 +32,25 @@ const motiviPrezzo: Record<string, string> = {
   verifica_fallita: "La verifica automatica richiede un controllo.",
 };
 
+const motiviCollegamento = ["riferimento_ddt", "ddt_mancante", "ddt_da_collegare", "ddt_ambiguo"];
+const verificaConsegna = (motivo?: string) => motivo === "consegna" || motivo === "altre_consegne";
+
 export interface RiepilogoDdt {
   ddt: Array<{ id: string | null; numero: string; data: string | null; ddt_id: string | null;
     esito: "mancante" | "non_disponibile" | "fornitore_da_verificare" | "senza_destinazione" | "piu_destinazioni" | "collegato";
     destinazioni: Array<{ tipo: "commessa" | "magazzino"; id: string; codice: string | null; valida: boolean }> }>;
   completo: boolean; motivo: string; automatico: boolean; senza_costo: boolean; allineata: boolean; manuale: boolean; gestita_altrove: boolean;
   prezzi?: {
-    stato: "in_verifica" | "aggiornata" | "confermata" | "pronta" | "da_verificare";
+    stato: "in_verifica" | "aggiornata" | "confermata" | "pronta" | "parziale" | "da_verificare";
     motivo?: string;
     ddt_id?: string;
     riga?: number;
     riferimento?: string;
     confermate?: number;
+    ddt_totali?: number;
+    ddt_valorizzati?: number;
+    ddt_pendenti?: Array<{ posizione: number; numero?: string; data?: string; motivo: string; ddt_id?: string; riga?: number }>;
+    attesa_materiale?: string | null;
   } | null;
 }
 
@@ -86,20 +93,22 @@ export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCol
   const destinazioni = [...new Map(ddt.flatMap(d => d.destinazioni).map(d => [`${d.tipo}:${d.id}`, d])).values()];
   const nomi = (righe: RiepilogoDdt["ddt"]) => righe.map(d => `${d.numero}${d.data ? ` (${d.data.split("-").reverse().join("/")})` : ""}`).join(", ");
   const prezzi = p.prezzi;
-  const consegnaDaControllare = prezzi?.motivo === "consegna" || prezzi?.motivo === "altre_consegne";
+  const pendenti = prezzi?.ddt_pendenti ?? [];
+  const mancantiSenzaAvvisoPrezzi = mancanti.filter(d => !pendenti.some(r => r.numero === d.numero && (r.data ?? null) === d.data));
+  const consegnaDaControllare = verificaConsegna(prezzi?.motivo);
   const ddtPrezzi = prezzi?.ddt_id ?? ddt.find(d => d.ddt_id && d.esito !== "non_disponibile")?.ddt_id;
-  const daCollegare = ["riferimento_ddt", "ddt_mancante", "ddt_da_collegare", "ddt_ambiguo"].includes(prezzi?.motivo ?? "");
-  const percorsoPrezzi = ddtPrezzi && percorsoDocumentoGenerale(
-    `/azienda/ddt/${ddtPrezzi}${consegnaDaControllare ? "" : `?fatturaPrezzi=${encodeURIComponent(fatturaId)}`}`,
+  const percorsoBolla = (id: string, motivo?: string) => percorsoDocumentoGenerale(
+    `/azienda/ddt/${id}${verificaConsegna(motivo) ? "" : `?fatturaPrezzi=${encodeURIComponent(fatturaId)}`}`,
     aspetto?.generaleId,
   );
+  const percorsoPrezzi = ddtPrezzi && percorsoBolla(ddtPrezzi, prezzi?.motivo);
   const contestoPrezzi = [
     prezzi?.riferimento && `DDT ${prezzi.riferimento}`,
     prezzi?.riga && `riga ${prezzi.riga} della fattura`,
   ].filter(Boolean).join(" · ");
   return <div className="basis-full space-y-1.5 pt-1 text-xs [overflow-wrap:anywhere]" aria-label="Verifica DDT e commesse">
     {ddt.length > 0 && <p className="text-muted-foreground">{trovati} di {ddt.length} DDT collegati</p>}
-    {mancanti.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">{mancanti.length} DDT da collegare: {nomi(mancanti)}.</p>}
+    {mancantiSenzaAvvisoPrezzi.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">{mancantiSenzaAvvisoPrezzi.length} DDT da collegare: {nomi(mancantiSenzaAvvisoPrezzi)}.</p>}
     {senzaDestinazione.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">{senzaDestinazione.length} DDT senza cantiere o magazzino: {nomi(senzaDestinazione)}.</p>}
     {daVerificare.length > 0 && <p role="alert" className="text-amber-800 dark:text-amber-300">Verifica fornitore e destinazione dei DDT: {nomi(daVerificare)}.</p>}
     {destinazioni.length > 0 && <p className="flex flex-wrap gap-x-3 gap-y-1"><span className="text-muted-foreground">Destinazioni DDT:</span>{destinazioni.map(d =>
@@ -117,7 +126,32 @@ export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCol
     {prezzi?.stato === "in_verifica" && <p role="status" className="text-muted-foreground">Verifica automatica dei prezzi in corso.</p>}
     {prezzi?.stato === "aggiornata" && <p role="status" className="text-muted-foreground">Prezzi aggiornati automaticamente in commessa.</p>}
     {prezzi?.stato === "confermata" && <p className="text-muted-foreground">Prezzi confermati manualmente.</p>}
-    {prezzi && (prezzi.stato === "da_verificare" || prezzi.stato === "pronta") && (
+    {!!prezzi?.ddt_valorizzati && <p role="status" className="text-muted-foreground">
+      {prezzi.ddt_valorizzati} di {prezzi.ddt_totali} DDT valorizzati.
+    </p>}
+    {prezzi?.attesa_materiale && <p className="text-muted-foreground">
+      Prezzo medio in attesa degli altri DDT del materiale.{" "}
+      <Link className="underline underline-offset-2" to={percorsoBolla(prezzi.attesa_materiale, "altre_consegne")}>Apri DDT</Link>
+    </p>}
+    {pendenti.length > 0 && (
+      <div className="space-y-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
+        <p role="alert" className="font-semibold text-amber-900 dark:text-amber-200">{pendenti.length} DDT da confermare</p>
+        <ul className="space-y-1">
+          {pendenti.map(r => <li key={r.posizione}>
+            <span className="font-medium">{r.numero ? `DDT ${r.numero}` : `Riferimento ${r.posizione}`}</span>{" "}
+            {r.riga ? <span className="text-muted-foreground">· Riga {r.riga} · </span> : "· "}
+            {motiviPrezzo[r.motivo] ?? motiviPrezzo.verifica_fallita}{" "}
+            {r.ddt_id && <Link className="text-primary underline underline-offset-2" to={percorsoBolla(r.ddt_id, r.motivo)}>
+              {verificaConsegna(r.motivo) ? "Apri DDT" : "Verifica sul DDT"}
+            </Link>}
+          </li>)}
+        </ul>
+        {puoModificare && onCollegaDdt && pendenti.some(r => motiviCollegamento.includes(r.motivo)) && (
+          <button type="button" className="text-primary underline underline-offset-2" onClick={onCollegaDdt}>Collega DDT</button>
+        )}
+      </div>
+    )}
+    {prezzi && pendenti.length === 0 && (prezzi.stato === "da_verificare" || prezzi.stato === "pronta") && (
       <div className="space-y-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
         <p role="status" className="text-amber-900 dark:text-amber-200">
           <strong>Prezzi in commessa da confermare.</strong>{" "}
@@ -126,7 +160,7 @@ export function RiepilogoDdtFattura({ companyId, fatturaId, puoModificare, onCol
         </p>
         {!!prezzi.confermate && <p className="text-muted-foreground">Righe confermate manualmente: {prezzi.confermate}.</p>}
         <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {puoModificare && daCollegare && onCollegaDdt && (
+          {puoModificare && motiviCollegamento.includes(prezzi.motivo ?? "") && onCollegaDdt && (
             <button type="button" className="text-primary underline underline-offset-2" onClick={onCollegaDdt}>Collega DDT</button>
           )}
           {percorsoPrezzi && prezzi.motivo !== "fornitore" && (
