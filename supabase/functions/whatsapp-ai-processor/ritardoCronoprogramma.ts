@@ -120,7 +120,9 @@ export async function applicaRitardo(ctx: ToolCtx, parametri: Record<string, unk
   const { data, error } = await ctx.supabase.rpc("cronoprogramma_ritardo_whatsapp", {
     p_azienda: ctx.company_id, p_utente: ctx.user_id, p_commessa: orderId, p_proposta: parametri.piano,
   });
-  if (error?.code === "40001") return errResult("cronoprogramma_cambiato", "Le date sono cambiate nel gestionale. Ripeti il messaggio di ritardo per vedere il nuovo riepilogo.");
+  if (error?.code === "PT409" || error?.code === "40001") {
+    return errResult("cronoprogramma_cambiato", "Le date sono cambiate nel gestionale. Ripeti il messaggio di ritardo per vedere il nuovo riepilogo.");
+  }
   if (error?.code === "42501") return errResult("cronoprogramma_permesso", "La commessa non è più modificabile dal tuo profilo.");
   if (error || data?.ok !== true) return errResult("cronoprogramma_esito", "Aggiornamento da verificare nel cronoprogramma della commessa.");
   const fasi = Number(data.fasi);

@@ -77,7 +77,9 @@ describe("Ritardo da WhatsApp", () => {
           $$ select id from public.orders where company_id=$1 $$;
         grant all on all tables in schema public to service_role;
       `);
-      await db.exec(readFileSync("supabase/migrations/20290504125000_cronoprogramma_ritardo_whatsapp.sql", "utf8"));
+      const primaVersione = readFileSync("supabase/migrations/20290504125000_cronoprogramma_ritardo_whatsapp.sql", "utf8");
+      await db.exec(primaVersione.replace("errcode='PT409'", "errcode='40001'"));
+      await db.exec(readFileSync("supabase/migrations/20290504131000_cronoprogramma_ritardo_conflitto.sql", "utf8"));
       const uuid = (n: number) => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
       const [azienda, utente, commessa, posa, finiture, sigilli, estranea] = [11, 21, 31, 41, 42, 43, 44].map(uuid);
       await db.query("insert into orders(id,company_id,status,work_end_date,expected_date) values($1,$2,'in_corso','2026-11-24','2026-11-26')", [commessa, azienda]);
@@ -103,13 +105,13 @@ describe("Ritardo da WhatsApp", () => {
       const piano = proposta.piano;
       const modificaInApp = "update orders set work_end_date=$1::date where id=$2";
       await db.query(modificaInApp, ["2026-11-25", commessa]);
-      await expect(db.query(aggiorna, [azienda, utente, commessa, JSON.stringify(piano)])).rejects.toMatchObject({ code: "40001" });
+      await expect(db.query(aggiorna, [azienda, utente, commessa, JSON.stringify(piano)])).rejects.toMatchObject({ code: "PT409" });
       await db.query(modificaInApp, ["2026-11-24", commessa]);
       const misto = { ...piano, fasi: [...piano.fasi, { id: estranea, inizio: "2026-11-26", fine: "2026-11-27" }] };
       await expect(db.query(aggiorna, [azienda, utente, commessa, JSON.stringify(misto)])).rejects.toMatchObject({ code: "22023" });
       expect((await db.query("select end_date::text from order_work_phases where id=$1", [posa])).rows[0]).toEqual({ end_date: "2026-11-20" });
       await db.query(aggiorna, [azienda, utente, commessa, JSON.stringify(piano)]);
-      await expect(db.query(aggiorna, [azienda, utente, commessa, JSON.stringify(piano)])).rejects.toMatchObject({ code: "40001" });
+      await expect(db.query(aggiorna, [azienda, utente, commessa, JSON.stringify(piano)])).rejects.toMatchObject({ code: "PT409" });
       expect((await db.query("select work_end_date::text, expected_date::text from orders where id=$1", [commessa])).rows[0])
         .toEqual({ work_end_date: "2026-11-27", expected_date: "2026-11-26" });
       expect((await db.query("select data_inizio::text from order_work_subphases where id=$1", [sigilli])).rows[0]).toEqual({ data_inizio: "2026-11-26" });

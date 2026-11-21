@@ -63,7 +63,7 @@ begin
   if p_proposta is null then return v_dati || jsonb_build_object('versione', v_versione); end if;
 
   if p_proposta->>'versione' is distinct from v_versione then
-    raise exception 'Il cronoprogramma è cambiato dopo l’anteprima' using errcode='40001';
+    raise exception 'Il cronoprogramma è cambiato dopo l’anteprima' using errcode='PT409';
   end if;
   v_fine := (p_proposta->>'fine')::date;
   if v_fine is null or v_fine < v_ordine.work_end_date or v_fine < v_ordine.work_start_date
