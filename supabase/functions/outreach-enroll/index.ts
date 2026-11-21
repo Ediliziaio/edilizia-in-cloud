@@ -55,8 +55,9 @@ Deno.serve(async (req) => {
     await requireRole(admin, userId, ["super_admin"], corsH);
 
     const body = await req.json().catch(() => ({}));
-    const sequenceId = typeof body?.sequence_id === "string" ? body.sequence_id : "";
-    if (!sequenceId) return errorResponse("sequence_id mancante", 400, corsH);
+    const sequenceRef = body?.sequence_ref ?? body?.sequence_id;
+    const sequenceId = typeof sequenceRef === "string" ? sequenceRef : "";
+    if (!UUID.test(sequenceId)) return errorResponse("Sequenza mancante o non valida", 400, corsH);
 
     const contactIds: string[] = Array.isArray(body?.contact_ids)
       ? body.contact_ids.map((x: unknown) => String(x)).filter(Boolean)

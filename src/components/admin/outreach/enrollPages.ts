@@ -25,11 +25,14 @@ export async function arruolaPagine(
   options: { chiave?: string; quanti: number; maxGiri?: number; onProgress?: (report: Report) => void },
 ): Promise<Report> {
   const { chiave, quanti, maxGiri = 60, onProgress } = options;
+  const { sequence_id: sequenceRef, ...selezione } = criteri;
   let after = chiave ? cursoreArruolamento(chiave) : null;
   const report: Report = { enrolled: 0, valutati: 0, altri: false, lock_negato_per_motivo: {} };
   for (let giro = 0; giro < maxGiri && report.enrolled < quanti; giro++) {
+    // Il backend precedente rifiuta la richiesta prima di iscrivere o attivare
+    // una bozza se la UI arriva in produzione prima della nuova funzione.
     const { data, error } = await supabase.functions.invoke("outreach-enroll", {
-      body: { ...criteri, after, quanti: quanti - report.enrolled },
+      body: { ...selezione, sequence_ref: sequenceRef, after, quanti: quanti - report.enrolled },
     });
     if (error || data?.error) throw new Error(data?.error ?? error?.message ?? "Iscrizione non riuscita");
     report.enrolled += Number(data?.enrolled ?? 0);
