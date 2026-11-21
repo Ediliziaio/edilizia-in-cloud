@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CampoMaterialiCantiere } from "@/components/campo/CampoMaterialiCantiere";
 
@@ -25,11 +26,13 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function apriCantiere() {
+function apriCantiere(props: { chiuso?: boolean; apri?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <CampoMaterialiCantiere companyId="azienda" orderId="cantiere" />
+      <MemoryRouter>
+        <CampoMaterialiCantiere companyId="azienda" orderId="cantiere" {...props} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -38,9 +41,7 @@ describe("Materiali in cantiere dall'app operaio", () => {
   it("legge a richiesta e mostra la stessa unità in Consegnato e Residuo", async () => {
     apriCantiere();
     expect(state.rpc).not.toHaveBeenCalled();
-    const details = screen.getByText("Materiali in cantiere").closest("details")!;
-    details.open = true;
-    fireEvent(details, new Event("toggle"));
+    fireEvent.click(screen.getByRole("button", { name: "Materiali in cantiere" }));
 
     const tubo = (await screen.findByText("Tubo corrugato")).closest("li")!;
     expect(within(tubo).getByText("Consegnato").nextElementSibling).toHaveTextContent("2,25 m");
@@ -56,5 +57,21 @@ describe("Materiali in cantiere dall'app operaio", () => {
     apriCantiere();
     expect(screen.queryByText("Materiali in cantiere")).toBeNull();
     expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("porta al prelievo di questo cantiere anche con il riepilogo chiuso", () => {
+    state.livello = "prelievi";
+    apriCantiere();
+    expect(screen.getByRole("link", { name: "Preleva materiale" }))
+      .toHaveAttribute("href", "/campo/magazzino?order_id=cantiere");
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("apre il riepilogo dal collegamento e nasconde il prelievo sui cantieri chiusi", async () => {
+    state.livello = "prelievi";
+    apriCantiere({ chiuso: true, apri: true });
+    expect(screen.getByRole("button", { name: "Materiali in cantiere" })).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByText("Tubo corrugato")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Preleva materiale" })).toBeNull();
   });
 });

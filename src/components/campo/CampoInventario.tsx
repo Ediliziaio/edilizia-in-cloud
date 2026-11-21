@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, Loader2, Search, ShoppingCart, Warehouse, X } from "lucide-react";
+import { Check, HardHat, Loader2, Search, ShoppingCart, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,11 +22,12 @@ interface RigaCarrello {
   quantita: string;
 }
 
-export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConferma, onRegistrato }: {
+export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConferma, cantiereIniziale, onRegistrato }: {
   companyId: string;
   attivo: boolean;
   puoPrelevare: boolean;
   richiedeConferma: boolean;
+  cantiereIniziale?: string;
   onRegistrato: () => void;
 }) {
   const [ricerca, setRicerca] = useState("");
@@ -39,7 +40,7 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
   const inInvio = useRef(false);
   const online = useOnlineStatus();
   const inventario = useCampoInventario(companyId, cerca, attivo);
-  const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare && aperto);
+  const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare && (aperto || !!cantiereIniziale));
   const prelievo = usePrelievoRegistra(companyId);
 
   const articoli = inventario.data?.pages.flat() ?? [];
@@ -49,12 +50,20 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
   const warehouseId = primaRiga?.articolo.warehouse_id ?? null;
   const magazzino = primaRiga?.articolo.magazzino ?? "Senza ubicazione";
   const soloCantiere = cantieri.data?.length === 1 ? cantieri.data[0].id : "";
-  const cantiere = orderId || soloCantiere;
-  const cantiereValido = !cantieri.isError && !!cantieri.data?.some((item) => item.id === cantiere);
-  const righeValide = righe.length > 0 && righe.every(({ articolo, quantita }) => {
+  const destinazione = orderId || cantiereIniziale || soloCantiere;
+  const cantiere = cantieri.isError ? undefined : cantieri.data?.find(item => item.id === destinazione);
+  const nomeDestinazione = cantiere ? nomeCantierePrelievo(cantiere) : null;
+  const erroriQuantita = new Map<string, string>();
+  for (const { articolo, quantita } of righe) {
     const qta = quantitaPrelievo(quantita);
-    return qta > 0 && qta <= (articoliVisibili.get(articolo.id)?.disponibile ?? articolo.disponibile);
-  });
+    const disponibile = articoliVisibili.get(articolo.id)?.disponibile ?? articolo.disponibile;
+    if (!(qta > 0)) erroriQuantita.set(articolo.id, "Inserisci una quantità maggiore di zero.");
+    else if (!(qta <= disponibile)) {
+      const unita = articolo.unita_misura ? ` ${articolo.unita_misura}` : "";
+      erroriQuantita.set(articolo.id, `Disponibili ${formatoQuantitaMagazzino.format(disponibile)}${unita}.`);
+    }
+  }
+  const righeValide = righe.length > 0 && erroriQuantita.size === 0;
 
   const rimuovi = (id: string) => setRighe((prev) => prev.filter((riga) => riga.articolo.id !== id));
   const aggiorna = (id: string, quantita: string) =>
@@ -73,9 +82,9 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
   };
 
   const registra = async () => {
-    if (inInvio.current || !online || !puoPrelevare || !righeValide || !cantiereValido) return;
+    if (inInvio.current || !online || !puoPrelevare || !righeValide || !cantiere) return;
     const materiale = righe.map((riga) => ({ stock_item_id: riga.articolo.id, quantita: quantitaPrelievo(riga.quantita) }));
-    const dati = { orderId: cantiere, warehouseId, righe: materiale, note: note.trim() };
+    const dati = { orderId: cantiere.id, warehouseId, righe: materiale, note: note.trim() };
     const firma = JSON.stringify(dati);
     if (ultimoTentativo.current?.firma !== firma) ultimoTentativo.current = { firma, id: crypto.randomUUID() };
     inInvio.current = true;
@@ -101,6 +110,17 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
 
   return (
     <div className={cn("space-y-3", puoPrelevare && righe.length > 0 && "pb-24")}>
+      {puoPrelevare && (cantiereIniziale || nomeDestinazione) && (
+        <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <HardHat aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Destinazione del prelievo</p>
+            <p className="break-words text-sm font-semibold">
+              {nomeDestinazione ?? (cantieri.isLoading ? "Verifico il cantiere…" : "Scegli il cantiere nel riepilogo")}
+            </p>
+          </div>
+        </div>
+      )}
       <div className="relative">
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -129,6 +149,7 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
         <ul className="space-y-2.5">
           {articoli.map((articolo) => {
             const riga = carrello.get(articolo.id);
+            const errore = erroriQuantita.get(articolo.id);
             const stessaUbicazione = !primaRiga || articolo.warehouse_id === warehouseId;
             const puoAggiungere = puoPrelevare && articolo.disponibile > 0 && stessaUbicazione;
             return (
@@ -141,8 +162,8 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
                       <span>{articolo.magazzino ?? "Senza ubicazione"}</span>
                     </p>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="font-bold tabular-nums">{formatoQuantitaMagazzino.format(articolo.disponibile)} {articolo.unita_misura}</p>
+                  <div className="max-w-[42%] shrink-0 text-right">
+                    <p className="break-words font-bold tabular-nums">{formatoQuantitaMagazzino.format(articolo.disponibile)} {articolo.unita_misura}</p>
                     <p className="text-xs text-muted-foreground">Disponibili</p>
                   </div>
                 </div>
@@ -153,16 +174,21 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
                   </Button>
                 )}
                 {puoPrelevare && riga && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Label htmlFor={`qta-${articolo.id}`} className="flex-1">Quantità</Label>
-                    <Input id={`qta-${articolo.id}`} inputMode="decimal"
-                      aria-label={`Quantità di ${articolo.name}`}
-                      value={riga.quantita} onChange={(e) => aggiorna(articolo.id, e.target.value)}
-                      className="min-h-11 w-24 text-right text-base tabular-nums" />
-                    <Button type="button" variant="ghost" size="icon" className="h-11 w-11"
-                      aria-label={`Rimuovi ${articolo.name}`} onClick={() => rimuovi(articolo.id)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                  <div className="mt-2 rounded-xl bg-primary/5 px-2.5 py-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label htmlFor={`qta-${articolo.id}`} className="flex-1">Da prelevare</Label>
+                      <Input id={`qta-${articolo.id}`} inputMode="decimal"
+                        aria-label={`Quantità di ${articolo.name}`} aria-invalid={!!errore}
+                        aria-describedby={errore ? `errore-qta-${articolo.id}` : undefined}
+                        value={riga.quantita} onChange={(e) => aggiorna(articolo.id, e.target.value)}
+                        className="min-h-11 w-20 text-right text-base tabular-nums" />
+                      {articolo.unita_misura && <span className="max-w-24 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
+                      <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
+                        aria-label={`Rimuovi ${articolo.name}`} onClick={() => rimuovi(articolo.id)}>
+                        <X aria-hidden="true" className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {errore && <p id={`errore-qta-${articolo.id}`} className="mt-1 text-xs font-medium text-destructive">{errore}</p>}
                   </div>
                 )}
                 {puoPrelevare && !stessaUbicazione && articolo.disponibile > 0 &&
@@ -191,56 +217,65 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
       <Sheet open={attivo && puoPrelevare && aperto} onOpenChange={(value) => {
         if (!inInvio.current) setAperto(value);
       }}>
-        <SheetContent side="bottom" className="mx-auto max-h-[88dvh] max-w-2xl overflow-y-auto rounded-t-2xl px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          <SheetHeader className="pr-7 text-left">
+        <SheetContent side="bottom" className="mx-auto flex max-h-[88dvh] max-w-2xl flex-col gap-0 overflow-hidden rounded-t-2xl px-0 pb-0 pt-4">
+          <SheetHeader className="shrink-0 px-4 pb-3 pr-12 text-left">
             <SheetTitle>Materiale per il cantiere</SheetTitle>
             <SheetDescription>
               {richiedeConferma ? "Il magazzino conferma la richiesta prima di scalare le giacenze." : "La registrazione aggiorna subito le giacenze."}
             </SheetDescription>
           </SheetHeader>
-          <div className="mt-4 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="prelievo-cantiere">Cantiere di destinazione</Label>
-              {cantieri.isError ? (
-                <div role="alert" className="flex items-center justify-between gap-2 text-sm">
-                  <span>Non riesco a caricare i cantieri.</span>
-                  <Button type="button" variant="outline" size="sm" onClick={() => void cantieri.refetch()}>Riprova</Button>
-                </div>
-              ) : (
-                <>
-                  <UniformSelect id="prelievo-cantiere" value={cantiereValido ? cantiere : ""} required
-                    disabled={prelievo.isPending || cantieri.isLoading || !cantieri.data?.length}
-                    onChange={(event) => setOrderId(event.target.value)}
-                    className="min-h-11 w-full rounded-lg border bg-background px-3 text-base">
-                    <option value="" disabled>{cantieri.isLoading ? "Carico i cantieri…" : "Scegli un cantiere"}</option>
-                    {cantieri.data?.map((item) => <option key={item.id} value={item.id}>{nomeCantierePrelievo(item)}</option>)}
-                  </UniformSelect>
-                  {cantieri.data?.length === 0 && <p className="text-sm text-muted-foreground">Nessun cantiere aperto assegnato. Chiedi un’assegnazione all’ufficio.</p>}
-                </>
-              )}
-            </div>
-
+          <div className="shrink-0 space-y-1.5 border-b px-4 pb-3">
+            <Label htmlFor="prelievo-cantiere">Cantiere di destinazione</Label>
+            {cantieri.isError ? (
+              <div role="alert" className="flex items-center justify-between gap-2 text-sm">
+                <span>Non riesco a caricare i cantieri.</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => void cantieri.refetch()}>Riprova</Button>
+              </div>
+            ) : (
+              <>
+                <UniformSelect id="prelievo-cantiere" value={cantiere?.id ?? ""} required
+                  disabled={prelievo.isPending || cantieri.isLoading || !cantieri.data?.length}
+                  onChange={(event) => setOrderId(event.target.value)}
+                  className="min-h-11 w-full rounded-lg border bg-background px-3 text-base">
+                  <option value="" disabled>{cantieri.isLoading ? "Carico i cantieri…" : "Scegli un cantiere"}</option>
+                  {cantieri.data?.map((item) => <option key={item.id} value={item.id}>{nomeCantierePrelievo(item)}</option>)}
+                </UniformSelect>
+                {cantieri.data?.length === 0 && <p className="text-sm text-muted-foreground">Nessun cantiere aperto assegnato. Chiedi un’assegnazione all’ufficio.</p>}
+              </>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-3">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Warehouse aria-hidden="true" className="h-4 w-4" /> {magazzino}
               </div>
-              <ul className="divide-y rounded-xl border">
-                {righe.map(({ articolo, quantita }) => (
-                  <li key={articolo.id} className="flex items-center gap-2 px-3 py-2">
-                    <span className="min-w-0 flex-1 break-words text-sm">{articolo.name}</span>
-                    <Input aria-label={`Verifica quantità di ${articolo.name}`} inputMode="decimal"
-                      value={quantita} disabled={prelievo.isPending} onChange={(e) => aggiorna(articolo.id, e.target.value)}
-                      className="min-h-11 w-20 text-right text-base tabular-nums" />
-                    {articolo.unita_misura && <span className="text-xs text-muted-foreground">{articolo.unita_misura}</span>}
-                    <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
-                      disabled={prelievo.isPending}
-                      aria-label={`Togli ${articolo.name} dal riepilogo`} onClick={() => rimuovi(articolo.id)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-              {righe.length > 0 && !righeValide && <p role="alert" className="text-xs text-destructive">Indica quantità positive entro la disponibilità.</p>}
+              {righe.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aggiungi un materiale dall’inventario.</p>
+              ) : (
+                <ul className="divide-y rounded-xl border">
+                  {righe.map(({ articolo, quantita }) => {
+                    const errore = erroriQuantita.get(articolo.id);
+                    return (
+                      <li key={articolo.id} className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 break-words text-sm font-medium">{articolo.name}</span>
+                          <Input aria-label={`Verifica quantità di ${articolo.name}`} inputMode="decimal"
+                            aria-invalid={!!errore} aria-describedby={errore ? `riepilogo-errore-${articolo.id}` : undefined}
+                            value={quantita} disabled={prelievo.isPending} onChange={(e) => aggiorna(articolo.id, e.target.value)}
+                            className="min-h-11 w-16 text-right text-base tabular-nums" />
+                          {articolo.unita_misura && <span className="max-w-16 break-words text-sm text-muted-foreground">{articolo.unita_misura}</span>}
+                          <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0"
+                            disabled={prelievo.isPending}
+                            aria-label={`Togli ${articolo.name} dal riepilogo`} onClick={() => rimuovi(articolo.id)}>
+                            <X aria-hidden="true" className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {errore && <p id={`riepilogo-errore-${articolo.id}`} className="mt-1 text-xs font-medium text-destructive">{errore}</p>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -249,13 +284,19 @@ export function CampoInventario({ companyId, attivo, puoPrelevare, richiedeConfe
                 onChange={(e) => setNote(e.target.value)} />
             </div>
 
+          </div>
+          <div className="shrink-0 space-y-2 border-t bg-background px-4 pt-3 pb-[calc(.75rem+env(safe-area-inset-bottom))]">
             {!online && <p role="status" className="text-sm text-muted-foreground">Attendi che torni la connessione per inviare il prelievo.</p>}
-            {prelievo.isError && <p role="alert" className="text-sm text-destructive">{prelievo.error.message}</p>}
-            <Button className="h-12 w-full gap-2 text-base" onClick={() => void registra()}
-              disabled={prelievo.isPending || !online || !cantiereValido || !righeValide}>
-              {prelievo.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
-              {richiedeConferma ? "Invia richiesta" : "Registra prelievo"}
-            </Button>
+            {prelievo.isError && <p role="alert" className="max-h-20 overflow-y-auto break-words text-sm text-destructive">{prelievo.error.message}</p>}
+            {righe.length ? (
+              <Button className="h-12 w-full gap-2 text-base" onClick={() => void registra()}
+                disabled={prelievo.isPending || !online || !cantiere || !righeValide}>
+                {prelievo.isPending ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> : <Check aria-hidden="true" className="h-5 w-5" />}
+                {richiedeConferma ? "Invia richiesta" : "Registra prelievo"}
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" className="h-12 w-full" onClick={() => setAperto(false)}>Torna all’inventario</Button>
+            )}
           </div>
         </SheetContent>
       </Sheet>

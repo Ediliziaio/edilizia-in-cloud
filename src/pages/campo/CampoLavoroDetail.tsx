@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
 import { CampoMaterialiCantiere } from "@/components/campo/CampoMaterialiCantiere";
+import { commessaChiusa } from "@/lib/campo/cantieriAperti";
 import { SottofasiContate } from "@/components/campo/SottofasiContate";
 import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 import { format, parseISO } from "date-fns";
@@ -1089,7 +1090,10 @@ export default function CampoLavoroDetail() {
               </div>
             )}
 
-            {isOperaio && companyId && orderId && <CampoMaterialiCantiere companyId={companyId} orderId={orderId} />}
+            {isOperaio && companyId && orderId && (
+              <CampoMaterialiCantiere companyId={companyId} orderId={orderId}
+                chiuso={commessaChiusa(order.status)} apri={searchParams.get("vista") === "materiali"} />
+            )}
 
             {/* Materiali da installare: il conteggio, la lista solo se la apri. */}
             {orderItems.length > 0 && (

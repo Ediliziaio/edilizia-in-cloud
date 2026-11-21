@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { CampoScorteFurgone } from "@/components/campo/CampoScorteFurgone";
 import { CampoInventario } from "@/components/campo/CampoInventario";
@@ -17,11 +18,17 @@ type Scheda = typeof schede[number]["id"];
 
 export default function CampoMagazzino() {
   const config = useCampoMagazzinoConfig();
+  const [parametri] = useSearchParams();
+  const cantiereIniziale = parametri.get("order_id")?.trim() || undefined;
 
-  return <Magazzino key={`${config.companyId}:${config.userId}`} config={config} />;
+  return <Magazzino key={`${config.companyId}:${config.userId}:${cantiereIniziale ?? ""}`}
+    config={config} cantiereIniziale={cantiereIniziale} />;
 }
 
-function Magazzino({ config }: { config: ReturnType<typeof useCampoMagazzinoConfig> }) {
+function Magazzino({ config, cantiereIniziale }: {
+  config: ReturnType<typeof useCampoMagazzinoConfig>;
+  cantiereIniziale?: string;
+}) {
   const [schedaScelta, setSchedaScelta] = useState<Scheda>();
   const vedeInventario = !config.isError && !!config.data && config.data.livello !== "nessuno";
   const puoPrelevare = vedeInventario && config.data?.livello === "prelievi";
@@ -67,6 +74,7 @@ function Magazzino({ config }: { config: ReturnType<typeof useCampoMagazzinoConf
               attivo={scheda === "inventario"}
               puoPrelevare={puoPrelevare}
               richiedeConferma={config.data!.conferma}
+              cantiereIniziale={cantiereIniziale}
               onRegistrato={() => setSchedaScelta("prelievi")}
             />
           </div>
