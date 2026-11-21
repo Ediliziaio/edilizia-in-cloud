@@ -42,7 +42,7 @@ const lettura = (over: Partial<LetturaDocumento> = {}): LetturaDocumento => ({
 const foto = (over: Partial<FotoDocumento> = {}): FotoDocumento => ({ path: "company/A/acquisti/f.jpg", anteprima: "blob:x", lettura: lettura(), ...over });
 const scatta = async () => {
   changeFormControl(screen.getByLabelText("Foto del documento"), { target: { files: [new File(["x"], "doc.jpg", { type: "image/jpeg" })] } });
-  await waitFor(() => expect(screen.getByAltText("Documento fotografato")).toBeInTheDocument());
+  await screen.findByRole("button", { name: "Ingrandisci documento fotografato" });
 };
 const invia = () => fireEvent.click(screen.getByRole("button", { name: "Invia all’ufficio" }));
 // La pagina vive dentro il router (legge ?order= quando arrivi da un cantiere).
@@ -97,7 +97,7 @@ describe("Merce presa: dalla foto al modulo", () => {
     await scatta(); fireEvent.click(screen.getByRole("button", { name: "Sostituisci documento" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Formato non leggibile"));
     expect(screen.getByLabelText(/^N° /)).toHaveValue("DDT-123");
-    expect(screen.getByAltText("Documento fotografato")).toHaveAttribute("src", "blob:x");
+    expect(screen.getByRole("button", { name: "Ingrandisci documento fotografato" }).querySelector("img")).toHaveAttribute("src", "blob:x");
     expect(screen.getByText("Letto: controlla qui sotto")).toBeInTheDocument();
   });
 
@@ -111,7 +111,7 @@ describe("Merce presa: dalla foto al modulo", () => {
     expect(state.elabora).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Invia all’ufficio" })).toBeDisabled();
     risolvi(foto());
-    await waitFor(() => expect(screen.getByAltText("Documento fotografato")).toBeInTheDocument());
+    await screen.findByRole("button", { name: "Ingrandisci documento fotografato" });
   });
   it("legge il documento e precompila fornitore, numero, totale e prodotti", async () => {
     render(<CampoMerce />, { wrapper: conRouter });
@@ -223,7 +223,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
     })));
     expect(state.success).toHaveBeenCalledWith("Inviata all’ufficio");
     // dopo l'invio il modulo si svuota
-    await waitFor(() => expect(screen.queryByAltText("Documento fotografato")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Ingrandisci documento fotografato" })).toBeNull());
     expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue("");
   });
 
@@ -280,7 +280,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
     invia();
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Questo documento è già stato caricato da Luca il 04/10: non serve rimandarlo."));
     // il modulo resta compilato per correggere
-    expect(screen.getByAltText("Documento fotografato")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ingrandisci documento fotografato" })).toBeInTheDocument();
   });
 });
 

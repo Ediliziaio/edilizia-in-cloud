@@ -115,30 +115,37 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
-async function enqueue<T>(
-  item: Pick<SyncItem<T>, "type" | "payload" | "target"> & { operationId?: string },
-): Promise<string> {
+type VoceDaAccodare<T> = Pick<SyncItem<T>, "type" | "payload" | "target" | "operationId">;
+
+async function enqueueBatch<T>(items: ReadonlyArray<VoceDaAccodare<T>>): Promise<string[]> {
+  if (!items.length) return [];
   const db = await openDB();
-  const id = generateId();
   const now = Date.now();
-  const fullItem: SyncItem<T> = {
-    id,
-    operationId: item.operationId ?? id,
-    type: item.type,
-    payload: item.payload,
-    target: item.target,
-    createdAt: now,
-    updatedAt: now,
-    retryCount: 0,
-    status: "pending",
-  };
+  const fullItems = items.map((item): SyncItem<T> => {
+    const id = generateId();
+    return {
+      ...item, id, operationId: item.operationId ?? id,
+      createdAt: now, updatedAt: now, retryCount: 0, status: "pending",
+    };
+  });
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(fullItem);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("Salvataggio sul telefono interrotto"));
+    const store = tx.objectStore(STORE_NAME);
+    try {
+      for (const item of fullItems) store.add(item);
+    } catch (error) {
+      tx.abort();
+      reject(error);
+    }
   });
   emit("change");
+  return fullItems.map(item => item.id);
+}
+
+async function enqueue<T>(item: VoceDaAccodare<T>): Promise<string> {
+  const [id] = await enqueueBatch([item]);
   return id;
 }
 
@@ -278,6 +285,7 @@ function on(event: QueueEvent, listener: Listener): () => void {
 
 export const syncQueue = {
   enqueue,
+  enqueueBatch,
   getAll,
   getPending,
   getQueueCount,

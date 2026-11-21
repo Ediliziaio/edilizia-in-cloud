@@ -1,11 +1,13 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Camera, FileUp, HardHat, Loader2, Receipt, Sparkles, Trash2, Warehouse } from "lucide-react";
+import { Camera, Check, CloudUpload, FileText, FileUp, HardHat, Loader2, Receipt, Sparkles, Trash2, Warehouse, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { useCampoUfficio } from "@/hooks/campo/useCampoUfficio";
+import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
+import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cantiereBolla } from "@/lib/campo/cantiereBolla";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
@@ -34,9 +36,19 @@ import {
   ACCEPT_DOCUMENTI_DDT,
   erroreDocumento,
   MAX_DOCUMENTO_BYTE,
+  mimeDocumento,
 } from "@/lib/ddt/preparaDocumento";
 
 const campo = "min-h-12 w-full rounded-xl border bg-background px-3 text-base";
+
+function leggiPagina(file: File): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const lettore = new FileReader();
+    lettore.onload = () => resolve(lettore.result as ArrayBuffer);
+    lettore.onerror = lettore.onabort = () => reject(lettore.error ?? new Error("Pagina non leggibile"));
+    lettore.readAsArrayBuffer(file);
+  });
+}
 
 export default function CampoDDT() {
   const { user, profile } = useAuth();
@@ -48,6 +60,7 @@ function CampoDDTEditor() {
   const assegnazioni = useCampoAssignments();
   const [params] = useSearchParams();
   const [scelta, setScelta] = useState("");
+  const online = useNetworkStatus();
   const cantieri = assegnazioni.data ?? [];
   const richiesto = params.get("order");
   // 12/11/2026 — L'unica scelta è dove va la merce: in magazzino o in cantiere.
@@ -59,65 +72,75 @@ function CampoDDTEditor() {
   // chi non è ufficio invia e basta: l'AI la avvia l'ufficio (la regola è nel server).
   const letturaBolle = useLetturaBolleTelefono(profile?.company_id);
   const soloFoto = !ufficio && letturaBolle.data === "solo_foto";
-  const puoRegistrare = puoRegistrareBolle(permessi) && !soloFoto;
-  const senzaAIPossibile = puoCompilareSenzaAI(permessi) && !soloFoto;
+  const puoRegistrare = puoRegistrareBolle(permessi) && !soloFoto && !letturaBolle.isLoading;
+  const senzaAIPossibile = puoCompilareSenzaAI(permessi) && !soloFoto && !letturaBolle.isLoading;
   const [dove, setDove] = useState<"magazzino" | "cantiere" | null>(null);
   const destinazione =
-    dove ?? (!richiesto && !assegnazioni.isLoading && !cantieri.length ? "magazzino" : "cantiere");
+    dove ?? (!richiesto && !assegnazioni.isLoading && !assegnazioni.isError && !cantieri.length ? "magazzino" : "cantiere");
   const [conAI, setConAI] = useState(true);
   const [compila, setCompila] = useState(false);
   const [attesa, setAttesa] = useState<string | null>(null);
   const [revisione, setRevisione] = useState<DocumentoPersistente | null>(null);
   const sceltaCantiere = cantiereBolla({
     richiesto,
-    scelta,
+    scelta: cantieri.some((c) => c.order_id === scelta) ? scelta : "",
     cantieri: cantieri.map((c) => c.order_id),
     ufficio: false,
   });
   const orderId = destinazione === "magazzino" ? null : sceltaCantiere.orderId;
   const valoreCantiere = sceltaCantiere.valore;
-  const cantierePronto = destinazione === "magazzino" ? true : sceltaCantiere.pronto;
-  const etichettaCantiere = (() => {
-    if (!orderId) return "In magazzino (senza commessa)";
-    const c = cantieri.find((x) => x.order_id === orderId);
-    return c ? `${c.order.order_code} · ${c.order.description || c.order.indirizzo_lavori || ""}` : "Cantiere";
-  })();
+  const cantierePronto = destinazione === "magazzino" || (!assegnazioni.isError && sceltaCantiere.pronto);
+  const etichettaDestinazione = (tipo: "magazzino" | "cantiere", id?: string | null) => {
+    if (tipo === "magazzino") return "Magazzino";
+    const c = cantieri.find((x) => x.order_id === id);
+    return c
+      ? [c.order.order_code, c.order.description || c.order.indirizzo_lavori].filter(Boolean).join(" · ")
+      : id ? "Cantiere" : "Scegli il cantiere";
+  };
+  const etichettaCantiere = etichettaDestinazione(destinazione, orderId);
   const [files, setFiles] = useState<File[]>([]);
   const [locali, setLocali] = useState<SyncItem[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [pdfDaDividere, setPdfDaDividere] = useState<
     Array<{ id: string; pdf: PdfDaDividere }>
   >([]);
-  const [preparandoPdf, setPreparandoPdf] = useState(false);
+  const [preparando, setPreparando] = useState<"foto" | "pdf" | null>(null);
   const blocco = useRef(false);
+  const bytePagine = useRef(new WeakMap<File, ArrayBuffer>());
   const camera = useRef<HTMLInputElement>(null);
   const archivio = useRef<HTMLInputElement>(null);
   const documenti = useDocumentiDDT(true);
+  const salvaSoloDocumento = useSalvaSoloDocumento();
+  const occupato = salvando || preparando !== null;
+  const pronto = !!files.length && cantierePronto && !occupato && !pdfDaDividere.length;
 
   useEffect(() => {
-    let vivo = true;
+    let richiesta = 0;
     const aggiorna = () => {
+      const corrente = ++richiesta;
       void syncQueue
         .getAll()
         .then((items) => {
-          if (vivo)
+          if (corrente === richiesta)
             setLocali(
               items.filter(
                 (i) =>
                   i.type === "documento_ddt" &&
+                  i.status !== "done" &&
                   syncItemScope(i).owner === user?.id &&
                   syncItemScope(i).companyId === profile?.company_id,
-              ),
+              ).sort((a, b) => b.createdAt - a.createdAt),
             );
         })
         .catch(() => {});
-      void documenti.refetch();
     };
     aggiorna();
     const off = syncQueue.on("change", aggiorna);
+    const offInviati = syncQueue.on("processed", () => void documenti.refetch());
     return () => {
-      vivo = false;
+      richiesta++;
       off();
+      offInviati();
     };
     // Il cambio identità rimonta l'editor e non mostra bozze di altre persone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,9 +150,12 @@ function CampoDDTEditor() {
   const appenaLetta = attesa
     ? (documenti.data ?? []).find((j) => j.id === attesa && j.status === "review") ?? null
     : null;
-  const daRivedere = revisione ?? appenaLetta;
+  const daRivedere = puoRegistrare ? revisione ?? appenaLetta : null;
+  const inAttesa = locali.filter((i) => !(documenti.data ?? []).some((j) => j.id === (i.operationId ?? i.id)));
+  const invioInCoda = conAI || !senzaAIPossibile;
 
   const aggiungi = async (nuovi: File[]) => {
+    if (!nuovi.length || blocco.current) return;
     const errore = nuovi.map(erroreDocumento).find(Boolean);
     if (errore) {
       toast.error(errore);
@@ -144,53 +170,63 @@ function CampoDDTEditor() {
       );
       return;
     }
-    setPreparandoPdf(true);
+    blocco.current = true;
+    setPreparando(nuovi.some((file) => mimeDocumento(file) === "application/pdf") ? "pdf" : "foto");
     try {
       const diretti: File[] = [];
+      const daDividere: typeof pdfDaDividere = [];
       for (const f of nuovi) {
-        if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
+        if (mimeDocumento(f) === "application/pdf") {
           const pagine = await contaPagine(f);
           if ((pagine ?? 1) > 1) {
             const pdf = await leggiPerDividere(f);
-            setPdfDaDividere((p) => [...p, { id: crypto.randomUUID(), pdf }]);
+            daDividere.push({ id: crypto.randomUUID(), pdf });
             continue;
           }
         }
+        // Il file della fotocamera può diventare illeggibile durante la sospensione
+        // della pagina. I byte letti qui sono anche clonabili in IndexedDB su WebKit.
+        const byte = await leggiPagina(f).catch((): null => null);
+        if (byte) bytePagine.current.set(f, byte);
         diretti.push(f);
       }
       setFiles((p) => [...p, ...diretti]);
+      if (daDividere.length) setPdfDaDividere((p) => [...p, ...daDividere]);
     } catch {
       toast.error(
         "Non riesco a preparare questo PDF. L’originale resta sul dispositivo: riprova o invialo all’ufficio.",
       );
     } finally {
-      setPreparandoPdf(false);
+      blocco.current = false;
+      setPreparando(null);
     }
   };
 
-  const accoda = async (pagine: File[]) => {
+  const preparaInvio = async (pagine: File[]) => {
     if (!user?.id || !profile?.company_id || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
-    return syncQueue.enqueue({
-      type: "documento_ddt",
+    return {
+      type: "documento_ddt" as const,
       payload: {
-        files: pagine,
+        files: await Promise.all(pagine.map((f) => bytePagine.current.get(f) ?? leggiPagina(f))),
         fileNames: pagine.map((f) => f.name),
         fileTypes: pagine.map((f) => f.type),
         user_id: user.id,
         company_id: profile.company_id,
         order_id: orderId ?? null,
         destinazione,
-        warehouse_id: null,
       },
-    });
+    };
   };
 
-  const salva = async () => {
+  const sincronizza = () => {
+    void syncQueue.processQueue().catch(() => {});
+  };
+
+  const salva = async (soloDocumento = false) => {
     if (
       blocco.current ||
-      !files.length ||
-      !cantierePronto ||
+      !pronto ||
       !user?.id ||
       !profile?.company_id
     )
@@ -198,24 +234,30 @@ function CampoDDTEditor() {
     blocco.current = true;
     setSalvando(true);
     try {
+      if (soloDocumento) {
+        await salvaSoloDocumento(files, orderId);
+        setFiles([]);
+        void documenti.refetch();
+        toast.success("Bolla ricevuta dall’ufficio");
+        return;
+      }
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
-      const id = await accoda(files);
+      const id = await syncQueue.enqueue(await preparaInvio(files));
       setFiles([]);
       // Chi può registrare rivede subito quello che l'AI ha letto.
       if (puoRegistrare && typeof id === "string") setAttesa(id);
       toast.success(
-        soloFoto
-          ? navigator.onLine
-            ? "Inviata: l'ufficio la controlla"
-            : "Salvata su questo telefono: parte appena torna la connessione, poi la controlla l'ufficio"
-          : navigator.onLine
-            ? "Documento salvato: invio e lettura continuano in background"
-            : "Salvato su questo telefono: verrà inviato quando torna la connessione",
+        online
+          ? "Bolla salvata sul telefono. Invio in coda."
+          : "Bolla salvata sul telefono. Partirà appena torna la connessione.",
       );
-      void syncQueue.processQueue();
-    } catch {
+      sincronizza();
+    } catch (e) {
       toast.error(
-        "Non riesco a salvare sul telefono. Le foto restano qui: riprova prima di uscire.",
+        soloDocumento
+          ? "Salvataggio della bolla non completato. Le foto restano qui."
+          : "Non riesco a salvare sul telefono. Le foto restano qui: riprova prima di uscire.",
+        soloDocumento && e instanceof Error ? { description: e.message } : undefined,
       );
     } finally {
       blocco.current = false;
@@ -223,39 +265,60 @@ function CampoDDTEditor() {
     }
   };
 
+  const salvaPezzi = async (id: string, pezzi: File[]) => {
+    if (!cantierePronto) {
+      toast.error("Scegli prima il cantiere e ripeti la conferma");
+      return;
+    }
+    if (blocco.current || !pezzi.length) return;
+    blocco.current = true;
+    setSalvando(true);
+    try {
+      const voci = await Promise.all(pezzi.map((pezzo) => preparaInvio([pezzo])));
+      await syncQueue.enqueueBatch(voci);
+      setPdfDaDividere((p) => p.filter((x) => x.id !== id));
+      toast.success(`${pezzi.length} bolle salvate sul telefono. Invio in coda.`);
+      sincronizza();
+    } catch {
+      toast.error("Non riesco a salvare le bolle sul telefono. Il PDF resta qui: riprova.");
+    } finally {
+      blocco.current = false;
+      setSalvando(false);
+    }
+  };
+
   return (
-    <main className="mx-auto max-w-3xl space-y-5 px-3 py-4">
-      <header>
-        <h1 className="flex items-center gap-2 text-xl font-bold">
-          <Receipt className="h-6 w-6 text-orange-600" />
-          Bolle e DDT
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Scegli dove va la merce, fotografa la bolla e inviala.
-        </p>
+    <div className="mx-auto w-full max-w-3xl space-y-4 py-1 md:space-y-5">
+      <header className="flex items-center gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Receipt className="size-5" aria-hidden="true" />
+        </span>
+        <h1 className="min-w-0 text-xl font-bold">Bolle e DDT</h1>
       </header>
       <section
-        className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm"
+        className="space-y-3 rounded-2xl border bg-card p-3 shadow-sm sm:space-y-4 sm:p-4"
         aria-label="Nuovo documento di cantiere"
       >
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Dove va la merce</p>
+        <div className="space-y-2">
+          <h2 className="text-sm font-bold">Dove va la merce</h2>
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="Dove va la merce">
             <button
               type="button"
               aria-pressed={destinazione === "magazzino"}
-              className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold disabled:opacity-40 ${destinazione === "magazzino" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-1.5 text-sm font-semibold disabled:opacity-50 ${destinazione === "magazzino" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              disabled={occupato}
               onClick={() => setDove("magazzino")}
             >
-              <Warehouse className="h-5 w-5" aria-hidden="true" /> In magazzino
+              <Warehouse className="size-4 shrink-0" aria-hidden="true" /> In magazzino
             </button>
             <button
               type="button"
               aria-pressed={destinazione === "cantiere"}
-              className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold ${destinazione === "cantiere" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-1.5 text-sm font-semibold disabled:opacity-50 ${destinazione === "cantiere" ? "border-primary bg-primary/10 text-primary" : ""}`}
+              disabled={occupato}
               onClick={() => setDove("cantiere")}
             >
-              <HardHat className="h-5 w-5" aria-hidden="true" /> In cantiere
+              <HardHat className="size-4 shrink-0" aria-hidden="true" /> In cantiere
             </button>
           </div>
         </div>
@@ -266,7 +329,7 @@ function CampoDDTEditor() {
               className={campo}
               value={valoreCantiere}
               disabled={
-                assegnazioni.isLoading ||
+                occupato || assegnazioni.isLoading || assegnazioni.isError ||
                 cantieri.some((c) => c.order_id === richiesto)
               }
               onChange={(e) => setScelta(e.target.value)}
@@ -281,6 +344,10 @@ function CampoDDTEditor() {
             </UniformSelect>
           </label>
         )}
+        {destinazione === "cantiere" && richiesto && !assegnazioni.isLoading && !assegnazioni.isError &&
+          !cantieri.some((c) => c.order_id === richiesto) && (
+            <p className="text-sm text-amber-800 dark:text-amber-300">Il cantiere del link non è tra quelli assegnati. Controlla la destinazione prima di inviare.</p>
+          )}
         {assegnazioni.isError && (
           <button
             className="min-h-11 text-sm text-destructive underline"
@@ -298,25 +365,29 @@ function CampoDDTEditor() {
               L’ufficio deve prima assegnarti un cantiere. La merce per il magazzino puoi già mandarla.
             </p>
           )}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            className="flex min-h-16 items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 font-semibold text-orange-900"
-            onClick={() => camera.current?.click()}
-            disabled={salvando || preparandoPdf}
-          >
-            <Camera className="h-5 w-5" />
-            Scatta foto
-          </button>
-          <button
-            type="button"
-            className="flex min-h-16 items-center justify-center gap-2 rounded-xl border font-semibold"
-            onClick={() => archivio.current?.click()}
-            disabled={salvando || preparandoPdf}
-          >
-            <FileUp className="h-5 w-5" />
-            Foto o PDF
-          </button>
+        <div className="space-y-2 border-t pt-3">
+          <h2 className="text-sm font-bold">Foto della bolla</h2>
+          {!files.length && <p className="text-sm text-muted-foreground">Inquadra il foglio intero. Aggiungi il retro se contiene altre righe.</p>}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]"
+              onClick={() => camera.current?.click()}
+              disabled={occupato || files.length >= 12}
+            >
+              <Camera className="size-5 shrink-0" aria-hidden="true" />
+              {files.length ? "Altra foto" : "Scatta la bolla"}
+            </button>
+            <button
+              type="button"
+              className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold disabled:opacity-50"
+              onClick={() => archivio.current?.click()}
+              disabled={occupato || files.length >= 12}
+            >
+              <FileUp className="size-4 shrink-0" aria-hidden="true" />
+              Foto o PDF
+            </button>
+          </div>
         </div>
         <input
           ref={camera}
@@ -342,10 +413,10 @@ function CampoDDTEditor() {
             e.target.value = "";
           }}
         />
-        {preparandoPdf && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Controllo le pagine del PDF…
+        {preparando && (
+          <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+            {preparando === "pdf" ? "Controllo le pagine del PDF…" : "Preparo le foto…"}
           </p>
         )}
         {pdfDaDividere.map((d) => (
@@ -360,67 +431,44 @@ function CampoDDTEditor() {
                 toast.success("PDF divisi e scaricati sul dispositivo");
                 return;
               }
-              if (!cantierePronto) {
-                toast.error("Scegli prima il cantiere e ripeti la conferma");
-                return;
-              }
-              if (blocco.current) return;
-              blocco.current = true;
-              setSalvando(true);
-              void (async () => {
-                let salvate = 0;
-                try {
-                  for (const pezzo of pezzi) {
-                    await accoda([pezzo]);
-                    salvate++;
-                  }
-                  setPdfDaDividere((p) => p.filter((x) => x.id !== d.id));
-                  toast.success(
-                    `${salvate} bolle salvate: la lettura continua in background`,
-                  );
-                  void syncQueue.processQueue();
-                } catch {
-                  toast.error(
-                    `${salvate} bolle salvate sul telefono. Conserva il PDF e riprova per completare l’invio.`,
-                  );
-                } finally {
-                  blocco.current = false;
-                  setSalvando(false);
-                }
-              })();
+              void salvaPezzi(d.id, pezzi);
             }}
           />
         ))}
         {!!files.length && (
           <>
-            <p className="text-sm font-medium">
+            <p className="text-sm font-semibold">
               Pagine dello stesso DDT ({files.length})
             </p>
-            <ul className="divide-y">
+            <ul className="space-y-2">
               {files.map((f, i) => (
                 <li
                   key={`${f.name}:${i}`}
-                  className="flex items-center gap-2 py-2 text-sm"
+                  className="flex min-w-0 items-center gap-2 rounded-xl border bg-background p-1.5 text-sm sm:gap-3"
                 >
-                  <span className="min-w-0 flex-1 break-all">
+                  {mimeDocumento(f) === "application/pdf" ? (
+                    <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground" aria-label="PDF">
+                      <FileText className="size-5" aria-hidden="true" />
+                    </span>
+                  ) : (
+                    <AnteprimaFotoCampo foto={f} etichetta={`pagina ${i + 1}`} className="size-14 shrink-0 rounded-lg" />
+                  )}
+                  <span className="min-w-0 flex-1 break-words">
                     {i + 1}. {f.name}
                   </span>
                   <button
                     type="button"
-                    className="min-h-11 min-w-11 rounded-lg border"
+                    className="grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
                     aria-label={`Rimuovi pagina ${i + 1}`}
-                    disabled={salvando}
+                    disabled={occupato}
                     onClick={() => setFiles((p) => p.filter((_, k) => i !== k))}
                   >
-                    <Trash2 className="mx-auto h-4 w-4" />
+                    <Trash2 className="size-4" aria-hidden="true" />
                   </button>
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-muted-foreground">
-              Per una bolla diversa, salva questa e inizia un nuovo invio. Sono
-              accettati anche PDF e foto HEIC dell’iPhone.
-            </p>
+            <p className="text-xs text-muted-foreground">{files.length === 12 ? "Hai raggiunto il limite di 12 pagine." : "Per una bolla diversa, salva questa e inizia un nuovo invio."}</p>
           </>
         )}
         {senzaAIPossibile && (
@@ -428,75 +476,88 @@ function CampoDDTEditor() {
             <span className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" /> Leggi con l'AI
             </span>
-            <Switch checked={conAI} onCheckedChange={setConAI} aria-label="Leggi con l'AI" />
+            <Switch checked={conAI} onCheckedChange={setConAI} disabled={occupato} aria-label="Leggi con l'AI" />
           </label>
         )}
-        {conAI || !senzaAIPossibile ? (
-          <button
-            type="button"
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-50"
-            disabled={
-              !files.length ||
-              !cantierePronto ||
-              salvando ||
-              preparandoPdf ||
-              pdfDaDividere.length > 0
-            }
-            onClick={() => void salva()}
-          >
-            {salvando && <Loader2 className="h-4 w-4 animate-spin" />}Invia la bolla
-          </button>
-        ) : (
-          <SenzaAI
-            files={files}
-            orderId={orderId}
-            pronto={!!files.length && cantierePronto && !salvando && !preparandoPdf && !pdfDaDividere.length}
-            onCompila={() => setCompila(true)}
-            onSalvata={() => setFiles([])}
-          />
-        )}
-        <p className="text-xs text-muted-foreground">
-          {soloFoto
-            ? "Scatta e invia: la bolla la legge e la registra l'ufficio. Senza connessione l'invio riparte da solo."
-            : conAI || !senzaAIPossibile
-            ? puoRegistrare
-              ? "L'AI legge la bolla: appena finisce ti mostra cosa ha letto da confermare. Senza connessione l'invio riparte da solo."
-              : "L'AI legge la bolla e l'ufficio la conferma. Senza connessione l'invio riparte da solo."
-            : "Senza AI: scrivi tu numero, fornitore e righe guardando la foto, oppure lasciala all'ufficio."}
-        </p>
+        <div className="space-y-2 border-t pt-3">
+          {!!files.length && (
+            <div className="flex min-w-0 items-start gap-2 rounded-xl bg-muted/55 p-2.5 text-sm">
+              {destinazione === "magazzino" ? <Warehouse className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" /> : <HardHat className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />}
+              <div className="min-w-0">
+                <p className="break-words font-semibold">{etichettaCantiere}</p>
+                <p className="text-xs text-muted-foreground">{files.length === 1 ? "1 pagina da inviare" : `${files.length} pagine da inviare`}</p>
+              </div>
+            </div>
+          )}
+          {!online && (
+            <p role="status" className="flex items-start gap-2 text-sm text-muted-foreground">
+              <WifiOff className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              {invioInCoda ? "Salva la bolla ora. Partirà appena torna la connessione." : "Torna online per compilare o inviare senza lettura AI."}
+            </p>
+          )}
+          {invioInCoda ? (
+            <button type="button" disabled={!pronto || !user?.id || !profile?.company_id} onClick={() => void salva()}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]">
+              {salvando ? <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : <CloudUpload className="size-5 shrink-0" aria-hidden="true" />}
+              {salvando ? "Salvo la bolla…" : online ? "Invia la bolla" : "Salva la bolla sul telefono"}
+            </button>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" disabled={!pronto || !online} onClick={() => setCompila(true)}
+                className="min-h-12 rounded-xl bg-primary px-2 font-semibold text-primary-foreground disabled:opacity-50">Compila ora</button>
+              <button type="button" disabled={!pronto || !online} onClick={() => void salva(true)}
+                className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold disabled:opacity-50">
+                {salvando && <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />}
+                La compila l'ufficio
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {soloFoto
+              ? "La legge e la registra l'ufficio."
+              : invioInCoda ? puoRegistrare ? "Dopo la lettura puoi controllare e confermare i dati." : "Dopo la lettura, l'ufficio controlla e conferma i dati."
+              : "Puoi inserire numero, fornitore e righe dalla foto."}
+          </p>
+        </div>
       </section>
-      {!!locali.length && (
+      {!!inAttesa.length && (
         <section
           className="space-y-2"
           aria-label="Documenti conservati sul telefono"
         >
-          <h2 className="font-semibold">Su questo telefono</h2>
-          {locali.map((i) => (
+          <h2 className="font-semibold">Bolle in coda sul telefono</h2>
+          {inAttesa.map((i) => {
+            const p = i.payload as { fileNames?: string[]; order_id?: string | null; destinazione?: "magazzino" | "cantiere" | null } | null;
+            const luogo = etichettaDestinazione(destinazioneDocumento({ destinazione: p?.destinazione, order_id: p?.order_id ?? null }), p?.order_id);
+            return (
             <div
-              className="rounded-xl border bg-amber-50 p-3 text-sm"
+              className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm"
               key={i.id}
             >
-              <p>
+              <p className="break-words font-semibold">{p?.fileNames?.[0] || "Bolla da inviare"}</p>
+              <p className="break-words text-xs text-muted-foreground">{luogo}</p>
+              <p role="status" className="flex items-center gap-2">
+                {i.status === "syncing" && <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />}
                 {i.status === "failed"
                   ? "Invio da riprovare"
                   : i.status === "syncing"
-                    ? "Salvataggio sul server…"
-                    : "Conservato sul telefono, in attesa di invio"}
+                    ? "Invio al sistema…"
+                    : "In attesa di invio"}
               </p>
               {i.lastError && <p className="mt-1 text-xs">{i.lastError}</p>}
               {i.status === "failed" && (
                 <button
-                  className="min-h-11 font-semibold underline"
-                  onClick={async () => {
-                    await syncQueue.retryFailed((x) => x.id === i.id);
-                    void syncQueue.processQueue();
-                  }}
+                  type="button"
+                  className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
+                  disabled={!online}
+                  onClick={() => void syncQueue.retryFailed((x) => x.id === i.id).then(sincronizza).catch(() => toast.error("Non riesco a riprovare l'invio."))}
                 >
                   Riprova l’invio
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </section>
       )}
       <section className="space-y-2" aria-label="Documenti inviati">
@@ -517,11 +578,17 @@ function CampoDDTEditor() {
         ) : (
           documenti.data.map((j) => (
             <article key={j.id} className="rounded-xl border bg-card p-3">
-              <p className="break-all text-sm font-medium">
-                {j.files[0]?.name}
-              </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                  {j.status === "registered" ? <Check className="size-4" aria-hidden="true" /> : <FileText className="size-4" aria-hidden="true" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-semibold">{j.files[0]?.name || "Bolla ricevuta"}</p>
+                  <p className="break-words text-xs text-muted-foreground">{etichettaDestinazione(destinazioneDocumento(j), j.order_id)}</p>
+                </div>
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {STATO_DOCUMENTO[j.status]} ·{" "}
+                {j.status === "review" && puoRegistrare ? "Da controllare" : STATO_DOCUMENTO[j.status]} ·{" "}
                 {new Date(j.created_at).toLocaleString("it-IT")}
               </p>
               {j.status === "review" && puoRegistrare && !j.ddt_id && (
@@ -557,7 +624,7 @@ function CampoDDTEditor() {
           </button>
         )}
       </section>
-      {compila && profile?.company_id && (
+      {compila && senzaAIPossibile && profile?.company_id && (
         <CompilaBollaTelefono
           files={files}
           companyId={profile.company_id}
@@ -567,20 +634,14 @@ function CampoDDTEditor() {
           onFatto={() => {
             setCompila(false);
             setFiles([]);
+            void documenti.refetch();
           }}
         />
       )}
       {daRivedere && (
         <RevisioneBollaTelefono
           documento={daRivedere}
-          etichettaCantiere={
-            destinazioneDocumento(daRivedere) === "cantiere" && daRivedere.order_id
-              ? (() => {
-                  const c = cantieri.find((x) => x.order_id === daRivedere.order_id);
-                  return c ? `${c.order.order_code} · ${c.order.description || ""}` : "Cantiere";
-                })()
-              : "In magazzino (senza commessa)"
-          }
+          etichettaCantiere={etichettaDestinazione(destinazioneDocumento(daRivedere), daRivedere.order_id)}
           onChiudi={() => {
             setRevisione(null);
             setAttesa(null);
@@ -593,58 +654,6 @@ function CampoDDTEditor() {
       >
         Hai pagato tu? Registra una spesa o uno scontrino
       </Link>
-    </main>
-  );
-}
-
-/** Senza AI: «Compila ora» apre la finestra; «La compila l'ufficio» salva il solo documento. */
-function SenzaAI({
-  files,
-  orderId,
-  pronto,
-  onCompila,
-  onSalvata,
-}: {
-  files: File[];
-  orderId: string | null;
-  pronto: boolean;
-  onCompila: () => void;
-  onSalvata: () => void;
-}) {
-  const salvaSoloDocumento = useSalvaSoloDocumento();
-  const [salvando, setSalvando] = useState(false);
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <button
-        type="button"
-        className="min-h-12 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-50"
-        disabled={!pronto || salvando}
-        onClick={onCompila}
-      >
-        Compila ora
-      </button>
-      <button
-        type="button"
-        className="flex min-h-12 items-center justify-center gap-2 rounded-xl border font-semibold disabled:opacity-50"
-        disabled={!pronto || salvando}
-        onClick={async () => {
-          setSalvando(true);
-          try {
-            await salvaSoloDocumento(files, orderId);
-            toast.success("Bolla salvata: la compila l'ufficio");
-            onSalvata();
-          } catch (e) {
-            toast.error("Bolla non salvata: le foto restano qui", {
-              description: (e as { message?: string })?.message,
-            });
-          } finally {
-            setSalvando(false);
-          }
-        }}
-      >
-        {salvando && <Loader2 className="h-4 w-4 animate-spin" />}
-        La compila l'ufficio
-      </button>
     </div>
   );
 }
