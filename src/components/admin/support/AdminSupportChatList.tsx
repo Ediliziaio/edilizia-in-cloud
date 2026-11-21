@@ -1,145 +1,83 @@
-import { useState, useMemo, useCallback } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { queryKeys } from "@/lib/queryKeys";
-import { Card, CardContent } from "@/components/ui/card";
+import { formatDistance } from "date-fns";
+import { it } from "date-fns/locale";
+import { AlertTriangle, BarChart3, ChevronRight, Loader2, MoreHorizontal, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup,
+  DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
+  DropdownMenuSubTrigger, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, MessageSquare, Search, Building, Clock, Flame, AlertTriangle, CheckCircle, RefreshCw, AlertCircle, Inbox, ListPlus } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { formatDistanceToNow } from "date-fns";
-import { it } from "date-fns/locale";
-import { toast } from "sonner";
-import { AdminSupportChatSheet } from "./AdminSupportChatSheet";
-import { SupportStats } from "./SupportStats";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDebounce } from "@/hooks/useDebounce";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+import { cn } from "@/lib/utils";
 import { SupportFilters } from "./SupportFilters";
-import { TicketFilterPresets } from "./TicketFilterPresets";
-import { NewTaskDialog } from "@/components/admin/tasks/NewTaskDialog";
+import { SupportStats } from "./SupportStats";
+import {
+  formatSupportHours, isSupportActive, supportMessagePreview, supportPriorityLabels,
+  supportStatusLabels, supportTicketLookupCode, type SupportTicketMessage,
+} from "./supportInbox";
 
-interface SupportMessage {
-  id: string;
-  company_id: string;
-  sender_role: string;
-  message: string;
-  created_at: string;
-}
+const AdminSupportChatSheet = lazy(() => import("./AdminSupportChatSheet").then(({ AdminSupportChatSheet }) => ({ default: AdminSupportChatSheet })));
+const NewTaskDialog = lazy(() => import("@/components/admin/tasks/NewTaskDialog").then(({ NewTaskDialog }) => ({ default: NewTaskDialog })));
 
-interface Company {
-  id: string;
-  name: string;
-}
-
-interface SupportConversation {
-  id: string;
-  company_id: string;
-  status: string;
-  priority: string;
-  internal_notes: string | null;
-  resolved_at: string | null;
-  updated_at: string;
-}
-
-interface ConversationSummary {
+type Queue = "active" | "unanswered" | "all";
+type Conversation = {
   companyId: string;
   companyName: string;
   lastMessage: string;
-  lastMessageDate: string;
-  totalMessages: number;
+  ticketPreview: ReturnType<typeof supportMessagePreview>;
+  lastMessageDate: string | null;
   unansweredByAdmin: boolean;
-  status: "open" | "in_progress" | "resolved" | "closed";
-  priority: "low" | "normal" | "high" | "urgent";
-  internalNotes: string | null;
+  status: string;
+  priority: string;
   resolvedAt: string | null;
   agingHours: number;
-}
-
-interface SLAConversation {
-  created_at: string;
-  status: string;
-  first_response_at?: string | null;
-}
-
-function getSLAStatus(conversation: SLAConversation): {
-  label: string;
-  variant: 'default' | 'secondary' | 'destructive' | 'outline';
-} {
-  const ageHours = (Date.now() - new Date(conversation.created_at).getTime()) / 3600000;
-  if (conversation.status === 'risolto' || conversation.status === 'resolved' || conversation.status === 'closed') {
-    return { label: 'Risolto', variant: 'secondary' };
-  }
-  if (conversation.first_response_at) {
-    const respHours =
-      (new Date(conversation.first_response_at).getTime() -
-        new Date(conversation.created_at).getTime()) /
-      3600000;
-    return respHours <= 4
-      ? { label: 'SLA ✓', variant: 'default' }
-      : { label: 'SLA ✗', variant: 'destructive' };
-  }
-  if (ageHours > 4) return { label: `${Math.round(ageHours)}h senza risposta`, variant: 'destructive' };
-  if (ageHours > 2) return { label: 'SLA a rischio', variant: 'secondary' };
-  return { label: `${Math.round(ageHours)}h`, variant: 'outline' };
-}
+  matchedTicket?: SupportTicketMessage;
+  historicalMatch?: boolean;
+};
 
 const statusColors: Record<string, string> = {
-  open: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800",
-  in_progress: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800",
-  resolved: "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800",
-  closed: "bg-muted text-muted-foreground border-border",
+  open: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  in_progress: "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  pending: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  resolved: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  closed: "border-border bg-muted text-muted-foreground",
 };
+const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
 
-const statusLabels: Record<string, string> = {
-  open: "Aperta",
-  in_progress: "In lavorazione",
-  resolved: "Risolta",
-  closed: "Chiusa",
-};
+function needsReply(conversation: Conversation) {
+  return conversation.unansweredByAdmin && isSupportActive(conversation.status);
+}
 
-const priorityOrder: Record<string, number> = {
-  urgent: 0,
-  high: 1,
-  normal: 2,
-  low: 3,
-};
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <Badge variant="outline" className={cn("whitespace-nowrap font-medium", statusColors[status])}>
+      {supportStatusLabels[status as keyof typeof supportStatusLabels] ?? status}
+    </Badge>
+  );
+}
 
 export function AdminSupportChatList() {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [queue, setQueue] = useState<Queue>("active");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
-  const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
-  // Task dialog: aprire pre-compilato dalla conversazione corrente
-  const [taskPrefill, setTaskPrefill] = useState<{ companyId: string; companyName: string; lastMessage: string } | null>(null);
-  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [selected, setSelected] = useState<Conversation | null>(null);
+  const [taskPrefill, setTaskPrefill] = useState<Conversation | null>(null);
   const queryClient = useQueryClient();
 
-  const handleInlineUpdate = async (
-    companyId: string,
-    field: "status" | "priority",
-    value: string
-  ) => {
-    const updates: Record<string, unknown> = { [field]: value, updated_at: new Date().toISOString() };
-    if (field === "status" && value === "resolved") {
-      updates.resolved_at = new Date().toISOString();
-    } else if (field === "status" && value !== "resolved") {
-      updates.resolved_at = null;
-    }
-
-    const { error } = await supabase
-      .from("support_conversations")
-      .upsert({ company_id: companyId, ...updates }, { onConflict: "company_id" });
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Aggiornato");
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
-    }
-  };
-
-  const { data: messages = [], isLoading: loadingMessages, isError: isErrorMessages, refetch: refetchMessages } = useQuery({
+  const messagesQuery = useQuery({
     queryKey: queryKeys.admin.supportMessages,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -148,14 +86,13 @@ export function AdminSupportChatList() {
         .order("created_at", { ascending: false })
         .limit(2000);
       if (error) throw error;
-      return (data ?? []) as SupportMessage[];
+      return data;
     },
-    staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   });
-
-  const { data: companies = [], isError: isErrorCompanies } = useQuery({
+  const companiesQuery = useQuery({
     queryKey: queryKeys.admin.companiesForSupport,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -164,399 +101,412 @@ export function AdminSupportChatList() {
         .eq("is_platform_admin_company", false)
         .order("name");
       if (error) throw error;
-      return (data ?? []) as Company[];
+      return data;
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: 600_000,
   });
-
-  const { data: conversationsData = [], isError: isErrorConversations } = useQuery({
+  const conversationsQuery = useQuery({
     queryKey: queryKeys.admin.supportConversations,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("support_conversations")
-        .select("*");
+        .select("company_id, status, priority, resolved_at, updated_at");
       if (error) throw error;
-      return (data ?? []) as SupportConversation[];
+      return data;
     },
-    staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   });
+  const activityQuery = useQuery({
+    queryKey: [...queryKeys.admin.supportConversations, "last-activity"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_support_last_message_by_company");
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
 
+  const { data: messages } = messagesQuery;
+  const { data: companies } = companiesQuery;
+  const { data: savedConversations } = conversationsQuery;
+  const { data: lastActivities } = activityQuery;
+  const observedAt = Math.max(messagesQuery.dataUpdatedAt, conversationsQuery.dataUpdatedAt, activityQuery.dataUpdatedAt);
+  const ticketsByCompany = useMemo(() => {
+    const byCompany = new Map<string, Array<SupportTicketMessage & { code: string; title: string }>>();
+    for (const message of messages ?? []) {
+      if (message.sender_role !== "company") continue;
+      const { code, title } = supportMessagePreview(message.message);
+      if (!code) continue;
+      const tickets = byCompany.get(message.company_id) ?? [];
+      tickets.push({ ...message, code, title });
+      byCompany.set(message.company_id, tickets);
+    }
+    return byCompany;
+  }, [messages]);
   const conversations = useMemo(() => {
-    const companyMap = new Map(companies.map((c) => [c.id, c.name]));
-    const convMap = new Map(conversationsData.map((c) => [c.company_id, c]));
-    const grouped = new Map<string, SupportMessage[]>();
-
-    for (const msg of messages) {
-      if (!grouped.has(msg.company_id)) {
-        grouped.set(msg.company_id, []);
-      }
-      grouped.get(msg.company_id)!.push(msg);
+    const companyNames = new Map(companies?.map((company) => [company.id, company.name]));
+    const saved = new Map(savedConversations?.map((conversation) => [conversation.company_id, conversation]));
+    const recent = new Map<string, NonNullable<typeof messages>[number]>();
+    for (const message of messages ?? []) {
+      if (!recent.has(message.company_id)) recent.set(message.company_id, message);
     }
+    const latest = new Map(lastActivities?.map((message) => [message.company_id, message]));
 
-    const result: ConversationSummary[] = [];
-    for (const [companyId, msgs] of grouped) {
-      const lastMsg = msgs[0];
-      const companyName = companyMap.get(companyId) || "Azienda sconosciuta";
-      const conv = convMap.get(companyId);
-
-      let agingHours = 0;
-      const lastCompanyMsg = msgs.find((m) => m.sender_role !== "super_admin");
-      if (lastCompanyMsg && lastMsg.sender_role !== "super_admin") {
-        agingHours = (Date.now() - new Date(lastCompanyMsg.created_at).getTime()) / (1000 * 60 * 60);
-      }
-
-      result.push({
+    return [...new Set([...saved.keys(), ...recent.keys(), ...latest.keys()])].map((companyId): Conversation => {
+      const conversation = saved.get(companyId);
+      const recentMessage = recent.get(companyId);
+      const activity = latest.get(companyId);
+      const lastMessage = activity && (!recentMessage || Date.parse(activity.created_at) > Date.parse(recentMessage.created_at))
+        ? activity
+        : recentMessage;
+      const unansweredByAdmin = Boolean(lastMessage && lastMessage.sender_role !== "super_admin");
+      const lastMessageText = lastMessage === recentMessage ? recentMessage?.message ?? "" : "";
+      const ticket = ticketsByCompany.get(companyId)?.[0];
+      const reopened = isSupportActive(conversation?.status ?? "open") && conversation?.resolved_at;
+      const ticketText = ticket && (!reopened || Date.parse(ticket.created_at) >= Date.parse(reopened))
+        ? ticket.message
+        : lastMessageText;
+      return {
         companyId,
-        companyName,
-        lastMessage: lastMsg.message,
-        lastMessageDate: lastMsg.created_at,
-        totalMessages: msgs.length,
-        unansweredByAdmin: lastMsg.sender_role !== "super_admin",
-        status: (conv?.status as ConversationSummary["status"]) || "open",
-        priority: (conv?.priority as ConversationSummary["priority"]) || "normal",
-        internalNotes: conv?.internal_notes || null,
-        resolvedAt: conv?.resolved_at || null,
-        agingHours,
-      });
+        companyName: companyNames.get(companyId) ?? "Azienda sconosciuta",
+        lastMessage: lastMessageText,
+        ticketPreview: supportMessagePreview(ticketText),
+        lastMessageDate: lastMessage?.created_at ?? conversation?.updated_at ?? null,
+        unansweredByAdmin,
+        status: conversation?.status ?? "open",
+        priority: conversation?.priority ?? "normal",
+        resolvedAt: conversation?.resolved_at ?? null,
+        agingHours: lastMessage && unansweredByAdmin ? Math.max(0, (observedAt - Date.parse(lastMessage.created_at)) / 3_600_000) : 0,
+      };
+    });
+  }, [companies, lastActivities, messages, observedAt, savedConversations, ticketsByCompany]);
+
+  const counts = {
+    active: conversations.filter((conversation) => isSupportActive(conversation.status)).length,
+    unanswered: conversations.filter(needsReply).length,
+    all: conversations.length,
+  };
+  const queues: Array<{ id: Queue; label: string }> = [
+    { id: "active", label: "Da gestire" },
+    { id: "unanswered", label: "Da rispondere" },
+    { id: "all", label: "Tutti" },
+  ];
+
+  const term = search.trim().toLocaleLowerCase("it");
+  const ticketCode = supportTicketLookupCode(search);
+  const debouncedCode = useDebounce(ticketCode, 300);
+  const exactCode = ticketCode ? "#" + ticketCode : null;
+  const hasLocalTicket = exactCode !== null && Array.from(ticketsByCompany.values()).some((tickets) =>
+    tickets.some((ticket) => ticket.code.toUpperCase() === exactCode),
+  );
+  const lookupEnabled = ticketCode !== null && !hasLocalTicket && ticketCode === debouncedCode;
+  const ticketLookup = useQuery({
+    queryKey: queryKeys.admin.supportTicketByCode(debouncedCode),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from("support_messages")
+        .select("id, company_id, message, created_at")
+        .eq("sender_role", "company")
+        .ilike("message", "## 🎫 Ticket #" + debouncedCode + " %")
+        .order("created_at", { ascending: false })
+        .limit(5)
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []).filter((message) => supportMessagePreview(message.message).code?.toUpperCase() === "#" + debouncedCode);
+    },
+    enabled: lookupEnabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const remoteTickets = lookupEnabled ? ticketLookup.data : undefined;
+  const lookingUp = ticketCode !== null && !hasLocalTicket && (ticketCode !== debouncedCode || ticketLookup.isFetching);
+  const advancedCount = Number(statusFilter !== "all") + Number(priorityFilter !== "all") + Number(overdueOnly) + Number(sortBy !== "recent");
+  const hasFilters = Boolean(term || advancedCount);
+  const filtered = conversations.flatMap((conversation): Conversation[] => {
+    if (queue === "active" && !isSupportActive(conversation.status)) return [];
+    if (queue === "unanswered" && !needsReply(conversation)) return [];
+    if (statusFilter !== "all" && conversation.status !== statusFilter) return [];
+    if (priorityFilter === "high_or_urgent" && !["high", "urgent"].includes(conversation.priority)) return [];
+    if (priorityFilter !== "all" && priorityFilter !== "high_or_urgent" && priorityFilter !== conversation.priority) return [];
+    if (overdueOnly && (!needsReply(conversation) || conversation.agingHours <= 24)) return [];
+    if (!term) return [conversation];
+
+    const localTicket = ticketsByCompany.get(conversation.companyId)?.find(({ code, title }) =>
+      exactCode ? code.toUpperCase() === exactCode
+        : [code, title].some((value) => value.toLocaleLowerCase("it").includes(term)),
+    );
+    const matchedTicket = localTicket ?? remoteTickets?.find((ticket) => ticket.company_id === conversation.companyId);
+    if (matchedTicket) {
+      const ticketPreview = supportMessagePreview(matchedTicket.message);
+      return [{ ...conversation, matchedTicket, ticketPreview, historicalMatch: ticketPreview.code !== conversation.ticketPreview.code }];
     }
+    if (exactCode) return [];
 
-    return result;
-  }, [messages, companies, conversationsData]);
+    return [conversation.companyName, conversation.lastMessage].some((value) => value.toLocaleLowerCase("it").includes(term))
+      ? [conversation]
+      : [];
+  }).sort((a, b) => {
+    const byDate = (Date.parse(b.lastMessageDate ?? "") || 0) - (Date.parse(a.lastMessageDate ?? "") || 0);
+    if (sortBy === "oldest") return -byDate;
+    if (sortBy === "priority") return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2) || byDate;
+    return byDate;
+  });
 
-  // Smart filter presets
-  const clearFilters = useCallback(() => {
-    setSearchQuery("");
+  const isLoading = messagesQuery.isLoading || companiesQuery.isLoading || conversationsQuery.isLoading;
+  const hasError = messagesQuery.isError || companiesQuery.isError || conversationsQuery.isError;
+
+  function resetFilters() {
+    setSearch("");
     setStatusFilter("all");
     setPriorityFilter("all");
     setSortBy("recent");
-  }, []);
+    setOverdueOnly(false);
+  }
 
-  const filterPresets = useMemo(() => {
-    const unanswered = conversations.filter((c) => c.unansweredByAdmin && c.status !== "resolved" && c.status !== "closed").length;
-    const urgent = conversations.filter((c) => (c.priority === "urgent" || c.priority === "high") && c.status !== "resolved" && c.status !== "closed").length;
-    const aging = conversations.filter((c) => c.agingHours > 24 && c.unansweredByAdmin).length;
-    const open = conversations.filter((c) => c.status === "open").length;
-
-    return [
-      {
-        key: "unanswered",
-        label: "Da rispondere",
-        icon: AlertCircle,
-        count: unanswered,
-        apply: () => { clearFilters(); setStatusFilter("all"); setSortBy("recent"); setActivePreset("unanswered"); },
-      },
-      {
-        key: "urgent",
-        label: "Urgenti / Alta",
-        icon: Flame,
-        count: urgent,
-        apply: () => { clearFilters(); setPriorityFilter("urgent"); setActivePreset("urgent"); },
-      },
-      {
-        key: "aging",
-        label: "Aging >24h",
-        icon: Clock,
-        count: aging,
-        apply: () => { clearFilters(); setSortBy("oldest"); setActivePreset("aging"); },
-      },
-      {
-        key: "open",
-        label: "Aperte",
-        icon: Inbox,
-        count: open,
-        apply: () => { clearFilters(); setStatusFilter("open"); setActivePreset("open"); },
-      },
-    ];
-  }, [conversations, clearFilters]);
-
-  const filtered = useMemo(() => {
-    let result = conversations.filter(
-      (c) =>
-        (c.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())) &&
-        (statusFilter === "all" || c.status === statusFilter) &&
-        (priorityFilter === "all" || c.priority === priorityFilter)
-    );
-
-    // Apply preset-specific filters
-    if (activePreset === "unanswered") {
-      result = result.filter((c) => c.unansweredByAdmin && c.status !== "resolved" && c.status !== "closed");
-    } else if (activePreset === "urgent") {
-      result = result.filter((c) => (c.priority === "urgent" || c.priority === "high") && c.status !== "resolved" && c.status !== "closed");
-    } else if (activePreset === "aging") {
-      result = result.filter((c) => c.agingHours > 24 && c.unansweredByAdmin);
+  async function updateConversation(companyId: string, field: "status" | "priority", value: string) {
+    const now = new Date().toISOString();
+    const updates = field === "status"
+      ? { status: value, updated_at: now, resolved_at: value === "resolved" ? now : null }
+      : { priority: value, updated_at: now };
+    const { error } = await supabase
+      .from("support_conversations")
+      .upsert({ company_id: companyId, ...updates }, { onConflict: "company_id" });
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Ticket aggiornato");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversationDetail(companyId) });
     }
-
-    if (sortBy === "recent") {
-      result.sort((a, b) => new Date(b.lastMessageDate).getTime() - new Date(a.lastMessageDate).getTime());
-    } else if (sortBy === "oldest") {
-      result.sort((a, b) => new Date(a.lastMessageDate).getTime() - new Date(b.lastMessageDate).getTime());
-    } else if (sortBy === "priority") {
-      result.sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2));
-    }
-
-    return result;
-  }, [conversations, searchQuery, statusFilter, priorityFilter, sortBy, activePreset]);
-
-  const totalMessagesToday = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return messages.filter((m) => new Date(m.created_at) >= today).length;
-  }, [messages]);
-
-  const getAgingBadge = (hours: number, unanswered: boolean) => {
-    if (!unanswered) return null;
-    if (hours > 48) return (
-      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-300 gap-0.5">
-        <Clock className="h-2.5 w-2.5" /> {Math.floor(hours)}h
-      </Badge>
-    );
-    if (hours > 24) return (
-      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300 gap-0.5">
-        <Clock className="h-2.5 w-2.5" /> {Math.floor(hours)}h
-      </Badge>
-    );
-    return null;
-  };
-
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || priorityFilter !== "all" || activePreset;
+  }
 
   return (
-    <div className="space-y-4">
-      <SupportStats
-        conversations={conversations}
-        totalMessagesToday={totalMessagesToday}
-        messages={messages}
-      />
-
-      {/* Smart Filter Presets */}
-      <TicketFilterPresets
-        activePreset={activePreset}
-        onClearPreset={() => { clearFilters(); setActivePreset(null); }}
-        presets={filterPresets}
-      />
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per azienda o messaggio..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setActivePreset(null); }}
-            className="pl-10"
-          />
-        </div>
-        <SupportFilters
-          statusFilter={statusFilter}
-          onStatusChange={(v) => { setStatusFilter(v); setActivePreset(null); }}
-          priorityFilter={priorityFilter}
-          onPriorityChange={(v) => { setPriorityFilter(v); setActivePreset(null); }}
-          sortBy={sortBy}
-          onSortChange={(v) => { setSortBy(v); setActivePreset(null); }}
-        />
-      </div>
-
-      {/* Active filter summary */}
-      {hasActiveFilters && !loadingMessages && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{filtered.length} di {conversations.length} conversazioni</span>
-          {activePreset && (
-            <>
-              <span className="text-muted-foreground/30">|</span>
-              <Badge variant="secondary" className="text-xs font-normal gap-1">
-                {filterPresets.find((p) => p.key === activePreset)?.label}
-                <button onClick={() => { clearFilters(); setActivePreset(null); }} className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20">
-                  <span className="sr-only">Rimuovi</span>×
-                </button>
-              </Badge>
-            </>
-          )}
-        </div>
-      )}
-
-      {(isErrorMessages || isErrorCompanies || isErrorConversations) ? (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>Errore nel caricamento dei dati di assistenza.</span>
+    <section aria-label="Elenco ticket di assistenza" className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5 sm:px-4">
+        <div className="flex items-center gap-1 overflow-x-auto" role="group" aria-label="Vista ticket">
+          {queues.map(({ id, label }) => (
             <Button
-              variant="outline"
+              key={id}
+              type="button"
               size="sm"
-              onClick={() => {
-                refetchMessages();
-                queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesForSupport });
-                queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
-              }}
-              className="ml-2 gap-1"
+              variant={id === queue ? "secondary" : "ghost"}
+              aria-pressed={id === queue}
+              className="gap-2 whitespace-nowrap px-2.5"
+              onClick={() => { setQueue(id); setStatusFilter("all"); }}
             >
-              <RefreshCw className="h-3 w-3" /> Riprova
+              {label}
+              {!isLoading && !hasError && <span className="rounded-full bg-muted-foreground/10 px-1.5 text-xs tabular-nums">{counts[id]}</span>}
             </Button>
-          </AlertDescription>
-        </Alert>
-      ) : loadingMessages ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">Nessuna conversazione</h3>
-            <p className="text-muted-foreground text-center mt-2">
-              {hasActiveFilters
-                ? "Prova a modificare i filtri"
-                : "Non ci sono ancora chat di assistenza"}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((conv) => (
-            <Card
-              key={conv.companyId}
-              className={`cursor-pointer hover:bg-accent/50 transition-colors ${conv.unansweredByAdmin && conv.status !== "resolved" && conv.status !== "closed" ? "border-l-2 border-l-destructive" : ""}`}
-              onClick={() => setSelectedCompany({ id: conv.companyId, name: conv.companyName })}
-            >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className={`p-2 rounded-lg ${conv.unansweredByAdmin ? "bg-destructive/10" : "bg-muted"}`}>
-                  <Building className={`h-5 w-5 ${conv.unansweredByAdmin ? "text-destructive" : "text-muted-foreground"}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium truncate">{conv.companyName}</p>
-                    <Badge variant="outline" className={`text-xs px-1.5 py-0 ${statusColors[conv.status] ?? ""}`}>
-                      {/* fallback: uno stato fuori mappa renderizzava un badge vuoto */}
-                      {statusLabels[conv.status] ?? conv.status}
-                    </Badge>
-                    {conv.priority === "urgent" && (
-                      <Badge variant="destructive" className="text-xs px-1.5 py-0 gap-0.5">
-                        <Flame className="h-3 w-3" /> Urgente
-                      </Badge>
-                    )}
-                    {conv.priority === "high" && (
-                      <Badge variant="outline" className="text-xs px-1.5 py-0 gap-0.5 border-orange-300 text-orange-700 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800">
-                        <AlertTriangle className="h-3 w-3" /> Alta
-                      </Badge>
-                    )}
-                    {conv.unansweredByAdmin && conv.status !== "resolved" && conv.status !== "closed" && (
-                      <Badge variant="destructive" className="text-xs px-1.5 py-0">
-                        Da rispondere
-                      </Badge>
-                    )}
-                    {getAgingBadge(conv.agingHours, conv.unansweredByAdmin)}
-                    {(() => {
-                      const slaData: SLAConversation = {
-                        created_at: new Date(
-                          new Date(conv.lastMessageDate).getTime() - conv.agingHours * 3600000
-                        ).toISOString(),
-                        status: conv.status === 'resolved' || conv.status === 'closed' ? 'risolto' : conv.status,
-                        first_response_at: conv.unansweredByAdmin ? null : conv.lastMessageDate,
-                      };
-                      const sla = getSLAStatus(slaData);
-                      return (
-                        <Badge variant={sla.variant} className="text-xs">
-                          {sla.label}
-                        </Badge>
-                      );
-                    })()}
-                  </div>
-                  <p className="text-sm text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <Select
-                    value={conv.status}
-                    onValueChange={(v) => handleInlineUpdate(conv.companyId, "status", v)}
-                  >
-                    <SelectTrigger className="h-7 text-xs w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">Aperta</SelectItem>
-                      <SelectItem value="in_progress">In lavorazione</SelectItem>
-                      <SelectItem value="resolved">Risolta</SelectItem>
-                      <SelectItem value="closed">Chiusa</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={conv.priority}
-                    onValueChange={(v) => handleInlineUpdate(conv.companyId, "priority", v)}
-                  >
-                    <SelectTrigger className="h-7 text-xs w-[110px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Bassa</SelectItem>
-                      <SelectItem value="normal">Normale</SelectItem>
-                      <SelectItem value="high">Alta</SelectItem>
-                      <SelectItem value="urgent">Urgente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <button
-                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
-                    title="Crea task da questa conversazione"
-                    onClick={() => setTaskPrefill({
-                      companyId: conv.companyId,
-                      companyName: conv.companyName,
-                      lastMessage: conv.lastMessage,
-                    })}
-                  >
-                    <ListPlus className="h-4 w-4" />
-                  </button>
-                  <button
-                    className="p-1.5 rounded-md hover:bg-accent text-muted-foreground hover:text-green-600 transition-colors"
-                    title="Segna come risolto"
-                    onClick={() => handleInlineUpdate(conv.companyId, "status", "resolved")}
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0 min-w-[90px]">
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(conv.lastMessageDate), { addSuffix: true, locale: it })}
-                  </span>
-                  <Badge variant="outline" className="text-xs">
-                    {conv.totalMessages} msg
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
           ))}
         </div>
+        <div className="ml-auto flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+          <div className="relative min-w-48 grow lg:max-w-xs">
+            <Search aria-hidden="true" className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              aria-label="Cerca ticket"
+              placeholder="Cerca per azienda, codice o messaggio"
+              value={search}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSearch(value);
+                if (supportTicketLookupCode(value)) setQueue("all");
+              }}
+              className="h-9 pl-9"
+            />
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" size="sm" variant="outline" className="gap-1.5">
+                <SlidersHorizontal aria-hidden="true" className="h-4 w-4" /> Filtri
+                {advancedCount > 0 && <span className="text-xs tabular-nums">{advancedCount}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72">
+              <SupportFilters
+                statusFilter={statusFilter}
+                onStatusChange={(value) => { setStatusFilter(value); if (value !== "all") setQueue("all"); }}
+                priorityFilter={priorityFilter}
+                onPriorityChange={setPriorityFilter}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                overdueOnly={overdueOnly}
+                onOverdueChange={setOverdueOnly}
+              />
+              <Button type="button" size="sm" variant="ghost" className="mt-3 px-1" onClick={resetFilters} disabled={!hasFilters}>Azzera filtri</Button>
+            </PopoverContent>
+          </Popover>
+          <Button
+            type="button"
+            size="sm"
+            variant={showStats ? "secondary" : "ghost"}
+            aria-expanded={showStats}
+            onClick={() => setShowStats((value) => !value)}
+            className="gap-1.5"
+          >
+            <BarChart3 aria-hidden="true" className="h-4 w-4" /> Statistiche
+          </Button>
+        </div>
+      </div>
+
+      {showStats && !isLoading && !hasError && <SupportStats conversations={conversations} messages={messages ?? []} observedAt={observedAt} />}
+
+      {hasError ? (
+        <Alert variant="destructive" className="m-3 w-auto">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            Errore nel caricamento dei ticket.
+            <Button type="button" size="sm" variant="outline" onClick={() => {
+              void messagesQuery.refetch();
+              void companiesQuery.refetch();
+              void queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
+            }}>Riprova</Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoading || (lookingUp && filtered.length === 0) ? (
+        <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+          {isLoading ? "Caricamento ticket…" : "Ricerca nello storico…"}
+        </div>
+      ) : lookupEnabled && ticketLookup.isError && filtered.length === 0 ? (
+        <div role="alert" className="space-y-2 px-4 py-10 text-center text-sm">
+          <p>Impossibile cercare il codice nello storico.</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void ticketLookup.refetch()}>Riprova</Button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="space-y-2 px-4 py-10 text-center text-sm">
+          <p className="font-medium">{hasFilters ? "Nessun ticket corrisponde ai filtri" : queue === "unanswered" ? "Nessun ticket da rispondere" : queue === "active" ? "Nessun ticket da gestire" : "Nessun ticket"}</p>
+          {hasFilters && <Button type="button" size="sm" variant="outline" onClick={resetFilters}>Azzera filtri</Button>}
+          {!hasFilters && queue !== "all" && counts.all > 0 && (
+            <Button type="button" size="sm" variant="outline" onClick={() => setQueue("all")}>Vedi tutti i ticket</Button>
+          )}
+        </div>
+      ) : (
+        <table className="w-full table-fixed text-left text-sm">
+          <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-3 py-2.5 font-medium sm:px-4">Ticket</th>
+              <th scope="col" className="hidden w-32 px-2 font-medium md:table-cell lg:w-40">Stato</th>
+              <th scope="col" className="hidden w-24 px-2 font-medium lg:table-cell">Priorità</th>
+              <th scope="col" className="hidden w-36 px-2 font-medium md:table-cell">Ultimo messaggio</th>
+              <th scope="col" className="w-14"><span className="sr-only">Azioni</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {filtered.map((conversation) => {
+              const { companyId, companyName, ticketPreview: preview, lastMessageDate, priority, status, agingHours, historicalMatch } = conversation;
+              const updated = lastMessageDate ? formatDistance(new Date(lastMessageDate), new Date(observedAt), { addSuffix: true, locale: it }) : "—";
+              const waiting = !historicalMatch && needsReply(conversation);
+              const priorityLabel = supportPriorityLabels[priority as keyof typeof supportPriorityLabels] ?? priority;
+              return (
+                <tr key={companyId} className="group hover:bg-muted/35">
+                  <td className="min-w-0">
+                    <button
+                      type="button"
+                      aria-label={"Apri ticket di " + companyName + " · " + preview.title}
+                      onClick={() => setSelected(conversation)}
+                      className={cn("block w-full min-w-0 border-l-2 px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-3.5", waiting ? "border-l-amber-500" : "border-l-transparent")}
+                    >
+                      <span title={preview.title} className="block truncate font-medium">{preview.title}</span>
+                      <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                        <span className="truncate">{companyName}</span>
+                        {preview.code && <span className="shrink-0 font-mono">{preview.code}</span>}
+                        {historicalMatch && <span className="shrink-0">Nello storico</span>}
+                        {!historicalMatch && (priority === "high" || priority === "urgent") && <span className="shrink-0 text-amber-800 dark:text-amber-300 lg:hidden">{priorityLabel}</span>}
+                      </span>
+                    </button>
+                    {!historicalMatch && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-l-2 border-transparent px-2.5 pb-2.5 text-xs text-muted-foreground md:hidden">
+                      <StatusBadge status={status} />
+                      <span>{waiting ? "Da rispondere · " + formatSupportHours(agingHours) : updated}</span>
+                    </div>}
+                  </td>
+                  <td className="hidden px-2 text-xs text-muted-foreground md:table-cell">{historicalMatch ? "—" : <StatusBadge status={status} />}</td>
+                  <td className={cn("hidden px-2 text-xs lg:table-cell", !historicalMatch && (priority === "urgent" || priority === "high") ? "font-medium text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>{historicalMatch ? "—" : priorityLabel}</td>
+                  <td className="hidden px-2 text-xs text-muted-foreground md:table-cell">
+                    {waiting && <span className="block font-medium text-amber-800 dark:text-amber-300">Da rispondere</span>}
+                    {historicalMatch ? "—" : waiting ? formatSupportHours(agingHours) + " di attesa" : updated}
+                  </td>
+                  <td className="px-2">
+                    {!historicalMatch && <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={"Azioni ticket di " + companyName}>
+                          <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem onSelect={() => setSelected(conversation)}>
+                          <ChevronRight aria-hidden="true" className="mr-2 h-4 w-4" /> Apri ticket
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setTaskPrefill(conversation)}>
+                          <Plus aria-hidden="true" className="mr-2 h-4 w-4" /> Crea attività
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Cambia stato</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuRadioGroup value={status} onValueChange={(value) => void updateConversation(companyId, "status", value)}>
+                              {Object.entries(supportStatusLabels).map(([value, label]) => (
+                                <DropdownMenuRadioItem key={value} value={value}>{label}</DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Cambia priorità</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuRadioGroup value={priority} onValueChange={(value) => void updateConversation(companyId, "priority", value)}>
+                              {Object.entries(supportPriorityLabels).map(([value, label]) => (
+                                <DropdownMenuRadioItem key={value} value={value}>{label}</DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {hasFilters && !isLoading && !hasError && filtered.length > 0 && (
+        <div role="status" className="border-t px-4 py-2 text-xs text-muted-foreground">{filtered.length} di {counts[queue]} ticket</div>
       )}
 
-      {selectedCompany && (
-        <AdminSupportChatSheet
-          open={!!selectedCompany}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedCompany(null);
-              queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportMessages });
-              queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
-            }
-          }}
-          companyId={selectedCompany.id}
-          companyName={selectedCompany.name}
-        />
-      )}
-
-      {/* Task dialog: pre-compilato dalla conversazione assistenza selezionata.
-          Tipo "support" + azienda collegata + titolo basato sull'ultimo messaggio. */}
-      {taskPrefill && (
-        <NewTaskDialog
-          open={!!taskPrefill}
-          onOpenChange={(open) => { if (!open) setTaskPrefill(null); }}
-          prefill={{
-            companyId: taskPrefill.companyId,
-            type: "support",
-            title: `Follow-up assistenza: ${taskPrefill.companyName}`,
-            description: taskPrefill.lastMessage
-              ? `Contesto dalla chat:\n"${taskPrefill.lastMessage.slice(0, 300)}${taskPrefill.lastMessage.length > 300 ? "…" : ""}"`
-              : undefined,
-          }}
-        />
-      )}
-    </div>
+      <Suspense fallback={null}>
+        {selected && (
+          <AdminSupportChatSheet
+            open
+            companyId={selected.companyId}
+            companyName={selected.companyName}
+            requestedTicket={selected.matchedTicket}
+            onOpenChange={(open) => {
+              if (open) return;
+              setSelected(null);
+              void queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportMessages });
+              void queryClient.invalidateQueries({ queryKey: queryKeys.admin.supportConversations });
+            }}
+          />
+        )}
+        {taskPrefill && (
+          <NewTaskDialog
+            open
+            onOpenChange={(open) => { if (!open) setTaskPrefill(null); }}
+            prefill={{
+              companyId: taskPrefill.companyId,
+              type: "support",
+              title: "Follow-up assistenza: " + taskPrefill.companyName,
+              description: taskPrefill.lastMessage
+                ? "Contesto dalla chat:\n\"" + taskPrefill.lastMessage.slice(0, 300) + (taskPrefill.lastMessage.length > 300 ? "…" : "") + "\""
+                : undefined,
+            }}
+          />
+        )}
+      </Suspense>
+    </section>
   );
 }

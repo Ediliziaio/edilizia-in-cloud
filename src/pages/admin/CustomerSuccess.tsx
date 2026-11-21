@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { CustomerSuccessDetails, CustomerSuccessSectionHeader } from "@/components/admin/support/CustomerSuccessSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,7 +130,7 @@ export default function AdminOnboardingConfig() {
 
   // ─── Queries ────────────────────────────────────────────
 
-  const { data: templates = [], isLoading: loadingTemplates } = useQuery({
+  const { data: templates = [], isLoading: loadingTemplates, isError: templatesError, refetch: refetchTemplates } = useQuery({
     queryKey: queryKeys.admin.onboardingTemplates,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -477,22 +478,16 @@ export default function AdminOnboardingConfig() {
   // ─── Render ─────────────────────────────────────────────
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold hidden md:block">Customer Success — Onboarding</h1>
-          <p className="text-muted-foreground text-sm hidden md:block">
-            Template di onboarding guidato per le aziende clienti. Scegli il flusso, gli step, le auto-verifiche.
-          </p>
-        </div>
-        <Button onClick={() => setShowNewTemplate(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Nuovo Template
-        </Button>
-      </div>
-
-      {/* KPI */}
-      <KpiOverview stats={globalStats} loading={loadingTemplates} />
+    <div className="space-y-3">
+      <CustomerSuccessSectionHeader
+        title="Avvio clienti"
+        description="Configura i modelli e i passaggi guidati che le nuove aziende seguono per iniziare."
+        actions={(
+          <Button size="sm" onClick={() => setShowNewTemplate(true)}>
+            <Plus aria-hidden="true" className="mr-2 h-4 w-4" /> Nuovo modello
+          </Button>
+        )}
+      />
 
       {/* Master-detail layout */}
       <div className={cn(
@@ -504,7 +499,8 @@ export default function AdminOnboardingConfig() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Cerca template…"
+              aria-label="Cerca modello"
+              placeholder="Cerca modello…"
               className="pl-9 h-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -517,15 +513,22 @@ export default function AdminOnboardingConfig() {
             </div>
           )}
 
-          {!loadingTemplates && templates.length === 0 && (
+          {templatesError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-3 text-sm">
+              Impossibile caricare i modelli.
+              <Button variant="outline" size="sm" onClick={() => void refetchTemplates()}>Riprova</Button>
+            </div>
+          )}
+
+          {!loadingTemplates && !templatesError && templates.length === 0 && (
             <EmptyState onCreate={() => setShowNewTemplate(true)} />
           )}
 
           {!loadingTemplates && templates.length > 0 && filteredTemplates.length === 0 && (
             <Card>
               <CardContent className="py-8 text-center space-y-2">
-                <p className="text-sm text-muted-foreground">Nessun template per "{search}"</p>
-                <Button variant="outline" size="sm" onClick={() => setSearch("")}>Reset</Button>
+                <p className="text-sm text-muted-foreground">Nessun modello corrisponde a «{search}».</p>
+                <Button variant="outline" size="sm" onClick={() => setSearch("")}>Azzera ricerca</Button>
               </CardContent>
             </Card>
           )}
@@ -579,6 +582,10 @@ export default function AdminOnboardingConfig() {
       </div>
 
       {/* Dialogs */}
+      <CustomerSuccessDetails label="Statistiche di avvio">
+        <KpiOverview stats={globalStats} loading={loadingTemplates} />
+      </CustomerSuccessDetails>
+
       {showNewTemplate && (
         <NewTemplateDialog
           open={showNewTemplate}
@@ -717,29 +724,29 @@ function KpiOverview({
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <StatPill
         icon={<ListChecks className="h-4 w-4" />}
-        label="Template totali"
+        label="Modelli"
         value={stats.totalTemplates}
-        subtitle={stats.defaultSet ? "1 impostato come default" : "⚠️ Nessun default"}
+        subtitle={stats.defaultSet ? "1 modello predefinito" : "Nessun modello predefinito"}
         accent="bg-primary/10 text-primary"
         warning={!stats.defaultSet && stats.totalTemplates > 0}
       />
       <StatPill
         icon={<Users2 className="h-4 w-4" />}
-        label="Aziende in onboarding"
+        label="Aziende con un percorso di avvio"
         value={stats.totalAssignments}
         accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
       />
       <StatPill
         icon={<CheckCircle2 className="h-4 w-4" />}
-        label="Completati"
+        label="Percorsi completati"
         value={stats.totalCompleted}
         accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
       />
       <StatPill
         icon={<TrendingUp className="h-4 w-4" />}
-        label="Completion rate"
+        label="Tasso di completamento"
         value={stats.completionRate !== null ? `${stats.completionRate}%` : "—"}
-        subtitle={stats.totalAssignments > 0 ? `${stats.totalCompleted}/${stats.totalAssignments}` : "nessun assegnamento"}
+        subtitle={stats.totalAssignments > 0 ? `${stats.totalCompleted}/${stats.totalAssignments}` : "Nessun percorso assegnato"}
         accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
       />
     </div>

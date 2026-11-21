@@ -1,19 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, CheckCircle2, Clock, Users, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, Clock, Users, Loader2 } from 'lucide-react';
 import { useSuperAdminPermissions } from '@/hooks/useSuperAdminPermissions';
 import { AccessDenied } from '@/components/admin/AccessDenied';
+import { CustomerSuccessSectionHeader } from '@/components/admin/support/CustomerSuccessSection';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface CSData {
   activeCompanies: number;
   trialCompanies: number;
   atRisk: number;
-  healthRate: number;
-  openTickets: number;
-  slaViolations: number;
+  healthRate: number | null;
   lastCalculatedAt: string | null;
   healthAgeHours: number | null;
   atRiskList: Array<{ company_id: string; name: string; score: number; health: string }>;
@@ -22,7 +24,7 @@ interface CSData {
 export default function AdminCSDashboard() {
   const { permissions } = useSuperAdminPermissions();
 
-  const { data, isLoading } = useQuery<CSData>({
+  const { data, isLoading, isError, refetch } = useQuery<CSData>({
     queryKey: ['admin-cs-dashboard'],
     queryFn: async () => {
       // UNA SOLA FONTE per «a rischio»: la vista customer_profile (is_at_risk),
@@ -36,7 +38,7 @@ export default function AdminCSDashboard() {
       // Lo stato reale dei ticket è `open` (inglese), NON 'aperto'.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sp = supabase as any;
-      const [companiesRes, profilesRes, ticketsRes] = await Promise.all([
+      const [companiesRes, profilesRes] = await Promise.all([
         supabase
           .from('companies')
           .select('id,name,status')
@@ -45,22 +47,11 @@ export default function AdminCSDashboard() {
           .from('customer_profile')
           .select('company_id,is_at_risk,health_label_latest,health_score_latest,health_snapshot_date')
           .limit(5000),
-        supabase
-          .from('support_conversations')
-          .select('id,status,created_at,first_response_at')
-          .in('status', ['open', 'in_progress'])
-          .limit(1000),
       ]);
       if (companiesRes.error) throw companiesRes.error;
       if (profilesRes.error) throw profilesRes.error;
 
       const companies = companiesRes.data ?? [];
-      const tickets = (ticketsRes.data ?? []) as Array<{
-        id: string;
-        status: string;
-        created_at: string;
-        first_response_at: string | null;
-      }>;
 
       const activeCompanies = companies.filter((c) => c.status === 'active').length;
       const trialCompanies = companies.filter((c) => c.status === 'trial').length;
@@ -79,14 +70,7 @@ export default function AdminCSDashboard() {
       const atRisk = atRiskRows.length;
       const scored = profiles.filter((p) => p.health_label_latest != null).length;
       const healthy = profiles.filter((p) => p.health_label_latest != null && !p.is_at_risk).length;
-      const healthRate = scored > 0 ? Math.round((healthy / scored) * 100) : 0;
-      // NB: first_response_at oggi non viene ancora popolato da nessun flusso →
-      // il KPI è "in attesa da >4h" (età conversazione), non un vero SLA di
-      // prima risposta. Quando first_response_at verrà scritto, il filtro
-      // escluderà automaticamente le conversazioni già risposte.
-      const slaViolations = tickets.filter(
-        (t) => (Date.now() - new Date(t.created_at).getTime()) / 3600000 > 4 && !t.first_response_at
-      ).length;
+      const healthRate = scored > 0 ? Math.round((healthy / scored) * 100) : null;
 
       const atRiskList = atRiskRows
         .slice()
@@ -110,8 +94,6 @@ export default function AdminCSDashboard() {
         trialCompanies,
         atRisk,
         healthRate,
-        openTickets: tickets.length,
-        slaViolations,
         lastCalculatedAt,
         healthAgeHours: lastCalculatedAt
           ? (Date.now() - new Date(lastCalculatedAt + 'T23:59:59').getTime()) / 3600000
@@ -122,6 +104,31 @@ export default function AdminCSDashboard() {
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     enabled: permissions.impersonation,
+  });
+  const ticketStats = useQuery({
+    queryKey: [...queryKeys.admin.supportConversations, 'indicators'],
+    enabled: permissions.impersonation && permissions.can_manage_tickets,
+    queryFn: async () => {
+      const { data: conversations, error } = await supabase.from('support_conversations')
+        .select('company_id')
+        .in('status', ['open', 'in_progress', 'pending']);
+      if (error) throw error;
+      const active = new Set((conversations ?? []).map((conversation) => conversation.company_id));
+      if (!permissions.super_admin) return { active: active.size, waiting: null, overdue: null };
+      const activity = await supabase.rpc('admin_support_last_message_by_company');
+      if (activity.error) return { active: active.size, waiting: null, overdue: null };
+      const observedAt = Date.now();
+      const waiting = (activity.data ?? []).filter((message) =>
+        active.has(message.company_id) && message.sender_role !== 'super_admin',
+      );
+      return {
+        active: active.size,
+        waiting: waiting.length,
+        overdue: waiting.filter((message) => observedAt - Date.parse(message.created_at) > 4 * 3_600_000).length,
+      };
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 
   if (!permissions.impersonation) return <AccessDenied />;
@@ -134,29 +141,64 @@ export default function AdminCSDashboard() {
     );
   }
 
+  if (isError || !data) {
+    return (
+      <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4 text-sm">
+        Impossibile caricare gli indicatori.
+        <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+      </div>
+    );
+  }
+
   const kpis = [
-    { label: 'Aziende Attive', value: data?.activeCompanies ?? 0, icon: Users, color: 'text-primary' },
-    { label: 'In Trial', value: data?.trialCompanies ?? 0, icon: Clock, color: 'text-amber-600' },
+    { label: 'Aziende attive', value: data.activeCompanies, icon: Users, color: 'text-primary' },
+    { label: 'Aziende in prova', value: data.trialCompanies, icon: Clock, color: 'text-amber-600' },
     {
-      label: 'A Rischio',
-      value: data?.atRisk ?? 0,
+      label: 'Aziende a rischio',
+      value: data.atRisk,
       icon: AlertTriangle,
       color: (data?.atRisk ?? 0) > 0 ? 'text-destructive' : 'text-muted-foreground',
     },
-    { label: 'Ticket Aperti', value: data?.openTickets ?? 0, icon: CheckCircle2, color: 'text-blue-600' },
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Riepilogo assistenza</h1>
-        <p className="text-muted-foreground">Clienti, salute e ticket — numeri in tempo reale</p>
-      </div>
+    <div className="space-y-3">
+      <CustomerSuccessSectionHeader title="Indicatori" description="Controlla la coda di assistenza e l’andamento delle aziende." />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {permissions.can_manage_tickets && (
+        <Card>
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 px-4 py-3">
+            <CardTitle className="text-base">Coda di assistenza</CardTitle>
+            <Button asChild size="sm" variant="outline"><Link to="/admin/cs">Apri ticket</Link></Button>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {ticketStats.isError ? (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                Indicatori dei ticket non disponibili.
+                <Button size="sm" variant="outline" onClick={() => void ticketStats.refetch()}>Riprova</Button>
+              </div>
+            ) : (
+              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+                {[
+                  ["Da gestire", ticketStats.data?.active],
+                  ["Da rispondere", ticketStats.data?.waiting],
+                  ["In attesa da oltre 4 ore", ticketStats.data?.overdue],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border bg-muted/30 px-3 py-2.5">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="text-lg font-semibold tabular-nums">{value ?? '—'}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {kpis.map((k) => (
           <Card key={k.label}>
-            <CardContent className="p-5 flex items-center gap-3">
+            <CardContent className="flex items-center gap-3 p-3">
               <div className="bg-muted rounded-lg p-2.5">
                 <k.icon className={`h-5 w-5 ${k.color}`} />
               </div>
@@ -169,17 +211,17 @@ export default function AdminCSDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid items-start gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Salute Clienti</CardTitle>
+            <CardTitle className="text-sm">Clienti monitorati</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Clienti non a rischio</span>
-              <span className="font-bold">{data?.healthRate ?? 0}%</span>
+              <span className="font-bold">{data.healthRate !== null ? data.healthRate + '%' : '—'}</span>
             </div>
-            <Progress value={data?.healthRate ?? 0} className="h-2" />
+            {data.healthRate !== null && <Progress value={data.healthRate} className="h-2" />}
             {(data?.atRisk ?? 0) > 0 && (
               <Badge variant="destructive" className="gap-1">
                 <AlertTriangle className="h-3 w-3" /> {data?.atRisk} a rischio — azione richiesta
@@ -190,44 +232,24 @@ export default function AdminCSDashboard() {
             {data?.lastCalculatedAt ? (
               <p className={`text-[11px] ${(data.healthAgeHours ?? 0) > 24 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>
                 Ultimo calcolo: {new Date(data.lastCalculatedAt + 'T12:00:00').toLocaleDateString('it-IT')}
-                {(data.healthAgeHours ?? 0) > 24 ? ' — dati vecchi, verifica il giro giornaliero elena-cs-health-daily' : ''}
+                {(data.healthAgeHours ?? 0) > 24 ? ' · dati da aggiornare' : ''}
               </p>
             ) : (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">Nessuna salute calcolata — il giro giornaliero elena-cs-health-daily non è mai partito.</p>
+              <p className="text-xs text-muted-foreground">Nessun punteggio disponibile.</p>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Ticket & SLA</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">In attesa da &gt;4h (senza prima risposta)</span>
-              <Badge variant={(data?.slaViolations ?? 0) > 0 ? 'destructive' : 'secondary'}>
-                {data?.slaViolations ?? 0}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Ticket aperti totali</span>
-              <span className="font-bold">{data?.openTickets ?? 0}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Drill-down: chi sono le aziende a rischio (prima solo un numero) */}
-      {(data?.atRiskList?.length ?? 0) > 0 && (
+      {data.atRiskList.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-destructive" /> Aziende a rischio (peggiori {data!.atRiskList.length})
+              <AlertTriangle className="h-4 w-4 text-destructive" /> Aziende a rischio ({data.atRiskList.length} mostrate)
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-            {data!.atRiskList.map((c) => (
-              <a key={c.company_id} href={`/admin/aziende/${c.company_id}`}
+          <CardContent className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
+            {data.atRiskList.map((c) => (
+              <Link key={c.company_id} to={`/admin/aziende/${c.company_id}`}
                 className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors">
                 <span className="truncate font-medium">{c.name}</span>
                 <span className="flex items-center gap-2 shrink-0">
@@ -236,11 +258,12 @@ export default function AdminCSDashboard() {
                   </Badge>
                   <span className="text-xs text-muted-foreground">punteggio {c.score}</span>
                 </span>
-              </a>
+              </Link>
             ))}
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }

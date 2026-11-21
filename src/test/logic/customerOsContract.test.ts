@@ -266,13 +266,13 @@ describe("Customer OS — contract tests", () => {
   });
 
   describe("UI Founder Cockpit", () => {
-    it("CockpitTab integra 6 sezioni chiave", () => {
-      expect(cockpitTabSrc).toContain("Daily Brief");
+    it("mantiene le informazioni e i collegamenti operativi nella vista Priorità clienti", () => {
+      expect(cockpitTabSrc).toContain("Riepilogo del giorno");
       expect(cockpitTabSrc).toContain("Clienti a rischio");
-      expect(cockpitTabSrc).toContain("Upsell");
-      expect(cockpitTabSrc).toContain("Onboarding stalled");
-      expect(cockpitTabSrc).toContain("Approva");
-      expect(cockpitTabSrc).toContain("Sistema agentico");
+      expect(cockpitTabSrc).toContain("Possibili passaggi di piano");
+      expect(cockpitTabSrc).toContain("Avviamenti da seguire");
+      expect(cockpitTabSrc).toContain("/admin/ai?tab=approvals");
+      expect(cockpitTabSrc).toContain("/admin/ai?section=monitor");
     });
 
     it("CompanyAICockpit drawer mostra 4 tab interne", () => {
@@ -289,11 +289,10 @@ describe("Customer OS — contract tests", () => {
       expect(companyCockpitSrc).toContain("sales.proposal_generator");
     });
 
-    it("AdminCustomerSuccessHub include nuova tab Cockpit AI come default", () => {
+    it("mantiene il link cockpit e apre i ticket per impostazione predefinita", () => {
       expect(csHubSrc).toContain('id: "cockpit"');
-      expect(csHubSrc).toContain('"Cockpit AI"');
-      // Default attivo
-      expect(csHubSrc).toContain('isValidTab(tabParam) ? tabParam : "cockpit"');
+      expect(csHubSrc).toContain('"Priorità clienti"');
+      expect(csHubSrc).toContain('isValidTab(tabParam) ? tabParam : "assistenza"');
     });
   });
 });

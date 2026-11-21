@@ -6,6 +6,7 @@ import { escapeCsvCell } from "@/lib/csvExport";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { useAdminRevenueData, type CompanyHealthScore, type HealthStatus } from "@/hooks/useAdminRevenueData";
 import { AccessDenied } from "@/components/admin/AccessDenied";
+import { CustomerSuccessDetails, CustomerSuccessSectionHeader } from "@/components/admin/support/CustomerSuccessSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -453,8 +454,8 @@ export default function CompanyLifecycle() {
   const [search, setSearch] = useState("");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("score_asc");
-  const [activeTab, setActiveTab] = useState("trial");
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["trial"]));
+  const [activeTab, setActiveTab] = useState("active");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["active"]));
   const onTabChange = (v: string) => {
     setActiveTab(v);
     setVisitedTabs((prev) => {
@@ -521,29 +522,23 @@ export default function CompanyLifecycle() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold">Company Lifecycle</h1>
-          <p className="text-muted-foreground text-sm">
-            Gestisci onboarding, trial, recupero e win-back delle aziende
-          </p>
-        </div>
-        <Button variant="outline" onClick={exportAll} disabled={isLoading || healthScores.length === 0} className="hidden sm:inline-flex">
-          <Download className="h-4 w-4 mr-2" />
-          Esporta CSV
-        </Button>
-      </div>
-
-      {/* KPI */}
-      <LifecycleKPIs healthScores={healthScores} loading={isLoading} />
+    <div className="space-y-3">
+      <CustomerSuccessSectionHeader
+        title="Aziende"
+        description="Consulta le aziende per stato, controlla le prove in scadenza e apri la scheda per il seguito."
+        actions={(
+          <Button size="sm" variant="outline" onClick={exportAll} disabled={isLoading || healthScores.length === 0}>
+            <Download aria-hidden="true" className="mr-2 h-4 w-4" /> Esporta CSV
+          </Button>
+        )}
+      />
 
       {/* Toolbar — mobile: stack full-width, sm+: inline */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
         <div className="relative w-full sm:flex-1 sm:max-w-sm sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Cerca azienda o settore"
             placeholder="Cerca azienda o settore…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -553,7 +548,7 @@ export default function CompanyLifecycle() {
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               onClick={() => setSearch("")}
-              aria-label="Reset ricerca"
+              aria-label="Azzera ricerca"
             >
               <X className="h-4 w-4" />
             </button>
@@ -561,26 +556,26 @@ export default function CompanyLifecycle() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:contents">
           <Select value={healthFilter} onValueChange={(v) => setHealthFilter(v as HealthFilter)}>
-            <SelectTrigger className="w-full sm:w-[160px]">
+            <SelectTrigger aria-label="Utilizzo piattaforma" className="w-full sm:w-[170px]">
               <Heart className="h-4 w-4 mr-1 inline" />
-              <SelectValue placeholder="Health" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Ogni health</SelectItem>
-              <SelectItem value="healthy">💚 Healthy</SelectItem>
-              <SelectItem value="at_risk">🟡 At risk</SelectItem>
-              <SelectItem value="critical">🔴 Critical</SelectItem>
+              <SelectItem value="all">Tutti i punteggi</SelectItem>
+              <SelectItem value="healthy">Buon utilizzo</SelectItem>
+              <SelectItem value="at_risk">Da seguire</SelectItem>
+              <SelectItem value="critical">Utilizzo critico</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-            <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectTrigger aria-label="Ordina aziende" className="w-full sm:w-[215px]">
               <TrendingUp className="h-4 w-4 mr-1 inline" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="score_asc">Score crescente (peggio in alto)</SelectItem>
-              <SelectItem value="score_desc">Score decrescente</SelectItem>
-              <SelectItem value="daysLeft">Giorni trial rimanenti</SelectItem>
+              <SelectItem value="score_asc">Utilizzo più basso</SelectItem>
+              <SelectItem value="score_desc">Utilizzo più alto</SelectItem>
+              <SelectItem value="daysLeft">Prove più vicine alla scadenza</SelectItem>
               <SelectItem value="name">Nome A→Z</SelectItem>
             </SelectContent>
           </Select>
@@ -589,7 +584,7 @@ export default function CompanyLifecycle() {
           <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => {
             setSearch(""); setHealthFilter("all");
           }}>
-            <X className="h-3.5 w-3.5 mr-1" /> Reset filtri
+            <X className="h-3.5 w-3.5 mr-1" /> Azzera filtri
           </Button>
         )}
       </div>
@@ -601,17 +596,17 @@ export default function CompanyLifecycle() {
       ) : (
         <Tabs value={activeTab} onValueChange={onTabChange}>
           {/* Su mobile: scroll orizzontale (no wrap caotico). Su sm+: wrap normale */}
-          <TabsList className="h-auto justify-start overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
-            <TabsTrigger value="trial">
-              Trial attivi
-              <span className="ml-1.5 rounded bg-muted-foreground/15 px-1.5 text-[10px]">
-                {filteredTrial.length}{filteredTrial.length !== trialCompanies.length ? `/${trialCompanies.length}` : ""}
-              </span>
-            </TabsTrigger>
+          <TabsList aria-label="Stato aziende" className="h-auto max-w-full justify-start overflow-x-auto whitespace-nowrap [scrollbar-width:thin] sm:flex-wrap [&::-webkit-scrollbar]:h-1">
             <TabsTrigger value="active">
               Attive
               <span className="ml-1.5 rounded bg-muted-foreground/15 px-1.5 text-[10px]">
                 {filteredActive.length}{filteredActive.length !== activeCompanies.length ? `/${activeCompanies.length}` : ""}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="trial">
+              In prova
+              <span className="ml-1.5 rounded bg-muted-foreground/15 px-1.5 text-[10px]">
+                {filteredTrial.length}{filteredTrial.length !== trialCompanies.length ? `/${trialCompanies.length}` : ""}
               </span>
             </TabsTrigger>
             <TabsTrigger value="suspended">
@@ -621,7 +616,7 @@ export default function CompanyLifecycle() {
               </span>
             </TabsTrigger>
             <TabsTrigger value="expired">
-              Win-back
+              Da riattivare
               <span className="ml-1.5 rounded bg-muted-foreground/15 px-1.5 text-[10px]">
                 {filteredExpired.length}{filteredExpired.length !== expiredCompanies.length ? `/${expiredCompanies.length}` : ""}
               </span>
@@ -631,8 +626,8 @@ export default function CompanyLifecycle() {
           <TabsContent value="trial" className="space-y-4 mt-4">
             {isMounted("trial") && (filteredTrial.length === 0 ? (
               <EmptyState
-                title="Nessun trial attivo"
-                subtitle={hasFilters ? "Nessun risultato per i filtri applicati" : "Non ci sono aziende in fase trial"}
+                title="Nessuna azienda in prova"
+                subtitle={hasFilters ? "Nessun risultato con i filtri applicati" : "Le aziende in prova compariranno qui."}
                 onReset={hasFilters ? () => { setSearch(""); setHealthFilter("all"); } : undefined}
               />
             ) : (
@@ -667,8 +662,8 @@ export default function CompanyLifecycle() {
           <TabsContent value="expired" className="space-y-4 mt-4">
             {isMounted("expired") && (filteredExpired.length === 0 ? (
               <EmptyState
-                title="Nessun win-back disponibile"
-                subtitle={hasFilters ? "Nessun risultato per i filtri applicati" : "Tutte le aziende scadute sono già state contattate"}
+                title="Nessuna azienda da riattivare"
+                subtitle={hasFilters ? "Nessun risultato con i filtri applicati" : "Qui compaiono le aziende con la prova scaduta."}
                 onReset={hasFilters ? () => { setSearch(""); setHealthFilter("all"); } : undefined}
               />
             ) : (
@@ -677,6 +672,9 @@ export default function CompanyLifecycle() {
           </TabsContent>
         </Tabs>
       )}
+      <CustomerSuccessDetails label="Riepilogo aziende">
+        <LifecycleKPIs healthScores={healthScores} loading={isLoading} />
+      </CustomerSuccessDetails>
     </div>
   );
 }
@@ -695,7 +693,7 @@ function EmptyState({
         <p className="text-sm text-muted-foreground">{subtitle}</p>
         {onReset && (
           <Button variant="outline" size="sm" onClick={onReset}>
-            <X className="h-3.5 w-3.5 mr-1" /> Reset filtri
+            <X className="h-3.5 w-3.5 mr-1" /> Azzera filtri
           </Button>
         )}
       </CardContent>

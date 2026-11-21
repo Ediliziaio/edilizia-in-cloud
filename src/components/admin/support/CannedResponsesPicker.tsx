@@ -40,6 +40,7 @@ export function CannedResponsesPicker({ onSelect }: CannedResponsesPickerProps) 
       if (error) throw error;
       return (data || []) as unknown as CannedResponse[];
     },
+    enabled: open,
   });
 
   const addMutation = useMutation({
@@ -75,14 +76,14 @@ export function CannedResponsesPicker({ onSelect }: CannedResponsesPickerProps) 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" title="Risposte rapide">
+        <Button variant="ghost" size="icon" aria-label="Risposte rapide" title="Risposte rapide">
           <MessageSquareText className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
+      <PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-0" align="start">
         <div className="p-3 border-b flex items-center justify-between">
           <span className="text-sm font-medium">Risposte Rapide</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAdd(!showAdd)}>
+          <Button variant="ghost" size="icon" aria-label="Aggiungi risposta rapida" aria-expanded={showAdd} className="h-7 w-7" onClick={() => setShowAdd(!showAdd)}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -120,26 +121,24 @@ export function CannedResponsesPicker({ onSelect }: CannedResponsesPickerProps) 
           ) : (
             <div className="p-1">
               {responses.map((r) => (
-                <div
-                  key={r.id}
-                  className="group flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer"
-                  onClick={() => {
-                    onSelect(r.content);
-                    setOpen(false);
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
+                <div key={r.id} className="flex items-center gap-1 rounded hover:bg-muted">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 rounded p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    onClick={() => {
+                      onSelect(r.content);
+                      setOpen(false);
+                    }}
+                  >
                     <p className="text-sm font-medium truncate">{r.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">{r.content.slice(0, 60)}...</p>
-                  </div>
+                    <p className="text-xs text-muted-foreground truncate">{r.content}</p>
+                  </button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 ml-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteMutation.mutate(r.id);
-                    }}
+                    aria-label={"Elimina " + r.title}
+                    className="mr-1 h-8 w-8 shrink-0"
+                    onClick={() => deleteMutation.mutate(r.id)}
                   >
                     <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>

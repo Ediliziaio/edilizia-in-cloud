@@ -67,6 +67,17 @@ export function AdminHubTabs<TId extends string>({
         className="flex min-h-0 items-center gap-1 overflow-x-auto scroll-smooth px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label={ariaLabel}
+        onKeyDown={(event) => {
+          if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+          const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'));
+          const index = buttons.indexOf(event.target as HTMLButtonElement);
+          if (index < 0) return;
+          event.preventDefault();
+          const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+            : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+          buttons[nextIndex].focus();
+          buttons[nextIndex].click();
+        }}
       >
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;

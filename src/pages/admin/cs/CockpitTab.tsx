@@ -1,40 +1,25 @@
-/**
- * CockpitTab — Founder Cockpit per Customer OS.
- *
- * 1-screen dashboard che Florin apre la mattina (5 min lettura):
- *   - KPI portafoglio (clienti, MRR, MRR a rischio)
- *   - Daily brief Beatrice (KPI + headline)
- *   - At-risk customers (action richiesta)
- *   - Upsell opportunities (settimanali)
- *   - Onboarding stalled (Sofia segnala)
- *   - Action queue (cosa approvare)
- *   - Workflow stats (sistema in salute?)
- */
 import { cockpitPortfolio, type CockpitProfile } from "@/lib/customer-os/cockpitPortfolio";
 import type { AdminRevenueCompanyLike } from "@/lib/adminRevenue";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
+import { CustomerSuccessDetails, CustomerSuccessSectionHeader } from "@/components/admin/support/CustomerSuccessSection";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
-  TrendingUp,
-  Heart,
   Sparkles,
   Clock,
   CheckCircle2,
   RefreshCw,
   ArrowUpRight,
   Building2,
-  Brain,
-  Euro,
-  Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useCustomerProfiles, type CustomerProfile } from "@/lib/customer-os/customerProfile";
 import { healthLabelStyle } from "@/lib/customer-os/healthScore";
@@ -64,8 +49,10 @@ interface WorkflowStat {
 // Data LOCALE in formato YYYY-MM-DD (convenzione repo: mai toISOString().slice
 // per le date — sposta il giorno vicino a mezzanotte col fuso Europe/Rome).
 const localDay = (d: Date) => d.toLocaleDateString("en-CA");
+const fmtUsd = new Intl.NumberFormat("it-IT", { style: "currency", currency: "USD" });
 
 export function CockpitTab() {
+  const { permissions } = useSuperAdminPermissions();
   // ─── 0) KPI portafoglio: una sola lettura minimale della view (poche
   // centinaia di clienti) → conteggi ESATTI + somme MRR. Le card sotto usano
   // questi totali, non la lunghezza delle liste troncate dal limit.
@@ -90,18 +77,19 @@ export function CockpitTab() {
   });
 
   // ─── 1) Latest daily brief Beatrice ─────────────────────────────────
-  const { data: latestBrief, refetch: refetchBrief } = useQuery({
+  const briefQuery = useQuery({
     queryKey: ["cockpit-latest-brief"],
     queryFn: async (): Promise<NotificationRow | null> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sp = supabase as any;
-      const { data } = await sp
+      const { data, error } = await sp
         .from("notifications")
         .select("*")
         .eq("type", "daily_brief")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (error) throw error;
       return data as NotificationRow | null;
     },
     staleTime: 60_000,
@@ -109,69 +97,70 @@ export function CockpitTab() {
   });
 
   // ─── 2) At-risk customers ───────────────────────────────────────────
-  const { data: atRiskCustomers = [], isLoading: atRiskLoading } = useCustomerProfiles({
+  const atRisk = useCustomerProfiles({
     atRisk: true,
-    limit: 8,
+    limit: 5,
   });
 
   // ─── 3) Upsell candidates ────────────────────────────────────────────
-  const { data: upsellCandidates = [], isLoading: upsellLoading } = useCustomerProfiles({
+  const upsell = useCustomerProfiles({
     upsellCandidate: true,
     limit: 5,
   });
 
   // ─── 4) Onboarding stalled ──────────────────────────────────────────
-  const { data: stalledOnboarding = [], isLoading: stalledLoading } = useCustomerProfiles({
+  const stalled = useCustomerProfiles({
     onboardingPhase: "stalled",
     limit: 5,
   });
 
   // ─── 5) Action queue pending ────────────────────────────────────────
-  const { data: pendingActions = [] } = useQuery({
+  const approvals = useQuery({
     queryKey: ["cockpit-pending-actions"],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sp = supabase as any;
-      const { data } = await sp
+      const { data, error } = await sp
         .from("silvio_pending_approvals")
-        .select("id, preview_md, expires_at, created_at, context")
+        .select("id, preview_md")
         .eq("status", "awaiting")
+        .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false })
         .limit(10);
-      // action_type e risk_level NON sono colonne: vivono nel jsonb context
-      // (la vecchia select falliva → cockpit senza le approvazioni pendenti).
-      return ((data ?? []) as Array<{ id: string; preview_md: string; expires_at: string; created_at: string; context: Record<string, unknown> | null }>).map((r) => ({
-        id: r.id,
-        preview_md: r.preview_md,
-        expires_at: r.expires_at,
-        created_at: r.created_at,
-        action_type: (r.context?.action_type as string | undefined) ?? null,
-        risk_level: (r.context?.risk_level as string | undefined) ?? null,
-      }));
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; preview_md: string | null }>;
     },
     refetchInterval: 30_000,
     staleTime: 15_000,
+    enabled: permissions.super_admin,
   });
 
   // ─── 6) Recent workflow runs (system health) ────────────────────────
-  const { data: workflowStats = [] } = useQuery({
+  const workflowQuery = useQuery({
     queryKey: ["cockpit-workflow-stats"],
     queryFn: async (): Promise<WorkflowStat[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sp = supabase as any;
-      const { data } = await sp
+      const { data, error } = await sp
         .from("customer_workflow_daily_stats")
         .select("*")
         .gte("run_date", localDay(new Date(Date.now() - 7 * 86_400_000)))
         .order("run_date", { ascending: false });
+      if (error) throw error;
       return (data ?? []) as WorkflowStat[];
     },
     staleTime: 5 * 60_000,
+    enabled: permissions.super_admin,
   });
 
+  const atRiskCustomers = atRisk.data ?? [];
+  const upsellCandidates = upsell.data ?? [];
+  const stalledOnboarding = stalled.data ?? [];
+  const pendingActions = approvals.data ?? [];
+  const workflowStats = workflowQuery.data;
   const todayStats = useMemo(() => {
     const today = localDay(new Date());
-    return workflowStats.filter((s) => s.run_date === today);
+    return (workflowStats ?? []).filter((s) => s.run_date === today);
   }, [workflowStats]);
 
   const totalCostToday = useMemo(
@@ -192,223 +181,139 @@ export function CockpitTab() {
   const fmtEur = (n: number) => `€${Math.round(n).toLocaleString("it-IT")}`;
 
   return (
-    <div className="space-y-4">
-      {/* KPI portafoglio */}
-      {portfolio && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-5">
-          {[
-            { label: "Clienti", value: String(portfolio.total), icon: Users, cls: "" },
-            { label: "MRR pagante", value: fmtEur(portfolio.mrrTotal), icon: Euro, cls: "" },
-            { label: "Rischio Customer OS", value: String(portfolio.atRisk), icon: AlertTriangle, cls: portfolio.atRisk > 0 ? "text-rose-600 dark:text-rose-400" : "" },
-            { label: "MRR pagante a rischio", value: fmtEur(portfolio.mrrAtRisk), icon: Euro, cls: portfolio.mrrAtRisk > 0 ? "text-rose-600 dark:text-rose-400" : "" },
-            { label: "Clienti coinvolti", value: `${portfolio.champions}${portfolio.scored ? `/${portfolio.scored}` : ""}`, icon: Heart, cls: "text-emerald-600 dark:text-emerald-400" },
-          ].map((k) => {
-            const Icon = k.icon;
-            return (
-              <Card key={k.label}>
-                <CardContent className="flex items-center gap-2.5 p-3">
-                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className={cn("text-lg font-bold leading-tight tabular-nums break-words", k.cls)}>{k.value}</p>
-                    <p className="text-xs text-muted-foreground">{k.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+    <div className="space-y-3">
+      <CustomerSuccessSectionHeader
+        title="Priorità clienti"
+        description="Le segnalazioni dell’AI ti aiutano a capire chi ricontattare, chi ha bisogno di aiuto e quali proposte verificare."
+        actions={permissions.can_manage_tickets && (
+          <Button variant="outline" size="sm" asChild><Link to="/admin/cs">Vai ai ticket</Link></Button>
+        )}
+      />
 
-      {portfolioError && <p role="alert" className="text-sm text-destructive">Dati del portafoglio non disponibili. Riprova aggiornando la pagina.</p>}
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Il rischio Customer OS usa un modello distinto dal punteggio di utilizzo della scheda azienda.
-        L’MRR include solo aziende paganti, con gli stessi criteri della pagina Fatturato.
-      </p>
-      {/* Daily Brief Beatrice */}
-      <Card className="border-orange-200 bg-gradient-to-br from-orange-50/60 via-background to-amber-50/40 dark:border-orange-900/60 dark:from-orange-950/30 dark:via-background dark:to-amber-950/20">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-5 w-5 text-orange-500" />
-              Riepilogo giornaliero — Beatrice
-            </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => refetchBrief()} className="h-7">
-              <RefreshCw className="h-3 w-3 mr-1" /> Aggiorna
-            </Button>
-          </div>
-          <CardDescription>
-            Sintesi KPI e azioni prioritarie · cron 06:30 UTC
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!latestBrief ? (
-            <EmptyState
-              icon={Brain}
-              size="sm"
-              title="Beatrice non ha ancora generato il primo brief"
-              description="Nessun riepilogo disponibile. Aggiorna la lettura o verifica lo stato dei workflow in Operazioni."
-            />
-          ) : (
-            <BriefDisplay brief={latestBrief} />
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <PriorityCard title="Clienti a rischio" description="Controlla l’attività dell’azienda prima di ricontattarla." icon={AlertTriangle}>
+          {atRisk.isLoading ? <Skeleton className="h-24" /> : atRisk.isError ? (
+            <p role="alert" className="text-sm text-muted-foreground">Segnalazioni di rischio non disponibili.</p>
+          ) : atRiskCustomers.length ? (
+            <>
+              {atRiskCustomers.map((customer) => <AtRiskRow key={customer.company_id} customer={customer} canOpen={permissions.super_admin} />)}
+              {(portfolio?.atRisk ?? 0) > atRiskCustomers.length && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+                  <span>Mostrati {atRiskCustomers.length} di {portfolio?.atRisk} clienti segnalati</span>
+                  {permissions.impersonation && <Link to="/admin/cs?tab=dashboard" className="font-medium text-primary hover:underline">Apri indicatori</Link>}
+                </div>
+              )}
+            </>
+          ) : <p className="text-sm text-muted-foreground">Nessun cliente segnalato.</p>}
+        </PriorityCard>
+
+        <div className="space-y-3">
+          {permissions.super_admin && (
+            <PriorityCard
+              title="Azioni da approvare"
+              description="Apri le proposte per verificarne il contenuto prima di approvarle."
+              icon={CheckCircle2}
+              action={<Button size="sm" variant="outline" asChild><Link to="/admin/ai?tab=approvals">Apri approvazioni</Link></Button>}
+            >
+              {approvals.isLoading ? <Skeleton className="h-14" /> : approvals.isError ? (
+                <p role="alert" className="text-sm text-muted-foreground">Approvazioni non disponibili.</p>
+              ) : pendingActions.length ? pendingActions.slice(0, 4).map((action) => (
+                <Link key={action.id} to="/admin/ai?tab=approvals" className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-sm hover:bg-muted/50">
+                  <span className="min-w-0 truncate">{action.preview_md?.trim() || "Proposta da verificare"}</span>
+                  <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </Link>
+              )) : <p className="text-sm text-muted-foreground">Nessuna azione in attesa.</p>}
+            </PriorityCard>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Grid 2-col: At-risk + Upsell */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* At-risk */}
-        <Card className="border-rose-200 dark:border-rose-900/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-5 w-5 text-rose-500" />
-              Clienti a rischio Customer OS ({portfolio?.atRisk ?? atRiskCustomers.length})
-            </CardTitle>
-            <CardDescription>Salute deteriorata · richiede intervento Florin</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {atRiskLoading ? (
-              <Skeleton className="h-32" />
-            ) : atRiskCustomers.length === 0 ? (
-              <EmptyState
-                icon={CheckCircle2}
-                tone="success"
-                size="sm"
-                title="Nessun cliente a rischio Customer OS"
-                description="Tutti i clienti sono engaged"
-              />
-            ) : (
-              <div className="space-y-2">
-                {atRiskCustomers.map((c) => <AtRiskRow key={c.company_id} customer={c} />)}
-                {(portfolio?.atRisk ?? 0) > atRiskCustomers.length && (
-                  <p className="text-center text-[11px] text-muted-foreground pt-1">
-                    Mostrati i primi {atRiskCustomers.length} di {portfolio?.atRisk} — vedi tab Lifecycle per l'elenco completo
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upsell candidates */}
-        <Card className="border-emerald-200 dark:border-emerald-900/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5 text-emerald-500" />
-              Upsell opportunità ({portfolio?.upsell ?? upsellCandidates.length})
-            </CardTitle>
-            <CardDescription>Tommaso ha identificato potential upgrade</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {upsellLoading ? (
-              <Skeleton className="h-32" />
-            ) : upsellCandidates.length === 0 ? (
-              <EmptyState
-                icon={Heart}
-                size="sm"
-                title="Nessun upsell candidate al momento"
-              />
-            ) : (
-              <div className="space-y-2">
-                {upsellCandidates.map((c) => <UpsellRow key={c.company_id} customer={c} />)}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          <PriorityCard title="Avviamenti da seguire" description="Aziende che hanno bisogno di aiuto per iniziare." icon={Clock}>
+            {stalled.isLoading ? <Skeleton className="h-14" /> : stalled.isError ? (
+              <p role="alert" className="text-sm text-muted-foreground">Avviamenti non disponibili.</p>
+            ) : stalledOnboarding.length ? (
+              stalledOnboarding.map((customer) => <StalledRow key={customer.company_id} customer={customer} canOpen={permissions.super_admin} />)
+            ) : <p className="text-sm text-muted-foreground">Nessun avviamento segnalato.</p>}
+          </PriorityCard>
+        </div>
       </div>
 
-      {/* Onboarding stalled */}
-      {!stalledLoading && stalledOnboarding.length > 0 && (
-        <Card className="border-amber-200 dark:border-amber-900/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="h-5 w-5 text-amber-500" />
-              Onboarding stalled ({stalledOnboarding.length})
-            </CardTitle>
-            <CardDescription>Sofia ha rilevato blocco onboarding · email recovery in coda</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {stalledOnboarding.map((c) => <StalledRow key={c.company_id} customer={c} />)}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <PriorityCard
+        title="Riepilogo del giorno"
+        icon={Sparkles}
+        action={
+          <Button variant="ghost" size="sm" onClick={() => void briefQuery.refetch()} disabled={briefQuery.isFetching}>
+            <RefreshCw aria-hidden="true" className={cn("mr-1 h-3.5 w-3.5", briefQuery.isFetching && "animate-spin")} /> Aggiorna
+          </Button>
+        }
+      >
+        {briefQuery.isLoading ? <Skeleton className="h-14" /> : briefQuery.isError ? (
+          <p role="alert" className="text-sm text-muted-foreground">Impossibile caricare il riepilogo.</p>
+        ) : briefQuery.data ? (
+          <BriefDisplay brief={briefQuery.data} />
+        ) : <p className="text-sm text-muted-foreground">Riepilogo del giorno non ancora disponibile.</p>}
+      </PriorityCard>
 
-      {/* Action queue + system health */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-5 w-5 text-blue-500" />
-              Approva ({pendingActions.length} in coda)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pendingActions.length === 0 ? (
-              <EmptyState icon={CheckCircle2} tone="success" size="sm" title="Coda vuota — sistema in pari" />
-            ) : (
-              <div className="space-y-1">
-                {pendingActions.slice(0, 5).map((a) => (
-                  <Link
-                    key={a.id}
-                    to={`/admin/ai?tab=approvals`}
-                    className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm transition hover:border-blue-300 hover:bg-blue-50 dark:hover:border-blue-800 dark:hover:bg-blue-950/40"
-                  >
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {a.action_type ?? "?"}
-                    </Badge>
-                    <span className="flex-1 truncate text-xs text-foreground/80">
-                      {a.preview_md?.slice(0, 80)}
-                    </span>
-                    <ArrowUpRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                  </Link>
-                ))}
-                {pendingActions.length > 5 && (
-                  <Link
-                    to="/admin/ai?tab=approvals"
-                    className="block text-center text-xs text-primary hover:underline py-1"
-                  >
-                    Vedi tutti ({pendingActions.length})
-                  </Link>
-                )}
+      <CustomerSuccessDetails label="Possibili passaggi di piano">
+        {upsell.isLoading ? <Skeleton className="h-14" /> : upsell.isError ? (
+          <p role="alert" className="text-sm text-muted-foreground">Suggerimenti sui piani non disponibili.</p>
+        ) : upsellCandidates.length ? (
+          <div className="space-y-2">{upsellCandidates.map((customer) => <UpsellRow key={customer.company_id} customer={customer} canOpen={permissions.super_admin} />)}</div>
+        ) : <p className="text-sm text-muted-foreground">Nessuna azienda da valutare al momento.</p>}
+      </CustomerSuccessDetails>
+
+      <CustomerSuccessDetails label="Dati del portafoglio e attività AI">
+        {portfolioError && <p role="alert" className="mb-3 text-sm text-muted-foreground">Dati del portafoglio non disponibili.</p>}
+        {portfolio && (
+          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+            {[
+              ["Clienti", portfolio.total],
+              ["Ricavi ricorrenti mensili", fmtEur(portfolio.mrrTotal)],
+              ["Clienti segnalati", portfolio.atRisk],
+              ["Ricavi mensili a rischio", fmtEur(portfolio.mrrAtRisk)],
+              ["Clienti coinvolti", portfolio.scored ? portfolio.champions + "/" + portfolio.scored : "—"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border bg-card px-3 py-2.5">
+                <dt className="text-xs text-muted-foreground">{label}</dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums">{value}</dd>
               </div>
+            ))}
+          </dl>
+        )}
+        {permissions.super_admin && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+            {workflowQuery.isLoading ? <Skeleton className="h-5 w-52" /> : workflowQuery.isError ? (
+              <p role="alert">Attività AI non disponibile.</p>
+            ) : (
+              <p>Oggi · {totalRunsToday} esecuzioni · {totalFailedToday} errori · {fmtUsd.format(totalCostToday)}</p>
             )}
-          </CardContent>
-        </Card>
-
-        {/* System health */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Sistema agentico</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Run oggi</span>
-              <span className="font-semibold text-foreground">{totalRunsToday}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Failed oggi</span>
-              <span className={totalFailedToday > 0 ? "font-semibold text-rose-600 dark:text-rose-400" : "font-semibold text-foreground"}>
-                {totalFailedToday}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Cost AI oggi</span>
-              <span className="font-semibold text-foreground">${totalCostToday.toFixed(2)}</span>
-            </div>
-            <div className="mt-2 pt-2 border-t">
-              <Link
-                to="/admin/ai?section=monitor"
-                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-              >
-                Dettagli monitor
-                <ArrowUpRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Link to="/admin/ai?section=monitor" className="font-medium text-primary hover:underline">Apri monitor AI</Link>
+          </div>
+        )}
+      </CustomerSuccessDetails>
     </div>
+  );
+}
+
+function PriorityCard({ title, description, icon: Icon, action, children }: {
+  title: string;
+  description?: string;
+  icon: LucideIcon;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 text-base font-semibold">
+            <Icon aria-hidden="true" className="h-4 w-4 text-primary" />
+            {title}
+          </h3>
+          {action}
+        </div>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="space-y-2 px-4 pb-4">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -503,57 +408,64 @@ function BriefDisplay({ brief }: { brief: NotificationRow }) {
   );
 }
 
-function AtRiskRow({ customer }: { customer: CustomerProfile }) {
+function CustomerRow({ companyId, canOpen, children }: { companyId: string; canOpen: boolean; children: ReactNode }) {
+  const className = "flex items-center gap-2.5 rounded-lg border bg-card p-2.5";
+  if (!canOpen) return <div className={className}>{children}</div>;
+  return (
+    <Link to={`/admin/aziende/${companyId}`} className={cn(className, "transition-colors hover:border-primary/40 hover:bg-muted/30")}>
+      {children}
+      <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    </Link>
+  );
+}
+
+interface CustomerRowProps {
+  customer: CustomerProfile;
+  canOpen: boolean;
+}
+
+function AtRiskRow({ customer, canOpen }: CustomerRowProps) {
   const style = healthLabelStyle(customer.health_label_latest ?? "at_risk");
   return (
-    <Link
-      to={`/admin/aziende/${customer.company_id}`}
-      className="flex items-center gap-3 rounded-md border bg-card p-2 hover:border-rose-300 hover:bg-rose-50/40 dark:hover:border-rose-800 dark:hover:bg-rose-950/30 transition"
-    >
-      <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+    <CustomerRow companyId={customer.company_id} canOpen={canOpen}>
+      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">{customer.name}</p>
-        <p className="text-[11px] text-muted-foreground">
-          Indice Customer OS {customer.health_score_latest ?? "?"} · {customer.plan_name ?? "—"} · listino €{customer.plan_price_monthly ?? 0}/mese
+        <p className="truncate text-sm font-medium">{customer.name}</p>
+        <p className="text-xs text-muted-foreground">
+          Punteggio {customer.health_score_latest ?? "—"} · {customer.plan_name ?? "Piano non indicato"}
         </p>
       </div>
-      <Badge variant="outline" className={cn("text-[10px] shrink-0", style.bg, style.color)}>
-        {style.emoji} {customer.health_label_latest}
+      <Badge variant="outline" className={cn("shrink-0 text-[10px]", style.bg, style.color)}>
+        {customer.health_label_latest === "churned" ? "Cliente perso" : "Da seguire"}
       </Badge>
-    </Link>
+    </CustomerRow>
   );
 }
 
-function UpsellRow({ customer }: { customer: CustomerProfile }) {
+function UpsellRow({ customer, canOpen }: CustomerRowProps) {
   return (
-    <Link
-      to={`/admin/aziende/${customer.company_id}`}
-      className="flex items-center gap-3 rounded-md border bg-card p-2 hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/30 transition"
-    >
-      <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" />
+    <CustomerRow companyId={customer.company_id} canOpen={canOpen}>
+      <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">{customer.name}</p>
-        <p className="text-[11px] text-muted-foreground">
-          {customer.plan_name ?? "—"} · {customer.login_count_30d} login/30gg · {customer.team_size} utenti
+        <p className="truncate text-sm font-medium">{customer.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {customer.plan_name ?? "—"} · {customer.login_count_30d} {customer.login_count_30d === 1 ? "accesso" : "accessi"} in 30 giorni
         </p>
       </div>
-    </Link>
+    </CustomerRow>
   );
 }
 
-function StalledRow({ customer }: { customer: CustomerProfile }) {
+function StalledRow({ customer, canOpen }: CustomerRowProps) {
   return (
-    <Link
-      to={`/admin/aziende/${customer.company_id}`}
-      className="flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50/30 p-2 hover:bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 transition"
-    >
-      <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+    <CustomerRow companyId={customer.company_id} canOpen={canOpen}>
+      <Clock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">{customer.name}</p>
-        <p className="text-[11px] text-muted-foreground">
-          Day {customer.days_since_signup} · {customer.login_count_30d} login 30gg · phase {customer.onboarding_phase}
+        <p className="truncate text-sm font-medium">{customer.name}</p>
+        <p className="text-xs text-muted-foreground">
+          Iscritta da {customer.days_since_signup} {customer.days_since_signup === 1 ? "giorno" : "giorni"} · {customer.login_count_30d} {customer.login_count_30d === 1 ? "accesso" : "accessi"} in 30 giorni
         </p>
       </div>
-    </Link>
+    </CustomerRow>
   );
 }

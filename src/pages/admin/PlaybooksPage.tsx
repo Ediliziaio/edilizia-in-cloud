@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import { Plus, Trash2, Save, Loader2, Search, Play, CheckCircle2, XCircle, Activ
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { CustomerSuccessDetails, CustomerSuccessSectionHeader } from "@/components/admin/support/CustomerSuccessSection";
 import {
   usePlaybooksList,
   usePlaybookExecutions,
@@ -259,18 +260,6 @@ function EditorPlaybook({ playbook, onChiudi }: { playbook: Playbook; onChiudi: 
   const [isActive, setIsActive] = useState(playbook.is_active);
   const [azioni, setAzioni] = useState<EditableAction[]>(() => playbook.actions.map(addLocalId));
   const [showValidation, setShowValidation] = useState(false);
-
-  // BUG FIX: prima se l'utente selezionava un altro playbook senza chiudere,
-  // gli state erano inizializzati solo al primo mount → mostrava dati del
-  // playbook precedente. Ora sync quando cambia l'id del playbook.
-  useEffect(() => {
-    setNome(playbook.name);
-    setTriggerEvent(playbook.trigger_event);
-    setDelayHours(playbook.delay_hours);
-    setIsActive(playbook.is_active);
-    setAzioni(playbook.actions.map(addLocalId));
-    setShowValidation(false);
-  }, [playbook.id]);
 
   const { mutate: salva, isPending: salvando } = useUpdatePlaybook();
 
@@ -520,16 +509,6 @@ function DialogNuovoPlaybook({ aperto, onChiudi }: { aperto: boolean; onChiudi: 
   const [libFilter, setLibFilter] = useState<Playbook["trigger_event"] | "all">("all");
   const { mutate: crea, isPending: creando } = useCreatePlaybook();
 
-  useEffect(() => {
-    if (aperto) {
-      setTab("library");
-      setNome("");
-      setEvento("trial_started");
-      setSelectedLib(null);
-      setLibFilter("all");
-    }
-  }, [aperto]);
-
   const filteredLib = useMemo(
     () => libFilter === "all" ? PLAYBOOK_LIBRARY : PLAYBOOK_LIBRARY.filter(p => p.trigger === libFilter),
     [libFilter],
@@ -708,23 +687,23 @@ function DialogNuovoPlaybook({ aperto, onChiudi }: { aperto: boolean; onChiudi: 
 
 // ─── KPI overview ─────────────────────────────────────────
 
-function PlaybookStats({ playbooks, executions }: { playbooks: Playbook[]; executions: PlaybookExecution[] }) {
+function PlaybookStats({ playbooks, executions, observedAt }: { playbooks: Playbook[]; executions: PlaybookExecution[]; observedAt: number }) {
   const stats = useMemo(() => {
     const totali = playbooks.length;
     const attivi = playbooks.filter(p => p.is_active).length;
-    const sevenDaysAgo = Date.now() - 7 * 86400 * 1000;
+    const sevenDaysAgo = observedAt - 7 * 86400 * 1000;
     const exec7d = executions.filter(e => new Date(e.started_at).getTime() > sevenDaysAgo);
     const success = exec7d.filter(e => e.status === "completed").length;
     const failed = exec7d.filter(e => e.status === "failed").length;
     const successRate = exec7d.length > 0 ? Math.round((success / exec7d.length) * 100) : null;
     return { totali, attivi, exec7d: exec7d.length, success, failed, successRate };
-  }, [playbooks, executions]);
+  }, [playbooks, executions, observedAt]);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <StatCard icon={<Workflow className="h-4 w-4" />} label="Playbook totali" value={stats.totali} subtitle={`${stats.attivi} attivi`} accent="bg-primary/10 text-primary" />
+      <StatCard icon={<Workflow className="h-4 w-4" />} label="Regole" value={stats.totali} subtitle={`${stats.attivi} attivi`} accent="bg-primary/10 text-primary" />
       <StatCard icon={<Activity className="h-4 w-4" />} label="Esecuzioni 7gg" value={stats.exec7d} accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
-      <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label="Success rate 7gg" value={stats.successRate != null ? `${stats.successRate}%` : "—"} subtitle={stats.successRate != null ? `${stats.success}/${stats.exec7d}` : "nessuna esec."} accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />
+      <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label="Esecuzioni riuscite" value={stats.successRate != null ? `${stats.successRate}%` : "—"} subtitle={stats.successRate != null ? `${stats.success}/${stats.exec7d}` : "nessuna esec."} accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />
       <StatCard icon={<XCircle className="h-4 w-4" />} label="Errori 7gg" value={stats.failed} accent={stats.failed > 0 ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" : "bg-muted text-muted-foreground"} />
     </div>
   );
@@ -857,14 +836,15 @@ function TabEsecuzioni() {
 
 export default function PlaybooksPage() {
   const [dialogAperto, setDialogAperto] = useState(false);
-  const [playbookSelezionato, setPlaybookSelezionato] = useState<Playbook | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Playbook | null>(null);
   const [search, setSearch] = useState("");
   const [filterEvent, setFilterEvent] = useState<Playbook["trigger_event"] | "all">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
 
-  const { data: playbooks = [], isLoading } = usePlaybooksList();
-  const { data: executions = [] } = usePlaybookExecutions({ limit: 200 });
+  const { data: playbooks = [], isLoading, isError, refetch } = usePlaybooksList();
+  const playbookSelezionato = playbooks.find((playbook) => playbook.id === selectedId);
+  const { data: executions = [], dataUpdatedAt } = usePlaybookExecutions({ limit: 200 });
   const { mutate: elimina, isPending: eliminando } = useDeletePlaybook();
   const { mutate: toggle } = useTogglePlaybook();
   const { mutate: runNow, isPending: runningNow } = useRunPlaybooksNow();
@@ -881,52 +861,22 @@ export default function PlaybooksPage() {
     });
   }, [playbooks, search, filterEvent, filterStatus]);
 
-  // Se il playbook selezionato viene eliminato dalla lista, reset selezione
-  useEffect(() => {
-    if (playbookSelezionato && !playbooks.find(p => p.id === playbookSelezionato.id)) {
-      setPlaybookSelezionato(null);
-    }
-  }, [playbooks, playbookSelezionato]);
-
-  // Se il playbook in lista è stato aggiornato (es. toggle altrove), aggiorna anche
-  // la selezione corrente così l'editor riflette i dati freschi
-  useEffect(() => {
-    if (!playbookSelezionato) return;
-    const fresh = playbooks.find(p => p.id === playbookSelezionato.id);
-    if (fresh && fresh !== playbookSelezionato) {
-      setPlaybookSelezionato(fresh);
-    }
-  }, [playbooks]); // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div className="hidden md:flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Playbook Automatici</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Configura sequenze di azioni automatiche scatenate da eventi del lifecycle
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          className="gap-2 shrink-0"
-          disabled={runningNow || playbooks.every((p) => !p.is_active)}
-          onClick={() => runNow()}
-          title="Valuta subito i trigger di tutti i playbook attivi ed esegue le azioni (ogni playbook scatta al massimo 1 volta per azienda)"
-        >
-          {runningNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          Esegui ora
-        </Button>
-      </div>
-
-      {/* KPI stats */}
-      <PlaybookStats playbooks={playbooks} executions={executions} />
+    <div className="space-y-3">
+      <CustomerSuccessSectionHeader
+        title="Automazioni"
+        description="Imposta le azioni che partono quando un’azienda entra in prova, si attiva o ha bisogno di un seguito."
+        actions={(
+          <Button size="sm" onClick={() => setDialogAperto(true)}>
+            <Plus aria-hidden="true" className="mr-2 h-4 w-4" /> Nuova automazione
+          </Button>
+        )}
+      />
 
       <Tabs defaultValue="playbooks">
         <TabsList>
           <TabsTrigger value="playbooks">
-            Playbook
+            Regole
             {playbooks.length > 0 && (
               <span className="ml-1.5 rounded bg-muted-foreground/15 px-1.5 text-[10px]">{playbooks.length}</span>
             )}
@@ -949,27 +899,25 @@ export default function PlaybooksPage() {
                 <div className="relative flex-1 min-w-[180px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Cerca playbook…"
+                    aria-label="Cerca automazione"
+                    placeholder="Cerca automazione…"
                     className="pl-9 h-9"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
                 <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}>
-                  <SelectTrigger className="w-[120px] h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Stato automazione" className="h-9 w-[120px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti</SelectItem>
                     <SelectItem value="active">Attivi</SelectItem>
                     <SelectItem value="inactive">Inattivi</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button size="sm" className="h-9" onClick={() => setDialogAperto(true)}>
-                  <Plus className="h-4 w-4 mr-1" /> Nuovo
-                </Button>
               </div>
 
               <Select value={filterEvent} onValueChange={(v) => setFilterEvent(v as typeof filterEvent)}>
-                <SelectTrigger className="w-full h-9">
+                <SelectTrigger aria-label="Evento di avvio" className="h-9 w-full">
                   <SelectValue placeholder="Filtra per evento" />
                 </SelectTrigger>
                 <SelectContent>
@@ -986,21 +934,22 @@ export default function PlaybooksPage() {
                 </div>
               )}
 
-              {!isLoading && playbooks.length === 0 && (
+              {isError && (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+                  Impossibile caricare le automazioni.
+                  <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+                </div>
+              )}
+
+              {!isLoading && !isError && playbooks.length === 0 && (
                 <Card>
                   <CardContent className="py-12 flex flex-col items-center text-center gap-3">
                     <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
                       <Workflow className="h-7 w-7 text-primary" />
                     </div>
                     <div>
-                      <p className="font-medium">Nessun playbook configurato</p>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-[260px]">
-                        Crea il primo per automatizzare le risposte a eventi lifecycle.
-                      </p>
+                      <p className="font-medium">Nessuna automazione configurata</p>
                     </div>
-                    <Button size="sm" onClick={() => setDialogAperto(true)}>
-                      <Plus className="h-4 w-4 mr-1" /> Crea il primo playbook
-                    </Button>
                   </CardContent>
                 </Card>
               )}
@@ -1051,7 +1000,7 @@ export default function PlaybooksPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setPlaybookSelezionato(playbookSelezionato?.id === pb.id ? null : pb)}
+                          onClick={() => setSelectedId(selectedId === pb.id ? null : pb.id)}
                         >
                           {playbookSelezionato?.id === pb.id ? "Chiudi" : "Modifica"}
                         </Button>
@@ -1077,15 +1026,16 @@ export default function PlaybooksPage() {
                 <Card>
                   <CardContent className="pt-4">
                     <EditorPlaybook
+                      key={playbookSelezionato.id}
                       playbook={playbookSelezionato}
-                      onChiudi={() => setPlaybookSelezionato(null)}
+                      onChiudi={() => setSelectedId(null)}
                     />
                   </CardContent>
                 </Card>
               ) : (
                 <div className="flex flex-col items-center justify-center h-64 border border-dashed rounded-lg text-muted-foreground gap-2">
                   <Play className="h-8 w-8 opacity-30" />
-                  <span className="text-sm">Seleziona un playbook per modificarlo</span>
+                  <span className="text-sm">Seleziona una regola per modificarla</span>
                 </div>
               )}
             </div>
@@ -1095,8 +1045,19 @@ export default function PlaybooksPage() {
         {/* Tab Esecuzioni */}
         <TabsContent value="esecuzioni" className="mt-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">Registro esecuzioni</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={runningNow || playbooks.every((p) => !p.is_active)}
+                onClick={() => runNow()}
+                title="Valuta ed esegue le regole attive, al massimo una volta per azienda e regola"
+              >
+                {runningNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                Esegui ora
+              </Button>
             </CardHeader>
             <CardContent>
               <TabEsecuzioni />
@@ -1104,9 +1065,12 @@ export default function PlaybooksPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      <CustomerSuccessDetails label="Risultati delle automazioni">
+        <PlaybookStats playbooks={playbooks} executions={executions} observedAt={dataUpdatedAt} />
+      </CustomerSuccessDetails>
 
       {/* Dialog nuovo playbook */}
-      <DialogNuovoPlaybook aperto={dialogAperto} onChiudi={() => setDialogAperto(false)} />
+      {dialogAperto && <DialogNuovoPlaybook aperto onChiudi={() => setDialogAperto(false)} />}
 
       {/* Confirm dialog delete — BUG FIX: prima deletava senza conferma */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
@@ -1129,9 +1093,7 @@ export default function PlaybooksPage() {
                 if (deleteConfirm) {
                   elimina(deleteConfirm.id, {
                     onSuccess: () => {
-                      if (playbookSelezionato?.id === deleteConfirm.id) {
-                        setPlaybookSelezionato(null);
-                      }
+                      setSelectedId((id) => id === deleteConfirm.id ? null : id);
                       setDeleteConfirm(null);
                     },
                   });

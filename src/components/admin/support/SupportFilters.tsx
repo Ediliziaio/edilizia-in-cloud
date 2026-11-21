@@ -1,5 +1,7 @@
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supportPriorityLabels, supportStatusLabels } from "./supportInbox";
 
 interface SupportFiltersProps {
   statusFilter: string;
@@ -8,6 +10,8 @@ interface SupportFiltersProps {
   onPriorityChange: (priority: string) => void;
   sortBy: string;
   onSortChange: (sort: string) => void;
+  overdueOnly: boolean;
+  onOverdueChange: (value: boolean) => void;
 }
 
 export function SupportFilters({
@@ -17,43 +21,53 @@ export function SupportFilters({
   onPriorityChange,
   sortBy,
   onSortChange,
+  overdueOnly,
+  onOverdueChange,
 }: SupportFiltersProps) {
   return (
-    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-      <Tabs value={statusFilter} onValueChange={onStatusChange} className="w-full sm:w-auto">
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="all" className="text-xs">Tutti</TabsTrigger>
-          <TabsTrigger value="open" className="text-xs">Aperte</TabsTrigger>
-          <TabsTrigger value="in_progress" className="text-xs">In lavorazione</TabsTrigger>
-          <TabsTrigger value="resolved" className="text-xs">Risolte</TabsTrigger>
-          <TabsTrigger value="closed" className="text-xs">Chiuse</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <div className="flex gap-2">
-        <Select value={priorityFilter} onValueChange={onPriorityChange}>
-          <SelectTrigger className="w-[130px] h-9 text-xs">
-            <SelectValue placeholder="Priorità" />
-          </SelectTrigger>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="support-filter-status">Stato</Label>
+        <Select value={statusFilter} onValueChange={onStatusChange}>
+          <SelectTrigger id="support-filter-status"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte</SelectItem>
-            <SelectItem value="low">Bassa</SelectItem>
-            <SelectItem value="normal">Normale</SelectItem>
-            <SelectItem value="high">Alta</SelectItem>
-            <SelectItem value="urgent">Urgente</SelectItem>
+            <SelectItem value="all">Tutti gli stati</SelectItem>
+            {Object.entries(supportStatusLabels).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
+      </div>
 
+      <div className="space-y-1.5">
+        <Label htmlFor="support-filter-priority">Priorità</Label>
+        <Select value={priorityFilter} onValueChange={onPriorityChange}>
+          <SelectTrigger id="support-filter-priority"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte le priorità</SelectItem>
+            <SelectItem value="high_or_urgent">Alta o urgente</SelectItem>
+            {Object.entries(supportPriorityLabels).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="support-filter-sort">Ordina per</Label>
         <Select value={sortBy} onValueChange={onSortChange}>
-          <SelectTrigger className="w-[140px] h-9 text-xs">
-            <SelectValue placeholder="Ordina per" />
-          </SelectTrigger>
+          <SelectTrigger id="support-filter-sort"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="recent">Più recenti</SelectItem>
-            <SelectItem value="oldest">Più vecchie</SelectItem>
+            <SelectItem value="oldest">Più vecchi</SelectItem>
             <SelectItem value="priority">Priorità</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="flex items-start gap-2">
+        <Checkbox id="support-filter-overdue" checked={overdueOnly} onCheckedChange={(value) => onOverdueChange(value === true)} />
+        <Label htmlFor="support-filter-overdue" className="leading-snug">Oltre 24 ore senza risposta</Label>
       </div>
     </div>
   );

@@ -1,10 +1,7 @@
 /**
  * AdminCustomerSuccessHub — pagina hub per Customer Success Superadmin
  *
- * Consolida 5 voci sidebar separate (CS Dashboard, Assistenza, Lifecycle,
- * Onboarding, Playbook) in un'unica pagina con 5 tab in alto.
- *
- * Stesso pattern del Fatturato hub e di /azienda/ordini.
+ * Apre la coda ticket e mantiene le altre sezioni raggiungibili dalle schede.
  *
  * Tab state via ?tab=... — le route legacy (/admin/cs-dashboard, /admin/ticket,
  * /admin/lifecycle, /admin/customer-success, /admin/playbooks) restano attive
@@ -22,12 +19,13 @@ import {
   Brain,
 } from "lucide-react";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
-import { AdminHubTabs, type AdminHubTab } from "@/components/admin/AdminHubTabs";
+import { AdminHubTabs } from "@/components/admin/AdminHubTabs";
+import GlobalTickets from "@/pages/admin/GlobalTickets";
 
 const AdminCSDashboard = lazy(() => import("@/pages/admin/AdminCSDashboard"));
-const GlobalTickets = lazy(() => import("@/pages/admin/GlobalTickets"));
 const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const PlaybooksPage = lazy(() => import("@/pages/admin/PlaybooksPage"));
@@ -44,66 +42,66 @@ function isValidTab(value: string | null): value is CSTab {
 
 export default function AdminCustomerSuccessHub() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { permissions } = useSuperAdminPermissions();
+  const { permissions, isLoading } = useSuperAdminPermissions();
 
   const tabParam = searchParams.get("tab");
-  const requestedTab: CSTab = isValidTab(tabParam) ? tabParam : "cockpit";
+  const requestedTab: CSTab = isValidTab(tabParam) ? tabParam : "assistenza";
 
   const tabs = [
     {
+      id: "assistenza" as const,
+      label: "Ticket",
+      icon: MessageSquare,
+      show: permissions.can_manage_tickets,
+      description: "Richieste di supporto delle aziende",
+    },
+    {
       id: "cockpit" as const,
-      label: "Cockpit AI",
+      label: "Priorità clienti",
       icon: Brain,
       show: permissions.can_manage_companies,
-      description: "Daily brief + at-risk + upsell + action queue (Customer OS)",
+      description: "Clienti da seguire e proposte dell’intelligenza artificiale da verificare",
     },
     {
       id: "dashboard" as const,
-      label: "Dashboard",
+      label: "Indicatori",
       icon: TrendingUp,
       show: permissions.impersonation,
-      description: "KPI health score, NPS, retention",
-    },
-    {
-      id: "assistenza" as const,
-      label: "Assistenza",
-      icon: MessageSquare,
-      show: permissions.can_manage_tickets,
-      description: "Ticket di supporto utenti",
+      description: "Conteggi di assistenza e andamento delle aziende",
     },
     {
       id: "lifecycle" as const,
-      label: "Lifecycle",
+      label: "Aziende",
       icon: LifeBuoy,
       show: permissions.can_manage_companies,
-      description: "Ciclo di vita cliente",
+      description: "Aziende attive, in prova, sospese e da ricontattare",
     },
     {
       id: "onboarding" as const,
-      label: "Onboarding",
+      label: "Avvio clienti",
       icon: ListChecks,
       show: permissions.can_manage_companies,
-      description: "Setup nuove aziende",
+      description: "Modelli e attività guidate per le nuove aziende",
     },
     {
       id: "playbook" as const,
-      label: "Playbook",
+      label: "Automazioni",
       icon: BookOpen,
       show: permissions.can_manage_companies,
-      description: "Procedure operative CS",
+      description: "Regole di assistenza ed esecuzioni",
     },
   ].filter((t) => t.show);
 
-  const activeTab: CSTab = tabs.some((t) => t.id === requestedTab)
-    ? requestedTab
-    : (tabs[0]?.id ?? "cockpit");
+  if (isLoading) return <HubTabSkeleton />;
+  if (!tabs.length) return <AccessDenied />;
+
+  const activeTab = tabs.some((t) => t.id === requestedTab) ? requestedTab : tabs[0].id;
 
   const handleTabChange = (tab: CSTab) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        // Cockpit è il default → no ?tab= in URL per pulizia
-        if (tab === "cockpit") next.delete("tab");
+        if (tab === "assistenza") next.delete("tab");
         else next.set("tab", tab);
         return next;
       },
@@ -112,31 +110,30 @@ export default function AdminCustomerSuccessHub() {
   };
 
   return (
-    <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0">
-      {/* ─── Hero header in stile Commesse ──────────────────────────────── */}
+    <div className="space-y-3 pb-20 sm:pb-0">
       <AdminHeroHeader
         icon={HeartHandshake}
         title="Assistenza Clienti"
-        subtitle="Dashboard, ticket, lifecycle, onboarding e playbook in un'unica vista."
       />
 
-      {/* ─── Tab navigation ─────────────────────────────────────────────── */}
       <AdminHubTabs<CSTab>
         activeTab={activeTab}
         onChange={handleTabChange}
         ariaLabel="Sezioni assistenza clienti"
-        tabs={tabs as AdminHubTab<CSTab>[]}
+        tabs={tabs}
+        className="[&>nav]:[scrollbar-width:thin] sm:[&>nav]:[scrollbar-width:none]"
       />
 
-      {/* ─── Tab content ────────────────────────────────────────────────── */}
-      <Suspense fallback={<HubTabSkeleton />}>
-        {activeTab === "cockpit" && <CockpitTab />}
-        {activeTab === "dashboard" && <AdminCSDashboard />}
-        {activeTab === "assistenza" && <GlobalTickets />}
-        {activeTab === "lifecycle" && <CompanyLifecycle />}
-        {activeTab === "onboarding" && <CustomerSuccess />}
-        {activeTab === "playbook" && <PlaybooksPage />}
-      </Suspense>
+      <section role="tabpanel" id={`hub-panel-${activeTab}`} aria-labelledby={`hub-tab-${activeTab}`}>
+        <Suspense fallback={<HubTabSkeleton />}>
+          {activeTab === "cockpit" && <CockpitTab />}
+          {activeTab === "dashboard" && <AdminCSDashboard />}
+          {activeTab === "assistenza" && <GlobalTickets />}
+          {activeTab === "lifecycle" && <CompanyLifecycle />}
+          {activeTab === "onboarding" && <CustomerSuccess />}
+          {activeTab === "playbook" && <PlaybooksPage />}
+        </Suspense>
+      </section>
     </div>
   );
 }
@@ -144,14 +141,8 @@ export default function AdminCustomerSuccessHub() {
 function HubTabSkeleton() {
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-      <Skeleton className="h-72 w-full" />
-      <Skeleton className="h-48 w-full" />
+      <Skeleton className="h-11 w-full" />
+      <Skeleton className="h-64 w-full" />
     </div>
   );
 }
