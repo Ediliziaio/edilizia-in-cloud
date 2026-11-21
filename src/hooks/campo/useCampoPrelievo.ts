@@ -113,6 +113,7 @@ export function usePrelievoRegistra(companyId: string) {
       void qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
       if (stato === "consegnato") {
         void qc.invalidateQueries({ queryKey: queryKeys.warehouse.movementsRegistry(companyId) });
+        void qc.invalidateQueries({ queryKey: queryKeys.warehouse.campoMateriali(companyId, orderId) });
         void qc.invalidateQueries({ queryKey: ["order-material-usage", orderId, companyId] });
       }
     },

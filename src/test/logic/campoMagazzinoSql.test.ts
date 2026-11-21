@@ -6,6 +6,8 @@ import base from "../../../supabase/migrations/20280929100000_prelievo_magazzino
 import ddt from "../../../supabase/migrations/20280929110000_ddt_da_prelievo_campo.sql?raw";
 import sorgenteAssegnazioni from "../../../supabase/migrations/20281019130000_terzo_controllo_cantiere_economia.sql?raw";
 import migrazione from "../../../supabase/migrations/20290504125650_magazzino_campo_permessi_e_prelievi.sql?raw";
+import definizioneUnita from "../../../supabase/migrations/20281030180000_rientro_e_contratti_correzioni.sql?raw";
+import riepilogoMateriali from "../../../supabase/migrations/20290506134200_campo_materiali_cantiere_unita.sql?raw";
 
 const db = new PGlite();
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -50,6 +52,18 @@ beforeAll(async () => {
     await tx.exec(migrazione);
     await tx.exec(migrazione);
   });
+  const confrontoUnita = definizioneUnita.match(/create or replace function public\.unita_confrontabile[\s\S]*?\$\$;/);
+  if (!confrontoUnita) throw new Error("Confronto delle unità non trovato");
+  await db.exec(confrontoUnita[0]);
+  await db.exec(`
+    alter table warehouse_movements add column order_item_id uuid, add column rientro_commessa boolean default false;
+    create table order_items(id uuid primary key, order_id uuid, stock_item_id uuid);
+    create table campo_rapportini(order_id uuid, company_id uuid, user_id uuid, stato text, materiali_usati jsonb);
+  `);
+  await db.transaction(async (tx) => {
+    await tx.exec(riepilogoMateriali);
+    await tx.exec(riepilogoMateriali);
+  });
   await db.exec("grant select, insert, update, delete on prelievi_campo to authenticated");
 }, 30_000);
 
@@ -58,7 +72,8 @@ afterAll(async () => { await db.close(); });
 beforeEach(async () => {
   await db.exec(`
     truncate companies, profiles, staff_permissions, warehouses, warehouse_assignments, warehouse_stock,
-      warehouse_movements, orders, prelievi_campo, order_campo_assignments, squadre_commesse, squadre_test;
+      warehouse_movements, orders, prelievi_campo, order_campo_assignments, squadre_commesse, squadre_test,
+      order_items, campo_rapportini;
     insert into companies values ('${azienda}', true), ('${esterna}', false);
     insert into profiles(id,company_id,role) values ('${operaio}','${azienda}','employee'),
       ('${collega}','${azienda}','employee'), ('${admin}','${azienda}','company_admin');
@@ -170,5 +185,50 @@ describe("app operaio — autorizzazioni, inventario e prelievi", () => {
       .toEqual([{ stato: "richiesto" }]);
     await db.query("update profiles set bloccato = true where id = $1", [operaio]);
     await expect(registra()).rejects.toThrow(/non autorizzati/i);
+  });
+
+  it("riepiloga in metri consegne e residuo del cantiere anche prima dei rapportini", async () => {
+    const leggi = () => come(operaio, "select * from campo_materiali_cantiere($1,$2,0)", [azienda, cantiere]);
+    const atteso = { stock_item_id: tubo, nome: "Tubo", unita_misura: "m", consegnato: "2.25", residuo: "2.25" };
+    await registra({ righe: [{ stock_item_id: tubo, quantita: 2.25 }] });
+    expect(await leggi()).toEqual([]);
+    await come(admin, "select prelievo_campo_approva($1)", [richiesta]);
+    expect(await leggi()).toEqual([atteso]);
+
+    const rigaOrdine = uuid(401);
+    await db.query("insert into order_items values ($1,$2,$3)", [rigaOrdine, cantiere, tubo]);
+    await db.query(`insert into warehouse_movements
+      (stock_item_id,movement_type,quantity,performed_by,company_id,warehouse_id,order_id,notes,order_item_id,rientro_commessa)
+      values ($1,'carico',0.25,$2,$3,$4,$5,'Reso',$6,true),
+             ($1,'carico',8,$2,$3,$4,$5,'Arrivo fornitore',$6,false),
+             ($1,'scarico',9,$2,$3,$4,$5,'Divisione tra le fasi: ripartito',$6,false)`,
+      [tubo, admin, azienda, deposito, cantiere, rigaOrdine]);
+    await db.query("insert into campo_rapportini values ($1,$2,$3,'approvato',$4::jsonb), ($1,$2,$3,'inviato',$5::jsonb)",
+      [cantiere, azienda, collega, JSON.stringify([
+        { stock_item_id: tubo, order_item_id: rigaOrdine, quantita: 0.5, unita: "m" },
+        { order_item_id: rigaOrdine, quantita: "0,25", unita: "m" },
+      ]), JSON.stringify([{ stock_item_id: tubo, quantita: 2, unita: "m" }])]);
+    expect(await leggi()).toEqual([{ ...atteso, residuo: "1.25" }]);
+    await db.query("insert into campo_rapportini values ($1,$2,$3,'approvato',$4::jsonb)",
+      [cantiere, azienda, collega, JSON.stringify([{ stock_item_id: tubo, quantita: 1, unita: "kg" }])]);
+    expect(await leggi()).toEqual([{ ...atteso, residuo: null }]);
+  });
+
+  it("mostra il riepilogo ai soli operai autorizzati al cantiere e al magazzino", async () => {
+    await db.query("insert into warehouse_assignments values ($1, $2, true)", [deposito, operaio]);
+    await db.query(`insert into warehouse_movements
+      (stock_item_id,movement_type,quantity,performed_by,company_id,warehouse_id,order_id)
+      values ($1,'scarico',2.25,$3,$4,$5,$7), ($2,'scarico',1,$3,$4,$6,$7)`,
+      [tubo, cemento, admin, azienda, deposito, secondario, cantiere]);
+    const leggi = (utente: string, aziendaId: string, cantiereId: string) =>
+      come(utente, "select stock_item_id from campo_materiali_cantiere($1,$2,0)", [aziendaId, cantiereId]);
+    expect(await leggi(operaio, azienda, cantiere)).toEqual([{ stock_item_id: tubo }]);
+    await expect(leggi(collega, azienda, cantiere)).rejects.toThrow(/non accessibili/);
+    await expect(leggi(operaio, azienda, nonAssegnato)).rejects.toThrow(/non accessibili/);
+    await expect(leggi(operaio, esterna, cantiereEsterno)).rejects.toThrow(/non accessibili/);
+    await db.query("update staff_permissions set magazzino_campo = 'inventario' where user_id = $1", [operaio]);
+    expect(await leggi(operaio, azienda, cantiere)).toEqual([{ stock_item_id: tubo }]);
+    await db.query("update staff_permissions set magazzino_campo = 'nessuno' where user_id = $1", [operaio]);
+    await expect(leggi(operaio, azienda, cantiere)).rejects.toThrow(/non accessibili/);
   });
 });

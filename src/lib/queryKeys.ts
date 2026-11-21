@@ -251,6 +251,7 @@ export const queryKeys = {
   // ── Warehouse ──────────────────────────────────────────
   warehouse: {
     all: ["warehouse"] as const,
+    campoMateriali: (companyId: string, orderId: string) => ["campo-materiali-cantiere", companyId, orderId] as const,
     movementsRegistry: (companyId: string) => ["warehouse-movements-registry", companyId] as const,
     items: (companyId: string | undefined, ...filters: any[]) =>
       ["warehouse", "items", companyId, ...filters] as const,
