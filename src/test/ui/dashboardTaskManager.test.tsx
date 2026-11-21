@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import { MieAttivita, TeamTaskPulse } from "@/pages/azienda/AttivitaStaff";
+import AttivitaStaff, { MieAttivita, TeamTaskPulse } from "@/pages/azienda/AttivitaStaff";
 import { DEFAULT_TASK_STATUS_DEFINITIONS } from "@/lib/taskStatuses";
 import type { DashboardTask } from "@/lib/attivita/dashboardTasks";
 
@@ -25,7 +25,7 @@ vi.mock("@/hooks/useTaskStatuses", () => ({ useTaskStatuses: () => ({ statuses: 
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error } }));
 vi.mock("@/components/warehouse/OrderSelectCombobox", () => ({ OrderSelectCombobox: ({ value, onChange, disabled, id }: { id?: string; value?: string; disabled?: boolean; onChange: (id: string) => void }) => <button type="button" id={id} role="combobox" aria-label="Commessa" disabled={disabled} onClick={() => onChange("order-demo")}>{value || "Scegli commessa"}</button> }));
 vi.mock("@/components/tasks/CollegaAttivitaPicker", () => ({ CollegaAttivitaPicker: () => <div>Collegamento attività</div>, etichettaCollegamento: () => null as null }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...args: unknown[]) => { state.calls.push({method: "rpc",args}); return Promise.resolve(state.fail ? {error:{message:"Già in carico"}} : {data:"task",error:null}); }, from: () => {
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...args: unknown[]) => { state.calls.push({method: "rpc",args}); return Promise.resolve(state.fail ? {error:{message:"Già in carico"}} : {data:args[0] === "operazioni_eccezioni_elenco" ? [] : "task",error:null}); }, from: () => {
   const builder: Record<string, unknown> = {};
   for (const method of ["insert", "update", "delete", "eq", "in", "select"]) builder[method] = (...args: unknown[]) => { state.calls.push({ method, args }); return builder; };
   const reply = () => state.fail ? { data: null as null, error: { message: "Salvataggio rifiutato" } } : { data: { id: "task" }, error: null as null };
@@ -54,6 +54,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("Task manager della Dashboard", () => {
+  it("apre le eccezioni operative dell’azienda dalla pagina Attività", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<MemoryRouter initialEntries={["/azienda/attivita?tab=eccezioni"]}><QueryClientProvider client={client}><AttivitaStaff /></QueryClientProvider></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "Eccezioni" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Nessuna attività aperta.")).toBeVisible();
+    expect(state.calls).toContainEqual({ method: "rpc", args: ["operazioni_eccezioni_elenco", {
+      p_company: "company", p_tipo: null, p_chiuse: false, p_commessa: null, p_offset: 0,
+    }] });
+  });
   it("il riepilogo esterno applica il filtro e riparte dalla prima pagina", () => {
     state.tasks = [...Array.from({ length: 25 }, (_, i) => task(`old-${i}`, { due_date: "2026-10-13" })), task("today")];
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -87,6 +87,7 @@ import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/Confe
 import { DaApprovareCantieri } from "@/components/campo/DaApprovareCantieri";
 import { DocumentiDaConfermareBox } from "@/components/email-ai/DocumentiDaConfermareBox";
 import { ScadenzeDittaBox } from "@/components/documentiAzienda/ScadenzeDittaBox";
+import { EccezioniOperative } from "@/components/operazioni/EccezioniOperative";
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
@@ -1510,17 +1511,18 @@ export default function AttivitaStaff() {
   const { effectiveCompany, user } = useAuth();
   if (!user?.id) return <p role="status">Caricamento attività…</p>;
   if (!effectiveCompany?.id) return <Card><CardContent className="p-4">Seleziona un’azienda per consultare le attività.</CardContent></Card>;
-  return <AttivitaAzienda key={`${effectiveCompany.id}:${user?.id}`} />;
+  return <AttivitaAzienda key={`${effectiveCompany.id}:${user.id}`} companyId={effectiveCompany.id} />;
 }
 
-function AttivitaAzienda() {
+function AttivitaAzienda({ companyId }: { companyId: string }) {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
   // La Regia è lo strumento "di team": la vede l'admin e chi ha il permesso
   // esplicito "Attività del team" (che già vedeva i filtri per persona nella
   // Dashboard ma non aveva la pagina per lavorarci). La RLS resta il confine.
-  const { canViewTeamTasks } = usePermissions();
+  const { canViewTeamTasks, canViewOrders, canManageSuppliers, canManagePayments, isLoading: permessiInCaricamento } = usePermissions();
   const seesRegia = isAdmin || canViewTeamTasks;
+  const vedeEccezioni = isAdmin || canViewOrders || canManageSuppliers || canManagePayments;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") || "attivita";
   const allowedTabs = isAdmin
@@ -1528,17 +1530,21 @@ function AttivitaAzienda() {
     : seesRegia
       ? ["attivita", "regia", "timbrature", "ferie", "cedolini"]
       : ["attivita", "timbrature", "ferie", "cedolini"];
+  if (vedeEccezioni) allowedTabs.push("eccezioni");
   const activeTab = allowedTabs.includes(requestedTab) ? requestedTab : "attivita";
+  const layoutSchede = allowedTabs.length === 6 ? "grid-cols-6 max-w-3xl lg:w-[40rem]"
+    : allowedTabs.length === 5 ? "grid-cols-5 max-w-2xl lg:w-[36rem]"
+    : "grid-cols-4 max-w-xl lg:w-[30rem]";
 
   useEffect(() => {
-    if (requestedTab === activeTab) return;
+    if (requestedTab === activeTab || (requestedTab === "eccezioni" && permessiInCaricamento)) return;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (activeTab === "attivita") next.delete("tab");
       else next.set("tab", activeTab);
       return next;
     }, { replace: true });
-  }, [activeTab, requestedTab, setSearchParams]);
+  }, [activeTab, requestedTab, permessiInCaricamento, setSearchParams]);
 
   const handleTabChange = (tab: string) => {
     setSearchParams((prev) => {
@@ -1560,12 +1566,13 @@ function AttivitaAzienda() {
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <AttivitaHeader />
           {isAdmin ? (
-          <TabsList className="grid w-full max-w-full sm:w-80 grid-cols-2 h-auto">
+          <TabsList className="grid w-full max-w-full sm:w-96 grid-cols-3 h-auto">
             <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
             <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">Regia<span className="hidden sm:inline"> attività</span></span></TabsTrigger>
+            <TabsTrigger value="eccezioni" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><AlertCircle className="h-4 w-4" /><span>Eccezioni</span></TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className={cn("grid w-full h-auto", seesRegia ? "grid-cols-5 max-w-2xl lg:w-[36rem]" : "grid-cols-4 max-w-xl lg:w-[30rem]")}>
+          <TabsList className={cn("grid w-full h-auto", layoutSchede)}>
             <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">Attività</span></TabsTrigger>
             {seesRegia && (
               <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">Regia</span></TabsTrigger>
@@ -1573,10 +1580,18 @@ function AttivitaAzienda() {
             <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Clock className="h-4 w-4" /><span className="truncate">Timbra</span></TabsTrigger>
             <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">Ferie</span></TabsTrigger>
             <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
+            {vedeEccezioni && (
+              <TabsTrigger value="eccezioni" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><AlertCircle className="hidden h-4 w-4 sm:block" /><span className="truncate">Eccezioni</span></TabsTrigger>
+            )}
           </TabsList>
           )}
         </div>
         <TabsContent value="attivita" className="mt-3 sm:mt-4"><TabAttivita /></TabsContent>
+        {vedeEccezioni && (
+          <TabsContent value="eccezioni" className="mt-3 sm:mt-4">
+            <EccezioniOperative companyId={companyId} />
+          </TabsContent>
+        )}
         {seesRegia && (
           <TabsContent value="regia" className="mt-3 sm:mt-4">
             <Suspense fallback={<TabFallback />}>
