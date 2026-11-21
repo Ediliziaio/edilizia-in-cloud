@@ -9,14 +9,14 @@
  *   · kit da 10.000 € + 22%                → 12.200 €
  *   · totale già calcolato, 11.000 €       → 11.000 €
  */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-const finti = vi.hoisted(() => ({ nulla: (): null => null }));
+const finti = vi.hoisted(() => ({ nulla: (): null => null, mobile: false, caricaGrafici: vi.fn() }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const FV: Array<Record<string, unknown>> = [
@@ -46,7 +46,7 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_admin", user: { id: "u1" }, effectiveCompany: { id: "c1", name: "Azienda di prova" } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c1" }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => finti.mobile }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => new Proxy({}, { get: (_t, p) => (typeof p === "string" && p.startsWith("can") ? true : p === "onlyAssigned" ? false : undefined) }) }));
 vi.mock("@/lib/moduli-vendita", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/moduli-vendita")>()),
@@ -59,27 +59,32 @@ vi.mock("@/components/marketing/preventivi/UnifiedFiltersSheet", async (importOr
 }));
 vi.mock("@/components/marketing/preventivi/UnifiedBulkToolbar", () => ({ UnifiedBulkToolbar: finti.nulla, spostaNelCestino: vi.fn() }));
 vi.mock("@/components/marketing/preventivi/PreventiviCestinoDialog", () => ({ PreventiviCestinoDialog: finti.nulla }));
-// I grafici non servono: in jsdom non hanno una larghezza.
+// In jsdom sostituiamo il disegno e osserviamo quando viene importata la libreria.
 vi.mock("recharts", () => {
+  finti.caricaGrafici();
   const vuoto = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return { BarChart: vuoto, Bar: vuoto, XAxis: finti.nulla, YAxis: finti.nulla, CartesianGrid: finti.nulla, Tooltip: finti.nulla, ResponsiveContainer: vuoto, PieChart: vuoto, Pie: vuoto, Cell: finti.nulla, Legend: finti.nulla };
 });
 
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); finti.mobile = false; });
+
+function apriElenco() {
+  return render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}>
+        <TooltipProvider><UnifiedPreventiviList /></TooltipProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 const riga = (numero: string) => (screen.getAllByText(numero)[0].closest("tr") as HTMLElement).textContent?.replace(/\s+/g, " ") ?? "";
 
 describe("elenco unificato: il totale del Fotovoltaico", () => {
   it("una bozza col prezzo scritto a mano, o con un kit, ha il totale della sua pagina (non «—»)", async () => {
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}>
-          <TooltipProvider><UnifiedPreventiviList /></TooltipProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    apriElenco();
     await waitFor(() => expect(screen.getAllByText("FV-2026-0001").length).toBeGreaterThan(0), { timeout: 8000 });
     // 5.500 + 10% = 6.050
     expect(riga("FV-2026-0001")).toMatch(/6\.050,00/);
@@ -87,5 +92,26 @@ describe("elenco unificato: il totale del Fotovoltaico", () => {
     expect(riga("FV-2026-0002")).toMatch(/12\.200,00/);
     // totale già calcolato: com'era
     expect(riga("FV-2026-0003")).toMatch(/11\.000,00/);
+  });
+});
+
+describe("caricamento dei grafici", () => {
+  it("da telefono mostra le righe senza importare i grafici", async () => {
+    finti.mobile = true;
+    apriElenco();
+    await screen.findByText("FV-2026-0001");
+    expect(screen.queryByText("Andamento e statistiche dei preventivi")).not.toBeInTheDocument();
+    expect(finti.caricaGrafici).not.toHaveBeenCalled();
+  });
+
+  it("su desktop carica i grafici dopo l'apertura delle statistiche", async () => {
+    apriElenco();
+    const dettagli = screen.getByText("Andamento e statistiche dei preventivi").closest("details")!;
+    expect(finti.caricaGrafici).not.toHaveBeenCalled();
+    dettagli.open = true;
+    fireEvent(dettagli, new Event("toggle"));
+    expect(await screen.findByRole("heading", { name: "Trend ultimi 6 mesi" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Distribuzione per tipo" })).toBeVisible();
+    expect(finti.caricaGrafici).toHaveBeenCalledTimes(1);
   });
 });

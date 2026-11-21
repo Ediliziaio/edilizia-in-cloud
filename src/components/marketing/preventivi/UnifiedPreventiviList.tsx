@@ -20,7 +20,7 @@
  */
 import { rigaDatiFiscali, TIPI_CLIENTE, tipoCliente, type TipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
-import { useMemo, useState, useEffect } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,13 +45,9 @@ import {
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
   Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy, Calculator, Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend,
-} from "recharts";
 import { UnifiedFiltersSheet, type UnifiedFilters, DEFAULT_FILTERS } from "./UnifiedFiltersSheet";
 import {
   mapClassicoStato,
@@ -83,6 +79,8 @@ import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovo
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import { elencaComputiPreventivo } from "@/lib/computo/editorNativo";
 import { totaleElencoComputo } from "@/lib/computo/economiaComputo";
+
+const GraficiPreventivi = lazy(() => import("./GraficiPreventivi"));
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine" | "computo";
 export type { UnifiedStato };
@@ -851,45 +849,6 @@ export function UnifiedPreventiviList() {
     };
   }, [allRows]);
 
-  // ─── Chart data: trend ultimi 6 mesi (creati vs vinti) ──────────────────
-  const trendData = useMemo(() => {
-    const now = new Date();
-    const months: Array<{ key: string; label: string; date: Date }> = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = startOfMonth(subMonths(now, i));
-      months.push({
-        key: format(d, "yyyy-MM"),
-        label: format(d, "MMM", { locale: it }),
-        date: d,
-      });
-    }
-    return months.map((m) => {
-      const creati = allRows.filter((r) => isSameMonth(new Date(r.data), m.date)).length;
-      const vinti = allRows.filter((r) => r.stato_unif === "vinto" && isSameMonth(new Date(r.data), m.date)).length;
-      return { mese: m.label, creati, vinti };
-    });
-  }, [allRows]);
-
-  // ─── Chart data: distribuzione per tipo ─────────────────────────────────
-  const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0, pavimenti: 0, piscine: 0, computo: 0 };
-    allRows.forEach((r) => { counts[r.tipo]++; });
-    return [
-      { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
-      { name: "Serramenti",       value: counts.serramenti,       color: TIPO_LABEL.serramenti.color },
-      { name: "Fotovoltaico",     value: counts.fotovoltaico,     color: TIPO_LABEL.fotovoltaico.color },
-      { name: "Ristrutturazione", value: counts.ristrutturazione, color: TIPO_LABEL.ristrutturazione.color },
-      { name: "Bagni",            value: counts.bagni,            color: TIPO_LABEL.bagni.color },
-      { name: "Tetti",            value: counts.tetti,            color: TIPO_LABEL.tetti.color },
-      { name: "Climatizzazione",  value: counts.climatizzazione,  color: TIPO_LABEL.climatizzazione.color },
-      { name: "Elettrico",        value: counts.elettrico,        color: TIPO_LABEL.elettrico.color },
-      { name: "Termoidraulico",   value: counts.termoidraulico,   color: TIPO_LABEL.termoidraulico.color },
-      { name: "Pavimenti",        value: counts.pavimenti,        color: TIPO_LABEL.pavimenti.color },
-      { name: "Piscine",          value: counts.piscine,          color: TIPO_LABEL.piscine.color },
-      { name: "Computo",          value: counts.computo,          color: TIPO_LABEL.computo.color },
-    ].filter((d) => d.value > 0);
-  }, [allRows]);
-
   // ─── Filtri applicati ────────────────────────────────────────────────────
   // Edge cases gestiti:
   //  - importoMin/Max NaN → ignorato (no false negatives)
@@ -1164,75 +1123,13 @@ export function UnifiedPreventiviList() {
       </div>
       )}
 
-      {/* ─── Grafici ─── (trend BarChart + distribuzione PieChart): vetrina
-          desktop, pesanti e illeggibili su telefono → i KPI hero sopra bastano;
-          su mobile non montiamo i grafici. */}
-      {!isMobile && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Card className="lg:col-span-2">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                  <span className="inline-block w-1 h-4 bg-orange-500 rounded" />
-                  Trend ultimi 6 mesi
-                </h3>
-                <p className="text-[11px] text-muted-foreground">Preventivi creati vs vinti</p>
-              </div>
-              <span className="text-[11px] text-muted-foreground">
-                {formatCurrency(kpi.ricavoVinte)} firmato
-              </span>
-            </div>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="mese" tick={{ fontSize: 11, fill: "#64748b" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} allowDecimals={false} />
-                  <RTooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
-                    labelStyle={{ fontWeight: 600 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="creati" name="Creati" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="vinti"  name="Vinti"  fill="#f97316" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                  <span className="inline-block w-1 h-4 bg-orange-500 rounded" />
-                  Distribuzione per tipo
-                </h3>
-                <p className="text-[11px] text-muted-foreground">{allRows.length} preventivi totali</p>
-              </div>
-            </div>
-            <div className="h-48">
-              {tipoDist.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={tipoDist} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value">
-                      {tipoDist.map((d) => <Cell key={d.name} fill={d.color} />)}
-                    </Pie>
-                    <RTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-                  Nessun dato
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      )}
+      <Suspense fallback={<p role="status" className="flex h-48 items-center justify-center text-sm text-muted-foreground">Caricamento dei grafici…</p>}>
+        <GraficiPreventivi righe={allRows} ricavoFirmato={kpi.ricavoVinte} distribuzione={tipiConteggio.map(({ tipo, n }) => ({
+          name: TIPO_LABEL[tipo].label,
+          color: TIPO_LABEL[tipo].color,
+          value: n,
+        }))} />
+      </Suspense>
 
         </div>}
       </details>}
