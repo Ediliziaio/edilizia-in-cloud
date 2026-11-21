@@ -17,6 +17,7 @@ import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEs
 import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import { RateFornitori } from "@/components/scadenzario/RateFornitori";
+import { DistintePagamenti } from "@/components/scadenzario/DistintePagamenti";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import { ScadenzaDettaglio } from "@/components/scadenzario/ScadenzaDettaglio";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
@@ -205,7 +206,7 @@ export default function Scadenzario() {
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   const scadenzaAperta = dettaglio ? scadenze.find((x) => x.id === dettaglio) ?? null : null;
   const queryClient = useQueryClient();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
 
   // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
@@ -404,6 +405,9 @@ export default function Scadenzario() {
           meseScelto={meseGrafico}
         />
       )}
+
+      {companyId && !permessi.solaLettura && (permessi.canManagePayments || role === "company_admin" || role === "super_admin") &&
+        <div className="flex justify-end"><DistintePagamenti key={companyId} companyId={companyId} /></div>}
 
       {/* Fatture passive caricate in chat (Silvio) da confermare */}
       <FattureDaRegistrareCard companyId={companyId} />

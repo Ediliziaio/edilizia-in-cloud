@@ -6,7 +6,7 @@ const prefixes = new Set([
   'rate-fatture-disponibili', 'rate-fattura-quote', 'ritenute-attive-commessa', 'ritenute-garanzia', 'commessa-iva', 'ordine-fatture', 'fattura-ordini', 'order-ritenute-for-invoice', 'order-documenti-for-invoice', 'order-sal-for-invoice',
   'incassi-fattura', 'incassi-importate', 'movimenti-cassa', 'ritenute-bonifici',
   'fatture-emesse-importate', 'emessa-importata-dettaglio', 'fatture-ricevute-pagamento', 'fatture-costi-commesse',
-  'billing-doc-counts', 'billing-monthly-timeline', 'riba-fornitori', 'sal-matura', 'uscite-senza-fattura',
+  'billing-doc-counts', 'billing-monthly-timeline', 'riba-fornitori', 'sal-matura', 'uscite-senza-fattura', 'distinte-pagamenti',
   'costs', 'company-costs', 'costo-annullo-anteprima', 'cashflow', 'prima-nota', 'primaNota', 'scadenzario',
   'orders', 'ordini-variazione', 'order-supplier-payments', 'order-economics-canonical', 'order-subcontract-statistics',
   'oda-contabilita', 'purchase-orders', 'fatture-ricevute', 'fattura-ricevuta-riepilogo', 'sal-sub', 'sal-sub-tutti',
@@ -24,6 +24,7 @@ const purchasingPrefixes = new Set([
   'linked-purchase-orders', 'oes-oda', 'commessa-bolle-ddt', 'commessa-fatture-fornitori',
   'generale-controllo-forniture', 'generale-piano-reale', 'commessa-generale-riepilogo',
   'ddt-ricezione', 'ddt-consegne', 'ddt-controllo-ordini', 'ddt-righe-ordine', 'oda-residui-destinazioni', 'ddt-righe-ordini-citati',
+  'operazioni-eccezioni', 'verifica-prima-pagamento',
   'ddt-fatture-collegate', 'ddt-fatture-fornitore', 'ddt-valorizzazioni', 'ddt-fattura-righe',
   'fattura-collegamenti', 'fattura-ddt-riepilogo', 'fattura-collega-commesse', 'fattura-confronto', 'purchase-orders', 'purchase-order-items',
   // Una destinazione DDT può aggiornare anche la ripartizione del costo della fattura.
