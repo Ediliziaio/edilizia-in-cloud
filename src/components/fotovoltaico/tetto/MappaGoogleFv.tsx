@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { PosizioneMappaFv } from "../../../../supabase/functions/_shared/fvMappa";
 import {
   ascoltaErroreGoogleFv,
   caricaGoogleMapsFv,
   type MappaGoogleFvApi,
+  type LibreriaMapsFv,
 } from "./googleMapsJsFv";
+import { massimoZoomGoogleFv } from "./massimoZoomGoogleFv";
 
 export type StatoMappaGoogleFv = {
   caricando: boolean;
@@ -26,6 +28,23 @@ export function MappaGoogleFv(props: Props) {
   const host = useRef<HTMLDivElement>(null),
     mappa = useRef<MappaGoogleFvApi | null>(null),
     correnti = useRef(props);
+  const libreria = useRef<LibreriaMapsFv | null>(null), versioneVista = useRef(0);
+  const applicaVista = useCallback((map: MappaGoogleFvApi, api: LibreriaMapsFv, p: Props) => {
+    const versione = ++versioneVista.current, partenza = map.getCenter()?.toJSON(), zoomPartenza = map.getZoom();
+    const applica = (massimo: number) => {
+      const adesso = map.getCenter()?.toJSON();
+      if (mappa.current !== map || versione !== versioneVista.current || (partenza && adesso && (Math.abs(partenza.lat - adesso.lat) > 1e-9 || Math.abs(partenza.lng - adesso.lng) > 1e-9)) || map.getZoom() !== zoomPartenza) return;
+      const zoom = Math.min(p.zoom, massimo);
+      map.setOptions({ maxZoom: massimo, minZoom: Math.min(17, massimo) });
+      if (!adesso || Math.abs(adesso.lat - p.centro.lat) > 1e-9 || Math.abs(adesso.lng - p.centro.lng) > 1e-9) map.setCenter(p.centro);
+      if (map.getZoom() !== zoom) map.setZoom(zoom);
+      if (zoom !== p.zoom) correnti.current.onVista?.(p.centro, zoom);
+    };
+    if (!api.MaxZoomService) applica(21);
+    else void massimoZoomGoogleFv(api, p.centro).then(applica).catch(e => {
+      if (mappa.current === map && versione === versioneVista.current) correnti.current.onStato({caricando:false,pronto:false,errore:e instanceof Error ? e.message : "Dettaglio satellitare non disponibile. Riprova."});
+    });
+  }, []);
   useEffect(() => {
     correnti.current = props;
   });
@@ -79,6 +98,7 @@ export function MappaGoogleFv(props: Props) {
         maxZoom: 21,
       });
       mappa.current = map;
+      libreria.current = api;
       attesaImmagini = setTimeout(() => {
         if (attivo && !authFallita) {
           correnti.current.onStato({
@@ -103,6 +123,7 @@ export function MappaGoogleFv(props: Props) {
           });
         }
       }));
+      applicaVista(map, api, p);
       dimensioni();
     }).catch((errore: unknown) => {
       if (attivo) {
@@ -123,21 +144,14 @@ export function MappaGoogleFv(props: Props) {
       listeners.forEach((l) => l.remove());
       mappa.current?.unbindAll();
       mappa.current = null;
+      libreria.current = null;
     };
     // L’istanza resta stabile durante pan/zoom e resize; le opzioni correnti sono aggiornate sotto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    const map = mappa.current,
-      p = correnti.current,
-      c = map?.getCenter()?.toJSON();
-    if (
-      map &&
-      (!c || Math.abs(c.lat - p.centro.lat) > 1e-9 ||
-        Math.abs(c.lng - p.centro.lng) > 1e-9)
-    ) map.setCenter(p.centro);
-    if (map && map.getZoom() !== p.zoom) map.setZoom(p.zoom);
-  }, [props.comandoVista]);
+    if (mappa.current && libreria.current) applicaVista(mappa.current, libreria.current, correnti.current);
+  }, [props.comandoVista, applicaVista]);
   useEffect(() => {
     const map = mappa.current;
     map?.setOptions({
