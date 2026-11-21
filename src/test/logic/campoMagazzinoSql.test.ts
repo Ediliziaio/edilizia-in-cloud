@@ -5,7 +5,7 @@ import schema from "@/test/fixtures/campoMagazzino.sql?raw";
 import base from "../../../supabase/migrations/20280929100000_prelievo_magazzino_campo.sql?raw";
 import ddt from "../../../supabase/migrations/20280929110000_ddt_da_prelievo_campo.sql?raw";
 import sorgenteAssegnazioni from "../../../supabase/migrations/20281019130000_terzo_controllo_cantiere_economia.sql?raw";
-import proposta from "../../../supabase/proposals/magazzino_campo_permessi_e_prelievi.sql?raw";
+import migrazione from "../../../supabase/migrations/20290504125650_magazzino_campo_permessi_e_prelievi.sql?raw";
 
 const db = new PGlite();
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -47,8 +47,8 @@ beforeAll(async () => {
   await db.exec(assegnazioni[0]);
 
   await db.transaction(async (tx) => {
-    await tx.exec(proposta);
-    await tx.exec(proposta);
+    await tx.exec(migrazione);
+    await tx.exec(migrazione);
   });
   await db.exec("grant select, insert, update, delete on prelievi_campo to authenticated");
 }, 30_000);

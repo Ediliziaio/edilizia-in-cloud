@@ -1,4 +1,4 @@
--- Proposta da collaudare localmente prima del rilascio coordinato di database e app.
+-- Permessi dell’app operaio e prelievi di magazzino attribuiti alla commessa.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
