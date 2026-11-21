@@ -1,5 +1,6 @@
 import { ascoltaErroreGoogleFv, caricaGoogleMapsFv, type MappaGoogleFvApi } from "@/components/fotovoltaico/tetto/googleMapsJsFv";
 import { massimoZoomGoogleFv } from "@/components/fotovoltaico/tetto/massimoZoomGoogleFv";
+import { STILE_STAMPA_PAGINE_FV } from "../../../supabase/functions/_shared/fvStampaPagina";
 
 const preparazioni = new WeakMap<Document, Promise<() => void>>();
 
@@ -7,6 +8,9 @@ const preparazioni = new WeakMap<Document, Promise<() => void>>();
  * Nessun download di tile, screenshot o salvataggio dell'immagine. Il documento
  * salva soltanto inquadratura e overlay; la stampa attende le immagini reali. */
 export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Promise<() => void> {
+  if (!doc.querySelector("style[data-fv-stampa]")) {
+    const stile=doc.createElement("style");stile.dataset.fvStampa="true";stile.textContent=STILE_STAMPA_PAGINE_FV;doc.head.appendChild(stile);
+  }
   const hosts = [...(doc.querySelectorAll?.<HTMLElement>("[data-fv-google-pdf]") ?? [])];
   if (!hosts.length) return Promise.resolve(() => {});
   const esistente = preparazioni.get(doc);
