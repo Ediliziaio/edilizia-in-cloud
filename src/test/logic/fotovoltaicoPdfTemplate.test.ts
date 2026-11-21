@@ -1099,3 +1099,28 @@ it("il disegno commerciale compare nel PDF senza alcuna immagine satellitare", a
   expect(html).not.toContain('data-fv-section="anteprima"');
   expect(getFvPdfRenderedPagesCount(d)).toBe((html.match(/class="page"/g)??[]).length);
 });
+
+it("il tetto dalla mappa esce in pianta e 3D anche con anteprima satellitare disattivata", async () => {
+  const { pianoDaMappaFv } = await import("../../components/fotovoltaico/tetto/mappaGeometria");
+  const { disponiModuliAutomaticamente } = await import("../../../supabase/functions/_shared/fvDisegnoCommerciale");
+  const piano = disponiModuliAutomaticamente(pianoDaMappaFv({ versione: 1, origine: { lat: 45, lng: 9 }, ricerca: { indirizzo: "Collaudo", posizione: { lat: 45, lng: 9 } }, distanzaOstacoli: .3,
+    falde: [{ id: "f1", nome: "Falda 1", punti: [{ x: -6, y: -4 }, { x: 6, y: -4 }, { x: 6, y: 4 }, { x: -6, y: 4 }], inclinazione: 30, azimut: 180, inclinazioneStimata: true }] }, { corto: 1.134, lungo: 2.165, stimato: false }), 18);
+  const base = basePdfData();
+  const d = { ...base, template: { pdf_pages_order: [{ id: "anteprima", visible: false }, { id: "piano_tetto", visible: true }] }, progetto: { ...base.progetto, layout_overlay: piano, numero_pannelli: 18, potenza_kwp: 9.72 } };
+  const html = renderFvPdfHtml(d);
+  expect(html).toContain("Il tetto e i pannelli,<br/>come li hai disegnati.");
+  expect(html).toContain("Le tue falde,<br/>anche in 3D.");
+  expect(html.match(/data-fv-panel=/g)).toHaveLength(36);
+  expect(html).toContain("110,85 m²");
+  expect(getFvPdfRenderedPagesCount(d)).toBe((html.match(/class="page"/g) ?? []).length);
+  const senzaTetto = { ...d, template: { pdf_pages_order: [{ id: "piano_tetto", visible: false }] } };
+  expect(renderFvPdfHtml(senzaTetto)).not.toContain("Le tue falde,<br/>anche in 3D.");
+  expect(getFvPdfRenderedPagesCount(senzaTetto)).toBe(getFvPdfRenderedPagesCount(d) - 2);
+  const m = piano.mappa!;
+  const dodici = pianoDaMappaFv({ ...m, falde: Array.from({ length: 12 }, (_, i) => ({ ...m.falde[0], id: `f${i}`, nome: `Falda ${i + 1} ${"nome lungo ".repeat(7)}`.slice(0, 80), punti: m.falde[0].punti.map(p => ({ x: p.x + i % 4 * 20, y: p.y + Math.floor(i / 4) * 20 })) })) }, piano.modulo);
+  const completo = { ...d, progetto: { ...d.progetto, layout_overlay: disponiModuliAutomaticamente(dodici, 36) } };
+  const html12 = renderFvPdfHtml(completo);
+  expect(html12.match(/data-fv-section="piano_tetto"/g)).toHaveLength(3);
+  expect(html12).toContain("Dettaglio falde 7–12.");
+  expect(getFvPdfRenderedPagesCount(completo)).toBe((html12.match(/class="page"/g) ?? []).length);
+});

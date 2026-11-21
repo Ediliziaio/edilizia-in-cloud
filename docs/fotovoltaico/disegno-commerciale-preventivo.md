@@ -1,5 +1,22 @@
 # Disegno commerciale del tetto — anteprima locale
 
+## Tavole PDF da mappa, 21 novembre 2026
+
+Quando il disegno contiene falde georeferenziate, la sezione «Piano del tetto»
+stampa la pianta geografica con contorni, moduli, ostacoli, nord, scala e quote
+in pianta. Segue una vista 3D vettoriale degli stessi contorni e moduli, con
+superfici in pianta e inclinate, pendenza, azimut e quantità per falda. Oltre
+sei falde, la tabella continua su una nuova pagina. La numerazione comprende
+tutte le tavole.
+
+Le tavole sono SVG incorporati: non richiedono fotografie satellitari, WebGL
+o crediti AI per comparire in stampa. La voce «Anteprima» satellitare può
+restare disattivata; disattivare «Piano del tetto» esclude entrambe le tavole.
+L'altezza e le pareti 3D restano illustrative, le pendenze stimate sono marcate.
+Il percorso senza mappa e gli schemi commerciali precedenti conservano il
+proprio comportamento. I documenti già emessi restano invariati: la nuova
+tavola entra nei documenti generati dopo il rilascio.
+
 **Aggiornamento:** la prima pagina dimostrativa è stata sostituita dall’[integrazione nel wizard esistente](integrazione-wizard-esistente.md). I dettagli e gli screenshot della prima anteprima qui sotto descrivono la versione precedente.
 
 Implementato il 10 novembre 2026 nel ramo `codex/fotovoltaico-tetto-facoltativo`.
