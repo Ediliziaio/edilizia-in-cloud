@@ -1,4 +1,5 @@
-import { Check, Loader2, Package } from "lucide-react";
+import { Check, ChevronRight, Loader2, Package } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useMieiPrelievi, useRichiediDdt } from "@/hooks/campo/useCampoPrelievo";
@@ -45,9 +46,16 @@ export function CampoPrelievi({ companyId, puoPrelevare }: { companyId: string; 
               <time dateTime={prelievo.data} className="text-muted-foreground">{dataPrelievo.format(new Date(prelievo.data))}</time>
               <span className={`rounded-full px-2 py-1 font-semibold ${stato.className}`}>{stato.label}</span>
             </div>
-            <p className="mt-2 break-words text-sm font-semibold">
-              {cantiere ? nomeCantierePrelievo(cantiere) : prelievo.order_id ? "Cantiere assegnato" : "Senza cantiere"}
-            </p>
+            {cantiere ? (
+              <Link to={`/campo/lavoro/${encodeURIComponent(cantiere.id)}?vista=materiali`}
+                className="mt-1 flex min-h-11 items-center justify-between gap-2 rounded-md font-semibold text-primary hover:underline"
+                aria-label={`Apri i materiali del cantiere ${nomeCantierePrelievo(cantiere)}`}>
+                <span className="min-w-0 break-words">{nomeCantierePrelievo(cantiere)}</span>
+                <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+              </Link>
+            ) : (
+              <p className="mt-2 text-sm font-semibold">{prelievo.order_id ? "Cantiere assegnato" : "Senza cantiere"}</p>
+            )}
             <ul className="mt-1 space-y-1 text-sm">
               {prelievo.righe.map((riga, indice) => (
                 <li key={`${riga.stock_item_id}-${indice}`} className="flex items-center justify-between gap-2">
