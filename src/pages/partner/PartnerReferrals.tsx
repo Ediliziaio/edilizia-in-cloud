@@ -1,3 +1,4 @@
+import { PartnerPageHeading, PartnerPageLink } from "@/components/partner/PartnerPageHeading";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -110,10 +111,7 @@ export default function PartnerReferrals() {
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Referenze</h1>
-        <p className="text-sm text-muted-foreground">Monitora registrazioni, stati e valore generato dai tuoi referral.</p>
-      </div>
+      <PartnerPageHeading title="Referenze" description="Segui le aziende segnalate dalla registrazione all’attivazione." actions={<PartnerPageLink to="/partner/link">Apri il tuo link</PartnerPageLink>} />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -129,7 +127,7 @@ export default function PartnerReferrals() {
           <CardContent><p className="text-2xl font-bold text-amber-600">{totals.pending}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Revenue tracciata</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Valore attribuito</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold">{formatCurrency(totals.revenue)}</p></CardContent>
         </Card>
       </div>
@@ -138,10 +136,10 @@ export default function PartnerReferrals() {
         <CardHeader className="space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <CardTitle className="text-base">Lista referral</CardTitle>
-            <div className="flex gap-2">
-              <div className="relative">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-8 w-72" placeholder="Cerca azienda o ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input className="pl-8 w-full sm:w-64" aria-label="Cerca azienda o identificativo" placeholder="Cerca azienda o ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>

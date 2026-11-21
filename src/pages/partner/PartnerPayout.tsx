@@ -1,3 +1,4 @@
+import { PartnerPageHeading, PartnerPageLink, PartnerLoadError } from "@/components/partner/PartnerPageHeading";
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -113,7 +114,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
     staleTime: 60000,
   });
 
-  const { data: payouts = [], isLoading } = useQuery<PayoutRow[]>({
+  const { data: payouts = [], isLoading, isError: payoutsError, refetch: reloadPayouts } = useQuery<PayoutRow[]>({
     queryKey: isPreview ? ["partner-payout-preview", "payouts"] : queryKeys.partnerPayouts.payouts(referrer?.id),
     enabled: isPreview || !!referrer?.id,
     queryFn: async () => {
@@ -144,7 +145,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
     },
   });
 
-  const { data: payoutBalance, isError: balanceError } = useReferralBalance(isPreview ? undefined : referrer?.id);
+  const { data: payoutBalance, isError: balanceError, refetch: reloadBalance } = useReferralBalance(isPreview ? undefined : referrer?.id);
   const requestKey = useRef<{ fingerprint: string; key: string } | undefined>(undefined);
   const balance = isPreview
     ? (referrer?.total_earned || 0) - (referrer?.total_paid || 0)
@@ -256,7 +257,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
-      <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Richiedi Pagamento</h1>
+      <PartnerPageHeading title="Pagamenti" description="Controlla quanto puoi richiedere e segui l’esito delle liquidazioni." actions={!isPreview && <PartnerPageLink to="/partner/commissioni">Vedi commissioni</PartnerPageLink>} />
 
       {/* Countdown prossimo pagamento automatico */}
       <Card className="border-primary/30 bg-primary/5">
@@ -323,6 +324,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
             ) : (
               <p role={balanceError ? "alert" : "status"} className="text-sm text-muted-foreground">
                 {balanceError ? "Saldo temporaneamente non disponibile" : "Caricamento del saldo…"}
+                {balanceError && <Button variant="ghost" size="sm" className="ml-2" onClick={() => void reloadBalance()}>Riprova</Button>}
               </p>
             )}
             {payoutBalance && (
@@ -348,7 +350,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
       {balance > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Nuova Richiesta</CardTitle>
+            <CardTitle className="text-base">Nuova richiesta</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -383,7 +385,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
               disabled={requestPayout.isPending || amountInvalid || !payoutEligibility.eligible || !payoutCompliance.ready}
             >
               {requestPayout.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Richiedi Pagamento
+              Richiedi pagamento
             </Button>
           </CardContent>
         </Card>
@@ -392,10 +394,12 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
       {/* History */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Storico Pagamenti</CardTitle>
+          <CardTitle className="text-base">Storico pagamenti</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {payoutsError ? (
+            <div className="p-4"><PartnerLoadError message="Impossibile caricare lo storico dei pagamenti." retry={() => void reloadPayouts()} /></div>
+          ) : isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
           ) : payouts.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">

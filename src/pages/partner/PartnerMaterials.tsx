@@ -1,3 +1,4 @@
+import { PartnerPageHeading, PartnerPageLink } from "@/components/partner/PartnerPageHeading";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,12 +127,8 @@ export default function PartnerMaterials() {
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Kit Marketing</h1>
-        <Badge variant="secondary" className="text-sm">
-          {tierIcon} {tierName} — Hai accesso ai materiali del tuo tier e inferiori
-        </Badge>
-      </div>
+      <PartnerPageHeading title="Kit marketing" description={`Materiali disponibili per il livello ${tierName}.`}
+        actions={<><Badge variant="secondary">{tierIcon} {tierName}</Badge><PartnerPageLink to="/partner/link">Condividi il link</PartnerPageLink></>} />
 
       {materials.length === 0 ? (
         <Card>

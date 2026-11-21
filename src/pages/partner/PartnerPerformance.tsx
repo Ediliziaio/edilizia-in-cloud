@@ -1,3 +1,4 @@
+import { PartnerPageHeading, PartnerPageLink, PartnerLoadError } from "@/components/partner/PartnerPageHeading";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { leggiTutteLeRighe } from "@/lib/impostazioni/usoTag";
+import { referralPerformanceWindow, sumReferralPerformanceMovements } from "@/lib/referralCommissionTotals";
 import { exportToCSV } from "@/lib/csvExport";
 import { formatCurrency } from "@/lib/formatters";
 import { subDays, format } from "date-fns";
@@ -88,22 +91,24 @@ function KpiCard({ title, value, note, icon: Icon, delta }: KpiCardProps) {
 
 export default function PartnerPerformance() {
   const { user } = useAuth();
+  const [openedAt] = useState(Date.now);
   const [periodDays, setPeriodDays] = useState<PeriodDays>(30);
 
-  const { data: referrer, isLoading: referrerLoading } = useQuery({
+  const { data: referrer, isLoading: referrerLoading, isError: referrerError, refetch: reloadReferrer } = useQuery({
     queryKey: ["my-referrer-performance", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("referrers")
         .select("id, total_clicks, total_conversions, conversion_rate, total_earned, total_paid")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
 
-  const { data: clicks = [], isLoading: clicksLoading } = useQuery({
+  const { data: clicks = [], isLoading: clicksLoading, dataUpdatedAt: clicksUpdatedAt, isError: clicksError, refetch: reloadClicks } = useQuery({
     queryKey: ["partner-performance-clicks", referrer?.id, periodDays],
     enabled: !!referrer?.id,
     queryFn: async () => {
@@ -118,7 +123,7 @@ export default function PartnerPerformance() {
     },
   });
 
-  const { data: conversions = [], isLoading: conversionsLoading } = useQuery({
+  const { data: conversions = [], isLoading: conversionsLoading, dataUpdatedAt: conversionsUpdatedAt, isError: conversionsError, refetch: reloadConversions } = useQuery({
     queryKey: ["partner-performance-conversions", referrer?.id, periodDays],
     enabled: !!referrer?.id,
     queryFn: async () => {
@@ -133,16 +138,28 @@ export default function PartnerPerformance() {
     },
   });
 
-  const isLoading = referrerLoading || clicksLoading || conversionsLoading;
-  const periodWindow = useMemo(() => {
-    const date = new Date();
-    return {
-      now: date,
-      currentFrom: subDays(date, periodDays),
-      previousFrom: subDays(date, periodDays * 2),
-    };
-  }, [periodDays]);
+  const { data: movements = [], isLoading: ledgerLoading, isError: ledgerError, dataUpdatedAt: ledgerUpdatedAt, refetch: reloadLedger } = useQuery({
+    queryKey: ["partner-performance-ledger", referrer?.id, periodDays],
+    enabled: !!referrer?.id,
+    queryFn: () => {
+      const from = subDays(new Date(), periodDays * 2).toISOString();
+      return leggiTutteLeRighe((start, end) => supabase.from("referral_commission_ledger")
+        .select("calculated_at, cash_paid_at, commission_type, commission_amount")
+        .eq("referrer_id", referrer!.id).neq("status", "cancelled")
+        .or(`calculated_at.gte.${from},cash_paid_at.gte.${from}`)
+        .order("id")
+        .range(start, end));
+    },
+  });
+
+  const anchorMs = Math.max(openedAt, clicksUpdatedAt, conversionsUpdatedAt, ledgerUpdatedAt);
+  const periodWindow = useMemo(() => referralPerformanceWindow(anchorMs, periodDays), [anchorMs, periodDays]);
   const { now, currentFrom, previousFrom } = periodWindow;
+  const isLoading = referrerLoading || clicksLoading || conversionsLoading || ledgerLoading;
+  const commissionTotals = useMemo(
+    () => sumReferralPerformanceMovements(movements, periodWindow),
+    [movements, periodWindow],
+  );
 
   const currentClicks = useMemo(
     () => clicks.filter((click) => Boolean(click.created_at && new Date(click.created_at) >= currentFrom)),
@@ -237,8 +254,7 @@ export default function PartnerPerformance() {
   }));
 
   const currentRevenue = currentConversions.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
-  const currentCommission = currentConversions.reduce((sum, item) => sum + Number(item.commission_amount || 0), 0);
-  const previousCommission = previousConversions.reduce((sum, item) => sum + Number(item.commission_amount || 0), 0);
+  const { current: currentCommission, previous: previousCommission } = commissionTotals;
   const currentCustomers = currentConversions.filter((conversion) => statusCountsAsCustomer(conversion.status)).length;
   const conversionRate = currentClicks.length > 0 ? (currentConversions.length / currentClicks.length) * 100 : Number(referrer?.conversion_rate || 0);
   const previousRate = previousClicks.length > 0 ? (previousConversions.length / previousClicks.length) * 100 : 0;
@@ -253,7 +269,7 @@ export default function PartnerPerformance() {
     leakySource ? `${leakySource.source} porta traffico ma nessuna conversione: rivedi messaggio o landing.` : "",
     flaggedConversions > 0 ? `${flaggedConversions} conversione/i con controllo frode: verifica prima di considerarle definitive.` : "",
     duplicateSignals > currentClicks.length * 0.25 && currentClicks.length > 0 ? "Molti click hanno segnali duplicati: attenzione a traffico ripetuto dallo stesso dispositivo." : "",
-    bestSource && bestSource.conversions > 0 ? `Canale migliore: ${bestSource.source} con ${bestSource.conversions} conversione/i e ${formatCurrency(bestSource.commission)} commissioni.` : "",
+    bestSource && bestSource.conversions > 0 ? `Canale migliore: ${bestSource.source} con ${bestSource.conversions} conversione/i e ${formatCurrency(bestSource.commission)} di commissioni attribuite.` : "",
   ].filter(Boolean);
 
   const exportPerformance = () => {
@@ -277,8 +293,8 @@ export default function PartnerPerformance() {
         { key: "clicks", label: "Click" },
         { key: "conversions", label: "Conversioni" },
         { key: "rate", label: "Tasso" },
-        { key: "revenue", label: "Revenue" },
-        { key: "commission", label: "Commissioni" },
+        { key: "revenue", label: "Valore attribuito" },
+        { key: "commission", label: "Commissione attribuita" },
         { key: "flagged", label: "Controlli frode" },
       ],
       `performance-partner-${periodDays}g.csv`,
@@ -287,6 +303,17 @@ export default function PartnerPerformance() {
 
   if (isLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  if (referrerError) {
+    return <PartnerLoadError message="Impossibile caricare il profilo partner." retry={() => void reloadReferrer()} />;
+  }
+
+  if (clicksError || conversionsError) {
+    return <PartnerLoadError message="Impossibile caricare le statistiche del periodo." retry={() => {
+      if (clicksError) void reloadClicks();
+      if (conversionsError) void reloadConversions();
+    }} />;
   }
 
   if (!referrer) {
@@ -305,14 +332,8 @@ export default function PartnerPerformance() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Performance</h1>
-          <p className="text-sm text-muted-foreground">
-            Funnel, canali, conversioni e commissioni con confronto sul periodo precedente.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <PartnerPageHeading title="Performance" description="Confronta visite, conversioni e commissioni contabilizzate con il periodo precedente."
+        actions={<><PartnerPageLink to="/partner/link">Gestisci i link</PartnerPageLink>        <div className="flex flex-wrap items-center gap-2">
           <Tabs value={String(periodDays)} onValueChange={(value) => setPeriodDays(Number(value) as PeriodDays)}>
             <TabsList>
               <TabsTrigger value="7">7g</TabsTrigger>
@@ -323,20 +344,22 @@ export default function PartnerPerformance() {
           <Button variant="outline" size="sm" onClick={exportPerformance} disabled={sourceRows.length === 0}>
             <Download className="mr-2 h-4 w-4" /> Export
           </Button>
-        </div>
-      </div>
+        </div></>} />
 
+      {ledgerError && <PartnerLoadError message="Commissioni del periodo temporaneamente non disponibili." retry={() => void reloadLedger()} />}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard title={`Click ${periodDays}g`} value={String(currentClicks.length)} note={`${previousClicks.length} nel periodo precedente`} icon={MousePointerClick} delta={getDelta(currentClicks.length, previousClicks.length)} />
         <KpiCard title="Conversioni" value={String(currentConversions.length)} note={`${currentCustomers} clienti attivi/paganti`} icon={Users} delta={getDelta(currentConversions.length, previousConversions.length)} />
         <KpiCard title="Conversion rate" value={formatRate(conversionRate)} note={`${formatRate(previousRate)} nel periodo precedente`} icon={Target} delta={conversionRate - previousRate} />
-        <KpiCard title="Commissioni" value={formatCurrency(currentCommission)} note={`${formatCurrency(previousCommission)} nel periodo precedente`} icon={Wallet} delta={getDelta(currentCommission, previousCommission)} />
+        <KpiCard title="Commissioni nette" value={ledgerError ? "—" : formatCurrency(currentCommission)}
+          note={ledgerError ? "Registro non disponibile" : `${formatCurrency(previousCommission)} nel periodo precedente`}
+          icon={Wallet} delta={!ledgerError && previousCommission > 0 ? getDelta(currentCommission, previousCommission) : undefined} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Andamento click, conversioni e revenue</CardTitle>
+            <CardTitle className="text-base">Andamento visite e conversioni</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
@@ -364,7 +387,7 @@ export default function PartnerPerformance() {
               { label: "Click", value: currentClicks.length, percent: 100 },
               { label: "Conversioni", value: currentConversions.length, percent: currentClicks.length ? (currentConversions.length / currentClicks.length) * 100 : 0 },
               { label: "Clienti attivi", value: currentCustomers, percent: currentConversions.length ? (currentCustomers / currentConversions.length) * 100 : 0 },
-              { label: "Commissioni", value: formatCurrency(currentCommission), percent: currentRevenue ? Math.min((currentCommission / currentRevenue) * 100, 100) : 0 },
+              { label: "Commissione attribuita", value: formatCurrency(currentCommission), percent: currentRevenue ? Math.min((currentCommission / currentRevenue) * 100, 100) : 0 },
             ].map((step) => (
               <div key={step.label} className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -398,7 +421,7 @@ export default function PartnerPerformance() {
                       <TableHead className="text-right">Click</TableHead>
                       <TableHead className="text-right">Conv.</TableHead>
                       <TableHead className="text-right">Tasso</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Valore attribuito</TableHead>
                       <TableHead className="text-right">Comm.</TableHead>
                       <TableHead>Stato</TableHead>
                     </TableRow>

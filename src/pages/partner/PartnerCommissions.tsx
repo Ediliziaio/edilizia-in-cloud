@@ -1,4 +1,9 @@
+import { PartnerPageHeading, PartnerPageLink, PartnerLoadError } from "@/components/partner/PartnerPageHeading";
 import { useState } from "react";
+import { leggiTutteLeRighe } from "@/lib/impostazioni/usoTag";
+import {
+  monthlyReferralCommissionSeries, referralCommissionMonths, referralCommissionPeriod, sumBookedReferralCommissions,
+} from "@/lib/referralCommissionTotals";
 import { useReferralBalance } from "@/lib/referralPayouts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,14 +23,10 @@ const MONTHS = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio"
 
 type ReferrerCommissionSummary = {
   id: string;
-  total_earned: number | null;
-  total_paid: number | null;
 };
 
 type CommissionLedgerRow = {
   id: string;
-  period_month?: number | null;
-  period_year?: number | null;
   subscription_plan_name: string | null;
   plan_mrr: number | null;
   commission_type: string | null;
@@ -35,70 +36,55 @@ type CommissionLedgerRow = {
   status: string | null;
 };
 
-type MonthlyCommissionRow = {
-  period_month: number | null;
-  period_year: number | null;
-  commission_amount: number | null;
-};
-
 export default function PartnerCommissions() {
   const { user } = useAuth();
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  const currentPeriod = referralCommissionPeriod();
+  const [month, setMonth] = useState(currentPeriod.month);
+  const [year, setYear] = useState(currentPeriod.year);
 
-  const { data: referrer, isLoading: isReferrerLoading } = useQuery<ReferrerCommissionSummary | null>({
+  const { data: referrer, isLoading: isReferrerLoading, isError: referrerError, refetch: reloadReferrer } = useQuery<ReferrerCommissionSummary | null>({
     queryKey: ["partner-commission-profile", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("referrers").select("id, total_earned, total_paid").eq("user_id", user!.id).maybeSingle();
-      return data as ReferrerCommissionSummary | null;
+      const { data, error } = await supabase.from("referrers").select("id").eq("user_id", user!.id).maybeSingle();
+      if (error) throw error;
+      return data;
     },
   });
 
-  const { data: ledger = [], isLoading } = useQuery<CommissionLedgerRow[]>({
+  const { data: ledger = [], isLoading, isError: ledgerError, refetch: reloadLedger } = useQuery<CommissionLedgerRow[]>({
     queryKey: ["my-ledger", referrer?.id, month, year],
     enabled: !!referrer?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("referral_commission_ledger")
-        .select("*")
-        .eq("referrer_id", referrer!.id)
-        .eq("period_month", month)
-        .eq("period_year", year)
-        .order("commission_amount", { ascending: false });
-      if (error) throw error;
-      return (data || []) as CommissionLedgerRow[];
-    },
+    queryFn: () => leggiTutteLeRighe<CommissionLedgerRow>((from, to) => supabase
+      .from("referral_commission_ledger")
+      .select("id, subscription_plan_name, plan_mrr, commission_type, commission_rate, tier_multiplier, commission_amount, status")
+      .eq("referrer_id", referrer!.id)
+      .eq("period_month", month)
+      .eq("period_year", year)
+      .order("commission_amount", { ascending: false })
+      .order("id")
+      .range(from, to)),
   });
 
-  const { data: monthlyTotals = [] } = useQuery<Array<{ month: string; total: number }>>({
-    queryKey: ["my-monthly-totals", referrer?.id],
+  const { data: monthlyTotals = [], isError: chartError, refetch: reloadChart } = useQuery({
+    queryKey: ["my-monthly-totals", referrer?.id, month, year],
     enabled: !!referrer?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const periods = referralCommissionMonths({ month, year });
+      const first = periods[0];
+      const rows = await leggiTutteLeRighe((from, to) => supabase
         .from("referral_commission_ledger")
-        .select("period_month, period_year, commission_amount")
+        .select("period_month, period_year, commission_amount, status")
         .eq("referrer_id", referrer!.id)
-        .gte("period_year", year - 1);
-      if (!data) return [];
-      const map: Record<string, number> = {};
-      (data as MonthlyCommissionRow[]).forEach((d) => {
-        if (!d.period_year || !d.period_month) return;
-        const key = `${d.period_year}-${String(d.period_month).padStart(2, "0")}`;
-        map[key] = (map[key] || 0) + (d.commission_amount || 0);
-      });
-      return Object.entries(map)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-6)
-        .map(([key, total]) => ({
-          month: key.split("-")[1] + "/" + key.split("-")[0].slice(2),
-          total,
-        }));
+        .gte("period_year", first.year)
+        .lte("period_year", year)
+        .order("id")
+        .range(from, to));
+      return monthlyReferralCommissionSeries(rows, periods);
     },
   });
 
-  const subtotal = ledger.reduce((sum, l) => sum + (l.commission_amount || 0), 0);
+  const subtotal = sumBookedReferralCommissions(ledger);
 
   const exportCsvCommissions = () => {
     if (ledger.length === 0) { toast.error("Nessuna commissione da esportare"); return; }
@@ -129,6 +115,7 @@ export default function PartnerCommissions() {
   const { data: payoutBalance } = useReferralBalance(referrer?.id);
 
   const statusBadge = (row: CommissionLedgerRow) => {
+    if (row.status === "cancelled") return <Badge variant="destructive">Annullato</Badge>;
     if (row.commission_type === "stripe_refund") return <Badge variant="outline">Storno</Badge>;
     if (row.commission_type === "stripe_refund_reversal") return <Badge variant="outline">Rettifica</Badge>;
     if (row.commission_type === "stripe_receipt" && row.status === "pending") {
@@ -137,13 +124,16 @@ export default function PartnerCommissions() {
     switch (row.status) {
       case "paid": return <Badge variant="default">Pagato</Badge>;
       case "approved": return <Badge className="bg-blue-500/10 text-blue-700 border-blue-200">Approvato</Badge>;
-      case "cancelled": return <Badge variant="destructive">Annullato</Badge>;
       default: return <Badge variant="secondary">In attesa</Badge>;
     }
   };
 
   if (isReferrerLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  if (referrerError) {
+    return <PartnerLoadError message="Impossibile caricare il profilo partner." retry={() => void reloadReferrer()} />;
   }
 
   if (!referrer) {
@@ -162,25 +152,25 @@ export default function PartnerCommissions() {
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight">Commissioni</h1>
+      <PartnerPageHeading title="Commissioni" description="Consulta incassi, storni e rettifiche del periodo selezionato." actions={<PartnerPageLink to="/partner/payout">Vedi saldo e pagamenti</PartnerPageLink>} />
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Maturato Mese</span>
+            <span className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" /> Maturato nel mese</span>
           </CardHeader>
-          <CardContent><p className="text-xl font-bold">{formatCurrency(subtotal)}</p></CardContent>
+          <CardContent><p className="text-xl font-bold">{isLoading || ledgerError ? "—" : formatCurrency(subtotal)}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Totale Storico</span>
+            <span className="text-xs text-muted-foreground flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Commissioni nette storiche</span>
           </CardHeader>
           <CardContent><p className="text-xl font-bold">{payoutBalance ? formatCurrency(payoutBalance.earned + (payoutBalance.unvested ?? 0)) : "—"}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Già Pagato</span>
+            <span className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Liquidato</span>
           </CardHeader>
           <CardContent><p className="text-xl font-bold">{payoutBalance ? formatCurrency(payoutBalance.paid) : "—"}</p></CardContent>
         </Card>
@@ -203,7 +193,7 @@ export default function PartnerCommissions() {
         <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
           <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {[now.getFullYear(), now.getFullYear() - 1].map((y) => (
+            {[currentPeriod.year, currentPeriod.year - 1].map((y) => (
               <SelectItem key={y} value={String(y)}>{y}</SelectItem>
             ))}
           </SelectContent>
@@ -216,7 +206,9 @@ export default function PartnerCommissions() {
       {/* Ledger table */}
       <Card>
         <CardContent className="p-0">
-          {isLoading ? (
+          {ledgerError ? (
+            <PartnerLoadError message="Impossibile caricare i movimenti del periodo." retry={() => void reloadLedger()} />
+          ) : isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
           ) : ledger.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -260,9 +252,11 @@ export default function PartnerCommissions() {
       </Card>
 
       {/* Monthly chart */}
-      {monthlyTotals.length > 0 && (
+      {chartError ? (
+        <PartnerLoadError message="Impossibile caricare lo storico mensile." retry={() => void reloadChart()} />
+      ) : monthlyTotals.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Commissioni Mensili (ultimi 6 mesi)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Commissioni nei sei mesi fino al periodo selezionato</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={monthlyTotals}>

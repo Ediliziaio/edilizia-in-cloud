@@ -1,4 +1,7 @@
+import { PartnerPageHeading, PartnerPageLink } from "@/components/partner/PartnerPageHeading";
 import { useState, useEffect } from "react";
+import { leggiTutteLeRighe } from "@/lib/impostazioni/usoTag";
+import { referralCommissionPeriod, sumBookedReferralCommissions } from "@/lib/referralCommissionTotals";
 import { useReferralBalance } from "@/lib/referralPayouts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,21 +104,19 @@ export default function PartnerDashboard() {
     },
   });
 
-  const { data: ledger = [] } = useQuery({
-    queryKey: ["my-commission-ledger", referrer?.id],
+  const commissionPeriod = referralCommissionPeriod();
+  const { data: ledger = [], isError: ledgerError, isLoading: ledgerLoading } = useQuery({
+    queryKey: ["my-commission-ledger", referrer?.id, commissionPeriod.month, commissionPeriod.year],
     enabled: !!referrer?.id,
-    queryFn: async () => {
-      const now = new Date();
-      // S2-03: select chirurgico — UI usa solo commission_amount
-      const { data, error } = await supabase
-        .from("referral_commission_ledger")
-        .select("id, commission_amount")
-        .eq("referrer_id", referrer!.id)
-        .eq("period_month", now.getMonth() + 1)
-        .eq("period_year", now.getFullYear());
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => leggiTutteLeRighe((from, to) => supabase
+      .from("referral_commission_ledger")
+      .select("commission_amount, status")
+      .eq("referrer_id", referrer!.id)
+      .eq("period_month", commissionPeriod.month)
+      .eq("period_year", commissionPeriod.year)
+      .neq("status", "cancelled")
+      .order("id")
+      .range(from, to)),
   });
 
   const { data: clicks = [] } = useQuery({
@@ -172,7 +173,7 @@ export default function PartnerDashboard() {
 
   const tier = referrer.referral_tiers;
   const activeCompanies = referredCompanies.filter((rc: any) => rc.is_active && rc.company?.status === "active").length;
-  const monthlyCommission = ledger.reduce((sum: number, l: any) => sum + (l.commission_amount || 0), 0);
+  const monthlyCommission = sumBookedReferralCommissions(ledger);
   const referralLink = buildReferralLink(referrer.referral_code);
 
   const tierProgress = nextTier && (nextTier.min_active_companies ?? 0) > 0
@@ -210,18 +211,12 @@ export default function PartnerDashboard() {
         <PartnerOnboardingModal referrer={referrer} />
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Portale Partner</h1>
-          <p className="text-muted-foreground">Benvenuto, {referrer.name}</p>
-        </div>
-        {tier && (
-          <Badge className="text-sm px-3 py-1" style={{ backgroundColor: tier.color, color: "#fff" }}>
-            {tier.icon} {tier.name}
-          </Badge>
-        )}
-      </div>
+      <PartnerPageHeading title="Panoramica partner" description={`Ciao, ${referrer.name}. Segui il saldo e le ultime aziende segnalate.`}
+        actions={<>
+          {tier && <Badge variant="secondary">{tier.name}</Badge>}
+          <PartnerPageLink to="/partner/link">Il tuo link</PartnerPageLink>
+          <PartnerPageLink to="/partner/payout">Vedi pagamenti</PartnerPageLink>
+        </>} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -263,7 +258,7 @@ export default function PartnerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatCurrency(monthlyCommission)}</p>
+            <p className="text-2xl font-bold">{ledgerError || ledgerLoading ? "—" : formatCurrency(monthlyCommission)}</p>
           </CardContent>
         </Card>
         <Card>

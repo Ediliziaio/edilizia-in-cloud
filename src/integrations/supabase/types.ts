@@ -146173,6 +146173,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_apply_feature_rollout: {
+        Args: { p_feature_key: string; p_enable: string[]; p_remove: Json }
+        Returns: undefined
+      }
       _campo_appartiene_azienda: {
         Args: { p_company: string }
         Returns: boolean

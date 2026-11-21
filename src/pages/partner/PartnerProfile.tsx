@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { PartnerPageHeading, PartnerPageLink, PartnerLoadError } from "@/components/partner/PartnerPageHeading";
+import { useState } from "react";
 import { isValidIBAN, electronicFormatIBAN } from "ibantools";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -25,47 +27,57 @@ import {
 
 export default function PartnerProfile() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  const { data: referrer, isLoading } = useQuery({
+  const { data: referrer, isLoading, isError: profileError, refetch: reloadProfile } = useQuery({
     queryKey: ["my-referrer-full", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("referrers")
         .select("*, referral_tiers(name, icon)")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [partnerType, setPartnerType] = useState("referrer");
-  const [payoutMethod, setPayoutMethod] = useState("bank_transfer");
-  const [iban, setIban] = useState("");
-  const [ibanError, setIbanError] = useState("");
-  const [accountHolder, setAccountHolder] = useState("");
-  const [bank, setBank] = useState("");
-  const [fiscalCode, setFiscalCode] = useState("");
-  const [contractSignerName, setContractSignerName] = useState("");
-  const [contractAccepted, setContractAccepted] = useState(false);
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
 
-  useEffect(() => {
-    if (referrer) {
-      setName(referrer.name || "");
-      setPhone(referrer.phone || "");
-      setPartnerType(referrer.partner_type || "referrer");
-      setPayoutMethod(referrer.payout_method || "bank_transfer");
-      const details = getReferralPayoutDetails(referrer.payout_details);
-      setIban(details.iban || "");
-      setAccountHolder(details.account_holder || "");
-      setBank(details.bank || "");
-      setFiscalCode(details.fiscal_code || "");
-      setContractSignerName(details.contract?.signed_name || referrer.name || "");
-    }
-  }, [referrer]);
+  if (profileError) return <PartnerLoadError message="Impossibile caricare il profilo partner." retry={() => void reloadProfile()} />;
+
+  if (!referrer) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <User className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <h1 className="text-xl font-semibold text-foreground">Profilo partner non disponibile</h1>
+            <p className="mt-2 text-sm">Il tuo account non è ancora associato a un profilo partner attivo.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <PartnerProfileEditor key={referrer.id} referrer={referrer} userId={user?.id} />;
+}
+
+function PartnerProfileEditor({ referrer, userId }: { referrer: Tables<"referrers"> & { referral_tiers?: { name: string; icon: string | null } | null }; userId?: string }) {
+  const queryClient = useQueryClient();
+  const details = getReferralPayoutDetails(referrer.payout_details);
+  const [name, setName] = useState(referrer.name || "");
+  const [phone, setPhone] = useState(referrer.phone || "");
+  const [partnerType, setPartnerType] = useState(referrer.partner_type || "referrer");
+  const [payoutMethod, setPayoutMethod] = useState(referrer.payout_method || "bank_transfer");
+  const [iban, setIban] = useState(details.iban || "");
+  const [ibanError, setIbanError] = useState("");
+  const [accountHolder, setAccountHolder] = useState(details.account_holder || "");
+  const [bank, setBank] = useState(details.bank || "");
+  const [fiscalCode, setFiscalCode] = useState(details.fiscal_code || "");
+  const [contractSignerName, setContractSignerName] = useState(details.contract?.signed_name || referrer.name || "");
+  const [contractAccepted, setContractAccepted] = useState(false);
 
   const validateIban = (value: string) => {
     if (!value) { setIbanError(""); return; }
@@ -92,7 +104,7 @@ export default function PartnerProfile() {
       if (payoutMethod === "bank_transfer" && !accountHolder) {
         throw new Error("Inserisci il nome dell'intestatario del conto.");
       }
-      const currentDetails = getReferralPayoutDetails(referrer!.payout_details);
+      const currentDetails = getReferralPayoutDetails(referrer.payout_details);
       const normalizedIban = electronicFormatIBAN(iban.replace(/\s/g, "").toUpperCase()) || iban.replace(/\s/g, "").toUpperCase();
       const bankChanged =
         payoutMethod === "bank_transfer" &&
@@ -120,9 +132,9 @@ export default function PartnerProfile() {
       return { bankChanged, nextBankStatus };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["my-referrer-full", user?.id] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.referrer(user?.id) });
-      queryClient.invalidateQueries({ queryKey: ["my-referrer-sidebar", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["my-referrer-full", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.referrer(userId) });
+      queryClient.invalidateQueries({ queryKey: ["my-referrer-sidebar", userId] });
       toast.success(result?.nextBankStatus === "pending" ? "Dati conto inviati in verifica" : "Profilo aggiornato");
     },
     onError: (err) => {
@@ -145,7 +157,7 @@ export default function PartnerProfile() {
         ip = data.ip || "unknown";
       } catch { /* IP non disponibile: non blocca la firma locale */ }
 
-      const currentDetails = getReferralPayoutDetails(referrer!.payout_details);
+      const currentDetails = getReferralPayoutDetails(referrer.payout_details);
       const { error } = await supabase.rpc("partner_sign_referral_contract", {
         p_signed_name: contractSignerName.trim(),
         p_ip_address: ip,
@@ -155,9 +167,9 @@ export default function PartnerProfile() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-referrer-full", user?.id] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.referrer(user?.id) });
-      queryClient.invalidateQueries({ queryKey: ["my-referrer-sidebar", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["my-referrer-full", userId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.partnerPayouts.referrer(userId) });
+      queryClient.invalidateQueries({ queryKey: ["my-referrer-sidebar", userId] });
       setContractAccepted(false);
       toast.success("Contratto firmato e inviato per approvazione");
     },
@@ -166,25 +178,6 @@ export default function PartnerProfile() {
     },
   });
 
-  if (isLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-  }
-
-  if (!referrer) {
-    return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <User className="h-12 w-12 mx-auto mb-4 opacity-40" />
-            <h1 className="text-xl font-semibold text-foreground">Profilo partner non disponibile</h1>
-            <p className="mt-2 text-sm">Il tuo account non è ancora associato a un profilo partner attivo.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const details = getReferralPayoutDetails(referrer.payout_details);
   const bankStatus = getBankVerificationStatus(details);
   const contractStatus = getContractApprovalStatus(details, referrer.has_accepted_terms);
   const bankBadgeVariant = bankStatus === "verified" ? "default" : bankStatus === "rejected" ? "destructive" : "secondary";
@@ -192,7 +185,7 @@ export default function PartnerProfile() {
 
   return (
     <div className="space-y-6 p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight">Profilo Partner</h1>
+      <PartnerPageHeading title="Profilo partner" description="Controlla i recapiti, le coordinate di pagamento e lo stato del contratto." actions={<PartnerPageLink to="/partner/payout">Apri pagamenti</PartnerPageLink>} />
 
       {/* Personal info */}
       <Card>

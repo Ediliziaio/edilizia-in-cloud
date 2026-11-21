@@ -21,7 +21,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -37,6 +37,19 @@ const CATEGORY_STYLES: Record<string, { label: string; variant: string; classNam
 
 const ICON_OPTIONS = ["Bot", "MessageCircle", "BarChart3", "MessageSquare", "Cpu", "Mail", "Zap"] as const;
 const CATEGORY_OPTIONS = ["core", "addon", "beta", "enterprise"] as const;
+const QUERY_PAGE_SIZE = 500;
+
+async function readCatalogPages<T>(loadPage: (from: number, to: number) =>
+  PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const result: T[] = [];
+  for (let from = 0; ; from += QUERY_PAGE_SIZE) {
+    const { data, error } = await loadPage(from, from + QUERY_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) return result;
+    result.push(...data);
+    if (data.length < QUERY_PAGE_SIZE) return result;
+  }
+}
 
 interface FlagForm {
   id?: string;
@@ -73,13 +86,25 @@ interface CompanyRow {
 }
 
 interface OverrideRow {
+  id: string;
   company_id: string;
   feature_key: string;
-  is_enabled: boolean;
+  is_enabled: boolean | null;
   access_level: string | null;
   limit_value: number | null;
   price_override: number | null;
   expires_at: string | null;
+  updated_at: string | null;
+}
+
+interface RolloutPreview {
+  flagKey: string;
+  pct: number;
+  toEnable: string[];
+  excludedCount: number;
+  excludedWithOverrides: OverrideRow[];
+  excludedCustomCount: number;
+  includedAccessChanges: number;
 }
 
 interface PlanSlugRow {
@@ -108,13 +133,19 @@ function isOverrideExpired(o: { expires_at: string | null }, now = Date.now()): 
 
 export default function FeatureFlags() {
   const queryClient = useQueryClient();
+  const [catalogTime, setCatalogTime] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = window.setInterval(() => setCatalogTime(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
   const [dialogFlagKey, setDialogFlagKey] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [flagsSearch, setFlagsSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [bulkConfirm, setBulkConfirm] = useState<{ flagKey: string; flagName: string; value: boolean; enableCount: number; disableCount: number } | null>(null);
   const [rolloutPct, setRolloutPct] = useState<number>(0);
-  const [rolloutConfirm, setRolloutConfirm] = useState<{ flagKey: string; pct: number } | null>(null);
+  const [rolloutConfirm, setRolloutConfirm] = useState<RolloutPreview | null>(null);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
 
   // CRUD state
@@ -123,7 +154,7 @@ export default function FeatureFlags() {
   const [deleteConfirmFlag, setDeleteConfirmFlag] = useState<{ id: string; key: string; name: string; overridesCount: number } | null>(null);
 
   // Fetch flags
-  const { data: flags = [], isLoading: flagsLoading } = useQuery<FlagRow[]>({
+  const { data: flags = [], isLoading: flagsLoading, isError: flagsError, refetch: reloadFlags } = useQuery<FlagRow[]>({
     queryKey: queryKeys.admin.featureFlags,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -136,16 +167,10 @@ export default function FeatureFlags() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: companies = [], isLoading: companiesLoading } = useQuery<CompanyRow[]>({
-    queryKey: queryKeys.admin.ffCompanies,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("id, name")
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as CompanyRow[];
-    },
+  const { data: companies = [], isLoading: companiesLoading, isError: companiesError, refetch: reloadCompanies } = useQuery<CompanyRow[]>({
+    queryKey: [...queryKeys.admin.ffCompanies, "catalogo-completo"],
+    queryFn: () => readCatalogPages<CompanyRow>((from, to) => supabase.from("companies")
+      .select("id, name").order("name").order("id").range(from, to)),
     staleTime: 10 * 60 * 1000,
   });
 
@@ -162,15 +187,11 @@ export default function FeatureFlags() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: allOverrides = [] } = useQuery<OverrideRow[]>({
-    queryKey: queryKeys.admin.featureOverrides,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("company_feature_overrides")
-        .select("company_id, feature_key, is_enabled, access_level, limit_value, price_override, expires_at");
-      if (error) throw error;
-      return (data ?? []) as OverrideRow[];
-    },
+  const { data: allOverrides = [], isLoading: overridesLoading, isError: overridesError, refetch: reloadOverrides } = useQuery<OverrideRow[]>({
+    queryKey: [...queryKeys.admin.featureOverrides, "catalogo-completo"],
+    queryFn: () => readCatalogPages<OverrideRow>((from, to) => supabase.from("company_feature_overrides")
+      .select("id, company_id, feature_key, is_enabled, access_level, limit_value, price_override, expires_at, updated_at")
+      .order("feature_key").order("company_id").range(from, to)),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -180,11 +201,10 @@ export default function FeatureFlags() {
   // Precomputing in un Map dà O(1) lookup per flag.
   const overridesByFlag = useMemo(() => {
     const m = new Map<string, Set<string>>();
-    const now = Date.now();
     for (const o of allOverrides) {
       // Stessa regola di resolve_company_feature: un override scaduto
       // (expires_at passato) non vale più → non conta come attivo.
-      if (isOverrideExpired(o, now)) continue;
+      if (isOverrideExpired(o, catalogTime)) continue;
       // "enabled" reale: access_level è la fonte di verità (is_enabled solo fallback).
       const on = o.access_level ? o.access_level === "enabled" : o.is_enabled;
       if (!on) continue;
@@ -192,7 +212,7 @@ export default function FeatureFlags() {
       m.get(o.feature_key)!.add(o.company_id);
     }
     return m;
-  }, [allOverrides]);
+  }, [allOverrides, catalogTime]);
 
   // Lookup O(1) dell'override completo per (flag, company): serve al controllo
   // tri-stato e ai campi avanzati (limite/prezzo/scadenza) nel dialog per-azienda.
@@ -202,26 +222,40 @@ export default function FeatureFlags() {
     return m;
   }, [allOverrides]);
 
-  // Stats globali — non reagiscono ai filtri di vista
-  const globalStats = useMemo(() => {
-    const totalFlags = flags.length;
-    const activeFlagsWithOverrides = flags.filter((f) => (overridesByFlag.get(f.key)?.size ?? 0) > 0).length;
-    const betaFlagsCount = flags.filter((f) => f.is_beta).length;
-    const defaultOnCount = flags.filter((f) => f.default_value).length;
-    // Avg coverage: media delle % di override attivi su company_count
-    const totalCompanies = companies.length;
-    const avgCoverage = totalFlags > 0 && totalCompanies > 0
-      ? Math.round(
-          flags.reduce((s, f) => s + ((overridesByFlag.get(f.key)?.size ?? 0) / totalCompanies) * 100, 0) / totalFlags
-        )
-      : 0;
-    // Count per categoria
-    const byCategory = flags.reduce((acc, f) => {
-      acc[f.category] = (acc[f.category] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    return { totalFlags, activeFlagsWithOverrides, betaFlagsCount, defaultOnCount, avgCoverage, byCategory };
-  }, [flags, overridesByFlag, companies.length]);
+  const overrideCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of allOverrides) counts.set(row.feature_key, (counts.get(row.feature_key) ?? 0) + 1);
+    return counts;
+  }, [allOverrides]);
+
+  const globalStats = useMemo(() => ({
+    totalFlags: flags.length,
+    flagsWithOverrides: flags.filter((flag) => overrideCounts.has(flag.key)).length,
+    defaultOnCount: flags.filter((flag) => flag.default_value).length,
+    betaFlagsCount: flags.filter((flag) => flag.is_beta).length,
+    byCategory: flags.reduce((counts, flag) => {
+      counts[flag.category] = (counts[flag.category] ?? 0) + 1;
+      return counts;
+    }, {} as Record<string, number>),
+  }), [flags, overrideCounts]);
+  const catalogError = flagsError || companiesError || overridesError;
+  const isInitialLoading = flagsLoading || companiesLoading || overridesLoading;
+
+  const confirmBulk = (flag: FlagRow, enable: boolean) => {
+    setBulkConfirm({
+      flagKey: flag.key, flagName: flag.name, value: enable,
+      enableCount: companies.length - (overridesByFlag.get(flag.key)?.size ?? 0),
+      disableCount: overrideCounts.get(flag.key) ?? 0,
+    });
+  };
+
+  const enableOverride = (flagKey: string, companyId: string) => {
+    const current = overrideByFlagCompany.get(`${flagKey}::${companyId}`);
+    return {
+      company_id: companyId, feature_key: flagKey, access_level: "enabled" as const, is_enabled: true,
+      expires_at: current && !isOverrideExpired(current) ? current.expires_at : null,
+    };
+  };
 
   // Svuota le cache per azienda. queryKeys.featureFlags.companyOverrides(undefined)
   // produce ["company-feature-overrides", undefined], che NON combacia con
@@ -267,7 +301,11 @@ export default function FeatureFlags() {
         const { error } = await supabase
           .from("company_feature_overrides")
           .upsert(
-            { company_id: companyId, feature_key: flagKey, access_level: level, is_enabled: level === "enabled" },
+            {
+              company_id: companyId, feature_key: flagKey, access_level: level, is_enabled: level === "enabled",
+              ...(isOverrideExpired(overrideByFlagCompany.get(`${flagKey}::${companyId}`) ?? { expires_at: null })
+                ? { expires_at: null } : {}),
+            },
             { onConflict: "company_id,feature_key" }
           );
         if (error) throw error;
@@ -293,32 +331,31 @@ export default function FeatureFlags() {
   // Campi avanzati dell'override (limite, prezzo override, scadenza). Upsert
   // parziale: merge-duplicates aggiorna solo i campi passati, preserva il resto.
   const setOverrideFieldMutation = useMutation({
-    mutationFn: async ({ companyId, flagKey, patch }: { companyId: string; flagKey: string; patch: { limit_value?: number | null; price_override?: number | null; expires_at?: string | null } }) => {
-      const { error } = await supabase
+    mutationFn: async ({ overrideId, patch }: { overrideId: string; patch: { limit_value?: number | null; price_override?: number | null; expires_at?: string | null } }) => {
+      const { data, error } = await supabase
         .from("company_feature_overrides")
-        .upsert(
-          { company_id: companyId, feature_key: flagKey, ...patch },
-          { onConflict: "company_id,feature_key" }
-        );
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", overrideId)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("L’eccezione non esiste più.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
       invalidaCacheAziende();
       toast.success("Override aggiornato");
     },
-    onError: () => toast.error("Errore nel salvataggio del campo"),
+    onError: (error) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      toast.error(error instanceof Error ? error.message : "Errore nel salvataggio del campo");
+    },
   });
 
   const bulkOverrideMutation = useMutation({
     mutationFn: async ({ flagKey, enabled }: { flagKey: string; enabled: boolean }) => {
       if (enabled) {
-        const rows = companies.map((c) => ({
-          company_id: c.id,
-          feature_key: flagKey,
-          is_enabled: true,
-          access_level: "enabled" as const,
-        }));
+        const rows = companies.map((company) => enableOverride(flagKey, company.id));
         const { error } = await supabase
           .from("company_feature_overrides")
           .upsert(rows, { onConflict: "company_id,feature_key" });
@@ -339,44 +376,58 @@ export default function FeatureFlags() {
     onError: () => toast.error("Errore nell'operazione bulk"),
   });
 
-  // Divisione del rollout: prime N aziende in ordine alfabetico abilitate,
-  // alle altre si CANCELLA l'override (anche disattivato/anteprima e con
-  // limiti, prezzi, scadenze). Condivisa tra conferma e mutazione.
-  const rolloutSplit = (pct: number) => {
+  const previewRollout = (flagKey: string, pct: number): RolloutPreview => {
     const count = Math.round((pct / 100) * companies.length);
-    const sorted = [...companies].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...companies].sort((a, b) => a.name.localeCompare(b.name, "it") || a.id.localeCompare(b.id));
+    const toEnable = sorted.slice(0, count).map((company) => company.id);
+    const excluded = sorted.slice(count);
+    const overrideFor = (companyId: string) => overrideByFlagCompany.get(`${flagKey}::${companyId}`);
+    const level = (override: OverrideRow) => override.access_level ?? (override.is_enabled ? "enabled" : "disabled");
+    const excludedWithOverrides = excluded
+      .map((company) => overrideFor(company.id))
+      .filter((override): override is OverrideRow => override !== undefined);
     return {
-      toEnable: sorted.slice(0, count).map((c) => c.id),
-      toDisable: sorted.slice(count).map((c) => c.id),
+      flagKey,
+      pct,
+      toEnable,
+      excludedCount: excluded.length,
+      excludedWithOverrides,
+      excludedCustomCount: excludedWithOverrides.filter((o) =>
+        level(o) !== "enabled" || o.limit_value != null || o.price_override != null || o.expires_at != null,
+      ).length,
+      includedAccessChanges: toEnable.filter((id) => {
+        const override = overrideFor(id);
+        return override && level(override) !== "enabled";
+      }).length,
     };
   };
 
   const rolloutMutation = useMutation({
-    mutationFn: async ({ flagKey, pct }: { flagKey: string; pct: number }) => {
-      const { toEnable, toDisable } = rolloutSplit(pct);
-      if (toEnable.length > 0) {
-        const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true, access_level: "enabled" as const }));
-        const { error } = await supabase
-          .from("company_feature_overrides")
-          .upsert(rows, { onConflict: "company_id,feature_key" });
-        if (error) throw error;
-      }
-      if (toDisable.length > 0) {
-        const { error } = await supabase
-          .from("company_feature_overrides")
-          .delete()
-          .eq("feature_key", flagKey)
-          .in("company_id", toDisable);
-        if (error) throw error;
-      }
+    mutationFn: async ({ flagKey, toEnable, excludedWithOverrides }: RolloutPreview) => {
+      const { error } = await supabase.rpc("admin_apply_feature_rollout", {
+        p_feature_key: flagKey,
+        p_enable: toEnable,
+        p_remove: excludedWithOverrides.map((override) => ({ ...override })),
+      });
+      if (error) throw error;
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
       invalidaCacheAziende();
-      toast.success(`Rollout applicato: ${vars.pct}% delle aziende`);
+      toast.success(`Rollout applicato al ${vars.pct}% delle aziende`);
       setRolloutConfirm(null);
     },
-    onError: () => toast.error("Errore nel rollout"),
+    onError: (error) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      setRolloutConfirm(null);
+      if ("code" in error && error.code === "PGRST202") {
+        toast.error("La distribuzione richiede l’aggiornamento del database.");
+      } else if ("code" in error && error.code === "40001") {
+        toast.error("Le eccezioni sono cambiate. Apri una nuova anteprima.");
+      } else {
+        toast.error("Impossibile confermare la distribuzione. Verifica gli accessi aggiornati.");
+      }
+    },
   });
 
   const saveFlagMutation = useMutation({
@@ -472,6 +523,9 @@ export default function FeatureFlags() {
     const q = flagsSearch.trim().toLowerCase();
     return flags.filter((f) => {
       if (categoryFilter !== "all" && f.category !== categoryFilter) return false;
+      if (statusFilter === "default" && !f.default_value) return false;
+      if (statusFilter === "overrides" && !overrideCounts.has(f.key)) return false;
+      if (statusFilter === "beta" && !f.is_beta) return false;
       if (!q) return true;
       return (
         f.name.toLowerCase().includes(q) ||
@@ -479,7 +533,7 @@ export default function FeatureFlags() {
         (f.description ?? "").toLowerCase().includes(q)
       );
     });
-  }, [flags, categoryFilter, flagsSearch]);
+  }, [flags, categoryFilter, flagsSearch, statusFilter, overrideCounts]);
 
   const gruppiFlag = useMemo(() => {
     const cats = [...new Set([...CATEGORY_OPTIONS, ...filteredFlags.map((f) => f.category)])];
@@ -499,46 +553,59 @@ export default function FeatureFlags() {
     return companies.filter((c) => c.name.toLowerCase().includes(q));
   }, [companies, searchTerm]);
 
-  const isInitialLoading = flagsLoading || companiesLoading;
-
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold">Funzionalità Azienda</h1>
-          <p className="text-muted-foreground">Quali moduli ha ogni azienda: di base, dal piano o attivati a mano.</p>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Funzionalità azienda</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Organizza il catalogo, le funzioni incluse nei piani e le eccezioni per azienda.</p>
         </div>
-        <Button onClick={openCreateFlag} className="self-end sm:self-auto" disabled={isInitialLoading}>
+        <Button onClick={openCreateFlag} className="self-start sm:self-auto" disabled={flagsLoading || flagsError}>
           <Plus className="h-4 w-4 mr-2" />
-          Nuova feature
+          Nuova funzionalità
         </Button>
       </div>
 
       {/* Global stats KPI */}
-      <StatsRow
+      {catalogError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-card p-4">
+        <p className="text-sm">Alcuni dati del catalogo non sono disponibili. Le operazioni sulle aziende sono sospese.</p>
+        <Button size="sm" variant="outline" onClick={() => { void reloadFlags(); void reloadCompanies(); void reloadOverrides(); }}>Riprova</Button>
+      </div>}
+
+      {!catalogError && <StatsRow
         loading={isInitialLoading}
         totalFlags={globalStats.totalFlags}
-        activeFlagsWithOverrides={globalStats.activeFlagsWithOverrides}
+        flagsWithOverrides={globalStats.flagsWithOverrides}
         defaultOnCount={globalStats.defaultOnCount}
         betaFlagsCount={globalStats.betaFlagsCount}
-        avgCoverage={globalStats.avgCoverage}
+        overridesCount={allOverrides.length}
         totalCompanies={companies.length}
-      />
+      />}
 
       {/* Search + Tabs */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca per nome, key o descrizione…"
+            aria-label="Cerca funzionalità"
+            placeholder="Cerca per nome, chiave o descrizione…"
             value={flagsSearch}
             onChange={(e) => setFlagsSearch(e.target.value)}
             className="pl-9 h-9"
           />
         </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 sm:w-48" aria-label="Filtra per configurazione"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutte le configurazioni</SelectItem>
+            <SelectItem value="default">Attive di base</SelectItem>
+            <SelectItem value="overrides">Con eccezioni</SelectItem>
+            <SelectItem value="beta">In sperimentazione</SelectItem>
+          </SelectContent>
+        </Select>
         <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
-          <TabsList className="overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
+          <TabsList className="max-w-full justify-start overflow-x-auto whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
             <TabsTrigger value="all">
               Tutti
               {globalStats.totalFlags > 0 && (
@@ -561,6 +628,12 @@ export default function FeatureFlags() {
         </Tabs>
       </div>
 
+      {!isInitialLoading && !flagsError && flags.length > 0 && (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {filteredFlags.length} di {flags.length} funzionalità
+        </p>
+      )}
+
       {/* Loading skeleton */}
       {isInitialLoading && (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -569,12 +642,12 @@ export default function FeatureFlags() {
       )}
 
       {/* Empty state */}
-      {!isInitialLoading && flags.length === 0 && (
+      {!isInitialLoading && !flagsError && flags.length === 0 && (
         <EmptyState onCreate={openCreateFlag} />
       )}
 
       {/* No results with active filter */}
-      {!isInitialLoading && flags.length > 0 && filteredFlags.length === 0 && (
+      {!isInitialLoading && !flagsError && flags.length > 0 && filteredFlags.length === 0 && (
         <Card>
           <CardContent className="py-12 flex flex-col items-center gap-2 text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground/40" />
@@ -582,7 +655,7 @@ export default function FeatureFlags() {
             <p className="text-xs text-muted-foreground">
               {flagsSearch && `"${flagsSearch}" in categoria "${categoryFilter === "all" ? "tutti" : CATEGORY_STYLES[categoryFilter]?.label}"`}
             </p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => { setFlagsSearch(""); setCategoryFilter("all"); }}>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => { setFlagsSearch(""); setCategoryFilter("all"); setStatusFilter("all"); }}>
               Reset filtri
             </Button>
           </CardContent>
@@ -606,6 +679,8 @@ export default function FeatureFlags() {
             flag={flag}
             totalCompanies={companies.length}
             overrideCompanyIds={overridesByFlag.get(flag.key) ?? new Set()}
+            manualOverrideCount={overrideCounts.get(flag.key) ?? 0}
+            companyActionsDisabled={catalogError}
             onToggleDefault={(value) => toggleDefaultMutation.mutate({ flagId: flag.id, value })}
             toggleDefaultPending={toggleDefaultMutation.isPending}
             onEdit={() => openEditFlag(flag)}
@@ -614,7 +689,7 @@ export default function FeatureFlags() {
                 id: flag.id,
                 key: flag.key,
                 name: flag.name,
-                overridesCount: overridesByFlag.get(flag.key)?.size ?? 0,
+                overridesCount: overrideCounts.get(flag.key) ?? 0,
               })
             }
             onManageCompanies={() => {
@@ -622,18 +697,6 @@ export default function FeatureFlags() {
               setRolloutPct(companies.length > 0 ? Math.round((cur / companies.length) * 100) : 0);
               setDialogFlagKey(flag.key);
             }}
-            onBulkToggle={() => {
-              const cur = overridesByFlag.get(flag.key)?.size ?? 0;
-              const enable = cur < companies.length;
-              setBulkConfirm({
-                flagKey: flag.key,
-                flagName: flag.name,
-                value: enable,
-                enableCount: enable ? companies.length - cur : 0,
-                disableCount: enable ? 0 : cur,
-              });
-            }}
-            bulkPending={bulkOverrideMutation.isPending}
           />
         ))}
         </div>
@@ -653,11 +716,11 @@ export default function FeatureFlags() {
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Override aziende — {activeDialogFlag?.name}</DialogTitle>
+            <DialogTitle>Aziende · {activeDialogFlag?.name}</DialogTitle>
             <DialogDescription>
-              Seleziona le aziende per cui forzare l'attivazione del modulo, oppure usa il rollout percentuale.
+              Imposta un’eccezione per una singola azienda o applica una modifica a più aziende.
             </DialogDescription>
           </DialogHeader>
 
@@ -681,8 +744,9 @@ export default function FeatureFlags() {
                   onValueChange={(v) => setRolloutPct(v[0] ?? 0)}
                 />
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Valore esatto:</span>
+                  <Label htmlFor="feature-rollout-pct" className="text-xs text-muted-foreground">Percentuale</Label>
                   <Input
+                    id="feature-rollout-pct"
                     type="number"
                     min={0}
                     max={100}
@@ -693,33 +757,33 @@ export default function FeatureFlags() {
                   <Button
                     size="sm"
                     className="ml-auto h-7 text-xs"
-                    onClick={() => setRolloutConfirm({ flagKey: activeDialogFlag.key, pct: rolloutPct })}
-                    disabled={rolloutMutation.isPending}
+                    onClick={() => setRolloutConfirm(previewRollout(activeDialogFlag.key, rolloutPct))}
+                    disabled={rolloutMutation.isPending || catalogError || companies.length === 0}
                   >
-                    Applica rollout
+                    Vedi impatto
                   </Button>
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => bulkOverrideMutation.mutate({ flagKey: activeDialogFlag.key, enabled: true })}
-                  disabled={bulkOverrideMutation.isPending}
+                  onClick={() => confirmBulk(activeDialogFlag, true)}
+                  disabled={bulkOverrideMutation.isPending || catalogError || companies.length === 0}
                 >
-                  Seleziona tutte
+                  Abilita per tutte
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => bulkOverrideMutation.mutate({ flagKey: activeDialogFlag.key, enabled: false })}
-                  disabled={bulkOverrideMutation.isPending}
+                  onClick={() => confirmBulk(activeDialogFlag, false)}
+                  disabled={bulkOverrideMutation.isPending || catalogError || !overrideCounts.has(activeDialogFlag.key)}
                 >
-                  Deseleziona tutte
+                  Rimuovi tutte le eccezioni
                 </Button>
                 <span className="ml-auto text-xs text-muted-foreground flex items-center">
-                  {overridesByFlag.get(activeDialogFlag.key)?.size ?? 0} override attivi
+                  {overrideCounts.get(activeDialogFlag.key) ?? 0} eccezioni salvate
                 </span>
               </div>
 
@@ -736,14 +800,17 @@ export default function FeatureFlags() {
               <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
                 {filteredDialogCompanies.map((company) => {
                   const ov = overrideByFlagCompany.get(`${activeDialogFlag.key}::${company.id}`);
-                  const level = ov ? (ov.access_level ?? (ov.is_enabled ? "enabled" : "disabled")) : "inherit";
+                  const expired = ov ? isOverrideExpired(ov, catalogTime) : false;
+                  const level = ov && !expired ? (ov.access_level ?? (ov.is_enabled ? "enabled" : "disabled")) : "inherit";
                   const expanded = expandedCompany === company.id;
                   return (
                     <div key={company.id} className="rounded-md border px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <span className="flex-1 truncate text-sm">{company.name}</span>
-                        <Select value={level} onValueChange={(v) => setAccessMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, level: v as "inherit" | "disabled" | "preview" | "enabled" })} disabled={setAccessMutation.isPending}>
-                          <SelectTrigger className="h-8 w-[7.5rem] text-xs"><SelectValue /></SelectTrigger>
+                        <div className="min-w-0 flex-1"><p className="truncate text-sm">{company.name}</p>
+                          {expired && <span className="text-xs text-muted-foreground">Eccezione scaduta</span>}
+                        </div>
+                        <Select value={level} onValueChange={(v) => setAccessMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, level: v as "inherit" | "disabled" | "preview" | "enabled" })} disabled={catalogError || setAccessMutation.isPending || rolloutMutation.isPending || bulkOverrideMutation.isPending}>
+                          <SelectTrigger aria-label={`Accesso di ${company.name}`} className="h-8 w-[7.5rem] text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="inherit">Eredita</SelectItem>
                             <SelectItem value="disabled">Disabilitato</SelectItem>
@@ -751,24 +818,40 @@ export default function FeatureFlags() {
                             <SelectItem value="enabled">Abilitato</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" disabled={!ov} onClick={() => setExpandedCompany(expanded ? null : company.id)}>Avanzate</Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" disabled={catalogError || !ov} onClick={() => setExpandedCompany(expanded ? null : company.id)}>Avanzate</Button>
                       </div>
                       {expanded && ov && (
-                        <div className="mt-2 grid grid-cols-3 gap-2 border-t pt-2">
+                        <div className="mt-2 grid gap-2 border-t pt-2 sm:grid-cols-3">
                           <div className="grid gap-1">
-                            <Label className="text-[11px] text-muted-foreground">Limite</Label>
-                            <Input type="number" className="h-8" defaultValue={ov.limit_value ?? ""} placeholder="—"
-                              onBlur={(e) => setOverrideFieldMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, patch: { limit_value: e.target.value === "" ? null : Number(e.target.value) } })} />
+                            <Label htmlFor={`limit-${ov.id}`} className="text-[11px] text-muted-foreground">Limite</Label>
+                            <Input id={`limit-${ov.id}`} type="number" min={0} step={1} className="h-8" key={ov.limit_value ?? "none"} defaultValue={ov.limit_value ?? ""} placeholder="—"
+                              onBlur={({ currentTarget: input }) => {
+                                const value = input.value === "" ? null : input.valueAsNumber;
+                                if (!input.validity.valid) {
+                                  input.value = ov.limit_value?.toString() ?? "";
+                                  toast.error("Inserisci un limite intero maggiore o uguale a zero.");
+                                } else if (value !== ov.limit_value) {
+                                  setOverrideFieldMutation.mutate({ overrideId: ov.id, patch: { limit_value: value } });
+                                }
+                              }} />
                           </div>
                           <div className="grid gap-1">
-                            <Label className="text-[11px] text-muted-foreground">Prezzo € (override)</Label>
-                            <Input type="number" className="h-8" defaultValue={ov.price_override ?? ""} placeholder="—"
-                              onBlur={(e) => setOverrideFieldMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, patch: { price_override: e.target.value === "" ? null : Number(e.target.value) } })} />
+                            <Label htmlFor={`price-${ov.id}`} className="text-[11px] text-muted-foreground">Prezzo € (override)</Label>
+                            <Input id={`price-${ov.id}`} type="number" min={0} step={0.01} className="h-8" key={ov.price_override ?? "none"} defaultValue={ov.price_override ?? ""} placeholder="—"
+                              onBlur={({ currentTarget: input }) => {
+                                const value = input.value === "" ? null : input.valueAsNumber;
+                                if (!input.validity.valid) {
+                                  input.value = ov.price_override?.toString() ?? "";
+                                  toast.error("Inserisci un prezzo positivo con al massimo due decimali.");
+                                } else if (value !== ov.price_override) {
+                                  setOverrideFieldMutation.mutate({ overrideId: ov.id, patch: { price_override: value } });
+                                }
+                              }} />
                           </div>
                           <div className="grid gap-1">
-                            <Label className="text-[11px] text-muted-foreground">Scadenza</Label>
-                            <Input type="date" className="h-8" defaultValue={ov.expires_at ? ov.expires_at.slice(0, 10) : ""}
-                              onChange={(e) => setOverrideFieldMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, patch: { expires_at: e.target.value === "" ? null : new Date(e.target.value + "T00:00:00").toISOString() } })} />
+                            <Label htmlFor={`expiry-${ov.id}`} className="text-[11px] text-muted-foreground">Scadenza</Label>
+                            <Input id={`expiry-${ov.id}`} type="date" className="h-8" defaultValue={ov.expires_at ? ov.expires_at.slice(0, 10) : ""}
+                              onChange={(e) => setOverrideFieldMutation.mutate({ overrideId: ov.id, patch: { expires_at: e.target.value === "" ? null : new Date(e.target.value + "T00:00:00").toISOString() } })} />
                           </div>
                         </div>
                       )}
@@ -785,51 +868,40 @@ export default function FeatureFlags() {
       </Dialog>
 
       {/* Rollout confirm */}
-      <AlertDialog open={!!rolloutConfirm} onOpenChange={(open) => { if (!open) setRolloutConfirm(null); }}>
+      <AlertDialog open={!!rolloutConfirm} onOpenChange={(open) => { if (!open && !rolloutMutation.isPending) setRolloutConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma rollout graduale</AlertDialogTitle>
             <AlertDialogDescription>
-              {(() => {
-                if (!rolloutConfirm) return null;
-                const { toEnable, toDisable } = rolloutSplit(rolloutConfirm.pct);
-                const ovOf = (id: string) => overrideByFlagCompany.get(`${rolloutConfirm.flagKey}::${id}`);
-                const levelOf = (o: OverrideRow) => o.access_level ?? (o.is_enabled ? "enabled" : "disabled");
-                // Aziende escluse che hanno un override manuale: viene CANCELLATO.
-                const excludedWithOv = toDisable.map(ovOf).filter((o): o is OverrideRow => !!o);
-                const excludedSpecial = excludedWithOv.filter(
-                  (o) => levelOf(o) !== "enabled" || o.limit_value != null || o.price_override != null || o.expires_at != null,
-                ).length;
-                // Aziende incluse in anteprima/disattivate: passano ad «abilitato».
-                const includedOverwritten = toEnable.map(ovOf).filter(
-                  (o): o is OverrideRow => !!o && levelOf(o) !== "enabled",
-                ).length;
-                return (
-                  <>
-                    Stai per impostare il rollout al <strong>{rolloutConfirm.pct}%</strong>: <strong>{toEnable.length}</strong> di{" "}
-                    <strong>{companies.length}</strong> aziende, scelte in ordine alfabetico, avranno la funzione abilitata.
+              {rolloutConfirm && (
+                <>
+                  La funzione verrà abilitata per <strong>{rolloutConfirm.toEnable.length}</strong> di{" "}
+                  <strong>{rolloutConfirm.toEnable.length + rolloutConfirm.excludedCount}</strong> aziende, scelte in ordine alfabetico.
+                  <span className="mt-2 block">
+                    Per le <strong>{rolloutConfirm.excludedCount}</strong> aziende escluse verranno rimosse{" "}
+                    <strong>{rolloutConfirm.excludedWithOverrides.length}</strong> eccezioni già esistenti
+                    {rolloutConfirm.excludedCustomCount > 0 && <>, di cui <strong>{rolloutConfirm.excludedCustomCount}</strong> con stato, limiti, prezzi o scadenze personalizzati</>}.
+                    Le aziende senza eccezioni seguono le impostazioni del piano.
+                  </span>
+                  {rolloutConfirm.includedAccessChanges > 0 && (
                     <span className="mt-2 block">
-                      Alle <strong>{toDisable.length}</strong> aziende escluse viene <strong>cancellata ogni impostazione manuale</strong> per
-                      questa funzione ({excludedWithOv.length} oggi ne hanno una
-                      {excludedSpecial > 0 && <>, di cui <strong>{excludedSpecial}</strong> disattivate, in anteprima o con limiti, prezzi o scadenze</>}):
-                      torneranno a quanto previsto dal loro piano.
+                      <strong>{rolloutConfirm.includedAccessChanges}</strong> aziende incluse, oggi disattivate o in anteprima, passano ad abilitate.
                     </span>
-                    {includedOverwritten > 0 && (
-                      <span className="mt-2 block">
-                        <strong>{includedOverwritten}</strong> aziende incluse, oggi disattivate o in anteprima, passano ad abilitato.
-                      </span>
-                    )}
-                  </>
-                );
-              })()}
+                  )}
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={rolloutMutation.isPending}>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => rolloutConfirm && rolloutMutation.mutate({ flagKey: rolloutConfirm.flagKey, pct: rolloutConfirm.pct })}
+              disabled={catalogError || rolloutMutation.isPending || bulkOverrideMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (rolloutConfirm) rolloutMutation.mutate(rolloutConfirm);
+              }}
             >
-              Applica rollout {rolloutConfirm?.pct}%
+              {rolloutMutation.isPending ? "Applicazione in corso…" : `Applica rollout ${rolloutConfirm?.pct}%`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1050,7 +1122,7 @@ export default function FeatureFlags() {
       <AlertDialog open={!!bulkConfirm} onOpenChange={(open) => { if (!open) setBulkConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Conferma operazione bulk</AlertDialogTitle>
+            <AlertDialogTitle>{bulkConfirm?.value ? "Abilitare per tutte le aziende?" : "Rimuovere tutte le eccezioni?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {bulkConfirm?.value
                 ? (() => {
@@ -1085,6 +1157,7 @@ export default function FeatureFlags() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
+              disabled={catalogError || rolloutMutation.isPending || bulkOverrideMutation.isPending}
               onClick={() => {
                 if (bulkConfirm) {
                   bulkOverrideMutation.mutate({ flagKey: bulkConfirm.flagKey, enabled: bulkConfirm.value });
@@ -1093,7 +1166,7 @@ export default function FeatureFlags() {
               }}
               className={bulkConfirm?.value ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
             >
-              {bulkConfirm?.value ? `Attiva per ${bulkConfirm?.enableCount} aziende` : `Rimuovi ${bulkConfirm?.disableCount} override`}
+              {bulkConfirm?.value ? "Conferma attivazione" : `Rimuovi ${bulkConfirm?.disableCount} eccezioni`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1107,15 +1180,15 @@ export default function FeatureFlags() {
 // =============================================================================
 
 function StatsRow({
-  loading, totalFlags, activeFlagsWithOverrides, defaultOnCount, betaFlagsCount,
-  avgCoverage, totalCompanies,
+  loading, totalFlags, flagsWithOverrides, defaultOnCount, betaFlagsCount,
+  overridesCount, totalCompanies,
 }: {
   loading: boolean;
   totalFlags: number;
-  activeFlagsWithOverrides: number;
+  flagsWithOverrides: number;
   defaultOnCount: number;
   betaFlagsCount: number;
-  avgCoverage: number;
+  overridesCount: number;
   totalCompanies: number;
 }) {
   if (loading) {
@@ -1129,34 +1202,33 @@ function StatsRow({
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       <StatPill
         icon={<Flag className="h-4 w-4" />}
-        label="Feature totali"
+        label="Funzionalità"
         value={totalFlags}
         accent="bg-primary/10 text-primary"
       />
       <StatPill
         icon={<Eye className="h-4 w-4" />}
-        label="Default ON"
+        label="Attive di base"
         value={defaultOnCount}
         subtitle={totalFlags > 0 ? `${Math.round((defaultOnCount / totalFlags) * 100)}% delle feature` : "—"}
         accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
       />
       <StatPill
         icon={<Users2 className="h-4 w-4" />}
-        label="Con override attivi"
-        value={activeFlagsWithOverrides}
-        subtitle={totalCompanies > 0 ? `su ${totalCompanies} aziende totali` : "—"}
+        label="Con eccezioni"
+        value={flagsWithOverrides}
+        subtitle={`${overridesCount} regole salvate`}
         accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
       />
       <StatPill
-        icon={<Percent className="h-4 w-4" />}
-        label="Coverage media"
-        value={`${avgCoverage}%`}
-        subtitle="Media % override per feature"
+        icon={<Users2 className="h-4 w-4" />}
+        label="Aziende"
+        value={totalCompanies}
         accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
       />
       <StatPill
         icon={<Sparkles className="h-4 w-4" />}
-        label="Feature Beta"
+        label="In sperimentazione"
         value={betaFlagsCount}
         accent="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
       />
@@ -1210,9 +1282,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 function FlagCard({
-  flag, totalCompanies, overrideCompanyIds,
-  onToggleDefault, toggleDefaultPending,
-  onEdit, onDelete, onManageCompanies, onBulkToggle, bulkPending,
+  flag, totalCompanies, overrideCompanyIds, manualOverrideCount, companyActionsDisabled,
+  onToggleDefault, toggleDefaultPending, onEdit, onDelete, onManageCompanies,
 }: {
   flag: FlagRow;
   totalCompanies: number;
@@ -1222,8 +1293,8 @@ function FlagCard({
   onEdit: () => void;
   onDelete: () => void;
   onManageCompanies: () => void;
-  onBulkToggle: () => void;
-  bulkPending: boolean;
+  manualOverrideCount: number;
+  companyActionsDisabled: boolean;
 }) {
   const IconComp = (flag.icon && ICON_MAP[flag.icon]) || Zap;
   const catStyle = CATEGORY_STYLES[flag.category] || CATEGORY_STYLES.core;
@@ -1231,7 +1302,6 @@ function FlagCard({
   const noneActive = activeCount === 0 && !flag.default_value;
   const StatusIcon = noneActive ? EyeOff : Eye;
   const coveragePct = totalCompanies > 0 ? Math.round((activeCount / totalCompanies) * 100) : 0;
-  const allActive = activeCount === totalCompanies && totalCompanies > 0;
 
   return (
     <Card>
@@ -1253,8 +1323,8 @@ function FlagCard({
           <StatusIcon className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">
             {activeCount > 0
-              ? `Override su ${activeCount}/${totalCompanies}`
-              : "Nessun override"}
+              ? `${activeCount} abilitate con eccezione`
+              : manualOverrideCount > 0 ? "Eccezioni salvate" : "Nessuna eccezione"}
           </span>
           {totalCompanies > 0 && activeCount > 0 && (
             <span className="flex items-center gap-0.5 font-medium text-primary shrink-0">
@@ -1266,14 +1336,15 @@ function FlagCard({
       </div>
 
       <CardContent className="pt-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col items-start justify-between gap-4 md:flex-row">
           <div className="space-y-2 flex-1 min-w-0">
             {flag.description && <p className="text-sm text-muted-foreground">{flag.description}</p>}
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Default:</span>
+                <span className="text-xs text-muted-foreground">Attiva di base</span>
                 <Switch
                   checked={flag.default_value}
+                  aria-label={`Attiva di base ${flag.name}`}
                   onCheckedChange={onToggleDefault}
                   disabled={toggleDefaultPending}
                 />
@@ -1305,30 +1376,22 @@ function FlagCard({
           </div>
 
           <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-            <Button variant="ghost" size="icon" onClick={onEdit} title="Modifica feature">
+            <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Modifica ${flag.name}`} title="Modifica funzionalità">
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={onDelete}
-              title="Elimina feature"
+              aria-label={`Elimina ${flag.name}`} title="Elimina funzionalità" disabled={companyActionsDisabled}
               className="text-destructive hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={onManageCompanies}>
+            <Button variant="outline" size="sm" onClick={onManageCompanies} disabled={companyActionsDisabled}>
               Gestisci aziende
             </Button>
-            <Button
-              size="sm"
-              onClick={onBulkToggle}
-              disabled={bulkPending || totalCompanies === 0}
-              variant={allActive ? "destructive" : "default"}
-            >
-              {bulkPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-              {allActive ? "Rimuovi override" : "Attiva per tutte"}
-            </Button>
+
           </div>
         </div>
       </CardContent>

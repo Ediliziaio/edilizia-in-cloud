@@ -1,3 +1,4 @@
+import { PartnerPageHeading, PartnerPageLink, PartnerLoadError } from "@/components/partner/PartnerPageHeading";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,15 +26,16 @@ export default function PartnerLink() {
   const [utmCampaign, setUtmCampaign] = useState("");
   const [showQR, setShowQR] = useState(false);
 
-  const { data: referrer, isLoading } = useQuery({
+  const { data: referrer, isLoading, isError: referrerError, refetch: reloadReferrer } = useQuery({
     queryKey: ["my-referrer", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("referrers")
         .select("id, referral_code, total_clicks")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
@@ -54,13 +56,20 @@ export default function PartnerLink() {
 
   const baseLink = referrer ? buildReferralLink(referrer.referral_code) : "";
 
-  const utmLink = useMemo(() => {
-    if (!referrer?.referral_code) return "";
-    return buildReferralLink(referrer.referral_code, {
-      utm_source: utmSource,
-      utm_campaign: utmCampaign,
-    });
-  }, [referrer?.referral_code, utmSource, utmCampaign]);
+  const { data: qrUrl, isError: qrError, refetch: retryQr } = useQuery({
+    queryKey: ["partner-link-qr", baseLink],
+    enabled: showQR && !!baseLink,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const QRCode = await import("qrcode");
+      return QRCode.toDataURL(baseLink, { width: 200, margin: 2 });
+    },
+  });
+
+  const utmLink = referrer ? buildReferralLink(referrer.referral_code, {
+    utm_source: utmSource,
+    utm_campaign: utmCampaign,
+  }) : "";
 
   const chartData = Array.from({ length: 7 }, (_, i) => {
     const date = subDays(new Date(), 6 - i);
@@ -105,6 +114,8 @@ export default function PartnerLink() {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
 
+  if (referrerError) return <PartnerLoadError message="Impossibile caricare il link referral." retry={() => void reloadReferrer()} />;
+
   if (!referrer) {
     return (
       <div className="p-6 max-w-2xl mx-auto">
@@ -119,12 +130,10 @@ export default function PartnerLink() {
     );
   }
 
-  // Simple QR SVG generation (basic)
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(baseLink)}`;
 
   return (
     <div className="space-y-6 p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight">Il Tuo Link Referral</h1>
+      <PartnerPageHeading title="Link referral" description="Condividi il link diretto o aggiungi una campagna per riconoscere la provenienza delle visite." actions={<PartnerPageLink to="/partner/performance">Vedi performance</PartnerPageLink>} />
 
       {/* Main link */}
       <Card>
@@ -134,12 +143,12 @@ export default function PartnerLink() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2">
             <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono truncate">{baseLink}</code>
-            <Button variant="outline" size="sm" onClick={() => copyToClipboard(baseLink, setCopied)}>
+            <Button variant="outline" size="sm" onClick={() => copyToClipboard(baseLink, setCopied)} aria-label={copied ? "Link copiato" : "Copia link referral"}>
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
+            <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)} aria-expanded={showQR}>
               <QrCode className="h-4 w-4 mr-1.5" /> QR Code
             </Button>
             <Button variant="outline" size="sm" onClick={shareWhatsApp}>
@@ -148,7 +157,9 @@ export default function PartnerLink() {
           </div>
           {showQR && (
             <div className="flex justify-center p-4 bg-white rounded-lg">
-              <img loading="lazy" src={qrUrl} alt="QR Code" className="w-48 h-48" />
+              {qrUrl ? <img src={qrUrl} alt="Codice QR del link referral" className="h-48 w-48" />
+                : qrError ? <PartnerLoadError message="Impossibile generare il codice QR." retry={() => void retryQr()} />
+                : <p role="status" className="text-sm text-muted-foreground">Generazione del codice QR…</p>}
             </div>
           )}
         </CardContent>
