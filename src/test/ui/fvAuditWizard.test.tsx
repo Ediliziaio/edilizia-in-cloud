@@ -363,7 +363,7 @@ describe("Fase 5: la potenza dell'impianto alla riapertura del progetto", () => 
     fireEvent.click(await screen.findByRole("button", { name: "Modifica disposizione pannelli" }));
     expect(await screen.findByText("450 Wp · 1,13 × 2,28 m")).toBeInTheDocument();
     expect(screen.getByText("Dimensioni dalla scheda del pannello.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Annulla", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
     fireEvent.click(screen.getByRole("button", { name: "Modifica disposizione pannelli" }));
     expect(await screen.findByText("450 Wp · 1,13 × 2,28 m")).toBeInTheDocument();
   });
