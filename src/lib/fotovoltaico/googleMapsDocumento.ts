@@ -15,7 +15,20 @@ export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Pr
   const lavoro = (async () => {
     const api = await caricaGoogleMapsFv();
     if (signal?.aborted) throw new Error("Caricamento mappa annullato.");
-    await Promise.all(hosts.map(async host => {
+    // Google rinvia le tile fuori dal viewport, anche se il contenitore ha
+    // dimensioni corrette. Prepara ogni mappa nella vista del suo documento,
+    // poi restituisce all'utente pagina e posizione iniziali. L'iframe di
+    // stampa viene preparato nel viewport, trasparente e senza interazioni.
+    const win = doc.defaultView;
+    const posizione = { left: win?.scrollX ?? 0, top: win?.scrollY ?? 0 };
+    const iframe = win?.frameElement as HTMLIFrameElement | null;
+    const r = iframe?.getBoundingClientRect();
+    const fuoriVista = r && (r.right <= 0 || r.bottom <= 0 || r.left >= window.innerWidth || r.top >= window.innerHeight);
+    const stile = iframe && fuoriVista ? { left: iframe.style.left, top: iframe.style.top, opacity: iframe.style.opacity, zIndex: iframe.style.zIndex, pointerEvents: iframe.style.pointerEvents } : null;
+    if (iframe && stile) Object.assign(iframe.style, { left: "0px", top: "0px", opacity: "0", zIndex: "-1", pointerEvents: "none" });
+    try {
+    for (const host of hosts) {
+      win?.scrollTo({ left: 0, top: Math.max(0, host.getBoundingClientRect().top + win.scrollY - 24), behavior: "instant" });
       const c = JSON.parse(decodeURIComponent(host.dataset.fvGooglePdf ?? ""));
       if (!Number.isFinite(c.centro?.lat) || Math.abs(c.centro.lat) > 80 || !Number.isFinite(c.centro.lng) || Math.abs(c.centro.lng) > 180 || !Number.isInteger(c.zoom) || c.zoom < 1 || c.zoom > 21 || c.w !== 640 || c.h !== 440) throw new Error("Riferimento della mappa nel documento non valido.");
       const frame = host.querySelector<HTMLElement>("[data-fv-google-frame]")!, nodo = host.querySelector<HTMLElement>("[data-fv-google-map]")!, status = host.querySelector<HTMLElement>("[data-fv-google-status]");
@@ -59,7 +72,11 @@ export function preparaMappeDocumentoFv(doc: Document, signal?: AbortSignal): Pr
           });
         } catch { termina("Impossibile preparare la vista Google del tetto. Riprova."); }
       });
-    }));
+    }
+    } finally {
+      win?.scrollTo({ ...posizione, behavior: "instant" });
+      if (iframe && stile) Object.assign(iframe.style, stile);
+    }
     return pulisci;
   })().catch(error => { pulisci(); throw error; });
   preparazioni.set(doc, lavoro);
