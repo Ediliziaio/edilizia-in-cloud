@@ -114,7 +114,7 @@ export async function transcribeAudio(
   storagePath: string,
   prompt?: string,
   addebito?: { companyId: string | null; messageId: string },
-): Promise<string> {
+): Promise<{ testo: string; lingua: string | null }> {
   // Credito PRIMA di Whisper, come detta-testo (revisione del 15/11/2026).
   if (addebito?.companyId) {
     const pre = await precallCheck(supabase, { company_id: addebito.companyId, task_kind: "audio_transcription" as never, estimated_tokens_total: 2000 });
@@ -124,8 +124,7 @@ export async function transcribeAudio(
   const { data, error } = await supabase.storage.from(bucket).download(storagePath);
   if (error || !data) throw new Error(`Audio download failed: ${error?.message}`);
   const bytes = new Uint8Array(await data.arrayBuffer());
-  let durata: number | null = null;
-  const testo = await transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg", prompt, (s) => { durata = s; });
+  const { testo, lingua, durata } = await transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg", prompt);
   // Whisper si paga a minuto: prima i vocali WhatsApp non si addebitavano
   // (15/11/2026). Durata misurata dal provider; se manca, stima prudente dai
   // byte (Opus ~16 kbit/s). Nessuna chiave: ogni trascrizione è una chiamata pagata.
@@ -139,7 +138,7 @@ export async function transcribeAudio(
       metadata: { duration_sec: secondi, canale: "whatsapp", message_id: addebito.messageId },
     });
   }
-  return testo;
+  return { testo, lingua };
 }
 
 export async function analyzeImage(
@@ -193,9 +192,33 @@ export async function analyzeImage(
 
 
 const PROMPT_FOTO =
-  "Guarda l'immagine. Nella PRIMA riga scrivi solo DOCUMENTO se è un documento stampato o scritto " +
-  "(DDT, bolla di consegna, fattura, scontrino, preventivo, modulo), altrimenti FOTO. " +
+  "Guarda l'immagine. Nella PRIMA riga scrivi solo DDT se riconosci una bolla o un documento di trasporto, " +
+  "DOCUMENTO per altri documenti scritti, altrimenti FOTO. " +
   "Dalla seconda riga descrivi in italiano, in 2-4 righe, cosa si vede: lavori, materiali, problemi visibili.";
+
+interface OpzioniDocumentoOperativo {
+  storagePath: string;
+  companyId: string;
+  userId: string | null;
+  employeeId?: string | null;
+  acquisizioneConsentita?: boolean;
+  didascalia: string | null;
+  messageId: string;
+  ricordaBolla?: (id: string) => void;
+}
+
+async function salvaBollaOperativa(supabase: SupabaseClient, opts: OpzioniDocumentoOperativo,
+  dati: Pick<Parameters<typeof acquisisciDdtWhatsapp>[1], "result" | "file" | "primaDellaLettura" | "accodaLettura"> = {}): Promise<boolean> {
+  if (opts.acquisizioneConsentita === false) return false;
+  try {
+    const bolla = await acquisisciDdtWhatsapp(supabase, { ...opts, ...dati });
+    if (bolla.stessoOperatore) opts.ricordaBolla?.(bolla.id);
+    return true;
+  } catch {
+    console.warn("[ddt-whatsapp] acquisizione non confermata", { message_id: opts.messageId });
+    return false;
+  }
+}
 
 /**
  * La foto mandata su WhatsApp messa in parole per l'assistente di cantiere.
@@ -205,18 +228,26 @@ const PROMPT_FOTO =
  */
 export async function leggiFotoOperativa(
   supabase: SupabaseClient,
-  opts: { storagePath: string; companyId: string; userId: string | null; employeeId?: string | null; acquisizioneConsentita?: boolean; didascalia: string | null; messageId: string },
+  opts: OpzioniDocumentoOperativo,
 ): Promise<string> {
   const { data: file, error } = await supabase.storage.from("whatsapp-media").download(opts.storagePath);
   if (error || !file) throw new Error(error?.message ?? "foto non scaricabile");
+  const didascalia = opts.didascalia?.trim() || null;
+  const ddtDichiarato = sembraDdtDallaDidascalia(didascalia);
+  const bozzaDdT = `[Foto di un DDT — da leggere]\n\nTesto dell'utente: ${didascalia ?? "(nessuno)"}`;
+  let salvata = ddtDichiarato && await salvaBollaOperativa(supabase, opts, { file, primaDellaLettura: true });
   let bytesFoto = new Uint8Array(await file.arrayBuffer());
   let mimeFoto = file.type || "image/jpeg";
   if (/hei[cf]/i.test(mimeFoto) || /\.hei[cf]$/i.test(opts.storagePath)) {
-    const {heicInJpeg} = await import("../_shared/conversioneHeic.ts");
-    bytesFoto = new Uint8Array(await heicInJpeg(bytesFoto)); mimeFoto = "image/jpeg";
+    try {
+      const { heicInJpeg } = await import("../_shared/conversioneHeic.ts");
+      bytesFoto = new Uint8Array(await heicInJpeg(bytesFoto)); mimeFoto = "image/jpeg";
+    } catch (errore) {
+      if (salvata) return bozzaDdT;
+      throw errore;
+    }
   }
   const immagine = `data:${mimeFoto};base64,${bytesToBase64(bytesFoto)}`;
-  const didascalia = opts.didascalia?.trim() || null;
 
   let descrizione = "";
   const descrivi = async () => {
@@ -239,11 +270,13 @@ export async function leggiFotoOperativa(
     const out = (resp.choices[0]?.message?.content ?? "").trim();
     const [prima, ...resto] = out.split("\n");
     descrizione = resto.join("\n").trim() || out;
-    return /documento/i.test(prima ?? "");
+    if (/^DDT\b/i.test(prima ?? "")) return "ddt";
+    return /documento/i.test(prima ?? "") ? "documento" : "foto";
   };
 
-  const documento = sembraDdtDallaDidascalia(didascalia) || await descrivi();
-  if (documento) {
+  const tipoFoto = ddtDichiarato ? "ddt" : await descrivi();
+  if (tipoFoto === "ddt" && !salvata) salvata = await salvaBollaOperativa(supabase, opts, { file, primaDellaLettura: true });
+  if (tipoFoto !== "foto") {
     try {
       const letto = await aiRouterComplete({
         supabase,
@@ -265,18 +298,17 @@ export async function leggiFotoOperativa(
         idempotencyKey: `wa_ddt_${opts.messageId}`,
       });
       const raw = JSON.parse(letto.content);
-      if (opts.acquisizioneConsentita !== false && (raw.document_type === "ddt" || sembraDdtDallaDidascalia(didascalia))) {
-        await acquisisciDdtWhatsapp(supabase, {...opts,result:raw}).catch(() => console.error("[ddt-whatsapp] Originale salvato, acquisizione da completare alla conferma"));
+      const documentoLetto = normalizzaDdtLetto(raw);
+      if (documentoLetto.tipo === "ddt") {
+        salvata = await salvaBollaOperativa(supabase, opts, { file, result: raw }) || salvata;
       }
-      const testo = testoDdtPerAssistente(normalizzaDdtLetto(raw), didascalia);
+      if (salvata && documentoLetto.tipo !== "ddt") return bozzaDdT;
+      const testo = testoDdtPerAssistente(documentoLetto, didascalia);
       if (testo) return testo;
     } catch (e) {
       console.error(JSON.stringify({ level: "error", fn: "leggi_ddt", error: String(e) }));
     }
-    if (opts.acquisizioneConsentita !== false && sembraDdtDallaDidascalia(didascalia)) {
-      const acquisito = await acquisisciDdtWhatsapp(supabase, opts).catch((): null => null);
-      if (acquisito) return `[Foto di un DDT — da leggere]\n\nTesto dell'utente: ${didascalia}`;
-    }
+    if (salvata) return bozzaDdT;
     if (!descrizione) await descrivi().catch(() => false);
   }
   return `[Foto — cosa si vede]: ${descrizione || "non sono riuscito a vederla bene"}\n\nTesto dell'utente: ${didascalia ?? "(nessuno)"}`;
@@ -289,7 +321,7 @@ export async function leggiFotoOperativa(
  */
 export async function leggiDocumentoOperativo(
   supabase: SupabaseClient,
-  opts: { storagePath: string; companyId: string; userId: string | null; employeeId?: string | null; acquisizioneConsentita?: boolean; didascalia: string | null; messageId: string; mime: string },
+  opts: OpzioniDocumentoOperativo & { mime: string },
 ): Promise<string> {
   const mime = (opts.mime || "").toLowerCase();
   const isPdf = mime.includes("pdf") || opts.storagePath.toLowerCase().endsWith(".pdf");
@@ -299,16 +331,16 @@ export async function leggiDocumentoOperativo(
     return `[Documento ricevuto in un formato che non so leggere (${mime || "sconosciuto"}): mandalo come PDF o come foto]`;
   }
   if (!isPdf) {
-    return leggiFotoOperativa(supabase, {
-      storagePath: opts.storagePath,
-      companyId: opts.companyId,
-      userId: opts.userId,
-      employeeId: opts.employeeId,
-      acquisizioneConsentita: opts.acquisizioneConsentita,
-      didascalia: opts.didascalia,
-      messageId: opts.messageId,
-    });
+    return leggiFotoOperativa(supabase, opts);
   }
+  const ddtDichiarato = sembraDdtDallaDidascalia(opts.didascalia);
+  const download = () => supabase.storage.from("whatsapp-media").download(opts.storagePath);
+  const anticipato = ddtDichiarato ? await download() : null;
+  const fileIniziale = anticipato?.error ? null : anticipato?.data;
+  const limite = 18 * 1024 * 1024;
+  const troppoGrande = "[Documento PDF ricevuto: non sono riuscito a leggerlo perché supera il limite di 18 MB. Invia un PDF più piccolo.]";
+  if (fileIniziale && fileIniziale.size > limite) return troppoGrande;
+  const salvata = !!fileIniziale && await salvaBollaOperativa(supabase, opts, { file: fileIniziale, primaDellaLettura: true });
   const base = Deno.env.get("SUPABASE_URL")!;
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   let testo = "";
@@ -333,9 +365,9 @@ export async function leggiDocumentoOperativo(
   if (!testo) {
     // Un PDF scansionato può non avere testo selezionabile: leggiamo le pagine con la visione.
     try {
-      const { data: file, error } = await supabase.storage.from("whatsapp-media").download(opts.storagePath);
+      const { data: file, error } = fileIniziale ? { data: fileIniziale, error: null } : await download();
       if (error || !file) throw new Error("PDF non disponibile");
-      if (file.size > 18 * 1024 * 1024) return "[Documento PDF ricevuto: non sono riuscito a leggerlo perché supera il limite di 18 MB. Invia un PDF più piccolo.]";
+      if (file.size > limite) return troppoGrande;
       const letto = await aiRouterComplete({
         supabase, taskKey: "pdf_vision_extract", companyId: opts.companyId, userId: opts.userId,
         idempotencyKey: `wa_ddt_pdf_${opts.companyId}_${opts.messageId}`,
@@ -350,18 +382,15 @@ export async function leggiDocumentoOperativo(
       });
       const raw = JSON.parse(letto.content);
       const documento = normalizzaDdtLetto(raw);
-      if (opts.acquisizioneConsentita !== false && documento.tipo === "ddt") await acquisisciDdtWhatsapp(supabase,{...opts,result:raw}).catch(()=>console.error("[ddt-whatsapp] Acquisizione da completare alla conferma"));
-      if (documento.tipo === "ddt" || documento.tipo === "fattura" || documento.tipo === "scontrino") {
+      if (documento.tipo === "ddt") await salvaBollaOperativa(supabase, opts, { file, result: raw });
+      if (!salvata || documento.tipo === "ddt") {
         const risultato = testoDdtPerAssistente(documento, opts.didascalia);
         if (risultato) return risultato;
       }
     } catch (e) {
       console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf_vision", error: String(e) }));
     }
-    if (opts.acquisizioneConsentita !== false && sembraDdtDallaDidascalia(opts.didascalia)) {
-      const acquisito = await acquisisciDdtWhatsapp(supabase, opts).catch((): null => null);
-      if (acquisito) return `[Documento PDF — DDT da leggere, non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia}`;
-    }
+    if (salvata) return `[Documento PDF — DDT da leggere]\n\nTesto dell'utente: ${opts.didascalia}`;
     return `[Documento PDF ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
   }
   const etichetta: Record<string, string> = {
@@ -372,6 +401,6 @@ export async function leggiDocumentoOperativo(
     altro: "documento",
   };
   const tipo = tipoDocumento(testo, opts.didascalia);
-  if (opts.acquisizioneConsentita !== false && tipo === "ddt") await acquisisciDdtWhatsapp(supabase,opts).catch(()=>console.error("[ddt-whatsapp] Originale salvato, lettura recuperabile alla conferma"));
+  if (tipo === "ddt") await salvaBollaOperativa(supabase, opts, { file: fileIniziale ?? undefined, accodaLettura: salvata });
   return `[Documento PDF — ${etichetta[tipo]}, testo letto]:\n${testo}\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
 }

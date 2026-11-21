@@ -120,7 +120,7 @@ export async function caricaDDT(ctx: ToolCtx, args: Args): Promise<ToolResult> {
       companyId: ctx.company_id,
       userId: ctx.user_id,
       employeeId: ctx.employee_id,
-      messageId: ctx.requestId ?? media.storagePath,
+      messageId: ctx.sourceMessageId ?? ctx.requestId ?? media.storagePath,
       orderId,
     });
     return okResult(

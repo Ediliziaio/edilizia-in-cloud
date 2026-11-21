@@ -132,9 +132,7 @@ export async function transcribeAudioWhisper(
   audioBytes: Uint8Array,
   filename = "audio.ogg",
   prompt?: string,
-  /** Riceve la durata dell'audio misurata da Whisper (secondi), per l'addebito. */
-  onDurata?: (secondi: number) => void,
-): Promise<string> {
+): Promise<{ testo: string; lingua: string | null; durata: number | null }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY non configurata");
 
@@ -143,8 +141,7 @@ export async function transcribeAudioWhisper(
   new Uint8Array(audioBuffer).set(audioBytes);
   form.append("file", new Blob([audioBuffer]), filename);
   form.append("model", "whisper-1");
-  form.append("language", "it");
-  // Bias verso il lessico di cantiere → meno errori su gergo/sigle (DDT, mq, ml…).
+  // Whisper rileva la lingua. Il prompt contiene soltanto il lessico utile.
   if (prompt && prompt.trim()) form.append("prompt", prompt.trim());
   // Determinismo: stessa traccia → stessa trascrizione.
   form.append("temperature", "0");
@@ -172,13 +169,16 @@ export async function transcribeAudioWhisper(
       );
     }
     const grezzo = await resp.text();
-    let json: { text?: string; duration?: number } = { text: grezzo };
+    let json: { text?: string; duration?: number; language?: string } = { text: grezzo };
     try {
       const j = JSON.parse(grezzo);
       if (j && typeof j === "object" && typeof j.text === "string") json = j;
     } catch { /* formato testo */ }
-    if (typeof json.duration === "number" && json.duration > 0) onDurata?.(json.duration);
-    return json.text ?? "";
+    return {
+      testo: json.text?.trim() ?? "",
+      lingua: typeof json.language === "string" ? json.language.trim().slice(0, 40) || null : null,
+      durata: typeof json.duration === "number" && json.duration > 0 ? json.duration : null,
+    };
   } catch (e) {
     clearTimeout(timeoutId);
     throw e;

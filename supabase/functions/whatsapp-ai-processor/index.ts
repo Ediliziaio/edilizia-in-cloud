@@ -66,7 +66,11 @@ import { SITE_HEALTH_TOOL, siteHealthPreflight, siteHealthDirectAnswer } from ".
 import { MediaWhatsAppNonDisponibile } from "./metaMedia.ts";
 import { resolveIdentity } from "./identity.ts";
 import { aggiungiPaginaBolla, paginaDiBolla } from "./pagineBolla.ts";
-import { leggiDestinazioneBolla, trattaBollaInConversazione } from "./bolleInConversazione.ts";
+import { leggiDestinazioneBolla, riprendiOriginaleBolla, trattaBollaInConversazione, type DomandaDestinazioneBolla } from "./bolleInConversazione.ts";
+import { propostaDestinazioneBolla, rispostaDestinazioneBolla } from "./sceltaDestinazioneBolla.ts";
+import { linguaItaliana, traduciVocaleInItaliano } from "./traduzioneVocale.ts";
+import { chiedeAiutoOperativo, chiedeCantieriDiOggi, guidaOperativa } from "./aiutoOperativo.ts";
+import { elencaMieiCantieriOggi } from "./tools/operaio/elenca_miei_cantieri_oggi.ts";
 import { avviaProssimoMessaggio, posticipaDomandaBolla } from "./codaConversazione.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio, CreditoTrascrizioneEsaurito } from "./media.ts";
@@ -303,7 +307,8 @@ Deno.serve(async (req) => {
     // (numero non collegato a Silvio, nulla da fare, errore o timeout) ritorna
     // false e si PROSEGUE col bot operativo esistente — zero regressioni sul
     // webhook passato da Meta App Review.
-    if (!identity.solaLettura && msg.message_type === "text" && operationalTriage.intent === "unknown" && !leggiDestinazioneBolla(msg.content_text ?? "")) {
+    if (!identity.solaLettura && msg.message_type === "text" && operationalTriage.intent === "unknown" &&
+        !chiedeAiutoOperativo(msg.content_text ?? "") && !leggiDestinazioneBolla(msg.content_text ?? "")) {
       const presoInCaricoDaSilvio = await forwardToSilvio(msg, msg.content_text ?? "");
       if (presoInCaricoDaSilvio) {
         return markDone(supabase, body.message_id, "processed");
@@ -401,29 +406,40 @@ Deno.serve(async (req) => {
       );
       return markDone(supabase, body.message_id, "failed", "media_download_error");
     }
+    let ddtJobId: string | null = null;
+    let traduzioneAudio = msg.message_type === "audio" && isPlainRecord(msg.ai_extracted_data)
+      && typeof msg.ai_extracted_data.trascrizione_italiana === "string";
+    const ricordaBolla = (id: string) => { ddtJobId = id; };
     const paginaAggiuntiva = mediaCorrente && ["image", "document"].includes(String(msg.message_type)) && paginaDiBolla(msg.content_text ?? "");
     const precedenteLettura = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data.testo_per_assistente : null;
     if (typeof precedenteLettura === "string" && /^\[(?:Audio trascritto|Foto di un DDT|Documento PDF — DDT)/.test(precedenteLettura)) {
       userContent = precedenteLettura;
     } else if (msg.message_type === "audio" && msg.media_storage_path) {
-      // Bias di dominio: migliora la resa di Whisper su gergo e sigle di cantiere.
-      const promptCantiere =
-        "Messaggio vocale di cantiere edile in italiano. Termini possibili: rapportino, " +
-        "DDT, bolla, fornitore, commessa, cantiere, operai, ore, cappotto, ponteggio, " +
-        "massetto, getto, armatura, intonaco, posa, mq, ml, mc.";
+      let originaleSalvato = false;
       try {
-        const { testo: transcript } = await runWhatsAppTool(supabase, msg.company_id, `trascrivi:${msg.id}`, "trascrivi_vocale",
-          { path: msg.media_storage_path }, async () => ({
-            testo: (await transcribeAudio(supabase, msg.media_storage_path!, promptCantiere, { companyId: msg.company_id, messageId: msg.id })).trim(),
-          }));
+        const audio = await runWhatsAppTool(supabase, msg.company_id, `trascrivi:${msg.id}`, "trascrivi_vocale",
+          { path: msg.media_storage_path }, () => transcribeAudio(supabase, msg.media_storage_path!, "DDT, POS, mq, ml, mc, mm, km",
+            { companyId: msg.company_id, messageId: msg.id }));
         // Vocale vuoto/incomprensibile: rispondo subito invece di passare testo vuoto all'AI.
-        if (transcript.length < 2) {
+        if (audio.testo.length < 2) {
           await sendReply(
             msg,
             conDomandaBolla("🎙️ Non sono riuscito a capire il vocale. Puoi ripeterlo parlando più vicino al telefono, oppure scrivermi il messaggio?"),
           );
           return markDone(supabase, body.message_id, "processed");
         }
+        const extra = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data : {};
+        msg.ai_extracted_data = { ...extra, trascrizione_originale: audio.testo, lingua_audio: audio.lingua ?? null };
+        const { error: erroreOriginale } = await supabase.from("whatsapp_messages").update({ ai_extracted_data: msg.ai_extracted_data })
+          .eq("id", msg.id).eq("company_id", msg.company_id);
+        if (erroreOriginale) throw new Error("trascrizione_originale_non_salvata");
+        originaleSalvato = true;
+        traduzioneAudio = !linguaItaliana(audio.lingua);
+        const transcript = traduzioneAudio
+          ? await runWhatsAppTool(supabase, msg.company_id, `traduci-it:${msg.id}`, "traduci_vocale", { lingua: audio.lingua ?? null },
+            () => traduciVocaleInItaliano(supabase, { companyId: msg.company_id, userId: identity.user_id, messageId: msg.id,
+              originale: audio.testo, lingua: audio.lingua ?? null }))
+          : audio.testo;
         userContent = `[Audio trascritto]: ${transcript}`;
       } catch (e) {
         if (e instanceof CreditoTrascrizioneEsaurito) {
@@ -436,9 +452,10 @@ Deno.serve(async (req) => {
         console.error(JSON.stringify({ level: "error", fn: "transcribe", error: String(e) }));
         await sendReply(
           msg,
-          conDomandaBolla("🎙️ Non sono riuscito ad ascoltare il vocale (problema tecnico). Riprova tra poco oppure scrivimi il messaggio."),
+          conDomandaBolla(originaleSalvato ? "Ho salvato il vocale. La traduzione è da verificare. Scrivimi il dato o riformula il vocale."
+            : "🎙️ Non sono riuscito ad ascoltare il vocale (problema tecnico). Riprova tra poco oppure scrivimi il messaggio."),
         );
-        return markDone(supabase, body.message_id, "failed", "transcribe_error");
+        return markDone(supabase, body.message_id, "failed", originaleSalvato ? "traduzione_vocale_da_verificare" : "transcribe_error");
       }
     } else if (!paginaAggiuntiva && msg.message_type === "image" && msg.media_storage_path) {
       try {
@@ -450,6 +467,7 @@ Deno.serve(async (req) => {
           acquisizioneConsentita,
           didascalia: msg.content_text,
           messageId: msg.id,
+          ricordaBolla,
         });
       } catch (e) {
         console.error(JSON.stringify({ level: "error", fn: "analyze", error: String(e) }));
@@ -467,6 +485,7 @@ Deno.serve(async (req) => {
           acquisizioneConsentita,
           didascalia: msg.content_text,
           messageId: msg.id,
+          ricordaBolla,
           mime: String((isPlainRecord(msg.metadata) ? msg.metadata.mime_type : null) ?? "application/pdf"),
         });
       } catch (e) {
@@ -476,9 +495,10 @@ Deno.serve(async (req) => {
     }
     // Quello che l'assistente ha letto (vocale trascritto, DDT letto) resta sul
     // messaggio: al «Sì, confermo» del turno dopo lo ritrova nello storico.
-    if (userContent && userContent !== (msg.content_text ?? "")) {
+    if (ddtJobId || (userContent && userContent !== (msg.content_text ?? ""))) {
       const extra = isPlainRecord(msg.ai_extracted_data) ? msg.ai_extracted_data : {};
-      msg.ai_extracted_data = { ...extra, testo_per_assistente: userContent };
+      msg.ai_extracted_data = { ...extra, ...(ddtJobId ? { ddt_job_id: ddtJobId } : {}), testo_per_assistente: userContent,
+        ...(traduzioneAudio ? { trascrizione_italiana: userContent.replace(/^\[Audio trascritto\]:\s*/, "") } : {}) };
       await supabase.from("whatsapp_messages").update({ ai_extracted_data: msg.ai_extracted_data }).eq("id", msg.id);
     }
 
@@ -509,6 +529,7 @@ Deno.serve(async (req) => {
       ? userContent.replace(/^\[Audio trascritto\]:\s*/, "")
       : (msg.content_text ?? "");
     const rispostaConferma = rispostaAllaConferma(testoDellaRisposta);
+    const rispostaBolla = rispostaDestinazioneBolla(msg.metadata, msg.message_type);
     let confirmIsNegative = rispostaConferma === "no";
     let userJustConfirmed = rispostaConferma === "si";
 
@@ -590,7 +611,7 @@ Deno.serve(async (req) => {
     // Una conferma su un altro numero dell'azienda non vale qui. Le vecchie
     // conferme senza numero vanno richieste di nuovo, mai ampliate implicitamente.
     if (statoSessione.conferma?.numero_id !== msg.wa_number_id) statoSessione.conferma = null;
-    if (!confirmationReplyMatches(statoSessione.conferma, msg.metadata, msg.message_type)) {
+    if (!rispostaBolla && !confirmationReplyMatches(statoSessione.conferma, msg.metadata, msg.message_type)) {
       userJustConfirmed = false;
       confirmIsNegative = false;
       if (rispostaConferma) {
@@ -690,11 +711,22 @@ Deno.serve(async (req) => {
       mediaCorrente,
     };
 
+    const relazione = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
+    let confermaDdtPreparata = false;
     const preparaConferma = async (azione: string, input: Record<string, unknown>) => {
-      const frozen = await freezeConfirmation(toolCtx, azione, input, msg.id);
+      let contesto = toolCtx;
+      let originaleId = msg.id;
+      if (azione === "carica_ddt" && !["image", "document"].includes(toolCtx.mediaCorrente?.tipo ?? "")) {
+        const originale = await riprendiOriginaleBolla(toolCtx, domandaInAttesa?.fotoId, relazione);
+        if (!originale) throw new ConfirmationReviewError("no_originale", "Indica la destinazione rispondendo alla foto o al PDF della bolla.");
+        contesto = { ...toolCtx, mediaCorrente: originale.media };
+        originaleId = originale.id;
+      }
+      const frozen = await freezeConfirmation(contesto, azione, input, originaleId);
+      if (azione === "carica_ddt") confermaDdtPreparata = true;
       const parametri = frozen.pending.parametri;
       const testoBozza = `Bozza salvata in Campo.\n\n${frozen.interactive.body.text}`;
-      if (azione !== "crea_rapportino" || !parametri || statoSessione.conferma || !mediaCorrente ||
+      if (azione !== "crea_rapportino" || !parametri || statoSessione.conferma || !mediaCorrente || traduzioneAudio ||
         operationalTriage.intent !== "rapportino" || sbloccatiOra.includes(azione) || testoBozza.length > 1024 ||
         !vocalePermetteBozza(toolCtx, input, parametri, frozen.pending.cantieri ?? [])) return frozen;
 
@@ -707,8 +739,32 @@ Deno.serve(async (req) => {
       ]) };
     };
 
-    const isDdtLetto = tipoDocumentoLetto === "bolla ddt";
-    const relazione = isPlainRecord(msg.metadata) && typeof msg.metadata.reply_to === "string" ? msg.metadata.reply_to : null;
+    const mostraDestinazione = async (domanda: DomandaDestinazioneBolla, pagina?: Parameters<typeof propostaDestinazioneBolla>[2], id = msg.id) => {
+      const risposta = await propostaDestinazioneBolla(toolCtx, domanda, pagina).catch(() => domanda.domandaDestinazione);
+      if (typeof risposta === "string") await sendReply({ ...msg, id }, risposta);
+      else await sendInteractiveReply({ ...msg, id }, risposta as unknown as Record<string, unknown>);
+    };
+    const isDdtLetto = tipoDocumentoLetto === "bolla ddt" || !!ddtJobId;
+    if (rispostaBolla) {
+      if (!acquisizioneConsentita || !nomiBot.has("carica_ddt")) {
+        await sendReply(msg, "Chiedi all’ufficio di completare la destinazione della bolla.");
+        return markDone(supabase, msg.id, "processed");
+      }
+      if ("pagina" in rispostaBolla) {
+        const domanda = await trattaBollaInConversazione(toolCtx, {
+          id: rispostaBolla.fotoId, tipo: "image", testo: "", riferimento: null, ddtLetto: true, mostraScelta: true,
+        });
+        if (domanda && typeof domanda !== "string") await mostraDestinazione(domanda, rispostaBolla.pagina);
+        else await sendReply(msg, domanda || "La bolla è già stata gestita o la scelta è scaduta. Verifica in «Documenti in ingresso».");
+      } else {
+        const input = { id: msg.id, tipo: "text", testo: "", riferimento: null as string | null, ddtLetto: false,
+          fotoAssociata: rispostaBolla.fotoId, scelta: rispostaBolla.scelta };
+        const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-scelta:${msg.id}`, "destina_bolla",
+          input, () => trattaBollaInConversazione(toolCtx, input));
+        await sendReply(msg, typeof esito === "string" ? esito : "La bolla è già stata gestita o la scelta è scaduta. Verifica in «Documenti in ingresso».");
+      }
+      return markDone(supabase, msg.id, "processed");
+    }
     if (paginaAggiuntiva && acquisizioneConsentita && nomiBot.has("carica_ddt")) {
       const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-pagina:${msg.id}`, "aggiungi_pagina_ddt",
         { riferimento: relazione }, () => aggiungiPaginaBolla(toolCtx, relazione));
@@ -716,24 +772,34 @@ Deno.serve(async (req) => {
       return markDone(supabase, msg.id, "processed");
     }
     const testoBolla = msg.message_type === "audio" ? testoDellaRisposta : msg.content_text ?? "";
-    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && (isDdtLetto || leggiDestinazioneBolla(testoBolla))) {
-      const inputBolla = { id: msg.id, tipo: msg.message_type, testo: testoBolla, riferimento: relazione, ddtLetto: isDdtLetto, ...(msg.wa_message_id ? { providerId: msg.wa_message_id } : {}) };
+    if (acquisizioneConsentita && nomiBot.has("carica_ddt") && (isDdtLetto || leggiDestinazioneBolla(testoBolla, false, !!(relazione || domandaInAttesa)))) {
+      const inputBolla = { id: msg.id, tipo: msg.message_type, testo: testoBolla, riferimento: relazione, ddtLetto: isDdtLetto,
+        ...(domandaInAttesa ? { fotoAssociata: domandaInAttesa.fotoId } : {}), ...(msg.wa_message_id ? { providerId: msg.wa_message_id } : {}) };
       const esito = await runWhatsAppTool(supabase, msg.company_id, `ddt-destinazione:${msg.id}`, "destina_bolla",
-        inputBolla, async () => ({ ok: true, data: await trattaBollaInConversazione(toolCtx, inputBolla) }));
+        inputBolla, async () => ({ ok: true, data: await trattaBollaInConversazione(toolCtx, {
+          ...inputBolla, posticipa: testo => posticipaDomandaBolla(supabase, msg, testo).catch(() => false),
+        }) }));
       if (typeof esito.data === "string") {
         await sendReply(msg, esito.data);
         return markDone(supabase, msg.id, "processed");
       }
       if (esito.data) {
-        const { domandaDestinazione } = esito.data;
-        const posticipata = await posticipaDomandaBolla(supabase, msg, domandaDestinazione).catch(() => false);
-        if (!posticipata) await sendReply(msg, domandaDestinazione);
+        if (!esito.data.posticipata) await mostraDestinazione(esito.data);
         return markDone(supabase, msg.id, "processed");
       }
     }
-    // Il seguito può essere un altro lavoro. In quel caso resta da chiedere la
-    // destinazione della bolla, usando la chiave d'invio della foto originale.
-    if (acquisizioneConsentita && domandaInAttesa) await sendReply({ ...msg, id: domandaInAttesa.fotoId }, domandaInAttesa.testo);
+
+    if (!domandaInAttesa && ["text", "audio"].includes(msg.message_type) && chiedeAiutoOperativo(testoDellaRisposta)) {
+      await sendReply(msg, guidaOperativa(new Set([...nomiBot, ...(ponte?.nomi ?? [])]), identity.kind));
+      return markDone(supabase, msg.id, "processed");
+    }
+    if (!domandaInAttesa && ["text", "audio"].includes(msg.message_type) &&
+      identity.kind === "operaio" && nomiBot.has("elenca_miei_cantieri_oggi") &&
+      !sbloccatiOra.includes("elenca_miei_cantieri_oggi") && chiedeCantieriDiOggi(testoDellaRisposta)) {
+      const r = await elencaMieiCantieriOggi(toolCtx, { soloOggi: true });
+      await sendReply(msg, r.user_message ?? "I tuoi cantieri sono disponibili in Campo.");
+      return markDone(supabase, msg.id, "processed");
+    }
 
     // Scelta del cantiere (18/10/2026): «Altro cantiere» mostra l'elenco;
     // toccare un cantiere dell'elenco conferma l'azione su quel cantiere.
@@ -1132,6 +1198,14 @@ Deno.serve(async (req) => {
       finalText = `${finalText.slice(0, taglio > 2000 ? taglio : 3400).trimEnd()}\n\n…il resto lo trovi nell'app.`;
     }
     if (!replyHandled) await sendReply(msg, finalText);
+    // Solo dopo aver risposto al seguito: se ha già preparato la conferma DDT
+    // la domanda iniziale non va ripetuta.
+    if (acquisizioneConsentita && domandaInAttesa && !confermaDdtPreparata) {
+      const ancoraAperta = await trattaBollaInConversazione(toolCtx, {
+        id: domandaInAttesa.fotoId, tipo: "image", testo: "", riferimento: null, ddtLetto: true, mostraScelta: true,
+      }).catch((): null => null);
+      if (ancoraAperta && typeof ancoraAperta !== "string") await mostraDestinazione(ancoraAperta, undefined, domandaInAttesa.fotoId);
+    }
 
     return markDone(supabase, body.message_id, "processed");
   } catch (err) {

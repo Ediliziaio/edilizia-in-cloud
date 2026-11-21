@@ -28,6 +28,7 @@ export interface DocumentoPersistente {
   /** Dove va la merce, scelto da chi ha caricato. Nullo sui lavori vecchi e da WhatsApp. */
   destinazione?: "cantiere" | "magazzino" | null;
   warehouse_id?: string | null;
+  whatsapp_voice_message_id?: string | null;
   files: FileDocumento[];
   split_ids?: string[];
   result: Record<string, unknown> | null;

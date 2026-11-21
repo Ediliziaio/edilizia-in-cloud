@@ -62,13 +62,14 @@ export function buildInteractivePayload(
   bodyText: string,
   options: InteractiveOption[],
   listButtonLabel = "Scegli",
+  forzaLista = false,
 ): InteractivePayload {
   const text = clamp(bodyText, 1024) || "Confermi?";
   const opts = (options ?? []).filter(
     (o) => o && (o.title ?? "").trim().length > 0,
   );
 
-  if (opts.length <= 3) {
+  if (!forzaLista && opts.length <= 3) {
     return {
       type: "button",
       body: { text },

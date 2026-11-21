@@ -37,7 +37,7 @@ export async function posticipaDomandaBolla(
   const distanza = Date.parse(prossimo.created_at) - Date.parse(foto.created_at);
   const citazione = prossimo.metadata?.reply_to;
   if (!Number.isFinite(distanza) || distanza < 0 || (citazione ? citazione !== foto.wa_message_id : distanza > 90_000)) return false;
-  if (prossimo.message_type !== "audio" && (prossimo.message_type !== "text" || !leggiDestinazioneBolla(prossimo.content_text ?? ""))) return false;
+  if (prossimo.message_type !== "audio" && (prossimo.message_type !== "text" || !leggiDestinazioneBolla(prossimo.content_text ?? "", false, true))) return false;
 
   const { data, error } = await db.from("whatsapp_messages")
     .update({ ai_extracted_data: {

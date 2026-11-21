@@ -88,6 +88,7 @@ it("un duplicato riusa il documento senza creare altre copie o nuove letture", a
   expect(await acquisisciDdtWhatsapp(db, opts)).toEqual({
     id: "esistente",
     status: "review",
+    stessoOperatore: false,
   });
   expect(m.upload).not.toHaveBeenCalled();
   expect(m.insert).not.toHaveBeenCalled();

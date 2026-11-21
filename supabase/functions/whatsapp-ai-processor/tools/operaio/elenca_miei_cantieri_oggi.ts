@@ -2,7 +2,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
-import { cantieriInOrdine, commesseAperte } from "../shared/cantieriAperti.ts";
+import { cantieriInOrdine, commesseAperte, oggiARoma } from "../shared/cantieriAperti.ts";
 
 export const elencaMieiCantieriOggiDef: Omit<ToolDef, "handler"> = {
   name: "elenca_miei_cantieri_oggi",
@@ -28,7 +28,7 @@ interface CantiereItem {
 
 export async function elencaMieiCantieriOggi(
   ctx: ToolCtx,
-  args: { data?: string },
+  args: { data?: string; soloOggi?: boolean },
 ): Promise<ToolResult<{ cantieri: CantiereItem[] }>> {
   if (!ctx.user_id && !ctx.employee_id) {
     return errResult("no_user_id", "Non riesco a identificarti.");
@@ -36,7 +36,12 @@ export async function elencaMieiCantieriOggi(
   const adesso = args.data && /^\d{4}-\d{2}-\d{2}$/.test(args.data) ? new Date(`${args.data}T12:00:00Z`) : new Date();
   let ordinati;
   try {
-    ordinati = await cantieriInOrdine(ctx, await commesseAperte(ctx, adesso), adesso);
+    const aperti = await commesseAperte(ctx, adesso);
+    const giorno = oggiARoma(adesso);
+    const candidati = args.soloOggi ? aperti.filter(c =>
+      (!c.work_start_date || c.work_start_date <= giorno) && (!c.work_end_date || c.work_end_date >= giorno)
+    ) : aperti;
+    ordinati = await cantieriInOrdine(ctx, candidati, adesso);
   } catch {
     return errResult("site_list_unavailable", "Non riesco a leggere i tuoi cantieri adesso. Riprova tra poco.");
   }
@@ -56,6 +61,9 @@ export async function elencaMieiCantieriOggi(
     `${i + 1}. ${c.nome} — ${c.indirizzo}${c.motivo ? ` (${c.motivo})` : ""}`
   ).join("\n");
   const extra = cantieri.length > 9 ? `\n...e altri ${cantieri.length - 9}: scrivimi il nome o la via.` : "";
+  if (args.soloOggi) {
+    return okResult({ cantieri }, "I tuoi cantieri di oggi\n" + lista + extra);
+  }
   return okResult(
     { cantieri },
     `I tuoi cantieri aperti:\n${lista}${extra}\n\nA quale ti riferisci? (scrivi il numero o il nome)`,

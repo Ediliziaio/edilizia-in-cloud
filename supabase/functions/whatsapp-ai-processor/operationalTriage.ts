@@ -4,6 +4,7 @@ export type OperationalIntent =
   | "foto_cantiere"
   | "presenze"
   | "segnalazione"
+  | "attivita_ufficio"
   | "domanda"
   | "conferma"
   | "annulla"
@@ -134,6 +135,12 @@ const FALLBACK: Record<OperationalIntent, Omit<Rule, "intent" | "keywords" | "me
     suggested_action: "Apri una segnalazione e assegna il responsabile corretto.",
     priority: "media",
   },
+  attivita_ufficio: {
+    route: "Attività ufficio",
+    title: "Richiesta all’ufficio",
+    suggested_action: "Prepara l’attività da confermare per l’ufficio competente.",
+    priority: "media",
+  },
   domanda: {
     route: "Operatore / Silvio",
     title: "Domanda operativa",
@@ -192,7 +199,17 @@ export function isOperationalQuestion(text: string, messageType: string): boolea
   text = normalizeText(text);
   if (/\b(incidente|infortunio|pericolo|ferito|emergenza|caduta|dpi|ponteggio)\b/.test(text)) return false;
   return /\b(quanti|quante|quali|quando|dove|come|quanto|situazione)\b/.test(text)
-    || /\b(dimmi|mostra|elenca|riassumi)\b/.test(text);
+    || /\b(dimmi|mostra|elenca|riassumi)\b/.test(text)
+    || /\b(?:stato economico|fatture? (?:di|del|della)|(?:mandami|pdf) (?:le |la )?fatture?)\b/.test(text)
+    || /\b(?:genera|crea|prepara|fammi|bozza|leggi|analizza|invia|mandami)\b.{0,35}\b(?:computo|preventiv[oi])\b/.test(text);
+}
+
+function richiestaAllUfficio(text: string, messageType: string): boolean {
+  if (!["text", "audio"].includes(messageType) || /\b(incidente|infortunio|emergenza|ferito|pericolo immediato)\b/.test(text)) return false;
+  if (/\bfai\s+richiamare\b/.test(text)) return true;
+  const incarico = /\b(?:chiedi|scrivi|avvisa|manda una richiesta|crea un['’]?attivita|apri un['’]?attivita)\b/;
+  const ufficio = /\b(?:ufficio|acquisti|amministrazione|logistica|reparto)\b/;
+  return incarico.test(text) && ufficio.test(text);
 }
 
 function scoreRule(rule: Rule, text: string, messageType: string) {
@@ -228,22 +245,23 @@ export function classifyOperationalMessage(input: {
     best = { rule: RULES.find(rule => rule.intent === "domanda")!, score: 5, signals: ["domanda_esplicita"] };
   }
 
-  const intent = best.rule?.intent ?? (messageType === "image" ? "foto_cantiere" : "unknown");
-  const copy = best.rule ?? FALLBACK[intent];
-  const confidence = clampConfidence(best.score > 0 ? 0.54 + Math.min(best.score, 7) * 0.06 : 0.42);
+  const richiestaUfficio = richiestaAllUfficio(text, messageType);
+  const intent = richiestaUfficio ? "attivita_ufficio" : best.rule?.intent ?? (messageType === "image" ? "foto_cantiere" : "unknown");
+  const copy = richiestaUfficio ? FALLBACK.attivita_ufficio : best.rule ?? FALLBACK[intent];
+  const confidence = richiestaUfficio ? 0.9 : clampConfidence(best.score > 0 ? 0.54 + Math.min(best.score, 7) * 0.06 : 0.42);
 
   return {
     intent,
     confidence,
     priority: copy.priority,
-    requires_review: confidence < 0.72 || copy.priority === "alta",
+    requires_review: richiestaUfficio || confidence < 0.72 || copy.priority === "alta",
     route: copy.route,
     title: copy.title,
     summary: input.processingError
       ? `Errore elaborazione: ${input.processingError}`
       : input.contentText?.trim() || `Messaggio ${messageType} senza testo leggibile.`,
     suggested_action: copy.suggested_action,
-    signals: best.signals,
+    signals: richiestaUfficio ? ["esplicita_richiesta_ufficio"] : best.signals,
   };
 }
 

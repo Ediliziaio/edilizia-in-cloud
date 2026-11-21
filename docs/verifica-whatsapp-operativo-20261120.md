@@ -32,6 +32,15 @@ node scripts/check-whatsapp-sessions-local.mjs "$PGLITE_ENTRY"
 
 La prova DDT simula un payload Meta e usa il codice del webhook, l’acquisizione nel bucket DDT e il salvataggio della destinazione dopo la trascrizione simulata. La prova rapportino riproduce la trascrizione d’esempio e passa dal tool del gestionale. Il test SQL usa un database isolato con fixture. Il collaudo su una linea Meta dedicata deve ancora verificare webhook firmato, download effettivo dei media, OCR e trascrizione sul contenuto reale, visualizzazione nelle due schermate del gestionale e ricezione degli esiti sul telefono.
 
+## Prova locale su Demo Azienda 2
+
+- L’originale della bolla passa in Documenti in ingresso appena riconosciuto. Se il vocale è già in coda, l’assistente gli lascia risolvere la destinazione. La prova di PROVA-SIMULA simula sette secondi fra foto e vocale e un errore OCR. Risultano una bozza, una risposta e il collegamento al vocale nella bozza. L’accesso al player e alla trascrizione usa i permessi esistenti di WhatsApp.
+- La prova con 20 cantieri apre tre pagine. La timbratura di oggi porta il cantiere suggerito in cima. Le scelte sono rilette dai permessi correnti al momento dell’associazione.
+- I rapportini di squadra in rumeno e polacco mantengono l’audio, la trascrizione e la traduzione. Il riepilogo di prova mostra 8 ore e 4 ore distinte. Dopo il Sì il record italiano arriva in Campo in stato inviato.
+- La richiesta di tre controtelai compare in Attività e nella commessa con scadenza e ufficio Acquisti. Il collaudo locale usa un ufficio di prova.
+- La routine delle 07:00 usa gli assegnati, le fasi e le attività del giorno. L’anteprima locale mostra cantiere, indirizzo e colleghi senza chiamare l’AI o inviare messaggi. Via chat, «Dove lavoro oggi?» consulta le assegnazioni del mittente.
+- Per chi può consultare i Documenti fiscali, la ricerca fatture restituisce collegamenti al dettaglio autenticato. Il menu «Aiuto» mostra gli esempi per il ruolo. I preventivi conservano la conferma della bozza e i computi seguono i modelli supportati.
+
 ## Interventi successivi per impatto
 
 1. Associare le singole righe DDT a uno o più ODA con quantità residue e verificare i carichi parziali attraverso il flusso esistente del Magazzino.

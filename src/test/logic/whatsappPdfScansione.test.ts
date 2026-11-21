@@ -4,6 +4,7 @@ const m = vi.hoisted(() => ({
   acquisisci: vi.fn(),
   download: vi.fn(),
   fetch: vi.fn(),
+  visioneBreve: vi.fn(),
 }));
 vi.mock(
   "../../../supabase/functions/_shared/ddtWhatsappPersistente.ts",
@@ -15,13 +16,13 @@ vi.mock("../../../supabase/functions/_shared/aiRouter.ts", () => ({
   aiRouterComplete: m.ai,
 }));
 vi.mock("../../../supabase/functions/whatsapp-ai-processor/openai.ts", () => ({
-  callOpenAI: vi.fn(),
+  callOpenAI: m.visioneBreve,
   transcribeAudioWhisper: vi.fn(),
 }));
 vi.mock("../../../supabase/functions/_shared/resolveWhatsAppSender.ts", () => ({
   resolveWhatsAppSender: vi.fn(),
 }));
-import { leggiDocumentoOperativo } from "../../../supabase/functions/whatsapp-ai-processor/media";
+import { leggiDocumentoOperativo, leggiFotoOperativa } from "../../../supabase/functions/whatsapp-ai-processor/media";
 const opts = {
   storagePath: "azienda/2026-11/prova.pdf",
   companyId: "azienda",
@@ -34,7 +35,8 @@ const db = {
   storage: { from: () => ({ download: m.download }) },
 } as unknown as Parameters<typeof leggiDocumentoOperativo>[0];
 beforeEach(() => {
-  m.acquisisci.mockReset().mockResolvedValue({ id: "job", status: "review" });
+  m.acquisisci.mockReset().mockResolvedValue({ id: "job", status: "review", stessoOperatore: true });
+  m.visioneBreve.mockReset().mockResolvedValue({ choices: [{ message: { content: "DDT\nFornitore prova" } }] });
   vi.stubGlobal("Deno", { env: { get: () => "https://progetto.invalid" } });
   vi.stubGlobal("fetch", m.fetch);
   m.fetch
@@ -94,14 +96,14 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
     });
     expect(await leggiDocumentoOperativo(db, opts)).toContain("Cemento 12 kg");
     expect(m.ai).not.toHaveBeenCalled();
-    expect(m.download).not.toHaveBeenCalled();
+    expect(m.download).toHaveBeenCalledTimes(1);
+    expect(m.acquisisci).toHaveBeenLastCalledWith(db, expect.objectContaining({ accodaLettura: true }));
   });
-  it("mantiene un errore recuperabile senza inventare dati se la visione fallisce", async () => {
+  it("conserva la bozza prima della visione e la lascia da leggere quando fallisce", async () => {
     m.ai.mockRejectedValue(new Error("OCR non disponibile"));
-    expect(await leggiDocumentoOperativo(db, opts)).toContain(
-      "non sono riuscito a leggerlo",
-    );
-    expect(m.acquisisci).toHaveBeenCalledWith(db, opts);
+    expect(await leggiDocumentoOperativo(db, opts)).toContain("DDT da leggere");
+    expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ primaDellaLettura: true }));
+    expect(m.acquisisci.mock.invocationCallOrder[0]).toBeLessThan(m.ai.mock.invocationCallOrder[0]);
   });
   it("non manda al modello un allegato oltre il limite", async () => {
     m.download.mockResolvedValue({
@@ -114,4 +116,17 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
     expect(m.ai).not.toHaveBeenCalled();
     expect(m.acquisisci).not.toHaveBeenCalled();
   });
+});
+
+it("riconosce la foto di una bolla senza didascalia e salva l'originale prima del lettore delle righe", async () => {
+  const ricordaBolla = vi.fn();
+  const file = new Blob([new Uint8Array([255, 216, 255, 1])], { type: "image/jpeg" });
+  m.download.mockResolvedValue({ data: file, error: null });
+  m.ai.mockRejectedValue(new Error("OCR non disponibile"));
+  const testo = await leggiFotoOperativa(db, { ...opts, storagePath: "azienda/2026-11/ddt.jpg", didascalia: null, ricordaBolla });
+  expect(testo).toContain("Foto di un DDT — da leggere");
+  expect(m.visioneBreve).toHaveBeenCalledTimes(1);
+  expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ file, primaDellaLettura: true }));
+  expect(m.acquisisci.mock.invocationCallOrder[0]).toBeLessThan(m.ai.mock.invocationCallOrder[0]);
+  expect(ricordaBolla).toHaveBeenCalledExactlyOnceWith("job");
 });
