@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { CloudDownload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,13 @@ import { creaBackupComputo } from "@/lib/computo/backupComputo";
 import { leggiBozzaComputo, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { ConflittoComputoCloud, improntaComputo, leggiComputoCloud, preparaAllegatiCloud, salvaComputoCloud } from "@/lib/computo/cloudComputo";
 
-type Props = Omit<ComponentProps<typeof ComputoNativoEditor>, "cloud"> & { companyId: string; draftId: string; soloEsistente?: boolean };
+type Props = Omit<ComponentProps<typeof ComputoNativoEditor>, "cloud"> & {
+  companyId: string;
+  draftId: string;
+  soloEsistente?: boolean;
+  configurazioneInCaricamento?: boolean;
+  children?: ReactNode;
+};
 type Stato = { pronto: boolean; errore: string; conflitto: boolean; epoch: number; serverJson: string | null };
 type Salvataggio = { stato: "fermo" | "in-corso" | "errore"; alle?: Date; errore?: string };
 
@@ -27,7 +33,7 @@ const ATTESA_SALVATAGGIO_MS = 1500;
  * letta, e se nel frattempo un altro dispositivo ha salvato la sua, il
  * salvataggio si ferma invece di sovrascriverla.
  */
-export default function ComputoCloudEditor({ companyId, draftId, soloEsistente = false, ...props }: Props) {
+export default function ComputoCloudEditor({ companyId, draftId, soloEsistente = false, configurazioneInCaricamento = false, children, ...props }: Props) {
   const { storageKey } = props;
   const [stato, setStato] = useState<Stato>({ pronto: false, errore: "", conflitto: false, epoch: 0, serverJson: null });
   const [corrente, setCorrente] = useState<BozzaComputo | null>(null);
@@ -156,8 +162,10 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
           : nuovoIntatto ? "Si salva da solo alla prima modifica"
             : sporca ? "Modifiche da salvare…"
               : salvataggio.alle ? `Salvato alle ${ora(salvataggio.alle)}` : "Salvato";
+  const pronto = stato.pronto && !configurazioneInCaricamento;
 
   return <div className="space-y-3">
+    {pronto && children}
     {stato.errore && <div role="alert" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
       <p>{stato.errore}</p>
       <Button variant="outline" size="sm" disabled={caricando} onClick={() => {
@@ -167,7 +175,7 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
       }}><CloudDownload className="mr-1 h-4 w-4" />{stato.conflitto ? "Scarica la mia copia e riapri quella salvata" : "Riprova"}</Button>
       {!soloEsistente && !stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>Continua con la copia su questo computer</Button>}
     </div>}
-    {!stato.pronto ? <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apro il computo…</p>
-      : <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} companyId={companyId} cloud={{ onChange, status: testoStato }} /></fieldset>}
+    {pronto ? <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} companyId={companyId} cloud={{ onChange, status: testoStato }} /></fieldset>
+      : (!stato.errore || caricando) && <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />Apro il computo…</p>}
   </div>;
 }

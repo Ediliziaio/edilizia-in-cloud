@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { idComputoValido } from "@/lib/computo/percorsiComputo";
 import { CollegamentiComputoNativo } from "@/components/computo/CollegamentiComputoNativo";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -36,27 +35,20 @@ export default function ComputoPreventivo() {
   });
   const richiesto = params.get("bozza");
   const soloEsistente = params.get("esistente") === "1";
-  const esistente = useQuery({
-    queryKey: ["computo-esistente", effectiveCompany?.id, richiesto],
-    enabled: soloEsistente && !!effectiveCompany?.id && !!richiesto && idComputoValido(richiesto),
-    queryFn: async () => {
-      const { data, error } = await supabase.from("computo_preventivo_drafts" as never).select("id").eq("company_id", effectiveCompany!.id).eq("id", richiesto!).maybeSingle();
-      if (error) throw new Error("Il computo non è disponibile.");
-      return !!data;
-    },
-  });
+  const cloudAttivo = computoCloudAttivo(effectiveCompany?.id);
   const fase = /^[1-5]$/.test(params.get("fase") ?? "") ? Number(params.get("fase")) - 1 : 0;
-  const id = richiesto && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(richiesto) ? richiesto : nuovoId;
+  const idValido = richiesto && idComputoValido(richiesto) ? richiesto : null;
+  const id = idValido ?? nuovoId;
   useEffect(() => {
     if (soloEsistente) return;
     if (richiesto === id) return;
     const next = new URLSearchParams(params); next.set("bozza", id); setParams(next, { replace: true });
   }, [id, richiesto, params, setParams, soloEsistente]);
   if (!effectiveCompany || !user) return <p role="alert">Seleziona un’azienda per aprire il preventivo.</p>;
-  if (soloEsistente && (!richiesto || !idComputoValido(richiesto) || esistente.error || esistente.data === false)) return <p role="alert" className="p-6">Il computo richiesto non è disponibile in questa azienda. Torna al preventivo per verificare il collegamento.</p>;
-  if (soloEsistente && esistente.isPending) return <p role="status" className="p-6">Verifico il computo esistente…</p>;
-  if (!import.meta.env.DEV && !computoCloudAttivo(effectiveCompany.id)) return <div className="space-y-3 p-6"><p role="alert">Azienda non riconosciuta: ricarica la pagina.</p><button className="underline" onClick={() => { void navigate("/azienda/marketing/preventivi"); }}>Torna ai Preventivi</button></div>;
-  if (modello.isLoading || archivio.inCaricamento || (conContesto && (permessi.isLoading || prefill.isPending))) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
+  if (soloEsistente && (!idValido || !cloudAttivo)) return <p role="alert" className="p-6">Il computo richiesto non è disponibile in questa azienda. Torna al preventivo per verificare il collegamento.</p>;
+  if (!import.meta.env.DEV && !cloudAttivo) return <div className="space-y-3 p-6"><p role="alert">Azienda non riconosciuta: ricarica la pagina.</p><button className="underline" onClick={() => { void navigate("/azienda/marketing/preventivi"); }}>Torna ai Preventivi</button></div>;
+  const configurazioneInCaricamento = modello.isLoading || archivio.inCaricamento || (conContesto && (!!permessi.isLoading || prefill.isPending));
+  if (!cloudAttivo && configurazioneInCaricamento) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
   const key = chiaveBozzaComputo(effectiveCompany.id, user.id, `preventivo:${id}`);
   const dettagli = [effectiveCompany.legal_address, effectiveCompany.legal_city,
     effectiveCompany.vat_number && `P.IVA ${effectiveCompany.vat_number}`, effectiveCompany.email, effectiveCompany.phone].filter(Boolean).join(" | ");
@@ -70,15 +62,18 @@ export default function ComputoPreventivo() {
     vediMargini: permessi.canViewCosts && permessi.canViewMargins,
     puoRiscrivereCondizioni: puoRiscrivereLeCondizioni(permessi),
     // La firma online passa per il gestionale: c'è dove il computo si salva lì.
-    firmaOnline: computoCloudAttivo(effectiveCompany.id) ? { companyId: effectiveCompany.id, draftId: id, userId: user.id,
+    firmaOnline: cloudAttivo ? { companyId: effectiveCompany.id, draftId: id, userId: user.id,
       onApriCommessa: (quoteId: string) => { void navigate(`/azienda/ordini/nuovo?quote_id=${quoteId}`); } } : undefined,
     onFaseChange: (n: number) => { const next = new URLSearchParams(params); next.set("fase", String(n + 1)); setParams(next); },
     onBack: () => { void navigate("/azienda/marketing/preventivi"); } };
+  const collegamenti = <CollegamentiComputoNativo companyId={effectiveCompany.id} draftId={id} />;
   return <div className={`mx-auto w-full min-w-0 ${fase === 2 ? "max-w-none" : "max-w-[1440px]"} space-y-4 md:p-6`}>
     {prefill.error && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{prefill.error.message} Puoi selezionare il destinatario nel passo Dati.</p>}
-    <CollegamentiComputoNativo companyId={effectiveCompany.id} draftId={id} />
-    {computoCloudAttivo(effectiveCompany.id)
-      ? <ComputoCloudEditor key={key} {...editorProps} companyId={effectiveCompany.id} draftId={id} soloEsistente={soloEsistente} />
-      : <ComputoNativoEditor key={key} {...editorProps} companyId={effectiveCompany.id} />}
+    {cloudAttivo ? (
+      <ComputoCloudEditor key={key} {...editorProps} companyId={effectiveCompany.id} draftId={id}
+        soloEsistente={soloEsistente} configurazioneInCaricamento={configurazioneInCaricamento}>
+        {collegamenti}
+      </ComputoCloudEditor>
+    ) : <>{collegamenti}<ComputoNativoEditor key={key} {...editorProps} companyId={effectiveCompany.id} /></>}
   </div>;
 }
