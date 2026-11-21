@@ -12,7 +12,7 @@ describe("Bolletta privata con dati dichiarati",()=>{
   expect(b.totalePrima).toBeCloseTo(1054.1813,4);
   expect(b.totalePrima-b.totaleDopo).toBeCloseTo(b.evitata,6);
   const h=htmlBollettaCasa(d);
-  expect(h).toContain("1.148,02");expect(h).toContain("Il confronto qui sotto è parziale");expect(h).toContain("non gli altri addebiti della bolletta");
+  expect(h).toContain("1.148,02");expect(h).toContain("Confronto parziale");expect(h).toContain("altri addebiti esclusi");
  });
  it("conserva le quote fisse e distingue minor costo in bolletta dai ricavi della cessione",()=>{
   const d=datiCasaCompleta();d.scenario.ricavi_rid_anno1_eur=500;
