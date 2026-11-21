@@ -1,6 +1,6 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState, type ReactNode, type SetStateAction } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Receipt, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ interface Valore {
   fattura_id: string;
   quantita: number;
   prezzo_unitario: number;
+  origine?: "manuale" | "automatico";
   fatture_ricevute?: { numero_fattura: string };
 }
 interface PrezzoDiverso {
@@ -88,8 +89,11 @@ function PrezziDaFatturaForm({
   const visibile = p.canViewCosts || p.canManagePurchasing;
   const modificabile = p.canManagePurchasing && !p.solaLettura;
   const righe = useDDTRighe(ddt.id);
-  const [aperto, setAperto] = useState(false);
-  const [sceltaFattura, setFattura] = useState<string | null>(null);
+  const [parametri] = useSearchParams();
+  const richiesta = parametri.get("fatturaPrezzi");
+  const fatturaRichiesta = richiesta && /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(richiesta) ? richiesta : null;
+  const [aperto, setAperto] = useState(() => modificabile && !!fatturaRichiesta);
+  const [sceltaFattura, setFattura] = useState<string | null>(() => modificabile ? fatturaRichiesta : null);
   const [ricerca, setRicerca] = useState("");
   const ricercaFattura = useDebounce(ricerca.trim(), 300);
   const valori = useQuery<Valore[]>({
@@ -211,6 +215,7 @@ function PrezziDaFatturaForm({
         "Prezzi confrontati con la fattura, nessun nuovo arrivo registrato",
       );
       refreshMaterialQueries(qc);
+      void qc.invalidateQueries({ queryKey: ["fattura-ddt-riepilogo", ddt.company_id, fattura] });
       // 12/11/2026: un prezzo della bolla diverso da quello fatturato non
       // cambia in silenzio. Se la fattura copre tutta la riga vince lei,
       // altrimenti resta quello della bolla: in entrambi i casi lo si dice.
@@ -445,7 +450,7 @@ function PrezziDaFatturaForm({
                 {Number(v.prezzo_unitario).toLocaleString("it-IT", {
                   style: "currency",
                   currency: "EUR",
-                })}
+                })}{v.origine === "automatico" && " · Automatico"}
               </li>
             ))}
           </ul>

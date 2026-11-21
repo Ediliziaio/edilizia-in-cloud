@@ -69,6 +69,24 @@ function policy(sql: string): { nome: string; tabella: string; testo: string }[]
 const ADMIN_SENZA_AZIENDA = (testo: string) =>
   testo.replace(/access_role(::text)?\s*=\s*'company_admin'(::text)?/g, "").includes("'company_admin'");
 
+function delegaLimitataAllAziendaPrimaria(p: ReturnType<typeof policy>[number]) {
+  // get_user_company_id legge profiles.company_id. La funzione get_my_company_id
+  // può invece seguire l'azienda attiva e richiede il controllo del ruolo locale.
+  const ambito = `(
+    NOT (SELECT public.utente_e_cliente_esterno())
+    AND (
+      public.has_role((SELECT auth.uid()), 'super_admin'::public.app_role)
+      OR (company_id = public.get_user_company_id((SELECT auth.uid()))
+        AND public.has_role((SELECT auth.uid()), 'company_admin'::public.app_role))
+    )
+  )`;
+  const contratto = `FOR ALL TO authenticated USING ${ambito} WITH CHECK ${ambito}`;
+  const normalizza = (sql: string) => sql.trim().replace(/\s+/g, " ").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+  return p.tabella === "public.accountant_company_access"
+    && p.nome === "accountant_company_access_gestione_azienda"
+    && normalizza(p.testo) === normalizza(contratto);
+}
+
 describe("i lotti ci sono tutti e in ordine", () => {
   it("numerati da 1 senza buchi, con versioni crescenti", () => {
     expect(lotti.length).toBeGreaterThan(0);
@@ -290,7 +308,7 @@ describe("guardiano", () => {
     const nuove = readdirSync(CARTELLA).filter((f) => /^\d{14}_.*\.sql$/.test(f) && f.slice(0, 14) > ULTIMA);
     const colpevoli = nuove.flatMap((f) =>
       policy(readFileSync(join(CARTELLA, f), "utf8"))
-        .filter((p) => ADMIN_SENZA_AZIENDA(p.testo))
+        .filter((p) => ADMIN_SENZA_AZIENDA(p.testo) && !delegaLimitataAllAziendaPrimaria(p))
         .map((p) => `${f}: ${p.nome}`),
     );
     expect(colpevoli, "usare e_amministratore_di(azienda) o company_id IN (SELECT unnest(aziende_amministrate()))").toEqual([]);
@@ -309,5 +327,15 @@ describe("guardiano", () => {
     expect(ADMIN_SENZA_AZIENDA("ur.role = ANY (ARRAY['company_admin'::public.app_role])")).toBe(true);
     expect(ADMIN_SENZA_AZIENDA("(mca.access_role = 'company_admin'::text) AND (mca.status = 'active'::text)")).toBe(false);
     expect(ADMIN_SENZA_AZIENDA("( SELECT public.e_amministratore_di(public.get_my_company_id()) AS e_amministratore_di)")).toBe(false);
+  });
+
+  it("le deleghe firmate sul solo profilo richiedono il limite anche in WITH CHECK", () => {
+    const ambito = "NOT (SELECT public.utente_e_cliente_esterno()) AND (public.has_role((SELECT auth.uid()), 'super_admin'::public.app_role)"
+      + " OR (company_id = public.get_user_company_id((SELECT auth.uid())) AND public.has_role((SELECT auth.uid()), 'company_admin'::public.app_role)))";
+    const sql = `CREATE POLICY accountant_company_access_gestione_azienda ON public.accountant_company_access
+      FOR ALL TO authenticated USING (${ambito}) WITH CHECK (${ambito});`;
+    expect(delegaLimitataAllAziendaPrimaria(policy(sql)[0])).toBe(true);
+    expect(delegaLimitataAllAziendaPrimaria(policy(sql.replace("WITH CHECK (" + ambito + ")", "WITH CHECK (true)"))[0])).toBe(false);
+    expect(delegaLimitataAllAziendaPrimaria(policy(sql.replace("public.get_user_company_id((SELECT auth.uid()))", "public.get_my_company_id()"))[0])).toBe(false);
   });
 });
