@@ -5,6 +5,7 @@
  * permesso «Operai» e restituiscono solo i campi che servono ai cantieri: le
  * tabelle del Personale (IBAN, PIN, contatti privati) restano chiuse.
  */
+import type { LivelloMagazzinoCampo } from "../../shared/campo-magazzino";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -198,9 +199,11 @@ export function useSalvaOperaio() {
 export function useDaiAccessoApp() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ employeeId, email }: { employeeId: string; email: string }) => {
+    mutationFn: async ({ employeeId, email, magazzino }: {
+      employeeId: string; email: string; magazzino: LivelloMagazzinoCampo;
+    }) => {
       const { data, error } = await supabase.functions.invoke("create-employee-user", {
-        body: { employee_id: employeeId, email },
+        body: { employee_id: employeeId, email, permissions: { magazzino_campo: magazzino } },
       });
       if (error) {
         let corpo: { error?: string } | null = null;

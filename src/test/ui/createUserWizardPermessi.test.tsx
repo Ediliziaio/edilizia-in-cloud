@@ -2,6 +2,8 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within, waitFor } from "@testing-library/react";
 import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 
+import { changeFormControl } from "../helpers/changeFormControl";
+
 type RisultatoCreazione = { temporaryPassword?: string };
 const creaUtente = (esito: RisultatoCreazione = {}) =>
   vi.fn(async (_dati: WizardUserFormData): Promise<RisultatoCreazione> => esito);
@@ -63,6 +65,22 @@ describe("CreateUserWizard — nuovo utente", () => {
     expect(dati.role_type).toBe("salesperson");
     expect(dati.email).toBe("test.utente@azienda.it");
     expect(dati.permissions?.can_view_marketing_contacts).toBe(true);
+  }, TIMEOUT_MATRICE_PERMESSI);
+
+  it("configura il magazzino dell'operaio prima della creazione rapida", async () => {
+    const onSubmit = renderWizard();
+    fireEvent.click(screen.getByText("Operaio / Tecnico"));
+    compilaDati();
+    const accesso = screen.getByRole("combobox", { name: /magazzino nell.app operaio/i });
+    expect(accesso).toHaveValue("nessuno");
+    changeFormControl(accesso, { target: { value: "prelievi" } });
+    fireEvent.click(screen.getByRole("button", { name: /crea utente/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].permissions).toMatchObject({
+      magazzino_campo: "prelievi",
+      can_view_warehouse: false,
+      can_edit_warehouse: false,
+    });
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("senza email valida non crea e non passa ai permessi", () => {

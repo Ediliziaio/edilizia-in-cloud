@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { LIVELLI_MAGAZZINO_CAMPO } from "../../../shared/campo-magazzino";
 import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permissionsDefaults";
 import {
   STAFF_PERMISSION_DEFAULTS,
@@ -92,6 +93,16 @@ describe("staff_permissions: parità edge ↔ client", () => {
     expect(record.can_view_costs).toBe(false);
     expect(buildStaffPermissionsRecord("u", "c", { office_profile: "inventato" }).office_profile).toBeNull();
     expect(buildStaffPermissionsRecord("u", "c", { office_profile: true }).office_profile).toBeNull();
+  });
+
+  it("il livello per l'app operaio sopravvive alla creazione senza concedere modifiche d'ufficio", () => {
+    for (const livello of LIVELLI_MAGAZZINO_CAMPO) {
+      const record = buildStaffPermissionsRecord("u", "c", { magazzino_campo: livello });
+      expect(record.magazzino_campo).toBe(livello);
+      expect(record.can_view_warehouse).toBe(false);
+      expect(record.can_edit_warehouse).toBe(false);
+    }
+    expect(buildStaffPermissionsRecord("u", "c", { magazzino_campo: "admin" }).magazzino_campo).toBeNull();
   });
 
   it("senza payload restituisce i puri default (+ user/company)", () => {

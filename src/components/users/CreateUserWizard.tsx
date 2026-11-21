@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { MagazzinoCampoPermission } from "./MagazzinoCampoPermission";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
   DEFAULT_PERMISSIONS, CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
@@ -362,7 +363,10 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
       return;
     }
     try {
-      const finalPerms = showPermissions ? syncLegacySettingsFlags(syncLegacyMarketingFlags(permissions)) : undefined;
+      const finalPerms = showPermissions ? syncLegacySettingsFlags(syncLegacyMarketingFlags({
+        ...permissions,
+        ...(roleType === "employee" ? { magazzino_campo: permissions.magazzino_campo ?? "nessuno" } : {}),
+      })) : undefined;
       const commission = roleType === "salesperson" && commissionPercentage
         ? parseFloat(commissionPercentage)
         : undefined;
@@ -629,6 +633,11 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                 </p>
               )}
 
+              {roleType === "employee" && (
+                <MagazzinoCampoPermission creation value={permissions.magazzino_campo} soloLettura={permissions.sola_lettura}
+                  onChange={(magazzino_campo) => setPermissions((prev) => ({ ...prev, magazzino_campo }))} />
+              )}
+
               {/* Cosa potrà fare: il riassunto dei permessi, con «Personalizza». */}
               {showPermissions && (
                 <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
@@ -687,6 +696,10 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                 </p>
               </section>
 
+              {roleType === "employee" && (
+                <MagazzinoCampoPermission creation value={permissions.magazzino_campo} soloLettura={permissions.sola_lettura}
+                  onChange={(magazzino_campo) => setPermissions((prev) => ({ ...prev, magazzino_campo }))} />
+              )}
               {roleType === "company_staff" && <OfficeProfileSelector permissions={permissions} onChange={setPermissions} />}
               <label htmlFor="wiz-only_assigned" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
                 <span className="min-w-0">

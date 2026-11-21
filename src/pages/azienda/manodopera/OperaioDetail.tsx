@@ -1,3 +1,5 @@
+import { MagazzinoCampoPermission } from "@/components/users/MagazzinoCampoPermission";
+import type { LivelloMagazzinoCampo } from "../../../../shared/campo-magazzino";
 import { AccessoAppInScheda, useStatiAppOperai } from "@/components/manodopera/AccessoAppOperaio";
 /**
  * /azienda/manodopera/operai/:id — la scheda di un operaio (26/09/2026).
@@ -471,12 +473,13 @@ function DialogApp({ aperto, onAperto, employeeId, nome, emailIniziale }: {
 }) {
   const dai = useDaiAccessoApp();
   const [email, setEmail] = useState(emailIniziale);
+  const [magazzino, setMagazzino] = useState<LivelloMagazzinoCampo>("nessuno");
   const [password, setPassword] = useState<string | null>(null);
 
   const chiudi = (v: boolean) => {
     if (dai.isPending) return;
     onAperto(v);
-    if (!v) { setPassword(null); setEmail(emailIniziale); }
+    if (!v) { setPassword(null); setEmail(emailIniziale); setMagazzino("nessuno"); }
   };
 
   const invia = () => {
@@ -486,7 +489,7 @@ function DialogApp({ aperto, onAperto, employeeId, nome, emailIniziale }: {
       return;
     }
     dai.mutate(
-      { employeeId, email: e },
+      { employeeId, email: e, magazzino },
       {
         onSuccess: (r) => {
           if (r.temp_password) setPassword(r.temp_password);
@@ -511,9 +514,13 @@ function DialogApp({ aperto, onAperto, employeeId, nome, emailIniziale }: {
         {password ? (
           <p className="rounded-lg border bg-muted/40 px-3 py-2 text-center font-mono text-lg tracking-wide">{password}</p>
         ) : (
-          <div className="space-y-1.5">
-            <Label htmlFor="app-email">Email di {nome}</Label>
-            <Input id="app-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="app-email">Email di {nome}</Label>
+              <Input id="app-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
+            </div>
+            <MagazzinoCampoPermission creation value={magazzino} readOnly={dai.isPending}
+              onChange={(livello) => setMagazzino(livello ?? "nessuno")} />
           </div>
         )}
         <DialogFooter className="gap-2 sm:gap-0">

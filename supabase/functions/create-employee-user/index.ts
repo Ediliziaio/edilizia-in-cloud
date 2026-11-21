@@ -13,7 +13,7 @@ interface CreateEmployeeUserRequest {
   email: string;
   password?: string;
   phone?: string;
-  permissions?: Record<string, boolean>;
+  permissions?: Record<string, unknown>;
 }
 
 Deno.serve(async (req) => {

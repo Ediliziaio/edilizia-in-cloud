@@ -76,6 +76,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[] | stri
   can_approve_discounts: false,
   can_approve_variations: false,
   office_profile: null,
+  magazzino_campo: null,
   only_assigned: false,
   only_my_warehouse: false,
   // Vede ma non scrive. Le can_edit_* operative le ricalcola comunque il
@@ -192,6 +193,8 @@ export function buildStaffPermissionsRecord(
       if (!(key in STAFF_PERMISSION_DEFAULTS)) continue;
       if (key === "office_profile") {
         if (value === null || (typeof value === "string" && ["tecnico","ordini","amministrazione","responsabile","hr","commerciale"].includes(value))) record[key] = value;
+      } else if (key === "magazzino_campo") {
+        if (value === "nessuno" || value === "inventario" || value === "prelievi" || value === null) record[key] = value;
       } else if (key === "visible_areas") {
         if (Array.isArray(value)) record[key] = value.filter((v) => typeof v === "string");
       } else if (key === "pipeline_visibili") {

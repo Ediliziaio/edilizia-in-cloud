@@ -5,6 +5,8 @@ import {
   ALL_PERMISSION_SECTIONS,
   TEAM_VISIBILITY_SECTIONS,
 } from "@/components/users/permissionsDefaults";
+import campoPrelievoSource from "@/hooks/campo/useCampoPrelievo.ts?raw";
+import campoMagazzinoSql from "../../../supabase/migrations/20290504125650_magazzino_campo_permessi_e_prelievi.sql?raw";
 import { STAFF_PERMISSIONS_SELECT_KEYS } from "@/hooks/usePermissions";
 
 /**
@@ -46,6 +48,14 @@ describe("permessi: parità dei registri", () => {
     const selectKeys = new Set<string>(STAFF_PERMISSIONS_SELECT_KEYS);
     for (const key of defaultKeys) {
       if (legacyServerOnly.has(key)) continue;
+      // L'app operaio legge il livello effettivo via RPC. PostgreSQL lo risolve
+      // dalla stessa riga di permessi, con assegnazioni e sola lettura.
+      if (key === "magazzino_campo") {
+        expect(campoPrelievoSource).toContain('supabase.rpc("campo_magazzino_config"');
+        expect(campoMagazzinoSql).toContain("select s.magazzino_campo into v_livello");
+        expect(campoMagazzinoSql).toContain("private.campo_magazzino_livello(p_azienda) as livello");
+        continue;
+      }
       expect(selectKeys.has(key), `permesso mai caricato a runtime (toggle morto): ${key}`).toBe(true);
     }
   });

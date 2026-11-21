@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
 
     if (rolesToAssign.includes("company_staff")) {
       // Record COMPLETO: se il wizard passa `permissions`, l'insert è già
-      // definitivo e non dipende dal follow-up update client (che resta come
+      // definitivo, incluso il livello Magazzino nell’app operaio, e non dipende dal follow-up update client (che resta come
       // rete di sicurezza); senza payload i valori coincidono coi default DB.
       const { error: permError } = await supabaseAdmin
         .from("staff_permissions")
