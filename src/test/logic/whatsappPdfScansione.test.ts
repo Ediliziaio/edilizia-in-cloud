@@ -35,7 +35,7 @@ const db = {
   storage: { from: () => ({ download: m.download }) },
 } as unknown as Parameters<typeof leggiDocumentoOperativo>[0];
 beforeEach(() => {
-  m.acquisisci.mockReset().mockResolvedValue({ id: "job", status: "review", stessoOperatore: true });
+  m.acquisisci.mockReset().mockResolvedValue({ id: "job", status: "queued", stessoOperatore: true });
   m.visioneBreve.mockReset().mockResolvedValue({ choices: [{ message: { content: "DDT\nFornitore prova" } }] });
   vi.stubGlobal("Deno", { env: { get: () => "https://progetto.invalid" } });
   vi.stubGlobal("fetch", m.fetch);
@@ -66,7 +66,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 describe("PDF scansionato ricevuto su WhatsApp", () => {
   it("usa la visione quando la scansione non ha testo e conserva righe e decimali", async () => {
-    const result = await leggiDocumentoOperativo(db, opts);
+    const result = await leggiDocumentoOperativo(db, { ...opts, didascalia: null });
     expect(result).toContain("Fornitore prova");
     expect(result).toContain("DDT/42");
     expect(result).toContain("12,5 kg");
@@ -94,16 +94,16 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
         text: "DOCUMENTO DI TRASPORTO numero 42 Fornitore prova Cemento 12 kg",
       }),
     });
-    expect(await leggiDocumentoOperativo(db, opts)).toContain("Cemento 12 kg");
+    expect(await leggiDocumentoOperativo(db, { ...opts, didascalia: null })).toContain("Cemento 12 kg");
     expect(m.ai).not.toHaveBeenCalled();
-    expect(m.download).toHaveBeenCalledTimes(1);
     expect(m.acquisisci).toHaveBeenLastCalledWith(db, expect.objectContaining({ accodaLettura: true }));
   });
-  it("conserva la bozza prima della visione e la lascia da leggere quando fallisce", async () => {
+  it("accoda direttamente la bolla dichiarata e restituisce la conferma senza aspettare il lettore", async () => {
     m.ai.mockRejectedValue(new Error("OCR non disponibile"));
     expect(await leggiDocumentoOperativo(db, opts)).toContain("DDT da leggere");
-    expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ primaDellaLettura: true }));
-    expect(m.acquisisci.mock.invocationCallOrder[0]).toBeLessThan(m.ai.mock.invocationCallOrder[0]);
+    expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ accodaLettura: true }));
+    expect(m.ai).not.toHaveBeenCalled();
+    expect(m.fetch).not.toHaveBeenCalled();
   });
   it("non manda al modello un allegato oltre il limite", async () => {
     m.download.mockResolvedValue({
@@ -118,7 +118,7 @@ describe("PDF scansionato ricevuto su WhatsApp", () => {
   });
 });
 
-it("riconosce la foto di una bolla senza didascalia e salva l'originale prima del lettore delle righe", async () => {
+it("riconosce la foto di una bolla senza didascalia e mette l'originale in coda", async () => {
   const ricordaBolla = vi.fn();
   const file = new Blob([new Uint8Array([255, 216, 255, 1])], { type: "image/jpeg" });
   m.download.mockResolvedValue({ data: file, error: null });
@@ -126,7 +126,7 @@ it("riconosce la foto di una bolla senza didascalia e salva l'originale prima de
   const testo = await leggiFotoOperativa(db, { ...opts, storagePath: "azienda/2026-11/ddt.jpg", didascalia: null, ricordaBolla });
   expect(testo).toContain("Foto di un DDT — da leggere");
   expect(m.visioneBreve).toHaveBeenCalledTimes(1);
-  expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ file, primaDellaLettura: true }));
-  expect(m.acquisisci.mock.invocationCallOrder[0]).toBeLessThan(m.ai.mock.invocationCallOrder[0]);
-  expect(ricordaBolla).toHaveBeenCalledExactlyOnceWith("job");
+  expect(m.acquisisci).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({ file, accodaLettura: true }));
+  expect(m.ai).not.toHaveBeenCalled();
+  expect(ricordaBolla).toHaveBeenCalledExactlyOnceWith("job", "queued");
 });

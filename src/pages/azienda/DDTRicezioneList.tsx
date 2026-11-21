@@ -52,6 +52,7 @@ import {
   Warehouse as WarehouseIcon,
   FileText,
   ArrowRight,
+  ArrowLeft,
   AlertTriangle,
   Paperclip,
   Download,
@@ -74,7 +75,7 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
-import { RigaDocumentoInIngresso } from "@/components/ddt/DocumentiInIngresso";
+import { RigaDocumentoInIngresso, VocaleDocumento } from "@/components/ddt/DocumentiInIngresso";
 import { useDocumentiInIngresso } from "@/hooks/useDocumentiInIngresso";
 import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
@@ -101,6 +102,7 @@ import {
   OperationalPagination,
 } from "@/components/orders/OperationalBoard";
 import { usePermissions } from "@/hooks/usePermissions";
+import { idBollaValido } from "../../../shared/aiAttivita";
 import {
   riepilogoQuantitaDDT,
   destinazioneConsegneDDT,
@@ -232,8 +234,7 @@ function SortableTh({
 }
 
 export default function DDTRicezioneList() {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const [params] = useSearchParams();
   const permissions = usePermissions();
   const canCreate =
     !permissions.solaLettura &&
@@ -241,6 +242,62 @@ export default function DDTRicezioneList() {
       permissions.canManagePurchasing ||
       permissions.canEditOrders ||
       permissions.isAdmin);
+  const documentoId = params.get("ddt_documento");
+  return idBollaValido(documentoId)
+    ? <DocumentoDDTCollegato key={documentoId} id={documentoId} canCreate={canCreate} />
+    : <ElencoDDT canCreate={canCreate} />;
+}
+
+function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boolean }) {
+  const ingresso = useDocumentiInIngresso(canCreate, id);
+  const documento = canCreate ? ingresso.query.data?.find(j => j.id === id) : undefined;
+  const stato = documento?.status;
+  const inLettura = stato === "queued" || stato === "processing";
+  return (
+    <section aria-labelledby="bolla-collegata" className="max-w-2xl space-y-3 rounded-xl border bg-card p-4 sm:p-5">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 gap-1.5">
+        <Link to="/azienda/ordini?tab=ddt"><ArrowLeft className="size-4" aria-hidden="true" /> Tutti i DDT</Link>
+      </Button>
+      <h2 id="bolla-collegata" className="text-lg font-semibold">Bolla in ingresso</h2>
+      {ingresso.query.isLoading ? (
+        <p role="status" className="text-sm text-muted-foreground">Caricamento della bolla…</p>
+      ) : documento && stato ? (
+        <>
+          <p className="break-words text-sm font-medium">{documento.files[0]?.name ?? "Documento"}</p>
+          <p className="text-sm text-muted-foreground" role="status">{STATO_DOCUMENTO[stato]}</p>
+          {documento.whatsapp_voice_message_id && (
+            <VocaleDocumento companyId={documento.company_id} messageId={documento.whatsapp_voice_message_id} />
+          )}
+          {documento.last_error && <p className="text-sm text-destructive">{documento.last_error}</p>}
+          {stato === "registered" && documento.ddt_id ? (
+            <Button asChild><Link to={`/azienda/ddt/${documento.ddt_id}`}>Apri il DDT registrato</Link></Button>
+          ) : !inLettura && stato !== "registered" && stato !== "split" ? (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => ingresso.apri(documento)}>
+                {stato === "review" ? "Controlla e registra" : "Compila a mano"}
+              </Button>
+              {(stato === "error" || stato === "da_leggere") && (
+                <Button variant="outline" disabled={ingresso.riprovando === id} onClick={() => void ingresso.riprova(documento)}>
+                  {stato === "error" ? "Rileggi" : "Leggi con l’AI"}
+                </Button>
+              )}
+            </div>
+          ) : null}
+          {ingresso.dialog}
+        </>
+      ) : (
+        <p role="status" className="text-sm text-muted-foreground">
+          {ingresso.query.isError ? "Caricamento della bolla non riuscito." : "Bolla non disponibile per questa utenza."}
+        </p>
+      )}
+      {ingresso.query.isError && <Button variant="outline" onClick={() => void ingresso.query.refetch()}>Riprova</Button>}
+    </section>
+  );
+}
+
+function ElencoDDT({ canCreate }: { canCreate: boolean }) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [params, setParams] = useSearchParams();
   useOperationalViewMemory("ddt", [
     "ddt_vista",

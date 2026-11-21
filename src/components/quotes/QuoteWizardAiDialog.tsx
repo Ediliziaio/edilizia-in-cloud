@@ -18,6 +18,7 @@ import type { QuoteProject } from '@/lib/preventivi/quoteProject';
 import type { QuoteDraft } from '@/lib/preventivi/quoteDraft';
 import { cloneWizardDraft, type NativeComputoModule, type WizardAiChange } from '@/lib/preventivi/wizardAiDraft';
 import { createWizardAiMemory, type WizardAiMemoryScope, type WizardAiSavedDraft, type WizardAiSnapshot } from '@/lib/preventivi/wizardAiMemory';
+import { idAttivitaValido } from '../../../shared/aiAttivita';
 import './QuoteWizardAiDialog.css';
 
 const Workspace = lazy(() => import('./dev/QuoteAssistedWorkspace'));
@@ -27,7 +28,7 @@ export type QuoteWizardAiDialogProps = {
   document: ChatDocument; project: QuoteProject; fingerprint: string;
   preview: (document: ChatDocument, chapters: Record<string, string>) => ReactNode;
   review: (document: ChatDocument, chapters: Record<string, string>) => WizardAiReview;
-  onApply: (document: ChatDocument, chapters: Record<string, string>) => void | Promise<void>;
+  onApply: (document: ChatDocument, chapters: Record<string, string>, richiestaId?: string) => void | Promise<void>;
   chapters?: boolean;
   /** Il listino aziendale del modulo come fonte di prezzi della chat (id riservato di quoteListinoSource). */
   listinoSourceId?: string;
@@ -130,7 +131,13 @@ function WizardAiSession(props: QuoteWizardAiDialogProps & { initialSeed: { docu
     if (applyingRef.current || conflict || busy || review.error || !review.changes.length) return;
     applyingRef.current = true; setApplying(true); setError('');
     try {
-      await props.onApply(cloneWizardDraft(document), { ...chapters });
+      const sessione = snapshotRef.current?.snapshot.sessionId;
+      if (idAttivitaValido(sessione) && quoteChatReleaseFlag() === 'true'
+        && !consentiSimulazionePreventivoAi(import.meta.env.DEV, window.location.hostname, props.companyId)) {
+        await props.onApply(cloneWizardDraft(document), { ...chapters }, sessione);
+      } else {
+        await props.onApply(cloneWizardDraft(document), { ...chapters });
+      }
       // The applied draft is no longer a resumable AI proposal. Its fingerprint
       // is obsolete; cleanup failure must never repeat the native write.
       if (revisionRef.current) await props.memory.remove(props.scope, revisionRef.current).catch(() => {});

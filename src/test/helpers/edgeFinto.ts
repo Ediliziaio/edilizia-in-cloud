@@ -3,7 +3,7 @@
  * di una edge function nei test (senza rete, senza Supabase).
  *
  * Il database tiene le tabelle in memoria e capisce i verbi che le funzioni dei
- * preventivi usano davvero: select (con l'elenco colonne), insert, update,
+ * preventivi usano davvero: select (con l'elenco colonne), insert, update, upsert su id,
  * eq/neq/in/gte/gt/lte/lt/is/not, order, limit, single/maybeSingle, e anche
  * `await` sulla query. Ricordiamo tutte le scritture, per controllarle.
  */
@@ -15,7 +15,7 @@ export type Esito = { data: unknown; error: { message: string; code?: string } |
 
 export class DbMinimo {
   tabelle: Record<string, Riga[]> = {};
-  scritture: Array<{ tabella: string; tipo: "insert" | "update"; dati: unknown }> = [];
+  scritture: Array<{ tabella: string; tipo: "insert" | "update" | "upsert"; dati: unknown }> = [];
   rpcs: Record<string, (args: Record<string, unknown>) => unknown> = {};
   rpcChiamate: Array<{ nome: string; args: Record<string, unknown> }> = [];
 
@@ -32,7 +32,7 @@ export class DbMinimo {
 
 class Interrogazione {
   private filtri: Filtro[] = [];
-  private verbo: "select" | "insert" | "update" = "select";
+  private verbo: "select" | "insert" | "update" | "upsert" = "select";
   private colonne: string | null = null;
   private dati: unknown;
   private ordine: { colonna: string; crescente: boolean } | null = null;
@@ -50,6 +50,8 @@ class Interrogazione {
   }
   insert(dati: unknown) { this.verbo = "insert"; this.dati = dati; return this; }
   update(dati: unknown) { this.verbo = "update"; this.dati = dati; return this; }
+  upsert(dati: Riga) { this.verbo = "upsert"; this.dati = dati; return this; }
+  abortSignal(_signal: AbortSignal) { return this; }
   eq(c: string, v: unknown) {
     this.filtri.push((r) => r[c] === v || (r[c] != null && typeof r[c] === "object" && JSON.stringify(r[c]) === v));
     return this;
@@ -133,6 +135,13 @@ class Interrogazione {
       const toccate = righe.filter((r) => this.corrisponde(r));
       for (const r of toccate) Object.assign(r, this.dati as Riga);
       risultato = toccate;
+    } else if (this.verbo === "upsert") {
+      const dati = this.dati as Riga;
+      this.db.scritture.push({ tabella: this.tabella, tipo: "upsert", dati });
+      const esistente = righe.find(r => r.id === dati.id);
+      if (esistente) Object.assign(esistente, dati);
+      else righe.push({ ...dati });
+      risultato = [esistente ?? dati];
     } else {
       risultato = righe.filter((r) => this.corrisponde(r));
     }

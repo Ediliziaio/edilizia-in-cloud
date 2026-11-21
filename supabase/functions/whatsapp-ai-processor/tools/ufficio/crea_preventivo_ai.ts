@@ -10,6 +10,7 @@ interface Args {
   cliente_nome?: string;
   tipo_lavoro?: string;
   iva?: number;
+  invia_pdf_qui?: boolean;
 }
 
 interface RigaAI {
@@ -27,7 +28,7 @@ export const creaPreventivoAiDef = {
   name: "crea_preventivo_ai",
   description:
     "Prepara un’ANTEPRIMA NON SALVATA usando il LISTINO e la MANODOPERA dell'azienda. " +
-    "Dai una descrizione del lavoro (es. 'cappotto 120 mq su villetta, cordoli e ponteggio') e il nome del cliente. " +
+    "Riporta tutte le misure, le voci di computo e le lavorazioni dettate o già lette dal documento. Dai il nome del cliente. " +
     "Mostra al titolare le righe, quantità, unità, prezzi e IVA; chiedi di correggere i dati mancanti. " +
     "Solo dopo la conferma delle righe esatte usa salva_preventivo_bozza. Non dichiarare un preventivo creato o un PDF disponibile prima del salvataggio.",
   parameters: {
@@ -37,6 +38,7 @@ export const creaPreventivoAiDef = {
       cliente_nome: { type: "string", description: "Nome o ragione sociale del cliente." },
       tipo_lavoro: { type: "string", description: "Es. cappotto, infissi, bagno, fotovoltaico (aiuta il motore)." },
       iva: { type: "number", minimum: 0, maximum: 100, description: "Aliquota IVA % verificata dall'utente, anche zero; nessun default dedotto." },
+      invia_pdf_qui: { type: "boolean", description: "Vero se la persona ha chiesto di ricevere il PDF nella chat, anche in un messaggio precedente." },
     },
     required: ["descrizione", "cliente_nome", "iva"],
   },
@@ -47,7 +49,7 @@ export const creaPreventivoAiDef = {
 };
 
 export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolResult> {
-  const descrizione = typeof args.descrizione === "string" ? args.descrizione.trim() : "";
+  const descrizione = typeof args.descrizione === "string" ? args.descrizione.trim().slice(0, 24_000) : "";
   const clienteNome = typeof args.cliente_nome === "string" ? args.cliente_nome.trim() : "";
   if (descrizione.length < 5) return errResult("descrizione_corta", "Dimmi cosa devo preventivare, un po' più nel dettaglio.");
   if (clienteNome.length < 2 || clienteNome.length > 200) return errResult("cliente_mancante", "Per chi è il preventivo? Indicami un nome valido, da 2 a 200 caratteri.");
@@ -64,6 +66,7 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
       body: JSON.stringify({
         company_id: ctx.company_id,
         per_utente: ctx.user_id,
+        ai_richiesta_id: ctx.requestId,
         descrizione,
         tipo_lavoro: args.tipo_lavoro ?? null,
         input_mode: "testo",
@@ -88,9 +91,13 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
   if (righe.length > 100 || righe.some(r => !r || typeof r !== "object")) return errResult("righe_non_valide", "Anteprima non valida o troppo lunga. Nessuna bozza salvata: verifica le voci nell’app.");
   const items = righe.map(r => ({ name: r.nome ?? r.descrizione, description: r.descrizione ?? r.nome,
     quantity: r.quantita, unit_price: r.unit_price, unit_of_measure: r.unita_misura,
-    vat_rate: args.iva, item_type: r.is_posa_di || r.item_category === "manodopera" ? "labor" : "material" }));
-  const proposed = { client_name: clienteNome, title: `Preventivo ${clienteNome}`, description: descrizione, items };
-  const issue = quoteDraftIssue(proposed);
+    vat_rate: args.iva, item_type: r.is_posa_di || r.item_category === "manodopera" || r.item_category === "posa" ? "labor"
+      : ["trasporto", "smaltimento", "nolo"].includes(r.item_category ?? "") ? "service" : "material" }));
+  const proposed = { client_name: clienteNome, title: `Preventivo ${clienteNome}`, description: descrizione, items,
+    ...(args.tipo_lavoro?.trim() ? { tipo_lavoro: args.tipo_lavoro.trim().slice(0, 120) } : {}),
+    ...(args.invia_pdf_qui === true ? { invia_pdf_qui: true } : {}) };
+  const senzaUnita = items.findIndex(item => !item.unit_of_measure?.trim());
+  const issue = quoteDraftIssue(proposed) ?? (senzaUnita >= 0 ? "Indica l’unità di misura della voce " + (senzaUnita + 1) + "." : null);
   const freeNeedsReview = items.some(item => item.unit_price === 0);
   return okResult({ status: "anteprima_non_salvata", created: false, items, client_name: clienteNome,
     needs_clarification: !!issue || freeNeedsReview, clarification: issue ?? (freeNeedsReview ? "Conferma se le voci a zero sono gratuite oppure indica il prezzo mancante." : null),

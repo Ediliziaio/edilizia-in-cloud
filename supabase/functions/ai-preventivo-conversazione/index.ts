@@ -5,6 +5,7 @@ import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { AiTurnControl } from "../_shared/aiTurnControl.ts";
+import { avviaAttivitaAi } from "../_shared/aiAttivitaLive.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { readQuoteChatRequest, readQuoteChatTurn, runQuoteChat, type QuoteChatReference, type QuoteChatTurn } from "../_shared/quoteConversation.ts";
@@ -197,9 +198,24 @@ Deno.serve(async req => {
     return { ...result, ...(request.advanced ? { usage: { calls, inputTokens, outputTokens, costUsd: knownCost ? cost : null, visionUsed: !!request.advanced.vision } } : {}), ...(experiment ? { modelTest: { requestedModel: experiment.model, caseId: experiment.caseId, calls, inputTokens, outputTokens, costUsd: knownCost ? cost : null, rawTurns } } : {}) };
     };
     // Solo per l'azienda demo E con l'intestazione x-quote-debug: 1, il motivo di una risposta scartata viaggia anche nella risposta (prove e collaudi).
-    const executeConDiagnosi = async (...a: Parameters<typeof execute>) => {
-      try { return await execute(...a); }
-      catch (e) { if (request.companyId === QUOTE_DEMO_COMPANY && req.headers.get('x-quote-debug') === '1' && e instanceof Error) Object.assign(e, { demoDetail: `${e.name}: ${e.message}`.slice(0, 300) }); throw e; }
+    const executeConDiagnosi = async (progress?: (stage: QuoteProgress) => void, draft?: Parameters<typeof execute>[1]) => {
+      const attivita = experiment ? undefined : avviaAttivitaAi(db, {
+        companyId: request.companyId, userId, flusso: "preventivo", fase: "richiesta_ricevuta",
+        richiesta: { tipo: "preventivo", id: request.sessionId },
+      });
+      try {
+        const risultato = await execute(fase => {
+          attivita?.passo(fase === "catalogue" ? "listino" : "voci_preventivo");
+          progress?.(fase);
+        }, draft);
+        if (risultato.turn.proposals.length) attivita?.chiudi("in_attesa", "bozza_pronta", risultato.model);
+        else attivita?.chiudi("completata", "risposta_preventivo", risultato.model);
+        return risultato;
+      } catch (e) {
+        attivita?.chiudi("errore", "errore");
+        if (request.companyId === QUOTE_DEMO_COMPANY && req.headers.get('x-quote-debug') === '1' && e instanceof Error) Object.assign(e, { demoDetail: `${e.name}: ${e.message}`.slice(0, 300) });
+        throw e;
+      }
     };
     if (req.headers.get('accept')?.includes('text/event-stream')) return quoteEventResponse(executeConDiagnosi, { turnId: request.turnId, revision: request.revision }, req.signal, headers);
     return jsonResponse(await executeConDiagnosi(), 200, headers);

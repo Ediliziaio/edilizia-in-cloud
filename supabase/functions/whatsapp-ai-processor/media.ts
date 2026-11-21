@@ -21,7 +21,7 @@ export class CreditoTrascrizioneEsaurito extends Error {
   constructor(public messaggio: string) { super(messaggio); this.name = "CreditoTrascrizioneEsaurito"; }
 }
 import { bytesToBase64 } from "../_shared/base64.ts";
-import { normalizzaDdtLetto, sembraDdtDallaDidascalia, testoDdtPerAssistente } from "../_shared/ddtLetto.ts";
+import { normalizzaDdtLetto, testoDdtPerAssistente, type DdtLetto } from "../_shared/ddtLetto.ts";
 import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
 import { PROMPT_LETTORE_DDT, parteFileDdt } from "../_shared/lettoreDdt.ts";
 import { acquisisciDdtWhatsapp } from "../_shared/ddtWhatsappPersistente.ts";
@@ -89,7 +89,7 @@ export interface MessaggioConMedia {
 export async function scaricaMediaDelMessaggio(
   supabase: SupabaseClient,
   msg: MessaggioConMedia,
-): Promise<{ storagePath: string; url: string } | null> {
+): Promise<{ storagePath: string; url: string; file?: Blob } | null> {
   const url = String(msg.media_url ?? "");
   if (msg.media_storage_path) return { storagePath: msg.media_storage_path, url };
   if (!url.startsWith("wa-media://")) return null;
@@ -106,7 +106,7 @@ export async function scaricaMediaDelMessaggio(
     .update({ media_storage_path: storagePath, media_url: publicUrl })
     .eq("id", msg.id).eq("company_id", msg.company_id).eq("wa_number_id", msg.wa_number_id!);
   if (error) throw new Error("media_salvataggio_non_confermato");
-  return { storagePath, url: publicUrl };
+  return { storagePath, url: publicUrl, file: new Blob([new Uint8Array(bytes)], { type: mimeType }) };
 }
 
 export async function transcribeAudio(
@@ -114,6 +114,7 @@ export async function transcribeAudio(
   storagePath: string,
   prompt?: string,
   addebito?: { companyId: string | null; messageId: string },
+  originale?: Blob,
 ): Promise<{ testo: string; lingua: string | null }> {
   // Credito PRIMA di Whisper, come detta-testo (revisione del 15/11/2026).
   if (addebito?.companyId) {
@@ -121,7 +122,7 @@ export async function transcribeAudio(
     if (!pre.allow) throw new CreditoTrascrizioneEsaurito(pre.user_message_it || "Crediti AI esauriti");
   }
   const bucket = "whatsapp-media";
-  const { data, error } = await supabase.storage.from(bucket).download(storagePath);
+  const { data, error } = originale ? { data: originale, error: null } : await supabase.storage.from(bucket).download(storagePath);
   if (error || !data) throw new Error(`Audio download failed: ${error?.message}`);
   const bytes = new Uint8Array(await data.arrayBuffer());
   const { testo, lingua, durata } = await transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg", prompt);
@@ -191,10 +192,13 @@ export async function analyzeImage(
 // Stesso prompt di ai-ddt-analyzer (lettore DDT dell'app, task ddt_ocr).
 
 
-const PROMPT_FOTO =
-  "Guarda l'immagine. Nella PRIMA riga scrivi solo DDT se riconosci una bolla o un documento di trasporto, " +
-  "DOCUMENTO per altri documenti scritti, altrimenti FOTO. " +
-  "Dalla seconda riga descrivi in italiano, in 2-4 righe, cosa si vede: lavori, materiali, problemi visibili.";
+const PROMPT_FOTO = conRegoleDocumento(
+  "Guarda l'immagine. Nella PRIMA riga scrivi solo DDT per una bolla di trasporto, SCONTRINO per una ricevuta o uno scontrino fiscale, " +
+  "DOCUMENTO per altri documenti scritti, FOTO per una scena riconoscibile, INCERTO se il contenuto non è leggibile. " +
+  "Dalla seconda riga descrivi brevemente in italiano quello che vedi.",
+);
+const DDT_DICHIARATO = /\b(?:ddt|bolla|documento di trasporto)\b/i;
+const SCONTRINO_DICHIARATO = /\b(?:scontrino|ricevuta fiscale)\b/i;
 
 interface OpzioniDocumentoOperativo {
   storagePath: string;
@@ -204,7 +208,9 @@ interface OpzioniDocumentoOperativo {
   acquisizioneConsentita?: boolean;
   didascalia: string | null;
   messageId: string;
-  ricordaBolla?: (id: string) => void;
+  file?: Blob;
+  ricordaBolla?: (id: string, stato?: string) => void;
+  ricordaScontrino?: (lettura?: DdtLetto) => void;
 }
 
 async function salvaBollaOperativa(supabase: SupabaseClient, opts: OpzioniDocumentoOperativo,
@@ -212,7 +218,7 @@ async function salvaBollaOperativa(supabase: SupabaseClient, opts: OpzioniDocume
   if (opts.acquisizioneConsentita === false) return false;
   try {
     const bolla = await acquisisciDdtWhatsapp(supabase, { ...opts, ...dati });
-    if (bolla.stessoOperatore) opts.ricordaBolla?.(bolla.id);
+    if (bolla.stessoOperatore) opts.ricordaBolla?.(bolla.id, bolla.status);
     return true;
   } catch {
     console.warn("[ddt-whatsapp] acquisizione non confermata", { message_id: opts.messageId });
@@ -230,22 +236,18 @@ export async function leggiFotoOperativa(
   supabase: SupabaseClient,
   opts: OpzioniDocumentoOperativo,
 ): Promise<string> {
-  const { data: file, error } = await supabase.storage.from("whatsapp-media").download(opts.storagePath);
+  const { data: file, error } = opts.file ? { data: opts.file, error: null } : await supabase.storage.from("whatsapp-media").download(opts.storagePath);
   if (error || !file) throw new Error(error?.message ?? "foto non scaricabile");
   const didascalia = opts.didascalia?.trim() || null;
-  const ddtDichiarato = sembraDdtDallaDidascalia(didascalia);
+  const scontrinoDichiarato = SCONTRINO_DICHIARATO.test(didascalia ?? "");
+  const ddtDichiarato = !scontrinoDichiarato && DDT_DICHIARATO.test(didascalia ?? "");
   const bozzaDdT = `[Foto di un DDT — da leggere]\n\nTesto dell'utente: ${didascalia ?? "(nessuno)"}`;
-  let salvata = ddtDichiarato && await salvaBollaOperativa(supabase, opts, { file, primaDellaLettura: true });
+  if (ddtDichiarato && await salvaBollaOperativa(supabase, opts, { file, accodaLettura: true })) return bozzaDdT;
   let bytesFoto = new Uint8Array(await file.arrayBuffer());
   let mimeFoto = file.type || "image/jpeg";
   if (/hei[cf]/i.test(mimeFoto) || /\.hei[cf]$/i.test(opts.storagePath)) {
-    try {
-      const { heicInJpeg } = await import("../_shared/conversioneHeic.ts");
-      bytesFoto = new Uint8Array(await heicInJpeg(bytesFoto)); mimeFoto = "image/jpeg";
-    } catch (errore) {
-      if (salvata) return bozzaDdT;
-      throw errore;
-    }
+    const { heicInJpeg } = await import("../_shared/conversioneHeic.ts");
+    bytesFoto = new Uint8Array(await heicInJpeg(bytesFoto)); mimeFoto = "image/jpeg";
   }
   const immagine = `data:${mimeFoto};base64,${bytesToBase64(bytesFoto)}`;
 
@@ -271,11 +273,14 @@ export async function leggiFotoOperativa(
     const [prima, ...resto] = out.split("\n");
     descrizione = resto.join("\n").trim() || out;
     if (/^DDT\b/i.test(prima ?? "")) return "ddt";
+    if (/^SCONTRINO\b/i.test(prima ?? "")) return "scontrino";
+    if (/^INCERTO\b/i.test(prima ?? "") || !out) return "incerto";
     return /documento/i.test(prima ?? "") ? "documento" : "foto";
   };
 
-  const tipoFoto = ddtDichiarato ? "ddt" : await descrivi();
-  if (tipoFoto === "ddt" && !salvata) salvata = await salvaBollaOperativa(supabase, opts, { file, primaDellaLettura: true });
+  const tipoFoto = ddtDichiarato ? "ddt" : scontrinoDichiarato ? "scontrino" : await descrivi();
+  if (tipoFoto === "ddt" && await salvaBollaOperativa(supabase, opts, { file, accodaLettura: true })) return bozzaDdT;
+  if (tipoFoto === "incerto") return "[Allegato WhatsApp da smistare]";
   if (tipoFoto !== "foto") {
     try {
       const letto = await aiRouterComplete({
@@ -286,7 +291,7 @@ export async function leggiFotoOperativa(
           {
             role: "user",
             content: [
-              { type: "text", text: "Estrai fornitore, numero/data DDT e tutte le righe prodotto da questo documento di trasporto." },
+              { type: "text", text: "Identifica il tipo del documento. Leggi esercente/fornitore, data, totale pagato e righe visibili. Mantieni assenti i dati illeggibili." },
               { type: "image_url", image_url: { url: immagine } },
             ],
           },
@@ -300,16 +305,22 @@ export async function leggiFotoOperativa(
       const raw = JSON.parse(letto.content);
       const documentoLetto = normalizzaDdtLetto(raw);
       if (documentoLetto.tipo === "ddt") {
-        salvata = await salvaBollaOperativa(supabase, opts, { file, result: raw }) || salvata;
+        await salvaBollaOperativa(supabase, opts, { file, result: raw });
       }
-      if (salvata && documentoLetto.tipo !== "ddt") return bozzaDdT;
-      const testo = testoDdtPerAssistente(documentoLetto, didascalia);
+      if (documentoLetto.tipo === "scontrino" || (tipoFoto === "scontrino" && !documentoLetto.tipo)) {
+        opts.ricordaScontrino?.(documentoLetto);
+        return testoDdtPerAssistente({ ...documentoLetto, tipo: "scontrino" }, didascalia) ?? "[Scontrino ricevuto — totale da verificare]";
+      }
+      const testo = documentoLetto.tipo && documentoLetto.tipo !== "altro" ? testoDdtPerAssistente(documentoLetto, didascalia) : null;
       if (testo) return testo;
     } catch (e) {
       console.error(JSON.stringify({ level: "error", fn: "leggi_ddt", error: String(e) }));
     }
-    if (salvata) return bozzaDdT;
-    if (!descrizione) await descrivi().catch(() => false);
+    if (tipoFoto === "scontrino") {
+      opts.ricordaScontrino?.();
+      return "[Scontrino ricevuto — totale da verificare]";
+    }
+    return "[Allegato WhatsApp da smistare]";
   }
   return `[Foto — cosa si vede]: ${descrizione || "non sono riuscito a vederla bene"}\n\nTesto dell'utente: ${didascalia ?? "(nessuno)"}`;
 }
@@ -333,14 +344,15 @@ export async function leggiDocumentoOperativo(
   if (!isPdf) {
     return leggiFotoOperativa(supabase, opts);
   }
-  const ddtDichiarato = sembraDdtDallaDidascalia(opts.didascalia);
-  const download = () => supabase.storage.from("whatsapp-media").download(opts.storagePath);
+  const ddtDichiarato = !SCONTRINO_DICHIARATO.test(opts.didascalia ?? "") && DDT_DICHIARATO.test(opts.didascalia ?? "");
+  const download = () => opts.file ? Promise.resolve({ data: opts.file, error: null }) : supabase.storage.from("whatsapp-media").download(opts.storagePath);
   const anticipato = ddtDichiarato ? await download() : null;
   const fileIniziale = anticipato?.error ? null : anticipato?.data;
   const limite = 18 * 1024 * 1024;
   const troppoGrande = "[Documento PDF ricevuto: non sono riuscito a leggerlo perché supera il limite di 18 MB. Invia un PDF più piccolo.]";
   if (fileIniziale && fileIniziale.size > limite) return troppoGrande;
-  const salvata = !!fileIniziale && await salvaBollaOperativa(supabase, opts, { file: fileIniziale, primaDellaLettura: true });
+  const salvata = !!fileIniziale && await salvaBollaOperativa(supabase, opts, { file: fileIniziale, accodaLettura: true });
+  if (salvata) return `[Documento PDF — DDT da leggere]\n\nTesto dell'utente: ${opts.didascalia}`;
   const base = Deno.env.get("SUPABASE_URL")!;
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   let testo = "";
@@ -383,14 +395,12 @@ export async function leggiDocumentoOperativo(
       const raw = JSON.parse(letto.content);
       const documento = normalizzaDdtLetto(raw);
       if (documento.tipo === "ddt") await salvaBollaOperativa(supabase, opts, { file, result: raw });
-      if (!salvata || documento.tipo === "ddt") {
-        const risultato = testoDdtPerAssistente(documento, opts.didascalia);
-        if (risultato) return risultato;
-      }
+      if (documento.tipo === "scontrino") opts.ricordaScontrino?.(documento);
+      const risultato = documento.tipo && documento.tipo !== "altro" ? testoDdtPerAssistente(documento, opts.didascalia) : null;
+      if (risultato) return risultato;
     } catch (e) {
       console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf_vision", error: String(e) }));
     }
-    if (salvata) return `[Documento PDF — DDT da leggere]\n\nTesto dell'utente: ${opts.didascalia}`;
     return `[Documento PDF ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
   }
   const etichetta: Record<string, string> = {
@@ -401,6 +411,8 @@ export async function leggiDocumentoOperativo(
     altro: "documento",
   };
   const tipo = tipoDocumento(testo, opts.didascalia);
-  if (tipo === "ddt") await salvaBollaOperativa(supabase, opts, { file: fileIniziale ?? undefined, accodaLettura: salvata });
+  if (tipo === "altro" && !opts.didascalia) return "[Allegato WhatsApp da smistare]";
+  if (tipo === "ddt") await salvaBollaOperativa(supabase, opts, { file: fileIniziale ?? opts.file, accodaLettura: true });
+  if (tipo === "scontrino") opts.ricordaScontrino?.();
   return `[Documento PDF — ${etichetta[tipo]}, testo letto]:\n${testo}\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
 }

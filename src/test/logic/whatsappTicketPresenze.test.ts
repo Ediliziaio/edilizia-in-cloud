@@ -53,7 +53,7 @@ describe("un problema in cantiere", () => {
     // Solo chi è di questa azienda e ha l'app sul telefono.
     expect(push.map((c) => c.args.p_user_ids)).toEqual([["ufficio-1"]]);
     expect(push[0].args).toMatchObject({ p_title: "Urgente: problema dal cantiere", p_url: `https://app.local/azienda/assistenza/${db.tabelle.tickets[0].id}` });
-    expect(esito.user_message).toContain("L'ufficio l'ha ricevuta adesso");
+    expect(esito.user_message).toContain("Ticket aperto in Assistenza");
     expect(db.tabelle.cantiere_segnalazioni ?? []).toHaveLength(0);
   });
 

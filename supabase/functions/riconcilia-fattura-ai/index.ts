@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { avviaAttivitaAi, type AttivitaLive } from "../_shared/aiAttivitaLive.ts";
 import {
   preparaRichiestaRiconciliazione,
   validaPropostaRiconciliazione,
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST")
     return json({ error: "Metodo non consentito." }, 405);
+  let attivita: AttivitaLive | undefined;
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     if (Number(req.headers.get("content-length") ?? 0) > 16_000)
@@ -108,6 +110,10 @@ Deno.serve(async (req) => {
         }
       : context.contesto;
     const companyId = context.contesto.fattura.company_id;
+    const richiesta = { tipo: "riconciliazione" as const, id: input.richiesta_id, risorsa_id: input.fattura_id };
+    const traccia = () => esempio ? undefined : (attivita ??= avviaAttivitaAi(supabaseAdmin, {
+      companyId, userId, flusso: "riconciliazione", fase: "confronto_documenti", richiesta,
+    }));
     // Soglie dell'azienda (Impostazioni → Automazioni, 16/11/2026). Con i valori di partenza
     // l'impronta resta quella di prima, così le analisi già salvate valgono ancora.
     const { data: soglie } = await supabaseAdmin.rpc("azienda_soglie_automazioni", { p_company: companyId });
@@ -124,13 +130,20 @@ Deno.serve(async (req) => {
       .eq("impronta", impronta)
       .maybeSingle();
     if (cacheError) throw cacheError;
-    if (cached && !esempio)
+    if (cached && !esempio) {
+      const monitor = traccia();
+      monitor?.collegaRichiesta({ ...richiesta, esito_id: cached.id });
+      const daVerificare = !cached.rivista_il && Array.isArray(cached.esiti)
+        && cached.esiti.some((e: { stato?: string }) => e.stato !== "coerente");
+      monitor?.chiudi(daVerificare ? "in_attesa" : "completata", "analisi_riusata");
       return json({ analisi: cached, riutilizzata: true });
+    }
     let proposta: PropostaRiconciliazione, modello: string;
     // Prima le regole (codice, descrizione, quantità, equivalenze e conversioni confermate):
     // se chiudono TUTTE le righe, l'AI non si chiama e non si paga; altrimenti riceve solo le altre.
     const regole = esempio ? null : propostaDaRegole(c, { tolleranze });
     if (regole?.proposta) {
+      traccia();
       proposta = validaPropostaRiconciliazione(regole.proposta, c);
       modello = MODELLO_REGOLE;
       await registraEsitoLavoroAi(supabaseAdmin, {
@@ -147,15 +160,26 @@ Deno.serve(async (req) => {
         userId,
         verifica: async () => (await leggi()).impronta === context.impronta,
         chiuse,
+        onAnalisi: (progresso, modello) => {
+          const monitor = traccia();
+          monitor?.avanzamento(progresso);
+          monitor?.passo("confronto_ai", modello);
+        },
       });
-      if (lotto.avanzamento) return json(lotto);
+      if (lotto.avanzamento) {
+        attivita?.avanzamento(lotto.avanzamento);
+        attivita?.chiudi("in_attesa", "prossimo_lotto");
+        return json(lotto);
+      }
       proposta = lotto.proposta!;
       modello = lotto.modello!;
+      const totaleLotti = pianificaLotti(c, chiuse).length;
+      traccia()?.avanzamento({ completati: totaleLotti, totale: totaleLotti });
       if (!esempio)
         await registraEsitoLavoroAi(supabaseAdmin, {
           companyId, flusso: "fattura_riconcilia_righe", chiave: `${input.fattura_id}:${impronta}`, esito: "con_ai",
           // Una chiamata per lotto (30 righe per volta), non una per fattura.
-          chiamateAi: Math.max(1, pianificaLotti(c, chiuse).length),
+          chiamateAi: Math.max(1, totaleLotti),
           motivo: regole ? `regole: ${regole.chiuse}/${regole.righe} righe, all'AI le altre; ${regole.motivo ?? ""}`.slice(0, 300) : null,
         });
     } else {
@@ -211,6 +235,7 @@ Deno.serve(async (req) => {
         },
         409,
       );
+    attivita?.passo("salvataggio", modello);
     const { error: insertError } = await supabaseAdmin
       .from("fattura_riconciliazioni_ai")
       .upsert(
@@ -238,6 +263,8 @@ Deno.serve(async (req) => {
       .eq("impronta", impronta)
       .single();
     if (error) throw error;
+    attivita?.collegaRichiesta({ ...richiesta, esito_id: analisi.id });
+    attivita?.chiudi(!analisi.rivista_il && esiti.some(e => e.stato !== "coerente") ? "in_attesa" : "completata", "analisi_salvata");
     return json({ analisi, riutilizzata: false });
   } catch (e) {
     if (e instanceof Response) return e;
@@ -255,6 +282,8 @@ Deno.serve(async (req) => {
       },
       error.status ?? (error.code === "42501" ? 403 : 500),
     );
+  } finally {
+    attivita?.chiudi("errore", "errore");
   }
 });
 

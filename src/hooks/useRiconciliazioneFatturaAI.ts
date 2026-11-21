@@ -24,17 +24,20 @@ export interface AnalisiFatturaAI {
 export function useUltimaSelezioneConfrontoAI(
   companyId: string,
   fatturaId: string,
+  analisiId?: string,
 ) {
   return useQuery({
-    queryKey: ["fattura-riconciliazione-ai-selezione", companyId, fatturaId],
+    queryKey: ["fattura-riconciliazione-ai-selezione", companyId, fatturaId, analisiId],
     staleTime: 15_000,
     retry: false,
     queryFn: async () => {
-      const { data, error } = await db
+      let selezione = db
         .from("fattura_riconciliazioni_ai")
         .select("documenti")
         .eq("company_id", companyId)
-        .eq("fattura_id", fatturaId)
+        .eq("fattura_id", fatturaId);
+      if (analisiId) selezione = selezione.eq("id", analisiId);
+      const { data, error } = await selezione
         .order("created_at", { ascending: false })
         .order("id")
         .limit(1)
@@ -52,11 +55,13 @@ export function useRiconciliazioneFatturaAI({
   fatturaId,
   documenti,
   revisioneDati,
+  analisiId,
 }: {
   companyId: string;
   fatturaId: string;
   documenti: { ddt: string[]; oda: string[] };
   revisioneDati: string;
+  analisiId?: string;
 }) {
   const qc = useQueryClient();
   const [avanzamento, setAvanzamento] = useState<{
@@ -73,7 +78,7 @@ export function useRiconciliazioneFatturaAI({
   );
   const key = ["fattura-riconciliazione-ai", companyId, fatturaId];
   const dati = useQuery({
-    queryKey: [...key, documenti, revisioneDati],
+    queryKey: [...key, documenti, revisioneDati, analisiId],
     enabled: !!companyId && documenti.ddt.length + documenti.oda.length > 0,
     retry: false,
     staleTime: 15_000,
@@ -88,15 +93,16 @@ export function useRiconciliazioneFatturaAI({
         impronta: string;
         puo_modificare: boolean;
       };
-      const { data, error: erroreAnalisi } = await db
+      let analisi = db
         .from("fattura_riconciliazioni_ai")
         .select(
           "id,impronta,proposta,esiti,decisioni,revisione,rivista_il,created_at,quantita_complete",
         )
         .eq("company_id", companyId)
         .eq("fattura_id", fatturaId)
-        .eq("impronta", context.impronta)
-        .maybeSingle();
+        .eq("impronta", context.impronta);
+      if (analisiId) analisi = analisi.eq("id", analisiId);
+      const { data, error: erroreAnalisi } = await analisi.maybeSingle();
       if (erroreAnalisi) throw erroreAnalisi;
       let superata = false;
       if (!data) {

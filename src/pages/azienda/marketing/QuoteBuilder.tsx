@@ -82,6 +82,7 @@ import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { type QuotePaymentPhase, recalcPhaseAmounts, paymentPlanError } from "@/lib/preventivi/paymentTerms";
 import { readQuoteDraft, serializeQuoteDraft, quoteDraftInputHash, type QuoteDraft } from "@/lib/preventivi/quoteDraft";
+import { idAttivitaValido } from "../../../../shared/aiAttivita";
 import { useBoundedAutosave, useDraftExitFlush } from "@/hooks/useBoundedAutosave";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
@@ -1701,12 +1702,16 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // Il recupero copre anche la modifica di un preventivo già esistente.
   const quoteDraftKey = companyId && !localEditor ? `quote-draft-${companyId}${isEdit ? `-${id}` : ""}` : null;
   const [recoverableDraft, setRecoverableDraft] = useState<QuoteDraft | null>(null);
+  const ambitoRichiestaAi = `${companyId}:${id ?? "nuovo"}`;
+  const [propostaAiUsata, setPropostaAiUsata] = useState<{ ambito: string; id: string } | null>(null);
+  const aiRichiestaId = propostaAiUsata?.ambito === ambitoRichiestaAi ? propostaAiUsata.id : undefined;
   const [localDraftFailed, setLocalDraftFailed] = useState(false);
   const [localDraftSaved, setLocalDraftSaved] = useState(false);
   const draftCheckedRef = useRef<string | null>(null);
   const draftReadFailedRef = useRef(false);
   const draftSnapshot: QuoteDraft = {
     partialQuoteId,
+    aiRichiestaId,
     step, contactId, clientName, clientEmail, clientPhone, clientCompany,
     clientAddress, clientFiscalCode, clientVatNumber, clientCodiceUnivoco, tipoClienteScelto, title, description, validityDays,
     notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
@@ -1811,6 +1816,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     if (!d) return;
     if (d.pdfPrezziRiga !== undefined) pdfDefaultsAppliedRef.current = true;
     if (d.partialQuoteId !== undefined) setPartialQuoteId(d.partialQuoteId);
+    if (idAttivitaValido(d.aiRichiestaId)) setPropostaAiUsata({ ambito: ambitoRichiestaAi, id: d.aiRichiestaId });
     if (d.step !== undefined) setStep(d.step);
     if (d.contactId !== undefined) setContactId(d.contactId);
     if (d.clientName !== undefined) setClientName(d.clientName);
@@ -2278,6 +2284,17 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       if (savedQuoteError) throw savedQuoteError;
       assertSavedQuoteAmounts(savedQuote, { subtotal, discount_amount: discountAmt, vat_amount: vatAmount, total });
       versioneCaricataRef.current = savedQuote.updated_at;
+      if (quoteId && aiRichiestaId && aiRichiestaId !== existingQuote?.ai_richiesta_id) {
+        try {
+          const { data: collegato, error } = await supabase.from("quotes").update({ ai_richiesta_id: aiRichiestaId })
+            .eq("id", quoteId).eq("company_id", companyId).eq("updated_at", savedQuote.updated_at)
+            .select("updated_at").maybeSingle();
+          if (error || !collegato) throw new Error("Collegamento AI non confermato");
+          versioneCaricataRef.current = collegato.updated_at;
+        } catch {
+          console.warn("[preventivi] Collegamento all’attività AI non disponibile");
+        }
+      }
       setLastSavedHash(draftSerialized);
       lastCloudSavedSnapshotRef.current = draftSerialized;
       setAutosaveFailed(false);
@@ -2829,15 +2846,19 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 righe con l'AI dal cantiere è il caso d'uso; lì è compatto. */}
               {companyId && !localEditor && (
               <div>
-              {consentiPreventivoConversazionale(companyId) ? <Suspense fallback={<p role="status">Preparo Silvio AI…</p>}><ClassicWizardAiEntry companyId={companyId} draft={draftSnapshot} preview={livePreviewProps} defaultVat={ivaPredefinita()} onApply={setItems} autoOpen={searchParams.get('ai') === '1' && !aiEntryOpened} onAutoOpened={() => setAiEntryOpened(true)} /></Suspense> : <AIQuotePanel
+              {consentiPreventivoConversazionale(companyId) ? <Suspense fallback={<p role="status">Preparo Silvio AI…</p>}><ClassicWizardAiEntry companyId={companyId} draft={draftSnapshot} preview={livePreviewProps} defaultVat={ivaPredefinita()} onApply={(righe, richiestaId) => {
+                setItems(righe);
+                if (idAttivitaValido(richiestaId)) setPropostaAiUsata({ ambito: ambitoRichiestaAi, id: richiestaId });
+              }} autoOpen={searchParams.get('ai') === '1' && !aiEntryOpened} onAutoOpened={() => setAiEntryOpened(true)} /></Suspense> : <AIQuotePanel
                 key={`${companyId}:${id ?? "nuovo"}`}
                 companyId={companyId}
                 tipoLavoro={tipoLavoro}
                 pianoInstallazione={pianoInstallazione}
-                onRigheGenerate={async (sezioni) => {
+                onRigheGenerate={async (sezioni, richiestaId) => {
                   // One preparation and one state update, including VAT links
                   // across sections. A failure cannot insert half the proposal.
                   await aggiungiSezione("Proposta AI", sezioni.flatMap(sez => sez.righe));
+                  if (idAttivitaValido(richiestaId)) setPropostaAiUsata({ ambito: ambitoRichiestaAi, id: richiestaId });
                 }}
               />}
               </div>

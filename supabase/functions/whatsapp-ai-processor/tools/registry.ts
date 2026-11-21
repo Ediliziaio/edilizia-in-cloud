@@ -32,6 +32,7 @@ import {
   impostaCantiereCorrenteDef,
 } from "./operaio/imposta_cantiere_corrente.ts";
 import { caricaScontrino, caricaScontrinoDef } from "./operaio/carica_scontrino.ts";
+import { segnalaMezzo, segnalaMezzoDef } from "./operaio/segnala_mezzo.ts";
 import { segnaFase, segnaFaseDef } from "./operaio/segna_fase.ts";
 
 // Titolare
@@ -98,6 +99,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
   { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
   { ...caricaScontrinoDef, handler: caricaScontrino as ToolDef["handler"] },
+  { ...segnalaMezzoDef, handler: segnalaMezzo as ToolDef["handler"] },
   { ...segnaFaseDef, handler: segnaFase as ToolDef["handler"] },
 
   // Titolare (7)

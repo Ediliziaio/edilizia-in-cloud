@@ -86,17 +86,24 @@ afterEach(() => {
   for (const c of clients) c.clear();
   clients.length = 0;
 });
-const apri = () => {
+const apri = (documentoId?: string) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
   clients.push(client);
-  return renderHook(() => useDocumentiDDT(false, undefined, false), {
+  return renderHook(() => useDocumentiDDT(false, undefined, !!documentoId, true, documentoId), {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
 };
+it("apre solo la bolla indicata anche se è già registrata o fuori dalla prima pagina", async () => {
+  const registrata = apri(riga(1000).id);
+  await waitFor(() => expect(registrata.result.current.data).toMatchObject([{ id: riga(1000).id, status: "registered" }]));
+  expect(registrata.result.current.data).toHaveLength(1);
+  const estranea = apri(riga(9999).id);
+  await waitFor(() => expect(estranea.result.current.data).toEqual([]));
+});
 it("i 250 DDT già registrati non nascondono i documenti da controllare e la seconda pagina non perde righe con nuovi arrivi", async () => {
   const { result } = apri();
   await waitFor(() => expect(result.current.data).toHaveLength(100));

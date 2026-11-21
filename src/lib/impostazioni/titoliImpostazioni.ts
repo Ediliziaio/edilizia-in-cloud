@@ -29,7 +29,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   crediti:                { title: "Crediti e ricariche",      description: "Il saldo per AI, email, WhatsApp e SMS; la ricarica anche automatica" },
   persone:                { title: "Utenti e permessi",        description: "Utenti e permessi, venditori, dipendenti, subappaltatori, team e commercialista" },
   utenti:                 { title: "Utenti",                   description: "Gestisci gli accessi e i ruoli degli utenti" },
-  "ai-memoria":           { title: "Assistente AI", description: "Controlla la memoria degli assistenti e consulta le conversazioni" },
+  "ai-memoria":           { title: "Assistente AI", description: "Conversazioni, memoria e attività degli assistenti" },
   "ai-automazioni":       { title: "Cosa fa Silvio da solo",   description: "Per ogni azione scegli se Silvio la propone, chiede conferma o la esegue" },
   "silvio-commesse":      { title: "Silvio e le commesse",     description: "Cosa prepara Silvio da solo quando nasce una commessa, e il calendario di cantiere delle sue date" },
   notifiche:              { title: "Notifiche",                description: "Quali avvisi ricevi, su quale dispositivo e in quali orari" },

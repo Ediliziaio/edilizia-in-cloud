@@ -10,7 +10,7 @@ import { wizardAiCommercial } from '@/lib/preventivi/wizardAiCommercial';
 import type { QuoteDraft } from '@/lib/preventivi/quoteDraft';
 import type { QuoteItemPro } from '@/types/quoteItem';
 
-type Props = { companyId: string; draft: QuoteDraft; preview: QuoteLivePreviewProps; defaultVat: number; onApply: (items: QuoteItemPro[]) => void; autoOpen?: boolean; onAutoOpened?: () => void };
+type Props = { companyId: string; draft: QuoteDraft; preview: QuoteLivePreviewProps; defaultVat: number; onApply: (items: QuoteItemPro[], richiestaId?: string) => void; autoOpen?: boolean; onAutoOpened?: () => void };
 export default function ClassicWizardAiEntry(props: Props) {
   const { autoOpen, onAutoOpened } = props;
   const [open, setOpen] = useState(!!autoOpen);
@@ -38,7 +38,11 @@ function ClassicWizardAiSession(props: Props & { open: boolean; onOpenChange: (o
   const reconcile = (doc: typeof seed) => reconcileClassicWizardDraft(base, seed, doc, props.defaultVat);
   return <QuoteWizardAiDialog title={base.title || 'Preventivo classico'} companyId={props.companyId} open={props.open} onOpenChange={props.onOpenChange}
     document={seed} project={project} commercial={{ draft: base, defaultVat: props.defaultVat }} fingerprint={wizardDraftFingerprint([props.draft, props.preview.template, props.defaultVat])} review={doc => reconcile(doc)}
-    onApply={doc => props.onApply(reconcile(doc).items)} preview={doc => {
+    onApply={(doc, _capitoli, richiestaId) => {
+      const { items } = reconcile(doc);
+      if (richiestaId) props.onApply(items, richiestaId);
+      else props.onApply(items);
+    }} preview={doc => {
       try {
         const { items } = reconcile(doc); const commercial = wizardAiCommercial(doc, base, props.defaultVat), totals = commercial.totals;
         return <QuoteLivePreviewPanel {...preview} items={items} subtotal={totals.subtotale} net={totals.subtotale_netto} total={totals.totale} vatBreakdown={totals.iva_breakdown} manualPrice={totals.prezzo_manuale}

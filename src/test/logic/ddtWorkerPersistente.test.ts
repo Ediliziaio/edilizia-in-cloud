@@ -11,12 +11,17 @@ const sha = async (bytes: Uint8Array) =>
   Buffer.from(await webcrypto.subtle.digest("SHA-256", new Uint8Array(bytes))).toString("hex");
 let job: Record<string, unknown>,
   updates: Record<string, unknown>[],
+  tracciati: Record<string, unknown>[],
+  sfondo: Promise<unknown>[],
   download: ReturnType<typeof vi.fn>,
   db: any,
   filtri: Record<string, unknown>;
 beforeEach(async () => {
   vi.stubGlobal("crypto", webcrypto);
   updates = [];
+  tracciati = [];
+  sfondo = [];
+  vi.stubGlobal("EdgeRuntime", { waitUntil: (p: Promise<unknown>) => sfondo.push(p) });
   filtri = {};
   job = {
     id: "job",
@@ -42,8 +47,18 @@ beforeEach(async () => {
   db = {
     rpc: vi.fn().mockResolvedValue({ data: [job], error: null as null }),
     storage: { from: () => ({ download }) },
-    from: vi.fn(() => ({
-      update: (p: Record<string, unknown>) => {
+    from: vi.fn((tabella: string) => {
+      if (tabella === "profiles") return { select: () => ({ eq: () => ({
+        abortSignal: () => ({
+          maybeSingle: async (): Promise<{ data: { first_name: string }; error: null }> => ({
+            data: { first_name: "Paolo" }, error: null,
+          }),
+        }),
+      }) }) };
+      if (tabella === "ai_attivita_live") return { upsert: (p: Record<string, unknown>) => ({
+        abortSignal: async (): Promise<{ error: null }> => { tracciati.push(p); return { error: null }; },
+      }) };
+      return { update: (p: Record<string, unknown>) => {
         updates.push(p);
         const chain: any = {
           eq: (k: string, v: unknown) => {
@@ -54,8 +69,8 @@ beforeEach(async () => {
           then: (resolve: any) => resolve({ error: null as null }),
         };
         return chain;
-      },
-    })),
+      } };
+    }),
   };
   m.ai.mockReset().mockResolvedValue({
     content: JSON.stringify({
@@ -84,7 +99,13 @@ it("salva una lettura recuperabile senza creare DDT, materiali o costi e senza p
     result: { righe_merce: [{ quantita: 2.5, prezzo_unitario_eur: null }] },
   });
   expect(db.from).toHaveBeenCalledWith("ddt_document_jobs");
-  expect(db.from).toHaveBeenCalledTimes(1);
+  await Promise.all(sfondo);
+  expect(db.from.mock.calls.map(([tabella]: [string]) => tabella)
+    .filter((tabella: string) => tabella !== "profiles" && tabella !== "ai_attivita_live")).toEqual(["ddt_document_jobs"]);
+  expect(tracciati.at(-1)).toMatchObject({
+    attore: "Paolo", flusso: "ddt", stato: "in_attesa", fase: "lettura_pronta",
+    passaggi: expect.arrayContaining([expect.objectContaining({ fase: "documento_in_lettura", durata_ms: expect.any(Number) })]),
+  });
   expect(filtri).toMatchObject({
     id: "job",
     lease_id: "lease",

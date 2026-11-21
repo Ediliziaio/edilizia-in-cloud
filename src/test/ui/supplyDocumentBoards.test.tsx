@@ -471,6 +471,24 @@ describe("Colonne dell’elenco documenti", () => {
 });
 
 describe("Elenco DDT operativo", () => {
+  it.each(["review", "registered"] as const)("apre la bolla esatta dall’attività AI con stato %s", (status) => {
+    const id = "10000000-0000-4000-8000-000000000011";
+    const bolla: DocumentoPersistente = {
+      id, company_id: "co", created_by: "u", order_id: null, source: "whatsapp",
+      status, files: [], result: null, created_at: "2026-11-10T12:00:00Z", updated_at: "2026-11-10T12:00:00Z",
+      last_error: null, ddt_id: status === "registered" ? "ddt-registrato" : null,
+    };
+    state.jobs = [
+      { ...bolla, files: [{ name: "Bolla originale.pdf", mime: "application/pdf", path: "co/u/bolla", size: 100 }] },
+      { ...bolla, id: "10000000-0000-4000-8000-000000000012", files: [{ name: "Altra bolla.pdf", mime: "application/pdf", path: "co/u/altra", size: 100 }] },
+    ];
+    open(<DDTRicezioneList />, `/azienda/ordini?tab=ddt&ddt_documento=${id}`, false);
+    expect(screen.getByText("Bolla originale.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Altra bolla.pdf")).not.toBeInTheDocument();
+    if (status === "review") expect(screen.getByRole("button", { name: "Controlla e registra" })).toBeEnabled();
+    else expect(screen.getByRole("link", { name: "Apri il DDT registrato" })).toHaveAttribute("href", "/azienda/ddt/ddt-registrato");
+  });
+
   it("parte dall’elenco, mostra la selezione e lo Stato dopo il numero e apre le azioni dalla riga", async () => {
     state.ddt = [ddt("stato", "ricevuto")];
     open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");

@@ -1,9 +1,12 @@
+import { segnalazioneEsplicita } from "./intentiRapidi.ts";
+
 export type OperationalIntent =
   | "rapportino"
   | "ddt"
   | "foto_cantiere"
   | "presenze"
   | "segnalazione"
+  | "scontrino"
   | "attivita_ufficio"
   | "domanda"
   | "conferma"
@@ -135,6 +138,12 @@ const FALLBACK: Record<OperationalIntent, Omit<Rule, "intent" | "keywords" | "me
     suggested_action: "Apri una segnalazione e assegna il responsabile corretto.",
     priority: "media",
   },
+  scontrino: {
+    route: "Merce presa / spese da verificare",
+    title: "Scontrino o ricevuta",
+    suggested_action: "Completa totale, commessa e pagamento dalla foto originale.",
+    priority: "media",
+  },
   attivita_ufficio: {
     route: "Attività ufficio",
     title: "Richiesta all’ufficio",
@@ -225,9 +234,24 @@ export function classifyOperationalMessage(input: {
   contentText?: string | null;
   messageType?: string | null;
   processingError?: string | null;
+  documento?: "scontrino" | "da_smistare";
 }): OperationalTriage {
   const messageType = input.messageType ?? "text";
   const text = normalizeText([input.contentText, input.processingError].filter(Boolean).join(" "));
+  if (input.documento) {
+    const intent = input.documento === "scontrino" ? "scontrino" : "unknown";
+    return { intent, ...FALLBACK[intent], requires_review: true, confidence: intent === "scontrino" ? 0.9 : 0.42,
+      title: intent === "scontrino" ? FALLBACK.scontrino.title : "Allegato da smistare",
+      summary: input.contentText?.trim() || "Allegato conservato in WhatsApp.", signals: ["documento_in_ingresso"] };
+  }
+  const comando = ["text", "audio"].includes(messageType)
+    ? segnalazioneEsplicita(input.contentText?.replace(/^\[Audio trascritto\]:\s*/i, "") ?? "") : null;
+  if (comando) {
+    const destinazione = comando.mezzo ? "Mezzi e attrezzature" : "Assistenza";
+    return { intent: "segnalazione", confidence: 0.94, priority: comando.urgenza, requires_review: true,
+      route: destinazione, title: comando.mezzo ? "Segnalazione mezzo" : "Ticket cantiere",
+      summary: comando.descrizione, suggested_action: "Verifica la destinazione e salva la segnalazione.", signals: ["richiesta_esplicita"] };
+  }
   let best: { rule: Rule | null; score: number; signals: string[] } = {
     rule: null,
     score: 0,

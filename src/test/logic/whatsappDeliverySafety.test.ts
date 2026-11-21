@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { deliverWhatsAppReply } from "../../../supabase/functions/whatsapp-ai-processor/delivery";
+import { avviaIndicatoreScrittura, deliverWhatsAppReply } from "../../../supabase/functions/whatsapp-ai-processor/delivery";
+import { DbMinimo } from "../helpers/edgeFinto";
 
 describe("WhatsApp reply acceptance — fake transport only", () => {
   beforeEach(() => vi.stubGlobal("Deno", { env: { get: (key: string) => key === "SUPABASE_URL" ? "https://test.invalid" : "not-a-secret" } }));
@@ -26,5 +27,29 @@ describe("WhatsApp reply acceptance — fake transport only", () => {
     const fetcher = vi.fn(async () => { throw new Error("network timeout"); }); vi.stubGlobal("fetch", fetcher);
     await expect(deliverWhatsAppReply({})).rejects.toMatchObject({ reason: "unknown" });
     expect(fetcher).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Indicatore di scrittura WhatsApp", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("usa soltanto il numero Meta che ha ricevuto il messaggio", async () => {
+    const db = new DbMinimo();
+    db.rpcs.resolve_company_feature = () => ({ is_enabled: true });
+    db.tabelle.ai_whatsapp_numbers = [{
+      id: "altra-linea", company_id: "demo", stato: "active", webhook_verified: true,
+      phone_number_id: "654321", access_token_encrypted: "token-fittizio",
+    }];
+    const fetcher = vi.fn();
+    const inCorso: Promise<unknown>[] = [];
+    vi.stubGlobal("Deno", { env: { get: () => "chiave-fittizia" } });
+    vi.stubGlobal("fetch", fetcher);
+    vi.stubGlobal("EdgeRuntime", { waitUntil: (invio: Promise<unknown>) => inCorso.push(invio) });
+    avviaIndicatoreScrittura(db as unknown as Parameters<typeof avviaIndicatoreScrittura>[0], {
+      id: "messaggio", company_id: "demo", wa_number_id: "linea-originale",
+      wa_message_id: "wamid.test", to_phone: "123456", message_type: "text",
+    });
+    await Promise.all(inCorso);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

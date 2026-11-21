@@ -26,7 +26,7 @@ export const creaRapportinoDef: Omit<ToolDef, "handler"> = {
       cantiere_hint: { type: "string", description: "Nome parziale cantiere (es: 'Rossi', 'Via Verdi')." },
       data_lavoro: { type: "string", description: "YYYY-MM-DD, oggi o ieri rispetto al messaggio." },
       persone: {
-        type: "array", maxItems: 30, description: "Per la squadra: ore individuali, nome o io del mittente. Non compilare ore_lavorate se usi persone.",
+        type: "array", maxItems: 30, description: "Per la squadra: ore individuali e nome come detto, anche solo il nome o 'io'. Il gestionale chiede quale persona se il nome è ambiguo. Non compilare ore_lavorate se usi persone.",
         items: { type: "object", properties: { nome: { type: "string" }, ore: { type: "number", minimum: 0, maximum: 24 } },
           required: ["nome", "ore"], additionalProperties: false },
       },

@@ -43,6 +43,7 @@ import { oggiInParole } from "../_shared/oraItaliana.ts";
 import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { avviaAttivitaAi, type AttivitaLive } from "../_shared/aiAttivitaLive.ts";
 import { AiTurnControl, AiTurnLimitError } from "../_shared/aiTurnControl.ts";
 import { AiRequestGuardError, isProviderCreditError } from "../_shared/aiRequestGuard.ts";
 import { bloccoSilvioDaCorpo, bloccoSilvioDaErrore, corpoErroreInvoke, esitoBloccoSilvio, messaggioBloccoSilvio } from "../_shared/silvioBloccoAi.ts";
@@ -431,6 +432,7 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return errorResponse("Method not allowed", 405, corsHeaders);
   const turnControl = new AiTurnControl();
+  let attivita: AttivitaLive | undefined;
 
   try {
     const auth = await requireAuth(req, corsHeaders);
@@ -652,6 +654,10 @@ serve(async (req: Request) => {
     // La scala dei ruoli sta in _shared/ruoloSilvio.ts: la stessa del brief
     // del mattino, che non deve mostrare ciò che qui verrebbe negato.
     const primaryRole = ruoloPrincipaleSilvio(roleList);
+    attivita = avviaAttivitaAi(supabaseAdmin, {
+      companyId, userId, flusso: "silvio", fase: "richiesta_ricevuta",
+    });
+    attivita.passo("memoria");
 
     // ── 4.bis) Tutto cio' che serve al prompt parte ADESSO, insieme ─────
     // Profile, memory, history and permissions start together. Retrieval and
@@ -1546,6 +1552,7 @@ serve(async (req: Request) => {
       if (ultimoPassaggio) messages.push({ role: "user", content: CONCLUDI_ADESSO });
 
       let result;
+      attivita.passo("elaborazione");
       try {
         result = await aiRouterComplete({
           supabase: supabaseAdmin,
@@ -1677,6 +1684,12 @@ serve(async (req: Request) => {
           }
           return { tc, toolName, toolArgs };
         });
+        attivita.passo(
+          chiamate.some(c => c.toolName === "get_quadro_incassi") ? "controllo_incassi"
+            : chiamate.some(c => c.toolName === "crea_preventivo_bozza" || c.toolName === "crea_preventivo_da_foto")
+              ? "voci_preventivo" : "strumenti",
+          result.modelUsed,
+        );
         const risultati = await Promise.all(
           chiamate.map((c) => executeToolWithRouting(c.toolName, c.toolArgs, toolCtx)),
         );
@@ -1999,7 +2012,13 @@ serve(async (req: Request) => {
     if (!insertedMsg) {
       console.error("[silvio-chat] CRITICAL: messaggio AI NON salvato in chat:", insertError);
     }
-    if (insertedMsg) turnControl.markStoredText();
+    if (insertedMsg) {
+      turnControl.markStoredText();
+      attivita.passo("risposta_salvata", lastResult?.modelUsed);
+      if (authorizationDenials.length || executionFailures.length) attivita.chiudi("errore", "errore");
+      else if (toolCallsLog.some(t => t.proposal_id)) attivita.chiudi("in_attesa", "proposta_pronta");
+      else attivita.chiudi("completata", "risposta_salvata");
+    }
     const turnPerformance = turnControl.snapshot();
     console.info("[silvio-chat][performance]", JSON.stringify({
       channel_id: channelId, message_id: insertedMsg?.id ?? null, ...turnPerformance,
@@ -2218,6 +2237,8 @@ serve(async (req: Request) => {
     const blocco = bloccoSilvioDaErrore(err);
     if (blocco) return jsonResponse(blocco.body, blocco.status, corsHeaders);
     return errorResponse(msg, 500, corsHeaders);
+  } finally {
+    attivita?.chiudi("errore", "errore");
   }
 });
 

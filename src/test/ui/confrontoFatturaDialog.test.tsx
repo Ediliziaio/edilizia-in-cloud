@@ -16,6 +16,10 @@ const fake = vi.hoisted(() => ({
   isError: false,
   originali: false,
   salva: vi.fn(),
+  selezioneAnalisi: vi.fn(),
+  datiAnalisi: vi.fn(),
+  analizza: vi.fn(),
+  analisi: null as AnalisiFatturaAI | null,
   contesto: null as ContestoRiconciliazione | null,
   contestoErrore: false,
   contestoInCaricamento: false,
@@ -53,19 +57,20 @@ vi.mock("@/hooks/useConfrontoFattura", () => ({
   }),
 }));
 vi.mock("@/hooks/useRiconciliazioneFatturaAI", () => ({
-  useUltimaSelezioneConfrontoAI: () => ({
-    data: null as { ddt: string[]; oda: string[] } | null,
-  }),
-  useRiconciliazioneFatturaAI: () => ({
-    dati: {
-      data: fake.contesto ? { contesto: fake.contesto, analisi: null as AnalisiFatturaAI | null } : undefined,
-      isError: fake.contestoErrore,
-      isFetching: fake.contestoInCaricamento,
-      error: fake.contestoErrore ? new Error("Residui non disponibili") : null,
-    },
-    analizza: { isPending: false },
-    salva: {},
-  }),
+  useUltimaSelezioneConfrontoAI: (...args: unknown[]) => ({ data: fake.selezioneAnalisi(...args) }),
+  useRiconciliazioneFatturaAI: (opzioni: unknown) => {
+    fake.datiAnalisi(opzioni);
+    return {
+      dati: {
+        data: fake.contesto ? { contesto: fake.contesto, analisi: fake.analisi } : undefined,
+        isError: fake.contestoErrore,
+        isFetching: fake.contestoInCaricamento,
+        error: fake.contestoErrore ? new Error("Residui non disponibili") : null,
+      },
+      analizza: { isPending: false, mutate: fake.analizza },
+      salva: {},
+    };
+  },
 }));
 vi.mock("@/components/fatturazione/VerificaFatturaPill", () => ({
   VerificaFatturaPill: () => <span>Verifica fattura</span>,
@@ -123,6 +128,10 @@ const r = {
 };
 beforeEach(() => {
   fake.contesto = null;
+  fake.analisi = null;
+  fake.selezioneAnalisi.mockReset().mockReturnValue(null);
+  fake.datiAnalisi.mockClear();
+  fake.analizza.mockClear();
   fake.contestoErrore = false;
   fake.contestoInCaricamento = false;
   fake.isError = false;
@@ -177,6 +186,24 @@ const monta = (props = {}) =>
     </QueryClientProvider>,
   );
 describe("confronto affiancato della fattura", () => {
+  it("riapre la revisione indicata da Attività AI con i suoi documenti senza avviare una nuova analisi", () => {
+    const analisiId = "10000000-0000-4000-8000-000000000023";
+    fake.selezioneAnalisi.mockReturnValue({ ddt: ["d"], oda: [] });
+    fake.contesto = {
+      fattura: { id: "f", company_id: "a", fornitore_id: "fornitore", tipo_documento: "TD01", righe: fattura.righe },
+      ddt: [], oda: [], valorizzazioni: [], altre_fatture: [],
+    };
+    fake.analisi = {
+      id: analisiId, impronta: "salvata", proposta: { righe: [], avvisi: [] },
+      esiti: [], decisioni: {}, revisione: 0, rivista_il: null, created_at: "2026-11-21",
+    };
+    monta({ daAttivita: true, analisiDaAprire: analisiId });
+    expect(fake.selezioneAnalisi).toHaveBeenCalledWith("a", "f", analisiId);
+    expect(fake.datiAnalisi).toHaveBeenLastCalledWith(expect.objectContaining({ analisiId, documenti: { ddt: ["d"], oda: [] } }));
+    expect(screen.getByRole("dialog", { name: "Rivedi gli abbinamenti" })).toBeVisible();
+    expect(fake.analizza).not.toHaveBeenCalled();
+  });
+
   it("mostra il residuo fiscale canonico anche quando il caricamento storico non contiene le nuove ripartizioni", () => {
     fake.contesto = {
       fattura: { id: "f", company_id: "a", fornitore_id: "fornitore", tipo_documento: "TD01", righe: fattura.righe },

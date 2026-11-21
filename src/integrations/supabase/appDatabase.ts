@@ -1,4 +1,5 @@
 import type { Database } from "./types";
+import type { AttivitaAi } from "../../../shared/aiAttivita";
 /** Additive contract until the next full generated schema refresh. */
 type Staff = Database["public"]["Tables"]["staff_permissions"];
 type BankPermissions = { can_view_bank_balances: boolean; can_reconcile_bank_transactions: boolean };
@@ -9,6 +10,7 @@ type MediaFolder = Database["public"]["Tables"]["media_library_folders"];
 export type DriveFolderMode = "automatic" | "manual";
 export type DriveFileRow = { id: string; company_id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; shared: boolean; created_by: string | null; created_at: string };
 type Account = Database["public"]["Tables"]["bank_accounts"];
+type Quote = Database["public"]["Tables"]["quotes"];
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
@@ -30,7 +32,18 @@ export type AppDatabase = Omit<Database, "public"> & {
         Returns: { mese: string | null; entrate: number; uscite: number; saldo: number; entry_count: number }[];
       };
     };
-    Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "order_attachments" | "media_library_folders"> & {
+    Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "order_attachments" | "media_library_folders" | "quotes"> & {
+      quotes: Omit<Quote, "Row" | "Insert" | "Update"> & {
+        Row: Quote["Row"] & { ai_richiesta_id: string | null; ai_richiesta_salvata_il: string | null };
+        Insert: Quote["Insert"] & { ai_richiesta_id?: string | null };
+        Update: Quote["Update"] & { ai_richiesta_id?: string | null };
+      };
+      ai_attivita_live: {
+        Row: AttivitaAi;
+        Insert: AttivitaAi;
+        Update: Partial<AttivitaAi>;
+        Relationships: [];
+      };
       media_library_folders: Omit<MediaFolder, "Row" | "Insert" | "Update"> & {
         Row: MediaFolder["Row"] & { mode: DriveFolderMode };
         Insert: MediaFolder["Insert"] & { mode?: DriveFolderMode };

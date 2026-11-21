@@ -6,6 +6,7 @@ export type WhatsAppOperationalIntent =
   | "foto_cantiere"
   | "presenze"
   | "segnalazione"
+  | "scontrino"
   | "attivita_ufficio"
   | "domanda"
   | "conferma"
@@ -146,6 +147,12 @@ const INTENT_COPY: Record<WhatsAppOperationalIntent, Pick<WhatsAppOperationalTri
     route: "Responsabile operativo",
     title: "Segnalazione cantiere",
     suggestedAction: "Apri una segnalazione e assegna il responsabile corretto.",
+    priority: "media",
+  },
+  scontrino: {
+    route: "Merce presa / spese da verificare",
+    title: "Scontrino o ricevuta",
+    suggestedAction: "Completa totale, commessa e pagamento dalla foto originale.",
     priority: "media",
   },
   attivita_ufficio: {

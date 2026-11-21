@@ -343,12 +343,21 @@ describe("rapportino operativo", () => {
     expect(writes).not.toHaveBeenCalled();
   });
 
-  it("chiede nome completo se due operai coincidono e usa l'istante del messaggio in ora italiana", () => {
+  it("segnala gli omonimi da distinguere e usa l'istante del messaggio in ora italiana", () => {
     expect(() => normalizzaPresenze([{ nome: "Marco", ore: 8 }], [...persone, { employee_id: "e4", nome: "Marco Rossi" }])).toThrow("Quale Marco");
     expect(() => normalizzaPresenze([{ nome: "Luca", ore: 4 }], [{ ...persone[2], gia_registrato_da_altri: true }])).toThrow("già registrato");
     expect(giornoRapportinoWhatsapp("oggi", new Date("2026-11-19T23:40Z"))).toBe("2026-11-20");
     expect(giornoRapportinoWhatsapp("ieri", new Date("2026-11-19T23:40Z"))).toBe("2026-11-19");
     expect(() => giornoRapportinoWhatsapp("2026-02-31", new Date())).toThrow("data di lavoro valida");
+  });
+
+  it("mantiene la persona scelta anche quando cambia la squadra", () => {
+    const ore = [{ nome: "Marco", ore: 8 }];
+    const altroMarco = { employee_id: "e4", nome: "Marco Rossi" };
+    expect(normalizzaPresenze(ore, [...persone, altroMarco], [altroMarco.employee_id])).toEqual([
+      { ...altroMarco, ore: 8 },
+    ]);
+    expect(() => normalizzaPresenze(ore, persone, [altroMarco.employee_id])).toThrow("non è più disponibile");
   });
 });
 

@@ -129,7 +129,7 @@ export function RevisioneDocumento({
   );
 }
 
-function VocaleDocumento({ companyId, messageId }: { companyId: string; messageId: string }) {
+export function VocaleDocumento({ companyId, messageId }: { companyId: string; messageId: string }) {
   const { user } = useAuth();
   const [aperto, setAperto] = useState(false);
   const { data, isFetching, isError } = useQuery({

@@ -1,13 +1,14 @@
 import { aiRequestHash } from "../_shared/aiRequestGuard.ts";
-import type { CantiereDaScegliere, ConfermaAttesa } from "../_shared/botOperativoConferme.ts";
+import type { CantiereDaScegliere, ConfermaAttesa, PersoneRapportinoAttesa } from "../_shared/botOperativoConferme.ts";
 import type { ToolCtx } from "./tools/shared/types.ts";
 import { sceltaCantiere, cantiereDalTesto } from "./tools/shared/sceltaCantiere.ts";
 import { cantieriInOrdine, cercaCommesseUfficio } from "./tools/shared/cantieriAperti.ts";
 import { descriviFattura } from "./tools/ufficio/assegna_fattura.ts";
-import { giornoRapportinoWhatsapp, verificaContestoRapportino, type OrePersona } from "./tools/operaio/rapportinoSquadra.ts";
+import { giornoRapportinoWhatsapp, NomeRapportinoAmbiguo, verificaContestoRapportino, type OrePersona } from "./tools/operaio/rapportinoSquadra.ts";
 import { preparaAttivitaUfficio } from "./tools/operaio/crea_attivita_ufficio.ts";
 import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
-import { buildInteractivePayload } from "./interactive.ts";
+import { buildInteractivePayload, idRispostaInterattiva } from "./interactive.ts";
+import { elencoPersoneRapportino } from "./sceltaPersonaRapportino.ts";
 import { isEdileDraftModel, validEdileReview } from "../_shared/edileQuoteDraft.ts";
 
 /** Only messages constructed here are safe to expose, never raw DB errors. */
@@ -25,9 +26,9 @@ export function canonicalJson(value: unknown): string {
   return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
 }
 
-export function confirmationHash(action: string, args: Record<string, unknown>, media: unknown, cantieri?: CantiereDaScegliere[]): Promise<string> {
+export function confirmationHash(action: string, args: Record<string, unknown>, media: unknown, cantieri?: CantiereDaScegliere[], rapportino?: PersoneRapportinoAttesa): Promise<string> {
   // I cantieri fra cui scegliere fanno parte di ciò che si approva: la scelta non può uscire dall'elenco.
-  return aiRequestHash(canonicalJson({ action, args, media: media ?? null, ...(cantieri?.length ? { cantieri } : {}) }));
+  return aiRequestHash(canonicalJson({ action, args, media: media ?? null, ...(cantieri?.length ? { cantieri } : {}), ...(rapportino ? { rapportino } : {}) }));
 }
 
 const names: Record<string, string> = {
@@ -275,18 +276,26 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
       cantieri = cantieri.slice(0, MAX_CANTIERI_IN_ELENCO);
     }
   }
+  let rapportino: PersoneRapportinoAttesa | undefined;
+  let anteprimaPersone: OrePersona[] | undefined;
   if (action === "crea_rapportino") {
     const ricevuto = ctx.sentAt ? new Date(ctx.sentAt) : now;
+    const persone = Array.isArray(args.persone) ? args.persone as OrePersona[] : undefined;
     try {
       const data = giornoRapportinoWhatsapp(typeof args.data_lavoro === "string" ? args.data_lavoro : undefined, ricevuto, /^ieri\b/i.test(ctx.transcript ?? ""));
       args.data_lavoro = data;
       if (args.order_id) {
-        const persone = Array.isArray(args.persone) ? args.persone as OrePersona[] : undefined;
         const verificate = await verificaContestoRapportino(ctx, String(args.order_id), data, persone);
-        if (persone?.length) args.persone = verificate.presenze?.map(p => ({ nome: p.nome, ore: p.ore })) ?? [];
+        if (verificate.presenze?.length) {
+          anteprimaPersone = verificate.presenze.map((p, i) => ({ nome: verificate.nomiPerRiepilogo?.[i] ?? p.nome, ore: p.ore }));
+          rapportino = { identificativi: verificate.presenze.map(p => p.employee_id) };
+        }
       }
     } catch (e) {
-      throw new ConfirmationReviewError("dati_rapportino_da_chiarire", e instanceof Error ? e.message : "Verifica data e operai del rapportino.");
+      if (!(e instanceof NomeRapportinoAmbiguo) || !persone) {
+        throw new ConfirmationReviewError("dati_rapportino_da_chiarire", e instanceof Error ? e.message : "Verifica data e operai del rapportino.");
+      }
+      rapportino = { identificativi: persone.map((_, i) => ctx.rapportinoPersoneIds?.[i] ?? null), scelta: e.scelta };
     }
   }
   if (args.order_id) {
@@ -315,13 +324,18 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
   const pending: ConfermaAttesa = {
     azione: action, proposta_id: null, chiesta_il: now.toISOString(), numero_id: ctx.waNumberId,
     id: crypto.randomUUID(), parametri: args, media, source_message_id: sourceMessageId,
-    payload_hash: await confirmationHash(action, args, media, cantieri),
+    payload_hash: await confirmationHash(action, args, media, cantieri, rapportino),
     ...(cantieri ? { cantieri } : {}),
+    ...(rapportino ? { rapportino } : {}),
   };
-  // Cantiere da scegliere: l'elenco stesso è la domanda, toccare un cantiere conferma.
+  if (rapportino?.scelta) return { pending, interactive: elencoPersoneRapportino(pending) };
+  // Per la squadra si mostrano le identità dopo aver risolto il cantiere.
   if (!args.order_id && cantieri?.length) {
+    const domanda = action === "crea_rapportino" && Array.isArray(args.persone) && args.persone.length
+      ? "Scegli il cantiere. Poi ti mostro le ore per persona da confermare."
+      : "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.";
     return { pending: { ...pending, lista_mostrata: true }, interactive: elencoCantieri(pending,
-      riepilogoConCantiere(action, args, descrizioneAllegato(media), "Su quale cantiere? Scegli dall'elenco: la scelta vale come conferma.")
+      riepilogoConCantiere(action, args, descrizioneAllegato(media), domanda)
         ?? confirmationPreview(action, args, undefined, media, quoteReview)) };
   }
   // Preventivo (18/10/2026): tutte le voci, anche quando sono tante. Se non
@@ -330,17 +344,18 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
   // copre le voci esatte: si approva proprio quell'elenco.
   if (action === "salva_preventivo_bozza") {
     const r = riepilogoPreventivo(args);
-    const completo = [r.intestazione, ...r.righe, r.totali, "", "Salvo questa bozza? Nulla viene inviato al cliente."].join("\n");
-    const bottoni = [{ id: `approve:${pending.id}`, title: "Sì, salva" }, { id: `reject:${pending.id}`, title: "No" }];
+    const conferma = args.invia_pdf_qui === true ? "Salvo la bozza e ti mando il PDF in questa chat?" : "Salvo questa bozza? Nulla viene inviato al cliente.";
+    const completo = [r.intestazione, ...r.righe, r.totali, "", conferma].join("\n");
+    const bottoni = [{ id: `approve:${pending.id}`, title: args.invia_pdf_qui === true ? "Salva e mandami PDF" : "Sì, salva" }, { id: `reject:${pending.id}`, title: "No" }];
     if (completo.length <= 1024) return { pending, interactive: buildInteractivePayload(completo, bottoni) };
     return {
       pending,
       preambolo: aPezzi([r.intestazione, ...r.righe, r.totali], 3500),
       interactive: buildInteractivePayload(
-        `Salvo la bozza per ${r.cliente}: ${r.numero} voci (le trovi qui sopra), ${r.totaliBrevi}. Nulla viene inviato al cliente.`, bottoni),
+        `${r.cliente} · ${r.numero} voci (qui sopra) · ${r.totaliBrevi}. ${conferma}`, bottoni),
     };
   }
-  const preview = confirmationPreview(action, args, siteName, media, quoteReview, oggettoRichiesta);
+  const preview = confirmationPreview(action, anteprimaPersone ? { ...args, persone: anteprimaPersone } : args, siteName, media, quoteReview, oggettoRichiesta);
   const altri = (cantieri ?? []).filter((c) => c.id !== args.order_id);
   return { pending, interactive: buildInteractivePayload(preview, [
     { id: `approve:${pending.id}`, title: "Sì" },
@@ -350,7 +365,7 @@ export async function freezeConfirmation(ctx: ToolCtx, action: string, input: Re
 }
 
 /** Le azioni che vanno su un cantiere. */
-export const AZIONI_CON_CANTIERE = new Set(["crea_rapportino", "carica_ddt", "carica_scontrino", "segna_fase", "assegna_fattura", "crea_attivita_ufficio"]);
+export const AZIONI_CON_CANTIERE = new Set(["crea_rapportino", "carica_ddt", "carica_scontrino", "carica_foto_cantiere", "segna_fase", "assegna_fattura", "crea_attivita_ufficio"]);
 /** Nove cantieri più la riga «Annulla»: il massimo di una lista WhatsApp è dieci. */
 export const MAX_CANTIERI_IN_ELENCO = 9;
 
@@ -376,8 +391,7 @@ export type RispostaCantiere = { tipo: "cantiere"; order_id: string } | { tipo: 
 export function rispostaCantiere(pending: ConfermaAttesa | null, metadata: unknown, messageType: string, testoRisposta: string): RispostaCantiere {
   if (!pending?.id || !pending.cantieri?.length) return null;
   if (messageType === "interactive") {
-    const record = metadata as { interactive?: { button_reply?: { id?: string }; list_reply?: { id?: string } } } | null;
-    const id = record?.interactive?.button_reply?.id ?? record?.interactive?.list_reply?.id ?? "";
+    const id = idRispostaInterattiva(metadata) ?? "";
     if (id === `other:${pending.id}`) return { tipo: "altro" };
     const m = id.match(/^site:([^:]+):(\d+)$/);
     if (m && m[1] === pending.id) {
@@ -395,15 +409,15 @@ export function rispostaCantiere(pending: ConfermaAttesa | null, metadata: unkno
 
 export function confirmationReplyMatches(pending: ConfermaAttesa | null, metadata: unknown, messageType: string): boolean {
   if (messageType !== "interactive") return true;
-  const record = metadata as { interactive?: { button_reply?: { id?: string }; list_reply?: { id?: string } } } | null;
-  const id = record?.interactive?.button_reply?.id ?? record?.interactive?.list_reply?.id;
+  const id = idRispostaInterattiva(metadata);
   return !!pending?.id && (id === `approve:${pending.id}` || id === `reject:${pending.id}`
-    || id === `other:${pending.id}` || (id ?? "").startsWith(`site:${pending.id}:`));
+    || id === `other:${pending.id}` || (id ?? "").startsWith(`site:${pending.id}:`)
+    || (!!pending.rapportino?.scelta && (id ?? "").startsWith(`person:${pending.id}:`)));
 }
 
 export async function frozenConfirmationValid(pending: ConfermaAttesa): Promise<boolean> {
   return !!pending.azione && !!pending.parametri && !!pending.payload_hash
-    && pending.payload_hash === await confirmationHash(pending.azione, pending.parametri, pending.media, pending.cantieri);
+    && pending.payload_hash === await confirmationHash(pending.azione, pending.parametri, pending.media, pending.cantieri, pending.rapportino);
 }
 
 /** Il preventivo da salvare, in righe leggibili: «3. Piastrelle 60x60 — 6 mq × € 35,00». */
@@ -415,14 +429,14 @@ export function riepilogoPreventivo(args: Record<string, unknown>) {
   const righe = voci.map((v, i) => {
     const q = Number(v.quantity ?? 1);
     const prezzo = Number(v.unit_price ?? 0);
-    const aliquota = Number(v.vat_rate ?? 0);
+    const aliquota = Number(v.vat_rate ?? args.default_vat_rate ?? 0);
     const riga = (Number.isFinite(q) ? q : 0) * (Number.isFinite(prezzo) ? prezzo : 0);
     imponibile += riga;
     iva += riga * (Number.isFinite(aliquota) ? aliquota : 0) / 100;
     const nome = testo(v.name ?? v.description ?? "voce", 70);
     return `${i + 1}. ${nome} — ${numeroIt(q)} ${testo(v.unit_of_measure ?? "pz", 10)} × ${euro(prezzo)}`;
   });
-  const aliquote = [...new Set(voci.map((v) => Number(v.vat_rate ?? 0)))];
+  const aliquote = [...new Set(voci.map((v) => Number(v.vat_rate ?? args.default_vat_rate ?? 0)))];
   const ivaTesto = aliquote.length === 1 ? `IVA ${numeroIt(aliquote[0])}%` : "IVA";
   return {
     cliente,

@@ -1,3 +1,4 @@
+import type { SceltaPersonaRapportino } from "../../../_shared/botOperativoConferme.ts";
 import type { ToolCtx } from "../shared/types.ts";
 import { oggiARoma } from "../shared/cantieriAperti.ts";
 
@@ -5,6 +6,7 @@ export interface OrePersona { nome: string; ore: number }
 interface Membro {
   employee_id?: string | null;
   nome: string;
+  squadra?: string | null;
   sono_io?: boolean;
   rapportino_inviato?: boolean;
   gia_registrato_da_altri?: boolean;
@@ -17,21 +19,52 @@ interface Contesto {
 }
 export interface Presenza { employee_id: string; nome: string; ore: number }
 
-const normalizza = (testo: string) => testo.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "")
-  .replace(/[^a-z0-9]+/g, " ").trim();
+interface ContestoRapportinoVerificato {
+  presenze?: Presenza[];
+  nomiPerRiepilogo?: string[];
+  giorniIndietro: number;
+  soloOre: boolean;
+}
 
-export function normalizzaPresenze(richieste: OrePersona[], persone: Membro[]): Presenza[] {
+export const normalizzaNomeRapportino = (testo: string) => testo.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "")
+  .replace(/[^a-z0-9]+/g, " ").trim();
+const normalizza = normalizzaNomeRapportino;
+
+export class NomeRapportinoAmbiguo extends Error {
+  constructor(nome: string, public readonly scelta: SceltaPersonaRapportino) {
+    super("Quale " + nome + "?");
+    this.name = "NomeRapportinoAmbiguo";
+  }
+}
+
+function trovaPersone(nome: string, persone: Membro[], id?: string | null): Membro[] {
+  const squadra = persone.filter(p => p.employee_id);
+  if (id) return squadra.filter(p => p.employee_id === id);
+  if (["io", "me", "me stesso"].includes(nome)) return squadra.filter(p => p.sono_io);
+  if (!nome) return [];
+  const perNome = squadra.filter(p => (normalizza(p.nome) + " ").startsWith(nome + " "));
+  if (perNome.length) return perNome;
+  return squadra.filter(p => nome.split(" ").every(token => normalizza(p.nome).split(" ").includes(token)));
+}
+
+export function normalizzaPresenze(richieste: OrePersona[], persone: Membro[], identificativi?: readonly (string | null)[]): Presenza[] {
   const presenze: Presenza[] = [];
-  for (const richiesta of richieste) {
+  for (const [indice, richiesta] of richieste.entries()) {
     if (!richiesta || typeof richiesta.nome !== "string" || typeof richiesta.ore !== "number" ||
       !Number.isFinite(richiesta.ore) || richiesta.ore < 0 || richiesta.ore > 24) {
       throw new Error("Indica le ore di ogni persona, con un valore da 0 a 24.");
     }
-    const nome = normalizza(richiesta.nome);
-    const corrispondenze = persone.filter(p => p.employee_id && (["io", "me", "me stesso"].includes(nome)
-      ? p.sono_io : nome && nome.split(" ").every(token => normalizza(p.nome).split(" ").includes(token))));
-    if (corrispondenze.length !== 1) throw new Error(corrispondenze.length
-      ? `Quale ${richiesta.nome}? Scrivi nome e cognome.` : `Non trovo ${richiesta.nome} fra le persone che puoi registrare per questa commessa.`);
+    const idVerificato = identificativi?.[indice];
+    const corrispondenze = trovaPersone(normalizza(richiesta.nome), persone, idVerificato);
+    if (idVerificato && corrispondenze.length !== 1) throw new Error("La persona del riepilogo non è più disponibile per questa commessa. Riformula il rapportino.");
+    if (corrispondenze.length === 0) throw new Error("Non trovo " + richiesta.nome + " fra le persone che puoi registrare per questa commessa.");
+    if (corrispondenze.length > 1) {
+      const opzioni = corrispondenze.map(p => ({ id: p.employee_id!, nome: p.nome, squadra: p.squadra?.trim() || null }));
+      const etichette = new Set(opzioni.map(p => normalizza(p.nome) + "|" + normalizza(p.squadra ?? "")));
+      if (etichette.size !== opzioni.length) throw new Error("Ci sono persone con nome e squadra uguali. Selezionale dal rapportino nell’app Campo.");
+      opzioni.sort((a, b) => a.nome.localeCompare(b.nome, "it") || (a.squadra ?? "").localeCompare(b.squadra ?? "", "it"));
+      throw new NomeRapportinoAmbiguo(richiesta.nome, { indice, opzioni });
+    }
     const persona = corrispondenze[0];
     if (persona.rapportino_inviato || persona.gia_registrato_da_altri) {
       throw new Error(`${persona.nome} risulta già registrato per questo giorno. Verifica con l’ufficio prima di inserire altre ore.`);
@@ -108,7 +141,9 @@ export function vocalePermetteBozza(ctx: ToolCtx, input: Record<string, unknown>
   return orePerPersonaEsplicite(ctx.transcript, input.persone as OrePersona[]);
 }
 
-export async function verificaContestoRapportino(ctx: ToolCtx, orderId: string, giorno: string, persone?: OrePersona[]) {
+export async function verificaContestoRapportino(
+  ctx: ToolCtx, orderId: string, giorno: string, persone?: OrePersona[],
+): Promise<ContestoRapportinoVerificato> {
   if (!ctx.user_id) {
     if (persone?.length) throw new Error("Per registrare la squadra serve un account abilitato e collegato a questo numero.");
     return { presenze: undefined, giorniIndietro: 7, soloOre: false };
@@ -120,8 +155,14 @@ export async function verificaContestoRapportino(ctx: ToolCtx, orderId: string, 
   const contesto = data as Contesto;
   if (contesto.solo_timbratura) throw new Error("Per questa commessa puoi timbrare. Il rapportino è a cura del capocantiere.");
   if (persone?.length && !contesto.persone.length) throw new Error("Puoi registrare le tue ore. Il rapportino di squadra è riservato ai responsabili abilitati.");
+  const presenze = persone?.length ? normalizzaPresenze(persone, contesto.persone, ctx.rapportinoPersoneIds) : undefined;
   return {
-    presenze: persone?.length ? normalizzaPresenze(persone, contesto.persone) : undefined,
+    presenze,
+    nomiPerRiepilogo: presenze?.map(presenza => {
+      const omonimi = contesto.persone.filter(m => m.employee_id && normalizza(m.nome) === normalizza(presenza.nome));
+      const squadra = omonimi.length > 1 ? omonimi.find(m => m.employee_id === presenza.employee_id)?.squadra : null;
+      return squadra ? presenza.nome + " · " + squadra : presenza.nome;
+    }),
     giorniIndietro: contesto.giorni_indietro,
     soloOre: contesto.solo_ore,
   };

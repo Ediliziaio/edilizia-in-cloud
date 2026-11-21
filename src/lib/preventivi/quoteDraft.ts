@@ -28,6 +28,7 @@ export const quoteDraftSchema = z.object({
   savedAt: text.optional(),
   step: number.int().min(0).max(2).optional(),
   partialQuoteId: nullableText,
+  aiRichiestaId: z.string().uuid().optional(),
   contactId: nullableText, clientName: text, clientEmail: text, clientPhone: text,
   clientCompany: text, clientAddress: text, clientFiscalCode: text, clientVatNumber: text, clientCodiceUnivoco: text,
   tipoClienteScelto: z.enum(["privato", "azienda", "pa"]).nullable(),

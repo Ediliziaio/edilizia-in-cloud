@@ -24,6 +24,7 @@ import { it } from "date-fns/locale";
 const intentIcons: Record<string, LucideIcon> = {
   rapportino: FileText,
   ddt: FileText,
+  scontrino: FileText,
   foto_cantiere: Camera,
   presenze: Clock,
   segnalazione: AlertTriangle,
@@ -35,6 +36,7 @@ const intentIcons: Record<string, LucideIcon> = {
 const intentLabels: Record<string, string> = {
   rapportino: "Rapportino",
   ddt: "DDT",
+  scontrino: "Scontrino",
   foto_cantiere: "Foto",
   presenze: "Presenze",
   segnalazione: "Segnalazione",

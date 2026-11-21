@@ -22,6 +22,7 @@ export function useDocumentiDDT(
   orderId?: string,
   includiRegistrati = true,
   enabled = true,
+  documentoId?: string,
 ) {
   const { effectiveCompany, profile, user } = useAuth();
   const companyId = soloMiei ? profile?.company_id : effectiveCompany?.id;
@@ -33,6 +34,7 @@ export function useDocumentiDDT(
       soloMiei,
       orderId,
       includiRegistrati,
+      documentoId,
     ],
     enabled: enabled && !!companyId && !!user?.id,
     initialPageParam: undefined as Cursor | undefined,
@@ -43,6 +45,7 @@ export function useDocumentiDDT(
         .eq("company_id", companyId);
       if (soloMiei) q = q.eq("created_by", user!.id);
       if (orderId) q = q.eq("order_id", orderId);
+      if (documentoId) q = q.eq("id", documentoId);
       if (!includiRegistrati) q = q.not("status", "in", "(registered,split)");
       if (pageParam)
         q = q.or(

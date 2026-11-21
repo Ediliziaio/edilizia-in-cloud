@@ -52,6 +52,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
+import { avviaAttivitaAi, type AttivitaLive } from "../_shared/aiAttivitaLive.ts";
 import { buildEnrichedSystemPrompt } from "../_shared/promptBuilder.ts";
 // MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
 import { getToolsForChannel, TOOL_CONTRACT_LEGEND, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
@@ -201,6 +202,7 @@ serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return errorResponse("Method not allowed", 405, corsHeaders);
+  let attivita: AttivitaLive | undefined;
 
   try {
     // 1) Auth
@@ -302,6 +304,10 @@ serve(async (req: Request) => {
     }
 
     // 7) Load history
+    attivita = avviaAttivitaAi(supabaseAdmin, {
+      companyId, userId, flusso: "assistente", fase: "richiesta_ricevuta", assistente: persona.display_name,
+    });
+    attivita.passo("memoria");
     const history = await loadHistory(supabaseAdmin, sessionId!, historyLimit);
 
     // 8) Record user message
@@ -509,6 +515,7 @@ serve(async (req: Request) => {
       const idempotencyKey = `persona_${sessionId}_${userMessageId ?? "msg"}_iter${iteration}`;
 
       let aiResult;
+      attivita.passo("elaborazione");
       try {
         aiResult = await aiRouterComplete({
           supabase: supabaseAdmin,
@@ -577,6 +584,7 @@ serve(async (req: Request) => {
         try { parsedArgs = JSON.parse(tc.function?.arguments ?? "{}"); } catch { /* keep {} */ }
         return { name: tc.function?.name as string, input: parsedArgs };
       });
+      attivita.passo(calls.some(c => c.name === "get_quadro_incassi") ? "controllo_incassi" : "strumenti", aiResult.modelUsed);
       const results: ToolExecutionResult[] = await executeToolsParallel(calls, {
         supabase: supabaseAdmin,
         companyId,
@@ -705,6 +713,7 @@ serve(async (req: Request) => {
     }));
 
     // 11) Record assistant message with ledger link + tool calls log
+    attivita.passo("salvataggio", lastResult?.modelUsed);
     const { data: msgId, error: msgErr } = await supabaseAdmin.rpc("record_persona_message", {
       p_session_id: sessionId,
       p_role: "assistant",
@@ -783,6 +792,10 @@ serve(async (req: Request) => {
     }
 
     // 12) Response (back-compat: stessi campi della v1 + tool_calls + iterations)
+    if (!msgErr && msgId) {
+      if (toolCallsLog.some(t => t.proposal_id)) attivita.chiudi("in_attesa", "proposta_pronta");
+      else attivita.chiudi("completata", "risposta_salvata");
+    }
     return jsonResponse({
       sessionId,
       messageId: msgId,
@@ -805,6 +818,8 @@ serve(async (req: Request) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[ai-orchestrator] error:", msg);
     return errorResponse(msg, 500, corsHeaders);
+  } finally {
+    attivita?.chiudi("errore", "errore");
   }
 });
 

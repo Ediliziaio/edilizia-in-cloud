@@ -23,6 +23,23 @@ export interface ConfermaAttesa {
   cantieri?: CantiereDaScegliere[];
   /** L'elenco dei cantieri è già stato mostrato: «2» vuol dire il secondo. */
   lista_mostrata?: boolean;
+  rapportino?: PersoneRapportinoAttesa;
+}
+
+export interface OpzionePersonaRapportino {
+  id: string;
+  nome: string;
+  squadra: string | null;
+}
+
+export interface SceltaPersonaRapportino {
+  indice: number;
+  opzioni: OpzionePersonaRapportino[];
+}
+
+export interface PersoneRapportinoAttesa {
+  identificativi: (string | null)[];
+  scelta?: SceltaPersonaRapportino;
 }
 
 export interface CantiereDaScegliere {
@@ -55,9 +72,26 @@ function recente(iso: unknown, adesso: Date): boolean {
   return Number.isFinite(t) && age >= 0 && age <= VALIDITA_MS;
 }
 
+function leggiPersoneRapportino(value: unknown): PersoneRapportinoAttesa | undefined {
+  const r = record(value);
+  const ids = r?.identificativi;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 30 || ids.some(id => id !== null && typeof id !== "string")) return;
+  if (r?.scelta === undefined) return { identificativi: ids };
+  const scelta = record(r.scelta);
+  const indice = scelta?.indice;
+  const opzioni = scelta?.opzioni;
+  if (typeof indice !== "number" || !Number.isInteger(indice) || indice < 0 || indice >= ids.length ||
+    !Array.isArray(opzioni) || opzioni.length < 2 || opzioni.some(opzione => {
+      const o = record(opzione);
+      return !o || typeof o.id !== "string" || typeof o.nome !== "string" || (o.squadra !== null && typeof o.squadra !== "string");
+    })) return;
+  return { identificativi: ids, scelta: { indice, opzioni } };
+}
+
 export function leggiStatoSessione(stateData: unknown, adesso: Date): StatoSessioneBot {
   const s = record(stateData) ?? {};
   const c = record(s.bot_conferma);
+  const rapportino = c?.azione === "crea_rapportino" ? leggiPersoneRapportino(c.rapportino) : undefined;
   const conferma = c && recente(c.chiesta_il, adesso)
     ? {
       azione: typeof c.azione === "string" && c.azione ? c.azione : null,
@@ -71,6 +105,7 @@ export function leggiStatoSessione(stateData: unknown, adesso: Date): StatoSessi
       ...(record(c.media) ? { media: c.media as unknown as ConfermaAttesa["media"] } : {}),
       ...(cantieriValidi(c.cantieri) ? { cantieri: cantieriValidi(c.cantieri)! } : {}),
       ...(c.lista_mostrata === true ? { lista_mostrata: true } : {}),
+      ...(rapportino ? { rapportino } : {}),
     }
     : null;
   const a = record(s.bot_aree);

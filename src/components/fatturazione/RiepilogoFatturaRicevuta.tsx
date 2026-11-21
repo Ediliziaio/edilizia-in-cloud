@@ -253,6 +253,8 @@ interface PropsRiepilogo {
   companyId: string | null | undefined;
   onClose: () => void;
   azioni?: AzioniRiepilogo;
+  apriConfronto?: boolean;
+  analisiDaAprire?: string;
 }
 
 export function RiepilogoFatturaRicevuta(props: PropsRiepilogo) {
@@ -264,6 +266,8 @@ function ContenutoRiepilogo({
   companyId,
   onClose,
   azioni = {},
+  apriConfronto = false,
+  analisiDaAprire,
 }: PropsRiepilogo) {
   const aspettoGenerale = useAspettoOperativo();
   const isMobile = useIsMobile();
@@ -289,7 +293,7 @@ function ContenutoRiepilogo({
   const permessi = usePermissions();
   const [rataScelta, setRataScelta] = useState<RataDaPagare | null>(null);
   const [modificaQuote, setModificaQuote] = useState(false);
-  const [confronto, setConfronto] = useState(false);
+  const [confronto, setConfronto] = useState(apriConfronto);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
   const [vistaCompleta, setVistaCompleta] = useState<FatturaRicevutaVista | null>(null);
   const pagamentoCosto = useExpensePaymentDetail(d?.costo?.id, !!permessi.canViewCosts);
@@ -446,8 +450,9 @@ function ContenutoRiepilogo({
         imponibile, totale, companyCostId: d.costo?.id ?? null, suOrdini: !!d.ordini.length }}
       onChiudi={() => setModificaQuote(false)} />}
     {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
-    {confronto && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
-    {!!fatturaId && !confronto && !modificaQuote && !rataScelta && !pagamenti && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
+    {confronto && permessi.canViewCosts && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura}
+      daAttivita={apriConfronto} analisiDaAprire={analisiDaAprire} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
+    {!!fatturaId && !(confronto && permessi.canViewCosts && f) && !modificaQuote && !rataScelta && !pagamenti && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
         className={`commessa-modal-layout ricevuta-riepilogo ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}

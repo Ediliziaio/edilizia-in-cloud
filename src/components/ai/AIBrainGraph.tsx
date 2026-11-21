@@ -2616,16 +2616,16 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                 <Brain className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">Cervello AI</h3>
-                <p className="text-[11px] text-slate-600">Tutte le personas AI abilitate, connesse alla memoria aziendale</p>
+                <h2 className="text-base font-semibold text-slate-900">Mappa della memoria</h2>
+                <p className="text-xs text-slate-600">Seleziona un nodo per vedere i ricordi e i collegamenti.</p>
               </div>
             </div>
 
             {/* Numeri hero */}
-            <div className="flex items-center gap-4 md:gap-6 md:ml-6">
+            <div className="flex flex-wrap items-center gap-3 md:ml-5 md:gap-5">
               <div>
                 <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{stats.personaCount}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">personas AI</div>
+                <div className="text-[10px] font-semibold text-slate-500">Assistenti</div>
                 <div className="text-[9px] text-orange-600 font-semibold">{personasInMemory} in rete · {personaActivationPct}%</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
@@ -2648,7 +2648,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               <div className="h-8 w-px bg-slate-200" />
               <div>
                 <div className="text-2xl font-bold text-orange-600 tabular-nums leading-tight">{totalCrossPersonaLinks}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">ponti cross-team</div>
+                <div className="text-[10px] font-semibold text-slate-500">Collegamenti</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <Popover>
@@ -2661,17 +2661,17 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                       {insights.healthPct}%
                     </div>
                     <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
-                      salute
+                      Qualità memoria
                       <span className="text-orange-500 text-[9px]">▾</span>
                     </div>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-56 p-3 bg-white border-slate-200 shadow-xl">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2">Brain Health Score</p>
+                  <p className="mb-2 text-xs font-semibold text-slate-700">Come viene calcolata la qualità</p>
                   <div className="space-y-2">
                     {([
-                      { label: "Copertura", value: insights.healthBreakdown.coverage, desc: "% personas con ≥3 memorie" },
-                      { label: "Cross-linkage", value: insights.healthBreakdown.crossLinkage, desc: "% personas connesse" },
+                      { label: "Copertura", value: insights.healthBreakdown.coverage, desc: "% assistenti con almeno 3 memorie" },
+                      { label: "Collegamenti", value: insights.healthBreakdown.crossLinkage, desc: "% assistenti collegati" },
                       { label: "Freschezza", value: insights.healthBreakdown.freshness, desc: "% memorie ultimi 30gg" },
                       { label: "Attività", value: insights.healthBreakdown.activity, desc: "% memorie usate" },
                     ] as const).map((m) => (

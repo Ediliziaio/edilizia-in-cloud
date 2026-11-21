@@ -52,6 +52,12 @@ function clamp(value: string, max: number): string {
   return t.length <= max ? t : t.slice(0, max);
 }
 
+export function idRispostaInterattiva(metadata: unknown): string | null {
+  const record = metadata as { interactive?: { button_reply?: { id?: unknown }; list_reply?: { id?: unknown } } } | null;
+  const id = record?.interactive?.button_reply?.id ?? record?.interactive?.list_reply?.id;
+  return typeof id === "string" ? id : null;
+}
+
 /**
  * Costruisce il payload interactive Meta.
  *  - ≤ 3 opzioni → bottoni rapidi (UX migliore: visibili senza aprire menu).
