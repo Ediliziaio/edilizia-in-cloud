@@ -2,8 +2,10 @@ import type { DisegnoCommercialeFv } from "../../../../supabase/functions/_share
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { triangoliFaccia, dalDisegnoAlMondo, type P3, type PannelloReale, type SelezioneReale, type InquadraturaReale } from "./tettoReale";
+import { triangoliFaccia, pianoDellaFaccia, dot, sub, dalDisegnoAlMondo, type P3, type PannelloReale, type SelezioneReale, type InquadraturaReale } from "./tettoReale";
 import { useRilievo, proiettaUV, verticiOrto } from "./RilievoContext";
+import { aspettoTettoFv, azimutVistaTettoFv } from "../../../../supabase/functions/_shared/fvAspettoTetto";
+import { textureCoperturaFv, distanzaCameraTettoFv } from "./materialiTetto3d";
 const vec = (p: P3) => new THREE.Vector3(p.x, p.z, -p.y);
 export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selezione, onSelezione, inquadratura, invalidi = [], onPunto, puntiTracciati = [], areaPosa }: {
     pannelli: PannelloReale[];
@@ -50,21 +52,26 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFShadowMap;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = .95;
         renderer.domElement.setAttribute("aria-label", edificio.attributi.origine === "satellite" ? "Vista 3D delle falde tracciate sulla mappa, ruotabile e ingrandibile" : "Modello 3D reale del tetto, ruotabile e ingrandibile");
         renderer.domElement.setAttribute("role", "img");
         if (renderer.domElement.parentElement !== nodo)
             nodo.appendChild(renderer.domElement);
         const scena = new THREE.Scene();
-        scena.background = new THREE.Color("#f1f4f2");
-        scena.add(new THREE.HemisphereLight(0xffffff, 0x647468, 2.1));
-        const sole = new THREE.DirectionalLight(0xffffff, 2.7);
+        scena.background = new THREE.Color("#eef1f1");
+        const aspetto = aspettoTettoFv(areaPosa?.schema3d?.copertura, !!edificio.attributi.schemaIndustriale);
+        const tegole = textureCoperturaFv(aspetto.tipo);
+        for (const t of [tegole.map, tegole.bumpMap]) t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        scena.add(new THREE.HemisphereLight(0xffffff, 0x96968b, 1.25));
+        const sole = new THREE.DirectionalLight(0xfff5e5, 1.65);
         sole.position.set(-14, 24, 12);
         sole.castShadow = true;
-        sole.shadow.mapSize.set(1024, 1024);
+        sole.shadow.mapSize.set(2048, 2048);
         Object.assign(sole.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 });
-        sole.shadow.bias = -.001;
+        sole.shadow.bias = -.0001;
+        sole.shadow.normalBias = .015;
         scena.add(sole);
         const geometrie: THREE.BufferGeometry[] = [], materiali: THREE.Material[] = [], cliccabili: THREE.Object3D[] = [];
         let distrutto = false;
@@ -75,11 +82,13 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
             texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
         }
         for (const f of edificio.facce) {
+            const piano = pianoDellaFaccia(f);
             const tris = triangoliFaccia(f), geo = new THREE.BufferGeometry().setFromPoints(tris.map(vec));
             geo.computeVertexNormals();
-            geo.setAttribute("uv", new THREE.Float32BufferAttribute(tris.flatMap(p => { const q = orto ? proiettaUV(orto, p) : { u: 0, v: 0 }; return [q.u, q.v]; }), 2));
+            geo.setAttribute("uv", new THREE.Float32BufferAttribute(tris.flatMap(p => { const delta = sub(p, piano.origine); const q = foto && orto ? proiettaUV(orto, p) : { u: dot(delta, piano.u), v: dot(delta, piano.v) }; return [q.u, q.v]; }), 2));
             geometrie.push(geo);
-            const mat = new THREE.MeshStandardMaterial({ map: foto && f.tipo === "RoofSurface" ? texture : null, color: foto && texture && f.tipo === "RoofSurface" ? "#ffffff" : f.tipo === "RoofSurface" ? (f.id === faldaId ? edificio.attributi.schemaIndustriale ? "#6b7e87" : "#b79978" : edificio.attributi.schemaIndustriale ? "#6b7e87" : "#979e98") : "#deddd4", roughness: .88, side: THREE.DoubleSide, transparent: !!modello, opacity: modello ? .08 : 1, depthWrite: !modello });
+            const tetto = f.tipo === "RoofSurface", usaFoto = foto && !!texture && tetto;
+            const mat = new THREE.MeshStandardMaterial({ map: tetto ? usaFoto ? texture : tegole.map : null, bumpMap: tetto && !usaFoto ? tegole.bumpMap : null, bumpScale: .018, color: tetto ? "#ffffff" : aspetto.parete, roughness: tetto ? .87 : .98, metalness: tetto && aspetto.tipo === "lamiera" ? .18 : 0, side: THREE.DoubleSide, transparent: !!modello, opacity: modello ? .08 : 1, depthWrite: !modello });
             materiali.push(mat);
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true;
@@ -88,13 +97,13 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
             cliccabili.push(mesh);
             const edges = new THREE.EdgesGeometry(geo, 25);
             geometrie.push(edges);
-            const lineMat = new THREE.LineBasicMaterial({ color: "#56645d", transparent: true, opacity: .3 });
+            const lineMat = new THREE.LineBasicMaterial({ color: "#514c44", transparent: true, opacity: .24 });
             materiali.push(lineMat);
             scena.add(new THREE.LineSegments(edges, lineMat));
         }
         if (areaPosa)
             for (const f of areaPosa.falde) {
-                const punti = f.punti.map(p => vec(dalDisegnoAlMondo(edificio, f.id, p, .07))), geo = new THREE.BufferGeometry().setFromPoints(punti), mat = new THREE.LineBasicMaterial({ color: "#67e8b1" });
+                const punti = f.punti.map(p => vec(dalDisegnoAlMondo(edificio, f.id, p, .07))), geo = new THREE.BufferGeometry().setFromPoints(punti), mat = new THREE.LineBasicMaterial({ color: f.id === faldaId && selezione ? "#fb923c" : "#b4c2b3", transparent: true, opacity: selezione ? .7 : .25 });
                 geometrie.push(geo);
                 materiali.push(mat);
                 scena.add(new THREE.LineLoop(geo, mat));
@@ -117,13 +126,13 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         texturePannelli.height = 256;
         const ctx = texturePannelli.getContext("2d");
         if (ctx) {
-            ctx.fillStyle = "#111b23";
+            ctx.fillStyle = aspetto.pannello;
             ctx.fillRect(0, 0, 128, 256);
-            ctx.strokeStyle = "#536168";
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = aspetto.cornice;
+            ctx.lineWidth = 3;
             ctx.strokeRect(1, 1, 126, 254);
-            ctx.strokeStyle = "#29343e";
-            ctx.lineWidth = .6;
+            ctx.strokeStyle = "#3c5263";
+            ctx.lineWidth = .75;
             for (let i = 1; i < 6; i++) {
                 ctx.beginPath();
                 ctx.moveTo(i * 128 / 6, 3);
@@ -140,11 +149,14 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         const celleTexture = new THREE.CanvasTexture(texturePannelli);
         celleTexture.colorSpace = THREE.SRGBColorSpace;
         celleTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-        const corpiGeo = new THREE.BoxGeometry(1, 1, 1), corpiMat = new THREE.MeshStandardMaterial({ map: celleTexture, color: 0xffffff, metalness: .35, roughness: .3 });
+        const corpiGeo = new THREE.BoxGeometry(1, 1, 1);
+        const corniceMat = new THREE.MeshStandardMaterial({ color: "#64717b", metalness: .55, roughness: .5 });
+        const corpiMat = new THREE.MeshPhysicalMaterial({ map: celleTexture, color: 0xffffff, metalness: 0, roughness: .62, specularIntensity: .22, clearcoat: .15, clearcoatRoughness: .6 });
         geometrie.push(corpiGeo);
-        materiali.push(corpiMat);
-        const corpi = new THREE.InstancedMesh(corpiGeo, corpiMat, pannelli.length), matrice = new THREE.Matrix4(), colore = new THREE.Color();
+        materiali.push(corpiMat, corniceMat);
+        const corpi = new THREE.InstancedMesh(corpiGeo, [corniceMat, corniceMat, corpiMat, corniceMat, corniceMat, corniceMat], pannelli.length), matrice = new THREE.Matrix4(), colore = new THREE.Color();
         corpi.castShadow = true;
+        corpi.receiveShadow = true;
         const rack: THREE.Vector3[] = [];
         for (const [indice, p] of pannelli.entries()) {
             const u = vec(p.piano.u), n = vec(p.piano.n), v = vec(p.piano.v).negate();
@@ -186,7 +198,7 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         const terrenoGeo = new THREE.BufferGeometry().setFromPoints([bordo[0], bordo[1], bordo[2], bordo[0], bordo[2], bordo[3]].map(p => vec({ ...p, z: -.04 })));
         terrenoGeo.setAttribute("uv", new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0], 2));
         terrenoGeo.computeVertexNormals();
-        const terrenoMat = new THREE.MeshStandardMaterial({ map: foto ? texture : null, color: foto && texture ? "#ffffff" : "#e3e9e2", roughness: 1, side: THREE.DoubleSide });
+        const terrenoMat = new THREE.MeshStandardMaterial({ map: foto ? texture : null, color: foto && texture ? "#ffffff" : "#dce1d8", roughness: 1, side: THREE.DoubleSide });
         geometrie.push(terrenoGeo);
         materiali.push(terrenoMat);
         const terreno = new THREE.Mesh(terrenoGeo, terrenoMat);
@@ -200,15 +212,18 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
                 contesto.expandByPoint(vec(p));
         if (contesto.isEmpty())
             contesto.setFromPoints(bordo.map(vec));
-        const centro = contesto.getCenter(new THREE.Vector3()), raggio = Math.max(12, contesto.getSize(new THREE.Vector3()).length() * 1.85);
+        const centro = contesto.getCenter(new THREE.Vector3()), raggio = Math.max(12, contesto.getSize(new THREE.Vector3()).length() * .8);
         const volume = [...contesto.min.toArray(), ...contesto.max.toArray()].map(n => n.toFixed(2)).join(",");
         Object.assign(sole.shadow.camera, { left: -raggio, right: raggio, top: raggio, bottom: -raggio, far: raggio * 8 });
         sole.shadow.camera.updateProjectionMatrix();
         sole.position.copy(centro).add(new THREE.Vector3(-raggio, raggio * 2, raggio));
         sole.target.position.copy(centro);
         scena.add(sole.target);
-        const camera = new THREE.PerspectiveCamera(36, 1, .05, 10000);
-        camera.position.copy(centro).add(alto ? new THREE.Vector3(0, raggio, .001) : new THREE.Vector3(raggio * .7, raggio * .65, raggio * .35));
+        const camera = new THREE.PerspectiveCamera(36, Math.max(.1, nodo.clientWidth / nodo.clientHeight), .05, 10000);
+        const az = azimutVistaTettoFv(edificio.facce.filter(f => f.tipo === "RoofSurface").map(f => ({ id: f.id, azimut: f.azimut, area: new THREE.Box3().setFromPoints(f.anelli.flat().map(vec)).getSize(new THREE.Vector3()).lengthSq() })), areaPosa?.pannelli ?? []) * Math.PI / 180;
+        const direzione = alto ? new THREE.Vector3(0, 1, .00001) : new THREE.Vector3(Math.sin(az), .9, -Math.cos(az)).normalize();
+        let daInquadrare = contesto;
+        camera.position.copy(centro).addScaledVector(direzione, distanzaCameraTettoFv(contesto, direzione, camera.fov, camera.aspect));
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.target.copy(centro);
         controls.maxPolarAngle = Math.PI / 2 - .03;
@@ -222,9 +237,10 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         else if (inquadratura.faldaId) {
             const f = edificio.facce.find(f => f.id === inquadratura.faldaId);
             if (f) {
-                const box = new THREE.Box3().setFromPoints(f.anelli[0].map(vec)), centro = box.getCenter(new THREE.Vector3()), r = Math.max(8, box.getSize(new THREE.Vector3()).length() * 1.25);
+                const box = new THREE.Box3().setFromPoints(f.anelli[0].map(vec)), centro = box.getCenter(new THREE.Vector3());
+                daInquadrare = box;
                 controls.target.copy(centro);
-                camera.position.copy(centro).add(alto ? new THREE.Vector3(0, r, .001) : new THREE.Vector3(r * .65, r * .75, r * .4));
+                camera.position.copy(centro).addScaledVector(direzione, distanzaCameraTettoFv(box, direzione, camera.fov, camera.aspect));
             }
         }
         controls.update();
@@ -245,13 +261,16 @@ export function VistaReale({ pannelli, ids, faldaId, alto, foto, ostacoli, selez
         renderer.domElement.addEventListener("pointerdown", down);
         renderer.domElement.addEventListener("pointerup", up);
         const render = () => renderer.render(scena, camera);
-        const resize = () => { const w = nodo.clientWidth, h = nodo.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); render(); };
+        let cameraManuale = !!(posaCamera.current?.alto === alto && posaCamera.current.versione === inquadratura.versione && posaCamera.current.volume === volume);
+        const manuale = () => { cameraManuale = true; };
+        controls.addEventListener("start", manuale);
+        const resize = () => { const w = nodo.clientWidth, h = nodo.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); if (!cameraManuale) { camera.position.copy(controls.target).addScaledVector(direzione, distanzaCameraTettoFv(daInquadrare, direzione, camera.fov, camera.aspect)); controls.update(); } render(); };
         controls.addEventListener("change", render);
         const observer = new ResizeObserver(resize);
         observer.observe(nodo);
         resize();
         return () => { distrutto = true; posaCamera.current = { pos: camera.position.clone(), target: controls.target.clone(), alto, versione: inquadratura.versione, volume }; renderer.domElement.removeEventListener("pointerdown", down); renderer.domElement.removeEventListener("pointerup", up); if (modello)
-            scena.remove(modello); texture?.dispose(); corpi.dispose(); celleTexture.dispose(); observer.disconnect(); controls.dispose(); geometrie.forEach(g => g.dispose()); materiali.forEach(m => m.dispose()); };
+            scena.remove(modello); texture?.dispose(); corpi.dispose(); celleTexture.dispose(); tegole.map.dispose(); tegole.bumpMap.dispose(); sole.dispose(); observer.disconnect(); controls.dispose(); geometrie.forEach(g => g.dispose()); materiali.forEach(m => m.dispose()); };
     }, [pannelli, ids, faldaId, alto, foto, ostacoli, selezione, onSelezione, inquadratura, invalidi, edificio, orto, modello, onPunto, puntiTracciati, areaPosa]);
-    return <div className="relative h-[450px] w-full overflow-hidden rounded-xl bg-slate-100" style={{ height: 370 }} ref={host}>{errore && <p role="alert" className="p-5 text-sm">WebGL non disponibile in questo browser. Puoi comunque confrontare l’ortofoto e i dati delle falde.</p>}</div>;
+    return <div className="relative w-full overflow-hidden rounded-xl bg-slate-100" style={{ height: "clamp(370px, 50vh, 540px)" }} ref={host}>{errore && <p role="alert" className="p-5 text-sm">WebGL non disponibile in questo browser. Puoi comunque confrontare l’ortofoto e i dati delle falde.</p>}</div>;
 }
