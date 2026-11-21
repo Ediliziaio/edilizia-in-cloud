@@ -1,3 +1,6 @@
+import { FvFotoSolar } from "./tetto/FvFotoSolar";
+import { FvGoogleSolarPanel } from "./tetto/FvGoogleSolarPanel";
+import type { FotoSolarFv } from "../../../supabase/functions/_shared/fvGoogleSolar";
 import { type PointerEvent, useRef, useState } from "react";
 import "./FvMappaTetto.css";
 import {
@@ -40,6 +43,7 @@ export type RiferimentoTettoFv = {
 };
 
 type Props = {
+  progettoId?: string | null;
   ricerca: PosizioneMappaFv;
   indirizzo: string;
   riferimento: RiferimentoTettoFv | null;
@@ -61,6 +65,7 @@ const entroLimiti = (ps: PuntoFv[]) =>
 export function FvMappaTetto(
   {
     ricerca,
+    progettoId,
     indirizzo,
     riferimento,
     piano,
@@ -76,6 +81,7 @@ export function FvMappaTetto(
     [pin, setPin] = useState(
       riferimento?.posizione ?? piano?.mappa?.origine ?? ricerca,
     );
+  const [fotoSolar,setFotoSolar]=useState<FotoSolarFv|undefined>(piano?.mappa?.fotoSolar);
   const [comandoVista, setComandoVista] = useState(0);
   const setCentro: typeof aggiornaCentro = (v) => {
     aggiornaCentro(v);
@@ -241,6 +247,7 @@ export function FvMappaTetto(
         ricerca: riferimento?.ricerca ?? { indirizzo, posizione: ricerca },
         falde,
         distanzaOstacoli: ostacoli,
+        fotoSolar,
       };
       const next = piano && piano.mappa && contorniInvariati
         ? { ...piano, mappa: { ...piano.mappa, ...mappa } }
@@ -334,6 +341,7 @@ export function FvMappaTetto(
                 aggiornaZoom(z);
               }}
             />
+            <FvFotoSolar foto={fotoSolar} centro={centro} zoom={zoom} w={dimensioni.w} h={dimensioni.h}/>
             <svg
               ref={svg}
               viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
@@ -697,10 +705,14 @@ export function FvMappaTetto(
             Nord in alto · {satellite.pronto
               ? "Google Maps: vista satellitare interattiva, scala da coordinate geografiche"
               : "Schema metrico manuale: verifica le misure sul posto"}. Le
-            immagini non sono salvate nel progetto.
+            {fotoSolar ? `foto Google Solar del ${fotoSolar.data}, conservata nella proposta.` : "immagini Google Maps non sono salvate nel progetto."}
           </p>
         </div>
         <aside className="fv-mappa-laterale" aria-label="Comandi del tetto">
+          <FvGoogleSolarPanel progettoId={progettoId} posizione={pin} mappa={{versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar}} modificabile={modificabile} pannelli={piano?.pannelli.length??0}
+            onFoto={foto=>{setFotoSolar(foto);if(piano?.mappa&&contorniInvariati)onChange({...piano,mappa:{...piano.mappa,fotoSolar:foto}});}}
+            onMisure={misure=>{if((piano?.pannelli.length??0)>0)return;setFalde(misure.falde);const next=pianoDaMappaFv({versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde:misure.falde,distanzaOstacoli:ostacoli,fotoSolar},piano?.modulo??{corto:1.134,lungo:1.762,stimato:true});onChange({...next,distanzaBordo:bordo,schema3d:{...piano?.schema3d,altezza:misure.altezza,pendenza:piano?.schema3d?.pendenza??20}});}}/>
+
           <div className="fv-mappa-strumenti">
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Strumenti di disegno</h4>
       <div

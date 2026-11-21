@@ -19,7 +19,7 @@ export function geometriaTettoDocumento(piano: DisegnoCommercialeFv) {
     const locale = piano.falde.find(q => q.id === f.id)!;
     const d = { x: Math.sin(f.azimut * rad), y: Math.cos(f.azimut * rad) };
     const massimo = Math.max(...f.punti.map(p => p.x * d.x + p.y * d.y));
-    const punti = f.punti.map(p => ({ ...p, z: altezza + (massimo - p.x * d.x - p.y * d.y) * Math.tan(f.inclinazione * rad) }));
+    const punti = f.punti.map(p => ({ ...p, z: altezza + (f.dislivelloGronda ?? 0) + (massimo - p.x * d.x - p.y * d.y) * Math.tan(f.inclinazione * rad) }));
     const origine = punti.reduce((a, p) => ({ x: a.x + p.x / punti.length, y: a.y + p.y / punti.length, z: a.z + p.z / punti.length }), { x: 0, y: 0, z: 0 });
     const normale = punti.reduce((a, p, i) => {
       const q = punti[(i + 1) % punti.length];

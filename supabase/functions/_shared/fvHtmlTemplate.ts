@@ -1,3 +1,4 @@
+import { STILE_STAMPA_PAGINE_FV } from "./fvStampaPagina.ts";
 import {flussiAnnoOrarioFv} from "./fvSimulazioneEnergetica.ts";
 import {coverIndustrialeFv,copertinaIndustrialeAttiva} from "./fvCopertinaIndustriale.ts";
 import {leggiAmbitoOffertaFv} from "./fvAmbitoOfferta.ts";
@@ -504,6 +505,7 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
   background: white;
 }
 .page:last-child { page-break-after: auto; }
+${STILE_STAMPA_PAGINE_FV}
 
 .page-header {
   position: absolute; top: 0; left: 0; right: 0;
@@ -1530,7 +1532,7 @@ function pageSatelliteTetto(d: FvPdfTemplateData, pageN: number, total: number) 
     <div style="height:130mm;position:relative;border:1px solid #DCE5EB;border-radius:10px;overflow:hidden;margin:3mm 0" ${!foto.img ? `data-fv-google-pdf="${escHtml(encodeURIComponent(JSON.stringify({centro:foto.centro,zoom:foto.zoom,w:foto.w,h:foto.h})))}"` : ""}>
       ${foto.img ? svgSatelliteDocumento(piano,foto) : `<div data-fv-google-frame style="position:absolute;width:${foto.w}px;height:${foto.h}px;left:50%;top:50%;transform:translate(-50%,-50%)"><div data-fv-google-map style="position:absolute;inset:0;width:100%;height:100%"></div><div style="position:absolute;inset:0;pointer-events:none">${svgSatelliteDocumento(piano,foto)}</div></div><p data-fv-google-status style="position:absolute;left:4mm;top:4mm;right:4mm;padding:3mm;background:white;font-size:9pt">Apri questo documento dall’app per caricare la vista Google prima di stampare.</p>`}
     </div>
-    <p style="font-size:8pt;color:#64748b">Vista satellitare Google Maps. Contorni e pannelli nella posizione geografica salvata nel progetto.</p>
+    <p style="font-size:8pt;color:#64748b">${foto.solar ? `Foto Google Solar del ${escHtml(foto.solar.data)} · ${fmtNum(foto.solar.risoluzione*100,0)} cm/pixel. Source: Includes solar data from Google.` : "Vista satellitare Google Maps."} Contorni e pannelli nella posizione geografica salvata nel progetto.</p>
     <div class="callout callout-info"><span class="callout-icon">i</span><div><strong>La disposizione salvata sulla mappa.</strong>Foto e disegno condividono coordinate, orientamento e scala. Le immagini aeree possono essere precedenti allo stato attuale: misure, ostacoli e posa si confermano nel sopralluogo.</div></div>
   </div>${footer(d,pageN,total)}</div>`;
 }

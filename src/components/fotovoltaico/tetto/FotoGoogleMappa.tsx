@@ -1,3 +1,4 @@
+import { FvFotoSolar } from "./FvFotoSolar";
 import { useMemo, useState } from "react";
 import { edificioDaMappaFv } from "./mappaGeometria";
 import { FotoTettoReale } from "./FotoTettoReale";
@@ -105,6 +106,7 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
           navigazioneMappa={stato.pronto && naviga}
           onScegliStrumento={() => setNaviga(false)}
           sfondoMappa={
+            <>
             <MappaGoogleFv
               key={tentativo}
               centro={centro}
@@ -126,6 +128,8 @@ export function FotoGoogleMappa(props: Parameters<typeof FotoTettoReale>[0]) {
                 aggiornaZoom(z);
               }}
             />
+            <FvFotoSolar foto={mappa.fotoSolar} centro={centro} zoom={zoom} w={dimensioni.w} h={dimensioni.h}/>
+            </>
           }
         />
       </RilievoContext.Provider>

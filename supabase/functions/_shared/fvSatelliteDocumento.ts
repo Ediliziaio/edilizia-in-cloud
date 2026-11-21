@@ -1,10 +1,11 @@
+import type { FotoSolarFv } from "./fvGoogleSolar.ts";
 import type { DisegnoCommercialeFv } from "./fvDisegnoCommerciale.ts";
 import { coordinateDaMetri, pixelDaCoordinate, type PosizioneMappaFv } from "./fvMappa.ts";
 import { geometriaTettoDocumento } from "./fvTettoDocumento.ts";
 
 export type SatelliteDocumentoFv = {
   img?: string; centro: PosizioneMappaFv; zoom: number; w: number; h: number;
-  provider: "google";
+  provider: "google"; solar?: FotoSolarFv;
 };
 export function inquadraturaSatellitePdf(piano: DisegnoCommercialeFv) {
   const g = geometriaTettoDocumento(piano);
@@ -28,5 +29,11 @@ export function svgSatelliteDocumento(piano: DisegnoCommercialeFv, immagine: Sat
   if (!g || !piano.mappa || (immagine.img && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(immagine.img))) return "";
   const at = (p: {x:number;y:number}) => pixelDaCoordinate(coordinateDaMetri(p, piano.mappa!.origine), immagine.centro, immagine.zoom, immagine.w, immagine.h);
   const punti = (ps: Array<{x:number;y:number}>) => ps.map(at).map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(" ");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${immagine.w} ${immagine.h}" role="img" aria-label="Vista satellitare del tetto con i pannelli nella posizione salvata" style="width:100%;height:100%">${immagine.img ? `<image href="${immagine.img}" width="${immagine.w}" height="${immagine.h}" preserveAspectRatio="none"/>` : ""}${g.falde.map(f => `<polygon points="${punti(f.punti)}" fill="#4ade80" fill-opacity=".08" stroke="#58e2b2" stroke-width="1.5"/>`).join("")}${g.pannelli.map(p => `<polygon data-fv-satellite-panel="true" points="${punti(p.punti)}" fill="#182f43" fill-opacity=".86" stroke="#d1e0e8" stroke-width=".6"/>`).join("")}${g.ostacoli.map(o => `<polygon points="${punti(o.punti)}" fill="#e8ad65" fill-opacity=".7" stroke="#9a631e" stroke-width=".7"/>`).join("")}</svg>`;
+  let foto = immagine.img ? `<image href="${immagine.img}" width="${immagine.w}" height="${immagine.h}" preserveAspectRatio="none"/>` : "";
+  if(immagine.solar && immagine.img){
+    const m=immagine.solar,[a,b,c]=m.angoli.map(p=>pixelDaCoordinate(p,immagine.centro,immagine.zoom,immagine.w,immagine.h));
+    foto=`<image href="${immagine.img}" width="${m.larghezza}" height="${m.altezza}" transform="matrix(${(b.x-a.x)/m.larghezza} ${(b.y-a.y)/m.larghezza} ${(c.x-a.x)/m.altezza} ${(c.y-a.y)/m.altezza} ${a.x} ${a.y})"/>`;
+  }
+  const attribuzione=immagine.solar?`<g transform="translate(0 ${immagine.h-40})"><rect width="${immagine.w}" height="40" fill="white" fill-opacity=".96"/><text x="12" y="17" font-family="Arial,sans-serif" font-size="14" font-weight="400" fill="#1f1f1f">Google Maps</text><text x="12" y="32" font-family="Arial,sans-serif" font-size="10" fill="#475569">Source: Includes solar data from Google · ${immagine.solar.data}</text></g>`:"";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${immagine.w} ${immagine.h}" role="img" aria-label="Vista satellitare del tetto con i pannelli nella posizione salvata" style="width:100%;height:100%">${foto}${g.falde.map(f => `<polygon points="${punti(f.punti)}" fill="#4ade80" fill-opacity=".08" stroke="#58e2b2" stroke-width="1.5"/>`).join("")}${g.pannelli.map(p => `<polygon data-fv-satellite-panel="true" points="${punti(p.punti)}" fill="#182f43" fill-opacity=".86" stroke="#d1e0e8" stroke-width=".6"/>`).join("")}${g.ostacoli.map(o => `<polygon points="${punti(o.punti)}" fill="#e8ad65" fill-opacity=".7" stroke="#9a631e" stroke-width=".7"/>`).join("")}${attribuzione}</svg>`;
 }
