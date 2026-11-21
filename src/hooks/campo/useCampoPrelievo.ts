@@ -23,6 +23,8 @@ interface PrelievoEsito {
   stato: "richiesto" | "consegnato" | "rifiutato";
 }
 
+export class PrelievoNonRegistrato extends Error {}
+
 const INVENTARIO_PER_PAGINA = 60;
 
 export function useCampoMagazzinoConfig() {
@@ -99,7 +101,13 @@ export function usePrelievoRegistra(companyId: string) {
         p_note: note || null,
         p_richiesta_id: requestId,
       }), "Registrazione prelievo");
-      if (error) throw new Error(error.message);
+      if (error) {
+        // Questi errori vengono emessi dopo il controllo dell'identificativo e annullano la scrittura.
+        const nonRegistrato = error.code === "22023" || error.code === "P0001"
+          || (error.code === "42501" && error.message.startsWith("Scegli un cantiere aperto"));
+        if (nonRegistrato) throw new PrelievoNonRegistrato(error.message);
+        throw new Error(error.message);
+      }
       if (!data || typeof data !== "object" || Array.isArray(data) || typeof data.id !== "string"
         || (data.stato !== "richiesto" && data.stato !== "consegnato" && data.stato !== "rifiutato")) {
         throw new Error("Il magazzino non ha confermato l’esito. Riprova a inviare questo prelievo.");
