@@ -126,7 +126,7 @@ it("apre il confronto richiesto dalla testata della scheda", () => {
   mostra({ apertoDallaScheda: true, onApertoChange });
   const dialogo = screen.getByRole("dialog", { name: "Confronto DDT e ordini" });
   expect(within(dialogo).getByText("Tapparella alluminio")).toBeInTheDocument();
-  fireEvent.click(within(dialogo).getByRole("button", { name: "Chiudi confronto", exact: true }));
+  fireEvent.click(within(dialogo).getByRole("button", { name: /^Chiudi confronto$/ }));
   expect(onApertoChange).toHaveBeenCalledWith(false);
   expect(m.rpc).not.toHaveBeenCalled();
 });
