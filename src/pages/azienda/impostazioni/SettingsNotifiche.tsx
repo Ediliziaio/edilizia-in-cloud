@@ -105,9 +105,10 @@ const DEFAULT_ORDER: ChannelKey[] = ["silvio_chat", "telegram", "whatsapp", "ema
 
 const STATO_MESSAGGIO: Record<string, string> = { published: "attivo", draft: "in pausa", archived: "archiviato" };
 
-export default function SettingsNotifiche() {
+export default function SettingsNotifiche({ soloPersonali = false }: { soloPersonali?: boolean } = {}) {
   const { user, effectiveCompany } = useAuth();
-  const { isAdmin } = usePermissions();
+  const { isAdmin: amministratore } = usePermissions();
+  const isAdmin = amministratore && !soloPersonali;
   const qc = useQueryClient();
   const confirm = useConfirm();
   // Con l'àncora (…/notifiche#messaggi-automatici) la sezione chiusa si apre già aperta.
@@ -138,9 +139,9 @@ export default function SettingsNotifiche() {
       last_run_at: string | null;
     };
   }
-  const { data: companyFlows = [], isError: flowsError } = useQuery({
+  const { data: companyFlows = [], isError: flowsError, isLoading: flowsLoading, refetch: rileggiFlussi } = useQuery({
     queryKey: ["settings-notifiche-bulk-flows", effectiveCompany?.id],
-    enabled: !!effectiveCompany?.id && isAdmin,
+    enabled: !!effectiveCompany?.id && messaggiAziendali,
     queryFn: async (): Promise<CompanyBulkFlow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
@@ -218,27 +219,29 @@ export default function SettingsNotifiche() {
   const dirty = baseline != null && baseline !== snapshot;
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
-  // Inizializza da prefs caricate
+  // Accoda la lettura per applicare insieme i valori, anche quando la query
+  // viene aggiornata al ritorno nell'app.
   useEffect(() => {
-    if (dirtyRef.current) return;
-    if (prefs) {
-      setBaseline(JSON.stringify({
-        silvioChatEnabled: prefs.silvio_chat_enabled, emailEnabled: prefs.email_enabled,
-        emailOverride: prefs.email_override ?? "",
-        order: Array.isArray(prefs.preferred_order) && prefs.preferred_order.length ? prefs.preferred_order : DEFAULT_ORDER,
-        quietFrom: prefs.quiet_from ?? "", quietTo: prefs.quiet_to ?? "",
-      }));
-      setSilvioChatEnabled(prefs.silvio_chat_enabled);
-      setEmailEnabled(prefs.email_enabled);
-      setEmailOverride(prefs.email_override ?? "");
-      setOrder(Array.isArray(prefs.preferred_order) && prefs.preferred_order.length > 0
-        ? (prefs.preferred_order as ChannelKey[])
-        : DEFAULT_ORDER);
-      setQuietFrom(prefs.quiet_from ?? "");
-      setQuietTo(prefs.quiet_to ?? "");
-    } else if (!isLoading && !isError) {
-      setBaseline(JSON.stringify({ silvioChatEnabled: true, emailEnabled: true, emailOverride: "", order: DEFAULT_ORDER, quietFrom: "", quietTo: "" }));
-    }
+    let attivo = true;
+    queueMicrotask(() => {
+      if (!attivo || dirtyRef.current || isLoading || isError) return;
+      const valori = {
+        silvioChatEnabled: prefs?.silvio_chat_enabled ?? true,
+        emailEnabled: prefs?.email_enabled ?? true,
+        emailOverride: prefs?.email_override ?? "",
+        order: Array.isArray(prefs?.preferred_order) && prefs.preferred_order.length ? prefs.preferred_order : DEFAULT_ORDER,
+        quietFrom: prefs?.quiet_from ?? "",
+        quietTo: prefs?.quiet_to ?? "",
+      };
+      setBaseline(JSON.stringify(valori));
+      setSilvioChatEnabled(valori.silvioChatEnabled);
+      setEmailEnabled(valori.emailEnabled);
+      setEmailOverride(valori.emailOverride);
+      setOrder(valori.order);
+      setQuietFrom(valori.quietFrom);
+      setQuietTo(valori.quietTo);
+    });
+    return () => { attivo = false; };
   }, [prefs, isLoading, isError]);
 
   // Save
@@ -307,11 +310,10 @@ export default function SettingsNotifiche() {
     // Niente titolo né riquadro informativo: il titolo lo mette il layout delle impostazioni (un solo h1).
     // Da 768 senza margine proprio né centratura: il margine lo dà la cornice delle impostazioni.
     <div className="max-w-3xl space-y-4 max-sm:space-y-3">
-      {flowsError && isAdmin && <Alert variant="destructive"><AlertDescription>I messaggi programmati non sono disponibili. Non vengono mostrati come elenco vuoto.</AlertDescription></Alert>}
-
-      {isAdmin && <nav aria-label="Ambito delle notifiche" className="flex flex-wrap gap-2 max-sm:hidden">
-        <Button variant={messaggiAziendali ? "ghost" : "secondary"} onClick={() => cambiaAmbito("personale")} aria-pressed={!messaggiAziendali}>Le mie notifiche</Button>
-        <Button variant={messaggiAziendali ? "secondary" : "ghost"} onClick={() => cambiaAmbito("azienda")} aria-pressed={messaggiAziendali}>Messaggi all’azienda</Button>
+      {soloPersonali && <h1 className="text-xl font-semibold">Notifiche</h1>}
+      {isAdmin && <nav aria-label="Ambito delle notifiche" className="flex flex-wrap gap-1.5">
+        <Button className="min-h-11 px-2.5 md:min-h-9" variant={messaggiAziendali ? "ghost" : "secondary"} onClick={() => cambiaAmbito("personale")} aria-pressed={!messaggiAziendali}>Le mie notifiche</Button>
+        <Button className="min-h-11 px-2.5 md:min-h-9" variant={messaggiAziendali ? "secondary" : "ghost"} onClick={() => cambiaAmbito("azienda")} aria-pressed={messaggiAziendali}>Messaggi all’azienda</Button>
       </nav>}
       <div hidden={messaggiAziendali} className="space-y-4">
       {/* 1 · Avvisi: la campanella e le email delle attività. Si salvano da soli. */}
@@ -466,10 +468,8 @@ export default function SettingsNotifiche() {
       </fieldset>
 
       </div>
-      {/* 4 · Messaggi programmati — solo amministratori, in fondo. Telefono no: sono automazioni, che si creano da
-          computer o tablet. */}
-      {isAdmin && (
-        <div className="max-sm:hidden" hidden={!messaggiAziendali}>
+      {messaggiAziendali && (
+        <div>
           <SezioneImpostazione
             id="messaggi-programmati"
             titolo="Messaggi programmati"
@@ -481,14 +481,19 @@ export default function SettingsNotifiche() {
             }
             ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
             azione={
-              <Button size="sm" onClick={() => setBulkWizardOpen(true)} className="gap-1.5">
+              <Button size="sm" onClick={() => setBulkWizardOpen(true)} className="min-h-11 gap-1.5 md:min-h-9">
                 <Plus className="h-3.5 w-3.5" />
                 Nuovo
               </Button>
             }
             evidenziata={evidenziata === "messaggi-programmati"}
           >
-            {companyFlows.length === 0 ? (
+            {flowsLoading ? <p role="status" className="p-3 text-sm text-muted-foreground">Carico i messaggi…</p>
+              : flowsError ? <p role="alert" className="p-3 text-sm">
+                Non riesco a caricare i messaggi programmati.{" "}
+                <Button variant="ghost" className="min-h-11" onClick={() => void rileggiFlussi()}>Riprova</Button>
+              </p>
+              : companyFlows.length === 0 ? (
               <p className="px-4 py-4 text-sm text-muted-foreground">
                 Nessun messaggio programmato. Premi «Nuovo» per crearne uno (per esempio il briefing del mattino agli operai).
               </p>
@@ -497,7 +502,7 @@ export default function SettingsNotifiche() {
                 <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
                   {companyFlows.length === 1 ? "1 messaggio programmato" : `${companyFlows.length} messaggi programmati`}
                 </summary>
-                <div className="space-y-2 border-t px-4 py-4">
+                <div className="space-y-2 border-t px-3 py-3 md:px-4">
                   {companyFlows.map((f) => {
                     const cfg = f.bulk_trigger_config;
                     const isActive = f.status === "published";
@@ -533,7 +538,7 @@ export default function SettingsNotifiche() {
                         </div>
                         <div className="flex shrink-0 items-center gap-0.5">
                           <Button
-                            size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
+                            size="icon" variant="ghost" className="size-11 md:size-8"
                             aria-label={isActive ? `Metti in pausa «${f.name}»` : `Riattiva «${f.name}»`}
                             title={isActive ? "Metti in pausa" : "Riattiva"}
                             onClick={() => toggleFlowMut.mutate({ id: f.id, newStatus: isActive ? "draft" : "published" })}
@@ -541,7 +546,7 @@ export default function SettingsNotifiche() {
                             {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                           </Button>
                           <Button
-                            size="icon" variant="ghost" className="h-9 w-9 text-rose-600 md:h-7 md:w-7"
+                            size="icon" variant="ghost" className="size-11 text-rose-600 md:size-8"
                             aria-label={`Sposta «${f.name}» nel cestino`}
                             title="Sposta nel cestino"
                             onClick={async () => {
@@ -569,10 +574,10 @@ export default function SettingsNotifiche() {
 
       {/* Wizard nuovo messaggio programmato — montato qui per riuso, gestito
           via stato bulkWizardOpen + chiamato dal pulsante Nuovo */}
-      <BulkScheduleWizard
+      {isAdmin && <BulkScheduleWizard
         open={bulkWizardOpen}
         onClose={() => setBulkWizardOpen(false)}
-      />
+      />}
     </div>
   );
 }

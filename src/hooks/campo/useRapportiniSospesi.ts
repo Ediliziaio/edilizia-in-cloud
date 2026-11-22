@@ -14,7 +14,7 @@ interface RapportinoSospeso {
   order: { order_code: string | null; description: string | null } | null;
 }
 
-export function useRapportiniSospesi(ancheOggi = false) {
+export function useRapportiniSospesi(ancheOggi = false, abilitato = true) {
   const { user, profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id;
   const today = campoWorkDay();
@@ -31,6 +31,6 @@ export function useRapportiniSospesi(ancheOggi = false) {
       if (error) throw error;
       return (data ?? []) as unknown as RapportinoSospeso[];
     },
-    enabled: !!user?.id && !!companyId,
+    enabled: abilitato && !!user?.id && !!companyId,
   });
 }

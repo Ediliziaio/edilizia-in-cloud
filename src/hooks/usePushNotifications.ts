@@ -21,6 +21,7 @@ import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isNative } from "@/lib/mobile/platform";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 export type PushPermissionState = "default" | "granted" | "denied" | "unsupported";
 
@@ -30,6 +31,9 @@ interface UsePushNotificationsReturn {
   supported: boolean;
   isSubscribed: boolean;
   isLoading: boolean;
+  nativa: boolean;
+  servizioNativo: boolean | null;
+  errore: string | null;
   subscribe: () => Promise<void>;
   unsubscribe: () => Promise<void>;
 }
@@ -67,24 +71,16 @@ function chiavePubblica(): Promise<string> {
   return chiaveDalServer;
 }
 
-/** Rifiuta dopo `ms`: niente attese infinite se il service worker non arriva. */
-function entro<T>(promessa: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promessa,
-    new Promise<T>((_, rifiuta) => setTimeout(() => rifiuta(new Error("Il service worker non risponde")), ms)),
-  ]);
-}
-
 /**
  * La registrazione del service worker, creandola se manca. /sw.js lo genera la
  * build di produzione (vite-plugin-pwa): in sviluppo non esiste e si torna null.
  */
 async function registrazione(): Promise<ServiceWorkerRegistration | null> {
   const esistente = await navigator.serviceWorker.getRegistration("/");
-  if (esistente) return entro(navigator.serviceWorker.ready, 10_000);
+  if (esistente) return withClientTimeout(navigator.serviceWorker.ready, "Avvio notifiche", 10_000);
   if (!import.meta.env.PROD) return null;
   await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-  return entro(navigator.serviceWorker.ready, 10_000);
+  return withClientTimeout(navigator.serviceWorker.ready, "Avvio notifiche", 10_000);
 }
 
 /** L'iscrizione è stata fatta con questa chiave? */
@@ -94,139 +90,164 @@ function stessaChiave(sub: PushSubscription, chiave: string): boolean {
   return arrayBufferToBase64url(usata) === chiave.replace(/=+$/, "");
 }
 
+const PROPRIETARIO_WEB = "eic.push.web.v1";
+type IscrizioneLocale = { userId: string; endpoint: string };
+
+function iscrizioneLocale(): IscrizioneLocale | null {
+  try { return JSON.parse(localStorage.getItem(PROPRIETARIO_WEB) ?? "null"); } catch { return null; }
+}
+
+function memorizzaIscrizione(userId: string, endpoint: string) {
+  try { localStorage.setItem(PROPRIETARIO_WEB, JSON.stringify({ userId, endpoint })); } catch { /* il server conserva l'iscrizione */ }
+}
+
+async function stessoUtente(sub: PushSubscription, userId: string) {
+  const locale = iscrizioneLocale();
+  if (locale?.endpoint === sub.endpoint) return locale.userId === userId;
+  const { data, error } = await supabase.from("push_subscriptions").select("id").eq("user_id", userId).eq("endpoint", sub.endpoint).maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+async function servizioDisponibile(piattaforma: "ios" | "android") {
+  const { data, error } = await supabase.functions.invoke<{ native?: { android: boolean; ios: boolean } }>(
+    "send-push-notification", { method: "GET" },
+  );
+  if (error) throw new Error("Non riesco a verificare le notifiche. Riprova.");
+  return data?.native?.[piattaforma] === true;
+}
+
 export function usePushNotifications(): UsePushNotificationsReturn {
   const { user, profile } = useAuth();
+  const userId = user?.id;
+  const companyId = profile?.company_id ?? PLATFORM_ADMIN_COMPANY_ID;
   const [permission, setPermission] = useState<PushPermissionState>("default");
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [attivePer, setAttivePer] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
+  const [servizioNativo, setServizioNativo] = useState<boolean | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  const supportedWeb = typeof window !== "undefined" && !isNative && "serviceWorker" in navigator
+    && "PushManager" in window && "Notification" in window;
+  const supported = isNative ? permission !== "unsupported" : supportedWeb;
+  const isSubscribed = !!userId && attivePer === userId && permission === "granted";
 
-  // Nell'app nativa (Capacitor) le Web Push non esistono: lì servono le push
-  // native, che passano da push_tokens.
-  const supported =
-    typeof window !== "undefined" &&
-    !isNative &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window &&
-    "Notification" in window;
+  const salvaWeb = useCallback(async (sub: PushSubscription, persona: string) => {
+    const rawKey = sub.getKey("p256dh");
+    const rawAuth = sub.getKey("auth");
+    if (!rawKey || !rawAuth) throw new Error("Iscrizione incompleta. Riprova.");
+    const { error } = await supabase.from("push_subscriptions").upsert({
+      user_id: persona, company_id: companyId, endpoint: sub.endpoint, p256dh: arrayBufferToBase64url(rawKey),
+      auth_key: arrayBufferToBase64url(rawAuth), user_agent: navigator.userAgent.slice(0, 200),
+    }, { onConflict: "user_id,endpoint" });
+    if (error) throw error;
+    memorizzaIscrizione(persona, sub.endpoint);
+  }, [companyId]);
 
-  // Lo staff di piattaforma (super_admin, ruoli platform_*) non ha un'azienda:
-  // profile.company_id e' NULL. Prima il subscribe usciva subito e in SILENZIO,
-  // quindi il super-admin non poteva iscriversi alle notifiche nemmeno
-  // premendo il pulsante. Le sue iscrizioni si intestano alla company della
-  // piattaforma, che e' esattamente cosa sono.
-  const companyIdIscrizione = profile?.company_id ?? PLATFORM_ADMIN_COMPANY_ID;
-
-  const salva = useCallback(
-    async (sub: PushSubscription) => {
-      if (!user) return;
-      const rawKey = sub.getKey("p256dh");
-      const rawAuth = sub.getKey("auth");
-      if (!rawKey || !rawAuth) throw new Error("Chiavi subscription mancanti");
-      const { error } = await supabase.from("push_subscriptions").upsert(
-        {
-          user_id: user.id,
-          company_id: companyIdIscrizione,
-          endpoint: sub.endpoint,
-          p256dh: arrayBufferToBase64url(rawKey),
-          auth_key: arrayBufferToBase64url(rawAuth),
-          user_agent: navigator.userAgent.slice(0, 200),
-        },
-        { onConflict: "user_id,endpoint" },
-      );
-      if (error) throw error;
-    },
-    [user, companyIdIscrizione],
-  );
-
-  // Stato permesso corrente
   useEffect(() => {
-    if (!supported) {
-      setPermission("unsupported");
-      return;
-    }
-    setPermission(Notification.permission as PushPermissionState);
-  }, [supported]);
-
-  // Iscrizione esistente: se il browser è iscritto, la riga nel database si
-  // rimette (poteva essere stata cancellata come «scaduta»).
-  useEffect(() => {
-    if (!supported || !user || Notification.permission !== "granted") return;
     let annullato = false;
-    (async () => {
+    let controllo = 0;
+    async function aggiorna() {
+      const versione = ++controllo;
+      const attivo = () => !annullato && versione === controllo;
       try {
+        if (isNative) {
+          const nativa = await import("@/lib/mobile/native-push");
+          const piattaforma = nativa.piattaformaPushNativa();
+          const permesso = piattaforma ? await nativa.permessoPushNativo() : "unsupported";
+          if (!attivo()) return;
+          setPermission(permesso);
+          if (!piattaforma || !userId) return;
+          const abilitata = await nativa.pushNativaAbilitata(userId);
+          if (attivo()) setAttivePer(abilitata ? userId : undefined);
+          const servizio = await servizioDisponibile(piattaforma);
+          if (attivo()) setServizioNativo(servizio);
+          return;
+        }
+        if (!supportedWeb) {
+          setPermission("unsupported");
+          return;
+        }
+        setPermission(Notification.permission);
+        if (!userId || Notification.permission !== "granted") return;
         const reg = await navigator.serviceWorker.getRegistration("/");
-        const sub = reg ? await reg.pushManager.getSubscription() : null;
-        if (!sub) return;
-        if (!stessaChiave(sub, await chiavePubblica())) return; // la rifà subscribe()
-        await salva(sub);
-        if (!annullato) setIsSubscribed(true);
-      } catch {
-        // Silenzioso: al primo tocco su «attiva» si riprova da capo.
-      }
-    })();
-    return () => { annullato = true; };
-  }, [supported, user, salva]);
+        const sub = await reg?.pushManager.getSubscription();
+        if (!sub || !await stessoUtente(sub, userId) || !stessaChiave(sub, await chiavePubblica()) || !attivo()) return;
+        await salvaWeb(sub, userId);
+        if (attivo()) setAttivePer(userId);
+      } catch { /* si può riprovare dalle impostazioni */ }
+    }
+    void aggiorna();
+    const alRitorno = () => { if (document.visibilityState === "visible") void aggiorna(); };
+    document.addEventListener("visibilitychange", alRitorno);
+    return () => { annullato = true; document.removeEventListener("visibilitychange", alRitorno); };
+  }, [supportedWeb, userId, salvaWeb]);
 
   const subscribe = useCallback(async () => {
-    if (!supported || !user) return;
+    if (!supported || !userId) return;
     setIsLoading(true);
+    setErrore(null);
     try {
-      // 1. Richiedi permesso
-      const perm = await Notification.requestPermission();
-      setPermission(perm as PushPermissionState);
-      if (perm !== "granted") return;
-
-      // 2. Service worker (registrato qui se manca)
+      if (isNative) {
+        const nativa = await import("@/lib/mobile/native-push");
+        const piattaforma = nativa.piattaformaPushNativa();
+        if (!piattaforma || !await servizioDisponibile(piattaforma)) {
+          setServizioNativo(false);
+          return;
+        }
+        setServizioNativo(true);
+        const permesso = await nativa.attivaPushNativa(userId);
+        setPermission(permesso);
+        if (permesso === "granted") setAttivePer(userId);
+        return;
+      }
+      const permesso = await Notification.requestPermission();
+      setPermission(permesso);
+      if (permesso !== "granted") return;
       const reg = await registrazione();
       if (!reg) throw new Error("Service worker non disponibile");
-
-      // 3. Crea subscription (rifatta se era con un'altra chiave)
       const chiave = await chiavePubblica();
       let sub = await reg.pushManager.getSubscription();
-      if (sub && !stessaChiave(sub, chiave)) {
+      // L'iscrizione del browser è del dispositivo. Un altro account deve
+      // avere un nuovo endpoint invece di ricevere gli avvisi del precedente.
+      if (sub && (!stessaChiave(sub, chiave) || !await stessoUtente(sub, userId))) {
         await sub.unsubscribe();
         sub = null;
       }
-      sub ??= await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(chiave),
-      });
-
-      // 4. Salva in DB (upsert per endpoint)
-      await salva(sub);
-      setIsSubscribed(true);
-    } catch (err) {
-      console.error("Push subscribe error:", err);
+      sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(chiave) });
+      await salvaWeb(sub, userId);
+      setAttivePer(userId);
+    } catch {
+      setErrore("Non riesco ad attivare le notifiche su questo dispositivo. Riprova.");
     } finally {
       setIsLoading(false);
     }
-  }, [supported, user, salva]);
+  }, [supported, userId, salvaWeb]);
 
   const unsubscribe = useCallback(async () => {
-    if (!supported || !user) return;
+    if (!supported || !userId) return;
     setIsLoading(true);
+    setErrore(null);
     try {
-      const reg = await navigator.serviceWorker.getRegistration("/");
-      const sub = reg ? await reg.pushManager.getSubscription() : null;
-      if (sub) {
-        // 1. Rimuovi da DB
-        await supabase
-          .from("push_subscriptions")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("endpoint", sub.endpoint);
-        // 2. Revoca subscription lato browser
-        await sub.unsubscribe();
+      if (isNative) {
+        const { disattivaPushNativa } = await import("@/lib/mobile/native-push");
+        await disattivaPushNativa(userId);
+      } else {
+        const reg = await navigator.serviceWorker.getRegistration("/");
+        const sub = await reg?.pushManager.getSubscription();
+        if (sub && await stessoUtente(sub, userId)) {
+          const { error } = await supabase.from("push_subscriptions").delete().eq("user_id", userId).eq("endpoint", sub.endpoint);
+          if (error) throw error;
+          await sub.unsubscribe();
+          try { localStorage.removeItem(PROPRIETARIO_WEB); } catch { /* storage non disponibile */ }
+        }
       }
-      setIsSubscribed(false);
-    } catch (err) {
-      console.error("Push unsubscribe error:", err);
+      setAttivePer(undefined);
+    } catch {
+      setErrore("Non riesco a disattivare le notifiche. Riprova.");
     } finally {
       setIsLoading(false);
     }
-  }, [supported, user]);
+  }, [supported, userId]);
 
-  return {
-    supported,
-    permission, isSubscribed, isLoading, subscribe, unsubscribe };
+  return { supported, permission, isSubscribed, isLoading, subscribe, unsubscribe, nativa: isNative, servizioNativo, errore };
 }

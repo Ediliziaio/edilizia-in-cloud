@@ -588,10 +588,7 @@ const Gestionale = () => (
   >
     <TooltipProvider>
      <ConfirmProvider>
-      {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}
-      {/* Anche sul computer gli avvisi stanno sopra le barre fisse in basso a destra (Crea commessa,
-          Salva…): un errore non deve coprire il pulsante che serve a correggerlo (17/11/2026). */}
-      <Sonner mobileOffset={{ bottom: 88 }} offset={{ bottom: 88 }} />
+      <Sonner offset={{ bottom: 88 }} />
       <RilascioFileGlobale />
       <BrowserRouter>
         <LocalRouteBoundary>
@@ -605,10 +602,10 @@ const Gestionale = () => (
             se il suo chunk è lento/non risolve su WKWebView, il fallback={null}
             lascia montare il resto dell'app (auth+routes) invece di bloccare
             l'intero render → evita il "caricamento infinito" su iOS. */}
-        <Suspense fallback={null}>
-          <MobileBootstrap />
-        </Suspense>
         <AuthProvider>
+          <Suspense fallback={null}>
+            <MobileBootstrap />
+          </Suspense>
           <FinancialRefreshBridge />
           <PaymentGateHost />
           <AnalyticsProvider>

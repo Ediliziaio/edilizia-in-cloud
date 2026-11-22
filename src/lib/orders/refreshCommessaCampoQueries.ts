@@ -8,11 +8,12 @@ const ORDER_FIRST = new Set([
   "order-economics-canonical", "order-economics-vehicles", "order-campo-assignments", "order-workforce-presence",
   "order-conteggi-viste", "order-items", "order-items-materials", "order_attachments", "order-documents-summary",
   "order-status-history", "campo-lavoro", "campo-fasi-commessa", "campo-mie-fasi", "campo-ruolo", "campo-squadra", "campo-scheda-cantiere",
+  "campo-avanzamenti-scheda", "campo-rilievi-scheda", "order-surveys",
   "campo-chi-lavora", "campo-articoli-commessa-rapportino", "campo-mezzi-giornata", "commessa-mezzi-lavoro",
   "timeline-stati", "timeline-lavori", "timeline-sal", "timeline-varianti", "timeline-rapportini",
   "linked-purchase-orders",
 ]);
-const COMPANY_SUFFIX = new Set(["order-conteggi-viste", "campo-lavoro", "campo-articoli-commessa-rapportino", "timeline-rapportini", "linked-purchase-orders", "campo-scheda-cantiere"]);
+const COMPANY_SUFFIX = new Set(["order-conteggi-viste", "campo-lavoro", "campo-articoli-commessa-rapportino", "timeline-rapportini", "linked-purchase-orders", "campo-scheda-cantiere", "campo-avanzamenti-scheda", "campo-rilievi-scheda", "order-surveys"]);
 
 /** Only read models. Never applies hours, costs, stock movements or proposed progress. */
 export function isCommessaCampoQueryKey(key: readonly unknown[], orderId: string, companyId: string): boolean {

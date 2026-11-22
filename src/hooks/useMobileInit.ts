@@ -1,12 +1,18 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { App as CapApp, type URLOpenListenerEvent } from "@capacitor/app";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { Keyboard } from "@capacitor/keyboard";
 import { SplashScreen } from "@capacitor/splash-screen";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { useIsCampo } from "@/hooks/useIsCampo";
+import { queryKeys } from "@/lib/queryKeys";
+import { linkPerCampo, linkPerTecnico } from "@/lib/notifiche/linkCampo";
+import { percorsoPushNativa } from "@/lib/notifiche/percorsoNotifica";
 import { isNative, isAndroid } from "@/lib/mobile/platform";
-import { initNetworkMonitor } from "@/lib/mobile/native-network";
-import { setupNotificationListeners, onNotificationTap } from "@/lib/mobile/native-push";
+import { initNetworkMonitor, isOnline, onNetworkChange } from "@/lib/mobile/native-network";
+import { aggiornaPushNativa, ascoltaPushNative } from "@/lib/mobile/native-push";
 
 const NATIVE_MARKETING_PATHS = [
   "/",
@@ -28,6 +34,11 @@ const NATIVE_MARKETING_PATHS = [
   "/pianifica-migrazione",
 ];
 
+const percorsiAccesso = new Set([
+  "/login", "/lavori-login", "/admin-login", "/clienti-login", "/commercialista-login",
+  "/referral-login", "/produttore-login", "/cambia-password", "/seleziona-azienda",
+]);
+
 const shouldRedirectNativePathToLogin = (pathname: string) => {
   const normalized = pathname || "/";
   return NATIVE_MARKETING_PATHS.some((path) => normalized === path || normalized.startsWith(`${path}/`));
@@ -35,21 +46,39 @@ const shouldRedirectNativePathToLogin = (pathname: string) => {
 
 export function useMobileInit() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const handleDeepLink = useCallback((data: Record<string, unknown>) => {
-    const route = data.route as string | undefined;
-    if (route) { navigate(route); return; }
-    const type = data.type as string | undefined;
-    const id = data.id as string | undefined;
-    if (type && id) {
-      switch (type) {
-        case "order": navigate(`/azienda/cantieri/${id}`); break;
-        case "invoice": navigate(`/azienda/documenti/${id}/dettaglio`); break;
-        case "intervention": navigate(`/tecnico/interventi/${id}`); break;
-        case "ticket": navigate(`/azienda/ticket/${id}`); break;
-      }
-    }
-  }, [navigate]);
+  const { pathname } = useLocation();
+  const { user, isLoading } = useAuth();
+  const { isCampo, isTecnico } = useIsCampo();
+  const queryClient = useQueryClient();
+  const [notifica, setNotifica] = useState<Record<string, unknown>>();
+  const gestita = useRef<Record<string, unknown> | undefined>(undefined);
+  const navigatorRef = useRef(navigate);
+  useEffect(() => { navigatorRef.current = navigate; }, [navigate]);
+  const userId = user?.id;
+
+  useEffect(() => {
+    if (!isNative || !userId || isLoading || !notifica || gestita.current === notifica) return;
+    // L'ingresso dopo il login può ancora cambiare la schermata e l'azienda attiva.
+    if (percorsiAccesso.has(pathname) || shouldRedirectNativePathToLogin(pathname)) return;
+    gestita.current = notifica;
+    const percorso = percorsoPushNativa(notifica, window.location.origin, userId);
+    if (percorso) navigate(isCampo ? linkPerCampo(percorso)
+      : isTecnico && pathname.startsWith("/campo") ? linkPerTecnico(percorso) : percorso);
+  }, [isCampo, isTecnico, isLoading, navigate, notifica, pathname, userId]);
+
+  useEffect(() => {
+    if (!isNative || !userId || isLoading) return;
+    let ultimoTentativo = 0;
+    const aggiorna = () => {
+      if (!isOnline() || document.visibilityState !== "visible" || Date.now() - ultimoTentativo < 10 * 60_000) return;
+      ultimoTentativo = Date.now();
+      void aggiornaPushNativa(userId).catch(() => { ultimoTentativo = 0; });
+    };
+    aggiorna();
+    const rete = onNetworkChange(aggiorna);
+    document.addEventListener("visibilitychange", aggiorna);
+    return () => { rete(); document.removeEventListener("visibilitychange", aggiorna); };
+  }, [isLoading, userId]);
 
   useEffect(() => {
     if (!isNative) return;
@@ -59,43 +88,43 @@ export function useMobileInit() {
     Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
     Keyboard.setScroll({ isDisabled: true }).catch(() => {});
     SplashScreen.hide().catch(() => {});
-    initNetworkMonitor();
-    setupNotificationListeners();
-    onNotificationTap(handleDeepLink);
+    void initNetworkMonitor().catch((): void => undefined);
+    const scollegaPush = ascoltaPushNative(setNotifica, () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+    });
 
     const urlListener = CapApp.addListener("appUrlOpen", (event: URLOpenListenerEvent) => {
       try {
         const url = new URL(event.url);
         const path = url.pathname;
         // Con la query: il QR degli attrezzi porta l'azienda in «?c=».
-        if (path && path !== "/") navigate(`${path}${url.search}`);
+        if (path && path !== "/") navigatorRef.current(`${path}${url.search}${url.hash}`);
       } catch {
-        navigate("/login", { replace: true });
+        navigatorRef.current("/login", { replace: true });
       }
     });
 
-    let backListener: { remove: () => Promise<void> } | undefined;
-    if (isAndroid) {
-      CapApp.addListener("backButton", ({ canGoBack }) => {
+    const backListener = isAndroid
+      ? CapApp.addListener("backButton", ({ canGoBack }) => {
         if (canGoBack) window.history.back(); else CapApp.minimizeApp();
-      }).then((l) => { backListener = l; });
-    }
+      }) : undefined;
 
     const stateListener = CapApp.addListener("appStateChange", ({ isActive }) => {
       if (isActive) document.dispatchEvent(new Event("visibilitychange"));
     });
 
     return () => {
-      urlListener.then((l) => l.remove());
-      backListener?.remove();
-      stateListener.then((l) => l.remove());
+      scollegaPush();
+      for (const listener of [urlListener, backListener, stateListener]) {
+        void listener?.then(l => l.remove()).catch((): void => undefined);
+      }
     };
-  }, [navigate, handleDeepLink]);
+  }, [queryClient]);
 
   useEffect(() => {
     if (!isNative) return;
-    if (shouldRedirectNativePathToLogin(location.pathname)) {
+    if (shouldRedirectNativePathToLogin(pathname)) {
       navigate("/login", { replace: true });
     }
-  }, [location.pathname, navigate]);
+  }, [navigate, pathname]);
 }

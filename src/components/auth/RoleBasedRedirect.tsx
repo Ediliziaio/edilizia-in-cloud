@@ -8,6 +8,8 @@ import { getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { COMPANY_APP_HOME, getRoleHomePath } from "@/lib/auth/appHome";
 import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
+import { CAMPO_APP_ROLES } from "@/types/auth";
+import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
 
 function LoadingSpinner({ text }: { text: string }) {
   return (
@@ -20,8 +22,10 @@ function LoadingSpinner({ text }: { text: string }) {
   );
 }
 
-export function RoleBasedRedirect() {
-  const { user, role, isLoading, multiCompanyAccesses, multiCompanyLoaded, isImpersonating } = useAuth();
+export function RoleBasedRedirect({ campoDestinazione }: { campoDestinazione?: string } = {}) {
+  const { user, role, isLoading, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, isImpersonating } = useAuth();
+  const ruoloArea = resolveRouteAccessRole({ globalRole: role, accesses: multiCompanyAccesses, selectedCompanyId: selectedMultiCompanyId });
+  const controllaPassword = ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "multi_company_user"].includes(role || "");
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
   const [checkingPassword, setCheckingPassword] = useState(false);
 
@@ -52,7 +56,7 @@ export function RoleBasedRedirect() {
       // Multi-company user incluso: anche loro hanno una riga staff_permissions
       // (la baseline usata quando l'access_role corrente è non-admin) e un
       // possibile flag must_change_password al primo login dopo il reset.
-      if (["company_staff", "salesperson", "call_center", "employee", "subcontractor", "multi_company_user"].includes(role || "") && user) {
+      if (controllaPassword && user) {
         setCheckingPassword(true);
         try {
           // 🛠️ Bug fix 2026-05-10: usavamo `.maybeSingle()` ma per
@@ -96,7 +100,7 @@ export function RoleBasedRedirect() {
     }
 
     return () => { cancelled = true; };
-  }, [role, user]);
+  }, [role, user, controllaPassword]);
 
   // Show loading while auth is loading
   if (isLoading) {
@@ -138,7 +142,7 @@ export function RoleBasedRedirect() {
   }
 
   // For staff-type users, wait for password check to complete
-  if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "")) {
+  if (controllaPassword) {
     if (checkingPassword || mustChangePassword === null) {
       return <LoadingSpinner text="Verifica in corso..." />;
     }
@@ -153,6 +157,10 @@ export function RoleBasedRedirect() {
   if (role === "super_admin" && !isSuperAdminEmailAllowed(user.email)) {
     logger.warn("[security] RoleBasedRedirect: super_admin bloccato, dispatch a /azienda/attivita");
     return <Navigate to={COMPANY_APP_HOME} replace />;
+  }
+
+  if ((campoDestinazione || getCurrentSubdomain() === "lavori") && ruoloArea && CAMPO_APP_ROLES.includes(ruoloArea)) {
+    return <Navigate to={campoDestinazione || "/campo"} replace />;
   }
 
   // Selettore d'ingresso multi-azienda (stile GHL): se l'utente atterrerebbe

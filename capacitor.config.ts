@@ -28,7 +28,8 @@ const config: CapacitorConfig = {
       splashImmersive: true,
     },
     PushNotifications: {
-      presentationOptions: ["badge", "sound", "alert"],
+      // Con l'app aperta gli avvisi visibili arrivano dalla campanella realtime.
+      presentationOptions: [],
     },
     Keyboard: {
       resize: "body",

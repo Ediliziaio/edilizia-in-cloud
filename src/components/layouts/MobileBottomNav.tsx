@@ -142,7 +142,7 @@ function appendSearchToAziendaUrl(url: string, search: string) {
 /* ── Componente ────────────────────────────────────────── */
 export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean }) {
   const location = useLocation();
-  const { unreadCount } = useNotifications(badgePronti);
+  const { unreadCount } = useNotifications(badgePronti, { elenco: false });
   const permissions = usePermissions();
   const { role, effectiveCompany } = useAuth();
   const isMobile = useIsMobile();

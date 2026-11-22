@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SyncPermanentError, SyncTransientError, syncQueue } from "@/lib/campo/sync-queue";
+import type { BozzaAvanzamento, BozzaVisita } from "@/lib/campo/bozzaTecnica";
 
 let ora = 10000;
 let rete = true;
@@ -93,6 +94,47 @@ it("accetta una sola correzione concorrente e conserva la chiave dell’invio fa
   expect(await syncQueue.getAll("rapportino")).toMatchObject([
     { status: "pending", operationId: "stesso-rapporto", payload: { descrizione: "Corretto" } },
   ]);
+});
+
+it("conserva la bozza tecnica con foto, rispetta l’ambito e promuove una sola conferma concorrente", async () => {
+  const foto = { bytes: new Uint8Array([10, 20, 30]).buffer,
+    contentType: "image/jpeg", nomeFile: "foto.jpg" };
+  const dati: BozzaVisita = { tipo: "rilievo", visita: "rilievo", company_id: "impresa-tecnica", user_id: "geometra",
+    order_id: "scuola", nomeCantiere: "Scuola", giorno: "2026-11-22", misure: "70 cm", note: "Vano", foto: [foto] };
+  const bozza = await syncQueue.salvaBozzaTecnica(dati);
+  await expect(syncQueue.salvaBozzaTecnica(dati)).rejects.toThrow("Questa bozza è cambiata");
+  const [letta] = await syncQueue.getBozzeTecniche(dati.company_id, dati.user_id);
+  expect(letta.operationId).toBe(bozza.operationId);
+  expect(new Uint8Array(letta.payload.foto[0].bytes)).toEqual(new Uint8Array([10, 20, 30]));
+  expect(await syncQueue.getBozzeTecniche(dati.company_id, "altra-persona")).toEqual([]);
+  expect(await syncQueue.getBozzeTecniche("altra-azienda", dati.user_id)).toEqual([]);
+  const tentativi = await Promise.allSettled([syncQueue.accodaBozzaTecnica(bozza), syncQueue.accodaBozzaTecnica(letta)]);
+  expect(tentativi.filter(r => r.status === "fulfilled")).toHaveLength(1);
+  expect(await syncQueue.getBozzaTecnica(dati)).toBeUndefined();
+  expect(await syncQueue.getAll("rilievo")).toMatchObject([{ operationId: bozza.operationId }]);
+  syncQueue.registerProcessor(async () => {});
+  await syncQueue.processQueue();
+  expect(await syncQueue.getRicevute(dati.company_id, dati.user_id)).toMatchObject([{ id: bozza.operationId, nome: "Rilievo" }]);
+  expect(await syncQueue.getAll("rilievo")).toEqual([]);
+});
+
+it("un avanzamento superato torna in bozza solo dopo la rilettura, con la stessa identità", async () => {
+  const dati: BozzaAvanzamento = { tipo: "avanzamento", company_id: "azienda-conf", user_id: "capo",
+    order_id: "cantiere", nomeCantiere: "Cantiere", target: { faseId: "posa", nome: "Posa", percentuale: 30, completata: false },
+    valore: "70", note: "Nota da conservare", foto: [], chiusuraRichiesta: false };
+  const prima = await syncQueue.salvaBozzaTecnica(dati);
+  await syncQueue.accodaBozzaTecnica(prima);
+  syncQueue.registerProcessor(async () => { throw new SyncPermanentError("Valore cambiato", "avanzamento-cambiato"); });
+  await syncQueue.processQueue();
+  await syncQueue.retryFailed();
+  const [fallita] = await syncQueue.getAll("avanzamento");
+  expect(fallita.status).toBe("failed");
+  expect(await syncQueue.recuperaAvanzamento(fallita as typeof fallita & { payload: BozzaAvanzamento })).toBe(true);
+  const ripresa = await syncQueue.getBozzaTecnica(dati);
+  expect(ripresa).toMatchObject({ operationId: prima.operationId, payload: { note: dati.note, valore: "70" } });
+  const aggiornata = await syncQueue.salvaBozzaTecnica({ ...dati, target: { ...dati.target, percentuale: 45 } }, ripresa);
+  await syncQueue.accodaBozzaTecnica(aggiornata);
+  expect(await syncQueue.getAll("avanzamento")).toMatchObject([{ status: "pending", operationId: prima.operationId }]);
 });
 
 it("aggiorna la coda della versione precedente senza perdere le foto o la chiave dell’invio", async () => {

@@ -145,6 +145,7 @@ import { InternalTeamShifts, internalTeamShiftsEnabled } from "./InternalTeamShi
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { SquadreCommessa, SquadreFase } from "@/components/manodopera/SquadreCommessa";
 import { NoteCantiere } from "@/components/manodopera/NoteCantiere";
+import { AggiornamentiFaseCampo } from "@/components/campo/AggiornamentiFaseCampo";
 import { useNoteCantiere, useSquadraSuCommessa, useSquadre, useSquadreCommessa, type NotaCantiere, type SquadraInCommessa } from "@/hooks/useOperai";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -2078,6 +2079,7 @@ function PhaseCard({
                 </span>
                 <div className="min-w-0 flex-1">
                   <NoteCantiere orderId={orderId} phaseId={phase.id} fasi={fasiOpzioni} modificabile={puoSquadre} compatta />
+                  <AggiornamentiFaseCampo orderId={orderId} phaseId={phase.id} />
                 </div>
               </div>
 

@@ -3,7 +3,10 @@ import type { PrezziMimit } from "../../../shared/carburanti/mimit";
 import type { TrattaViaggio, Viaggio } from "@/lib/mezzi/viaggi";
 import type { Database } from "./types";
 import type { AttivitaAi } from "../../../shared/aiAttivita";
-import type { CantiereTecnico, PersonaAccessoTecnico, SchedaCantiere, SezioneSchedaCantiere } from "@/lib/campo/schedaCantiere";
+import type {
+  AvanzamentoRegistratoCampo, CantiereTecnico, PersonaAccessoTecnico, SchedaCantiere,
+  SezioneSchedaCantiere, TipoVisitaCampo, VisitaRegistrataCampo,
+} from "@/lib/campo/schedaCantiere";
 /** Additive contract until the next full generated schema refresh. */
 type Staff = Database["public"]["Tables"]["staff_permissions"];
 type BankPermissions = { can_view_bank_balances: boolean; can_reconcile_bank_transactions: boolean };
@@ -63,6 +66,8 @@ export type GiroMezziSalvato = {
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
+      registra_dispositivo_push: { Args: { p_utente: string; p_chiave: string; p_token: string; p_piattaforma: "ios" | "android" }; Returns: undefined };
+      disattiva_dispositivo_push: { Args: { p_utente: string; p_chiave: string }; Returns: undefined };
       campo_cantieri_tecnici: { Args: { p_azienda: string }; Returns: CantiereTecnico[] };
       campo_scheda_cantiere: { Args: { p_azienda: string; p_ordine: string; p_sezione: SezioneSchedaCantiere }; Returns: SchedaCantiere };
       commessa_accessi_tecnici: { Args: { p_ordine: string }; Returns: PersonaAccessoTecnico[] };
@@ -150,6 +155,43 @@ export type AppDatabase = Omit<Database, "public"> & {
       mappa_consumo_mese: {
         Args: { p_company: string };
         Returns: { provider: string; voce: string; unita: number }[];
+      };
+      commessa_permesso_rilievi: { Args: { p_ordine: string; p_persona: string; p_consentito: boolean }; Returns: undefined };
+      campo_avanzamenti_cantiere: {
+        Args: { p_azienda: string; p_ordine: string; p_fase: string };
+        Returns: AvanzamentoRegistratoCampo[];
+      };
+      campo_registra_avanzamento: {
+        Args: {
+          p_azienda: string; p_ordine: string; p_fase: string; p_sottofase: string | null;
+          p_operazione: string; p_avanzamento: number | null; p_precedente: number | null; p_previsto: number | null;
+          p_note: string | null; p_foto: string[];
+        };
+        Returns: string;
+      };
+      campo_rilievi_cantiere: { Args: { p_azienda: string; p_ordine: string }; Returns: VisitaRegistrataCampo[] };
+      campo_registra_rilievo: {
+        Args: { p_azienda: string; p_ordine: string; p_operazione: string; p_tipo: TipoVisitaCampo; p_giorno: string;
+          p_misure: string | null; p_note: string | null };
+        Returns: string;
+      };
+      campo_stato_invio_tecnico: {
+        Args: { p_azienda: string; p_ordine: string; p_operazione: string; p_autore: string; p_tipo: "avanzamento" | "rilievo";
+          p_fase: string | null; p_sottofase: string | null };
+        Returns: boolean;
+      };
+      campo_invia_avanzamento: {
+        Args: {
+          p_azienda: string; p_ordine: string; p_fase: string; p_sottofase: string | null;
+          p_operazione: string; p_autore: string; p_avanzamento: number | null; p_precedente: number | null; p_previsto: number | null;
+          p_note: string | null; p_foto: string[];
+        };
+        Returns: string;
+      };
+      campo_registra_visita_con_foto: {
+        Args: { p_azienda: string; p_ordine: string; p_operazione: string; p_autore: string; p_tipo: TipoVisitaCampo; p_giorno: string;
+          p_misure: string | null; p_note: string | null; p_foto: string[] };
+        Returns: string;
       };
       prima_nota_riepilogo_filtrato: {
         Args: {

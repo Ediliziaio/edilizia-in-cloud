@@ -1,13 +1,12 @@
 // Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
 // esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation, useParams } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import type { AppRole } from "@/types/auth";
+import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
 
 const TecnicoLayout = lazy(() => import("@/components/layouts/TecnicoLayout"));
-const CampoSchedaCantiere = lazy(() => import("@/pages/campo/CampoSchedaCantiere"));
-const ElencoCantieriTecnici = lazy(() => import("@/pages/campo/CampoSchedaCantiere").then(m => ({ default: m.ElencoCantieriTecnici })));
 const TecnicoHome = lazy(() => import("@/pages/tecnico/TecnicoHome"));
 const TecnicoIntervento = lazy(() => import("@/pages/tecnico/TecnicoIntervento"));
 const TecnicoRapportino = lazy(() => import("@/pages/tecnico/TecnicoRapportino"));
@@ -18,10 +17,18 @@ const TecnicoPercorso = lazy(() => import("@/pages/tecnico/TecnicoPercorso"));
 
 const TECNICO_ROLES: AppRole[] = ["company_admin", "company_staff", "employee"];
 
+function VaiAllaSchedaCantiere() {
+  const { orderId } = useParams<{ orderId: string }>();
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: percorsoCantiereTecnico(orderId), search, hash }} replace />;
+}
+
 /** v8.6.115 — Lazy container (caricato solo su /tecnico/*). */
 export default function TecnicoRoutesContainer() {
   return (
     <Routes>
+      <Route path="cantieri" element={<VaiAllaSchedaCantiere />} />
+      <Route path="cantieri/:orderId" element={<VaiAllaSchedaCantiere />} />
       <Route
         path=""
         element={
@@ -31,8 +38,6 @@ export default function TecnicoRoutesContainer() {
         }
       >
         <Route index element={<TecnicoHome />} />
-        <Route path="cantieri" element={<ElencoCantieriTecnici area="tecnico" />} />
-        <Route path="cantieri/:orderId" element={<CampoSchedaCantiere area="tecnico" />} />
         <Route path="interventi" element={<TecnicoInterventi />} />
         <Route path="intervento/:id" element={<TecnicoIntervento />} />
         <Route path="intervento/:id/rapportino" element={<TecnicoRapportino />} />

@@ -19,6 +19,7 @@ interface OfflineSyncState {
   isSyncing: boolean;
   lastSyncAt: number | null;
   failedCount: number;
+  puoRitentare: boolean;
   lastError: string | null;
 }
 
@@ -27,6 +28,7 @@ const EMPTY_STATE: OfflineSyncState = {
   isSyncing: false,
   lastSyncAt: null,
   failedCount: 0,
+  puoRitentare: false,
   lastError: null,
 };
 
@@ -110,6 +112,7 @@ export function useOfflineSync(options?: {
             ...s,
             queueCount: items.length,
             failedCount: failed.length,
+            puoRitentare: failed.some(i => i.errorCode !== "avanzamento-cambiato"),
             lastError: failed[0]?.lastError ?? null,
           }));
       } catch {

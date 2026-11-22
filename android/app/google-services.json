@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "336858251061",
+    "project_id": "ediliziaincloud-mobile",
+    "storage_bucket": "ediliziaincloud-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:336858251061:android:787bb4a12a321dfcb5d67c",
+        "android_client_info": {
+          "package_name": "com.ediliziaincloud.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuPtpxub0eAJsVowwDHYy9Yu9r54CfgBg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

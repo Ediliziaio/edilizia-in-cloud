@@ -26,20 +26,23 @@ export function AccessiTecniciCantiere({ orderId, capo }: { orderId: string; cap
   const abilitati = persone.filter(p => p.abilitato);
   const candidati = persone.filter(p => p.ammissibile && !p.abilitato && p.id !== capo);
   const salva = useMutation({
-    mutationFn: async ({ id, consenti }: { id: string; consenti: boolean }) => {
-      const { error } = await supabase.rpc("commessa_accesso_tecnico", {
+    mutationFn: async ({ id, consenti, rilievi }: { id: string; consenti: boolean; rilievi?: boolean }) => {
+      const { error } = await supabase.rpc(rilievi ? "commessa_permesso_rilievi" : "commessa_accesso_tecnico", {
         p_ordine: orderId, p_persona: id, p_consentito: consenti,
       });
       if (error) throw error;
     },
-    onSuccess: async (_dati, { consenti }) => {
-      setPersona("");
+    onSuccess: async (_dati, { consenti, rilievi }) => {
+      if (!rilievi) setPersona("");
       await Promise.all([
         qc.invalidateQueries({ queryKey: chiave }),
         qc.invalidateQueries({ queryKey: ["campo-cantieri-tecnici", companyId] }),
         qc.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId, companyId] }),
+        qc.invalidateQueries({ queryKey: ["campo-rilievi-scheda", orderId, companyId] }),
       ]);
-      toast.success(consenti ? "Accesso alla scheda attivato" : "Accesso alla scheda rimosso");
+      toast.success(rilievi
+        ? consenti ? "Registrazione rilievi attivata" : "Registrazione rilievi disattivata"
+        : consenti ? "Accesso alla scheda attivato" : "Accesso alla scheda rimosso");
     },
     onError: (error: { code?: string; message?: string }) => {
       toast.error(error.code === "22023" ? error.message || "Persona non disponibile." : "Non riesco ad aggiornare l’accesso. Riprova.");
@@ -49,17 +52,25 @@ export function AccessiTecniciCantiere({ orderId, capo }: { orderId: string; cap
   return <section aria-label="Accessi a piano e documenti" className="space-y-2 rounded-lg border bg-background p-3">
     <div>
       <h3 className="text-sm font-semibold">Accessi a piano e documenti</h3>
-      <p className="text-xs text-muted-foreground">Abilita geometri o altre persone del team alla consultazione. Il capocantiere accede in automatico.</p>
+      <p className="text-xs text-muted-foreground">Il capocantiere può aggiornare le lavorazioni. Agli altri puoi dare accesso alla scheda e il permesso di registrare rilievi.</p>
     </div>
     {accessi.isError ? <p role="alert" className="text-sm">Accessi non disponibili.{" "}
       <button type="button" className="min-h-11 font-medium underline" onClick={() => void accessi.refetch()}>Riprova</button></p>
       : accessi.isPending ? <p role="status" className="text-xs text-muted-foreground">Carico gli accessi…</p> : <>
         {!!abilitati.length && <ul className="divide-y text-sm" aria-label="Persone abilitate">
-          {abilitati.map(p => <li key={p.id} className="flex min-h-11 items-center justify-between gap-2">
+          {abilitati.map(p => <li key={p.id} className="flex min-h-11 flex-wrap items-center justify-between gap-x-2">
             <span className="min-w-0 break-words">{p.nome}{p.id === capo && " · Capocantiere"}</span>
-            <Button size="sm" variant="ghost" type="button" className="min-h-11 shrink-0"
-              aria-label={`Revoca accesso di ${p.nome}`}
-              disabled={salva.isPending} onClick={() => salva.mutate({ id: p.id, consenti: false })}>Revoca</Button>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button size="sm" variant="outline" type="button" className="min-h-11 px-2 aria-pressed:border-primary aria-pressed:text-primary"
+                aria-pressed={p.registra_rilievi === true} aria-label={`Registrazione rilievi per ${p.nome}`}
+                disabled={salva.isPending || (!p.ammissibile && !p.registra_rilievi)}
+                onClick={() => salva.mutate({ id: p.id, consenti: !p.registra_rilievi, rilievi: true })}>
+                {p.registra_rilievi ? "Rilievi abilitati" : "Abilita rilievi"}
+              </Button>
+              <Button size="sm" variant="ghost" type="button" className="min-h-11 shrink-0 px-2"
+                aria-label={`Revoca accesso di ${p.nome}`}
+                disabled={salva.isPending} onClick={() => salva.mutate({ id: p.id, consenti: false })}>Revoca</Button>
+            </div>
           </li>)}
         </ul>}
         {candidati.length === 0 ? <p className="text-xs text-muted-foreground">Nessuna persona da aggiungere.</p>

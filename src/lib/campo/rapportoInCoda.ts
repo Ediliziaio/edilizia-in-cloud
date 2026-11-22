@@ -29,10 +29,10 @@ export interface RapportoInCoda {
   mezzi: Json[];
 }
 
-export function erroreInvioCampo(error: unknown): Error {
+export function erroreInvioCampo(error: unknown, fallback = "Non riesco a inviare il rapportino."): Error {
   if (error instanceof SyncPermanentError || error instanceof SyncDeferredError || error instanceof SyncTransientError) return error;
   const { code, message, status, statusCode } = (error ?? {}) as { code?: string; message?: string; status?: number; statusCode?: string | number };
-  const testo = message || "Non riesco a inviare il rapportino.";
+  const testo = message || fallback;
   if (code === "PGRST301" || code === "PGRST303" || Number(statusCode ?? status) === 401) return new SyncDeferredError(testo);
   if (code?.startsWith("22") || code?.startsWith("23") || code === "42501" || /permess|not authorized/i.test(testo)) {
     return new SyncPermanentError(testo);
