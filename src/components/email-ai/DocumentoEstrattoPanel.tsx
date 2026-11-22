@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 import { apriFileRiservato } from "@/lib/storagePrivato";
+import { StatoCodaAllegati } from "./StatoCodaAllegati";
 import {
   useEstraiAllegato,
   useDocumentiEstrattiPerEmail,
@@ -76,6 +77,7 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
 
   return (
     <div className="px-3 pb-3 space-y-2">
+      <StatoCodaAllegati />
       <div className="flex flex-wrap gap-2">
         {pdfAttachments.map(({ a, i }) => {
           const existing = a.storage_path ? draftByPath.get(a.storage_path) : undefined;
@@ -85,9 +87,9 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
               key={i}
               size="sm"
               variant={existing ? "secondary" : "outline"}
-              className="h-8 gap-1.5 text-xs"
+              className="h-11 gap-1.5 text-xs sm:h-8"
               disabled={busy}
-              onClick={() => estrai.mutate({ email_id: emailId, attachment_index: i })}
+              onClick={() => estrai.mutate({ email_id: emailId, attachment_index: i, rileggi: !!existing })}
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanText className="h-3.5 w-3.5" />}
               {existing ? "Ri-estrai" : "Estrai dati"}

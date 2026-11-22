@@ -12,6 +12,7 @@ AUTH = 'public.ecr.aws/supabase/gotrue:v2.197.0'
 name = 'eic-history-' + uuid.uuid4().hex[:10]
 storage_name = name + '-storage'
 auth_name = name + '-auth'
+stage = 'images'
 def run(args, **kwargs):
     return subprocess.run(args, text=True, capture_output=True, check=True, **kwargs)
 def sql(content):
@@ -20,11 +21,13 @@ try:
     for image in [PG, STORAGE, AUTH]:
         if subprocess.run(['docker','image','inspect',image], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
             run(['docker','pull',image])
+    stage = 'postgres_start'
     run(['docker','run','-d','--name',name,'--network','none','-e','POSTGRES_PASSWORD=offline-fixture-only',PG])
     for attempt in range(120):
         if 'init process complete' in run(['docker','logs',name]).stdout and subprocess.run(['docker','exec',name,'pg_isready','-U','supabase_admin'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0: break
         time.sleep(1)
     else: raise RuntimeError('PostgreSQL fixture did not start')
+    stage = 'postgres_foundation'
     sql("alter system set cron.launch_active_jobs='off';select pg_reload_conf();")
     sql("""create or replace function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
     drop schema if exists storage cascade;create schema storage authorization supabase_storage_admin;
@@ -34,12 +37,14 @@ try:
     """)
     with tempfile.TemporaryDirectory(prefix='eic-history-') as temp:
         tmp=Path(temp)
+        stage = 'auth_foundation'
         run(['docker','create','--name',auth_name,'--network','none',AUTH])
         run(['docker','cp',auth_name+':/usr/local/etc/auth/migrations',str(tmp/'auth')])
         for p in sorted((tmp/'auth').glob('*.up.sql')):
             body=re.sub(r'\{\{\s*index \.Options "Namespace"\s*\}\}', 'auth',p.read_text())
             sql('begin;set local search_path=auth,public,extensions;\n'+body+'\n;commit;')
         # The storage container is never started; extract official platform SQL.
+        stage = 'storage_foundation'
         run(['docker','create','--name',storage_name,'--network','none',STORAGE])
         run(['docker','cp',storage_name+':/app/migrations',str(tmp/'platform')])
         platform=sorted((tmp/'platform'/'tenant').glob('*.sql'), key=lambda p:int(p.name.split('-')[0]))
@@ -49,6 +54,7 @@ try:
             if 'postgres-migrations ignore' in body: continue
             transaction='disable-transaction' not in body
             sql(('begin;' if transaction else '')+"set storage.install_roles='false';set storage.multitenant='false';set search_path=storage,public;set role supabase_storage_admin;\n"+body+('\n;commit;' if transaction else ''))
+        stage = 'application_replay'
         migrations=sorted((ROOT/'supabase/migrations').glob('*.sql'))
         versions=[p.name.split('_')[0] for p in migrations]
         if len(set(versions)) != len(versions): raise RuntimeError('Duplicate migration versions')
@@ -81,8 +87,19 @@ try:
             if os.getenv('EIC_LOCAL_PRIVATE_ERROR'):
                 Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(result.stderr)
             raise RuntimeError('Migration replay failed; SQL context withheld')
+        stage = 'post_replay_guards'
         pending=sql('select count(*) from private.recovered_dependency_patches;').stdout.strip()
         if not pending.endswith('(1 row)') or not __import__('re').search(r'\n\s*0\s*\n', '\n'+pending): raise RuntimeError('Deferred patches remain')
+        # Solo metadati ammessi: nessun header o corpo dei job nei log/test.
+        cron_query="""select coalesce(jsonb_agg(jsonb_build_object('id',jobid,'nome',jobname,'active',active,
+          'endpoint',substring(command from '/functions/v1/([a-zA-Z0-9_-]+)'))),'[]'::jsonb)
+          from cron.job where active and command like '%/functions/v1/%';"""
+        cron_rows=run(['docker','exec',name,'psql','-X','-U','supabase_admin','-d','postgres','-At','-c',cron_query]).stdout
+        check=subprocess.run(['node','scripts/check-cron-functions.mjs'],cwd=ROOT,input=cron_rows,text=True,capture_output=True)
+        print(check.stdout.strip(),flush=True)
+        if check.returncode:
+            print(check.stderr.strip(),flush=True)
+            raise RuntimeError('Active cron endpoint has no checked-in function')
         sql((ROOT/'scripts/fixtures/permessi-retribuzioni-backend.sql').read_text())
         sql((ROOT/'scripts/fixtures/office-area-tasks.sql').read_text())
         # Controllo di gestione: numeri fissi di CE e Stato patrimoniale (TFR, patrimonio, crediti, debiti).
@@ -97,6 +114,10 @@ try:
         print(json.dumps({'ok':True,'application_migrations':len(applied),'storage_foundations':len(platform),'deferred_patches':0,'network':'none','cron_execution':False}),flush=True)
 except subprocess.CalledProcessError as exc:
     if os.getenv('EIC_LOCAL_PRIVATE_ERROR'): Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(exc.stderr or '')
+    # Le migrazioni storiche possono contenere segreti. Riporta soltanto stadio,
+    # exit code e famiglia del comando, mai stderr, argomenti o input SQL.
+    family = 'docker' if exc.cmd and exc.cmd[0]=='docker' else 'setup'
+    print(json.dumps({'ok':False,'stage':stage,'command':family,'exit_code':exc.returncode}),flush=True)
     raise SystemExit('Offline database setup failed (SQL output withheld)')
 finally:
     if os.getenv('EIC_LOCAL_KEEP_FIXTURE'):

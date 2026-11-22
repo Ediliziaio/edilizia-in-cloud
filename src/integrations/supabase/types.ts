@@ -43471,6 +43471,12 @@ export type Database = {
           },
         ]
       }
+      email_ai_coda_blocchi: {
+        Row: { company_id: string; servizio: string; motivo: string; messaggio: string; bloccata_il: string; verificata_il: string }
+        Insert: { company_id: string; servizio?: string; motivo: string; messaggio: string; bloccata_il?: string; verificata_il?: string }
+        Update: { company_id?: string; servizio?: string; motivo?: string; messaggio?: string; bloccata_il?: string; verificata_il?: string }
+        Relationships: [{ foreignKeyName: "email_ai_coda_blocchi_company_id_fkey"; columns: ["company_id"]; isOneToOne: true; referencedRelation: "companies"; referencedColumns: ["id"] }]
+      }
       email_estrazione_tentativi: {
         Row: {
           email_id: string
