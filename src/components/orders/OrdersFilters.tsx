@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Search, X, CheckCircle2 } from "lucide-react";
+import { Search, X, CheckCircle2, ChevronRight } from "lucide-react";
+import { DettaglioFiltri, GruppoFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -246,5 +247,71 @@ export function OrdersFilters({
         </Button>
       )}
     </div>
+  );
+}
+
+type FiltriCommesseCompattiProps = Pick<OrdersFiltersProps,
+  "statusFilter" | "onStatusFilterChange" | "statuses" | "yearFilter" | "onYearFilterChange" | "availableYears" |
+  "paymentFilter" | "onPaymentFilterChange" | "monthFilter" | "onMonthFilterChange" | "generaliFilter" |
+  "onGeneraliFilterChange" | "hideCompleted" | "onHideCompletedChange"
+> & {
+  altriAttivi: number;
+  onAvanzati: () => void;
+  children?: ReactNode;
+};
+
+export function FiltriCommesseCompatti({
+  statusFilter, onStatusFilterChange, statuses,
+  yearFilter, onYearFilterChange, availableYears,
+  paymentFilter, onPaymentFilterChange, monthFilter, onMonthFilterChange,
+  generaliFilter, onGeneraliFilterChange, hideCompleted, onHideCompletedChange,
+  altriAttivi, onAvanzati, children,
+}: FiltriCommesseCompattiProps) {
+  return (
+    <GruppoFiltri>
+      <SceltaFiltro titolo="Stato" valore={statusFilter} onScegli={onStatusFilterChange} scelte={[
+        { value: "all", label: hideCompleted ? "Senza completate" : "Tutti gli stati" },
+        { value: "__da_completare__", label: "Da completare" },
+        { value: "__completati__", label: "Completati" },
+        { value: "__assistenza__", label: "In assistenza" },
+        ...statuses.map(({ id, name }) => ({ value: id, label: name })),
+      ]} />
+      <SceltaFiltro titolo="Periodo" valore={yearFilter} onScegli={onYearFilterChange} scelte={[
+        { value: "corrente", label: `${new Date().getFullYear()} + pregresso` },
+        { value: "all", label: "Tutti gli anni" },
+        ...Array.from(new Set(availableYears.map(String).concat(/^\d{4}$/.test(yearFilter) ? [yearFilter] : [])))
+          .map(anno => ({ value: anno, label: anno })),
+      ]} />
+      <DettaglioFiltri titolo="Altri filtri" riepilogo={altriAttivi ? String(altriAttivi) : undefined}>
+        <SceltaFiltro titolo="Pagamento" valore={paymentFilter} onScegli={onPaymentFilterChange} scelte={[
+          { value: "all", label: "Tutti" },
+          { value: "pending", label: "Da incassare" },
+          { value: "paid", label: "Saldati" },
+          { value: "overdue", label: "Rate scadute" },
+        ] as const} />
+        <SceltaFiltro titolo="Mese" valore={monthFilter} onScegli={onMonthFilterChange} scelte={[
+          { value: "all", label: "Tutti i mesi" },
+          ...MONTHS.map((label, i) => ({ value: String(i), label })),
+        ]} />
+        {generaliFilter && onGeneraliFilterChange && (
+          <SceltaFiltro titolo="Tipo" valore={generaliFilter} onScegli={onGeneraliFilterChange} scelte={[
+            { value: "all", label: "Tutte" },
+            { value: "solo", label: "Solo generali" },
+            { value: "senza", label: "Senza generale" },
+          ] as const} />
+        )}
+        <button type="button" className="flex min-h-12 w-full items-center justify-between gap-2 px-3 text-left text-sm font-medium hover:bg-muted/40"
+          aria-pressed={hideCompleted} onClick={() => onHideCompletedChange(!hideCompleted)}>
+          Nascondi completate
+          {hideCompleted && <CheckCircle2 aria-hidden="true" className="size-4 text-primary" />}
+        </button>
+        {children}
+        <button type="button" className="flex min-h-12 w-full items-center justify-between gap-2 px-3 text-left text-sm font-medium text-primary hover:bg-muted/40"
+          onClick={onAvanzati}>
+          Filtri avanzati
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </button>
+      </DettaglioFiltri>
+    </GruppoFiltri>
   );
 }

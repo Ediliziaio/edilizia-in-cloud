@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { QuoteConversionSummary } from "@/components/marketing/preventivi/QuoteConversionSummary";
 import { idComputoNativo, percorsoComputoNativo } from "@/lib/computo/percorsiComputo";
 import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssociate";
@@ -319,6 +320,7 @@ export default function QuoteDetail() {
   // lavorava su un preventivo classico vuoto (commessa senza righe).
   const rigaDiModulo = eRigaDiModulo(quote.source);
   const moduloDellaRiga = preventivoDelModulo(quote.source);
+  const puoModificareBozza = quote.status === "bozza" && !rigaDiModulo;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -326,7 +328,7 @@ export default function QuoteDetail() {
           cliente va accanto a numero e stato (il sottotitolo lì è nascosto). */}
       <QuotePageHeader
         className="testata-pagina"
-        azioniInRiga
+        azioniInRiga={quote.status !== "accettata"}
         numero={quote.quote_number}
         title={quote.title || "Preventivo"}
         subtitle={quote.client_name || undefined}
@@ -350,26 +352,52 @@ export default function QuoteDetail() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 hidden md:inline-flex"
+              className="hidden h-9 lg:inline-flex"
               onClick={() => navigate("/azienda/marketing/preventivi")}
             >
               <ArrowLeft className="h-4 w-4 mr-2" /> Lista
             </Button>
-            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3 max-sm:hidden" aria-label="Genera PDF">
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-3 max-lg:hidden" aria-label="Genera PDF">
               {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
               <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 px-2.5" aria-label="Altre azioni" disabled={duplicando}>
+                <Button variant="outline" className="h-9 px-2.5 max-lg:size-11 max-lg:p-0" aria-label="Altre azioni" disabled={duplicando}>
                   {duplicando ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem className="min-h-11 sm:hidden" disabled={generating} onSelect={() => void handleGeneratePdf()}>
+              <DropdownMenuContent align="end" className="max-lg:[&_[role=menuitem]]:min-h-11">
+                <DropdownMenuItem className="lg:hidden" disabled={generating} onSelect={() => void handleGeneratePdf()}>
                   <FileDown className="mr-2 h-4 w-4" />Genera PDF
                 </DropdownMenuItem>
+                {puoModificareBozza && puoInviare && (
+                  <DropdownMenuItem className="lg:hidden" onSelect={() => setSendDialogOpen(true)}>
+                    <Send className="mr-2 size-4" />Invia per firma
+                  </DropdownMenuItem>
+                )}
+                {puoFirmareSuCarta(quote.status, quote.source) && puoInviare && (
+                  <DropdownMenuItem className="lg:hidden" onSelect={() => setFirmaCartaOpen(true)}>
+                    <FileSignature className="mr-2 size-4" />Firmato su carta
+                  </DropdownMenuItem>
+                )}
+                {quote.status === "inviata" && quote.signature_token && puoInviare && (
+                  <>
+                    <DropdownMenuItem className="lg:hidden" onSelect={() => openWhatsApp(quote)}>
+                      <MessageCircle className="mr-2 size-4" />Link firma via WhatsApp
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="lg:hidden" onSelect={() => copySignatureLink(quote)}>
+                      <Copy className="mr-2 size-4" />Copia link firma
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
+                  <DropdownMenuItem className="lg:hidden" disabled={controlloCommessa}
+                    onSelect={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}>
+                    <Package className="mr-2 size-4" />Crea commessa e rivedi le voci
+                  </DropdownMenuItem>
+                )}
                 {!rigaDiModulo && (
                   <>
                     <DropdownMenuItem onClick={() => eseguiCopia(false)}>
@@ -387,8 +415,8 @@ export default function QuoteDetail() {
                   >
                     {inviandoPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                     {quote.client_email
-                      ? `Invia PDF a ${quote.client_email}`
-                      : "Invia PDF (manca l'email del cliente)"}
+                      ? "Invia PDF"
+                      : "Invia PDF (email mancante)"}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
@@ -418,15 +446,15 @@ export default function QuoteDetail() {
               </AlertDialogContent>
             </AlertDialog>
 
-            {quote.status === "bozza" && !rigaDiModulo && (
+            {puoModificareBozza && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
-                className="h-9 px-2.5 sm:px-3"
+                className="h-9 px-3 max-lg:min-h-11"
                 aria-label="Modifica"
               >
                 <Pencil className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Modifica</span>
+                <span>Modifica</span>
               </Button>
             )}
 
@@ -434,16 +462,16 @@ export default function QuoteDetail() {
               <button
                 type="button"
                 onClick={() => setSendDialogOpen(true)}
-                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
+                className={cn("inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9 max-lg:min-h-11", puoModificareBozza && "max-lg:hidden")}
               >
                 <Send className="h-4 w-4" />
-                {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}
+                {quote.status === "inviata" ? "Reinvia" : "Invia per firma"}
               </button>
             )}
 
             {/* Firmato su carta: con la scansione il preventivo diventa il contratto, come con la firma digitale. */}
             {puoFirmareSuCarta(quote.status, quote.source) && puoInviare && (
-              <Button variant="outline" className="h-9" onClick={() => setFirmaCartaOpen(true)}>
+              <Button variant="outline" className="h-9 max-lg:hidden" onClick={() => setFirmaCartaOpen(true)}>
                 <FileSignature className="mr-2 h-4 w-4" aria-hidden />Firmato su carta
               </Button>
             )}
@@ -489,7 +517,7 @@ export default function QuoteDetail() {
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
                 disabled={controlloCommessa}
-                className="h-9 max-sm:hidden"
+                className="h-9 max-lg:hidden"
                 title="Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare"
               >
                 <Package className="h-4 w-4 mr-2" />
@@ -516,7 +544,7 @@ export default function QuoteDetail() {
               <>
                 <Button
                   variant="outline"
-                  className="gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 h-9"
+                  className="h-9 gap-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 max-lg:hidden"
                   aria-label="Invia link firma via WhatsApp"
                   onClick={() => openWhatsApp(quote)}
                 >
@@ -526,7 +554,7 @@ export default function QuoteDetail() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-9 w-9"
+                  className="h-9 w-9 max-lg:hidden"
                   aria-label="Copia link firma negli appunti"
                   onClick={() => copySignatureLink(quote)}
                 >

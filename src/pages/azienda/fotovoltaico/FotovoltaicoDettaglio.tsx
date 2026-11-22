@@ -10,6 +10,8 @@ import {FvAllegatiTecniciPreventivo} from "@/components/fotovoltaico/FvAllegatiT
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -28,6 +30,7 @@ import {
   Trash2,
   AlertTriangle,
   FileSignature,
+  MoreHorizontal,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
@@ -273,6 +276,9 @@ export default function FotovoltaicoDettaglio() {
     }
   };
 
+  const progettoApribile = progetto.stato !== "firmato" && progetto.stato !== "annullato";
+  const puoAnnullare = canManagePreventivo && progetto.stato !== "firmato";
+  const puoRichiedereFirma = canManagePreventivo && progetto.stato === "emesso";
   return (
     <div className="min-h-screen bg-slate-50">
       <FvAnteprimaDocumento html={anteprimaHtml} numero={progetto.numero} onClose={() => setAnteprimaHtml(null)}
@@ -281,12 +287,38 @@ export default function FotovoltaicoDettaglio() {
       <FvIntestazioneProgetto titolo={progetto.titolo} numero={progetto.numero} indirizzo={progetto.indirizzo}
         stato={<FvChip variant={stato.variant}>{stato.label}</FvChip>}
         azioni={<>
-
+              {((progettoApribile && progetto.pdf_vendita_url) || puoAnnullare || puoRichiedereFirma) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="size-11 lg:hidden" aria-label="Altre azioni progetto">
+                      <MoreHorizontal aria-hidden="true" className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="[&_[role=menuitem]]:min-h-11">
+                    {progettoApribile && progetto.pdf_vendita_url && (
+                      <DropdownMenuItem disabled={scaricando === "header-pdf"}
+                        onSelect={() => void handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}>
+                        <Download className="mr-2 size-4" />Scarica PDF
+                      </DropdownMenuItem>
+                    )}
+                    {puoRichiedereFirma && (
+                      <DropdownMenuItem onSelect={() => setFirmaOpen(true)}>
+                        <FileSignature className="mr-2 size-4" />Richiedi firma
+                      </DropdownMenuItem>
+                    )}
+                    {puoAnnullare && (
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleElimina()}>
+                        <Trash2 className="mr-2 size-4" />Annulla progetto
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               {progetto.pdf_vendita_url && (
                 <Button
                   onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}
                   disabled={scaricando === "header-pdf"}
-                  className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-300 max-sm:hidden"
+                  className={cn("min-h-11 border border-slate-300 bg-white text-slate-900 hover:bg-slate-50", progettoApribile && "max-lg:hidden")}
                 >
                   {scaricando === "header-pdf" ? (
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -296,30 +328,30 @@ export default function FotovoltaicoDettaglio() {
                   Scarica PDF
                 </Button>
               )}
-              {progetto.stato !== "firmato" && progetto.stato !== "annullato" && (
+              {progettoApribile && (
                 <Button
                   asChild
-                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-sm:flex-1"
+                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-lg:min-h-11"
                 >
                   <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
                     <Pencil className="h-4 w-4 mr-1.5" /> {progetto.stato === "emesso" ? "Apri progetto" : "Modifica"}
                   </Link>
                 </Button>
               )}
-              {canManagePreventivo && progetto.stato !== "firmato" && (
+              {puoAnnullare && (
                 <Button
                   variant="outline"
                   onClick={handleElimina}
-                  className="border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 max-sm:px-3"
+                  className="border-slate-300 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 max-lg:hidden"
                   aria-label="Annulla progetto"
                 >
                   <Trash2 className="h-4 w-4 mr-1.5 max-sm:mr-0" /> <span className="max-sm:hidden">Annulla</span>
                 </Button>
               )}
-              {canManagePreventivo && progetto.stato === "emesso" && (
+              {puoRichiedereFirma && (
                 <Button
                   onClick={() => setFirmaOpen(true)}
-                  className="bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200 max-sm:flex-1"
+                  className="bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200 max-lg:hidden"
                 >
                   <FileSignature className="h-4 w-4 mr-1.5" /> Richiedi firma
                 </Button>

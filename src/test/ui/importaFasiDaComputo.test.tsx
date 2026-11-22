@@ -118,7 +118,8 @@ describe("Dove si trova", () => {
   it("«Importa» accanto ad «Aggiungi fasi» apre la finestra di «Importa voci» con i documenti del gestionale", async () => {
     const { readFileSync } = await import("node:fs");
     const f = readFileSync("src/components/orders/OrderWorkPhases.tsx", "utf8");
-    expect(f).toContain('<FileUp className="mr-1 h-4 w-4" />Importa');
+    expect(f).toContain('{paginaLavorazioni ? "Importa fasi" : "Importa"}');
+    expect(f).toContain("onClick={() => setImportaAperto(true)}");
     expect(f).toContain("<ImportaVociDialog");
     expect(f).toContain('titolo="Importa le fasi"');
     expect(f).toContain("onScelto={carica}");

@@ -63,11 +63,12 @@ describe("la copia di firma di un preventivo di modulo", () => {
   it("dal dettaglio non si modifica, duplica o converte: si apre il preventivo del modulo", () => {
     const dettaglio = leggi("src/pages/azienda/marketing/QuoteDetail.tsx");
     expect(dettaglio).toContain("const rigaDiModulo = eRigaDiModulo(quote.source);");
-    expect(dettaglio).toContain('{quote.status === "bozza" && !rigaDiModulo && (');
+    expect(dettaglio).toContain('const puoModificareBozza = quote.status === "bozza" && !rigaDiModulo;');
+    expect(dettaglio).toContain("{puoModificareBozza && (");
     // Converti in Cantiere e Crea commessa: niente per le righe di modulo, e
     // solo per chi può creare commesse (il venditore di serie no, 25/09/2026),
     // e niente se il preventivo ha già la sua commessa (6/10/2026: una commessa sola per preventivo).
-    expect(dettaglio.match(/\{quote\.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && \(/g) ?? []).toHaveLength(2);
+    expect(dettaglio.match(/\{quote\.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && \(/g) ?? []).toHaveLength(3);
     expect(dettaglio).toContain("{!rigaDiModulo && (");
     expect(dettaglio).toContain("Apri il preventivo {moduloDellaRiga.nome}");
   });

@@ -24,7 +24,7 @@ describe("Conteggio dei risultati nel pannello filtri", () => {
   });
 });
 
-import { OrdersFilters } from "@/components/orders/OrdersFilters";
+import { FiltriCommesseCompatti, OrdersFilters } from "@/components/orders/OrdersFilters";
 describe("Filtri dell’elenco sempre disponibili", () => {
   it.each(["all", "pending"] as const)(
     "mostra i controlli senza aprire un pannello, anche con pagamento %s",
@@ -91,4 +91,30 @@ describe("Filtri dell’elenco sempre disponibili", () => {
       }
     },
   );
+});
+
+it("nel pannello compatto apre le opzioni secondarie su richiesta", () => {
+  const onPeriodo = vi.fn();
+  const onPagamento = vi.fn();
+  const onAvanzati = vi.fn();
+  render(<FiltriCommesseCompatti
+    statusFilter="all" onStatusFilterChange={vi.fn()} statuses={[]}
+    yearFilter="corrente" onYearFilterChange={onPeriodo} availableYears={[2026, 2025]}
+    paymentFilter="all" onPaymentFilterChange={onPagamento}
+    monthFilter="all" onMonthFilterChange={vi.fn()}
+    hideCompleted={false} onHideCompletedChange={vi.fn()}
+    altriAttivi={0} onAvanzati={onAvanzati}
+  />);
+  expect(screen.getByRole("combobox", { name: "Stato" })).toBeVisible();
+  fireEvent.change(screen.getByRole("combobox", { name: "Periodo" }), { target: { value: "2025" } });
+  expect(onPeriodo).toHaveBeenCalledWith("2025");
+
+  const altri = screen.getByText("Altri filtri");
+  expect(altri.closest("details")).not.toHaveAttribute("open");
+  fireEvent.click(altri);
+  expect(altri.closest("details")).toHaveAttribute("open");
+  fireEvent.change(screen.getByRole("combobox", { name: "Pagamento" }), { target: { value: "pending" } });
+  expect(onPagamento).toHaveBeenCalledWith("pending");
+  fireEvent.click(screen.getByRole("button", { name: "Filtri avanzati" }));
+  expect(onAvanzati).toHaveBeenCalledOnce();
 });

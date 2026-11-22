@@ -19,7 +19,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   params: URLSearchParams;
-  trigger: ReactNode;
+  trigger?: ReactNode;
   ai?: boolean;
 }
 
@@ -29,7 +29,7 @@ const MODULI_CON_MODELLI_E_FV = [...MODULI_CON_MODELLI, "fotovoltaico"] as const
 /** One entry point, on top of the quote list. No template-editing destinations. */
 export function NewQuoteDialog({ open, onOpenChange, params, trigger, ai = false }: Props) {
   return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogTrigger asChild>{trigger}</DialogTrigger>
+    {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
     {open && <QuoteChooser ai={ai} params={params} onSelect={() => onOpenChange(false)} />}
   </Dialog>;
 }

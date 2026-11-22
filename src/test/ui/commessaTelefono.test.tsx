@@ -128,12 +128,12 @@ describe("Lavorazioni dal telefono", () => {
     expect(screen.getByRole("button", { name: /^Demolizioni/ })).toHaveTextContent("Demolizioni20/09–30/09 · nessuno");
   });
 
-  it("i filtri stanno nel pannello dal basso, accanto alla ricerca, coi numeri", () => {
+  it("lo stato si sceglie nel pannello dal basso e il conteggio si aggiorna", () => {
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
     const pannello = screen.getByRole("dialog");
-    expect(within(pannello).getByRole("button", { name: /^Completate/ })).toHaveTextContent("Completate1");
-    fireEvent.click(within(pannello).getByRole("button", { name: /^Da iniziare/ }));
+    expect(within(pannello).getByRole("option", { name: "Completate" })).toBeInTheDocument();
+    fireEvent.change(within(pannello).getByRole("combobox", { name: "Stato" }), { target: { value: "da_iniziare" } });
     expect(within(pannello).getByRole("button", { name: "Mostra 5" })).toBeInTheDocument();
     fireEvent.click(within(pannello).getByRole("button", { name: "Mostra 5" }));
     expect(screen.queryByRole("button", { name: /^Opere murarie/ })).not.toBeInTheDocument();
