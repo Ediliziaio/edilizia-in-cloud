@@ -2,7 +2,10 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeft,
+  CalendarRange,
   ClipboardList,
+  FileQuestion,
   HardHat,
   ListTree,
   Plus,
@@ -30,10 +33,12 @@ import { MovimentiOperazione } from "./MovimentiOperazione";
 /** Valore del selettore per «tutta l'operazione»: generale e figlie insieme, sola lettura. */
 const TUTTA = "__tutta__";
 
-type Scheda = "rapportini" | "lavorazioni" | "acquisti" | "ddt" | "contabilita" | "squadre";
+type Scheda = "rapportini" | "lavorazioni" | "cronoprogramma" | "offerte" | "acquisti" | "ddt" | "contabilita" | "squadre";
 const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
   rapportini: "rapportini",
   lavorazioni: "lavorazioni",
+  cronoprogramma: "cronoprogramma",
+  offerte: "offerte",
   acquisti: "acquisti",
   forniture: "acquisti",
   controllo: "acquisti",
@@ -44,9 +49,10 @@ const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
   squadre: "squadre",
   subappalti: "squadre",
 };
-const VISTA_OPERAZIONE: Record<Scheda, VistaOperazione> = {
+const VISTA_OPERAZIONE: Partial<Record<Scheda, VistaOperazione>> = {
   rapportini: "rapportini",
   lavorazioni: "lavorazioni",
+  cronoprogramma: "cronoprogramma",
   acquisti: "acquisti",
   ddt: "ddt",
   contabilita: "fatture",
@@ -92,9 +98,13 @@ const Squadre = lazy(() =>
   })),
 );
 const Lavorazioni = lazy(() =>
-  import("@/components/orders/OrderWorkPhases").then((m) => ({
-    default: m.OrderWorkPhases,
-  })),
+  import("./LavorazioniAmbito").then(m => ({ default: m.LavorazioniAmbito })),
+);
+const Cronoprogramma = lazy(() =>
+  import("./LavorazioniAmbito").then(m => ({ default: m.CronoprogrammaAmbito })),
+);
+const Offerte = lazy(() =>
+  import("@/components/orders/OrderRichiesteOfferta").then(m => ({ default: m.OrderRichiesteOfferta })),
 );
 const Bolle = lazy(() =>
   import("@/components/orders/OrderDocumentiFornitore").then((m) => ({
@@ -138,6 +148,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
     return !s || (s === "contabilita" && !costi) ? "rapportini" : s;
   })();
   const vista = scheda;
+  const vistaOperazione = VISTA_OPERAZIONE[scheda];
   const setVista = (x: string) => {
     const p = new URLSearchParams(parametri);
     p.set("vista-cantiere", x);
@@ -162,7 +173,10 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
     setNuovoOda(false);
     const p = new URLSearchParams(parametri);
     p.set("ambito-cantiere", id);
-    if (faseId) p.set("fase-cantiere", faseId);
+    if (faseId) {
+      p.set("vista-cantiere", "lavorazioni");
+      p.set("fase-cantiere", faseId);
+    }
     else p.delete("fase-cantiere");
     setParametri(p, { replace: true });
   };
@@ -203,22 +217,24 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
         <DocumentiInPopup orderId={orderId}>
           <Tabs className="space-y-4" value={vista} onValueChange={setVista}>
             <div className="overflow-x-auto pb-1">
-              <TabsList className="generale-subtabs generale-section-navigation h-auto min-w-max justify-start"
+              <TabsList className="generale-subtabs generale-section-navigation generale-cantiere-nav h-auto min-w-max justify-start lg:min-w-0"
                 aria-label="Sezioni del cantiere">
                 <TabsTrigger value="rapportini"><ClipboardList aria-hidden="true" />Rapportini</TabsTrigger>
                 <TabsTrigger value="lavorazioni"><ListTree aria-hidden="true" />Lavorazioni</TabsTrigger>
+                <TabsTrigger value="cronoprogramma"><CalendarRange aria-hidden="true" />Cronoprogramma</TabsTrigger>
+                <TabsTrigger value="offerte"><FileQuestion aria-hidden="true" />Richieste d’offerta</TabsTrigger>
                 <TabsTrigger value="acquisti"><PackageCheck aria-hidden="true" />Ordini d’acquisto</TabsTrigger>
                 <TabsTrigger value="ddt"><Truck aria-hidden="true" />DDT</TabsTrigger>
                 {costi && <TabsTrigger value="contabilita"><ReceiptText aria-hidden="true" />Costi e pagamenti</TabsTrigger>}
                 <TabsTrigger value="squadre"><Users aria-hidden="true" />Squadre e ditte</TabsTrigger>
               </TabsList>
             </div>
-            <div className="generale-toolbar flex flex-wrap items-end justify-between gap-3">
-              <label className="block w-full max-w-xl text-sm font-medium">
-                Ambito
+            <div className="generale-toolbar flex flex-wrap items-center justify-between gap-3">
+              <label className="flex w-full min-w-0 max-w-xl items-center gap-3 text-sm font-medium">
+                <span>Ambito</span>
                 <UniformSelect aria-label="Ambito del cantiere" value={tutta ? TUTTA : orderId}
                   onChange={e => setAmbito(e.target.value)}
-                  className="mt-1 block h-10 w-full rounded-md border bg-background px-3 font-normal">
+                  className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 font-normal">
                   {riepilogo.figlie.length > 0 && <option value={TUTTA}>Tutta l’operazione</option>}
                   <option value={g.id}>Commessa generale · {g.codice ?? g.nome}</option>
                   {riepilogo.figlie.length > 0 && (
@@ -238,14 +254,24 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                   Gestisci fasi della generale
                 </Button>
               )}
+              {!tutta && riepilogo.figlie.length > 0 && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => setAmbito(TUTTA)}>
+                  <ArrowLeft className="size-4" aria-hidden="true" /> Tutta l’operazione
+                </Button>
+              )}
             </div>
 
             <Suspense fallback={<Skeleton className="mt-4 h-64 w-full" />}>
               {nuovoOda && puoCreareOda && <NuovoOda key={g.id} open onOpenChange={setNuovoOda}
                 orderId={g.id} orderCode={g.codice} items={righeAcquisto} />}
-              {tutta ? (
+              {vista === "offerte" ? (
+                <TabsContent value="offerte" className="pt-2">
+                  <Offerte key={tutta ? TUTTA : orderId} orderId={orderId} orderCode={scelto.codice}
+                    commesse={tutta ? [g, ...riepilogo.figlie] : undefined} />
+                </TabsContent>
+              ) : tutta && vistaOperazione ? (
                 <TabsContent value={vista} className="pt-2">
-                  <MovimentiOperazione riepilogo={riepilogo} vista={VISTA_OPERAZIONE[scheda]} onApri={setAmbito} />
+                  <MovimentiOperazione riepilogo={riepilogo} vista={vistaOperazione} onApri={setAmbito} />
                 </TabsContent>
               ) : (
               <>
@@ -263,19 +289,14 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 </Sezione>
               </TabsContent>
               <TabsContent value="lavorazioni" className="space-y-4 pt-2">
-                <Sezione id="lavorazioni" titolo="Lavorazioni e avanzamento">
-                  {orderId === g.id && puoModificare && g.modello !== "appalto" && riepilogo.permessi.margini && (
-                    <InvitoFasiDalPiano riepilogo={riepilogo} />
-                  )}
-                  <Lavorazioni
-                    key={`${orderId}:${fase ?? ""}`}
-                    orderId={orderId}
-                    orderCode={scelto.codice}
-                    view="lavorazioni"
-                    importoContratto={figlia ? figlia.importo : g.valore}
-                    faseIniziale={fase}
-                  />
-                </Sezione>
+                {orderId === g.id && puoModificare && g.modello !== "appalto" && riepilogo.permessi.margini && (
+                  <InvitoFasiDalPiano riepilogo={riepilogo} />
+                )}
+                <Lavorazioni key={orderId} orderId={orderId} orderCode={scelto.codice} figlia={!!figlia}
+                  importo={figlia ? figlia.importo : g.valore} fase={fase} onApriCronoprogramma={() => setVista("cronoprogramma")} />
+              </TabsContent>
+              <TabsContent value="cronoprogramma" className="pt-2">
+                <Cronoprogramma key={orderId} orderId={orderId} onApriLavorazioni={() => setVista("lavorazioni")} />
               </TabsContent>
               <TabsContent value="acquisti" className="space-y-6 pt-2">
                 <Sezione id="forniture" titolo="Ordini d’acquisto">

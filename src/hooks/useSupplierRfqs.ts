@@ -1,5 +1,6 @@
 import { confrontoOfferta, coperturaOfferta } from "@/lib/acquisti/confronto";
 import { oggiLocale } from "@/lib/acquisti/attivita";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import type {TablesUpdate} from "@/integrations/supabase/types";
 /**
  * Richieste d'offerta ai fornitori (RDO).
@@ -145,15 +146,13 @@ export function useSupplierRfqs() {
 
   const listQuery = useQuery({
     queryKey: rfqKeys.list(companyId),
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
+    queryFn: ({ signal }) => readAllOrderRows<SupplierRfq>((from, to) =>
+      (supabase as any)
         .from("supplier_rfqs")
         .select("*, orders(order_code, work_address)")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as SupplierRfq[];
-    },
+        .order("created_at", { ascending: false }).order("id")
+        .range(from, to).abortSignal(signal)),
     enabled: !!companyId,
   });
 

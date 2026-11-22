@@ -15,6 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { readAllOrderRows } from "@/lib/orders/listScope";
+import type { RapportinoFasi, StatoFase } from "@/lib/orders/cronoprogramma";
 
 // Alcune colonne non sono nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,7 +24,7 @@ const db = supabase as any;
 
 /** Quante righe al massimo per tipo: un'operazione grande ne ha centinaia, non migliaia al mese. */
 export const LIMITE_MOVIMENTI = 500;
-export type VistaOperazione = "rapportini" | "lavorazioni" | "acquisti" | "ddt" | "squadre" | "fatture";
+export type VistaOperazione = "rapportini" | "lavorazioni" | "cronoprogramma" | "acquisti" | "ddt" | "squadre" | "fatture";
 
 export interface RapportinoOperazione {
   id: string;
@@ -88,13 +90,16 @@ export interface GiornataMezzoOperazione {
   mezzo: { nome: string | null; targa: string | null } | null;
 }
 
-interface FaseOperazione {
+export interface FaseOperazione {
   id: string;
   order_id: string;
   name: string;
-  status: string | null;
+  status: StatoFase;
   percentuale: number | null;
+  start_date: string | null;
   end_date: string | null;
+  completata_il: string | null;
+  position: number;
 }
 
 interface SubappaltoOperazione {
@@ -115,6 +120,7 @@ export interface MovimentiOperazione {
   timbrature: TimbraturaOperazione[];
   mezzi: GiornataMezzoOperazione[];
   fasi: FaseOperazione[];
+  rapportiniCronoprogramma: RapportinoFasi[];
   subappalti: SubappaltoOperazione[];
   fornitori: Record<string, string>;
   /** Tipi che hanno toccato il limite: l'elenco non è completo. */
@@ -129,6 +135,27 @@ async function leggi<T>(tabella: string, colonne: string, companyId: string, ids
   return (data ?? []) as T[];
 }
 
+async function leggiCronoprogramma(companyId: string, ids: string[], signal: AbortSignal) {
+  const fasi: FaseOperazione[] = [];
+  const rapportini: RapportinoFasi[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const ambito = ids.slice(i, i + 100);
+    const [fasiDelGruppo, rapportiniDelGruppo] = await Promise.all([
+      readAllOrderRows<FaseOperazione>((da, a) => db.from("order_work_phases")
+        .select("id, order_id, name, status, percentuale, start_date, end_date, completata_il, position")
+        .eq("company_id", companyId).in("order_id", ambito)
+        .order("position").order("id").range(da, a).abortSignal(signal)),
+      readAllOrderRows<RapportinoFasi>((da, a) => supabase.from("campo_rapportini")
+        .select("data_lavoro, stato, fasi_lavorate").eq("company_id", companyId).in("order_id", ambito)
+        .in("stato", ["inviato", "approvato"]).is("annullato_at", null).not("fasi_lavorate", "is", null)
+        .order("id").range(da, a).abortSignal(signal)),
+    ]);
+    fasi.push(...fasiDelGruppo);
+    rapportini.push(...rapportiniDelGruppo);
+  }
+  return { fasi, rapportini };
+}
+
 export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazione) {
   const companyId = useEffectiveCompanyId();
   const ids = [r.generale.id, ...r.figlie.map((f) => f.id)];
@@ -138,8 +165,8 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazi
     staleTime: 30_000,
     refetchOnMount: "always",
     refetchInterval: 30_000,
-    queryFn: async (): Promise<MovimentiOperazione> => {
-      const [rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi, subappalti] = await Promise.all([
+    queryFn: async ({ signal }): Promise<MovimentiOperazione> => {
+      const [rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi, subappalti, crono] = await Promise.all([
         vista === "rapportini" ? leggi<RapportinoOperazione>(
           "campo_rapportini",
           "id, order_id, data_lavoro, ore_lavorate, descrizione_lavori, stato, approvato, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)",
@@ -164,9 +191,10 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazi
           companyId!, ids, "giorno",
         ) : [],
         vista === "lavorazioni" ? leggi<FaseOperazione>("order_work_phases",
-          "id, order_id, name, status, percentuale, end_date", companyId!, ids, "updated_at") : [],
+          "id, order_id, name, status, percentuale, start_date, end_date, completata_il, position", companyId!, ids, "updated_at") : [],
         vista === "squadre" && r.permessi.costi ? leggi<SubappaltoOperazione>("contratti_subappalto",
           "id, order_id, numero_contratto, descrizione_lavori, stato, subappaltatori_sicurezza(ragione_sociale)", companyId!, ids, "created_at") : [],
+        vista === "cronoprogramma" ? leggiCronoprogramma(companyId!, ids, signal) : null,
       ]);
       const idFornitori = [...new Set([...ordini, ...ddt, ...(costi ?? [])].map((x) => x.supplier_id).filter((x): x is string => !!x))];
       const fornitori: Record<string, string> = {};
@@ -186,7 +214,8 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazi
         fasi.length >= LIMITE_MOVIMENTI && "lavorazioni",
         subappalti.length >= LIMITE_MOVIMENTI && "subappalti",
       ].filter((x): x is string => !!x);
-      return { rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi, subappalti, fornitori, troncati };
+      return { rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi: crono?.fasi ?? fasi,
+        rapportiniCronoprogramma: crono?.rapportini ?? [], subappalti, fornitori, troncati };
     },
   });
 }

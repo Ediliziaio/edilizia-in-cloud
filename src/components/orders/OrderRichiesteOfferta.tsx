@@ -3,6 +3,7 @@
  * /azienda/richieste-offerta: qui si vedono solo quelle della commessa e se ne crea una nuova già collegata.
  */
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { ChevronDown, FileQuestion, Loader2, Plus } from "lucide-react";
@@ -16,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAzioniMateriali, useMaterialiPerFase } from "@/hooks/useMaterialiPerFase";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useSupplierRfqs, type SupplierRfq } from "@/hooks/useSupplierRfqs";
+import { rfqKeys, useSupplierRfqs, type SupplierRfq } from "@/hooks/useSupplierRfqs";
 import { supabase } from "@/integrations/supabase/client";
 import { acquistabile } from "@/lib/distinta/statiFase";
 import { formatCurrency } from "@/lib/formatters";
@@ -28,13 +29,18 @@ import { RiquadroCommessa, TabellaCommessa, type ColonnaTabella } from "./Tabell
 const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 const conPlurale = (n: number, uno: string, tanti: string) => `${n} ${n === 1 ? uno : tanti}`;
 
-export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string; orderCode?: string | null }) {
+export function OrderRichiesteOfferta({ orderId, orderCode, commesse }: {
+  orderId: string;
+  orderCode?: string | null;
+  commesse?: readonly { id: string; codice: string | null; nome: string }[];
+}) {
   const perm = usePermissions();
   const { rfqs, contatori, isLoading, isError } = useSupplierRfqs();
   const [nuova, setNuova] = useState(false);
   const [filtro, setFiltro] = useState<string | null>(null);
   const puoCreare = !perm.solaLettura && (perm.canManagePurchasing || perm.canEditOrders || perm.isAdmin);
-  const dellaCommessa = rfqs.filter(r => r.order_id === orderId);
+  const commessePerId = commesse && new Map(commesse.map(c => [c.id, c]));
+  const dellaCommessa = rfqs.filter(r => commessePerId ? !!r.order_id && commessePerId.has(r.order_id) : r.order_id === orderId);
 
   const aperte = ["bozza", "inviata", "in_valutazione"];
   const filtri: Record<string, (r: SupplierRfq) => boolean> = {
@@ -47,6 +53,10 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
   const visibili = filtro && filtri[filtro] && conta(filtro) > 0 ? dellaCommessa.filter(filtri[filtro]) : dellaCommessa;
   const colonne: ColonnaTabella<SupplierRfq>[] = [
     { titolo: "Numero", principale: true, cella: (r) => <Link to={`/azienda/richieste-offerta/${r.id}`} className="font-mono font-medium underline-offset-2 hover:underline">{r.rfq_number}</Link> },
+    ...(commessePerId ? [{ titolo: "Commessa", cella: (r: SupplierRfq) => {
+      const c = commessePerId.get(r.order_id ?? "");
+      return c ? <span title={c.nome}>{c.codice ?? c.nome}</span> : "—";
+    } }] : []),
     { titolo: "Data", cella: (r) => <span className="whitespace-nowrap">{dataIt(r.created_at)}</span> },
     { titolo: "Cosa serve", cella: (r) => <Link to={`/azienda/richieste-offerta/${r.id}`} className="underline-offset-2 hover:underline">{r.titolo}</Link> },
     { titolo: "Fornitori", cella: (r) => {
@@ -68,7 +78,7 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
       <RiquadroCommessa
         icona={<FileQuestion className="h-5 w-5 text-primary" aria-hidden="true" />}
         titolo="Richieste d’offerta" conteggio={dellaCommessa.length}
-        azioni={puoCreare ? <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1.5 h-4 w-4" />Nuova richiesta</Button> : undefined}
+        azioni={puoCreare ? <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1.5 h-4 w-4" />{commesse ? "Nuova richiesta sulla generale" : "Nuova richiesta"}</Button> : undefined}
         numeri={dellaCommessa.length > 0 ? (
           <ContatoriFiltro etichetta="Richieste per stato" attivo={filtro} onScegli={setFiltro} voci={[
             { chiave: "aperte", etichetta: "Aperte", valore: conta("aperte") },
@@ -83,7 +93,7 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
         ) : isError ? (
           <p role="alert" className="text-sm">Non riesco a leggere le richieste d’offerta.</p>
         ) : dellaCommessa.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessuna richiesta d’offerta per questa commessa.</p>
+          <p className="text-sm text-muted-foreground">{commesse ? "Nessuna richiesta d’offerta sull’operazione." : "Nessuna richiesta d’offerta per questa commessa."}</p>
         ) : (
           <TabellaCommessa etichetta="Richieste d’offerta" colonne={colonne} righe={visibili} chiave={(r) => r.id} />
         )}
@@ -95,6 +105,7 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
 
 function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; orderCode?: string | null; onChiudi: () => void }) {
   const navigate = useNavigaDocumento();
+  const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const { create } = useSupplierRfqs();
   const { suppliers } = useOperationalSuppliers();
@@ -135,8 +146,10 @@ function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; ord
           const { error } = await (supabase as any).from("supplier_rfq_suppliers").insert(
             [...fornitori].map(supplier_id => ({ rfq_id: id, company_id: effectiveCompany.id, supplier_id })));
           if (error) toast.error("Richiesta creata, ma i fornitori non sono stati aggiunti");
+          else void qc.invalidateQueries({ queryKey: rfqKeys.all });
         }
       }
+      onChiudi();
       navigate(`/azienda/richieste-offerta/${id}`);
     } catch {
       // L'errore l'ha già detto la mutazione: la finestra resta aperta con quello che si è scritto.
@@ -150,7 +163,7 @@ function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; ord
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nuova richiesta d’offerta</DialogTitle>
-          <DialogDescription>Poi la invii e registri le offerte dalla pagina della richiesta.</DialogDescription>
+          <DialogDescription>{orderCode && `Commessa ${orderCode}. `}Invio e registrazione delle offerte si gestiscono dalla pagina della richiesta.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <label className="block space-y-1 text-sm">

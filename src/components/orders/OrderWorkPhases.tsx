@@ -1093,6 +1093,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             {azioneImporta}
             {ditteContratti}
             {!telefono && lavoriExtra}
+            {onApriCronoprogramma && <Button type="button" variant="ghost" size="sm" className="h-9 px-2.5" onClick={onApriCronoprogramma}>
+              <CalendarDays className="size-4" aria-hidden="true" />Cronoprogramma
+            </Button>}
             <Button type="button" variant="ghost" size="sm" aria-expanded={responsabiliAperti} aria-controls="section-squadra"
               className={cn("h-9 px-2.5", responsabiliAperti && "bg-muted text-foreground")} onClick={() => setResponsabiliAperti(open => !open)}>
               <ShieldCheck className="size-4" aria-hidden="true" />Squadra e sicurezza

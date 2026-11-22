@@ -63,6 +63,19 @@ export interface FaseCrono {
   dateIncoerenti?: boolean;
 }
 
+export function intervalloPrevistoFase(fase: FaseCrono): [string, string] | null {
+  const da = fase.previstoInizio ?? fase.previstoFine;
+  const a = fase.previstoFine ?? fase.previstoInizio;
+  return da && a && a >= da ? [da, a] : null;
+}
+
+export function intervalloRealeFase(fase: FaseCrono, oggi: string): [string, string] | null {
+  if (!fase.realeInizio) return null;
+  if (fase.realeFine && fase.realeFine < fase.realeInizio) return null;
+  const fine = fase.realeFine ?? (fase.stato === "in_corso" ? oggi : fase.realeInizio);
+  return [fase.realeInizio, fine < fase.realeInizio ? fase.realeInizio : fine];
+}
+
 export type TipoTraguardo = "contratto" | "apertura" | "inizio_lavori" | "fine_lavori" | "consegna";
 
 export interface Traguardo {

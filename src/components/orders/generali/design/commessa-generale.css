@@ -1087,8 +1087,18 @@ button.generale-indicator[aria-pressed="true"] {
     grid-template-columns: 1fr;
   }
 }
-.generale-cantiere .generale-toolbar > label {
-  margin-top: 0;
+.generale-cantiere .generale-toolbar {
+  padding: 10px 12px;
+}
+
+@media (min-width: 1024px) {
+  .generale-design .generale-cantiere-nav { gap: 2px; }
+  .generale-design .generale-cantiere-nav [role="tab"] {
+    gap: 5px;
+    min-height: 34px;
+    padding: 6px 7px;
+    font-size: 12px;
+  }
 }
 
 /* Le sezioni interne precedono sempre riepiloghi, filtri e contenuti variabili. */

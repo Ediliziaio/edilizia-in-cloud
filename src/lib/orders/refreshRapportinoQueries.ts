@@ -28,7 +28,7 @@ export function isRapportinoQueryKey(queryKey: readonly unknown[], orderId: stri
     if (prefix === "generale-movimenti-operazione") {
       return (!companyId || queryKey[1] === companyId)
         && typeof queryKey[3] === "string" && queryKey[3].split(",").includes(orderId)
-        && ["rapportini", "lavorazioni", "squadre"].includes(String(queryKey[6]));
+        && ["rapportini", "lavorazioni", "cronoprogramma", "squadre"].includes(String(queryKey[6]));
     }
     if (ORDER_FIRST.has(prefix)) {
       if (queryKey[1] !== orderId) return false;

@@ -15,13 +15,18 @@ vi.mock("@/hooks/useMaterialiPerFase", () => ({
 vi.mock("@/components/orders/generali/moduli/MovimentiOperazione", () => ({
   MovimentiOperazione: ({ vista, onApri }: { vista: string; onApri: (id: string, fase: string) => void }) => (
     <section aria-label="Vista aggregata">
-      {vista === "lavorazioni" ? <button onClick={() => onApri("figlia", "fase")}>Fondazioni</button> : vista}
+      {["lavorazioni", "cronoprogramma"].includes(vista) ? <button onClick={() => onApri("figlia", "fase")}>Fondazioni</button> : vista}
     </section>
   ),
 }));
-vi.mock("@/components/orders/OrderWorkPhases", () => ({
-  OrderWorkPhases: ({ orderId, faseIniziale }: { orderId: string; faseIniziale: string }) =>
-    <p>{orderId} · {faseIniziale}</p>,
+vi.mock("@/components/orders/generali/moduli/LavorazioniAmbito", () => ({
+  LavorazioniAmbito: ({ orderId, fase, onApriCronoprogramma }: { orderId: string; fase: string; onApriCronoprogramma: () => void }) =>
+    <><p>{orderId} · {fase}</p><button onClick={onApriCronoprogramma}>Vedi date</button></>,
+  CronoprogrammaAmbito: ({ orderId }: { orderId: string }) => <p>Cronoprogramma · {orderId}</p>,
+}));
+vi.mock("@/components/orders/OrderRichiesteOfferta", () => ({
+  OrderRichiesteOfferta: ({ orderId, commesse }: { orderId: string; commesse?: { id: string }[] }) =>
+    <p>Richieste · {orderId}{commesse && ` · ${commesse.map(c => c.id).join(",")}`}</p>,
 }));
 vi.mock("@/components/orders/NuovoOdaCommessaDialog", () => ({
   NuovoOdaCommessaDialog: ({ orderId, items }: { orderId: string; items: { name: string }[] }) =>
@@ -81,5 +86,22 @@ describe("Cantiere della commessa generale", () => {
     changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: "figlia" } });
     expect(await screen.findByText("Ordini · figlia · Cemento")).toBeInTheDocument();
     expect(within(screen.getByRole("tablist", { name: "Sezioni del cantiere" })).getByRole("tab", { name: /^DDT$/ })).toBeInTheDocument();
+  });
+
+  it("dal cronoprogramma complessivo apre la fase e torna al calendario della stessa commessa", async () => {
+    apri("&vista-cantiere=cronoprogramma");
+    fireEvent.click(screen.getByRole("button", { name: "Fondazioni" }));
+    expect(await screen.findByText("figlia · fase")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Vedi date" }));
+    expect(await screen.findByText("Cronoprogramma · figlia")).toBeInTheDocument();
+    expect(screen.getByTestId("ricerca")).toHaveTextContent("ambito-cantiere=figlia");
+    expect(screen.getByTestId("ricerca")).not.toHaveTextContent("fase-cantiere");
+  });
+
+  it("apre le richieste d’offerta di tutta l’operazione e poi solo della figlia scelta", async () => {
+    apri("&vista-cantiere=offerte");
+    expect(await screen.findByText("Richieste · generale · generale,figlia")).toBeInTheDocument();
+    changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: "figlia" } });
+    expect(await screen.findByText("Richieste · figlia")).toBeInTheDocument();
   });
 });

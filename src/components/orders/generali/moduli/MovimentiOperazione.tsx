@@ -14,6 +14,7 @@ import { LIMITE_MOVIMENTI, useMovimentiOperazione, type VistaOperazione } from "
 import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
 import type { DDTStato } from "@/hooks/useDDTRicezione";
 import { dataBreve } from "../piano/formato";
+import { CronoprogrammaOperazione } from "./CronoprogrammaOperazione";
 import { cn } from "@/lib/utils";
 import { faseCompletata } from "@/lib/orders/schedaCommessa";
 
@@ -66,6 +67,9 @@ export function MovimentiOperazione({
         </button>
       </div>
     );
+
+  if (vista === "cronoprogramma") return <CronoprogrammaOperazione riepilogo={riepilogo} fasi={data.fasi}
+    rapportini={data.rapportiniCronoprogramma} onApri={onApri} />;
 
   const fornitore = (id: string | null) => (id ? data.fornitori[id] || "—" : "—");
   const quante = (n: number, una: string, tante: string) => `${n.toLocaleString("it-IT")} ${n === 1 ? una : tante}`;
@@ -198,7 +202,7 @@ export function MovimentiOperazione({
         sintesi={`${data.fasi.filter(faseCompletata).length} completate su ${data.fasi.length}`}
         vuoto="Nessuna fase registrata. Scegli una commessa per importare un computo o creare le fasi."
         righe={data.fasi.length}>
-        <thead><tr><Th>Commessa</Th><Th>Fase</Th><Th>Stato</Th><Th>Avanzamento</Th><Th>Fine prevista</Th></tr></thead>
+        <thead><tr><Th>Commessa</Th><Th>Fase</Th><Th>Stato</Th><Th>Avanzamento</Th><Th>Inizio previsto</Th><Th>Fine prevista</Th></tr></thead>
         <tbody>
           {data.fasi.map(fase => {
             const completata = faseCompletata(fase);
@@ -213,6 +217,7 @@ export function MovimentiOperazione({
                   indicatorClassName={cn("motion-reduce:transition-none", completata && "bg-emerald-600")} />
                 <span className="tabular-nums">{progresso}%</span>
               </div></Td>
+              <Td className="whitespace-nowrap">{dataBreve(fase.start_date)}</Td>
               <Td className="whitespace-nowrap">{dataBreve(fase.end_date)}</Td>
             </tr>;
           })}
