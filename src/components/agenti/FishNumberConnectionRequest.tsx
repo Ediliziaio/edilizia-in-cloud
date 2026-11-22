@@ -1,6 +1,18 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Phone, ShieldCheck } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  Phone,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  fishNumberConnectionKey,
+  useFishNumberConnectionStatus,
+  type ConnectionRequest,
+  type ConnectionStatus,
+} from "@/hooks/useFishNumberConnectionStatus";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { callFishAgent } from "@/lib/fishAgentProxy";
@@ -9,41 +21,410 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NumberConnectionGuide } from "@/components/telephony/NumberConnectionGuide";
 
-type ConnectionRequest = { id:string; number_mode:"existing"|"new"; existing_number:string|null; carrier:string; status:string; platform_notes:string; company_reply?:string; created_at:string };
-export function FishNumberConnectionRequest({companyId,agentId,onSubmitted}:{companyId:string;agentId:string;onSubmitted?:()=>void}) {
-  const cache=useQueryClient();
-  const {isAdmin}=usePermissions();
-  const auth=useAuth();
-  const isSuperAdmin=auth.role==="super_admin" && !auth.viewAsRole;
-  const canManage=isAdmin || isSuperAdmin;
-  const [mode,setMode]=useState("existing");
-  const [number,setNumber]=useState("");
-  const [carrier,setCarrier]=useState("");
-  const [sip,setSip]=useState("unknown");
-  const [notes,setNotes]=useState("");
-  const [reviewNotes,setReviewNotes]=useState("");
-  const [reply,setReply]=useState("");
-  const queryKey=["fish-number-request",companyId,agentId];
-  const state=useQuery({queryKey,enabled:canManage,retry:false,queryFn:()=>callFishAgent<{request:ConnectionRequest|null;active:boolean}>(companyId,agentId,"number_connection_status")});
-  const operation=useMutation({mutationFn:async(status?:string)=>{
-    if(status==="company_reply")return callFishAgent<{request:ConnectionRequest}>(companyId,agentId,"provide_number_information",{request_id:state.data!.request!.id,company_reply:reply});
-    if(status)return callFishAgent<{request:ConnectionRequest}>(companyId,agentId,"review_number_connection",{request_id:state.data!.request!.id,status,platform_notes:reviewNotes});
-    return callFishAgent<{request:ConnectionRequest;already_requested?:boolean}>(companyId,agentId,"request_number_connection",{number_mode:mode,existing_number:number,carrier,sip_available:sip,notes});
-  },onSuccess:data=>{cache.setQueryData(queryKey,(old:any)=>({...old,request:data.request}));void cache.invalidateQueries({queryKey:["fish-connection-queue",companyId]});onSubmitted?.();}});
-  const request=state.data?.request;
-  if(!canManage)return <p className="text-sm text-muted-foreground">Un amministratore dell’azienda può richiedere e seguire il collegamento del numero.</p>;
-  if(state.isPending)return <div className="flex items-center gap-2 p-4 text-sm"><Loader2 className="h-4 w-4 animate-spin"/>Leggo lo stato del numero…</div>;
-  if(state.isError)return <div role="alert" className="space-y-3 rounded-xl border p-4 text-sm"><p>Non riesco a leggere lo stato della richiesta.</p><Button variant="outline" onClick={()=>state.refetch()}>Riprova</Button></div>;
-  return <section className="space-y-5" aria-label="Collegamento del numero aziendale">
-    <div className="flex items-start gap-3"><div className="rounded-xl bg-emerald-50 p-3 text-emerald-700"><Phone className="h-5 w-5"/></div><div><h2 className="text-lg font-semibold">Il numero della tua azienda</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Puoi mantenere il numero attuale oppure richiedere una nuova linea. Ti aiutiamo a verificare il collegamento.</p></div></div>
-    {request && request.status!=="cancelled"?<div className="space-y-4 rounded-2xl border bg-background p-5"><div className="flex items-center gap-2 font-semibold"><CheckCircle2 className="h-5 w-5 text-emerald-700"/>{state.data?.active?"Linea attiva":connectionStatusLabel[request.status] || request.status}</div><p className="text-sm">{request.number_mode==="existing"?`Numero da mantenere: ${request.existing_number}`:"Hai richiesto una nuova linea aziendale."}</p><p className="text-sm leading-6 text-muted-foreground">{request.status==="awaiting_company"?"La piattaforma ha bisogno delle informazioni indicate qui sotto per proseguire.":request.status==="ready"?"Il collegamento è stato verificato dalla piattaforma.":"La richiesta è salvata. La piattaforma verifica operatore, compatibilità e configurazione della linea. Puoi continuare a provare l’assistente nel browser."}</p>{request.platform_notes && <p className="rounded-xl bg-muted p-3 text-sm leading-6">{request.platform_notes}</p>}{request.company_reply && <p className="rounded-xl border p-3 text-sm leading-6">Informazioni inviate: {request.company_reply}</p>}{request.status==="awaiting_company" && <div className="space-y-3"><Label htmlFor={`request-reply-${agentId}`}>Le informazioni richieste</Label><Textarea id={`request-reply-${agentId}`} value={reply} onChange={e=>setReply(e.target.value)} maxLength={1000} disabled={operation.isPending}/><Button disabled={operation.isPending || !reply.trim()} onClick={()=>operation.mutate("company_reply")}>Invia informazioni</Button></div>}<p className="text-xs text-muted-foreground">Riferimento {request.id.slice(0,8).toUpperCase()} · {new Date(request.created_at).toLocaleDateString("it-IT")}</p><Button variant="outline" size="sm" onClick={()=>state.refetch()}>Aggiorna stato</Button></div>:<form className="space-y-5" onSubmit={event=>{event.preventDefault();operation.mutate(undefined);}}>
-      <fieldset className="grid gap-3 sm:grid-cols-2" disabled={operation.isPending}><legend className="mb-3 text-sm font-medium">Quale numero vuoi usare?</legend>{[["existing","Mantieni il tuo numero","L’azienda ha già un recapito telefonico."],["new","Richiedi una nuova linea","La piattaforma verifica disponibilità e condizioni."]].map(([value,title,description])=><label key={value} className={`cursor-pointer rounded-xl border p-4 ${mode===value?"border-emerald-600 bg-emerald-50/40":"bg-background"}`}><span className="flex items-center gap-2 text-sm font-medium"><input type="radio" name={`number-mode-${agentId}`} value={value} checked={mode===value} onChange={()=>setMode(value)}/>{title}</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">{description}</span></label>)}</fieldset>
-      {mode==="existing" && <div className="space-y-4"><div><Label htmlFor={`line-number-${agentId}`}>Numero aziendale</Label><Input id={`line-number-${agentId}`} value={number} onChange={e=>setNumber(e.target.value)} placeholder="+39…" type="tel" maxLength={30} required disabled={operation.isPending}/><p className="mt-2 text-xs text-muted-foreground">Inserisci il prefisso internazionale, mantenendo lo zero dei numeri fissi.</p></div><div><Label htmlFor={`line-carrier-${agentId}`}>Operatore telefonico, se lo conosci</Label><Input id={`line-carrier-${agentId}`} value={carrier} onChange={e=>setCarrier(e.target.value)} placeholder="Per esempio TIM, Vodafone o altro" maxLength={120} disabled={operation.isPending}/></div><details className="text-sm"><summary className="cursor-pointer font-medium">Informazioni tecniche facoltative</summary><div className="mt-3"><Label>Avete un centralino VoIP o SIP?</Label><Select value={sip} onValueChange={setSip} disabled={operation.isPending}><SelectTrigger aria-label="Disponibilità centralino VoIP"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="unknown">Non lo so</SelectItem><SelectItem value="yes">Sì</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div></details></div>}
-      <div><Label htmlFor={`line-notes-${agentId}`}>Note, facoltative</Label><Textarea id={`line-notes-${agentId}`} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={1000} placeholder="Per esempio: vogliamo mantenere anche i telefoni dell’ufficio." disabled={operation.isPending}/></div><p className="flex items-start gap-2 rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0"/>La richiesta non acquista numeri, non modifica il contratto telefonico e non attiva chiamate. Il collegamento verrà verificato dalla piattaforma.</p><Button type="submit" disabled={operation.isPending || (mode==="existing" && !/^\+[1-9]\d{7,14}$/.test(onboardingPhone(number)))}>{operation.isPending?<><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Invio richiesta…</>:"Richiedi il collegamento"}</Button>
-    </form>}
-    {operation.isError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{operation.error.message}</p>}
-    {isSuperAdmin && request && <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">Gestione della piattaforma</summary><div className="mt-4 space-y-3"><Label htmlFor={`review-notes-${agentId}`}>Indicazioni per l’azienda</Label><Textarea id={`review-notes-${agentId}`} value={reviewNotes} onChange={e=>setReviewNotes(e.target.value)} maxLength={1000}/><div className="flex flex-wrap gap-2">{[["in_review","Prendi in carico"],["awaiting_company","Richiedi informazioni"],["ready","Verifica linea pronta"]].map(([status,label])=><Button key={status} variant="outline" size="sm" disabled={operation.isPending} onClick={()=>operation.mutate(status)}>{label}</Button>)}</div></div></details>}
-  </section>;
+export function FishNumberConnectionRequest({
+  companyId,
+  agentId,
+  onSubmitted,
+}: {
+  companyId: string;
+  agentId: string;
+  onSubmitted?: () => void;
+}) {
+  const cache = useQueryClient();
+  const { isAdmin } = usePermissions();
+  const auth = useAuth();
+  const isSuperAdmin = auth.role === "super_admin" && !auth.viewAsRole;
+  const canManage = isAdmin || isSuperAdmin;
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const usesExistingNumber = mode === "existing";
+  const [number, setNumber] = useState("");
+  const [carrier, setCarrier] = useState("");
+  const [sip, setSip] = useState("unknown");
+  const [notes, setNotes] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [reply, setReply] = useState("");
+  const queryKey = fishNumberConnectionKey(companyId, agentId);
+  const state = useFishNumberConnectionStatus(companyId, agentId, canManage);
+  const operation = useMutation({
+    mutationFn: async (status?: string) => {
+      if (status === "company_reply")
+        return callFishAgent<{ request: ConnectionRequest }>(
+          companyId,
+          agentId,
+          "provide_number_information",
+          { request_id: state.data!.request!.id, company_reply: reply },
+        );
+      if (status)
+        return callFishAgent<{ request: ConnectionRequest }>(
+          companyId,
+          agentId,
+          "review_number_connection",
+          {
+            request_id: state.data!.request!.id,
+            status,
+            platform_notes: reviewNotes,
+          },
+        );
+      return callFishAgent<{
+        request: ConnectionRequest;
+        already_requested?: boolean;
+      }>(companyId, agentId, "request_number_connection", {
+        number_mode: mode,
+        existing_number: usesExistingNumber ? number : "",
+        carrier: usesExistingNumber ? carrier : "",
+        sip_available: usesExistingNumber ? sip : "unknown",
+        notes,
+      });
+    },
+    onSuccess: (data) => {
+      cache.setQueryData<ConnectionStatus>(queryKey, (previous) => ({
+        ...previous,
+        request: data.request,
+      }));
+      void cache.invalidateQueries({ queryKey });
+      void cache.invalidateQueries({
+        queryKey: ["fish-connection-queue", companyId],
+      });
+      onSubmitted?.();
+    },
+  });
+  const request = state.data?.request;
+  const line = state.data?.line;
+  const needsLineCheck = request?.status === "ready" && !line;
+  if (!canManage)
+    return (
+      <p className="text-sm text-muted-foreground">
+        Un amministratore dell’azienda può richiedere e seguire il collegamento
+        del numero.
+      </p>
+    );
+  if (state.isPending)
+    return (
+      <div className="flex items-center gap-2 p-4 text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Leggo lo stato del numero…
+      </div>
+    );
+  if (state.isError)
+    return (
+      <div role="alert" className="space-y-3 rounded-xl border p-4 text-sm">
+        <p>Non riesco a leggere lo stato della richiesta.</p>
+        <Button variant="outline" onClick={() => state.refetch()}>
+          Riprova
+        </Button>
+      </div>
+    );
+  return (
+    <section
+      className="space-y-3"
+      aria-label="Collegamento del numero aziendale"
+    >
+      <div className="flex items-center gap-2">
+        <div className="shrink-0 rounded-md bg-sky-50 p-1.5 text-sky-700 dark:bg-sky-950 dark:text-sky-200">
+          <Phone aria-hidden="true" className="size-4" />
+        </div>
+        <h2 className="text-base font-semibold">Il numero della tua azienda</h2>
+      </div>
+      {request && request.status !== "cancelled" ? (
+        <div className="space-y-2.5 rounded-lg border bg-background p-3">
+          <div
+            role="status"
+            className="flex items-center gap-2 text-sm font-semibold"
+          >
+            {request.status === "ready" && line ? (
+              <CheckCircle2
+                aria-hidden="true"
+                className="size-4 text-emerald-700 dark:text-emerald-300"
+              />
+            ) : (
+              <Clock3
+                aria-hidden="true"
+                className="size-4 text-orange-700 dark:text-orange-300"
+              />
+            )}
+            {needsLineCheck
+              ? "Collegamento da verificare"
+              : connectionStatusLabel[request.status] || request.status}
+          </div>
+          <p className="text-sm">
+            {request.number_mode === "existing"
+              ? `Numero da mantenere: ${request.existing_number}`
+              : "Hai richiesto una nuova linea aziendale."}
+          </p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {needsLineCheck
+              ? "Serve una verifica aggiornata del numero richiesto per questo assistente."
+              : request.status === "awaiting_company"
+                ? "La piattaforma ha bisogno delle informazioni indicate qui sotto per proseguire."
+                : request.status === "ready"
+                  ? "La piattaforma ha completato la verifica."
+                  : "La piattaforma verifica operatore, compatibilità e configurazione della linea."}
+          </p>
+          {line && (
+            <dl className="grid gap-2 rounded-lg border bg-muted/20 p-2.5 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted-foreground">Entrata</dt>
+                <dd className="mt-1 font-medium">
+                  {line.number} · configurata
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Uscita con lo stesso numero
+                </dt>
+                <dd className="mt-1 font-medium">
+                  {line.outbound
+                    ? "Configurata"
+                    : "Da abilitare con l’operatore"}
+                </dd>
+              </div>
+            </dl>
+          )}
+          {request.platform_notes && (
+            <p className="rounded-xl bg-muted p-3 text-sm leading-6">
+              {request.platform_notes}
+            </p>
+          )}
+          {request.company_reply && (
+            <p className="rounded-xl border p-3 text-sm leading-6">
+              Informazioni inviate: {request.company_reply}
+            </p>
+          )}
+          {request.status === "awaiting_company" && (
+            <div className="space-y-3">
+              <Label htmlFor={`request-reply-${agentId}`}>
+                Le informazioni richieste
+              </Label>
+              <Textarea
+                id={`request-reply-${agentId}`}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                maxLength={1000}
+                disabled={operation.isPending}
+              />
+              <Button
+                disabled={operation.isPending || !reply.trim()}
+                onClick={() => operation.mutate("company_reply")}
+              >
+                Invia informazioni
+              </Button>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Riferimento {request.id.slice(0, 8).toUpperCase()} ·{" "}
+              {new Date(request.created_at).toLocaleDateString("it-IT")}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => state.refetch()}
+              disabled={state.isFetching}
+            >
+              Aggiorna stato
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            operation.mutate(undefined);
+          }}
+        >
+          <fieldset
+            className="grid gap-1.5 min-[360px]:grid-cols-2"
+            disabled={operation.isPending}
+          >
+            <legend className="sr-only">Quale numero vuoi usare?</legend>
+            {(
+              [
+                ["existing", "Mantieni il tuo numero"],
+                ["new", "Richiedi una nuova linea"],
+              ] as const
+            ).map(([value, title]) => (
+              <label
+                key={value}
+                className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium sm:text-sm ${mode === value ? "border-sky-600 bg-sky-50 dark:bg-sky-950/45" : "bg-background"}`}
+              >
+                <input
+                  type="radio"
+                  name={`number-mode-${agentId}`}
+                  value={value}
+                  checked={mode === value}
+                  onChange={() => setMode(value)}
+                  className="shrink-0 accent-sky-700"
+                />
+                {title}
+              </label>
+            ))}
+          </fieldset>
+          {usesExistingNumber && (
+            <div>
+              <Label htmlFor={`line-number-${agentId}`}>Numero aziendale</Label>
+              <Input
+                id={`line-number-${agentId}`}
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                placeholder="+39…"
+                type="tel"
+                maxLength={30}
+                required
+                disabled={operation.isPending}
+                aria-describedby={`line-number-help-${agentId}`}
+              />
+              <p
+                id={`line-number-help-${agentId}`}
+                className="mt-1 text-xs text-muted-foreground"
+              >
+                Usa il prefisso internazionale. Mantieni lo zero dei fissi
+                italiani.
+              </p>
+            </div>
+          )}
+          <details className="rounded-lg border px-2.5 py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              Dati facoltativi
+            </summary>
+            <div className="mt-2 grid min-w-0 gap-2.5 sm:grid-cols-2">
+              {usesExistingNumber && (
+                <>
+                  <div>
+                    <Label htmlFor={`line-carrier-${agentId}`}>
+                      Operatore telefonico
+                    </Label>
+                    <Input
+                      id={`line-carrier-${agentId}`}
+                      value={carrier}
+                      onChange={(e) => setCarrier(e.target.value)}
+                      placeholder="Se lo conosci"
+                      maxLength={120}
+                      disabled={operation.isPending}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`line-sip-${agentId}`}>
+                      Avete un centralino VoIP o SIP?
+                    </Label>
+                    <Select
+                      value={sip}
+                      onValueChange={setSip}
+                      disabled={operation.isPending}
+                    >
+                      <SelectTrigger
+                        id={`line-sip-${agentId}`}
+                        aria-label="Disponibilità centralino VoIP"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unknown">Non lo so</SelectItem>
+                        <SelectItem value="yes">Sì</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+              <div className="sm:col-span-2">
+                <Label htmlFor={`line-notes-${agentId}`}>
+                  Note, facoltative
+                </Label>
+                <Textarea
+                  id={`line-notes-${agentId}`}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  maxLength={1000}
+                  rows={2}
+                  placeholder="Per esempio: AI fuori orario e richiami con lo stesso numero."
+                  disabled={operation.isPending}
+                />
+              </div>
+            </div>
+          </details>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={
+                operation.isPending ||
+                (usesExistingNumber &&
+                  !/^\+[1-9]\d{7,14}$/.test(onboardingPhone(number)))
+              }
+            >
+              {operation.isPending ? (
+                <>
+                  <Loader2
+                    aria-hidden="true"
+                    className="mr-2 size-4 animate-spin"
+                  />
+                  Invio richiesta…
+                </>
+              ) : (
+                "Richiedi il collegamento"
+              )}
+            </Button>
+            <p className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
+              <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
+              La richiesta avvia la verifica della linea.
+            </p>
+          </div>
+        </form>
+      )}
+      <NumberConnectionGuide />
+      {operation.isError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+        >
+          {operation.error.message}
+        </p>
+      )}
+      {isSuperAdmin && request && (
+        <details className="rounded-xl border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Gestione della piattaforma
+          </summary>
+          <div className="mt-4 space-y-3">
+            <Label htmlFor={`review-notes-${agentId}`}>
+              Indicazioni per l’azienda
+            </Label>
+            <Textarea
+              id={`review-notes-${agentId}`}
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+              maxLength={1000}
+            />
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["in_review", "Prendi in carico"],
+                ["awaiting_company", "Richiedi informazioni"],
+                ["ready", "Verifica linea pronta"],
+              ].map(([status, label]) => (
+                <Button
+                  key={status}
+                  variant="outline"
+                  size="sm"
+                  disabled={operation.isPending}
+                  onClick={() => operation.mutate(status)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </details>
+      )}
+    </section>
+  );
 }

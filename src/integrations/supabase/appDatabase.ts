@@ -1,3 +1,4 @@
+import type { FishAssistanceCase } from "../../../shared/fish/assistance";
 import type { Database } from "./types";
 import type { AttivitaAi } from "../../../shared/aiAttivita";
 /** Additive contract until the next full generated schema refresh. */
@@ -9,6 +10,7 @@ type QrCantiereRow = { order_id: string; token: string; documento_ids: string[];
 type MediaFolder = Database["public"]["Tables"]["media_library_folders"];
 export type DriveFolderMode = "automatic" | "manual";
 export type DriveFileRow = { id: string; company_id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; shared: boolean; created_by: string | null; created_at: string };
+type Tasks = Database["public"]["Tables"]["tasks"];
 type Account = Database["public"]["Tables"]["bank_accounts"];
 type Quote = Database["public"]["Tables"]["quotes"];
 export type AppDatabase = Omit<Database, "public"> & {
@@ -32,7 +34,9 @@ export type AppDatabase = Omit<Database, "public"> & {
         Returns: { mese: string | null; entrate: number; uscite: number; saldo: number; entry_count: number }[];
       };
     };
-    Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "order_attachments" | "media_library_folders" | "quotes"> & {
+    Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "tasks" | "order_attachments" | "media_library_folders" | "quotes"> & {
+      tasks: Tasks & { Row: Tasks["Row"] & { fish_call_id: string | null } };
+      ai_fish_assistance: { Row: { [K in keyof FishAssistanceCase]: FishAssistanceCase[K] }; Insert: never; Update: never; Relationships: [] };
       quotes: Omit<Quote, "Row" | "Insert" | "Update"> & {
         Row: Quote["Row"] & { ai_richiesta_id: string | null; ai_richiesta_salvata_il: string | null };
         Insert: Quote["Insert"] & { ai_richiesta_id?: string | null };

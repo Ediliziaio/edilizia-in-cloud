@@ -288,7 +288,7 @@ export default function AgentDetailPage() {
   const canSaveConfig = configIssues.length === 0;
 
   if (isVoice && agent.tools_config?.voice_provider === "fish_audio" && companyId) {
-    return <FishAgentWorkspace key={`${companyId}:${agent.id}`} agent={agent} companyId={companyId} onBack={() => navigate(basePath)} />;
+    return <FishAgentWorkspace key={`${companyId}:${agent.id}`} agent={agent} companyId={companyId} initialTab={requestedTab === "telefonia" ? "telefonia" : requestedTab === "conversazioni" ? "chiamate" : "configurazione"} onBack={() => navigate(basePath)} />;
   }
 
   return (

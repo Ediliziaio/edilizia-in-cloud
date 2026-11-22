@@ -1,25 +1,42 @@
 /** Explain number ownership before an administrator chooses to purchase a line. */
 export function NumberConnectionGuide() {
   return (
-    <details className="rounded-xl border bg-muted/20 p-4">
+    <details className="rounded-lg border bg-muted/20 px-2.5 py-2">
       <summary className="cursor-pointer text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-        Hai già un numero aziendale? Puoi mantenere quello.
+        Come usare il tuo numero aziendale
       </summary>
-      <div className="mt-4 grid gap-4 text-sm md:grid-cols-3">
+      <div className="mt-2 grid gap-2.5 text-xs leading-5 md:grid-cols-3">
         <div>
-          <h3 className="font-medium">Collega il numero esistente</h3>
-          <p className="mt-1 text-muted-foreground">Se il tuo operatore o centralino supporta SIP, si può configurare il collegamento all’assistente. Il numero resta presso l’operatore.</p>
+          <h3 className="font-medium">Collega il centralino via SIP</h3>
+          <p className="mt-1 text-muted-foreground">
+            Se la linea è compatibile, l’operatore o il centralino passa le
+            chiamate all’assistente. Puoi scegliere quando farlo, ad esempio
+            fuori orario o quando l’ufficio non risponde. Il numero resta presso
+            il tuo operatore.
+          </p>
         </div>
         <div>
           <h3 className="font-medium">Inoltra le chiamate</h3>
-          <p className="mt-1 text-muted-foreground">Una deviazione può mandare le chiamate a una linea collegata all’assistente, anche solo quando non rispondi. Disponibilità e costi dipendono dall’operatore.</p>
+          <p className="mt-1 text-muted-foreground">
+            Se puoi attivare una deviazione, i clienti continuano a chiamare il
+            numero abituale e il tuo operatore inoltra la chiamata a una linea
+            dell’assistente. Verifica costi e trasmissione del numero del
+            chiamante.
+          </p>
         </div>
         <div>
-          <h3 className="font-medium">Sposta o aggiungi una linea</h3>
-          <p className="mt-1 text-muted-foreground">Con la portabilità mantieni il numero cambiando operatore, se supportata. Un numero nuovo serve quando vuoi una linea aggiuntiva o dedicata alle prove.</p>
+          <h3 className="font-medium">Usa lo stesso numero in uscita</h3>
+          <p className="mt-1 text-muted-foreground">
+            Serve abilitare l’uscita sul collegamento SIP e avere il permesso di
+            presentare quel numero. Se l’operatore attuale non lo supporta, puoi
+            valutare la portabilità verso un operatore compatibile.
+          </p>
         </div>
       </div>
-      <p className="mt-4 text-sm text-muted-foreground">Per chiamare mostrando il numero aziendale serve un collegamento in uscita autorizzato dall’operatore. La sola deviazione delle chiamate in entrata non lo abilita. Verifica la linea con chi gestisce la telefonia prima di acquistare un altro numero.</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Puoi chiedere la verifica anche se non conosci l’operatore o il tipo di
+        centralino.
+      </p>
     </details>
   );
 }

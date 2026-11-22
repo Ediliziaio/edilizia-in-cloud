@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
 import { callElevenLabsProxy, requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { useUnifiedAgents } from "@/hooks/useUnifiedAgents";
 import { NumberConnectionGuide } from "@/components/telephony/NumberConnectionGuide";
@@ -54,6 +55,7 @@ export function TelephonyTab() {
   const isAdminContext = useLocation().pathname.startsWith("/admin");
   const settingsUrl = isAdminContext ? "/admin/ai?section=config" : "/azienda/impostazioni/numeri-telefono";
   const companyId = useEffectiveCompanyId();
+  const agentsPath = useAiAgentsBasePath();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
 
@@ -73,6 +75,7 @@ export function TelephonyTab() {
 
   const { data: allAgentsRaw = [] } = useUnifiedAgents();
   const allAgents = allAgentsRaw.filter(a => a.tipo === "vocale" || a.tipo === "campagna");
+  const fishAgents = allAgents.filter(agent => agent.tools_config?.voice_provider === "fish_audio");
 
   const assignAgent = useMutation({
     mutationFn: async ({ numberId, agentId }: { numberId: string; agentId: string | null }) => {
@@ -151,6 +154,23 @@ export function TelephonyTab() {
   return (
     <div className="space-y-6">
       <NumberConnectionGuide />
+      {fishAgents.length > 0 && (
+        <section className="rounded-xl border bg-card p-4">
+          <h2 className="text-sm font-semibold">Collega un numero a un assistente Fish</h2>
+          <ul className="mt-3 divide-y">
+            {fishAgents.map(agent => (
+              <li key={agent.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="text-sm">{agent.nome}</span>
+                <Button asChild size="sm" variant="outline">
+                  <Link to={agentsPath + "/" + agent.id + "?tab=telefonia"} aria-label={`Collegamento numero per ${agent.nome}`}>
+                    Collegamento numero
+                  </Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {companyId && <FishConnectionRequestsQueue companyId={companyId}/>}
       {/* Solo le azioni, a destra: il titolo «Numeri Telefonici» ripeteva la
           scheda e la frase su Impostazioni → Telefonia la ripete il riquadro

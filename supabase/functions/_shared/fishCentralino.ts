@@ -8,8 +8,10 @@ import { createFishWebPreview } from "./fishWebPreview.ts";
 import { fishCrmTrialAction, canonicalCustomerPhone } from "./fishCrmTrial.ts";
 import { fishConnectionRequestAction } from "./fishConnectionRequests.ts";
 import { fishOperatorDestinations,fishReserveOperator,fishOperatorChoices } from "./fishOperatorRouting.ts";
-import { fishOpportunityOutcome } from "./fishSalesTools.ts";
+import { fishOpportunityOutcome, fishLeadBooking, fishLeadContact, type FishLeadBooking, type FishLeadContact } from "./fishSalesTools.ts";
 import { fishCaseMemoryTool } from "./fishCaseMemory.ts";
+import { ASSISTANCE_RUNTIME_TOOLS, fishAssistanceTool } from "./fishAssistance.ts";
+import { isFishAssistance } from "../../../shared/fish/assistance.ts";
 
 type Context = { companyId: string; userId: string; isAdmin: boolean; isSuperAdmin: boolean };
 export interface FishRuntimeDeps {
@@ -18,7 +20,7 @@ export interface FishRuntimeDeps {
   allowCostlyAction?: (company: string) => Promise<boolean>;
   authorize?: (req: Request, company: unknown) => Promise<Context>;
   allowInbound?: (company: string, binding?: any, agent?: any) => Promise<boolean>;
-  executeTool?: (company: string, phone: string, session: string, name: string, params: Record<string, unknown>, config?: {calendarId: string}) => Promise<any>;
+  executeTool?: (company: string, phone: string, session: string, name: string, params: Record<string, unknown>, config?: {calendarId?: string; leadBooking?: FishLeadBooking; callback?: { agentId: string; contact: FishLeadContact | null }}) => Promise<any>;
   cors?: (req: Request) => Record<string, string>;
 }
 const checked = (response: any, message = "Salvataggio Fish non riuscito") => {
@@ -40,6 +42,10 @@ export function createFishManagementHandler(deps: FishRuntimeDeps) {
     try {
       const body = await req.json();
       const access = await deps.authorize!(req, body.company_id);
+      if (body.action === "assistance_capabilities") {
+        const schema = await deps.db.from("ai_fish_assistance").select("id").eq("company_id", access.companyId).limit(0);
+        return json({version:1,ready:!schema.error});
+      }
       if (["associate_call", "search_call_parties"].includes(body.action)) {
         if (!access.isAdmin && !access.isSuperAdmin) return json({ error: "Solo l’amministratore può associare le chiamate." }, 403);
         if (body.action === "search_call_parties") return json({ parties: checked(await deps.db.rpc("centralino_search_parties", { p_company: access.companyId, p_search: String(body.query || "").slice(0, 80) })) || [] });
@@ -75,6 +81,10 @@ export function createFishManagementHandler(deps: FishRuntimeDeps) {
         if (!access.isSuperAdmin) return json({ error: "L'assegnazione dei numeri è riservata alla piattaforma" }, 403);
         const numbers = await deps.fish.listPhoneNumbers();
         return json({ numbers: numbers.map(n => ({ id: n.phone_number_id, number: n.phone_number, agentId: n.agent_id, outbound: n.supports_outbound === true, status: n.status })) });
+      }
+      if (isFishAssistance(agent) && ["configure","publish"].includes(action)) {
+        const schema = await deps.db.from("ai_fish_assistance").select("id").eq("company_id", access.companyId).limit(0);
+        if(schema.error)throw new Error("Il collegamento delle attività di assistenza non è ancora pronto.");
       }
       if (action === "configure") {
         const voice = String(body.voice_id || binding?.voice_id || "").trim();
@@ -230,8 +240,11 @@ export function createFishManagementHandler(deps: FishRuntimeDeps) {
           if (session.agent_id !== binding.fish_agent_id) throw new Error("Sessione Fish non appartenente all'agente.");
           const terminal = ["completed", "failed"].includes(session.status) || ["no_answer", "busy", "failed"].includes(session.dial_status);
           if (!terminal) continue;
+          const snapshot = normalizeFishSession(session, "call.analyzed", session);
+          if (agent.trascrivi_chiamate === false) delete snapshot.transcript;
           checked(await deps.db.rpc("fish_record_event", { p_agent: binding.fish_agent_id, p_session: c.remote_session_id,
-            p_event: `reconcile:${c.remote_session_id}:${session.duration_seconds ?? "pending"}`, p_snapshot: normalizeFishSession(session, "call.analyzed", session) }));
+            p_event: `reconcile:${c.remote_session_id}:${session.duration_seconds ?? "pending"}`, p_snapshot: snapshot }));
+          if (isFishAssistance(agent)) checked(await deps.db.rpc("fish_assistance_end", { p_company: access.companyId, p_agent: agent.id, p_session: c.remote_session_id }));
           count++;
         }
         return json({ success: true, reconciled: count });
@@ -276,6 +289,7 @@ export function createFishEventHandler(deps: FishRuntimeDeps, inbound = false) {
       if (agent.trascrivi_chiamate === false) delete snapshot.transcript;
       const data = checked(await deps.db.rpc("fish_record_event", { p_agent: remoteAgent, p_session: body.session.id,
         p_event: body.event_id, p_snapshot: snapshot }));
+      if (snapshot.terminal && isFishAssistance(agent)) checked(await deps.db.rpc("fish_assistance_end", { p_company: binding.company_id, p_agent: agent.id, p_session: body.session.id }));
       if(body.event==="call.analyzed" && body.session.direction==="outbound" && enabledFishTools(agent).includes("non_richiamare") && (body.items || []).some((item:any)=>item.type==="message" && item.role==="user" && fishHasOptoutRequest(String(item.content || ""))))checked(await deps.db.rpc("fish_record_call_optout",{p_company:binding.company_id,p_agent:agent.id,p_session:body.session.id,p_reason:"Opposizione esplicita nella conversazione verificata"}));
       return json({ ok: true, ...data });
     } catch { return json({ error: "Evento Fish non registrato: ritentare la consegna" }, 503); }
@@ -314,10 +328,21 @@ export function createFishToolHandler(deps: FishRuntimeDeps) {
       if(["fissa_appuntamento","richiesta_richiamo","aggiorna_opportunita"].includes(body.tool)){const consent=fishActionConsent(Array.isArray(session.items)?session.items:[],body.tool,params);if(!consent.ok)return json({creato:false,aggiornata:false,...consent});}
       if(body.tool==="non_richiamare"){const last=(session.items || []).filter((m:any)=>m.type==="message" && m.role==="user").at(-1);if(!fishHasOptoutRequest(String(last?.content || "")))return json({registrato:false,risposta:"Non risulta una richiesta esplicita di non ricevere più telefonate. Non registrare un’opposizione sulla base di un semplice non interesse."});}
       if(body.tool==="richiesta_richiamo" && !fishCallbackNumberAllowed(session.items || [],phone,params.recapito))return json({creato:false,risposta:"Il recapito non è quello della chiamata e non è stato dichiarato dal cliente. Chiedi di dettarlo per intero, senza usare numeri da esempi."});
+      if (isFishAssistance(agent) && ASSISTANCE_RUNTIME_TOOLS.includes(body.tool)) {
+        return json(await fishAssistanceTool(deps.db, binding.company_id, agent.id, body.session_id, phone, body.tool, params, session.items || []));
+      }
       let operationKey = "";
       const calendarId=agent.tools_config?.fish?.calendar_id;
       if(["disponibilita","fissa_appuntamento"].includes(body.tool) && !calendarId) return json({creato:false,risposta:"Il calendario dell’azienda non è ancora configurato per questa linea. Posso raccogliere una richiesta di richiamo."});
-      if (def.writes) {
+      let leadBooking: FishLeadBooking | undefined;
+      const outboundLead = agent.tools_config?.fish?.flow_id === "lead_qualification" && session.direction === "outbound";
+      if (body.tool === "fissa_appuntamento" && outboundLead) {
+        const linked = await fishLeadBooking(deps.db, binding.company_id, agent.id, body.session_id, phone);
+        if (!linked) return json({creato:false,risposta:"Non riesco a verificare il contatto commerciale collegato alla chiamata. Affida la richiesta all’ufficio prima di prenotare."});
+        leadBooking = linked;
+      }
+      // A lead callback is retriable using the database's unique call link.
+      if (def.writes && !(outboundLead && body.tool === "richiesta_richiamo")) {
         operationKey = await fishDerivedToken(deps.secret, JSON.stringify([body.session_id, body.tool, params]), "operation");
         const claim = await deps.db.from("ai_fish_tool_results").insert({ operation_key: operationKey, company_id: binding.company_id, session_id: body.session_id });
         if (claim.error) {
@@ -331,7 +356,11 @@ export function createFishToolHandler(deps: FishRuntimeDeps) {
       else if(["memoria_pratica","aggiorna_ticket"].includes(body.tool))result=await fishCaseMemoryTool(deps.db,binding.company_id,agent.id,body.session_id,phone,body.tool,params);
       else if(body.tool==="aggiorna_opportunita")result=await fishOpportunityOutcome(deps.db,binding.company_id,agent.id,body.session_id,params);
       else if(body.tool==="passa_a_operatore" && agent.tools_config?.fish?.routing==="first_available")result=await fishReserveOperator(deps.db,binding.company_id,agent.id,body.session_id,phone,params);
-      else if(calendarId && ["disponibilita","fissa_appuntamento"].includes(body.tool))result=await deps.executeTool!(binding.company_id,phone,body.session_id,body.tool,params,{calendarId});
+      else if(calendarId && ["disponibilita","fissa_appuntamento"].includes(body.tool))result=await deps.executeTool!(binding.company_id,phone,body.session_id,body.tool,params,{calendarId,...(leadBooking ? {leadBooking} : {})});
+      else if (body.tool === "richiesta_richiamo" && outboundLead) {
+        const callbackContact = await fishLeadContact(deps.db, binding.company_id, agent.id, body.session_id, phone);
+        result = await deps.executeTool!(binding.company_id, phone, body.session_id, body.tool, params, { callback: { agentId: agent.id, contact: callbackContact } });
+      }
       else result=await deps.executeTool!(binding.company_id,phone,body.session_id,body.tool,params);
       if(body.tool==="crea_ticket" && result.creato && result.ticket_id){
         const linked=await deps.db.rpc("fish_link_ticket_conversation",{p_company:binding.company_id,p_agent:agent.id,p_session:body.session_id,p_ticket:result.ticket_id});
@@ -343,6 +372,12 @@ export function createFishToolHandler(deps: FishRuntimeDeps) {
         result = destination ? { ...result, destinazione: destination.label } : { trovato: false, risposta: "L'operatore disponibile non ha una destinazione telefonica abilitata. Proponi un richiamo, senza tentare il trasferimento." };
       }
       if (operationKey) checked(await deps.db.from("ai_fish_tool_results").update({ result }).eq("operation_key", operationKey).eq("company_id", binding.company_id));
+      if (isFishAssistance(agent) && ((body.tool === "richiesta_richiamo" && result.creato) || (body.tool === "passa_a_operatore" && result.trovato))) {
+        const support = await deps.db.rpc("fish_assistance_start", { p_company: binding.company_id, p_agent: agent.id, p_session: body.session_id });
+        // The callback/transfer result is already saved; never repeat it for a tracking error.
+        const progress = support.error ? support : await deps.db.rpc("fish_assistance_office", { p_case: support.data.id, p_company: binding.company_id, p_reason: body.tool === "richiesta_richiamo" ? "callback" : "operator" });
+        if (progress.error) result = { ...result, activity_sync_pending: true };
+      }
       return json(result);
     } catch { return json({ error: "Strumento non completato. Verificare l'esito prima di ripetere una modifica.", outcome_unknown: true }, 503); }
   };

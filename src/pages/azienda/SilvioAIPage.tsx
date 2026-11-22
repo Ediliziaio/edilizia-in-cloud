@@ -51,7 +51,7 @@ import {
   ChevronRight,
   MoreVertical,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { SilvioAnswer } from "@/components/silvio/SilvioAnswer";
 import { publicAiAnswer } from "@/lib/silvio/visibleAnswer";
 import { SilvioRequestStatus, type SilvioRequestPhase } from "@/components/silvio/SilvioRequestStatus";
@@ -1159,6 +1159,7 @@ export default function SilvioAIPage() {
         >
           <Search className="h-5 w-5" />
         </button>
+        <Link to="/azienda/silvio-ai/attivita" className="flex h-9 items-center rounded-lg px-2 text-xs font-medium text-violet-700 hover:bg-violet-50" aria-label="Centro attività di Silvio">Attività</Link>
         <button
           onClick={() => setProgrammateOpen(true)}
           title="Attività programmate"

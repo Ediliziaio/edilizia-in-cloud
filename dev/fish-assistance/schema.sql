@@ -1,0 +1,36 @@
+-- Synthetic fixture schema for an isolated PostgreSQL/PGlite database.
+-- Business functions are loaded verbatim from the repository migrations.
+CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
+CREATE SCHEMA auth;
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT 'a1000000-0000-4000-a000-000000000001'::uuid $$;
+CREATE FUNCTION get_effective_company_id() RETURNS uuid LANGUAGE sql AS $$ SELECT 'a1000000-0000-4000-a000-000000000002'::uuid $$;
+CREATE FUNCTION utente_bloccato() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
+CREATE FUNCTION has_permission(uuid,text) RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;
+CREATE FUNCTION has_permission_for_company(uuid,text,uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT $3=get_effective_company_id() $$;
+CREATE TABLE companies(id uuid PRIMARY KEY,name text);
+CREATE TABLE profiles(id uuid PRIMARY KEY,company_id uuid,first_name text,last_name text,phone text,country text,address text,site_address text,city text,site_city text,deleted_at timestamptz,updated_at timestamptz DEFAULT now());
+CREATE TABLE user_roles(user_id uuid,role text);
+CREATE TABLE ai_agents_v2(id uuid PRIMARY KEY,company_id uuid,nome text,tools_config jsonb,UNIQUE(company_id,id));
+CREATE TABLE marketing_contacts(id uuid PRIMARY KEY,company_id uuid,first_name text,last_name text,phone text);
+CREATE TABLE marketing_opportunities(id uuid PRIMARY KEY,company_id uuid);
+CREATE TABLE marketing_contact_activities(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid,contact_id uuid,activity_type text,description text,metadata jsonb);
+CREATE TABLE marketing_calendars(id uuid PRIMARY KEY,company_id uuid,name text,owner_id uuid,duration_minutes int DEFAULT 30,is_active boolean DEFAULT true,calendar_type text DEFAULT 'personal',buffer_before_min int DEFAULT 0,buffer_after_min int DEFAULT 0,min_notice_minutes int DEFAULT 0,max_per_day int,slot_interval_min int DEFAULT 30,default_meeting_provider text DEFAULT 'none',link_videochiamata text);
+CREATE TABLE marketing_calendar_availability(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),calendar_id uuid,is_enabled boolean DEFAULT true,day_of_week int,specific_date date,start_time time,end_time time);
+CREATE TABLE tickets(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid,customer_id uuid REFERENCES profiles(id),subject text,titolo text,descrizione text,indirizzo_intervento text,status text,priority text,priorita text,fonte text,tipo text,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
+CREATE TABLE appointments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid,calendar_id uuid,contact_id uuid,opportunity_id uuid,appointment_date date,appointment_time time,appointment_end_time time,status text,title text,description text,appointment_type text,assigned_to uuid,created_by uuid,manage_token text,conferma_inviata_at timestamptz,booking_email text,meeting_provider text,meeting_status text,meeting_url text,is_blocked_slot boolean DEFAULT false,reminder_24h_at timestamptz,reminder_1h_at timestamptz,reminder_5m_at timestamptz);
+CREATE TABLE silvio_task(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid,titolo text,origine text,stato text,contesto jsonb,passo_corrente int DEFAULT 0,updated_at timestamptz DEFAULT now());
+CREATE TABLE silvio_task_passi(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),task_id uuid,ordine int,azione_chiave text,stato text DEFAULT 'da_fare',eseguito_at timestamptz);
+CREATE TABLE orders(id uuid PRIMARY KEY,company_id uuid,customer_id uuid,order_code text,description text,status text,expected_date date,deleted_at timestamptz,created_at timestamptz DEFAULT now());
+CREATE TABLE ticket_ai_actions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid,ticket_id uuid,agent_id uuid,customer_id uuid,source_kind text,source_key text,note text,created_at timestamptz DEFAULT now(),UNIQUE(company_id,source_kind,source_key,ticket_id));
+CREATE TABLE ai_fish_calls(id uuid PRIMARY KEY,company_id uuid,agent_id uuid,remote_session_id text);
+CREATE TABLE ai_conversations_v2(id uuid PRIMARY KEY,company_id uuid,trascrizione_json jsonb DEFAULT '[]',riassunto text,terminata_il timestamptz);
+CREATE TABLE ticket_ai_conversations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid,ticket_id uuid,agent_id uuid,source_kind text,source_key text,remote_session_id text,conversation_id uuid,transcript jsonb DEFAULT '[]',summary text,status text,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),UNIQUE(company_id,source_kind,source_key));
+CREATE TABLE outlook_calendar_connections(id uuid PRIMARY KEY);
+CREATE TABLE impegni_interni_persona(user_id uuid,appointment_id uuid,start_at timestamptz,end_at timestamptz);
+CREATE TABLE user_calendar_preferences(user_id uuid,block_busy_slots boolean);
+CREATE TABLE unified_calendar_busy_slots(user_id uuid,provider text,external_id text,start_at timestamptz,end_at timestamptz);
+CREATE TABLE google_calendar_event_map(appointment_id uuid,company_id uuid,google_event_id text);
+CREATE TABLE apple_calendar_event_map(appointment_id uuid,company_id uuid,caldav_uid text);
+CREATE TABLE local_lab_metadata(version int PRIMARY KEY,source_hash text NOT NULL);
+CREATE TABLE local_lab_sessions(id uuid PRIMARY KEY,client_request_id uuid UNIQUE NOT NULL,scenario text NOT NULL,phone text NOT NULL,calendar_id uuid NOT NULL,state jsonb NOT NULL,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
+CREATE TABLE local_lab_requests(session_id uuid NOT NULL REFERENCES local_lab_sessions(id),request_id uuid NOT NULL,body_hash text NOT NULL,response jsonb NOT NULL,PRIMARY KEY(session_id,request_id));

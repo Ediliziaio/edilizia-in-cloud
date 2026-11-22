@@ -120,6 +120,8 @@ export async function prenotaSuCalendario(admin: any, a: {
   adesso?: Date;
   requestKey?: string;
   remindersHandled?: boolean;
+  assistance?: { caseId: string; phone: string };
+  syncCalendar?: typeof sincronizzaCalendariEsterni;
 }): Promise<EsitoPrenotazione> {
   const cal = await leggiCalendario(admin, a.calendarId, a.companyId);
   if (!cal) return { ok: false, motivo: "calendario_non_valido", messaggio: "Il calendario non è attivo o non è di questa azienda." };
@@ -131,7 +133,8 @@ export async function prenotaSuCalendario(admin: any, a: {
   const fine = fineMin === 1440 ? "24:00" : orarioDa(fineMin);
   const fixedLink=cal.link_videochiamata?.trim()||null;
   const useMeet=!fixedLink&&cal.default_meeting_provider==="google_meet";
-  const { data: idCreato, error } = await admin.rpc("reserve_calendar_booking", {
+  const { data: idCreato, error } = await admin.rpc(a.assistance ? "fish_reserve_assistance_booking" : "reserve_calendar_booking", {
+    ...(a.assistance ? { p_case_id: a.assistance.caseId, p_phone: a.assistance.phone } : {}),
     p_calendar_id: cal.id,
     p_company_id: cal.company_id,
     p_data: a.dataIso,
@@ -163,11 +166,20 @@ export async function prenotaSuCalendario(admin: any, a: {
   const confirmedId=typeof idCreato==="string"?idCreato:idCreato?.id;
   if(typeof confirmedId!=="string"||!confirmedId)return {ok:false,motivo:"errore",messaggio:"Il server non ha confermato l’appuntamento"};
   const creato={id:confirmedId};
-  if(idCreato.duplicate)return {ok:true,appointmentId:creato.id,duplicate:true,dataIso:a.dataIso,ora,fine,quando:`${dataEstesa(a.dataIso)} alle ${ora}`};
+  if(idCreato.duplicate){
+    const savedDate=idCreato.data || a.dataIso;
+    const savedTime=idCreato.ora || ora;
+    return {ok:true,appointmentId:creato.id,duplicate:true,dataIso:savedDate,ora:savedTime,fine,quando:`${dataEstesa(savedDate)} alle ${savedTime}`};
+  }
 
   const {data:assegnato,error:assegnazioneError}=await admin.from("appointments").select("assigned_to").eq("id",creato.id).eq("company_id",cal.company_id).maybeSingle();
   if(assegnazioneError)console.warn("[calendarioPrenotazione] responsabile non letto",assegnazioneError.message);
-  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: assegnato?.assigned_to??cal.owner_id }, admin);
+  await (a.syncCalendar ?? sincronizzaCalendariEsterni)({
+    azione: "push-event",
+    appointmentId: creato.id,
+    companyId: cal.company_id,
+    userId: assegnato?.assigned_to ?? cal.owner_id,
+  }, admin);
   if (a.contactId) {
     const { error: attErr } = await admin.from("marketing_contact_activities").insert({
       company_id: cal.company_id,

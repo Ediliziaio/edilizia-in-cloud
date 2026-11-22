@@ -1,4 +1,5 @@
-import { useSearchParams, useLocation } from "react-router-dom";
+import { FishOnboardingWizard } from "@/components/agenti/FishOnboardingWizard";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -60,6 +61,8 @@ const TAB_TELEFONO: MainTab[] = ["agenti", "conversazioni", "chat"];
 export default function AgentiAIPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { pathname } = useLocation();
+  const navigate=useNavigate();
+  const closeAssistance=()=>setSearchParams(previous=>{const next=new URLSearchParams(previous);next.delete("crea");return next;},{replace:true});
   const isAdminContext = pathname.startsWith("/admin");
   // Filtra le tab non pertinenti al SuperAdmin (oggi solo "Crediti & Utilizzo").
   const TABS = useMemo(
@@ -94,6 +97,7 @@ export default function AgentiAIPage() {
 
   return (
     <div className="space-y-0">
+      {searchParams.get("crea")==="assistenza" && <FishOnboardingWizard open initialFlowId="support_appointment" onClose={closeAssistance} onSuccess={id=>navigate(`/azienda/agenti-ai/${id}`)}/>}
       {/* Header — come sul telefono e nelle altre pagine: titolo senza
           riquadro sfumato, icona né frase («WhatsApp vive nel suo hub…»), e
           senza il margine proprio (px-6 pt-6) che si sommava a quello del layout. */}
