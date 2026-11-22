@@ -872,8 +872,9 @@ export default function CampoLavoroDetail() {
       {/* Header sticky */}
       {/* -top-3 compensa il padding-top del <main>: lo sticky si aggancia
           sotto il padding del contenitore scrollante, lasciando una striscia
-          in cui traspare il contenuto. Su md scrolla il documento: top-14. */}
-      <div className="sticky -top-3 z-10 rounded-b-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:top-14 md:px-4 md:py-4">
+          in cui traspare il contenuto. Sugli schermi bassi la testata scorre con la pagina.
+          Su md scrolla il documento: top-14. */}
+      <div className="sticky -top-3 z-10 rounded-b-2xl border-b border-border bg-background px-3 py-3 shadow-sm max-md:[@media(max-height:640px)]:static md:top-14 md:px-4 md:py-4">
         <div className="mb-2 flex items-center gap-3 md:mb-3">
           <button
             onClick={() => navigate("/campo")}

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, HardHat, Loader2, MapPin, Minus, Plus, Search, ShoppingCart, Warehouse, X } from "lucide-react";
+import { Check, ChevronDown, HardHat, Loader2, MapPin, MessageSquare, Minus, Plus, Search, ShoppingCart, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -165,49 +166,42 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   };
 
   return (
-    <div className={cn("space-y-3", puoPrelevare && righe.length > 0 && "pb-24")}>
+    <div className={cn("space-y-2 sm:space-y-3", puoPrelevare && righe.length > 0 && "pb-10 md:pb-14")}>
       {!aperto && erroreBozza && <p role="alert" className="text-sm text-destructive">{erroreBozza}</p>}
       {puoPrelevare && (cantiereIniziale || nomeDestinazione) && (
-        <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
-          <HardHat aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Destinazione del prelievo</p>
-            <p className="break-words text-sm font-semibold">
+        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5 sm:px-3 sm:py-2">
+          <HardHat aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-snug">
+            <span className="text-xs text-muted-foreground">Cantiere</span>
+            <span className="min-w-0 break-words text-sm font-semibold">
               {nomeDestinazione ?? (cantieri.isLoading ? "Verifico il cantiere…" : "Scegli il cantiere nel riepilogo")}
-            </p>
+            </span>
           </div>
         </div>
       )}
-      <div className="relative">
-        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          ref={inputRicerca}
-          type="search"
-          aria-label="Cerca nell’inventario"
-          value={ricerca}
-          onChange={(e) => setRicerca(e.target.value)}
-          placeholder="Materiale, codice o ubicazione"
-          className="min-h-12 rounded-xl pl-9 pr-12 text-base [&::-webkit-search-cancel-button]:hidden"
-        />
-        {ricerca && (
-          <Button type="button" variant="ghost" size="icon" aria-label="Cancella la ricerca"
-            className="absolute right-0.5 top-0.5 h-11 w-11" onClick={() => {
-              setRicerca("");
-              inputRicerca.current?.focus();
-            }}>
-            <X aria-hidden="true" className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-      <div role="group" aria-label="Disponibilità dei materiali" className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
-        <Button type="button" variant="ghost" aria-pressed={soloDisponibili} onClick={() => setSoloDisponibili(true)}
-          className={cn("min-h-11 rounded-lg", soloDisponibili && "bg-background font-semibold shadow-sm")}>
-          Disponibili
-        </Button>
-        <Button type="button" variant="ghost" aria-pressed={!soloDisponibili} onClick={() => setSoloDisponibili(false)}
-          className={cn("min-h-11 rounded-lg", !soloDisponibili && "bg-background font-semibold shadow-sm")}>
-          Tutti
-        </Button>
+      <div className="flex items-stretch gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input ref={inputRicerca} type="search" aria-label="Cerca nell’inventario" value={ricerca}
+            title="Cerca per materiale, codice o ubicazione" placeholder="Cerca materiale"
+            onChange={(e) => setRicerca(e.target.value)}
+            className={cn("h-11 rounded-lg pl-8 text-base [&::-webkit-search-cancel-button]:hidden", ricerca && "pr-11")} />
+          {ricerca && (
+            <Button type="button" variant="ghost" size="icon" aria-label="Cancella la ricerca"
+              className="absolute right-0 top-0 h-11 w-11" onClick={() => {
+                setRicerca("");
+                inputRicerca.current?.focus();
+              }}>
+              <X aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <UniformSelect aria-label="Disponibilità dei materiali" value={soloDisponibili ? "disponibili" : "tutti"}
+          onChange={(e) => setSoloDisponibili(e.target.value === "disponibili")}
+          className="h-11 w-[7.25rem] shrink-0 rounded-lg px-2.5 text-sm sm:w-32">
+          <option value="disponibili">Disponibili</option>
+          <option value="tutti">Tutti</option>
+        </UniformSelect>
       </div>
 
       {inventario.isLoading ? (
@@ -228,37 +222,39 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
           )}
         </div>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-2 sm:space-y-2.5">
           {articoli.map((articolo) => {
             const riga = carrello.get(articolo.id);
             const errore = erroriQuantita.get(articolo.id);
             const stessaUbicazione = !primaRiga || articolo.warehouse_id === warehouseId;
             const puoAggiungere = puoPrelevare && !inVerifica && articolo.disponibile > 0 && stessaUbicazione;
             return (
-              <li key={articolo.id} className={cn("rounded-xl border bg-card p-3.5", riga && "border-primary")}>
-                <div className="flex justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="break-words font-semibold">{articolo.name}</p>
-                    {articolo.internal_code && <p className="mt-1 text-xs text-muted-foreground">{articolo.internal_code}</p>}
-                    <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
-                      <MapPin aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+              <li key={articolo.id} className={cn("rounded-xl border bg-card px-2.5 py-2 sm:p-3.5", riga && "border-primary")}>
+                <div className="flex justify-between gap-2 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-semibold leading-snug sm:text-base">{articolo.name}</p>
+                    {articolo.internal_code && <p className="mt-0.5 break-words text-xs leading-tight text-muted-foreground">{articolo.internal_code}</p>}
+                    <p className="mt-1 flex items-start gap-1 text-xs leading-snug text-muted-foreground sm:text-sm">
+                      <MapPin aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
                       <span className="min-w-0 break-words">
                         {articolo.magazzino ?? "Magazzino non indicato"}
                         {articolo.ubicazione && <span className="block font-medium text-foreground">{articolo.ubicazione}</span>}
                       </span>
                     </p>
                   </div>
-                  <div className="max-w-[42%] shrink-0 text-right">
-                    <p className="break-words font-bold tabular-nums">{formatoQuantitaMagazzino.format(articolo.disponibile)} {articolo.unita_misura}</p>
-                    <p className="text-xs text-muted-foreground">{articolo.disponibile > 0 ? "Disponibili" : "Esaurito"}</p>
+                  <div className="flex max-w-[44%] shrink-0 flex-col items-end gap-1">
+                    <div className="max-w-full text-right">
+                      <p className="break-words font-bold leading-tight tabular-nums">{formatoQuantitaMagazzino.format(articolo.disponibile)} {articolo.unita_misura}</p>
+                      <p className="text-xs text-muted-foreground">{articolo.disponibile > 0 ? "Disponibili" : "Esaurito"}</p>
+                    </div>
+                    {puoAggiungere && !riga && (
+                      <Button type="button" variant="outline" className="min-h-11 gap-1 px-2.5" disabled={righe.length >= 100}
+                        onClick={() => aggiungi(articolo)} aria-label={`Aggiungi ${articolo.name} al prelievo`}>
+                        <Plus aria-hidden="true" className="h-4 w-4" /> Aggiungi
+                      </Button>
+                    )}
                   </div>
                 </div>
-                {puoAggiungere && !riga && (
-                  <Button type="button" variant="outline" className="mt-2 min-h-11 w-full" disabled={righe.length >= 100}
-                    onClick={() => aggiungi(articolo)} aria-label={`Aggiungi ${articolo.name} al prelievo`}>
-                    <Plus aria-hidden="true" className="h-4 w-4" /> Aggiungi
-                  </Button>
-                )}
                 {puoPrelevare && riga && (
                   <div className="mt-2 rounded-xl bg-primary/5 px-2.5 py-1.5">
                     <Label htmlFor={`qta-${articolo.id}`} className="mb-1 block text-xs">Da prelevare</Label>
@@ -282,7 +278,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       )}
 
       {attivo && puoPrelevare && righe.length > 0 && (
-        <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl px-4 md:bottom-4">
+        <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl px-3 sm:px-4 md:bottom-4">
           <Button type="button" className="h-12 w-full gap-2 rounded-xl text-sm font-semibold shadow-lg" onClick={apriRiepilogo}>
             <ShoppingCart className="h-4 w-4 shrink-0" />
             {inVerifica ? "Verifica prelievo" : ripristinata ? "Riprendi prelievo" : "Preleva"} · {righe.length} {righe.length === 1 ? "materiale" : "materiali"}
@@ -293,17 +289,17 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       <Sheet open={attivo && puoPrelevare && aperto} onOpenChange={(value) => {
         if (!inInvio.current) setAperto(value);
       }}>
-        <SheetContent side="bottom" className="mx-auto flex max-h-[88dvh] max-w-2xl flex-col gap-0 overflow-hidden rounded-t-2xl px-0 pb-0 pt-4">
-          <SheetHeader className="shrink-0 px-4 pb-3 pr-12 text-left">
-            <SheetTitle>Materiale per il cantiere</SheetTitle>
-            <SheetDescription>
+        <SheetContent side="bottom" className="mx-auto flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-t-2xl px-0 pb-0 pt-3.5 sm:max-h-[88dvh] sm:pt-4">
+          <SheetHeader className="shrink-0 space-y-0.5 px-3 pb-2 pr-12 text-left sm:px-4">
+            <SheetTitle className="text-base sm:text-lg">Materiale per il cantiere</SheetTitle>
+            <SheetDescription className={cn("text-xs leading-snug sm:text-sm", !inVerifica && !richiedeConferma && "sr-only")}>
               {inVerifica && !prelievo.isPending
                 ? "Verifica l’invio prima di modificare il prelievo."
                 : richiedeConferma ? "Il magazzino conferma la richiesta prima di scalare le giacenze." : "La registrazione aggiorna subito le giacenze."}
             </SheetDescription>
           </SheetHeader>
-          <div className="shrink-0 space-y-1.5 border-b px-4 pb-3">
-            <Label htmlFor="prelievo-cantiere">Cantiere di destinazione</Label>
+          <div className="shrink-0 space-y-1 border-b px-3 pb-2 sm:px-4">
+            <Label htmlFor="prelievo-cantiere" className="text-xs sm:text-sm">Cantiere di destinazione</Label>
             {cantieri.isError ? (
               <div role="alert" className="flex items-center justify-between gap-2 text-sm">
                 <span>Non riesco a caricare i cantieri.</span>
@@ -324,10 +320,10 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
               </>
             )}
           </div>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-3">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3">
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Warehouse aria-hidden="true" className="h-4 w-4" /> {magazzino}
+              <div className="flex items-center gap-1.5 text-xs font-medium sm:text-sm">
+                <Warehouse aria-hidden="true" className="h-4 w-4 shrink-0" /> <span className="min-w-0 break-words">{magazzino}</span>
               </div>
               {righe.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aggiungi un materiale dall’inventario.</p>
@@ -336,7 +332,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                   {righe.map(({ articolo, quantita }) => {
                     const corrente = articoliVisibili.get(articolo.id) ?? articolo;
                     return (
-                      <li key={articolo.id} className="space-y-2 px-3 py-2.5">
+                      <li key={articolo.id} className="space-y-1.5 px-2 py-1.5 sm:px-3 sm:py-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 break-words">
                             <Label htmlFor={`riepilogo-qta-${articolo.id}`}>{articolo.name}</Label>
@@ -358,14 +354,24 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
               )}
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="prelievo-note">Note facoltative</Label>
-              <Textarea id="prelievo-note" rows={2} value={note} disabled={inVerifica}
-                onChange={(e) => aggiornaBozza({ ...bozza, note: e.target.value })} />
-            </div>
-
+            {righe.length > 0 && (!inVerifica || note.trim()) && (
+              <Collapsible defaultOpen={!!note.trim()}>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" className="group min-h-11 w-full justify-start gap-2 px-2">
+                    <MessageSquare aria-hidden="true" className="h-4 w-4" />
+                    {note.trim() ? "Note del prelievo" : "Aggiungi nota"}
+                    <ChevronDown aria-hidden="true" className="ml-auto h-4 w-4 group-data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pb-1 pt-1">
+                  <Label htmlFor="prelievo-note" className="sr-only">Note facoltative</Label>
+                  <Textarea id="prelievo-note" rows={2} value={note} disabled={inVerifica} className="min-h-16 text-base sm:text-sm"
+                    onChange={(e) => aggiornaBozza({ ...bozza, note: e.target.value })} />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </div>
-          <div className="shrink-0 space-y-2 border-t bg-background px-4 pt-3 pb-[calc(.75rem+env(safe-area-inset-bottom))]">
+          <div className="shrink-0 space-y-1.5 border-t bg-background px-3 pt-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] sm:px-4">
             {!online && <p role="status" className="text-sm text-muted-foreground">Sei offline. Puoi riprendere il prelievo quando torna la connessione.</p>}
             {erroreBozza && <p role="alert" className="text-sm text-destructive">{erroreBozza}</p>}
             {prelievo.isError && (
@@ -373,17 +379,21 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                 {inVerifica ? "L’app è in attesa dell’esito del prelievo." : prelievo.error.message}
               </p>
             )}
-            {!inVerifica && righe.length > 0 && righe.length < 100 && (
-              <Button type="button" variant="ghost" className="h-11 w-full gap-2" onClick={() => setAperto(false)}>
-                <Plus aria-hidden="true" className="h-4 w-4" /> Aggiungi altri materiali
-              </Button>
-            )}
             {righe.length ? (
-              <Button className="h-12 w-full gap-2 text-base" onClick={() => void registra()}
-                disabled={!puoInviare}>
-                {prelievo.isPending ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> : <Check aria-hidden="true" className="h-5 w-5" />}
-                {prelievo.isPending ? "Invio in corso…" : inVerifica ? "Verifica invio" : richiedeConferma ? "Invia richiesta" : "Registra prelievo"}
-              </Button>
+              <div className="flex gap-2">
+                {!inVerifica && righe.length < 100 && (
+                  <Button type="button" variant="outline" aria-label="Aggiungi altri materiali" className="h-12 shrink-0 gap-1.5 px-2.5 sm:px-3"
+                    onClick={() => setAperto(false)}>
+                    <Plus aria-hidden="true" className="h-4 w-4" />
+                    <span className="sm:hidden">Aggiungi</span><span className="hidden sm:inline">Aggiungi altri materiali</span>
+                  </Button>
+                )}
+                <Button className="h-12 min-w-0 flex-1 gap-1.5 whitespace-normal px-2.5 leading-tight sm:px-4 sm:text-base"
+                  onClick={() => void registra()} disabled={!puoInviare}>
+                  {prelievo.isPending ? <Loader2 aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin" /> : <Check aria-hidden="true" className="h-5 w-5 shrink-0" />}
+                  {prelievo.isPending ? "Invio in corso…" : inVerifica ? "Verifica invio" : richiedeConferma ? "Invia richiesta" : "Registra prelievo"}
+                </Button>
+              </div>
             ) : (
               <Button type="button" variant="outline" className="h-12 w-full" onClick={() => setAperto(false)}>Torna all’inventario</Button>
             )}
