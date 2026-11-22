@@ -46,7 +46,7 @@ describe("selezione inbox senza riferimenti modificati durante il render",()=>{
     apri("/admin/marketing/whatsapp-locale?chat=prova%40c.us");
     await screen.findByRole("button",{name:/Conversazione sintetica/});
     expect(db.richieste[0] as Record<string,unknown>).toMatchObject({p_stato:"tutte"});
-    fireEvent.click(screen.getByRole("button",{name:"Chiuse",exact:true}));
+    fireEvent.click(screen.getByRole("button",{name:"Chiuse"}));
     await waitFor(()=>expect(db.richieste.at(-1) as Record<string,unknown>).toMatchObject({p_stato:"chiusa"}));
     expect(screen.getByRole("link",{name:"000"})).toHaveAttribute("href","tel:000");
   });
