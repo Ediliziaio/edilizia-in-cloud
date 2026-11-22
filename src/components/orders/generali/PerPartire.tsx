@@ -58,7 +58,7 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
     dati: { titolo: appalto ? "Completa i dati dell'appalto" : "Completa i dati dell'operazione", azione: () => apriScheda("dati") },
     contratto: { titolo: "Completa i dati del contratto", azione: () => apriScheda("contratto") },
     figlie: {
-      titolo: def.figlia.nuova,
+      titolo: appalto ? "Nuovo lavoro collegato" : def.figlia.nuova,
       azione: appalto ? nuovaFiglia : () => apriScheda("unita"),
     },
     piano: { titolo: appalto ? "Scrivi il budget" : "Scrivi il business plan", azione: () => apriScheda("piano") },

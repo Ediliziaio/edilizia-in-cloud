@@ -2,13 +2,11 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   ArrowRight,
   CalendarRange,
   ClipboardCheck,
   ClipboardList,
   FileQuestion,
-  HardHat,
   ListTree,
   ListTodo,
   Plus,
@@ -21,7 +19,6 @@ import { useSearchParams } from "react-router-dom";
 import { AspettoOperativoProvider } from "../design/ContestoOperativo";
 import { InvitoFasiDalPiano } from "../design/FasiDalPianoDialog";
 import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
-import { IntestazioneScheda } from "../design/ElementiScheda";
 import { DEFINIZIONI_MODELLI } from "@/lib/orders/commesseGenerali";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,7 +33,18 @@ import { MovimentiOperazione } from "./MovimentiOperazione";
 /** Valore del selettore per «tutta l'operazione»: generale e figlie insieme, sola lettura. */
 const TUTTA = "__tutta__";
 
-type Scheda = "da-seguire" | "rapportini" | "lavorazioni" | "cronoprogramma" | "offerte" | "acquisti" | "ddt" | "contabilita" | "squadre";
+const SCHEDE = [
+  { id: "da-seguire", nome: "Da seguire", icona: ListTodo },
+  { id: "rapportini", nome: "Rapportini", icona: ClipboardList },
+  { id: "lavorazioni", nome: "Lavorazioni", icona: ListTree },
+  { id: "cronoprogramma", nome: "Cronoprogramma", icona: CalendarRange },
+  { id: "offerte", nome: "Richieste d’offerta", icona: FileQuestion },
+  { id: "acquisti", nome: "Ordini d’acquisto", icona: PackageCheck },
+  { id: "ddt", nome: "DDT", icona: Truck },
+  { id: "contabilita", nome: "Costi e pagamenti", icona: ReceiptText },
+  { id: "squadre", nome: "Squadre e ditte", icona: Users },
+] as const;
+type Scheda = typeof SCHEDE[number]["id"];
 const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
   "da-seguire": "da-seguire",
   rapportini: "rapportini",
@@ -146,6 +154,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const g = riepilogo.generale;
   const [parametri, setParametri] = useSearchParams();
   const costi = riepilogo.permessi.costi;
+  const schedeDisponibili = costi ? SCHEDE : SCHEDE.filter(s => s.id !== "contabilita");
   const richiesta = parametri.get("vista-cantiere") ?? "";
   const scheda: Scheda = (() => {
     const s = Object.hasOwn(SCHEDA_DELLA_SEZIONE, richiesta) ? SCHEDA_DELLA_SEZIONE[richiesta] : undefined;
@@ -203,6 +212,9 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const orderId = scelto.id;
   const permessi = usePermissions();
   const puoCreareOda = puoModificare && !permessi.solaLettura && permessi.canViewCosts && permessi.canEditOrders;
+  const navigaForniture = vista === "acquisti" && costi;
+  const creaOdaGenerale = navigaForniture && tutta && !mostraControllo && puoCreareOda;
+  const gestisciFasiGenerale = vista === "lavorazioni" && tutta && puoModificare;
   const materiali = useMaterialiPerFase(vista === "acquisti" && !mostraControllo && costi && (!tutta || nuovoOda) ? orderId : undefined);
   const righeAcquisto = (materiali.data?.righe ?? []).filter(eMateriale);
   const qc = useQueryClient();
@@ -220,70 +232,66 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
     <AspettoOperativoProvider value={{ generaleId: g.id, codice: g.codice }}>
       <section
         aria-label="Cantiere della commessa generale"
-        className="generale-sheet generale-cantiere space-y-4"
+        className="generale-cantiere min-w-0"
       >
-        <IntestazioneScheda
-          icona={HardHat}
-          titolo="Cantiere"
-        />
         <DocumentiInPopup orderId={orderId}>
-          <Tabs className="space-y-4" value={vista} onValueChange={setVista}>
-            <div className="generale-cantiere-toolbar space-y-1.5">
-            <div ref={scorrimentoSchede} className="overflow-x-auto pb-1">
-              <TabsList className="generale-subtabs generale-section-navigation generale-cantiere-nav h-auto justify-start"
-                aria-label="Sezioni del cantiere">
-                <TabsTrigger value="da-seguire"><ListTodo aria-hidden="true" />Da seguire</TabsTrigger>
-                <TabsTrigger value="rapportini"><ClipboardList aria-hidden="true" />Rapportini</TabsTrigger>
-                <TabsTrigger value="lavorazioni"><ListTree aria-hidden="true" />Lavorazioni</TabsTrigger>
-                <TabsTrigger value="cronoprogramma"><CalendarRange aria-hidden="true" />Cronoprogramma</TabsTrigger>
-                <TabsTrigger value="offerte"><FileQuestion aria-hidden="true" />Richieste d’offerta</TabsTrigger>
-                <TabsTrigger value="acquisti"><PackageCheck aria-hidden="true" />Ordini d’acquisto</TabsTrigger>
-                <TabsTrigger value="ddt"><Truck aria-hidden="true" />DDT</TabsTrigger>
-                {costi && <TabsTrigger value="contabilita"><ReceiptText aria-hidden="true" />Costi e pagamenti</TabsTrigger>}
-                <TabsTrigger value="squadre"><Users aria-hidden="true" />Squadre e ditte</TabsTrigger>
-              </TabsList>
-            </div>
-            <div className="generale-toolbar flex flex-wrap items-center justify-between gap-3">
-              <label className="flex w-full min-w-0 max-w-xl items-center gap-3 text-sm font-medium">
-                <span>Ambito</span>
-                <UniformSelect aria-label="Ambito del cantiere" value={tutta ? TUTTA : orderId}
-                  onChange={e => setAmbito(e.target.value)}
-                  className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 font-normal">
-                  {riepilogo.figlie.length > 0 && <option value={TUTTA}>Tutta l’operazione</option>}
-                  <option value={g.id}>Commessa generale · {g.codice ?? g.nome}</option>
-                  {riepilogo.figlie.length > 0 && (
-                    <optgroup label={DEFINIZIONI_MODELLI[g.modello].figlia.tante}>
-                      {riepilogo.figlie.map(f => <option key={f.id} value={f.id}>{f.codice} · {f.nome}</option>)}
-                    </optgroup>
-                  )}
+          <Tabs className="min-w-0" value={vista} onValueChange={setVista}>
+            <div className="generale-cantiere-toolbar">
+              <div ref={scorrimentoSchede} className="generale-cantiere-scroll min-w-0 overflow-x-auto">
+                <TabsList className="generale-subtabs generale-section-navigation generale-cantiere-nav h-auto justify-start"
+                  aria-label="Sezioni del cantiere">
+                  {schedeDisponibili.map(({ id, nome, icona: Icona }) => (
+                    <TabsTrigger key={id} value={id}><Icona aria-hidden="true" />{nome}</TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+              <label className="generale-cantiere-vista-mobile min-w-0 text-xs font-medium">
+                <span>Sezione</span>
+                <UniformSelect aria-label="Vista del cantiere" value={vista} onChange={e => setVista(e.target.value)}
+                  className="h-8 w-full min-w-0 bg-background pl-2.5 font-normal">
+                  {schedeDisponibili.map(({ id, nome }) => <option key={id} value={id}>{nome}</option>)}
                 </UniformSelect>
               </label>
-              {vista === "acquisti" && !mostraControllo && tutta && puoCreareOda && (
-                <Button type="button" size="sm" className="gap-1.5" onClick={() => setNuovoOda(true)}>
-                  <Plus className="size-4" aria-hidden="true" /> Nuovo OdA sulla generale
-                </Button>
-              )}
-              {vista === "lavorazioni" && tutta && puoModificare && (
-                <Button type="button" size="sm" variant="outline" onClick={() => setAmbito(g.id)}>
-                  Gestisci fasi della generale
-                </Button>
-              )}
-              {!tutta && riepilogo.figlie.length > 0 && (
-                <Button type="button" size="sm" variant="ghost" onClick={() => setAmbito(TUTTA)}>
-                  <ArrowLeft className="size-4" aria-hidden="true" /> Tutta l’operazione
-                </Button>
-              )}
-            </div>
+              <div className="generale-cantiere-ambito">
+                <label className="flex min-w-0 items-center gap-2 text-xs font-medium">
+                  <span>Ambito</span>
+                  <UniformSelect aria-label="Ambito del cantiere" value={tutta ? TUTTA : orderId}
+                    onChange={e => setAmbito(e.target.value)}
+                    className="h-8 min-w-0 flex-1 rounded-md border bg-background pl-2.5 font-normal">
+                    {riepilogo.figlie.length > 0 && <option value={TUTTA}>Tutta l’operazione</option>}
+                    <option value={g.id}>Commessa generale · {g.codice ?? g.nome}</option>
+                    {riepilogo.figlie.length > 0 && (
+                      <optgroup label={DEFINIZIONI_MODELLI[g.modello].figlia.tante}>
+                        {riepilogo.figlie.map(f => <option key={f.id} value={f.id}>{[f.nome, f.codice].filter(Boolean).join(" · ")}</option>)}
+                      </optgroup>
+                    )}
+                  </UniformSelect>
+                </label>
+              </div>
             </div>
 
-            {vista === "acquisti" && costi && (
-              <div role="group" aria-label="Vista ordini d’acquisto" className="flex w-fit flex-wrap gap-0.5 rounded-lg border bg-card p-0.5">
-                <Button type="button" size="sm" variant={mostraControllo ? "ghost" : "secondary"} aria-pressed={!mostraControllo} onClick={() => setVista("acquisti")}>
-                  <PackageCheck className="size-4" aria-hidden="true" /> Ordini
-                </Button>
-                <Button type="button" size="sm" variant={mostraControllo ? "secondary" : "ghost"} aria-pressed={mostraControllo} onClick={() => setVista("controllo")}>
-                  <ClipboardCheck className="size-4" aria-hidden="true" /> Controllo forniture
-                </Button>
+            {(navigaForniture || gestisciFasiGenerale) && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                {navigaForniture && (
+                  <div role="group" aria-label="Vista ordini d’acquisto" className="flex w-fit flex-wrap gap-0.5 rounded-lg border bg-card p-0.5">
+                    <Button type="button" size="sm" variant={mostraControllo ? "ghost" : "secondary"} aria-pressed={!mostraControllo} onClick={() => setVista("acquisti")}>
+                      <PackageCheck className="size-4" aria-hidden="true" /> Ordini
+                    </Button>
+                    <Button type="button" size="sm" variant={mostraControllo ? "secondary" : "ghost"} aria-pressed={mostraControllo} onClick={() => setVista("controllo")}>
+                      <ClipboardCheck className="size-4" aria-hidden="true" /> Controllo forniture
+                    </Button>
+                  </div>
+                )}
+                {creaOdaGenerale && (
+                  <Button type="button" size="sm" className="ml-auto gap-1.5" onClick={() => setNuovoOda(true)}>
+                    <Plus className="size-4" aria-hidden="true" /> Nuovo OdA sulla generale
+                  </Button>
+                )}
+                {gestisciFasiGenerale && (
+                  <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => setAmbito(g.id)}>
+                    Gestisci fasi della generale
+                  </Button>
+                )}
               </div>
             )}
 
@@ -291,17 +299,17 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
               {nuovoOda && puoCreareOda && <NuovoOda key={g.id} open onOpenChange={setNuovoOda}
                 orderId={g.id} orderCode={g.codice} items={righeAcquisto} />}
               {mostraControllo ? (
-                <TabsContent value="acquisti" className="pt-1">
+                <TabsContent value="acquisti" className="mt-2.5">
                   <Riconciliazione key={tutta ? TUTTA : orderId} riepilogo={riepilogo} commessaId={tutta ? undefined : orderId}
                     onApriFase={setAmbito} onApriPagamenti={() => setVista("contabilita")} />
                 </TabsContent>
               ) : vista === "offerte" ? (
-                <TabsContent value="offerte" className="pt-2">
+                <TabsContent value="offerte" className="mt-2.5">
                   <Offerte key={tutta ? TUTTA : orderId} orderId={orderId} orderCode={scelto.codice}
                     commesse={tutta ? [g, ...riepilogo.figlie] : undefined} />
                 </TabsContent>
               ) : (tutta || vista === "da-seguire") && vistaOperazione ? (
-                <TabsContent value={vista} className="pt-2">
+                <TabsContent value={vista} className="mt-2.5">
                   <MovimentiOperazione riepilogo={riepilogo} vista={vistaOperazione} onApri={setAmbito}
                     commessaId={tutta ? undefined : orderId} onApriRapportini={id => setAmbito(id, undefined, "rapportini")} />
                   {vista === "ddt" && costi && <Button className="mt-3" type="button" size="sm" variant="outline" onClick={() => setVista("controllo")}>
@@ -310,7 +318,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 </TabsContent>
               ) : (
               <>
-              <TabsContent value="rapportini" className="space-y-6 pt-2">
+              <TabsContent value="rapportini" className="mt-2.5 space-y-4">
                 <Sezione id="rapportini" titolo="Rapportini">
                   {puoModificare && (
                     <RapportiniUfficio
@@ -323,17 +331,17 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                   <Rapportini key={`rapporti-${orderId}`} orderId={orderId} />
                 </Sezione>
               </TabsContent>
-              <TabsContent value="lavorazioni" className="space-y-4 pt-2">
+              <TabsContent value="lavorazioni" className="mt-2.5 space-y-3">
                 {orderId === g.id && puoModificare && g.modello !== "appalto" && riepilogo.permessi.margini && (
                   <InvitoFasiDalPiano riepilogo={riepilogo} />
                 )}
                 <Lavorazioni key={orderId} orderId={orderId} orderCode={scelto.codice} figlia={!!figlia}
                   importo={figlia ? figlia.importo : g.valore} fase={fase} onApriCronoprogramma={() => setVista("cronoprogramma")} />
               </TabsContent>
-              <TabsContent value="cronoprogramma" className="pt-2">
+              <TabsContent value="cronoprogramma" className="mt-2.5">
                 <Cronoprogramma key={orderId} orderId={orderId} onApriLavorazioni={() => setVista("lavorazioni")} />
               </TabsContent>
-              <TabsContent value="acquisti" className="space-y-6 pt-2">
+              <TabsContent value="acquisti" className="mt-2.5 space-y-4">
                 <Forniture
                     key={orderId}
                     orderId={orderId}
@@ -341,7 +349,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                     items={righeAcquisto}
                 />
               </TabsContent>
-              <TabsContent value="ddt" className="space-y-4 pt-2">
+              <TabsContent value="ddt" className="mt-2.5 space-y-3">
                 <Bolle
                     key={`bolle-${orderId}`}
                     orderId={orderId}
@@ -352,7 +360,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 </Button>}
               </TabsContent>
               {costi && (
-                <TabsContent value="contabilita" className="space-y-6 pt-2">
+                <TabsContent value="contabilita" className="mt-2.5 space-y-4">
                   <Sezione id="fatture" titolo="Fatture e costi">
                     <Fatture
                       key={orderId}
@@ -376,7 +384,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                   </Sezione>
                 </TabsContent>
               )}
-              <TabsContent value="squadre" className="space-y-6 pt-2">
+              <TabsContent value="squadre" className="mt-2.5 space-y-4">
                 <Sezione id="squadre" titolo="Squadre, ore e accessi">
                   <Squadre
                     key={orderId}

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { ArrowUpRight, CalendarClock, ClipboardList, ListChecks, PackageCheck, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +43,7 @@ export function DaSeguireOperazione({ dati, commesse, apriFase, apriRapportini }
     {
       icona: Truck, titolo: "DDT da verificare", troncato: dati.troncati.includes("DDT"),
       righe: dati.ddt.map(d => ({
-        id: d.id, titolo: d.numero_ddt ? `DDT ${d.numero_ddt}` : "Apri DDT", href: `/azienda/ddt/${d.id}`,
+        id: d.id, titolo: d.numero_ddt ?? "Apri DDT", href: `/azienda/ddt/${d.id}`,
         dettaglio: [nome(d.order_id), d.stato === "non_conforme" ? "Non conforme" : dataBreve(d.data_ricezione)].join(" · "),
       })),
     },
@@ -59,37 +58,42 @@ export function DaSeguireOperazione({ dati, commesse, apriFase, apriRapportini }
   const attivi = gruppi.filter(g => g.righe.length > 0);
 
   return (
-    <section aria-labelledby="cantiere-priorita" className="space-y-3">
-      <header className="flex items-center gap-2 px-0.5">
+    <section aria-labelledby="cantiere-priorita" className="overflow-hidden rounded-xl border bg-card">
+      <header className="flex items-center gap-2 border-b bg-muted/25 px-3 py-2.5 sm:px-4">
         <ListChecks className="size-4 text-primary" aria-hidden="true" />
-        <h3 id="cantiere-priorita" className="text-base font-semibold">Priorità del cantiere</h3>
+        <h3 id="cantiere-priorita" className="text-sm font-semibold">Priorità del cantiere</h3>
+        <Badge variant="outline" className="tabular-nums">{attivi.reduce((totale, g) => totale + g.righe.length, 0)}{dati.troncati.length > 0 && "+"}</Badge>
       </header>
-      {attivi.length === 0 ? <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        Nessuna priorità nelle fasi, nelle consegne, nei DDT e nei rapportini di questo ambito.
-      </div> : <div className="grid gap-3 xl:grid-cols-2">
-        {attivi.map(({ icona: Icona, titolo, righe, troncato }) => <article key={titolo} className="min-w-0 rounded-xl border bg-card">
-          <header className="flex items-center gap-2 border-b bg-muted/25 px-4 py-3">
-            <Icona className="size-4 text-primary" aria-hidden="true" />
-            <h4 className="text-sm font-semibold">{titolo}</h4>
-            <Badge variant="outline" className="ml-auto tabular-nums">{righe.length}{troncato && "+"}</Badge>
-          </header>
-          <ul className="divide-y">{righe.slice(0, 4).map(r => <Priorita key={r.id} {...r} />)}</ul>
-          {righe.length > 4 && <details className="border-t">
-            <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium text-primary">Altri {righe.length - 4}</summary>
-            <ul className="divide-y border-t">{righe.slice(4).map(r => <Priorita key={r.id} {...r} />)}</ul>
-          </details>}
-        </article>)}
+      {attivi.length === 0 ? <p className="px-3 py-4 text-sm text-muted-foreground sm:px-4">
+        Nessuna priorità in questo ambito.
+      </p> : <div className="divide-y">
+        {attivi.map(({ icona: Icona, titolo, righe, troncato }) => (
+          <div key={titolo} className="generale-priorita-gruppo" role="group" aria-label={titolo}>
+            <div className="generale-priorita-categoria">
+              <Icona className="size-4 shrink-0 text-primary" aria-hidden="true" />
+              <h4 className="text-xs font-medium">{titolo}</h4>
+              <span className="text-xs tabular-nums text-muted-foreground">{righe.length}{troncato && "+"}</span>
+            </div>
+            <div className="min-w-0">
+              <ul className="divide-y">{righe.slice(0, 4).map(r => <Priorita key={r.id} {...r} />)}</ul>
+              {righe.length > 4 && <details className="border-t">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-primary">Mostra altri {righe.length - 4}</summary>
+                <ul className="divide-y border-t">{righe.slice(4).map(r => <Priorita key={r.id} {...r} />)}</ul>
+              </details>}
+            </div>
+          </div>
+        ))}
       </div>}
-      {dati.troncati.length > 0 && <p className="text-xs text-muted-foreground">Per vedere l’elenco completo di {dati.troncati.join(", ")} apri le relative schede della singola commessa.</p>}
+      {dati.troncati.length > 0 && <p className="border-t px-3 py-2 text-xs text-muted-foreground sm:px-4">Per vedere l’elenco completo di {dati.troncati.join(", ")} apri le relative schede della singola commessa.</p>}
     </section>
   );
 }
 
 function Priorita({ titolo, dettaglio, href, azione }: { titolo: string; dettaglio: string; href?: string; azione?: () => void }) {
-  const classe = "flex w-full min-w-0 items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
-  const contenuto: ReactNode = <>
-    <span className="min-w-0"><span className="block truncate text-sm font-medium">{titolo}</span>
-      <span className="block truncate text-xs text-muted-foreground">{dettaglio}</span></span>
+  const classe = "generale-priorita-link hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
+  const contenuto = <>
+    <span className="min-w-0 break-words text-sm font-medium">{titolo}</span>
+    <span className="min-w-0 break-words text-xs text-muted-foreground">{dettaglio}</span>
     <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
   </>;
   return <li>{href ? <Link to={href} className={classe}>{contenuto}</Link>
