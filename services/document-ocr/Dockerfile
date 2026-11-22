@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ocrmypdf tesseract-ocr-ita poppler-utils python3 \
+    ocrmypdf tesseract-ocr-ita tesseract-ocr-osd poppler-utils python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
