@@ -45,10 +45,10 @@ const VALIDITA_MS = 15 * 60_000;
 let rilevazione: { expires: number; data: PrezziMimit } | undefined;
 let inCorso: Promise<PrezziMimit> | undefined;
 
-export async function scaricaRilevazioneMimit() {
+export async function scaricaRilevazioneMimit(timeoutMs = 8000) {
   if (rilevazione && rilevazione.expires > Date.now()) return rilevazione.data;
   inCorso ??= (async () => {
-    const res = await fetch(CSV_MIMIT, { signal: AbortSignal.timeout(8000), redirect: "error" });
+    const res = await fetch(CSV_MIMIT, { signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
     if (!res.ok) throw new Error("Listino MIMIT non raggiungibile");
     const csv = await res.text();
     if (csv.length > 64_000) throw new Error("Listino MIMIT troppo grande");

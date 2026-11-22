@@ -5,7 +5,11 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return Response.json({ error: "Metodo non disponibile" }, { status: 405 });
   if (!cronSecretValido(req)) return Response.json({ error: "Accesso riservato al cron" }, { status: 401 });
   try {
-    const { giorno, territori } = await scaricaRilevazioneMimit();
+    // Due tentativi brevi lasciano tempo al salvataggio entro i 15 s del cron.
+    const { giorno, territori } = await scaricaRilevazioneMimit(5000).catch((error: unknown) => {
+      if (!(error instanceof TypeError) && !(error instanceof DOMException && error.name === "TimeoutError")) throw error;
+      return scaricaRilevazioneMimit(5000);
+    });
     const url = Deno.env.get("SUPABASE_URL");
     const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) throw new Error("Servizio di archiviazione non configurato");
@@ -13,7 +17,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
       body: JSON.stringify({ p_giorno: giorno, p_territori: territori }),
-      redirect: "error", signal: AbortSignal.timeout(6000),
+      redirect: "error", signal: AbortSignal.timeout(4000),
     });
     if (!salvataggio.ok) throw new Error(`Archivio MIMIT ha risposto HTTP ${salvataggio.status}`);
     const aggiornati = await salvataggio.json();
