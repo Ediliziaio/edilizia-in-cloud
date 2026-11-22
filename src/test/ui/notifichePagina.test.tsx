@@ -61,6 +61,15 @@ function apri(percorso = "/azienda/impostazioni/notifiche") {
   return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[percorso]}><SettingsNotifiche /></MemoryRouter></QueryClientProvider>);
 }
 async function caricata() { await screen.findByRole("button", { name: "Salva preferenze" }); }
+async function messaggiAziendali() {
+  await caricata();
+  fireEvent.click(screen.getByRole("button", { name: "Messaggi all’azienda" }));
+  await screen.findByRole("heading", { name: "Messaggi programmati" });
+}
+async function espandiMessaggi() {
+  await messaggiAziendali();
+  fireEvent.click(await screen.findByText("1 messaggio programmato", { selector: "summary" }));
+}
 const titoli = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
 
 beforeEach(() => {
@@ -88,7 +97,9 @@ describe("Notifiche: l'ordine nuovo", () => {
   it("l'amministratore ha anche i messaggi programmati, in fondo", async () => {
     stato.admin = true;
     apri(); await caricata();
-    expect(titoli()).toEqual(["Avvisi", "Orari di silenzio", "Messaggi automatici dell'amministratore", "Messaggi programmati"]);
+    expect(titoli()).toEqual(["Avvisi", "Orari di silenzio", "Messaggi automatici dell'amministratore"]);
+    await messaggiAziendali();
+    expect(titoli()).toEqual(["Messaggi programmati"]);
   });
 
   it("chi non è amministratore non vede i messaggi programmati", async () => {
@@ -176,18 +187,18 @@ describe("Notifiche: messaggi programmati (amministratore)", () => {
   beforeEach(() => { stato.admin = true; });
 
   it("senza messaggi dice una riga e come crearne uno", async () => {
-    apri(); await caricata();
+    apri(); await messaggiAziendali();
     const sezione = document.getElementById("messaggi-programmati") as HTMLElement;
-    expect(within(sezione).getByText(/Nessun messaggio programmato\. Premi «Nuovo» per crearne uno/)).toBeInTheDocument();
+    expect(await within(sezione).findByText(/Nessun messaggio programmato\. Premi «Nuovo» per crearne uno/)).toBeInTheDocument();
     expect(within(sezione).getByRole("button", { name: "Nuovo" })).toBeInTheDocument();
     expect(within(sezione).getByRole("link", { name: "Automazioni" })).toHaveAttribute("href", "/azienda/automazioni");
   });
 
   it("con dei messaggi l'elenco è chiuso e si apre da «2 messaggi programmati»", async () => {
     stato.flussi = [flusso("f1", "Briefing operai", "published"), flusso("f2", "Promemoria DURC", "draft")];
-    apri(); await caricata();
+    apri(); await messaggiAziendali();
     const sezione = document.getElementById("messaggi-programmati") as HTMLElement;
-    expect(within(sezione).getByText("2 messaggi programmati")).toBeInTheDocument();
+    expect(await within(sezione).findByText("2 messaggi programmati")).toBeInTheDocument();
     expect((sezione.querySelector("details") as HTMLDetailsElement).open).toBe(false);
     expect(within(sezione).getByText("attivo")).toBeInTheDocument();
     expect(within(sezione).getByText("in pausa")).toBeInTheDocument();
@@ -196,7 +207,7 @@ describe("Notifiche: messaggi programmati (amministratore)", () => {
 
   it("eliminare chiede conferma con le parole giuste: va nel cestino, non è «irreversibile»", async () => {
     stato.flussi = [flusso("f1", "Briefing operai", "published")];
-    apri(); await caricata();
+    apri(); await espandiMessaggi();
     fireEvent.click(screen.getByRole("button", { name: "Sposta «Briefing operai» nel cestino" }));
     await waitFor(() => expect(stato.conferma).toHaveBeenCalledOnce());
     expect(stato.conferma.mock.calls[0][0]).toMatchObject({ title: "Spostare «Briefing operai» nel cestino?", description: "Lo ritrovi in Automazioni → Cestino.", confirmLabel: "Sposta nel cestino" });
@@ -207,7 +218,7 @@ describe("Notifiche: messaggi programmati (amministratore)", () => {
   it("se si rinuncia alla conferma non si sposta niente", async () => {
     stato.conferma.mockImplementation(async () => false);
     stato.flussi = [flusso("f1", "Briefing operai", "published")];
-    apri(); await caricata();
+    apri(); await espandiMessaggi();
     fireEvent.click(screen.getByRole("button", { name: "Sposta «Briefing operai» nel cestino" }));
     await waitFor(() => expect(stato.conferma).toHaveBeenCalledOnce());
     expect(stato.aggiornamentiFlussi).toHaveLength(0);
@@ -215,7 +226,7 @@ describe("Notifiche: messaggi programmati (amministratore)", () => {
 
   it("mettere in pausa un messaggio dice quale", async () => {
     stato.flussi = [flusso("f1", "Briefing operai", "published")];
-    apri(); await caricata();
+    apri(); await espandiMessaggi();
     fireEvent.click(screen.getByRole("button", { name: "Metti in pausa «Briefing operai»" }));
     await waitFor(() => expect(stato.aggiornamentiFlussi.some((a) => a.valore.status === "draft")).toBe(true));
   });

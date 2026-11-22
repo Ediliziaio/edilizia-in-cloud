@@ -27,7 +27,7 @@ export default function OfflineBanner(): JSX.Element | null {
   const { user, profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id;
   const queryClient = useQueryClient();
-  const { queueCount, isSyncing, failedCount, lastError, retry } = useOfflineSync();
+  const { queueCount, isSyncing, failedCount, puoRitentare, lastError, retry } = useOfflineSync();
   const [draftCount, setDraftCount] = useState(0);
 
   useEffect(() => syncQueue.on("processed", (esito) => {
@@ -40,6 +40,11 @@ export default function OfflineBanner(): JSX.Element | null {
       return;
     }
     void refreshCommessaCampoQueries(queryClient, esito.orderId, esito.companyId);
+    if (esito.tipo === "avanzamento" || esito.tipo === "rilievo") {
+      toast.success(esito.tipo === "avanzamento" ? "Aggiornamento inviato" : "Visita inviata",
+        { id: esito.id ? `invio-campo:${esito.id}` : undefined });
+      return;
+    }
     void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
     void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
     void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
@@ -52,18 +57,23 @@ export default function OfflineBanner(): JSX.Element | null {
 
   // Conta bozze salvate
   useEffect(() => {
-    const count = () => {
-      if (!companyId || !user?.id) return 0;
-      const moduli = listDraftKeys().filter(k => k.startsWith(`rapportino:${companyId}:${user.id}:`) || k.startsWith(`merce:${companyId}:${user.id}:`)).length;
-      return moduli + bozzeCantieriPrelievo(companyId, user.id).filter(v => !v.bozza.inVerifica).length;
-    };
+    const userId = user?.id;
     let active = true;
-    void Promise.resolve().then(() => { if (active) setDraftCount(count()); });
-    // Aggiorna ogni 5s
-    const interval = setInterval(() => {
-      setDraftCount(count());
-    }, 5000);
-    return () => { active = false; clearInterval(interval); };
+    let lettura = 0;
+    const count = async () => {
+      const attuale = ++lettura;
+      const countLegacy = companyId && userId ? listDraftKeys().filter(k => k.startsWith(`rapportino:${companyId}:${userId}:`)
+        || k.startsWith(`merce:${companyId}:${userId}:`)).length
+        + bozzeCantieriPrelievo(companyId, userId).filter(v => !v.bozza.inVerifica).length : 0;
+      const tecniche = companyId && userId ? await syncQueue.countBozzeTecniche(companyId, userId).catch(() => 0) : 0;
+      if (active && attuale === lettura) setDraftCount(countLegacy + tecniche);
+    };
+    const aggiorna = (): void => { void count(); };
+    aggiorna();
+    const offBozze = syncQueue.on("draft-change", aggiorna);
+    const offCoda = syncQueue.on("enqueued", aggiorna);
+    const interval = setInterval(aggiorna, 5000);
+    return () => { active = false; offBozze(); offCoda(); clearInterval(interval); };
   }, [companyId, user?.id]);
 
 
@@ -96,7 +106,13 @@ export default function OfflineBanner(): JSX.Element | null {
     );
   }
 
-  if (lastError || failedCount > 0) return <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-amber-100 px-4 py-2 text-sm text-amber-950"><span className="flex-1">{failedCount > 0 ? `${failedCount} operazioni da verificare. ` : ""}{lastError || "I dati sono conservati sul telefono."}</span><Link to="/campo/invii" className="inline-flex min-h-11 items-center font-semibold underline">Apri invii</Link><button type="button" disabled={isSyncing} className="min-h-11 underline" onClick={() => void retry()}>Riprova invio</button></div>;
+  if (lastError || failedCount > 0) return <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-amber-100 px-4 py-2 text-sm text-amber-950">
+    <span className="flex-1">{failedCount > 0 ? `${failedCount} ${failedCount === 1 ? "operazione" : "operazioni"} da verificare. ` : ""}
+      {lastError || "I dati sono conservati sul telefono."}</span>
+    <Link to="/campo/invii" className="inline-flex min-h-11 items-center font-semibold underline">Apri invii</Link>
+    {(puoRitentare || failedCount === 0) && <button type="button" disabled={isSyncing} className="min-h-11 underline"
+      onClick={() => void retry()}>Riprova invio</button>}
+  </div>;
 
   // Online + syncing: banner verde
   if (isSyncing || queueCount > 0) {

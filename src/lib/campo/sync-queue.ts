@@ -9,6 +9,7 @@
  *   await syncQueue.processQueue();
  */
 import { isOnline } from "./network-status";
+import { idBozzaTecnica, nomeBozzaTecnica, type BozzaTecnica, type DatiBozzaTecnica } from "./bozzaTecnica";
 
 export type SyncItemType =
   | "documento_ddt"
@@ -16,6 +17,8 @@ export type SyncItemType =
   | "rapportino_vocale"
   | "rapportino"
   | "prelievo"
+  | "avanzamento"
+  | "rilievo"
   | "timbratura"
   | "foto"
   | "generic";
@@ -31,6 +34,7 @@ export interface SyncItem<TPayload = unknown> {
   retryCount: number;
   status: SyncStatus;
   lastError?: string;
+  errorCode?: string;
   /** Path del bucket (per upload file) oppure endpoint tabella */
   target?: string;
   /** Identità stabile anche per gli elementi delle vecchie versioni. */
@@ -38,17 +42,24 @@ export interface SyncItem<TPayload = unknown> {
 }
 
 const DB_NAME = "campo-sync-queue";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = "items";
 const RICEVUTE = "ricevute";
+const BOZZE_TECNICHE = "bozze-tecniche";
 const MAX_RICEVUTE = 40;
 const MAX_RETRY = 5;
 const BACKOFF_BASE_MS = 1000;
 const SYNC_LEASE_MS = 5 * 60_000;
 
-export class SyncPermanentError extends Error {}
+export class SyncPermanentError extends Error {
+  constructor(message: string, readonly code?: string) { super(message); }
+}
 export class SyncDeferredError extends Error {}
 export class SyncTransientError extends Error {}
+
+export function isInvioTecnico(tipo: SyncItemType): tipo is DatiBozzaTecnica["tipo"] {
+  return tipo === "avanzamento" || tipo === "rilievo";
+}
 export function syncItemScope(item: SyncItem) {
   const p = item.payload && typeof item.payload === "object" ? item.payload as Record<string, unknown> : {};
   const row = (item.type === "foto" ? p.riga : p) as Record<string, unknown> | undefined;
@@ -57,7 +68,7 @@ export function syncItemScope(item: SyncItem) {
   return { owner, companyId: row?.company_id, legacyAudio };
 }
 
-export type TipoInvioCampo = Extract<SyncItemType, "prelievo" | "rapportino" | "documento_ddt">;
+export type TipoInvioCampo = Extract<SyncItemType, "prelievo" | "rapportino" | "documento_ddt" | "avanzamento" | "rilievo">;
 export interface RicevutaCampo {
   id: string;
   tipo: TipoInvioCampo;
@@ -66,19 +77,22 @@ export interface RicevutaCampo {
   orderId: string | null;
   giorno?: string;
   nome?: string;
+  cantiere?: string;
   data: number;
 }
 
 function ricevutaCampo(item: SyncItem, result?: CampoSyncResult): RicevutaCampo | undefined {
-  if (result?.errore || (item.type !== "prelievo" && item.type !== "rapportino" && item.type !== "documento_ddt")) return;
+  if (result?.errore || (item.type !== "prelievo" && item.type !== "rapportino" && item.type !== "documento_ddt"
+    && !isInvioTecnico(item.type))) return;
   const { owner, companyId } = syncItemScope(item);
   const dati = item.payload as { order_id?: unknown; giorno?: unknown; fileNames?: unknown; source?: unknown };
   if (typeof owner !== "string" || typeof companyId !== "string" || dati.source === "desktop") return;
-  const nome = Array.isArray(dati.fileNames) ? dati.fileNames[0] : undefined;
+  const tecnica = isInvioTecnico(item.type) ? item.payload as DatiBozzaTecnica : undefined;
+  const nome = tecnica ? nomeBozzaTecnica(tecnica) : Array.isArray(dati.fileNames) ? dati.fileNames[0] : undefined;
   return { id: item.operationId ?? item.id, tipo: item.type, companyId, userId: owner,
     orderId: typeof dati.order_id === "string" ? dati.order_id : null,
     giorno: typeof dati.giorno === "string" ? dati.giorno : undefined,
-    nome: typeof nome === "string" ? nome : undefined, data: Date.now() };
+    nome: typeof nome === "string" ? nome : undefined, ...(tecnica ? { cantiere: tecnica.nomeCantiere } : {}), data: Date.now() };
 }
 export function canProcessSyncItem(item: SyncItem, now = Date.now(), lockEsclusivo = false): boolean {
   if (item.status === "done" || item.retryCount >= MAX_RETRY) return false;
@@ -96,7 +110,7 @@ export async function syncOperationId(item: SyncItem): Promise<string> {
 }
 
 export type CampoSyncResult = {
-  tipo: "prelievo" | "rapportino";
+  tipo: "prelievo" | "rapportino" | "avanzamento" | "rilievo";
   companyId: string;
   userId: string;
   orderId: string;
@@ -107,12 +121,13 @@ export type CampoSyncResult = {
   avvisoMezzi?: boolean;
   chiudeGiornata?: boolean;
 };
-type QueueEvent = "change" | "enqueued" | "processed" | "failed";
+type QueueEvent = "change" | "draft-change" | "enqueued" | "processed" | "failed";
 type Listener = (result?: CampoSyncResult) => void;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 const listeners: Record<QueueEvent, Set<Listener>> = {
   change: new Set(),
+  "draft-change": new Set(),
   enqueued: new Set(),
   processed: new Set(),
   failed: new Set(),
@@ -135,14 +150,14 @@ function openChannel() {
   channel = typeof window !== "undefined" && typeof window.BroadcastChannel !== "undefined"
     ? new window.BroadcastChannel(DB_NAME) : null;
   channel?.addEventListener("message", ({ data }) => {
-    if (data?.event === "change" || data?.event === "enqueued") notify(data.event);
+    if (data?.event === "change" || data?.event === "draft-change" || data?.event === "enqueued") notify(data.event);
   });
   return channel;
 }
 
 function emit(event: QueueEvent, result?: CampoSyncResult): void {
   notify(event, result);
-  if (event === "change" || event === "enqueued") openChannel()?.postMessage({ event });
+  if (event === "change" || event === "draft-change" || event === "enqueued") openChannel()?.postMessage({ event });
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -177,6 +192,10 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(RICEVUTE)) {
         const ricevute = db.createObjectStore(RICEVUTE, { keyPath: "id" });
         ricevute.createIndex("ambito", ["companyId", "userId"]);
+      }
+      if (!db.objectStoreNames.contains(BOZZE_TECNICHE)) {
+        const bozze = db.createObjectStore(BOZZE_TECNICHE, { keyPath: "id" });
+        bozze.createIndex("ambito", ["payload.company_id", "payload.user_id"]);
       }
     };
   });
@@ -263,6 +282,112 @@ async function getRicevute(companyId: string, userId: string): Promise<RicevutaC
   });
 }
 
+async function getBozzeTecniche(companyId: string, userId: string): Promise<BozzaTecnica[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOZZE_TECNICHE).objectStore(BOZZE_TECNICHE).index("ambito").getAll([companyId, userId]);
+    req.onsuccess = () => resolve((req.result as BozzaTecnica[]).sort((a, b) => b.aggiornataIl - a.aggiornataIl));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function countBozzeTecniche(companyId: string, userId: string): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOZZE_TECNICHE).objectStore(BOZZE_TECNICHE).index("ambito").count([companyId, userId]);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getBozzaTecnica<T extends DatiBozzaTecnica>(dati: T): Promise<BozzaTecnica<T> | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOZZE_TECNICHE).objectStore(BOZZE_TECNICHE).get(idBozzaTecnica(dati));
+    req.onsuccess = () => resolve(req.result as BozzaTecnica<T> | undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+const erroreBozza = () => new Error("Questa bozza è cambiata in un’altra scheda. Ricaricala per vedere l’ultima versione.");
+
+async function salvaBozzaTecnica<T extends DatiBozzaTecnica>(dati: T, precedente?: BozzaTecnica<T>): Promise<BozzaTecnica<T>> {
+  const db = await openDB();
+  const bozza = {
+    id: idBozzaTecnica(dati), operationId: precedente?.operationId ?? generateId(),
+    versione: (precedente?.versione ?? 0) + 1, aggiornataIl: Date.now(), payload: dati,
+  };
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(BOZZE_TECNICHE, "readwrite");
+    const store = tx.objectStore(BOZZE_TECNICHE);
+    const req = store.get(bozza.id);
+    let conflitto = false;
+    req.onsuccess = () => {
+      const attuale = req.result as BozzaTecnica | undefined;
+      conflitto = attuale?.operationId !== precedente?.operationId || attuale?.versione !== precedente?.versione;
+      if (!conflitto) store.put(bozza);
+    };
+    tx.oncomplete = () => conflitto ? reject(erroreBozza()) : resolve();
+    tx.onabort = () => reject(tx.error);
+  });
+  emit("draft-change");
+  return bozza;
+}
+
+async function accodaBozzaTecnica(bozza: BozzaTecnica): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([BOZZE_TECNICHE, STORE_NAME], "readwrite");
+    const bozze = tx.objectStore(BOZZE_TECNICHE);
+    const req = bozze.get(bozza.id);
+    let conflitto = false;
+    req.onsuccess = () => {
+      const attuale = req.result as BozzaTecnica | undefined;
+      conflitto = !attuale || attuale.operationId !== bozza.operationId || attuale.versione !== bozza.versione;
+      if (conflitto || !attuale) return;
+      const now = Date.now();
+      const item: SyncItem<DatiBozzaTecnica> = {
+        id: attuale.operationId, operationId: attuale.operationId, type: attuale.payload.tipo, payload: attuale.payload,
+        status: "pending", createdAt: now, updatedAt: now, retryCount: 0,
+      };
+      tx.objectStore(STORE_NAME).add(item);
+      bozze.delete(bozza.id);
+    };
+    tx.oncomplete = () => conflitto ? reject(erroreBozza()) : resolve();
+    tx.onabort = () => reject(tx.error);
+  });
+  emit("change");
+  emit("enqueued");
+}
+
+async function recuperaAvanzamento(voce: SyncItem<DatiBozzaTecnica>): Promise<boolean> {
+  const db = await openDB();
+  const riuscito = await new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction([BOZZE_TECNICHE, STORE_NAME], "readwrite");
+    const coda = tx.objectStore(STORE_NAME);
+    const bozze = tx.objectStore(BOZZE_TECNICHE);
+    const req = coda.get(voce.id);
+    let recuperato = false;
+    req.onsuccess = () => {
+      const attuale = req.result as SyncItem<DatiBozzaTecnica> | undefined;
+      if (attuale?.type !== "avanzamento" || attuale.status !== "failed" || attuale.errorCode !== "avanzamento-cambiato"
+        || attuale.updatedAt !== voce.updatedAt || !attuale.operationId) return;
+      const id = idBozzaTecnica(attuale.payload);
+      const leggi = bozze.get(id);
+      leggi.onsuccess = () => {
+        if (leggi.result) return;
+        bozze.add({ id, operationId: attuale.operationId!, versione: 1, aggiornataIl: Date.now(), payload: attuale.payload });
+        coda.delete(attuale.id);
+        recuperato = true;
+      };
+    };
+    tx.oncomplete = () => resolve(recuperato);
+    tx.onabort = () => reject(tx.error);
+  });
+  if (riuscito) emit("change");
+  return riuscito;
+}
+
 async function riaccodaFallito<T>(voce: SyncItem<T>, payload = voce.payload): Promise<boolean> {
   const db = await openDB();
   const riaccodato = await new Promise<boolean>((resolve, reject) => {
@@ -278,7 +403,7 @@ async function riaccodaFallito<T>(voce: SyncItem<T>, payload = voce.payload): Pr
       const vecchioAmbito = syncItemScope(attuale);
       const nuovoAmbito = syncItemScope(prossima);
       if (vecchioAmbito.owner !== nuovoAmbito.owner || vecchioAmbito.companyId !== nuovoAmbito.companyId) return;
-      store.put({ ...prossima, status: "pending", retryCount: 0, lastError: undefined, updatedAt: Date.now() });
+      store.put({ ...prossima, status: "pending", retryCount: 0, lastError: undefined, errorCode: undefined, updatedAt: Date.now() });
       aggiornato = true;
     };
     tx.oncomplete = () => resolve(aggiornato);
@@ -310,7 +435,7 @@ async function clearCompleted(): Promise<number> {
 
 async function retryFailed(eligible: (item: SyncItem) => boolean = () => true): Promise<void> {
   for (const item of await getAll()) {
-    if (item.status !== "failed" || !eligible(item)) continue;
+    if (item.status !== "failed" || item.errorCode === "avanzamento-cambiato" || !eligible(item)) continue;
     await riaccodaFallito(item);
   }
 }
@@ -411,7 +536,7 @@ async function processQueueUnlocked(lockEsclusivo = false): Promise<void> {
           continue;
         }
         const message = error instanceof Error ? error.message : String(error);
-        const inCampo = item.type === "prelievo" || item.type === "rapportino";
+        const inCampo = item.type === "prelievo" || item.type === "rapportino" || isInvioTecnico(item.type);
         const reteInterrotta = inCampo && !(
           error instanceof SyncPermanentError
         ) && (!isOnline() || /failed to fetch|load failed|network|timeout|timed out|tempo scaduto/i.test(message));
@@ -420,6 +545,7 @@ async function processQueueUnlocked(lockEsclusivo = false): Promise<void> {
           : item.retryCount + 1;
         if (error instanceof SyncPermanentError) item.retryCount = MAX_RETRY;
         item.lastError = message;
+        item.errorCode = error instanceof SyncPermanentError ? error.code : undefined;
         item.status = item.retryCount >= MAX_RETRY ? "failed" : "pending";
         if (await terminaTentativo(item, inizio)) emit("failed");
       }
@@ -453,6 +579,12 @@ export const syncQueue = {
   enqueueBatch,
   getAll,
   getRicevute,
+  getBozzeTecniche,
+  countBozzeTecniche,
+  getBozzaTecnica,
+  salvaBozzaTecnica,
+  accodaBozzaTecnica,
+  recuperaAvanzamento,
   getPending,
   getQueueCount,
   remove,

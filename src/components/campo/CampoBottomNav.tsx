@@ -86,6 +86,7 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
 
   const isActive = (item: NavItem) => {
     if (item.exact) return location.pathname === item.href;
+    if (item.href === "/campo/calendario" && location.pathname.startsWith("/campo/cantieri")) return true;
     return location.pathname.startsWith(item.href);
   };
 

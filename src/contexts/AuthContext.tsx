@@ -23,6 +23,7 @@ import { quandoSiRiapre } from "@/lib/sicurezza/accessiBloccati";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
 import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
 import { avviaIntervalloVisibile } from "@/lib/intervalloVisibile";
+import { isNative } from "@/lib/mobile/platform";
 
 /**
  * Velocity Protocol — V1/V2
@@ -1431,8 +1432,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [checkLoginSecurity, recordLoginOutcome]);
 
+  const utenteDaDisconnettere = state.user?.id;
   const signOut = useCallback(async () => {
     await endSession();
+    if (isNative && utenteDaDisconnettere) {
+      const { disattivaPushNativa } = await import("@/lib/mobile/native-push");
+      await disattivaPushNativa(utenteDaDisconnettere, true).catch((): void => undefined);
+    }
     const { error } = await supabase.auth.signOut();
     if (error) {
       toast.error("Disconnessione non confermata", { description: "Controlla la connessione e premi «Esci» di nuovo." });
@@ -1445,7 +1451,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.removeItem("eic_session_started_at"); } catch { /* ignore */ }
     queryClient.clear();
     bindQueryCacheIdentity(null);
-  }, [queryClient]);
+  }, [queryClient, utenteDaDisconnettere]);
 
   
 

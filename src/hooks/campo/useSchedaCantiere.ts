@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
 import { supabase } from "@/integrations/supabase/client";
 import type { SchedaCantiere, SezioneSchedaCantiere } from "@/lib/campo/schedaCantiere";
 
@@ -41,7 +42,8 @@ export function useSchedaCantiere(orderId: string | undefined, sezione: SezioneS
     },
   });
   const altraSezione = sezione === "piano" ? "documenti" : "piano";
-  const cantiere = query.isError ? undefined
-    : query.data?.cantiere ?? qc.getQueryData<SchedaCantiere>([...ambito, altraSezione])?.cantiere;
-  return { query, cantiere };
+  const scheda = query.isError ? undefined
+    : query.data ?? qc.getQueryData<SchedaCantiere>([...ambito, altraSezione]);
+  useCommessaCampoSync(orderId, companyId, !!query.data && !query.isError);
+  return { query, cantiere: scheda?.cantiere, permessi: scheda?.permessi, companyId, userId: user?.id };
 }

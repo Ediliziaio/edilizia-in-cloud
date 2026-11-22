@@ -896,7 +896,7 @@ export default function CampoLavoroDetail() {
             <p className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
             <p className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
           </div>
-          {vedeSchedaTecnica && <Link to={percorsoCantiereTecnico("campo", orderId)}
+          {vedeSchedaTecnica && <Link to={percorsoCantiereTecnico(orderId)}
             className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold text-primary">
             <BookOpenCheck className="size-4" aria-hidden="true" /> Piano e documenti
           </Link>}

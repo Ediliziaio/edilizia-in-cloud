@@ -60,10 +60,11 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   overlayClassName?: string;
+  closeButtonClassName?: string;
 }
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, overlayClassName, children, onOpenAutoFocus, ...props }, ref) => (
+  ({ side = "right", className, overlayClassName, closeButtonClassName, children, onOpenAutoFocus, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay className={overlayClassName} />
       <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} onOpenAutoFocus={focusInizialeMobile(onOpenAutoFocus)} {...props}>
@@ -72,7 +73,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
           <div aria-hidden="true" className="mx-auto -mt-2 mb-2 h-1.5 w-12 shrink-0 rounded-full bg-muted" />
         )}
         {children}
-        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <SheetPrimitive.Close className={cn("absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none", closeButtonClassName)}>
           <X className="h-4 w-4" />
           <span className="sr-only">Chiudi</span>
         </SheetPrimitive.Close>

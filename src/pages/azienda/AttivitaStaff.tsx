@@ -1330,7 +1330,7 @@ function TabAttivita() {
 
       {/* Dal cantiere: rapportini, timbrature dimenticate e bolle da approvare, solo per chi può
           approvarli. Senza niente in attesa non occupa posto. */}
-      <CantieriTecniciLink area="tecnico" />
+      <CantieriTecniciLink />
       <DaApprovareCantieri />
 
       {/* Documenti letti dalle email che aspettano una conferma: una riga, e solo se ce ne sono. */}

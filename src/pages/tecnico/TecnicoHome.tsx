@@ -130,7 +130,7 @@ export default function TecnicoHome() {
         <h1 className="text-white text-2xl font-bold mt-0.5">{dataFormattata}</h1>
       </div>
 
-      <CantieriTecniciLink area="tecnico" />
+      <CantieriTecniciLink />
 
       {/* Lavori di oggi */}
       <section>

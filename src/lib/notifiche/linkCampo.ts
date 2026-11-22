@@ -8,7 +8,7 @@
  */
 export function linkPerCampo(url: string | null | undefined): string {
   if (!url) return "/campo";
-  if (url.startsWith("/campo")) return url;
+  if (/^\/campo(?:\/|\?|#|$)/.test(url)) return url;
   const survey = url.match(/^\/azienda\/sopralluoghi\/([0-9a-f-]{36})(?:\?|$)/i);
   if (survey) return `/campo/sopralluoghi/${survey[1]}`;
   if (/^\/azienda\/sopralluoghi(?:\?|$)/.test(url)) return "/campo/sopralluoghi";
@@ -17,4 +17,10 @@ export function linkPerCampo(url: string | null | undefined): string {
   if (url.startsWith("/azienda/attivita")) return "/campo/attivita";
   if (url.startsWith("/azienda/personale")) return "/campo/documenti";
   return "/campo";
+}
+
+export function linkPerTecnico(url: string): string {
+  const commessa = url.match(/^\/(?:azienda\/ordini|campo\/lavoro)\/([0-9a-f-]{36})(?:[/?#]|$)/i);
+  if (commessa) return `/campo/cantieri/${commessa[1]}`;
+  return url;
 }

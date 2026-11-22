@@ -155,7 +155,7 @@ export default function CampoHome() {
       {(isOperaio || isSubappaltatore) && <CampoOggi memoria={azienda && user?.id ? `${azienda}:${user.id}` : undefined}
         puoPrelevare={isOperaio && !magazzino.isError && magazzino.data?.livello === "prelievi"} />}
 
-      {isOperaio && <CantieriTecniciLink area="campo" />}
+      {isOperaio && <CantieriTecniciLink />}
       {isOperaio && <CampoCrewAgenda />}
 
       {/* Da fare: prima le cose che aspettano te */}

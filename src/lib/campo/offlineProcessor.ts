@@ -3,9 +3,12 @@ import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaCheckli
 // Caricati con la coda, così il primo tentativo al ritorno della rete ha già i gestori.
 import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
 import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
+import { inviaTecnicaInCoda } from "./tecnicaInCoda";
+import type { DatiBozzaTecnica } from "./bozzaTecnica";
 import {
   SyncDeferredError,
   SyncPermanentError,
+  isInvioTecnico,
   syncOperationId,
   syncItemScope,
   type SyncItem,
@@ -25,6 +28,13 @@ export async function processCampoOffline(item: SyncItem) {
     throw new SyncDeferredError(
       "Questa operazione appartiene a un altro utente o richiede verifica dell’autore",
     );
+  if (isInvioTecnico(item.type)) {
+    const { data: azienda, error } = await supabase.rpc("get_effective_company_id");
+    if (error || !azienda || azienda !== companyId) {
+      throw new SyncDeferredError("L’invio riprende nell’azienda della registrazione.");
+    }
+    return inviaTecnicaInCoda(item.payload as DatiBozzaTecnica, await syncOperationId(item));
+  }
   if (item.type === "prelievo" || item.type === "rapportino") {
     const { data: azienda, error } = await supabase.rpc("get_my_company_id");
     if (error || !azienda || azienda !== companyId) {

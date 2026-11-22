@@ -4,8 +4,14 @@ import { isNative } from "./platform";
 export type NetworkState = { connected: boolean; connectionType: string };
 let currentState: NetworkState = { connected: typeof navigator === "undefined" || navigator.onLine !== false, connectionType: "unknown" };
 const listeners = new Set<(state: NetworkState) => void>();
+let monitor: Promise<void> | undefined;
 
-export async function initNetworkMonitor() {
+export function initNetworkMonitor() {
+  monitor ??= attivaMonitor().catch(errore => { monitor = undefined; throw errore; });
+  return monitor;
+}
+
+async function attivaMonitor() {
   if (isNative) {
     const aggiorna = (status: ConnectionStatus) => {
       if (currentState.connected === status.connected && currentState.connectionType === status.connectionType) return;

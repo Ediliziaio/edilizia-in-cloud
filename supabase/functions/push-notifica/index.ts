@@ -1,5 +1,5 @@
 /**
- * push-notifica — manda una Web Push a uno o più utenti.
+ * push-notifica — manda gli avvisi ai browser e ai dispositivi nativi dell'utente.
  *
  * Chiamata dal database (trigger → pg_net) con header `x-cron-secret`:
  * niente JWT utente, perché a scatenarla è un evento (rapportino approvato,
@@ -18,25 +18,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 
-// Access token FCM HTTP v1 dal service account (JWT RS256 → oauth2). Niente
-// dipendenze: WebCrypto basta.
-async function tokenFcm(sa: { client_email: string; private_key: string; token_uri?: string }): Promise<string> {
-  const b64 = (obj: unknown) => btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const now = Math.floor(Date.now() / 1000);
-  const header = b64({ alg: "RS256", typ: "JWT" });
-  const claims = b64({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging", aud: sa.token_uri ?? "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 });
-  const pem = sa.private_key.replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, "");
-  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
-  const key = await crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-  const sig = new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claims}`)));
-  const sigB64 = btoa(String.fromCharCode(...sig)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const res = await fetch(sa.token_uri ?? "https://oauth2.googleapis.com/token", {
-    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${header}.${claims}.${sigB64}` }),
-  });
-  if (!res.ok) throw new Error(`oauth2 ${res.status}`);
-  return (await res.json()).access_token as string;
-}
+import { preparaInvioNativo, pushNativeConfigurate, type TokenNativo } from "../_shared/pushNativa.ts";
 
 serveConMetricheRapida("push-notifica", async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -92,40 +74,33 @@ serveConMetricheRapida("push-notifica", async (req: Request) => {
     for (const e of esiti) {
       if (e.status === "rejected") console.warn("[push-notifica] invio fallito:", e.reason instanceof Error ? e.reason.message : e.reason);
     }
-    // ── App nativa (Capacitor): token FCM in push_tokens. Serve il service account
-    //    Firebase nel secret FCM_SERVICE_ACCOUNT_JSON; senza, si conta e basta.
-    let native = { token: 0, inviate: 0, scadute: 0, configurato: false };
-    const { data: tokens } = await admin.from("push_tokens").select("id, token, platform").in("user_id", utenti.slice(0, 200));
-    native.token = tokens?.length ?? 0;
-    const saJson = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
-    if (native.token > 0 && saJson) {
-      native.configurato = true;
+    const { data: tokens, error: erroreToken } = await admin.from("push_tokens")
+      .select("id, user_id, token, platform").in("user_id", utenti.slice(0, 200));
+    if (erroreToken) console.warn("[push-notifica] Lettura dispositivi non riuscita");
+    const configurate = pushNativeConfigurate(Deno.env.get);
+    const native = { token: tokens?.length ?? 0, inviate: 0, scadute: 0, configurato: configurate.android || configurate.ios };
+    await Promise.allSettled(["ios", "android"].map(async piattaforma => {
+      const dispositivi = (tokens ?? []).filter(t => t.platform === piattaforma) as TokenNativo[];
+      if (!dispositivi.length) return;
       try {
-        const accessToken = await tokenFcm(JSON.parse(saJson));
-        const projectId = JSON.parse(saJson).project_id;
-        for (const t of tokens as Array<{ id: string; token: string; platform: string }>) {
-          const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ message: {
-              token: t.token,
-              notification: { title, body: String(body.body ?? "") },
-              data: { url: String(body.url ?? "/campo"), tag: String(body.tag ?? "campo") },
-              android: { priority: "high", notification: { channel_id: "campo" } },
-              apns: { payload: { aps: { sound: "default" } } },
-            } }),
-          });
-          if (res.ok) native.inviate++;
-          else {
-            const txt = await res.text();
-            if (res.status === 404 || /UNREGISTERED|NOT_FOUND/.test(txt)) { await admin.from("push_tokens").delete().eq("id", t.id); native.scadute++; }
-            else console.warn("[push-notifica] FCM", res.status, txt.slice(0, 160));
-          }
+        const invia = await preparaInvioNativo(piattaforma, Deno.env.get);
+        if (!invia) return;
+        for (let inizio = 0; inizio < dispositivi.length; inizio += 16) {
+          const esiti = await Promise.allSettled(dispositivi.slice(inizio, inizio + 16).map(async t => {
+            const esito = await invia(t, { url: body.url, tag: body.tag });
+            if (esito === "inviata") native.inviate++;
+            else if (esito === "scaduta") {
+              // Non eliminare il token se nel frattempo è stato rinnovato o intestato a un altro accesso.
+              await admin.from("push_tokens").delete().eq("id", t.id).eq("token", t.token).eq("user_id", t.user_id);
+              native.scadute++;
+            } else console.warn("[push-notifica] Dispositivo rifiutato da", piattaforma);
+          }));
+          if (esiti.some(e => e.status === "rejected")) console.warn("[push-notifica] Tentativo di invio interrotto su", piattaforma);
         }
-      } catch (e) {
-        console.warn("[push-notifica] FCM non disponibile:", e instanceof Error ? e.message : e);
+      } catch {
+        console.warn("[push-notifica] Servizio nativo non disponibile su", piattaforma);
       }
-    }
+    }));
     return json(200, { ok: true, destinatari: utenti.length, iscrizioni: iscrizioni?.length ?? 0, inviate, scadute, native });
   } catch (e) {
     console.error("[push-notifica]", e);
