@@ -107,9 +107,10 @@ export function useMezzi() {
 
 export function useMezzo(id: string | undefined) {
   const companyId = useEffectiveCompanyId();
+  const { user } = useAuth();
   return useQuery({
-    queryKey: chiavi.scheda(id),
-    enabled: !!id && !!companyId,
+    queryKey: [...chiavi.scheda(id), companyId, user?.id],
+    enabled: !!id && !!companyId && !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mezzi")

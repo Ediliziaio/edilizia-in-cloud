@@ -50,8 +50,12 @@ export default function OfflineBanner(): JSX.Element | null {
     void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
     void queryClient.invalidateQueries({ queryKey: viaggiKey(esito.companyId) });
     if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
-    if (esito.avvisoMezzi) toast.warning("Rapportino inviato. Comunica all’ufficio le rilevazioni e dove hai lasciato mezzi e attrezzature.");
-    toast.success(esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato");
+    const inviato = esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato";
+    if (esito.avvisoMezzi) {
+      toast.warning(inviato, { description: "Alcune rilevazioni dei mezzi non sono state salvate. Comunica all’ufficio i dati e dove hai lasciato le attrezzature." });
+    } else {
+      toast.success(inviato);
+    }
     if (esito.id && esito.pdf) void notifyRapportinoPdf(esito.id, esito.orderId, queryClient);
   }), [companyId, queryClient, user?.id]);
 

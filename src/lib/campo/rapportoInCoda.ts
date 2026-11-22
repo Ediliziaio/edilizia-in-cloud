@@ -138,10 +138,11 @@ async function inviaRapporto(payload: RapportoInCoda, operationId: string): Prom
   let avvisoMezzi = false;
   if (mezzi.length) {
     try {
-      const { error } = await supabase.rpc("campo_mezzi_fine_giornata", {
+      const { data: registrati, error } = await supabase.rpc("campo_mezzi_fine_giornata", {
         p_order_id: order_id, p_giorno: giorno, p_righe: mezzi, p_rapportino_id: id,
       });
       if (error) throw erroreInvioCampo(error);
+      avvisoMezzi = registrati !== mezzi.length;
     } catch (error) {
       // Una richiesta interrotta va ripresa con lo stesso rapporto, senza un secondo inserimento.
       const errore = erroreInvioCampo(error);

@@ -12,7 +12,8 @@ const demoMimit = scenario === "mimit-demo";
 const commessaLunga = scenario === "commessa-lunga";
 const carburanteDemo = scenario === "carburante" || demoMimit || commessaLunga;
 const usaPartenze = ["partenze", "giro", "copertura", "ritardo", "flotta"].includes(scenario);
-const demoAttrezzature = scenario === "attrezzature-rapportino";
+const demoAttrezzature = scenario === "attrezzature-rapportino" ||
+  /^\/azienda\/mezzi\/flotta-(trapano|tagliapiastrelle|laser|ponteggio)$/.test(globalThis.location?.pathname ?? "");
 const rapportoDemoId = "rapportino-demo-mezzi";
 let salvaRigheDemo = [];
 let schemaRapportoDemo = null;
@@ -114,11 +115,18 @@ const storicoDate = [
   { id: "h-b", order_id: "cm-b", status_id: faseConclusa, changed_at: `${annoDemo}-09-19T10:00:00Z` },
   { id: "h-b-old", order_id: "cm-b", status_id: faseConclusa, changed_at: `${annoDemo - 1}-09-19T10:00:00Z` },
 ];
+const attrezziDemo = [
+  { id: "flotta-trapano", nome: nomeTrapanoDemo, su_mezzo_id: "flotta-furgone", sopra: { nome: "Furgone Alfa" } },
+  { id: "flotta-tagliapiastrelle", nome: "Tagliapiastrelle" },
+  { id: "flotta-laser", nome: "Livello laser" },
+  { id: "flotta-ponteggio", nome: "Ponteggio modulare", gestione: "quantita", quantita_totale: 22, unita_misura: "pezzi" },
+].map(a => ({ tipo: "attrezzatura", contatore_unita: "nessuno", ...a }));
 export const flotta = [
   { id: "flotta-furgone", nome: "Furgone Alfa", targa: "AB123CD", tipo: "furgone", contatore_unita: "km", contatore: 14832.4, marca: "Fiat", modello: "Ducato" },
   { id: "flotta-escavatore", nome: "Escavatore Beta", tipo: "macchina_movimento_terra", contatore_unita: "ore", contatore: 812.4 },
   { id: "flotta-auto", nome: "Auto Gamma", targa: "DE456FG", tipo: "autovettura", contatore_unita: "km" },
-].map(m => ({ ...m, company_id: company, stato: "in_servizio", gestione: "singola", classe: "mezzo", possesso: commessaLunga ? (m.id === "flotta-furgone" ? "noleggio_breve" : m.id === "flotta-auto" ? "leasing" : "proprieta") : "proprieta", deleted_at: null }));
+  ...(demoAttrezzature ? attrezziDemo : []),
+].map(m => ({ gestione: "singola", ...m, company_id: company, stato: "in_servizio", classe: m.tipo === "attrezzatura" ? "attrezzatura" : "mezzo", possesso: commessaLunga ? (m.id === "flotta-furgone" ? "noleggio_breve" : m.id === "flotta-auto" ? "leasing" : "proprieta") : "proprieta", deleted_at: null }));
 const dataPrima = giorni => new Date(Date.parse(giorno) - giorni * 86400000).toISOString().slice(0, 10);
 const sede = { ...sedeDemo, fonte: "Sede operativa configurata" };
 const cantiereA = { ...sitoA, fonte: "Posizione del cantiere" };
