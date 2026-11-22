@@ -521,7 +521,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     <div ref={testaFasi} aria-hidden="true" className="scroll-mt-4" />
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Economia" }, { key: "4", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, !!bozza.voci.length && !invalide && !erroreIva && !sconto.errore, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
-      onSelect={n => cambiaFase(Number(n))} className={`max-md:sticky max-md:z-30 ${STICKY_ALTO}`} ariaLabel="Fasi del preventivo / computo metrico" />
+      onSelect={n => cambiaFase(Number(n))} className={`max-lg:sticky max-lg:z-30 ${STICKY_ALTO}`} ariaLabel="Fasi del preventivo / computo metrico" />
     <input type="file" aria-label="File bozza computo" ref={importInput} accept=".json" hidden onChange={async e => {
       const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
       setCaricando(true);
@@ -632,14 +632,14 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
       {daFirmare && <Suspense fallback={null}><FirmatoSuCartaDialog open onOpenChange={(o) => { if (!o) setDaFirmare(null); }} quote={daFirmare}
         onFirmato={() => { const id = daFirmare.id; setDaFirmare(null); firmaOnline?.onApriCommessa?.(id); }} /></Suspense>}
     </fieldset>
-    <nav aria-label="Navigazione fasi" className={`flex items-center justify-between gap-2 border-t pt-4 max-md:sticky max-md:z-20 max-md:rounded-lg max-md:border max-md:bg-white max-md:p-2 max-md:shadow-md ${STICKY_BASSO}`}>
-      <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)}><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>
-      {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step + 1)}>Avanti</QuotePrimaryButton>}
+    </CorpoPreventivatore>
+    <nav aria-label="Navigazione fasi" className={`flex items-center justify-between gap-2 border-t pt-4 max-lg:sticky max-lg:z-30 max-lg:rounded-lg max-lg:border max-lg:bg-white max-lg:p-2 max-lg:shadow-md ${STICKY_BASSO}`}>
+      <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)} className="min-h-11"><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>
+      {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step + 1)} className="min-h-11">Avanti</QuotePrimaryButton>}
       {step === 4 && <QuotePrimaryButton disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
         {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
       </QuotePrimaryButton>}
     </nav>
-    </CorpoPreventivatore>
     {revisioniAperte && <ComputoRevisioni bozza={bozza} open onOpenChange={setRevisioniAperte} onChange={cambiaParte} />}
     {aiAperta && ai && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}>
       <ComputoSilvioAi open bozza={bozza} fileIniziale={fileChat} companyId={ai.companyId} draftId={ai.draftId} intestazione={intestazione}

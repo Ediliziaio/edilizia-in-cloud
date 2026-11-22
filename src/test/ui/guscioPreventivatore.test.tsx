@@ -1,3 +1,4 @@
+import { FvFooter } from "@/lib/fotovoltaico/wizardUI";
 /**
  * Il guscio comune dei preventivatori: barra delle fasi (con totale), anteprima
  * veloce, pannello con gli interruttori, piede. Si prova ciò che l'utente vede e
@@ -250,6 +251,23 @@ describe("CorpoPreventivatore e piede", () => {
     expect(screen.getByRole("status").textContent).toContain("Solo su questo dispositivo");
     rerender(<StatoDelSalvataggio stato="modifiche" />);
     expect(screen.getByRole("status").textContent).toContain("Modifiche non salvate");
+  });
+
+  it("nel Fotovoltaico Salva e Avanti restano azioni distinte nella barra con l’avviso", () => {
+    const salva = vi.fn();
+    const avanti = vi.fn();
+    const footer = render(<FvFooter autoSaveState="idle" onSaveDraft={salva} onNext={avanti}
+      nextDisabled avviso="Inserisci l’indirizzo." />);
+    const salvaBozza = screen.getByRole("button", { name: "Salva bozza" });
+    const prossima = screen.getByRole("button", { name: "Avanti" });
+    expect(prossima).toBeDisabled();
+    expect(prossima.closest('[data-ui="piede-preventivatore"]')).toHaveTextContent("Inserisci l’indirizzo.");
+    fireEvent.click(salvaBozza);
+    expect(salva).toHaveBeenCalledOnce();
+    expect(avanti).not.toHaveBeenCalled();
+    footer.rerender(<FvFooter autoSaveState="saved" onSaveDraft={salva} onNext={avanti} />);
+    fireEvent.click(prossima);
+    expect(avanti).toHaveBeenCalledOnce();
   });
 
   it("il piede tiene lo stato a sinistra e le azioni a destra", () => {

@@ -3,6 +3,7 @@ import { FvGoogleSolarPanel } from "./tetto/FvGoogleSolarPanel";
 import { FvVerificaMisure } from "./tetto/FvVerificaMisure";
 import type { FotoSolarFv } from "../../../supabase/functions/_shared/fvGoogleSolar";
 import { type PointerEvent, useRef, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import "./FvMappaTetto.css";
 import {
   type DimensioniMappaGoogleFv,
@@ -76,6 +77,7 @@ export function FvMappaTetto(
     onChange,
   }: Props,
 ) {
+  const mappaCompatta = useIsMobile(1024);
   const [centro, aggiornaCentro] = useState(
       riferimento?.posizione ?? piano?.mappa?.origine ?? ricerca,
     ),
@@ -283,18 +285,18 @@ export function FvMappaTetto(
   };
   return (
     <section
-      className="fv-mappa-editor rounded-2xl border border-slate-200 bg-white p-4 mb-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
+      className="fv-mappa-editor mb-3 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3 lg:p-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11"
       aria-label="Selezione tetto e falde sulla mappa"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">
-            Il tetto, direttamente sulla mappa
+            Tetto sulla mappa
           </h3>
-          <p className="mt-1 text-sm text-slate-500">{indirizzo}</p>
+          <p className="mt-0.5 break-words text-xs text-slate-500">{indirizzo}</p>
         </div>
         <ol
-          className="flex flex-wrap gap-2 text-xs"
+          className="hidden flex-wrap gap-2 text-xs lg:flex"
           aria-label="Passaggi del disegno"
         >
           {["1. Trova il tetto", "2. Traccia le falde", "3. Conferma"].map((
@@ -315,583 +317,601 @@ export function FvMappaTetto(
         </ol>
       </div>
       <div className="fv-mappa-lavoro mt-3">
-        <div className="fv-mappa-vista">
-          {satellite.caricando && (
-            <p role="status">Caricamento della vista satellitare…</p>
-          )}
-          {satellite.errore && (
-            <p role="status" className="mb-3 text-sm text-amber-800">
-              {satellite.errore}{" "}
-              <button
+        <div className="fv-mappa-principale">
+          <div className="fv-mappa-strumenti">
+            <div
+              className="fv-mappa-tools"
+              role="toolbar"
+              aria-label="Strumenti della mappa"
+            >
+              <Button
                 type="button"
-                className="underline"
-                onClick={() =>
-                  setTentativoMappa((t) =>
-                    t + 1
-                  )}
+                variant={tool === "sposta" ? "default" : "outline"}
+                aria-pressed={tool === "sposta"}
+                aria-label="Sposta mappa"
+                onClick={() => setTool("sposta")}
               >
-                Riprova mappa
-              </button>
-            </p>
-          )}
-          <div
-            className="fv-mappa-canvas rounded-xl border bg-slate-100"
-          >
-            <MappaGoogleFv
-              key={tentativoMappa}
-              centro={centro}
-              zoom={zoom}
-              comandoVista={comandoVista}
-              navigabile={tool === "sposta"}
-              onStato={setSatellite}
-              onDimensioni={(d) =>
-                setDimensioni((p) =>
-                  Math.abs(p.w - d.w) < .5 && Math.abs(p.h - d.h) < .5 ? p : d
-                )}
-              onVista={(c, z) => {
-                aggiornaCentro((p) =>
-                  Math.abs(p.lat - c.lat) < 1e-9 &&
-                    Math.abs(p.lng - c.lng) < 1e-9
-                    ? p
-                    : c
-                );
-                aggiornaZoom(z);
-              }}
-            />
-            <FvFotoSolar foto={fotoSolar} centro={centro} zoom={zoom} w={dimensioni.w} h={dimensioni.h}/>
-            <svg
-              ref={svg}
-              viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
-              className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-              style={{
-                display: "block",
-                background: "transparent",
-                clipPath: satellite.pronto ? "inset(0 0 28px 0)" : undefined,
-                pointerEvents: satellite.pronto && tool === "sposta"
-                  ? "none"
-                  : "auto",
-                touchAction: "none",
-                cursor: tool === "sposta"
-                  ? "grab"
-                  : tool === "pin" || tool === "poligono" ||
-                      tool === "rettangolo"
-                  ? "crosshair"
-                  : "default",
-              }}
-              tabIndex={0}
-              role="group"
-              aria-label="Mappa satellitare: scegli il tetto o disegna una falda"
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  annullaTrascinamento();
+                <Hand aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Mappa</span><span className="fv-comando-esteso">Sposta mappa</span>
+              </Button>
+              <Button
+                type="button"
+                variant={tool === "pin" ? "default" : "outline"}
+                aria-pressed={tool === "pin"}
+                aria-label="Scegli o sposta il pin"
+                disabled={!modificabile}
+                onClick={() => setTool("pin")}
+              >
+                <MapPin aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Pin</span><span className="fv-comando-esteso">Pin del tetto</span>
+              </Button>
+              <Button
+                type="button"
+                variant={tool === "poligono" ? "default" : "outline"}
+                aria-pressed={tool === "poligono"}
+                aria-label="Disegna falda"
+                disabled={!modificabile || !confermato}
+                onClick={() => {
+                  setTool("poligono");
+                  setPunti([]);
+                  setCursore(null);
+                }}
+              >
+                <PenTool aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Disegna</span><span className="fv-comando-esteso">Disegna falda</span>
+              </Button>
+              <Button
+                type="button"
+                variant={tool === "rettangolo" ? "default" : "outline"}
+                aria-pressed={tool === "rettangolo"}
+                aria-label="Falda rettangolare"
+                disabled={!modificabile || !confermato ||
+                  !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
+                    altezza <= 100 && Math.abs(rotazione) <= 180)}
+                onClick={() => {
+                  setTool("rettangolo");
+                  setPunti([]);
+                  setCursore(null);
+                }}
+              >
+                <RectangleHorizontal aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Rettangolo</span><span className="fv-comando-esteso">Rettangolo rapido</span>
+              </Button>
+              <Button
+                type="button"
+                variant={tool === "modifica" ? "default" : "outline"}
+                aria-pressed={tool === "modifica"}
+                aria-label="Seleziona e sposta"
+                disabled={!confermato}
+                onClick={() => setTool("modifica")}
+              >
+                <MousePointer2 aria-hidden="true" className="size-4 shrink-0" /><span className="fv-comando-breve">Modifica</span><span className="fv-comando-esteso">Modifica falde</span>
+              </Button>
+
+            </div>
+            <div className="fv-mappa-aiuto">
+              <p role="status" className="text-xs leading-relaxed text-slate-600">
+                {tool === "poligono"
+                  ? punti.length ? `${punti.length} ${punti.length === 1 ? "vertice" : "vertici"} · Tocca gli angoli.` : "Tocca gli angoli della falda."
+                  : tool === "rettangolo"
+                  ? "Tocca il centro della falda."
+                  : tool === "pin"
+                  ? falde.length ? "Sposta il pin. Le falde lo seguono." : "Tocca il tetto per posizionare il pin."
+                  : tool === "sposta"
+                  ? satellite.pronto && mappaCompatta ? "Usa due dita per spostare la mappa." : "Trascina la mappa."
+                  : falde.length ? "Trascina la falda o i suoi vertici." : "Scegli Disegna o Rettangolo."}
+              </p>
+              {(!confermato || tool === "pin") && (
+                <Button
+                  type="button"
+                  disabled={!modificabile}
+                  onClick={() => {
+                    if (!confermato) {
+                      onPosizione({
+                        posizione: pin,
+                        ricerca: { indirizzo, posizione: ricerca },
+                      });
+                    }
+                    setTool("modifica");
+                  }}
+                >
+                  Conferma tetto
+                </Button>
+              )}
+              {!confermato && (riferimento || piano?.mappa) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!modificabile}
+                  onClick={() => {
+                    setPin(origineConfermata);
+                    setTool("modifica");
+                    setErrore("");
+                  }}
+                >
+                  Annulla spostamento del tetto
+                </Button>
+              )}
+              {tool === "poligono" && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!punti.length}
+                    onClick={() => setPunti((v) => v.slice(0, -1))}
+                  >
+                    Annulla vertice
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={punti.length < 3}
+                    onClick={() => aggiungi(punti)}
+                  >
+                    Chiudi falda
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="fv-mappa-vista">
+            {satellite.caricando && (
+              <p role="status">Caricamento della vista satellitare…</p>
+            )}
+            {satellite.errore && (
+              <p role="status" className="mb-3 text-sm text-amber-800">
+                {satellite.errore}{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() =>
+                    setTentativoMappa((t) =>
+                      t + 1
+                    )}
+                >
+                  Riprova mappa
+                </button>
+              </p>
+            )}
+            <div
+              className="fv-mappa-canvas rounded-xl border bg-slate-100"
+            >
+              <MappaGoogleFv
+                key={tentativoMappa}
+                centro={centro}
+                zoom={zoom}
+                comandoVista={comandoVista}
+                navigabile={tool === "sposta"}
+                gestoCooperativo={mappaCompatta}
+                onStato={setSatellite}
+                onDimensioni={(d) =>
+                  setDimensioni((p) =>
+                    Math.abs(p.w - d.w) < .5 && Math.abs(p.h - d.h) < .5 ? p : d
+                  )}
+                onVista={(c, z) => {
+                  aggiornaCentro((p) =>
+                    Math.abs(p.lat - c.lat) < 1e-9 &&
+                      Math.abs(p.lng - c.lng) < 1e-9
+                      ? p
+                      : c
+                  );
+                  aggiornaZoom(z);
+                }}
+              />
+              <FvFotoSolar foto={fotoSolar} centro={centro} zoom={zoom} w={dimensioni.w} h={dimensioni.h}/>
+              <svg
+                ref={svg}
+                viewBox={`0 0 ${dimensioni.w} ${dimensioni.h}`}
+                className="absolute inset-0 h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                style={{
+                  display: "block",
+                  background: "transparent",
+                  clipPath: satellite.pronto ? "inset(0 0 28px 0)" : undefined,
+                  pointerEvents: satellite.pronto && tool === "sposta"
+                    ? "none"
+                    : "auto",
+                  touchAction: "none",
+                  cursor: tool === "sposta"
+                    ? "grab"
+                    : tool === "pin" || tool === "poligono" ||
+                        tool === "rettangolo"
+                    ? "crosshair"
+                    : "default",
+                }}
+                tabIndex={0}
+                role="group"
+                aria-label="Mappa satellitare: scegli il tetto o disegna una falda"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    annullaTrascinamento();
+                    vistaDrag.current = null;
+                    if (pinDrag.current) setPin(pinDrag.current.iniziale);
+                    pinDrag.current = null;
+                    setSpostamento({ x: 0, y: 0 });
+                    setPunti([]);
+                    setCursore(null);
+                    setTool("modifica");
+                  }
+                  if (e.target !== e.currentTarget) return;
+                  if (
+                    modificabile && tool === "poligono" && e.key === "Enter" &&
+                    punti.length >= 3
+                  ) {
+                    e.preventDefault();
+                    aggiungi(punti);
+                  }
+                  if (
+                    modificabile && tool === "poligono" &&
+                    (e.key === "Backspace" || e.key === "Delete")
+                  ) {
+                    e.preventDefault();
+                    setPunti((v) => v.slice(0, -1));
+                  }
+                }}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  if (tool === "sposta") {
+                    vistaDrag.current = { x: e.clientX, y: e.clientY, centro };
+                    svg.current?.setPointerCapture(e.pointerId);
+                    return;
+                  }
+                  if (!modificabile) return;
+                  const p = posizione(e);
+                  if (tool === "pin") {
+                    setPin(p);
+                    pinDrag.current = { iniziale: pin, posizione: p, ancora: p };
+                    svg.current?.setPointerCapture(e.pointerId);
+                    return;
+                  }
+                  if (tool === "rettangolo" && confermato) {
+                    aggiungi(
+                      rettangoloRuotatoFv(
+                        metriDaCoordinate(p, origine),
+                        larghezza,
+                        altezza,
+                        rotazione,
+                      ),
+                    );
+                    return;
+                  }
+                  if (tool === "poligono" && punti.length < 64) {
+                    const pixel = pixelDaCoordinate(
+                        p,
+                        centro,
+                        zoom,
+                        dimensioni.w,
+                        dimensioni.h,
+                      ),
+                      primo = punti.length ? schermo(punti[0]) : null;
+                    if (
+                      punti.length >= 3 && primo &&
+                      Math.hypot(pixel.x - primo.x, pixel.y - primo.y) <= (e.pointerType === "touch" ? 20 : 12)
+                    ) {
+                      aggiungi(punti);
+                      return;
+                    }
+                    const prossimo = e.altKey ? metriDaCoordinate(p, origine) : aggancia(metriDaCoordinate(p, origine), punti);
+                    setPunti((v) => [...v, prossimo]);
+                  }
+                }}
+                onPointerMove={(e) => {
+                  if (vistaDrag.current && svg.current) {
+                    const r = svg.current.getBoundingClientRect(),
+                      d = vistaDrag.current;
+                    setSpostamento({
+                      x: (e.clientX - d.x) * dimensioni.w / r.width,
+                      y: (e.clientY - d.y) * dimensioni.h / r.height,
+                    });
+                    return;
+                  }
+                  if (!modificabile) return;
+                  if (pinDrag.current) {
+                    const d = pinDrag.current;
+                    setPin(
+                      coordinateDaMetri(
+                        metriDaCoordinate(posizione(e), d.ancora),
+                        d.posizione,
+                      ),
+                    );
+                    return;
+                  }
+                  if (tool === "poligono") {
+                    setCursore(
+                      e.altKey ? metriDaCoordinate(posizione(e), origine) : aggancia(metriDaCoordinate(posizione(e), origine), punti),
+                    );
+                  }
+                  if (!drag.current) return;
+                  const d = drag.current,
+                    grezzo = metriDaCoordinate(posizione(e), origine),
+                    p = d.tipo === "vertice" && !e.altKey
+                      ? aggancia(grezzo, [d.punti[(d.i + d.punti.length - 2) % d.punti.length], d.punti[(d.i + d.punti.length - 1) % d.punti.length]], { fid: d.fid, i: d.i }) : grezzo;
+                  aggiornaPunti(
+                    d.fid,
+                    d.tipo === "vertice"
+                      ? d.punti.map((q, i) => i === d.i ? p : q)
+                      : d.punti.map((q) => ({
+                        x: q.x + p.x - d.ancora.x,
+                        y: q.y + p.y - d.ancora.y,
+                      })),
+                  );
+                }}
+                onPointerUp={finisciSpostamento}
+                onPointerCancel={() => {
                   vistaDrag.current = null;
                   if (pinDrag.current) setPin(pinDrag.current.iniziale);
                   pinDrag.current = null;
+                  annullaTrascinamento();
                   setSpostamento({ x: 0, y: 0 });
-                  setPunti([]);
-                  setCursore(null);
-                  setTool("modifica");
-                }
-                if (e.target !== e.currentTarget) return;
-                if (
-                  modificabile && tool === "poligono" && e.key === "Enter" &&
-                  punti.length >= 3
-                ) {
-                  e.preventDefault();
-                  aggiungi(punti);
-                }
-                if (
-                  modificabile && tool === "poligono" &&
-                  (e.key === "Backspace" || e.key === "Delete")
-                ) {
-                  e.preventDefault();
-                  setPunti((v) => v.slice(0, -1));
-                }
-              }}
-              onPointerDown={(e) => {
-                if (e.button !== 0) return;
-                if (tool === "sposta") {
-                  vistaDrag.current = { x: e.clientX, y: e.clientY, centro };
-                  svg.current?.setPointerCapture(e.pointerId);
-                  return;
-                }
-                if (!modificabile) return;
-                const p = posizione(e);
-                if (tool === "pin") {
-                  setPin(p);
-                  pinDrag.current = { iniziale: pin, posizione: p, ancora: p };
-                  svg.current?.setPointerCapture(e.pointerId);
-                  return;
-                }
-                if (tool === "rettangolo" && confermato) {
-                  aggiungi(
-                    rettangoloRuotatoFv(
-                      metriDaCoordinate(p, origine),
-                      larghezza,
-                      altezza,
-                      rotazione,
-                    ),
-                  );
-                  return;
-                }
-                if (tool === "poligono" && punti.length < 64) {
-                  const pixel = pixelDaCoordinate(
-                      p,
+                }}
+              >
+                <g transform={`translate(${spostamento.x} ${spostamento.y})`}>
+                  {falde.map((f) => (
+                    <g key={f.id}>
+                      <polygon
+                        points={serializza(f.punti)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${f.nome}: trascina per spostare`}
+                        aria-pressed={f.id === attiva}
+                        style={{
+                          cursor:
+                            modificabile && tool === "modifica" && confermato
+                              ? "grab"
+                              : undefined,
+                        }}
+                        fill={f.id === attiva ? "#f9731633" : "#10b98122"}
+                        stroke={f.id === attiva ? "#fb923c" : "#34d399"}
+                        strokeWidth={2}
+                        onPointerDown={(e) => {
+                          if (
+                            e.button === 0 && tool === "modifica" && confermato
+                          ) {
+                            e.stopPropagation();
+                            setAttiva(f.id);
+                            if (modificabile) {
+                              drag.current = {
+                                tipo: "falda",
+                                fid: f.id,
+                                ancora: metriDaCoordinate(posizione(e), origine),
+                                punti: f.punti,
+                              };
+                              svg.current?.setPointerCapture(e.pointerId);
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setAttiva(f.id);
+                          }
+                          if (
+                            !modificabile || tool !== "modifica" || !confermato
+                          ) return;
+                          const passo = e.shiftKey ? 1 : .1;
+                          const mosse: Record<string, PuntoFv> = {
+                            ArrowLeft: { x: -passo, y: 0 },
+                            ArrowRight: { x: passo, y: 0 },
+                            ArrowUp: { x: 0, y: passo },
+                            ArrowDown: { x: 0, y: -passo },
+                          };
+                          const d = mosse[e.key];
+                          if (d) {
+                            e.preventDefault();
+                            aggiornaPunti(
+                              f.id,
+                              f.punti.map((p) => ({
+                                x: p.x + d.x,
+                                y: p.y + d.y,
+                              })),
+                            );
+                          }
+                        }}
+                      />
+                      {f.id === attiva && tool === "modifica" && confermato &&
+                        f.punti.map((p, i) => {
+                          const q = schermo(p);
+                          return (
+                            <g
+                              key={i}
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`${f.nome}, vertice ${i + 1}`}
+                              style={{
+                                cursor: modificabile && tool === "modifica" &&
+                                    confermato
+                                  ? "move"
+                                  : undefined,
+                              }}
+                              onPointerDown={(e) => {
+                                if (
+                                  e.button !== 0 || !modificabile ||
+                                  tool !== "modifica" || !confermato
+                                ) return;
+                                e.stopPropagation();
+                                setAttiva(f.id);
+                                drag.current = {
+                                  tipo: "vertice",
+                                  fid: f.id,
+                                  i,
+                                  punti: f.punti,
+                                };
+                                svg.current?.setPointerCapture(e.pointerId);
+                              }}
+                              onKeyDown={(e) => {
+                                if (
+                                  !modificabile || tool !== "modifica" ||
+                                  !confermato
+                                ) return;
+                                const moves: Record<string, PuntoFv> = {
+                                  ArrowLeft: { x: -.1, y: 0 },
+                                  ArrowRight: { x: .1, y: 0 },
+                                  ArrowUp: { x: 0, y: .1 },
+                                  ArrowDown: { x: 0, y: -.1 },
+                                };
+                                if (moves[e.key]) {
+                                  e.preventDefault();
+                                  const d = moves[e.key];
+                                  aggiornaPunti(
+                                    f.id,
+                                    f.punti.map((r, j) =>
+                                      j === i ? { x: r.x + d.x, y: r.y + d.y } : r
+                                    ),
+                                  );
+                                }
+                              }}
+                            >
+                              <circle
+                                cx={q.x}
+                                cy={q.y}
+                                r={22}
+                                fill="transparent"
+                              />
+                              <circle
+                                cx={q.x}
+                                cy={q.y}
+                                r={5}
+                                fill="white"
+                                stroke="#0f766e"
+                                pointerEvents="none"
+                              />
+                            </g>
+                          );
+                        })}
+                    </g>
+                  ))}
+                  {punti.length > 0 && (
+                    <polyline
+                      points={serializza(cursore ? [...punti, cursore] : punti)}
+                      fill="none"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                    />
+                  )}
+                  {tool === "poligono" && punti.map((p, i) => {
+                    const q = schermo(p);
+                    return (
+                      <circle
+                        key={i}
+                        cx={q.x}
+                        cy={q.y}
+                        r={i === 0 ? 7 : 4}
+                        fill={i === 0 ? "#f97316" : "white"}
+                        stroke="white"
+                        strokeWidth={2}
+                      />
+                    );
+                  })}
+                  {(() => {
+                    const q = pixelDaCoordinate(
+                      pin,
                       centro,
                       zoom,
                       dimensioni.w,
                       dimensioni.h,
-                    ),
-                    primo = punti.length ? schermo(punti[0]) : null;
-                  if (
-                    punti.length >= 3 && primo &&
-                    Math.hypot(pixel.x - primo.x, pixel.y - primo.y) <= 12
-                  ) {
-                    aggiungi(punti);
-                    return;
-                  }
-                  const prossimo = e.altKey ? metriDaCoordinate(p, origine) : aggancia(metriDaCoordinate(p, origine), punti);
-                  setPunti((v) => [...v, prossimo]);
-                }
-              }}
-              onPointerMove={(e) => {
-                if (vistaDrag.current && svg.current) {
-                  const r = svg.current.getBoundingClientRect(),
-                    d = vistaDrag.current;
-                  setSpostamento({
-                    x: (e.clientX - d.x) * dimensioni.w / r.width,
-                    y: (e.clientY - d.y) * dimensioni.h / r.height,
-                  });
-                  return;
-                }
-                if (!modificabile) return;
-                if (pinDrag.current) {
-                  const d = pinDrag.current;
-                  setPin(
-                    coordinateDaMetri(
-                      metriDaCoordinate(posizione(e), d.ancora),
-                      d.posizione,
-                    ),
-                  );
-                  return;
-                }
-                if (tool === "poligono") {
-                  setCursore(
-                    e.altKey ? metriDaCoordinate(posizione(e), origine) : aggancia(metriDaCoordinate(posizione(e), origine), punti),
-                  );
-                }
-                if (!drag.current) return;
-                const d = drag.current,
-                  grezzo = metriDaCoordinate(posizione(e), origine),
-                  p = d.tipo === "vertice" && !e.altKey
-                    ? aggancia(grezzo, [d.punti[(d.i + d.punti.length - 2) % d.punti.length], d.punti[(d.i + d.punti.length - 1) % d.punti.length]], { fid: d.fid, i: d.i }) : grezzo;
-                aggiornaPunti(
-                  d.fid,
-                  d.tipo === "vertice"
-                    ? d.punti.map((q, i) => i === d.i ? p : q)
-                    : d.punti.map((q) => ({
-                      x: q.x + p.x - d.ancora.x,
-                      y: q.y + p.y - d.ancora.y,
-                    })),
-                );
-              }}
-              onPointerUp={finisciSpostamento}
-              onPointerCancel={() => {
-                vistaDrag.current = null;
-                if (pinDrag.current) setPin(pinDrag.current.iniziale);
-                pinDrag.current = null;
-                annullaTrascinamento();
-                setSpostamento({ x: 0, y: 0 });
-              }}
-            >
-              <g transform={`translate(${spostamento.x} ${spostamento.y})`}>
-                {falde.map((f) => (
-                  <g key={f.id}>
-                    <polygon
-                      points={serializza(f.punti)}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`${f.nome}: trascina per spostare`}
-                      aria-pressed={f.id === attiva}
-                      style={{
-                        cursor:
-                          modificabile && tool === "modifica" && confermato
-                            ? "grab"
-                            : undefined,
-                      }}
-                      fill={f.id === attiva ? "#f9731633" : "#10b98122"}
-                      stroke={f.id === attiva ? "#fb923c" : "#34d399"}
-                      strokeWidth={2}
-                      onPointerDown={(e) => {
-                        if (
-                          e.button === 0 && tool === "modifica" && confermato
-                        ) {
+                    );
+                    return (
+                      <g
+                        transform={`translate(${q.x} ${q.y})`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Pin del tetto"
+                        style={{ cursor: modificabile ? "grab" : undefined }}
+                        onPointerDown={(e) => {
+                          if (
+                            e.button !== 0 || !modificabile ||
+                            (tool !== "pin" && tool !== "modifica")
+                          ) return;
                           e.stopPropagation();
-                          setAttiva(f.id);
-                          if (modificabile) {
-                            drag.current = {
-                              tipo: "falda",
-                              fid: f.id,
-                              ancora: metriDaCoordinate(posizione(e), origine),
-                              punti: f.punti,
-                            };
-                            svg.current?.setPointerCapture(e.pointerId);
-                          }
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setAttiva(f.id);
-                        }
-                        if (
-                          !modificabile || tool !== "modifica" || !confermato
-                        ) return;
-                        const passo = e.shiftKey ? 1 : .1;
-                        const mosse: Record<string, PuntoFv> = {
-                          ArrowLeft: { x: -passo, y: 0 },
-                          ArrowRight: { x: passo, y: 0 },
-                          ArrowUp: { x: 0, y: passo },
-                          ArrowDown: { x: 0, y: -passo },
-                        };
-                        const d = mosse[e.key];
-                        if (d) {
-                          e.preventDefault();
-                          aggiornaPunti(
-                            f.id,
-                            f.punti.map((p) => ({
-                              x: p.x + d.x,
-                              y: p.y + d.y,
-                            })),
-                          );
-                        }
-                      }}
-                    />
-                    {f.id === attiva && tool === "modifica" && confermato &&
-                      f.punti.map((p, i) => {
-                        const q = schermo(p);
-                        return (
-                          <g
-                            key={i}
-                            tabIndex={0}
-                            role="button"
-                            aria-label={`${f.nome}, vertice ${i + 1}`}
-                            style={{
-                              cursor: modificabile && tool === "modifica" &&
-                                  confermato
-                                ? "move"
-                                : undefined,
-                            }}
-                            onPointerDown={(e) => {
-                              if (
-                                e.button !== 0 || !modificabile ||
-                                tool !== "modifica" || !confermato
-                              ) return;
-                              e.stopPropagation();
-                              setAttiva(f.id);
-                              drag.current = {
-                                tipo: "vertice",
-                                fid: f.id,
-                                i,
-                                punti: f.punti,
-                              };
-                              svg.current?.setPointerCapture(e.pointerId);
-                            }}
-                            onKeyDown={(e) => {
-                              if (
-                                !modificabile || tool !== "modifica" ||
-                                !confermato
-                              ) return;
-                              const moves: Record<string, PuntoFv> = {
-                                ArrowLeft: { x: -.1, y: 0 },
-                                ArrowRight: { x: .1, y: 0 },
-                                ArrowUp: { x: 0, y: .1 },
-                                ArrowDown: { x: 0, y: -.1 },
-                              };
-                              if (moves[e.key]) {
-                                e.preventDefault();
-                                const d = moves[e.key];
-                                aggiornaPunti(
-                                  f.id,
-                                  f.punti.map((r, j) =>
-                                    j === i ? { x: r.x + d.x, y: r.y + d.y } : r
-                                  ),
-                                );
-                              }
-                            }}
-                          >
-                            <circle
-                              cx={q.x}
-                              cy={q.y}
-                              r={22}
-                              fill="transparent"
-                            />
-                            <circle
-                              cx={q.x}
-                              cy={q.y}
-                              r={5}
-                              fill="white"
-                              stroke="#0f766e"
-                              pointerEvents="none"
-                            />
-                          </g>
-                        );
-                      })}
-                  </g>
-                ))}
-                {punti.length > 0 && (
-                  <polyline
-                    points={serializza(cursore ? [...punti, cursore] : punti)}
-                    fill="none"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                  />
-                )}
-                {tool === "poligono" && punti.map((p, i) => {
-                  const q = schermo(p);
-                  return (
-                    <circle
-                      key={i}
-                      cx={q.x}
-                      cy={q.y}
-                      r={i === 0 ? 7 : 4}
-                      fill={i === 0 ? "#f97316" : "white"}
-                      stroke="white"
-                      strokeWidth={2}
-                    />
-                  );
-                })}
-                {(() => {
-                  const q = pixelDaCoordinate(
-                    pin,
-                    centro,
-                    zoom,
-                    dimensioni.w,
-                    dimensioni.h,
-                  );
-                  return (
-                    <g
-                      transform={`translate(${q.x} ${q.y})`}
-                      role="button"
-                      tabIndex={0}
-                      aria-label="Pin del tetto"
-                      style={{ cursor: modificabile ? "grab" : undefined }}
-                      onPointerDown={(e) => {
-                        if (
-                          e.button !== 0 || !modificabile ||
-                          (tool !== "pin" && tool !== "modifica")
-                        ) return;
-                        e.stopPropagation();
-                        setTool("pin");
-                        pinDrag.current = {
-                          iniziale: pin,
-                          posizione: pin,
-                          ancora: posizione(e),
-                        };
-                        svg.current?.setPointerCapture(e.pointerId);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!modificabile) return;
-                        const passo = e.shiftKey ? 1 : .1;
-                        const mosse: Record<string, PuntoFv> = {
-                          ArrowLeft: { x: -passo, y: 0 },
-                          ArrowRight: { x: passo, y: 0 },
-                          ArrowUp: { x: 0, y: passo },
-                          ArrowDown: { x: 0, y: -passo },
-                        };
-                        const d = mosse[e.key];
-                        if (d) {
-                          e.preventDefault();
                           setTool("pin");
-                          setPin(coordinateDaMetri(d, pin));
-                        }
-                      }}
+                          pinDrag.current = {
+                            iniziale: pin,
+                            posizione: pin,
+                            ancora: posizione(e),
+                          };
+                          svg.current?.setPointerCapture(e.pointerId);
+                        }}
+                        onKeyDown={(e) => {
+                          if (!modificabile) return;
+                          const passo = e.shiftKey ? 1 : .1;
+                          const mosse: Record<string, PuntoFv> = {
+                            ArrowLeft: { x: -passo, y: 0 },
+                            ArrowRight: { x: passo, y: 0 },
+                            ArrowUp: { x: 0, y: passo },
+                            ArrowDown: { x: 0, y: -passo },
+                          };
+                          const d = mosse[e.key];
+                          if (d) {
+                            e.preventDefault();
+                            setTool("pin");
+                            setPin(coordinateDaMetri(d, pin));
+                          }
+                        }}
+                      >
+                        <circle cy={-16} r={22} fill="transparent" />
+                        <path
+                          d="M0 0C-4 -7 -12 -13 -12 -22A12 12 0 0 1 12 -22C12 -13 4 -7 0 0Z"
+                          fill="#ef4444"
+                          stroke="white"
+                          strokeWidth={2}
+                        />
+                        <circle cy={-22} r={4} fill="white" />
+                      </g>
+                    );
+                  })()}
+                </g>
+              </svg>
+              <div className="fv-mappa-zoom">
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label="Avvicina"
+                  disabled={zoom >= 21}
+                  onClick={() => setZoom((z) => z + 1)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label="Allontana"
+                  disabled={zoom <= 17}
+                  onClick={() => setZoom((z) => z - 1)}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label="Centra sul tetto"
+                  onClick={() => setCentro(pin)}
+                >
+                  <LocateFixed className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              {satellite.pronto ? "Google Maps · Nord in alto" : "Schema metrico · Verifica sul posto"}
+              {fotoSolar && <span> · Foto Google Solar del {fotoSolar.data}</span>}
+            </p>
+            {(errore || erroreGeometria) && (
+              <p role="alert" className="mt-2 text-xs text-red-700">{errore || erroreGeometria}</p>
+            )}
+          </div>
+            {confermato && falde.length > 0 && (
+              <div className="fv-mappa-conferma">
+                    <Button
+                      type="button"
+                      className="w-full whitespace-normal"
+                      disabled={!modificabile || !!erroreGeometria}
+                      onClick={salva}
+                      aria-label={mantieniPannelli ? "Conferma falde e mantieni i pannelli" : "Usa falde e prepara nuova disposizione"}
                     >
-                      <circle cy={-16} r={22} fill="transparent" />
-                      <path
-                        d="M0 0C-4 -7 -12 -13 -12 -22A12 12 0 0 1 12 -22C12 -13 4 -7 0 0Z"
-                        fill="#ef4444"
-                        stroke="white"
-                        strokeWidth={2}
-                      />
-                      <circle cy={-22} r={4} fill="white" />
-                    </g>
-                  );
-                })()}
-              </g>
-            </svg>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Nord in alto · {satellite.pronto
-              ? "Google Maps: vista satellitare interattiva, scala da coordinate geografiche"
-              : "Schema metrico manuale: verifica le misure sul posto"}. {fotoSolar ? `Foto Google Solar del ${fotoSolar.data}, conservata nella proposta.` : "Le immagini Google Maps non sono salvate nel progetto."}
-          </p>
+                      Conferma falde
+                    </Button>
+                    <p className="text-xs text-slate-600">
+                      {contorniInvariati ? "Falde confermate" : "Falde da confermare"}
+                    </p>
+              </div>
+            )}
         </div>
-        <aside className="fv-mappa-laterale" aria-label="Comandi del tetto">
-          <div className="fv-mappa-strumenti">
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Strumenti di disegno</h4>
-            <label className="mb-2 flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={aggancio} onChange={e => setAggancio(e.target.checked)} />Aggancia vertici e allinea i lati</label>
-            {guidaAggancio && <p role="status" className="mb-2 text-xs text-emerald-800">{guidaAggancio} · Alt per muovere liberamente</p>}
-      <div
-        className="fv-mappa-tools"
-        role="toolbar"
-        aria-label="Strumenti della mappa"
-      >
-        <Button
-          type="button"
-          variant={tool === "sposta" ? "default" : "outline"}
-          aria-pressed={tool === "sposta"}
-          onClick={() => setTool("sposta")}
-        >
-          <Hand className="h-4 w-4 shrink-0" />Sposta mappa
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "pin" ? "default" : "outline"}
-          aria-pressed={tool === "pin"}
-          aria-label="Scegli o sposta il pin"
-          disabled={!modificabile}
-          onClick={() => setTool("pin")}
-        >
-          <MapPin className="h-4 w-4 shrink-0" />Pin del tetto
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "poligono" ? "default" : "outline"}
-          aria-pressed={tool === "poligono"}
-          disabled={!modificabile || !confermato}
-          onClick={() => {
-            setTool("poligono");
-            setPunti([]);
-            setCursore(null);
-          }}
-        >
-          <PenTool className="h-4 w-4 shrink-0" />Disegna falda
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "rettangolo" ? "default" : "outline"}
-          aria-pressed={tool === "rettangolo"}
-          aria-label="Falda rettangolare"
-          disabled={!modificabile || !confermato ||
-            !(larghezza >= 1 && larghezza <= 100 && altezza >= 1 &&
-              altezza <= 100 && Math.abs(rotazione) <= 180)}
-          onClick={() => {
-            setTool("rettangolo");
-            setPunti([]);
-            setCursore(null);
-          }}
-        >
-          <RectangleHorizontal className="h-4 w-4 shrink-0" />Rettangolo rapido
-        </Button>
-        <Button
-          type="button"
-          variant={tool === "modifica" ? "default" : "outline"}
-          aria-pressed={tool === "modifica"}
-          aria-label="Seleziona e sposta"
-          disabled={!confermato}
-          onClick={() => setTool("modifica")}
-        >
-          <MousePointer2 className="h-4 w-4 shrink-0" />Modifica falde
-        </Button>
-        <div className="fv-mappa-zoom">
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Avvicina"
-            disabled={zoom >= 21}
-            onClick={() => setZoom((z) => z + 1)}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Allontana"
-            disabled={zoom <= 17}
-            onClick={() => setZoom((z) => z - 1)}
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Centra sul tetto"
-            onClick={() => setCentro(pin)}
-          >
-            <LocateFixed className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="fv-mappa-aiuto">
-        <p role="status" className="text-xs leading-relaxed text-slate-600">
-          {tool === "poligono"
-            ? `${punti.length} vertici · clicca gli angoli e torna sul primo punto per chiudere.`
-            : tool === "rettangolo"
-            ? "Tocca il centro della nuova falda: crea un rettangolo, poi trascinalo e adatta gli angoli."
-            : tool === "pin"
-            ? falde.length
-              ? "Trascina il pin: tutte le falde lo seguono mantenendo le misure. Poi conferma il tetto."
-              : "Clicca sul tetto o trascina il pin, poi conferma la posizione."
-            : tool === "sposta"
-            ? "Trascina la mappa per trovare l’edificio. Il pin indica il tetto scelto."
-            : "Trascina una falda per spostarla, oppure i punti bianchi per correggere gli angoli."}
-        </p>
-        {(!confermato || tool === "pin") && (
-          <Button
-            type="button"
-            disabled={!modificabile}
-            onClick={() => {
-              if (!confermato) {
-                onPosizione({
-                  posizione: pin,
-                  ricerca: { indirizzo, posizione: ricerca },
-                });
-              }
-              setTool("modifica");
-            }}
-          >
-            Conferma tetto
-          </Button>
-        )}
-        {!confermato && (riferimento || piano?.mappa) && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!modificabile}
-            onClick={() => {
-              setPin(origineConfermata);
-              setTool("modifica");
-              setErrore("");
-            }}
-          >
-            Annulla spostamento del tetto
-          </Button>
-        )}
-        {tool === "poligono" && (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!punti.length}
-              onClick={() => setPunti((v) => v.slice(0, -1))}
-            >
-              Annulla vertice
-            </Button>
-            <Button
-              type="button"
-              disabled={punti.length < 3}
-              onClick={() => aggiungi(punti)}
-            >
-              Chiudi falda
-            </Button>
-          </div>
-        )}
-      </div>
-          </div>
           <div className="fv-mappa-dettagli">
             <details className="mb-3">
-              <summary className="cursor-pointer text-sm font-semibold">Migliora foto e misure con Google Solar</summary>
+              <summary className="cursor-pointer text-sm font-semibold">Foto e misure Google Solar</summary>
           <FvGoogleSolarPanel progettoId={progettoId} posizione={pin} mappa={{versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar}} modificabile={modificabile} pannelli={piano?.pannelli.length??0}
             onFoto={foto=>{setFotoSolar(foto);if(piano?.mappa&&contorniInvariati)onChange({...piano,mappa:{...piano.mappa,fotoSolar:foto}});}}
             onMisure={misure => {
@@ -906,13 +926,14 @@ export function FvMappaTetto(
           <h4 className="mb-3 mt-3 text-sm font-semibold text-slate-900">
             Il tuo tetto
           </h4>
-          {!falde.length && (
-            <p className="mb-3 text-sm text-slate-600">
-              {confermato
-                ? "Scegli Falda rettangolare e tocca il tetto, oppure Disegna falda e segui gli angoli. Puoi aggiungere più falde."
-                : "Trova l’edificio e conferma il pin. Poi disegni le falde sulla mappa."}
-            </p>
-          )}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm">Opzioni di disegno</summary>
+            <label className="flex min-h-11 items-center gap-2 text-xs">
+              <input type="checkbox" checked={aggancio} onChange={e => setAggancio(e.target.checked)} />
+              Aggancia vertici e allinea i lati
+            </label>
+            {guidaAggancio && <p role="status" className="text-xs text-emerald-800">{guidaAggancio}</p>}
+          </details>
           <details className="mt-3">
             <summary className="cursor-pointer text-sm">
               Coordinate del tetto e misure rilevate
@@ -1292,41 +1313,14 @@ export function FvMappaTetto(
                       </label>
                     </div>
                   </details>
-                  <p className="mt-3 text-sm text-slate-600">
-                    L’area disponibile per i moduli viene determinata dalla
-                    disposizione effettiva, dopo bordi e ostacoli. Aggiungi
-                    lucernari e camini nell’editor della fase Impianto.
-                  </p>
+
 
                 </>
               )}
             </>
           )}
           </div>
-          {confermato && falde.length > 0 && (
-            <div className="fv-mappa-conferma">
-                  <Button
-                    type="button"
-                    className="w-full whitespace-normal"
-                    disabled={!modificabile || !!erroreGeometria}
-                    onClick={salva}
-                  >
-                    {mantieniPannelli
-                      ? "Conferma falde e mantieni i pannelli"
-                      : "Usa falde e prepara nuova disposizione"}
-                  </Button>
-                  <p className="mt-2 text-xs text-slate-500">
-                    {mantieniPannelli
-                      ? "Misure e contorni sono invariati: i pannelli già disposti vengono mantenuti."
-                      : "Confermando nuovi contorni o margini prepari una nuova posa: nella fase Impianto scegli il modulo e calcola la disposizione."}
-                  </p>
-            </div>
-          )}
-        </aside>
       </div>
-      {(errore || erroreGeometria) && (
-        <p role="alert" className="mt-3 text-sm text-red-700">{errore || erroreGeometria}</p>
-      )}
     </section>
   );
 }

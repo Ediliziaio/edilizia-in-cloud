@@ -4,18 +4,21 @@ import { cn } from "@/lib/utils";
 
 /** Accesso diretto alle fasi anche quando la striscia scorre su telefono e tablet. */
 export function SelettoreFase({ passi, corrente, onSelect }: {
-  passi: Array<{ key: string; label: string; bloccato?: boolean; completato?: boolean; avviso?: boolean }>;
+  passi: Array<{ key: string; label: string; breve?: string; bloccato?: boolean; completato?: boolean; avviso?: boolean }>;
   corrente: string;
   onSelect: (key: string) => void;
 }) {
   if (passi.length < 2) return null;
   const indice = Math.max(0, passi.findIndex(p => p.key === corrente));
-  return <div className="ml-1 flex shrink-0 items-center border-l border-slate-200 pl-1 xl:hidden">
+  const passoAttivo = passi[indice];
+  return <div className="flex min-w-0 flex-1 items-center px-2 py-1 lg:ml-1 lg:flex-none lg:border-l lg:border-slate-200 lg:py-0 lg:pl-1 xl:hidden">
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" aria-label={`Scegli passo del preventivo, ${indice + 1} di ${passi.length}`}
-          className="inline-flex min-h-11 min-w-14 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold tabular-nums text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          {indice + 1}/{passi.length}<ChevronDown className="h-4 w-4" aria-hidden="true" />
+          className="inline-flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-slate-900 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:min-w-14 lg:justify-center lg:gap-1">
+          <span className="min-w-0 flex-1 truncate text-left lg:hidden">{passoAttivo.breve ?? passoAttivo.label}</span>
+          <span className="tabular-nums text-slate-600">{indice + 1}/{passi.length}</span>
+          <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[min(70dvh,var(--radix-dropdown-menu-content-available-height))] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain">

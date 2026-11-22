@@ -26,7 +26,7 @@ import { BottoneTotale } from "./BottoneTotale";
 import { CorpoPreventivatore } from "./CorpoPreventivatore";
 import { PannelloAnteprima } from "./PannelloAnteprima";
 import { PiedePreventivatore, StatoDelSalvataggio, type StatoSalvataggio } from "./PiedePreventivatore";
-import { RISERVA_BARRA_INVIO_TELEFONO, STICKY_ALTO } from "./posizione";
+import { BORDI_GUSCIO, RISERVA_BARRA_INVIO_TELEFONO, STICKY_ALTO } from "./posizione";
 import { useAnteprimaNascosta } from "./useAnteprimaNascosta";
 import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "./useModalitaAnteprima";
 
@@ -45,6 +45,7 @@ export interface PiedeGuscioEdile {
   onIndietro: () => void;
   indietroDisabilitato: boolean;
   onAvanti: () => void;
+  onSalva?: () => void;
   /** «Crea e continua», «Salva e continua», «Salva». */
   etichettaAvanti: string;
   avantiDisabilitato: boolean;
@@ -113,7 +114,7 @@ export function GuscioEdile({
 
   return (
     // Al passo PDF da telefono la barra di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
-    <div className={cn("preventivo-touch -m-3 min-h-full bg-slate-50 md:-m-6", piede.nascostoSuTelefono && RISERVA_BARRA_INVIO_TELEFONO)}>
+    <div className={cn("preventivo-touch flex min-h-full flex-col bg-slate-50", BORDI_GUSCIO, piede.nascostoSuTelefono && RISERVA_BARRA_INVIO_TELEFONO)}>
       {sopra}
 
       {/* Testata: codice, stato, cliente, salvataggio. Non è fissa: la barra delle fasi sotto sì. */}
@@ -167,7 +168,7 @@ export function GuscioEdile({
               ) : statoSalvataggio === "errore" ? (
                 // Da telefono il piede non ha lo stato: l'errore del salvataggio si deve vedere comunque.
                 <span className="text-[10px] font-medium text-red-600 max-md:order-5 max-md:text-xs md:hidden" title="Il salvataggio automatico non è riuscito: le modifiche restano qui e si riprova da soli">
-                  ● Salvataggio non riuscito: riprovo da solo
+                  ● Salvataggio non riuscito
                 </span>
               ) : null}
             </div>
@@ -233,18 +234,26 @@ export function GuscioEdile({
           variant="outline"
           onClick={piede.onIndietro}
           disabled={piede.indietroDisabilitato}
-          className="min-h-11 max-md:w-11 max-md:shrink-0 max-md:px-0"
+          className="min-h-11 max-lg:w-11 max-lg:shrink-0 max-lg:px-0"
         >
           {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
-          <ArrowLeft className="mr-1 h-4 w-4 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
+          <ArrowLeft className="mr-1 h-4 w-4 max-lg:mr-0" /> <span className="max-lg:sr-only">Indietro</span>
         </Button>
+        {piede.onSalva && !piede.ultimoPasso && (
+          <Button variant="outline" className="min-h-11 max-sm:px-2.5" onClick={piede.onSalva}
+            disabled={piede.avantiDisabilitato || statoSalvataggio === "salvando"}>
+            Salva
+          </Button>
+        )}
         <Button
           onClick={piede.onAvanti}
           disabled={piede.avantiDisabilitato}
-          className="min-h-11 flex-1 gap-1 bg-orange-500 hover:bg-orange-600 sm:flex-none"
+          aria-label={piede.etichettaAvanti}
+          className="min-h-11 gap-1 bg-orange-500 hover:bg-orange-600 max-sm:px-2.5"
         >
-          {piede.inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : piede.ultimoPasso ? <Save className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
-          {piede.etichettaAvanti}
+          {piede.inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : piede.ultimoPasso ? <Save className="h-4 w-4" /> : <ArrowRight className="h-4 w-4 max-[380px]:hidden" />}
+          <span className="max-lg:hidden">{piede.etichettaAvanti}</span>
+          <span className="lg:hidden">{piede.ultimoPasso ? "Salva" : "Avanti"}</span>
         </Button>
       </PiedePreventivatore>
 

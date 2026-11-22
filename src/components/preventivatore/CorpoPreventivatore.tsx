@@ -27,7 +27,7 @@ export function CorpoPreventivatore({ children, anteprima, anteprimaNascosta, an
   return (
     <div
       className={cn(
-        "grid gap-5 px-4 py-4 sm:px-6 max-md:px-3 max-md:py-3",
+        "grid flex-1 content-start gap-5 px-4 py-4 sm:px-6 max-lg:gap-3 max-lg:px-3 max-lg:py-3",
         conColonna && (anteprimaCompatta ? "lg:grid-cols-[minmax(0,1fr)_clamp(300px,32%,500px)]" : "xl:grid-cols-[minmax(0,1fr)_clamp(300px,26vw,400px)]"),
         className,
       )}

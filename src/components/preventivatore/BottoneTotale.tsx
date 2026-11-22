@@ -15,7 +15,7 @@ export function BottoneTotale({ valore, onClick }: Props) {
       type="button"
       onClick={onClick}
       aria-label={`Totale ${valore}: apri l'anteprima`}
-      className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-left max-[380px]:w-24 max-[380px]:gap-0 max-[380px]:px-2"
+      className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-left max-[380px]:w-[5.75rem] max-[380px]:gap-0 max-[380px]:px-1.5"
     >
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Totale</span>

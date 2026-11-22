@@ -4080,11 +4080,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           flottante 80px, md:hidden, z-40) copriva la parte bassa dell'action
           bar — incluso il CTA "Avanti/Salva" → non tappabile su telefono. Da md
           in su la nav non c'è e l'action bar torna a bottom-0. */}
-      <div className="fixed bottom-[84px] md:bottom-0 left-0 right-0 lg:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
-        <div className="max-w-[1600px] mx-auto px-4 md:pr-36 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 xl:left-[280px] z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
+        <div className="max-w-[1600px] mx-auto px-2.5 sm:px-4 md:pr-36 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Stato salvataggio: solo da sm (su mobile è rumore, sotto c'è il totale) */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500">
               {saving ? (
                 <span className="flex items-center gap-1.5 text-blue-600 font-medium">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
@@ -4109,11 +4109,11 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               size="sm"
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
-              className="h-9 shrink-0"
+              className="min-h-11 shrink-0 max-lg:w-11 max-lg:px-0"
               aria-label="Indietro"
             >
-              <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Indietro</span>
+              <ArrowLeft className="size-4 lg:mr-1.5" />
+              <span className="hidden lg:inline">Indietro</span>
             </Button>
           </div>
 
@@ -4128,22 +4128,22 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
           {/* Telefono: il bottone principale prende il posto che resta. */}
           <div className="flex gap-2 items-center shrink-0 max-sm:flex-1 max-sm:justify-end">
-            {localEditor && <Button size="sm" onClick={localEditor.onBack}>Torna alla chat · modifiche mantenute</Button>}
+            {localEditor && <Button size="sm" onClick={localEditor.onBack}>Chat</Button>}
             {!localEditor && step === STEPS.length - 1 && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleSave("bozza", { anteprima: true })}
                 disabled={saving || anteprimaLoading || !quoteReady}
-                className="h-9"
+                className="min-h-11 max-lg:w-11 max-lg:px-0"
                 aria-label="Salva e apri PDF"
               >
                 {anteprimaLoading ? (
-                  <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 lg:mr-2 animate-spin" />
                 ) : (
-                  <Eye className="h-4 w-4 sm:mr-2" />
+                  <Eye className="h-4 w-4 lg:mr-2" />
                 )}
-                <span className="hidden sm:inline">Salva e apri PDF</span>
+                <span className="hidden lg:inline">Salva e apri PDF</span>
               </Button>
             )}
             {!localEditor && <Button
@@ -4151,24 +4151,24 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               size="sm"
               onClick={() => handleSave("bozza")}
               disabled={saving}
-              className="h-9 text-slate-600"
+              className="min-h-11 px-2.5 text-slate-600"
               aria-label="Salva bozza"
             >
               {saving ? (
-                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 lg:mr-2 animate-spin" />
               ) : (
-                <Save className="h-4 w-4 sm:mr-2" />
+                <Save className="h-4 w-4 max-lg:hidden lg:mr-2" />
               )}
-              <span className="hidden sm:inline">Bozza</span>
+              <span>Salva</span>
             </Button>}
             {step < STEPS.length - 1 ? (
               <button
                 type="button"
                 onClick={handleNext}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 min-h-11 max-sm:flex-1 max-sm:justify-center"
               >
-                Avanti<span className="hidden sm:inline"> · {STEPS[step + 1]?.label}</span>
+                Avanti<span className="hidden lg:inline"> · {STEPS[step + 1]?.label}</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
@@ -4176,7 +4176,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 type="button"
                 onClick={() => localEditor ? localEditor.onBack() : handleSave("bozza", { complete: true })}
                 disabled={saving || !quoteReady}
-                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 min-h-11 max-sm:flex-1 max-sm:justify-center"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

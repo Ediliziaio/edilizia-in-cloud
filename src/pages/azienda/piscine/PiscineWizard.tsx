@@ -546,6 +546,7 @@ export default function PiscineWizard() {
           onIndietro: handleBack,
           indietroDisabilitato: currentStepIndex === 0,
           onAvanti: handleSaveAndContinue,
+          onSalva: isNew ? undefined : () => { void saveProgetto(); },
           etichettaAvanti: isNew ? "Crea e continua" : ultimoPasso ? "Salva" : "Salva e continua",
           avantiDisabilitato: upsertMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported),
           inCorso: upsertMut.isPending || creating,

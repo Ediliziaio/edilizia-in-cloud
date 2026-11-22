@@ -20,6 +20,7 @@ type Props = {
   /** Cambia soltanto per comandi esterni, mai per il ritorno della camera nativa. */
   comandoVista: number;
   navigabile: boolean;
+  gestoCooperativo?: boolean;
   onVista?: (centro: PosizioneMappaFv, zoom: number) => void;
   onDimensioni: (dimensioni: DimensioniMappaGoogleFv) => void;
   onStato: (stato: StatoMappaGoogleFv) => void;
@@ -94,7 +95,7 @@ export function MappaGoogleFv(props: Props) {
           clickableIcons: false,
           keyboardShortcuts: false,
           disableDoubleClickZoom: true,
-          gestureHandling: p.navigabile ? "greedy" : "none",
+          gestureHandling: p.navigabile ? (p.gestoCooperativo ? "cooperative" : "greedy") : "none",
           draggable: p.navigabile,
           scrollwheel: p.navigabile,
           isFractionalZoomEnabled: false,
@@ -174,11 +175,11 @@ export function MappaGoogleFv(props: Props) {
   useEffect(() => {
     const map = mappa.current;
     map?.setOptions({
-      gestureHandling: props.navigabile ? "greedy" : "none",
+      gestureHandling: props.navigabile ? (props.gestoCooperativo ? "cooperative" : "greedy") : "none",
       draggable: props.navigabile,
       scrollwheel: props.navigabile,
     });
-  }, [props.navigabile]);
+  }, [props.navigabile, props.gestoCooperativo]);
   return (
     <div
       ref={host}

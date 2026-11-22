@@ -12,8 +12,10 @@
  */
 
 import { ReactNode, useEffect, useRef } from "react";
-import { Check, Loader2, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { PiedePreventivatore, StatoDelSalvataggio } from "@/components/preventivatore/PiedePreventivatore";
 import { SelettoreFase } from "@/components/preventivatore/SelettoreFase";
 import { TotaleBarra } from "@/components/preventivatore/TotaleBarra";
 
@@ -64,7 +66,7 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
   return (
     <div className={cn("sticky top-0 z-30 bg-white border-b border-slate-200 shadow-[0_1px_0_rgba(15,23,42,0.05)]", className)}>
       <div className="flex items-stretch">
-      <div ref={rigaRef} role="navigation" aria-label="Fasi del preventivo fotovoltaico" className="min-w-0 flex-1 px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-xl:gap-1 max-xl:px-2 max-xl:py-1.5 max-xl:[scrollbar-width:none] lg:max-[1439px]:px-3">
+      <div ref={rigaRef} role="navigation" aria-label="Fasi del preventivo fotovoltaico" className="min-w-0 flex-1 px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-xl:gap-1 max-xl:px-2 max-xl:py-1.5 max-xl:[scrollbar-width:none] lg:max-[1439px]:px-3 max-lg:hidden">
         {tabs.map((t) => {
           const isActive = t.num === current;
           const isCompleted = completed.has(t.num);
@@ -124,18 +126,18 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
         })}
       </div>
       <SelettoreFase corrente={String(current)} onSelect={key => onSelect(Number(key))} passi={tabs.map(t => ({
-        key: String(t.num), label: t.label, completato: completed.has(t.num),
+        key: String(t.num), label: t.label, breve: t.breve, completato: completed.has(t.num),
         bloccato: !(completed.has(t.num) || t.num <= current || allowJumpForward || t.num === current + 1),
       }))} />
       {totale && (
-        <div className="ml-2 flex shrink-0 items-center border-l border-slate-200 pl-4 pr-4 sm:pr-8 max-md:hidden lg:max-[1439px]:pr-3">
+        <div className="ml-2 flex shrink-0 items-center border-l border-slate-200 pl-4 pr-4 sm:pr-8 max-lg:hidden lg:max-[1439px]:pr-3">
           <TotaleBarra totale={totale} />
         </div>
       )}
       </div>
       {/* Progress bar */}
       {/* Telefono: la fase la dicono già le pillole. */}
-      <div className="bg-slate-50 px-4 sm:px-8 py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100 max-md:hidden">
+      <div className="bg-slate-50 px-4 sm:px-8 py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100 max-lg:hidden">
         <span>
           <strong className="text-slate-900">Fase {current} di {tabs.length}</strong> ·{" "}
           {tabs[current - 1]?.label}
@@ -229,7 +231,7 @@ interface FvPanelTitleProps {
 export function FvPanelTitle({ step, totalSteps: _totalSteps, title, subtitle }: FvPanelTitleProps) {
   return (
     // Telefono no: «Fase N — …» ripete il passo già acceso in alto.
-    <div className="mb-6 max-md:hidden">
+    <div className="mb-6 max-lg:sr-only">
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-1 max-md:mb-0 max-md:text-base">
         Fase {step} — {title}
       </h2>
@@ -401,9 +403,7 @@ export function FvChip({ variant = "default", children, icon }: FvChipProps) {
 // ─── FOOTER ACTIONS STICKY (Indietro / Salva bozza / Avanti) ──────────────────
 
 interface FvFooterProps {
-  /** Stato auto-save (verde pulse, oppure spinner durante save) */
   autoSaveState: "idle" | "saving" | "saved" | "error";
-  numero?: string | null;
   lastSaveText?: string;
   onPrev?: () => void;
   onSaveDraft?: () => void;
@@ -411,20 +411,13 @@ interface FvFooterProps {
   prevDisabled?: boolean;
   nextDisabled?: boolean;
   nextLabel?: string;
-  /** Hide back button on first step */
-  showPrev?: boolean;
-  /** Hide next button on last step */
-  showNext?: boolean;
   saving?: boolean;
-  /** Sticky e offset: li decide la pagina. */
-  className?: string;
-  /** Telefono: a sinistra dei bottoni, per esempio il totale che apre l'anteprima. */
+  avviso?: string;
   telefono?: ReactNode;
 }
 
 export function FvFooter({
   autoSaveState,
-  numero,
   lastSaveText,
   onPrev,
   onSaveDraft,
@@ -432,98 +425,40 @@ export function FvFooter({
   prevDisabled,
   nextDisabled,
   nextLabel = "Avanti",
-  showPrev = true,
-  showNext = true,
   saving,
-  className,
+  avviso,
   telefono,
 }: FvFooterProps) {
+  const stato = autoSaveState === "saving" ? "salvando"
+    : autoSaveState === "saved" ? "salvato" : autoSaveState === "error" ? "errore" : "nuovo";
   return (
-    <div className={cn("sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2", className)}>
-      {/* Telefono: lo stato del salvataggio c'è già in testata; restano i tre bottoni. */}
-      <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-1 overflow-hidden whitespace-nowrap max-md:hidden">
-        {autoSaveState === "saving" && (
-          <span className="flex items-center gap-1.5 text-blue-600 font-medium">
-            <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio in corso…
-          </span>
-        )}
-        {autoSaveState === "saved" && (
-          <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Salvataggio automatico
-          </span>
-        )}
-        {autoSaveState === "error" && (
-          <span className="flex items-center gap-1.5 text-red-600 font-medium">
-            <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
-          </span>
-        )}
-        {autoSaveState === "idle" && (
-          <span className="flex items-center gap-1.5 text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
-          </span>
-        )}
-        {lastSaveText && <span className="hidden xl:inline">· {lastSaveText}</span>}
-        {numero && <span className="truncate">· <code className="font-mono text-[11px]">{numero}</code></span>}
-      </div>
-      {telefono && <div className="min-w-0 md:hidden">{telefono}</div>}
-      <div className="flex shrink-0 gap-2 items-center max-md:min-w-0 max-md:flex-1">
-        {showPrev && onPrev && (
-          <button
-            type="button"
-            onClick={onPrev}
-            disabled={prevDisabled || saving}
-            aria-label="Indietro"
-            className={cn(
-              "px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700",
-              "transition-all hover:bg-slate-50 hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0",
-              "min-h-11 min-w-11 max-md:px-3.5",
-            )}
-          >
-            ←<span className="max-md:hidden"> Indietro</span>
-          </button>
-        )}
-        {onSaveDraft && (
-          <button
-            type="button"
-            onClick={onSaveDraft}
-            disabled={saving}
-            className={cn(
-              "px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700",
-              "transition-all hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed",
-              "min-h-11 min-w-11 max-md:px-3",
-            )}
-          >
-            {/* Telefono: solo l'icona, «Avanti» prende la riga. */}
-            <Save className="h-4 w-4 md:hidden" aria-hidden="true" />
-            <span className="max-md:sr-only">Salva</span><span className="max-md:hidden"> bozza</span>
-          </button>
-        )}
-        {showNext && onNext && (
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={nextDisabled || saving}
-            className={cn(
-              "px-5 py-2 text-sm font-bold rounded-lg text-white transition-all",
-              "bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
-              "hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)]",
-              "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none",
-              "min-h-11 whitespace-nowrap max-md:flex-1 max-md:px-3 max-[380px]:px-2",
-            )}
-          >
-            {saving ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Salvataggio…
-              </span>
-            ) : (
-              <><span className="max-sm:hidden">{nextLabel}</span><span className="sm:hidden">{nextLabel === "Vai a generazione" ? "Genera" : nextLabel}</span> →</>
-            )}
-          </button>
-        )}
-      </div>
-    </div>
+    <PiedePreventivatore
+      stato={<StatoDelSalvataggio stato={stato} testo={stato === "salvato" ? lastSaveText : stato === "nuovo" ? "Pronto" : undefined} />}
+      avviso={avviso || (stato === "errore" ? "Salvataggio non riuscito. Riprova con Salva." : undefined)}
+      telefono={telefono}
+    >
+      {onPrev && (
+        <Button type="button" variant="outline" onClick={onPrev} disabled={prevDisabled || saving} aria-label="Indietro"
+          className="min-h-11 max-lg:w-11 max-lg:px-0">
+          <ArrowLeft aria-hidden="true" className="size-4" />
+          <span className="max-lg:hidden">Indietro</span>
+        </Button>
+      )}
+      {onSaveDraft && (
+        <Button type="button" variant="outline" onClick={onSaveDraft} disabled={saving} aria-label="Salva bozza"
+          className="min-h-11 max-sm:px-2.5">
+          Salva<span className="max-lg:hidden"> bozza</span>
+        </Button>
+      )}
+      {onNext && (
+        <Button type="button" onClick={onNext} disabled={nextDisabled || saving} aria-label={nextLabel}
+          className="min-h-11 gap-1 bg-orange-500 text-white hover:bg-orange-600 max-sm:px-2.5">
+          <span className="max-lg:hidden">{nextLabel}</span>
+          <span className="lg:hidden">{nextLabel === "Vai a generazione" ? "Genera" : nextLabel}</span>
+          {saving ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ArrowRight aria-hidden="true" className="size-4 max-[380px]:hidden" />}
+        </Button>
+      )}
+    </PiedePreventivatore>
   );
 }
 

@@ -473,7 +473,7 @@ describe("Disegno diretto sulla mappa", () => {
     pointer(el, "pointerdown", 280, 180);
     pointer(el, "pointerdown", 360, 180);
     fireEvent.keyDown(el, { key: "Backspace" });
-    expect(screen.getByText(/1 vertici/)).toBeTruthy();
+    expect(screen.getByText(/1 vertice/)).toBeTruthy();
     fireEvent.keyDown(el, { key: "Escape" });
     expect(screen.getByRole("button", { name: "Seleziona e sposta" })).toHaveAttribute(
       "aria-pressed",
