@@ -23,7 +23,7 @@ import { useUpdateOpportunityStage, usePipelines, type RiepilogoOpportunita } fr
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { RigaMobile } from "@/components/mobile/FiltriMobile";
+import { GruppoFiltri, RigaMobile, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { toast } from "sonner";
 
 interface ListProps {
@@ -214,37 +214,24 @@ export const OpportunityListView = memo(function OpportunityListView({
       {/* ── MOBILE: righe con filtro per fase ──
           Solo su mobile (prima c'erano entrambe e una delle due nascosta dal
           CSS: su desktop centinaia di schede invisibili nella pagina).
-          Le fasi sono pillole su una riga (nome e numero; erano riquadri da
-          92px con l'importo), le opportunità righe da ~52px: nome, fase e
+          Il selettore nativo mostra il nome e il conteggio di ogni fase.
+          Nelle righe ci sono nome, fase e
           contatto a sinistra, valore e stato a destra. Via le schede da
           quattro righe con etichette, iniziali del venditore e tag: tutto
           nella scheda che si apre col tocco. */}
       {isMobile && (
       <div className="flex flex-col gap-2">
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-none" aria-label="Fasi">
-          {[
-            { id: null as string | null, nome: "Tutte", n: totaleTutte },
-            ...stages.map((stage: any) => ({ id: stage.id as string | null, nome: stage.name as string, n: stageAgg[stage.id]?.count ?? 0 })),
-          ].map((fase) => {
-            const attiva = mobileStageId === fase.id;
-            return (
-              <button
-                key={fase.id ?? "tutte"}
-                type="button"
-                onClick={() => setMobileStageId(fase.id)}
-                aria-pressed={attiva}
-                className={cn(
-                  "tap-compact flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                  attiva ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-background text-slate-700",
-                )}
-              >
-                {fase.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hashColor(fase.nome) }} />}
-                {fase.nome}
-                <span className={cn("tabular-nums", attiva ? "text-white/70" : "text-muted-foreground")}>{formatCount(fase.n)}</span>
-              </button>
-            );
-          })}
-        </div>
+        <GruppoFiltri>
+          <SceltaFiltro
+            titolo="Fase"
+            valore={mobileStageId ?? "all"}
+            onScegli={(value) => setMobileStageId(value === "all" ? null : value)}
+            scelte={[
+              { value: "all", label: `Tutte (${formatCount(totaleTutte)})` },
+              ...stages.map(({ id, name }) => ({ value: id, label: `${name} (${formatCount(stageAgg[id]?.count ?? 0)})` })),
+            ]}
+          />
+        </GruppoFiltri>
 
         {isLoading && mobileOpportunities.length === 0 ? (
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card" aria-busy="true">
@@ -299,7 +286,7 @@ export const OpportunityListView = memo(function OpportunityListView({
             <Button
               type="button"
               variant="outline"
-              className="tap-compact h-9 w-full text-xs"
+              className="h-11 w-full text-sm"
               disabled={isLoadingMore}
               onClick={() => onLoadMore?.()}
             >

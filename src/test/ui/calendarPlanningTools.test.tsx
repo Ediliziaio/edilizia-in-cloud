@@ -192,11 +192,13 @@ describe("Modalità distinte, dati e dettagli condivisi", () => {
       screen.queryByRole("button", { name: "Squadre e persone" }),
     ).toBeNull();
   });
-  it("su mobile mantiene mese e agenda senza strumenti che richiedono una timeline ampia", () => {
+  it("su mobile mantiene mese, agenda e il ritorno a oggi", () => {
+    const onToday = vi.fn();
     page(
       <CalendarViewNavigation
         view="agenda"
         onViewChange={vi.fn()}
+        onToday={onToday}
         isMobile
         canViewTeam
       />,
@@ -207,6 +209,8 @@ describe("Modalità distinte, dati e dettagli condivisi", () => {
     expect(
       screen.getByRole("combobox", { name: "Periodo del calendario" }),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Oggi" }));
+    expect(onToday).toHaveBeenCalledOnce();
   });
   it("le barre delle fasi restano cliccabili in sola lettura e aprono il dettaglio corretto", () => {
     state.readonly = true;

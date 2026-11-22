@@ -9,7 +9,7 @@ import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons,
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {readOrdersPage, soloQuesteCommesse, type OrdersReaderFilters} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
-import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
+import { useState, useMemo, useCallback, useEffect, Suspense, type ReactNode } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { matchesOrderPayment } from "@/lib/orders/listPayments";
 import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABELS, type OrderFocus, type OrderMarginRow } from "@/lib/orders/listScope";
@@ -95,7 +95,7 @@ import {
 /** Commessa cliente spenta e, da telefono, nessuna generale creabile. */
 const NIENTE_DA_CREARE = "Da telefono una commessa generale si legge soltanto: creala dal computer";
 
-function OrdersListInner() {
+function OrdersListInner({ navigazioneCompatta }: { navigazioneCompatta: ReactNode }) {
   const { user, effectiveCompany } = useAuth();
   const orderPerms = usePermissions();
   const { isNative } = useBillingMode();
@@ -1605,11 +1605,12 @@ function OrdersListInner() {
       {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-lg:gap-2 max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          {navigazioneCompatta}
           <div className="hidden h-9 w-9 lg:flex rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
             <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 max-lg:sr-only">Commesse</h1>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 lg:flex-wrap lg:justify-end">
@@ -1713,17 +1714,18 @@ function OrdersListInner() {
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">Nuova Commessa</span>
-              <span className="lg:hidden">Nuova</span>
+              <span className="lg:hidden" aria-hidden="true">Nuova</span>
             </Button>
           ) : conBivio ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
+              aria-label="Nuova commessa"
               size="sm"
               className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden lg:inline">Nuova Commessa</span>
-              <span className="lg:hidden">Nuova</span>
+              <span className="lg:hidden" aria-hidden="true">Nuova</span>
             </Button>
           ) : (
             <Button
@@ -1731,10 +1733,10 @@ function OrdersListInner() {
               size="sm"
               className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
-              <Link to="/azienda/ordini/nuovo">
+              <Link to="/azienda/ordini/nuovo" aria-label="Nuova commessa">
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 <span className="hidden lg:inline">Nuova Commessa</span>
-                <span className="lg:hidden">Nuova</span>
+                <span className="lg:hidden" aria-hidden="true">Nuova</span>
               </Link>
             </Button>
           )}
@@ -1775,7 +1777,19 @@ function OrdersListInner() {
         </FiltriCommesseCompatti>
       </PannelloFiltri>
 
-      <div className="lg:hidden">
+      <div className="grid grid-cols-2 gap-2 lg:hidden">
+        <Button
+          type="button"
+          variant={hideCompleted && statusFilter === "all" ? "secondary" : "outline"}
+          aria-pressed={hideCompleted && statusFilter === "all"}
+          className="min-h-11 justify-start px-3 text-sm"
+          onClick={() => {
+            const onlyOpen = !(hideCompleted && statusFilter === "all");
+            setURLParams(onlyOpen ? { hideCompleted: true, statusFilter: "all" } : { hideCompleted: false });
+          }}
+        >
+          Solo aperte
+        </Button>
         <Button type="button" variant="ghost" className="min-h-11 w-full justify-between rounded-lg border px-3 text-sm"
           aria-expanded={riepilogoCompattoAperto} aria-controls="riepilogo-commesse"
           onClick={() => setRiepilogoCompattoAperto(v => !v)}>
@@ -2134,10 +2148,14 @@ export default function OrdersList() {
     }
   }, [activeTab, navigate, requestedTab, setSearchParams]);
 
+  const navigazioneCompatta = (
+    <SelettoreSezione nome="Sezioni commesse" valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="flex-1 lg:hidden" />
+  );
+
   return (
     <div className="space-y-3 overflow-x-hidden">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
-      <SelettoreSezione nome="Sezioni commesse" valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="lg:hidden" />
+      {activeTab !== "ordini" && navigazioneCompatta}
       <div className="hidden rounded-xl border border-slate-200 bg-white p-1 shadow-sm lg:block">
         <nav
           className="flex min-h-0 flex-wrap items-center gap-1 px-0.5"
@@ -2177,7 +2195,7 @@ export default function OrdersList() {
 
       {activeTab === "ordini" && (
         <ErrorBoundary title="Errore nella lista commesse">
-          <OrdersListInner />
+          <OrdersListInner navigazioneCompatta={navigazioneCompatta} />
         </ErrorBoundary>
       )}
 

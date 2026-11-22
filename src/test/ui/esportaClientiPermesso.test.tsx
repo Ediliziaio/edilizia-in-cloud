@@ -555,7 +555,7 @@ describe("Opportunità: «Esporta» segue «Esporta Clienti»", () => {
     stato.mobile = true;
     stato.rigaPermessi = staff(true);
     monta(<MarketingOpportunities />, "/azienda/marketing/opportunita");
-    await waitFor(() => abilitato(screen.getByRole("button", { name: "Aggiungi opportunità" })));
+    await waitFor(() => abilitato(screen.getByRole("button", { name: "Nuova opportunità" })));
     await apriAltreAzioni();
     expect(screen.queryByRole("menuitem", { name: /Esporta/ })).toBeNull();
   });

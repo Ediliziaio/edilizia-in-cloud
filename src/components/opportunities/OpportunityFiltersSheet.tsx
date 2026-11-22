@@ -131,7 +131,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           <SheetTitle className="text-base">Filtri Avanzati</SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-1 mt-4">
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain mt-4">
           {/* Status */}
           <FilterSection title="Stato" defaultOpen>
             <div className="space-y-2.5 sm:space-y-2">
@@ -268,11 +268,11 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 pt-4 border-t">
+        <div className="flex shrink-0 gap-2 border-t pt-4 pb-[env(safe-area-inset-bottom)]">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 h-10 sm:h-9 gap-1.5"
+            className="flex-1 h-11 sm:h-9 gap-1.5"
             onClick={() => {
               setLocal(EMPTY_FILTERS);
               onApply(EMPTY_FILTERS);
@@ -283,7 +283,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           </Button>
           <Button
             size="sm"
-            className="flex-1 h-10 sm:h-9"
+            className="flex-1 h-11 sm:h-9"
             onClick={applyFilters}
           >
             Applica filtri

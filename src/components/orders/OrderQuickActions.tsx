@@ -264,7 +264,7 @@ export function OrderQuickActions({
           // In fila con «Registra incasso» sono icone: una sola azione principale per riga.
           if (inline) return <Button key={a.id} variant="outline" size="icon" onClick={a.onClick} disabled={a.disabled}
             title={a.label} aria-label={a.label}
-            className={cn("tap-compact h-9 w-9 shrink-0 border-slate-300 bg-white hover:bg-blue-50", a.id === "task" ? "text-orange-700" : "text-blue-950")}>
+            className={cn("size-11 shrink-0 border-slate-300 bg-white hover:bg-blue-50", a.id === "task" ? "text-orange-700" : "text-blue-950")}>
             <Icon className="h-4 w-4" aria-hidden="true" />
           </Button>;
           // Lo span tiene il suggerimento anche a bottone spento.
@@ -280,7 +280,7 @@ export function OrderQuickActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             {inline ? (
-              <Button variant="outline" size="icon" aria-label="Altre azioni" title="Altre azioni" className="tap-compact h-9 w-9 shrink-0 border-slate-300 bg-white text-blue-950">
+              <Button variant="outline" size="icon" aria-label="Altre azioni" title="Altre azioni" className="size-11 shrink-0 border-slate-300 bg-white text-blue-950">
                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
               </Button>
             ) : (

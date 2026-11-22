@@ -12,8 +12,8 @@ export function PipelineSelector({ pipelines, value, onChange }: {
 }) {
   return (
     <Select value={value || ""} onValueChange={onChange}>
-      <SelectTrigger className="h-8 w-[150px] min-w-0 sm:h-9 sm:w-[220px]">
-        <SelectValue placeholder="Seleziona sequenza" />
+      <SelectTrigger aria-label="Pipeline commerciale" className="h-11 w-full min-w-0 text-base md:h-9 md:w-[220px] md:text-sm">
+        <SelectValue placeholder="Seleziona pipeline" />
       </SelectTrigger>
       <SelectContent>
         {pipelines.map((p) => (

@@ -274,17 +274,17 @@ export function CalendarMonthView({
       data-testid="work-calendar-month"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 max-sm:px-0">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold capitalize">
+        <div className="flex min-w-0 items-center gap-3 max-md:w-full max-md:justify-between max-md:gap-1">
+          <h2 className="text-lg font-semibold capitalize max-md:text-base">
             {presentation === "agenda"
               ? `${format(days[0], "d MMM", { locale: it })} — ${format(days[6], "d MMM yyyy", { locale: it })}`
               : format(currentDate, "MMMM yyyy", { locale: it })}
           </h2>
-          <div className="flex items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="size-8 max-md:size-11"
               aria-label={
                 presentation === "agenda"
                   ? "Sette giorni precedenti"
@@ -303,7 +303,7 @@ export function CalendarMonthView({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="size-8 max-md:size-11"
               aria-label={
                 presentation === "agenda"
                   ? "Sette giorni successivi"

@@ -49,7 +49,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
-import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, GruppoFiltri, PannelloFiltri, PilloleFiltro, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import { cleanPhone } from "@/lib/contactUtils";
 import {
@@ -811,18 +811,18 @@ function MarketingOpportunitiesContent() {
     // Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
     // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
     <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
-      {/* Mobile: testata senza riquadro (selettore pipeline, numero, «+»). */}
-      <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
-        <div className="flex min-w-0 items-center gap-2">
+      <h1 className="sr-only">Opportunità</h1>
+      <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
+        <div className="flex min-w-0 items-center gap-2 max-md:flex-1">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           {canViewPipelineSettings && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Impostazioni pipeline" title="Gestisci pipeline e fasi" onClick={() => navigate(pipelineSettingsPath)}>
+            <Button variant="ghost" size="icon" className="hidden size-8 shrink-0 md:inline-flex" aria-label="Impostazioni pipeline" title="Gestisci pipeline e fasi" onClick={() => navigate(pipelineSettingsPath)}>
               <Settings2 className="h-4 w-4" />
             </Button>
           )}
           {/* Il totale viene dal database: tutte le opportunità che passano i
               filtri, non solo quelle caricate nelle colonne. */}
-          <Badge className="h-6 shrink-0 gap-1 bg-orange-100 px-2 text-xs tabular-nums text-orange-700 hover:bg-orange-100">
+          <Badge className="hidden h-6 shrink-0 gap-1 bg-orange-100 md:inline-flex px-2 text-xs tabular-nums text-orange-700 hover:bg-orange-100">
             {riepilogo ? formatCount(totaleFiltrate) : <Loader2 className="h-3 w-3 animate-spin" />}
             {/* Tablet e fino a 1280: solo il numero, così la testata sta su una
                 riga (a 1024 con le etichette andava a capo). */}
@@ -865,16 +865,16 @@ function MarketingOpportunitiesContent() {
           <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-xl:w-8 max-xl:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Importa">
             <Upload className="mr-1.5 h-3.5 w-3.5 max-xl:mr-0" /> <span className="max-xl:hidden">Importa</span>
           </Button>
-          {/* Telefono e tablet: «+» quadrato, la testata sta su una riga. */}
-          <Button size="sm" className="tap-compact h-8 w-8 shrink-0 p-0 lg:w-auto lg:px-3 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
-            <Plus className="h-4 w-4 lg:mr-1.5 lg:h-3.5 lg:w-3.5" />
-            <span className="hidden lg:inline xl:hidden">Aggiungi</span>
+          <Button size="sm" className="h-11 shrink-0 gap-1.5 px-3 text-sm font-semibold md:h-8 md:text-xs" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label={isMobile ? "Nuova opportunità" : "Aggiungi opportunità"}>
+            <Plus className="size-4" aria-hidden="true" />
+            <span className="md:hidden">Nuova</span>
+            <span className="hidden md:inline xl:hidden">Aggiungi</span>
             <span className="hidden xl:inline">Aggiungi opportunità</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               {/* Mobile no: importa, vista, campi, cestino e impostazioni sono da scrivania. */}
-              <Button variant="ghost" size="icon" className="h-8 w-8 max-sm:hidden" aria-label="Altre azioni">
+              <Button variant="ghost" size="icon" className="hidden size-8 md:inline-flex" aria-label="Altre azioni">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -934,7 +934,7 @@ function MarketingOpportunitiesContent() {
           uno sotto l'altro, e la ricerca da sola occupava una riga intera:
           tutto spazio tolto alle colonne. Su mobile va su due righe. */}
       <CercaConFiltri
-        className="shrink-0 sm:hidden"
+        className="shrink-0 md:hidden"
         valore={searchInput}
         onCambia={setSearchInput}
         segnaposto="Cerca nome, telefono, email"
@@ -967,43 +967,44 @@ function MarketingOpportunitiesContent() {
             { value: "stallo", label: "In stallo", n: riepilogo?.in_stallo },
           ]}
         />
-        <PilloleFiltro
-          titolo="Ordine"
-          valore={ordineAttuale}
-          onScegli={(v) => {
-            const [campo, verso] = v.split(":");
-            // Un solo aggiornamento dell'indirizzo: due di fila si riscrivono.
-            setURLParams({ sortField: campo, sortDir: verso });
-          }}
-          scelte={ORDINAMENTI.slice(0, 6).map((o) => ({ value: `${o.field}:${o.dir}`, label: o.label }))}
-        />
-        {savedLists.length > 0 && (
-          <PilloleFiltro
-            titolo="Elenco"
-            valore={activeListId ?? "tutto"}
+        <GruppoFiltri>
+          <SceltaFiltro
+            titolo="Ordine"
+            valore={ordineAttuale}
             onScegli={(v) => {
-              if (v === "tutto") { setActiveListId(null); setFilters(EMPTY_FILTERS); return; }
-              const list = savedLists.find((l: any) => l.id === v);
-              setActiveListId(v);
-              if (list?.filters && typeof list.filters === "object") setFilters({ ...EMPTY_FILTERS, ...list.filters });
+              const [campo, verso] = v.split(":");
+              setURLParams({ sortField: campo, sortDir: verso });
             }}
-            scelte={[{ value: "tutto", label: "Tutto" }, ...savedLists.map((l: any) => ({ value: l.id as string, label: l.name as string }))]}
+            scelte={ORDINAMENTI.map((o) => ({ value: `${o.field}:${o.dir}`, label: o.label }))}
           />
-        )}
-        {/* Filtri avanzati arrivati dal computer o da un elenco: solo il numero e il modo di toglierli. */}
-        {activeFilterCount > 0 && !activeListId && (
-          <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
-            <span className="text-xs text-muted-foreground">
-              {activeFilterCount === 1 ? "1 filtro avanzato" : `${activeFilterCount} filtri avanzati`}
-            </span>
-            <Button variant="ghost" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>
-              Togli
-            </Button>
-          </div>
+          {savedLists.length > 0 && (
+            <SceltaFiltro
+              titolo="Elenco"
+              valore={activeListId ?? "tutto"}
+              onScegli={(v) => {
+                const list = savedLists.find((l) => l.id === v);
+                setActiveListId(list?.id ?? null);
+                setFilters(list?.filters && typeof list.filters === "object" ? { ...EMPTY_FILTERS, ...list.filters } : EMPTY_FILTERS);
+              }}
+              scelte={[{ value: "tutto", label: "Tutto" }, ...savedLists.map((l) => ({ value: l.id, label: l.name }))]}
+            />
+          )}
+        </GruppoFiltri>
+        <Button type="button" variant="outline" className="min-h-11 w-full justify-between" onClick={() => {
+          setFiltriMobileAperti(false);
+          setFiltersOpen(true);
+        }}>
+          Filtri avanzati
+          {activeFilterCount > 0 && <span className="tabular-nums text-muted-foreground">{activeFilterCount}</span>}
+        </Button>
+        {canViewPipelineSettings && (
+          <Button type="button" variant="ghost" className="min-h-11 w-full" onClick={() => navigate(pipelineSettingsPath)}>
+            Impostazioni pipeline
+          </Button>
         )}
       </PannelloFiltri>
 
-      <div className="flex shrink-0 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm md:flex-row md:items-center md:gap-2 max-sm:hidden">
+      <div className="flex shrink-0 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm md:flex-row md:items-center md:gap-2 max-md:hidden">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none" aria-label="Elenchi salvati">
           <Button
             variant="ghost"

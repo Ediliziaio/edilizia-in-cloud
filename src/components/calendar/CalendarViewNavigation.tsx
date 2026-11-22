@@ -5,6 +5,7 @@ import {
   ChartNoAxesCombined,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { isCalendarPlanningView } from "@/lib/calendar/viewModes";
 import {
   Select,
@@ -20,11 +21,13 @@ export function CalendarViewNavigation({
   onViewChange,
   isMobile,
   canViewTeam,
+  onToday,
 }: {
   view: CalendarViewType;
   onViewChange: (view: CalendarViewType) => void;
   isMobile: boolean;
   canViewTeam: boolean;
+  onToday?: () => void;
 }) {
   const planning = isCalendarPlanningView(view);
   return (
@@ -93,7 +96,7 @@ export function CalendarViewNavigation({
           onValueChange={(value) => onViewChange(value as CalendarViewType)}
         >
           <SelectTrigger
-            className="h-9 w-[170px] max-sm:w-[140px]"
+            className="h-9 w-[170px] max-md:h-11 max-md:min-w-0 max-md:flex-1 max-md:text-base"
             aria-label="Periodo del calendario"
           >
             <SelectValue />
@@ -109,6 +112,9 @@ export function CalendarViewNavigation({
             )}
           </SelectContent>
         </Select>
+      )}
+      {isMobile && onToday && (
+        <Button type="button" variant="outline" className="h-11 shrink-0" onClick={onToday}>Oggi</Button>
       )}
     </div>
   );
