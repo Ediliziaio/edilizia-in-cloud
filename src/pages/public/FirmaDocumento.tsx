@@ -58,6 +58,10 @@ function secondiRestanti(iso?: string | null): number {
   return Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
 }
 
+function scadenzaTra(secondi: number): number {
+  return Date.now() + secondi * 1000;
+}
+
 /**
  * Cornice della pagina di firma. Sta FUORI dal componente: definita dentro,
  * a ogni render era un componente nuovo e React rimontava tutta la pagina.
@@ -204,7 +208,7 @@ export default function FirmaDocumento() {
       if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non inviato. Riprova.'));
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true) throw new Error('Invio del codice non confermato. Riprova.');
-      otpScadenza.current = Date.now() + 600_000;
+      otpScadenza.current = scadenzaTra(600);
       setOtpTimer(600);
       setOtpTentativi(0);
       setOtpDigits(['', '', '', '', '', '']);
@@ -240,9 +244,10 @@ export default function FirmaDocumento() {
     // Il codice parte quando chi firma lo chiede (dal 22/10/2026 non più insieme
     // all'invito): se ce n'è uno ancora valido si va dritti ai 6 campi, altrimenti
     // se ne manda uno nuovo.
-    const restanti = secondiRestanti(sessione?.otp_valido_fino);
-    if (restanti > 30) {
-      otpScadenza.current = Date.now() + Math.min(600, restanti) * 1000;
+    const validita = sessione?.otp_valido_fino;
+    const restanti = secondiRestanti(validita);
+    if (validita && restanti > 30) {
+      otpScadenza.current = Math.min(Date.parse(validita), scadenzaTra(600));
       setOtpTimer(Math.min(600, restanti));
       setOtpDigits(['', '', '', '', '', '']);
       setOtpError('');
@@ -281,7 +286,7 @@ export default function FirmaDocumento() {
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true || typeof data?.sessione_firma !== 'string') throw new Error('Verifica del codice non confermata. Riprova.');
       setSessioneFirma(data.sessione_firma);
-      setSessioneScadenza(typeof data?.sessione_scadenza === 'string' ? data.sessione_scadenza : new Date(Date.now() + 15 * 60_000).toISOString());
+      setSessioneScadenza(typeof data?.sessione_scadenza === 'string' ? data.sessione_scadenza : new Date(scadenzaTra(15 * 60)).toISOString());
       // Firma avanzata: al primo documento con l'azienda chi firma si identifica.
       if ((sessione?.identificazione_richiesta || sessione?.dichiarazione_richiesta) && sessione.dichiarazione_fea) {
         setStep('identificazione');
