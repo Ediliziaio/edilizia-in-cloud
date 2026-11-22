@@ -22,9 +22,10 @@ describe("Alternative nella chat, non azioni automatiche sul documento", () => {
     const call = vi.fn<QuoteChatTransport>().mockImplementation(() => new Promise<Awaited<ReturnType<QuoteChatTransport>>>(() => {}));
     render(<Workspace companyId={memoryScope.companyId} onBack={vi.fn()} simulated={false} transport={call} />); send("Prova contatore");
     await act(async () => { await vi.advanceTimersByTimeAsync(3100); });
-    expect(screen.getByText("3s", { selector: "small" })).toBeInTheDocument(); expect(screen.getByRole("list", { name: "Fasi operative" }).querySelectorAll("li[data-step-state=complete]")).toHaveLength(0);
+    expect(screen.getByText("3s", { exact: true })).toBeInTheDocument();
+    expect(screen.getByLabelText("Risposta in elaborazione")).toHaveTextContent("Silvio sta preparando la risposta…");
     fireEvent.click(screen.getByRole("button", { name: "Interrompi risposta" })); await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
-    expect(screen.queryByText("5s", { selector: "small" })).not.toBeInTheDocument(); expect(screen.getByRole("log")).toHaveTextContent("Attesa interrotta");
+    expect(screen.queryByLabelText("Risposta in elaborazione")).not.toBeInTheDocument(); expect(screen.getByRole("log")).toHaveTextContent("Attesa interrotta");
   });
   it("valida scelte limitate e mantiene compatibilità con risposte senza alternative", () => {
     expect(readQuoteChatChoices(choices)).toEqual(choices);

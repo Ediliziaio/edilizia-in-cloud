@@ -6,6 +6,14 @@
  * asse Y verso l'alto, come vuole glTF (Blender lo gira da solo in Z verso l'alto).
  */
 import type { Materiale3D, Scena3D } from "./tipi";
+import { uvFinitura } from "./uvFiniture";
+import { CREDITO_MODEL_3_HIGHLAND } from "../../../../shared/planimetrie/modelliArredo";
+import { CAMPIONI_PBR, chiaveMappaPbr } from "./campioniPbr";
+
+export interface CampioneGlb {
+  dati: Uint8Array;
+  mimeType: "image/jpeg" | "image/png";
+}
 
 const GENERATORE = "Edilizia in Cloud — Planimetrie 3D";
 
@@ -26,15 +34,15 @@ function srgb(hex: string): [number, number, number] {
 
 const allinea4 = (n: number) => (n + 3) & ~3;
 
-export function esportaGlb(scena: Scena3D): Uint8Array {
+export function esportaGlb(scena: Scena3D, campioni: ReadonlyMap<string, CampioneGlb> = new Map()): Uint8Array {
   const chiaviMateriali = Object.keys(scena.materiali);
   const indiceMateriale = new Map(chiaviMateriali.map((k, i) => [k, i]));
 
   // Prima passata: dimensioni del buffer.
-  type Pezzo = { dati: ArrayBufferView; offset: number; target: number };
+  type Pezzo = { dati: ArrayBufferView; offset: number; target?: number };
   const pezzi: Pezzo[] = [];
   let lunghezza = 0;
-  const aggiungi = (dati: ArrayBufferView, target: number) => {
+  const aggiungi = (dati: ArrayBufferView, target?: number) => {
     const offset = lunghezza;
     pezzi.push({ dati, offset, target });
     lunghezza = allinea4(offset + dati.byteLength);
@@ -44,6 +52,10 @@ export function esportaGlb(scena: Scena3D): Uint8Array {
   const accessors: Record<string, unknown>[] = [];
   const meshes: Record<string, unknown>[] = [];
   const nodes: Record<string, unknown>[] = [];
+  const immagini = (scena.mesh.length ? [...campioni] : []).map(([trama, campione]) => ({
+    name: trama, bufferView: aggiungi(campione.dati), mimeType: campione.mimeType,
+  }));
+  const perTrama = new Map(immagini.map((i, n) => [i.name, n]));
 
   for (const m of scena.mesh) {
     const nVertici = m.posizioni.length / 3;
@@ -65,16 +77,26 @@ export function esportaGlb(scena: Scena3D): Uint8Array {
     const aPos = accessors.push({ bufferView: vPos, componentType: 5126, count: nVertici, type: "VEC3", min, max }) - 1;
     const aNor = accessors.push({ bufferView: vNor, componentType: 5126, count: nVertici, type: "VEC3" }) - 1;
     const aInd = accessors.push({ bufferView: vInd, componentType: grandi ? 5125 : 5123, count: m.indici.length, type: "SCALAR" }) - 1;
+    const attributes: Record<string, number> = { POSITION: aPos, NORMAL: aNor };
+    const tessitura = scena.materiali[m.materiale]?.tessitura;
+    if (tessitura && (perTrama.has(tessitura.trama) || perTrama.has(chiaveMappaPbr(tessitura.trama, "normale"))
+      || perTrama.has(chiaveMappaPbr(tessitura.trama, "rugosita")))) {
+      const uv = m.uv ? new Float32Array(m.uv) : uvFinitura(pos, nor, tessitura.metri);
+      // glTF misura V dal bordo superiore dell'immagine, il visore dal bordo inferiore.
+      if (!m.uv) for (let i = 1; i < uv.length; i += 2) uv[i] = 1 - uv[i];
+      attributes.TEXCOORD_0 = accessors.push({ bufferView: aggiungi(uv, 34962), componentType: 5126, count: nVertici, type: "VEC2" }) - 1;
+    }
     const mesh = meshes.push({
       name: m.nome,
-      primitives: [{ attributes: { POSITION: aPos, NORMAL: aNor }, indices: aInd, material: indiceMateriale.get(m.materiale) ?? 0, mode: 4 }],
+      primitives: [{ attributes, indices: aInd, material: indiceMateriale.get(m.materiale) ?? 0, mode: 4 }],
     }) - 1;
-    nodes.push({ name: m.nome, mesh, extras: { genere: m.genere, riferimento: m.riferimento } });
+    nodes.push({ name: m.nome, mesh, extras: { id: m.id, genere: m.genere, riferimento: m.riferimento } });
   }
 
-  const materials = chiaviMateriali.map((k) => materialeGltf(k, scena.materiali[k]));
+  const materials = chiaviMateriali.map((k) => materialeGltf(k, scena.materiali[k], perTrama));
+  const crediti = chiaviMateriali.some(k => k.startsWith("auto:highland:")) ? [CREDITO_MODEL_3_HIGHLAND] : undefined;
   const json = {
-    asset: { version: "2.0", generator: GENERATORE },
+    asset: { version: "2.0", generator: GENERATORE, ...(crediti ? { extras: { crediti } } : {}) },
     scene: 0,
     scenes: [{ name: "Planimetria", nodes: nodes.map((_, i) => i) }],
     nodes,
@@ -83,6 +105,8 @@ export function esportaGlb(scena: Scena3D): Uint8Array {
     accessors,
     bufferViews: pezzi.map((p) => ({ buffer: 0, byteOffset: p.offset, byteLength: p.dati.byteLength, target: p.target })),
     buffers: [{ byteLength: lunghezza }],
+    ...(immagini.length ? { images: immagini, textures: immagini.map((_, source) => ({ source, sampler: 0 })),
+      samplers: [{ wrapS: 10497, wrapT: 10497, minFilter: 9987, magFilter: 9729 }] } : {}),
   };
   if (scena.mesh.length === 0) {
     delete (json as Partial<typeof json>).meshes;
@@ -118,13 +142,22 @@ export function esportaGlb(scena: Scena3D): Uint8Array {
   return out;
 }
 
-function materialeGltf(chiave: string, m: Materiale3D) {
-  const [r, g, b] = lineare(m.colore);
+function materialeGltf(chiave: string, m: Materiale3D, perTrama: ReadonlyMap<string, number>) {
+  const foto = m.tessitura ? perTrama.get(m.tessitura.trama) : undefined;
+  const normale = m.tessitura ? perTrama.get(chiaveMappaPbr(m.tessitura.trama, "normale")) : undefined;
+  const rugosita = m.tessitura ? perTrama.get(chiaveMappaPbr(m.tessitura.trama, "rugosita")) : undefined;
+  const [r, g, b] = lineare(foto === undefined ? m.colore : m.tessitura?.tinta ?? m.colore);
   const trasparente = m.opacita < 1;
   return {
     name: m.nome || chiave,
-    pbrMetallicRoughness: { baseColorFactor: [r, g, b, m.opacita], metallicFactor: chiave === "metallo" ? 0.6 : 0, roughnessFactor: m.ruvidita },
-    ...(trasparente ? { alphaMode: "BLEND", doubleSided: true } : {}),
+    extras: { chiave, trama: m.tessitura?.trama, metri: m.tessitura?.metri },
+    ...(normale !== undefined ? { normalTexture: { index: normale, scale: CAMPIONI_PBR[m.tessitura!.trama]?.rilievo ?? 1 } } : {}),
+    pbrMetallicRoughness: { baseColorFactor: [r, g, b, m.opacita], metallicFactor: m.metallico ?? 0,
+      roughnessFactor: rugosita === undefined ? m.ruvidita : 1,
+      ...(rugosita !== undefined ? { metallicRoughnessTexture: { index: rugosita } } : {}),
+      ...(foto !== undefined ? { baseColorTexture: { index: foto } } : {}) },
+    ...(trasparente ? { alphaMode: "BLEND" } : {}),
+    ...(trasparente || m.doppioLato ? { doubleSided: true } : {}),
   };
 }
 

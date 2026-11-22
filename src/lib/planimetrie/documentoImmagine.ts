@@ -19,11 +19,29 @@ export function erroreDocumento(file: FileDaLeggere): string | null {
   return null;
 }
 
+async function riconosciDocumento(file: File) {
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { mime: "image/jpeg", estensione: ".jpg" };
+  if ([137, 80, 78, 71, 13, 10, 26, 10].every((b, i) => b === bytes[i])) return { mime: "image/png", estensione: ".png" };
+  const testo = Array.from(bytes, b => String.fromCharCode(b)).join("");
+  if (testo.startsWith("RIFF") && testo.slice(8) === "WEBP") return { mime: "image/webp", estensione: ".webp" };
+  if (testo.startsWith("%PDF-")) return { mime: "application/pdf", estensione: ".pdf" };
+  return undefined;
+}
+
 /** Decoder caricato solo per le foto Apple. La conversione usa un worker locale. */
 export async function normalizzaDocumento(file: File): Promise<File> {
-  const errore = erroreDocumento(file);
+  let errore = erroreDocumento(file);
+  let mime = mimeDocumento(file);
+  if (errore && file.size && file.size <= MASSIMO_DOCUMENTO_BYTES && !MIME_DOCUMENTO_PIANTA.includes(mime)) {
+    const formato = await riconosciDocumento(file);
+    if (formato) {
+      mime = formato.mime;
+      file = new File([file], file.name.replace(/\.[^.]+$/, "") + formato.estensione, { type: mime, lastModified: file.lastModified });
+      errore = null;
+    }
+  }
   if (errore) throw new Error(errore);
-  const mime = mimeDocumento(file);
   if (!eHeic(file)) return mime === file.type ? file : new File([file], file.name, { type: mime, lastModified: file.lastModified });
   try {
     const { heicTo } = await import("heic-to/csp");

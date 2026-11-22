@@ -24,6 +24,7 @@ let varianteAperta = false;
 const trilocale = JSON.parse(readFileSync(join(process.cwd(), "shared/planimetrie/esempi/trilocale.json"), "utf8"));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, user: { id: "u1" } }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewRenderAi: true, canViewPreventivi: true }) }));
 // Il pannello dei collegamenti ha test dedicati con QueryClient e casi di accesso.
 // Qui restano isolate le misure e le revisioni del computo.
 vi.mock("@/components/planimetrie/PlanimetrieAssociate", () => ({ PlanimetrieAssociate: (): null => null }));

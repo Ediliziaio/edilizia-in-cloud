@@ -1,6 +1,6 @@
-import type { Planimetria, StatoPianta } from "./modello.ts";
+import type { Finiture, Planimetria, StatoPianta } from "./modello.ts";
 import type { ConfigPavimentoStanza } from "../render-room/floorSelection.ts";
-import { PAVIMENTI_STANZA } from "./finiture.ts";
+import { campioneFinitura, PAVIMENTI_STANZA } from "./finiture.ts";
 
 export const PROFILI_PROGETTO = { pvc: "PVC", alluminio: "Alluminio", minimal: "Alluminio minimale", legno: "Legno", legno_alluminio: "Legno e alluminio" } as const;
 export const COLORI_INFISSI_PROGETTO = { bianco: { nome: "Bianco RAL 9010", hex: "#F1F1EE" }, antracite: { nome: "Antracite RAL 7016", hex: "#3B4046" }, legno: { nome: "Rovere naturale", hex: "#8A6A4B" }, verde: { nome: "Verde", hex: "#3F5B49" }, grigio: { nome: "Grigio", hex: "#8D949A" } } as const;
@@ -11,6 +11,13 @@ export interface EccezioniMateriali { pavimento?: boolean; infissi?: boolean }
 /** Scelte del progetto, condivise tra piani. Mai preferenze globali del browser. */
 export function materialiDelProgetto(doc: Planimetria, ambito: string): MaterialiProgetto {
   return doc.materialiProgetto?.[ambito] ?? {};
+}
+
+export function materialiDellaStanza(doc: Planimetria, ambito: string, finiture?: Finiture): MaterialiProgetto {
+  const comuni=materialiDelProgetto(doc,ambito);
+  if (!finiture?.pavimentoSpecifico) return comuni;
+  const campione=campioneFinitura(finiture.pavimento,"pavimento");
+  return {...comuni,pavimento:campione ? pavimentoDaCampione(campione.id) : undefined};
 }
 
 /** Un piano senza opere nuove conserva il disegno esistente e i materiali del progetto. */
@@ -58,7 +65,9 @@ export function materialiCoerentiDaSalvare(m: MaterialiProgetto): MaterialiProge
 }
 
 export function statoConMateriali(s: StatoPianta, materiali: MaterialiProgetto): StatoPianta {
-  return materiali.pavimento ? { ...s, locali: s.locali.map((l) => ({ ...l, finiture: { ...l.finiture, pavimento: descrizionePavimento(materiali.pavimento!) } })) } : s;
+  if (!materiali.pavimento) return s;
+  const pavimento = descrizionePavimento(materiali.pavimento);
+  return { ...s, locali: s.locali.map(l => l.finiture?.pavimentoSpecifico ? l : { ...l, finiture:{...l.finiture,pavimento} }) };
 }
 
 export function vincoloInfissiProgetto(infissi: InfissiProgetto | undefined): string {
@@ -68,6 +77,21 @@ export function vincoloInfissiProgetto(infissi: InfissiProgetto | undefined): st
 
 export function pavimentoDaCampione(id: string): ConfigPavimentoStanza {
   const c = PAVIMENTI_STANZA.find((x) => x.id === id) ?? PAVIMENTI_STANZA[0];
-  const wood = ["rovere", "noce", "gres_legno"].includes(c.id);
-  return { attivo: true, tipo: c.id === "noce" || c.id === "rovere" ? "parquet_legno" : c.id === "marmo" ? "marmo" : c.id === "pietra" ? "pietra_naturale" : c.id === "cotto" ? "cotto" : "gres_porcellanato", effetto_visivo: wood ? "legno" : c.id === "cemento" ? "cemento" : c.id === "marmo" ? "marmo" : c.id === "pietra" ? "pietra" : c.id === "cotto" ? "cotto" : "pietra", ...(wood ? { essenza_legno: c.id === "noce" ? "noce" : "rovere_naturale", larghezza_listello_mm: 180, lunghezza_listello_mm: 1200 } : {}), colore_nome: c.nome, colore_hex: c.colore === "#ffffff" ? (wood ? c.id === "noce" ? "#876548" : "#C4A882" : "#F2F0EA") : c.colore, pattern: "dritto", formato_piastrella: ["rovere", "noce"].includes(c.id) ? "18x120" : wood ? "20x120" : c.id === "cotto" ? "30x30" : "60x60", finitura: c.id === "marmo" ? "levigato" : "opaco", fuga_larghezza_mm: 2, fuga_colore: "tono_su_tono", battiscopa_azione: "mantieni" };
+  const legno = c.trama.startsWith("rovere"), parquet = legno && c.id !== "gres_legno";
+  const marmo = c.trama.startsWith("marmo"), pietra = c.trama === "pietra" || c.trama === "travertino";
+  const spina = c.id === "rovere_spina";
+  const tipo = parquet ? "parquet_legno" : marmo ? "marmo" : pietra ? "pietra_naturale" : c.id === "cotto" ? "cotto" : "gres_porcellanato";
+  const tonoCampione: Record<string, string> = { marmo_marquinia: "#242327", rovere_miele: "#B88B51", travertino: "#C8B393" };
+  return {
+    attivo: true, tipo, effetto_visivo: legno ? "legno" : marmo ? "marmo" : c.id === "cemento" ? "cemento" : c.id === "cotto" ? "cotto" : "pietra",
+    ...(legno ? {
+      essenza_legno: c.id === "noce" ? "noce" : c.id === "rovere_miele" ? "rovere_miele" : "rovere_naturale",
+      larghezza_listello_mm: spina ? 100 : 180, lunghezza_listello_mm: spina ? 600 : 1200,
+    } : {}),
+    colore_nome: c.nome, colore_hex: c.colore === "#ffffff" ? tonoCampione[c.id] ?? (legno ? "#C4A882" : "#F2F0EA") : c.colore,
+    pattern: spina ? "spina_di_pesce" : "dritto",
+    formato_piastrella: spina ? "10x60" : parquet ? "18x120" : legno ? "20x120" : c.id === "cotto" ? "30x30" : "60x60",
+    finitura: marmo || c.id === "travertino" ? "levigato" : "opaco", fuga_larghezza_mm: 2,
+    fuga_colore: "tono_su_tono", battiscopa_azione: "mantieni",
+  };
 }

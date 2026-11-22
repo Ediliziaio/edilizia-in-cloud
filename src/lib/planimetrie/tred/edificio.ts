@@ -12,6 +12,7 @@ import { costruisciScena, limitiDi, meshTerreno } from "./scena";
 import { MATERIALI } from "./materiali";
 import { modelloElemento } from "./elementi";
 import { CostruttoreMesh } from "./costruttore";
+import type { ScavoPiscina } from "./piscina";
 import type { Mesh3D, OpzioniScena, PiantaPer3D, Scena3D } from "./tipi";
 
 export interface PianoPer3D {
@@ -48,6 +49,13 @@ function ingombriPassanti(p: PiantaPer3D): Array<Array<{ x: number; y: number }>
     const m = modelloElemento(e.tipo).misure;
     const l = (e.larghezza ?? m.l * 100) / 2 + MARGINE_BUCO_CM, pr = (e.profondita ?? m.p * 100) / 2 + MARGINE_BUCO_CM;
     const a = (e.rotazione * Math.PI) / 180, c = Math.cos(a), sn = Math.sin(a);
+    if (e.alzateCad) {
+      const contorno = [...e.alzateCad.map(([p]) => p), ...e.alzateCad.map(([, p]) => p).reverse()];
+      return contorno.map(({ x, y }) => {
+        const dx = x * (e.larghezza ?? m.l * 100), dz = y * (e.profondita ?? m.p * 100);
+        return { x: e.centro.x + dx * c - dz * sn, y: e.centro.y + dx * sn + dz * c };
+      });
+    }
     return [[-l, -pr], [l, -pr], [l, pr], [-l, pr]].map(([dx, dz]) => ({ x: e.centro.x + dx * c - dz * sn, y: e.centro.y + dx * sn + dz * c }));
   });
 }
@@ -59,6 +67,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
   const mesh: Mesh3D[] = [];
   const materiali: Scena3D["materiali"] = {};
   const avvisi: string[] = [];
+  const scaviPiscine: ScavoPiscina[] = [];
   const impiantiTot = new Map<string, { linea: string; nome: string; colore: string; metri: number }>();
   const pianteDi = (p: PianoPer3D) => (vista === "fatto" ? p.piante.fatto : p.piante.progetto);
   // la cabina dell'ascensore sta al piano terra (quota 0, o il più basso se non c'è)
@@ -79,7 +88,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     // la scala e l'ascensore del piano sotto bucano il pavimento, quelli di questo piano il soffitto (se c'è un piano sopra)
     const buchiPavimento = i > 0 ? ingombriPassanti(pianteDi(scelti[i - 1])) : [];
     const buchiSoffitto = sopra ? ingombriPassanti(base) : [];
-    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0, zoccolo: piano.id === pianoCabina && opzioni.zoccolo !== false, buchiPavimento, buchiSoffitto, fondazioni: !!opzioni.fondazioni && i === 0 });
+    const s = costruisciScena(conTetto, { ...opzioni, terreno: 0, foroScala: i > 0, zoccolo: piano.id === pianoCabina && opzioni.zoccolo !== false, buchiPavimento, buchiSoffitto, fondazioni: !!opzioni.fondazioni && i === 0 });
     // un attico o un duplex ai piani alti: sotto c'è il resto dell'edificio, in grigio
     if (i === 0 && piano.quota > 100) {
       const l = limitiDi(s.mesh, (g) => g === "muro");
@@ -92,10 +101,12 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     }
     // l'ultimo piano mostrato resta senza soffitto se lo si guarda dall'alto: lo decide `soffitto`
     const dy = piano.quota / 100 + i * (opzioni.esploso ?? 0);
+    if (Math.abs(dy) < .05) scaviPiscine.push(...(s.scaviPiscine ?? []));
     for (const m of s.mesh) {
       const posizioni = m.posizioni.slice();
       for (let k = 1; k < posizioni.length; k += 3) posizioni[k] += dy;
-      mesh.push({ ...m, id: `${piano.id}/${m.id}`, nome: `${piano.nome} · ${m.nome}`, posizioni });
+      mesh.push({ ...m, id: `${piano.id}/${m.id}`, nome: `${piano.nome} · ${m.nome}`, posizioni,
+        ...(m.auto ? { auto: { ...m.auto, centro: [m.auto.centro[0], m.auto.centro[1] + dy, m.auto.centro[2]] } } : {}) });
     }
     Object.assign(materiali, s.materiali);
     avvisi.push(...s.avvisi.map((a) => `${piano.nome}: ${a}`));
@@ -105,9 +116,10 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     }
   });
   const limiti = limitiDi(mesh);
-  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) {
-    mesh.push(meshTerreno(limiti, opzioni.terreno, piani[0]?.piante.fatto.terreno, limitiDi(mesh, (g) => g === "muro")));
+  const margineTerreno = opzioni.terreno ?? (scaviPiscine.length ? 2 : 0);
+  if (margineTerreno > 0 && mesh.length) {
+    mesh.push(meshTerreno(limiti, margineTerreno, piani[0]?.piante.fatto.terreno, limitiDi(mesh, (g) => g === "muro"), scaviPiscine));
     materiali.prato = MATERIALI.prato;
   }
-  return { mesh, materiali, limiti, avvisi, ...(impiantiTot.size ? { impianti: [...impiantiTot.values()] } : {}) };
+  return { mesh, nord: scelti[0] && pianteDi(scelti[0]).nord, materiali, limiti, avvisi, ...(impiantiTot.size ? { impianti: [...impiantiTot.values()] } : {}) };
 }

@@ -94,7 +94,7 @@ export interface OpzioniScena {
   /** Denominatore della scala (50 = 1:50): serve per spessori, scritte e quote. */
   scala?: number;
   /** Catene di quote sui lati esterni. Di serie sì. */
-  quoteAutomatiche?: boolean;
+  quoteAutomatiche?: boolean | "ingombri";
   /** Le quote in metri («4,20») o in centimetri («420»). */
   unitaQuote?: "m" | "cm";
   /** Le scritte nei locali (nome, superficie, altezza). Di serie sì. */
@@ -320,7 +320,7 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
     const segno = q.scostamento >= 0 ? 1 : -1;
     primitive.push(...quota(q.p1, q.p2, per(n, segno), Math.abs(q.scostamento), q.testo ?? formato(distanza(q.p1, q.p2), q.origine), mm));
   }
-  if (opzioni.quoteAutomatiche ?? true) primitive.push(...quoteEsterne(vista, mm, (cm) => formato(cm)));
+  if (opzioni.quoteAutomatiche ?? true) primitive.push(...quoteEsterne(vista, mm, (cm) => formato(cm), opzioni.quoteAutomatiche === "ingombri"));
 
   // Scritte dei locali: lontano dagli arredi; in un corridoio stretto si girano
   if (opzioni.etichetteLocali ?? true) {
@@ -632,7 +632,7 @@ type Lato = "nord" | "sud" | "ovest" | "est";
  * sul bordo del riquadro della pianta (le piante a L hanno anche le quote del
  * modello).
  */
-export function quoteEsterne(vista: VistaPianta, mm: (v: number) => number, formato: (cm: number) => string): Primitiva[] {
+export function quoteEsterne(vista: VistaPianta, mm: (v: number) => number, formato: (cm: number) => string, soliIngombri = false): Primitiva[] {
   if (vista.muri.length === 0) return [];
   const bordo = riquadroVuoto();
   const pezzi = new Map<MuroVista, Punto[][]>();
@@ -640,6 +640,19 @@ export function quoteEsterne(vista: VistaPianta, mm: (v: number) => number, form
     const q = pezziMuro(m, vista.muri, []).map((p) => quadMuro(m, p.da, p.a));
     pezzi.set(m, q);
     q.flat().forEach((p) => allarga(bordo, p));
+  }
+  if (soliIngombri) {
+    const {minX,minY,maxX,maxY} = bordo;
+    const righeManuali = vista.quote.flatMap(q => {
+      const normale = per(sinistra(versore(diff(q.p2, q.p1))), q.scostamento);
+      return [somma(q.p1, normale), somma(q.p2, normale)];
+    });
+    const piuInBasso = righeManuali.reduce((y, p) => Math.max(y, p.y), maxY);
+    const piuASinistra = righeManuali.reduce((x, p) => Math.min(x, p.x), minX);
+    return [
+      ...quota({x:minX,y:maxY},{x:maxX,y:maxY},{x:0,y:1},piuInBasso-maxY+mm(7),formato(maxX-minX),mm),
+      ...quota({x:minX,y:minY},{x:minX,y:maxY},{x:-1,y:0},minX-piuASinistra+mm(7),formato(maxY-minY),mm),
+    ];
   }
   const out: Primitiva[] = [];
   const lati: { lato: Lato; orizzontale: boolean; valore: number; fuori: Punto }[] = [

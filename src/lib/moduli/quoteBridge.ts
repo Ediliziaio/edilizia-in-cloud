@@ -117,6 +117,36 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
   const existing = await getModuleQuote(input.companyId, input.moduleKey, input.progettoId);
   const esito = esitoOffertaModulo(existing);
   if (esito) throw new Error(FRASI_OFFERTA_MODULO[esito]);
+  const { quoteNumber, patch } = await preparaDatiModuleQuote(input, existing);
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("quotes")
+      .update(patch)
+      .eq("id", existing.id)
+      .select("id, quote_number, status, signature_token, sent_at, viewed_at, signed_at, expires_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return data as ModuleQuoteRow;
+  }
+  const { data, error } = await supabase
+    .from("quotes")
+    .insert({
+      company_id: input.companyId,
+      created_by: input.userId,
+      quote_number: quoteNumber,
+      status: "bozza",
+      source: tag,
+      ...patch,
+    } as never)
+    .select("id, quote_number, status, signature_token, sent_at, viewed_at, signed_at, expires_at")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as ModuleQuoteRow;
+}
+
+/** Prepara numerazione e PDF prima del salvataggio, anche quando il computo salva testata e righe in una sola transazione. */
+export async function preparaDatiModuleQuote(input: ModuleQuoteInput, existing: ModuleQuoteRow | null, versionePdf?: string) {
   let quoteNumber = existing?.quote_number ?? "";
   const numeroScelto = input.numeroDocumento?.trim();
   if (!existing && numeroScelto) {
@@ -133,11 +163,12 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
     quoteNumber = numero;
   }
 
-  // 1. PDF su storage (path stabile per-progetto, upsert).
-  const pdfPath = `${input.companyId}/moduli/${input.moduleKey}-${input.progettoId}.pdf`;
+  // Per il computo il PDF precedente resta valido finché la transazione non punta alla nuova versione.
+  const suffisso = versionePdf ? `-${versionePdf}` : "";
+  const pdfPath = `${input.companyId}/moduli/${input.moduleKey}-${input.progettoId}${suffisso}.pdf`;
   const { error: upErr } = await supabase.storage
     .from("quote-pdfs")
-    .upload(pdfPath, input.pdfBlob, { upsert: true, contentType: "application/pdf" });
+    .upload(pdfPath, input.pdfBlob, { upsert: !versionePdf, contentType: "application/pdf" });
   if (upErr) throw new Error(`Upload PDF fallito: ${upErr.message}`);
 
   const expiresAt = new Date(Date.now() + Math.max(1, input.validityDays) * 86_400_000).toISOString();
@@ -158,32 +189,7 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
       : input.clientTipo === "privato" ? { client_company: null, client_vat_number: null } : {}),
   };
 
-  // 2. Upsert per source-tag (la riga decisa è già stata respinta al punto 0).
-  if (existing) {
-    const { data, error } = await supabase
-      .from("quotes")
-      .update(patch)
-      .eq("id", existing.id)
-      .select("id, quote_number, status, signature_token, sent_at, viewed_at, signed_at, expires_at")
-      .single();
-    if (error) throw new Error(error.message);
-    return data as ModuleQuoteRow;
-  }
-
-  const { data, error } = await supabase
-    .from("quotes")
-    .insert({
-      company_id: input.companyId,
-      created_by: input.userId,
-      quote_number: quoteNumber,
-      status: "bozza",
-      source: tag,
-      ...patch,
-    } as never)
-    .select("id, quote_number, status, signature_token, sent_at, viewed_at, signed_at, expires_at")
-    .single();
-  if (error) throw new Error(error.message);
-  return data as ModuleQuoteRow;
+  return { quoteNumber, patch };
 }
 
 /** Invia (o reinvia) l'email di firma tramite il flusso esistente. */

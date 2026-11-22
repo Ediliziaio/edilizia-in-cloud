@@ -125,6 +125,17 @@ describe("arrotondamento delle righe come PriMus", () => {
     ] };
     expect(calcolaVoce(voce).quantita).toBe(103.15); // 30,53 + 72,62
   });
+  it("conserva una detrazione stampata solo nel totale della riga di misura", () => {
+    const esito = bozzaDaComputoStrutturato(computo([voceDoc({
+      codice_tariffa: "02", quantita: 493.99, prezzo_unitario: 185, importo: 91388.15,
+      misure: [
+        { descrizione: "Superficie lorda", parti_uguali: null, lunghezza: null, larghezza: null, altezza_peso: null, quantita: 503.59, formula: null },
+        { descrizione: "Vuoto", parti_uguali: null, lunghezza: 3, larghezza: 3.2, altezza_peso: null, quantita: -9.6, formula: null },
+      ],
+    })], { totale_dichiarato: 91388.15 }));
+    expect(calcolaVoce(esito.voci[0])).toMatchObject({ misure: [503.59, -9.6], quantita: 493.99, importo: 91388.15 });
+    expect(esito.scostamenti).toEqual([]);
+  });
 });
 
 describe("unità percentuale scritta a mano", () => {

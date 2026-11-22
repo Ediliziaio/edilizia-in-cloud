@@ -1,4 +1,4 @@
-import type { ChatDocument, ChatLine } from './quoteChatDocument';
+import { chatLineIssue, type ChatDocument, type ChatLine } from './quoteChatDocument';
 import { readQuoteChatProposal, type QuoteChatProposal } from '../../../supabase/functions/_shared/quoteConversation';
 import { readPreliminaryQuoteBudget, type PreliminaryQuoteBudget } from '../../../supabase/functions/_shared/quoteAdvanced';
 import { unitaCompatibili } from '@/lib/prezzario/confronto';
@@ -31,17 +31,20 @@ export function protectedQuoteEdits(doc: ChatDocument, proposals: QuoteChatPropo
   }).slice(0, 30);
 }
 /** Same-ID proposal + explicit revision-bound human approval. Never LLM prices. */
-export function applyProtectedQuoteEdits(doc: ChatDocument, proposals: QuoteChatProposal[], revision: number): ChatDocument {
+export function applyProtectedQuoteEdits(doc: ChatDocument, proposals: QuoteChatProposal[], revision: number, options?: { conservaInclusioneQuantita: boolean }): ChatDocument {
   if (doc.revision !== revision) throw new Error('Modifiche superate: chiedi una nuova proposta sulle voci attuali.');
   const edits = protectedQuoteEdits(doc, proposals);
   if (!edits.length) throw new Error('Nessuna modifica applicabile alle righe protette.');
   return { ...doc, revision: doc.revision + 1, lines: doc.lines.map(line => {
     const edit = edits.find(e => e.proposal.id === line.id); if (!edit) return line;
     const sameUnit = unitaCompatibili(line.unit, edit.proposal.unit);
-    return { ...line, title: edit.proposal.title, description: edit.proposal.description, unit: edit.proposal.unit, quantity: edit.proposal.quantity,
+    const aggiornata: ChatLine = { ...line, title: edit.proposal.title, description: edit.proposal.description, unit: edit.proposal.unit, quantity: edit.proposal.quantity,
       price: sameUnit ? line.price : null, referenceId: sameUnit ? line.referenceId : null, reference: sameUnit ? line.reference : null,
       pricing: sameUnit ? line.pricing : undefined, included: false, manual: true, calculation: undefined, proposedCalculation: undefined, estimate: undefined,
       quantityBasis: `Modifica proposta dall’AI e approvata dall’utente: ${edit.proposal.quantityBasis}`.slice(0, 600) };
+    const soloQuantita = edit.fields.length === 1 && edit.fields[0] === 'quantity';
+    return options?.conservaInclusioneQuantita && line.included && soloQuantita && !chatLineIssue(aggiornata)
+      ? { ...aggiornata, included: true } : aggiornata;
   }) };
 }
 /** Explicitly creates a commercial working draft from AI ranges. It is not a

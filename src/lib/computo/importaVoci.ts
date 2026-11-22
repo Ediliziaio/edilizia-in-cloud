@@ -57,6 +57,7 @@ export interface VoceImportata extends VoceEditor {
   avvisi: string[];
   /** Il file da cui viene. */
   origine: string;
+  misuraPlanimetria?: { id: string; versione: number; chiave: string };
 }
 
 /**
@@ -103,7 +104,7 @@ export const conAvvisi = (v: VoceEditor, origine: string, extra: string[] = []):
 export function daComputoStrutturato(c: ComputoStrutturato, origine: string): { esito: EsitoImportComputo; voci: VoceImportata[] } {
   const esito = bozzaDaComputoStrutturato(c);
   const diverse = new Set(esito.scostamenti.map(s => s.voce - 1));
-  const voci = esito.voci.map((v, i) => ({ ...conAvvisi(v, origine, [
+  const voci = esito.voci.map((v, i) => ({ ...conAvvisi({ ...v, fonte: (v.fonte || `Importato da ${origine}`).slice(0, 500) }, origine, [
     ...(diverse.has(i) ? ["Quantità diversa da quella scritta nel documento"] : []), ...(c.voci[i]?.avvisi ?? []),
   ]), valoriDocumento: { quantita: c.voci[i]?.quantita ?? null, prezzo: c.voci[i]?.prezzo_unitario ?? null,
     unita: c.voci[i]?.unita_misura ?? "", importo: c.voci[i]?.importo ?? null } }));

@@ -1,0 +1,132 @@
+.pl-chat-panel {
+  animation: pl-chat-fade 150ms ease-out both;
+}
+
+.pl-chat-panel .thinking-composer {
+  border-color: hsl(var(--border));
+}
+
+.pl-chat-panel .thinking-composer:focus-within {
+  border-color: hsl(var(--primary) / .6);
+}
+
+.pl-chat-panel .thinking-composer textarea:focus-visible {
+  box-shadow: none;
+}
+
+.pl-chat-panel .thinking-composer-send-tools > button[data-busy] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.pl-chat-panel .thinking-composer button:focus-visible {
+  outline-color: hsl(var(--primary));
+}
+
+.pl-chat-message,
+.pl-chat-proposta {
+  animation: pl-chat-fade 130ms ease-out both;
+}
+
+.pl-chat-progress-value {
+  transform-origin: left;
+  transition: transform 140ms ease-out;
+}
+
+.pl-chat-traccia-prima,
+.pl-chat-traccia-campo,
+.pl-chat-traccia-disegna {
+  animation: pl-chat-traccia-ferma 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-chat-panel {
+    animation: pl-chat-panel-in 220ms cubic-bezier(.22, 1, .36, 1) both;
+  }
+
+  .pl-chat-message,
+  .pl-chat-proposta {
+    animation: pl-chat-message-in 155ms cubic-bezier(.22, 1, .36, 1) both;
+  }
+
+  .pl-chat-traccia-disegna {
+    transform-origin: 0 0;
+    animation: pl-chat-disegna-tratto 420ms cubic-bezier(.16, 1, .3, 1) var(--pl-ritardo, 0ms) both;
+  }
+
+  .pl-chat-traccia-campo {
+    animation: pl-chat-rivela-campo 420ms ease-out var(--pl-ritardo, 0ms) both;
+  }
+
+  .pl-chat-traccia-prima {
+    animation: pl-chat-traccia-ferma 460ms ease-out both;
+  }
+
+  .pl-chat-traccia-sposta {
+    animation: pl-chat-sposta-tratto 280ms cubic-bezier(.16, 1, .3, 1) both;
+  }
+
+  .pl-chat-attivita {
+    animation: pl-chat-fade 540ms ease-in-out 4 alternate;
+  }
+
+  .pl-chat-controllo {
+    transition: transform 110ms ease-out, background-color 140ms ease-out;
+  }
+
+  .pl-chat-controllo:active:not(:disabled) {
+    transform: scale(.97);
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .pl-chat-panel {
+    animation-name: pl-chat-panel-desktop-in;
+  }
+}
+
+@keyframes pl-chat-fade {
+  from { opacity: .45; }
+  to { opacity: 1; }
+}
+
+@keyframes pl-chat-panel-in {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pl-chat-panel-desktop-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pl-chat-message-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pl-chat-disegna-tratto {
+  0% { opacity: 0; transform: scaleX(.03); }
+  60% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes pl-chat-rivela-campo {
+  0% { opacity: .15; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes pl-chat-sposta-tratto {
+  from { transform: translate(var(--pl-da-x), var(--pl-da-y)); }
+  to { transform: translate(0, 0); }
+}
+
+@keyframes pl-chat-traccia-ferma {
+  from { opacity: .7; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-chat-progress-value { transition: none; }
+}

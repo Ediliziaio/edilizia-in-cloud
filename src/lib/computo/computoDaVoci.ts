@@ -71,12 +71,12 @@ function fnv(testo: string, seme: number): string {
 const pulito = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
 /** Impronta delle voci: codice, descrizione, unità, quantità e prezzo, nell'ordine. */
-export function improntaVoci(voci: VoceImportata[]): string {
-  const testo = voci.map(v => {
+export function improntaVoci(voci: VoceImportata[], conMisure = false): string {
+  const testo = conMisure ? JSON.stringify(voci.map(rigaDaVoce)) : voci.map(v => {
     const { quantita, prezzo } = calcolaVoce(v);
     return [pulito(v.tariffa), pulito(v.descrizione), pulito(v.unita), quantita ?? "", prezzo ?? "", v.valoriDocumento?.importo ?? ""].join("¦");
   }).join("\n");
-  return `v1-${voci.length}-${fnv(testo, 0x811c9dc5)}${fnv(testo, 0x01234567)}`;
+  return `${conMisure ? "v2" : "v1"}-${voci.length}-${fnv(testo, 0x811c9dc5)}${fnv(testo, 0x01234567)}`;
 }
 
 const numeroONull = (s: string) => {
@@ -117,6 +117,9 @@ export interface RigaMisura {
   altezza_peso: number | null;
   quantita: number | null;
   formula: string | null;
+  planimetria_id?: string;
+  planimetria_versione?: number;
+  planimetria_chiavi?: string[];
 }
 
 /** Una voce dell'editor come riga del computo della commessa (senza id, computo e azienda). */
@@ -128,7 +131,9 @@ export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misur
     ? originale.importo : importo;
   const [breve, ...resto] = v.descrizione.split("\n");
   const codice = v.tariffa.trim() || null;
-  const estesa = [resto.join("\n").trim(), v.descrizioneComune?.trim()].filter(Boolean).join("\n") || null;
+  const dallaVariante = v.origine==="variante-planimetria";
+  const estesa = [resto.join("\n").trim(),v.descrizioneComune?.trim(),dallaVariante && v.noteMisure?.trim(),
+    dallaVariante && v.fonte?.trim() ? `Fonte del prezzo · ${v.fonte.trim()}` : ""].filter(Boolean).join("\n") || null;
   return {
     voce: {
       ordine: i,
@@ -139,7 +144,7 @@ export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misur
       descrizione_breve: (breve.trim() || v.descrizione.trim() || "Voce senza descrizione").slice(0, 2000),
       descrizione_estesa: estesa,
       unita_misura: v.unita.trim() || null,
-      quantita: quantita === null ? null : Math.abs(quantita),
+      quantita: v.daQuantificare || quantita===null ? null : Math.abs(quantita),
       prezzo_unitario_computo: prezzo,
       importo_computo: conservato === null ? null : Math.abs(conservato),
       capitolo_nome: v.capitolo.trim() || null,
@@ -153,7 +158,7 @@ export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misur
       warnings: v.avvisi.slice(0, 5),
       confidence: v.avvisi.length ? 0.6 : 1,
     },
-    misure: v.misure.map((m, j) => ({
+    misure: (v.daQuantificare ? [] : v.misure).map((m, j) => ({
       ordine: j,
       descrizione: m.descrizione.trim() || null,
       parti_uguali: numeroONull(m.parti),
@@ -162,6 +167,9 @@ export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misur
       altezza_peso: numeroONull(m.altezza),
       quantita: quantitaMisura(m),
       formula: m.formula.trim() || null,
+      ...(v.misuraPlanimetria && v.misure.length === 1 ? {
+        planimetria_id:v.misuraPlanimetria.id, planimetria_versione:v.misuraPlanimetria.versione, planimetria_chiavi:[v.misuraPlanimetria.chiave],
+      } : {}),
     })),
   };
 }

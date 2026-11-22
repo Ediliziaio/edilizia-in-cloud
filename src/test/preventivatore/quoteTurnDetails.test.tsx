@@ -21,7 +21,11 @@ describe('Conversazione essenziale, dettagli disponibili', () => {
   });
   it('riepiloga solo le variazioni effettive, senza confonderle con importi approvati', () => {
     const review = vi.fn(); render(<QuoteTurnDetails receipt="Applicato alla bozza locale: 2 nuove voci, 1 voci aggiornate. Le proposte sono da confermare." revision={4} onReview={review} />);
-    fireEvent.click(screen.getByText('3 voci aggiornate · Vedi modifiche')); fireEvent.click(screen.getByRole('button', { name: 'Rivedi le voci' })); expect(review).toHaveBeenCalledOnce(); expect(screen.getByText(/revisione 4/)).toBeVisible();
+    expect(screen.getByText('2 nuove voci · 1 voce aggiornata')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Rivedi le voci' }));
+    expect(review).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText('Dettagli della proposta'));
+    expect(screen.getByText(/revisione 4/)).toBeVisible();
   });
   it('mantiene formule proposte distinte dalle quantità applicate', () => { render(<QuoteTurnDetails receipt="Salvate 2 proposte di formula da confermare. Quantità precedenti conservate." onReview={vi.fn()} />); expect(screen.getByText('2 formule da confermare')).toBeVisible(); });
   it('non ripete titolo e spiegazione generica sotto le scelte', () => {

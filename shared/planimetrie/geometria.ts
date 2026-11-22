@@ -13,7 +13,7 @@
  * Limiti noti: un pilastro isolato dentro una stanza non si sottrae; due muri
  * consecutivi allineati con spessori diversi danno un piccolo gradino nel contorno.
  */
-import type { Apertura, Locale, Muro, Punto, StatoPianta } from "./modello.ts";
+import type { AlzataCad, Apertura, Locale, Muro, Punto, StatoPianta } from "./modello.ts";
 
 /** Tolleranza di contatto fra pareti, in cm. */
 export const TOLLERANZA_CM = 1;
@@ -36,6 +36,11 @@ export function areaConSegno(pts: Punto[]): number {
 
 /** Area in cm², in qualunque verso. */
 export const areaPoligono = (pts: Punto[]) => Math.abs(areaConSegno(pts));
+
+export function pedateCad(alzate: AlzataCad[], larghezza: number, profondita: number): Punto[][] {
+  const linee = alzate.map(([a, b]) => [a, b].map(({ x, y }) => ({ x: x * larghezza, y: y * profondita })));
+  return linee.slice(1).map(([c, d], i) => [linee[i][0], linee[i][1], d, c]);
+}
 
 /** Perimetro del poligono chiuso, in cm. */
 export function perimetroPoligono(pts: Punto[]): number {
@@ -87,6 +92,25 @@ export function puntoInterno(pts: Punto[]): Punto | null {
 }
 
 const orient = (a: Punto, b: Punto, c: Punto) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+
+export type Segmento = Pick<Muro, "p1" | "p2">;
+
+/** Incrocio delle due rette e posizione parametrica su ciascun segmento. */
+export function intersezioneAssi(a: Segmento, b: Segmento) {
+  const rx = a.p2.x - a.p1.x, ry = a.p2.y - a.p1.y;
+  const sx = b.p2.x - b.p1.x, sy = b.p2.y - b.p1.y;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) <= 1e-9 * Math.hypot(rx, ry) * Math.hypot(sx, sy)) return null;
+  const dx = b.p1.x - a.p1.x, dy = b.p1.y - a.p1.y;
+  const tA = (dx * sy - dy * sx) / den, tB = (dx * ry - dy * rx) / den;
+  return { punto: { x: a.p1.x + rx * tA, y: a.p1.y + ry * tA }, tA, tB };
+}
+
+/** Margine del centesimo di centimetro usato quando si salva un punto sul tratto. */
+export function sulTratto(t: number, s: Segmento): boolean {
+  const cm = lunghezzaMuro(s);
+  return t * cm >= -0.02 && (t - 1) * cm <= 0.02;
+}
 
 /** I due segmenti si attraversano (non basta toccarsi in un estremo). */
 export function segmentiSiIncrociano(a: Punto, b: Punto, c: Punto, d: Punto): boolean {
@@ -295,3 +319,16 @@ function spostaVersoInterno(asse: Punto[], muri: Muro[]): Punto[] {
 }
 
 const arrotondaCm = (v: number) => Math.round(v * 1000) / 1000 + 0;
+/** Contatto sui bordi e vertici in comune sono ammessi. */
+export function interniSovrapposti(a: Punto[], b: Punto[]): boolean {
+  const haInterni = (contorno: Punto[], altro: Punto[]) => {
+    const interno = (p: Punto) => puntoNelPoligono(p,altro) && distanzaDalContorno(p,altro)>0.01;
+    const campione = puntoInterno(contorno);
+    return (!!campione && interno(campione)) || contorno.some((p,i)=>{
+      const q = contorno[(i+1)%contorno.length];
+      return interno(p) || interno({x:(p.x+q.x)/2,y:(p.y+q.y)/2})
+        || altro.some((r,j)=>segmentiSiIncrociano(p,q,r,altro[(j+1)%altro.length]));
+    });
+  };
+  return haInterni(a,b) || haInterni(b,a);
+}

@@ -14,8 +14,8 @@
  * I prezzi sono indicativi (fornitura e posa, 2026): servono a dare l'ordine di grandezza al
  * cliente; quelli veri sono nel computo, dove le voci restano legate alla pianta.
  */
-import type { Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto, StatoPianta } from "../../../shared/planimetrie/modello.ts";
-import { NOMI_AREA, type TipoArea } from "../../../shared/planimetrie/modello.ts";
+import type { Apertura, Elemento, Livello, Locale, Muro, Origine, Planimetria, Punto, StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import { NOMI_AREA, origineMisura, originePeggiore, type TipoArea } from "../../../shared/planimetrie/modello.ts";
 import { areaPoligono, puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { LISTINO_IMPIANTI } from "./listinoImpianti";
@@ -36,6 +36,19 @@ export interface LavoriStanza {
   stanza: string;
   lavori: Lavoro[];
   totale: number;
+}
+
+export type OggettoLavoro = {
+  tipo: "muro" | "apertura" | "elemento" | "locale" | "area";
+  id: string;
+  vista?: "fatto" | "progetto";
+};
+
+interface DettaglioLavoro {
+  oggetto: OggettoLavoro;
+  operazione: string;
+  origine: Origine;
+  calcolo?: string;
 }
 
 export interface RiepilogoLavori {
@@ -68,6 +81,7 @@ export const nomeGenere = (g: GenereLavoro) => NOMI_GENERE[g];
 const arrot = (v: number) => Math.round(v * 100) / 100;
 const lunghezza = (m: Muro) => Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y);
 const prezzoElemento = (tipo: string) => LISTINO_IMPIANTI.find((v) => v.id === `elementi:${tipo}.numero`) ?? null;
+const metri = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
 
 /** Il nome dell'elemento per l'elenco: dal listino se c'è, altrimenti il tipo leggibile. */
 function nomeElemento(tipo: string): string {
@@ -100,18 +114,19 @@ function puntoApertura(a: Apertura, muri: Muro[]): Punto | null {
   return { x: m.p1.x + (m.p2.x - m.p1.x) * t, y: m.p1.y + (m.p2.y - m.p1.y) * t };
 }
 
-export function lavoriDaPianta(doc: Planimetria, livelloId: string, propostaId?: string): RiepilogoLavori {
+export function lavoriDaPianta(doc: Planimetria, livelloId: string, propostaId?: string, riceviMisura?: (stanza: string, lavoro: Lavoro, dettaglio: DettaglioLavoro) => void): RiepilogoLavori {
   const livello: Livello | undefined = doc.livelli.find((l) => l.id === livelloId) ?? doc.livelli[0];
   const proposta = livello?.proposte.find((p) => p.id === propostaId) ?? livello?.proposte[0];
   if (!livello || !proposta) return { stanze: [], totale: 0, righe: 0 };
-  return confronta(doc, livello.fatto, proposta, proposta.id);
+  return confronta(doc, livello.fatto, proposta, proposta.id, riceviMisura);
 }
 
-function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, propostaId: string): RiepilogoLavori {
+function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, propostaId: string, riceviMisura?: (stanza: string, lavoro: Lavoro, dettaglio: DettaglioLavoro) => void): RiepilogoLavori {
   const perStanza = new Map<string, Lavoro[]>();
-  const metti = (stanza: string | null, l: Omit<Lavoro, "importo">) => {
+  const metti = (stanza: string | null, l: Omit<Lavoro, "importo">, dettaglio?: DettaglioLavoro) => {
     const nome = stanza ?? "Generale";
     const lavoro: Lavoro = { ...l, quantita: arrot(l.quantita), importo: l.prezzo == null ? 0 : arrot(l.quantita * l.prezzo) };
+    if (dettaglio && riceviMisura) riceviMisura(nome, lavoro, dettaglio);
     const lista = perStanza.get(nome) ?? [];
     // stessa cosa nella stessa stanza: si somma
     const uguale = lista.find((x) => x.descrizione === lavoro.descrizione && x.unita === lavoro.unita && x.prezzo === lavoro.prezzo);
@@ -128,10 +143,15 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
     const mq = (lunghezza(m) * m.altezza) / 10_000;
     const portante = m.tipo !== "tramezzo";
     const stanza = stanzaDelMuro(m, locProg, locOggi);
+    const dettaglio: DettaglioLavoro = {
+      oggetto: { tipo: "muro", id: m.id }, operazione: `${m.stato}:${m.tipo}`,
+      origine: originePeggiore(origineMisura(m, "lunghezza"), origineMisura(m, "altezza")),
+      calcolo: `${metri.format(lunghezza(m) / 100)} m × ${metri.format(m.altezza / 100)} m`,
+    };
     if (m.stato === "da_demolire") {
-      metti(stanza, { genere: "demolizione", descrizione: portante ? "Demolizione di muratura portante (con opere di sostegno)" : "Demolizione di tramezzo", quantita: mq, unita: "mq", prezzo: portante ? P.demolizionePortante : P.demolizioneTramezzo });
+      metti(stanza, { genere: "demolizione", descrizione: portante ? "Demolizione di muratura portante (con opere di sostegno)" : "Demolizione di tramezzo", quantita: mq, unita: "mq", prezzo: portante ? P.demolizionePortante : P.demolizioneTramezzo }, dettaglio);
     } else {
-      metti(stanza, { genere: "costruzione", descrizione: portante ? "Nuova muratura portante" : "Nuovo tramezzo (laterizio o cartongesso), intonacato", quantita: mq, unita: "mq", prezzo: portante ? P.nuovoPortante : P.nuovoTramezzo });
+      metti(stanza, { genere: "costruzione", descrizione: portante ? "Nuova muratura portante" : "Nuovo tramezzo (laterizio o cartongesso), intonacato", quantita: mq, unita: "mq", prezzo: portante ? P.nuovoPortante : P.nuovoTramezzo }, dettaglio);
     }
   }
 
@@ -141,11 +161,12 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
     const p = puntoApertura(a, progetto.muri);
     const m = progetto.muri.find((x) => x.id === a.muroId);
     const stanza = m ? stanzaDelMuro(m, locProg, locOggi) : p ? stanzaDi(p, locProg, locOggi) : null;
+    const dettaglio: DettaglioLavoro = { oggetto: { tipo: "apertura", id: a.id }, operazione: `${a.stato}:${a.tipo}`, origine: a.origine };
     if (a.stato === "da_demolire") {
-      metti(stanza, { genere: "serramenti", descrizione: "Chiusura di un vano (porta o finestra tolta)", quantita: 1, unita: "n", prezzo: P.chiusuraVano });
+      metti(stanza, { genere: "serramenti", descrizione: "Chiusura di un vano (porta o finestra tolta)", quantita: 1, unita: "n", prezzo: P.chiusuraVano }, dettaglio);
     } else {
       const descr = { porta: "Nuova porta interna, con apertura del vano", finestra: "Nuova finestra, con apertura del vano", portafinestra: "Nuova portafinestra, con apertura del vano", varco: "Nuovo varco (apertura senza serramento)" }[a.tipo];
-      metti(stanza, { genere: "serramenti", descrizione: descr, quantita: 1, unita: "n", prezzo: P[a.tipo] });
+      metti(stanza, { genere: "serramenti", descrizione: descr, quantita: 1, unita: "n", prezzo: P[a.tipo] }, dettaglio);
     }
   }
 
@@ -160,13 +181,15 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
   for (const e of progetto.elementi) {
     if (idOggi.has(e.id) && e.stato !== "nuovo") continue;
     const v = prezzoElemento(e.tipo);
-    metti(stanzaDi(e.posizione, locProg, locOggi), { genere: genereDi(e), descrizione: v ? v.descrizione : `${nomeElemento(e.tipo)} (fornitura a parte)`, quantita: 1, unita: "n", prezzo: v?.prezzo ?? null });
+    metti(stanzaDi(e.posizione, locProg, locOggi), { genere: genereDi(e), descrizione: v ? v.descrizione : `${nomeElemento(e.tipo)} (fornitura a parte)`, quantita: 1, unita: "n", prezzo: v?.prezzo ?? null },
+      { oggetto: { tipo: "elemento", id: e.id }, operazione: `nuovo:${e.tipo}`, origine: e.origine });
   }
   for (const e of fatto.elementi) {
     if (idProg.has(e.id)) continue;
     // si toglie: conta come lavoro solo se è un impianto o un sanitario (gli arredi si spostano)
     if (!prezzoElemento(e.tipo) && !["wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "caldaia"].includes(e.tipo)) continue;
-    metti(stanzaDi(e.posizione, locOggi, locProg), { genere: "demolizione", descrizione: `Rimozione: ${nomeElemento(e.tipo).toLowerCase()}`, quantita: 1, unita: "n", prezzo: P.rimozione });
+    metti(stanzaDi(e.posizione, locOggi, locProg), { genere: "demolizione", descrizione: `Rimozione: ${nomeElemento(e.tipo).toLowerCase()}`, quantita: 1, unita: "n", prezzo: P.rimozione },
+      { oggetto: { tipo: "elemento", id: e.id, vista: "fatto" }, operazione: `rimozione:${e.tipo}`, origine: e.origine });
   }
 
   // ─── cambi d'uso ───
@@ -184,7 +207,8 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
     const mq = areaPoligono(a.contorno) / 10_000;
     const v = LISTINO_IMPIANTI.find((x) => x.id === `esterni:${a.tipo}.superficie_mq`);
     if (a.tipo === "lotto") continue;
-    metti("Esterni", { genere: "esterni", descrizione: v?.descrizione ?? NOMI_AREA[a.tipo as TipoArea], quantita: mq, unita: "mq", prezzo: v?.prezzo ?? null });
+    metti("Esterni", { genere: "esterni", descrizione: v?.descrizione ?? NOMI_AREA[a.tipo as TipoArea], quantita: mq, unita: "mq", prezzo: v?.prezzo ?? null },
+      { oggetto: { tipo: "area", id: a.id }, operazione: `nuova:${a.tipo}`, origine: "stimata" });
   }
 
   // ─── linee impianti: i metri in più del progetto rispetto a oggi ───

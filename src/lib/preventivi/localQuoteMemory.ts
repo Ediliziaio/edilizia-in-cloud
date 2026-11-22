@@ -16,6 +16,8 @@ import { readQuoteComponentDecisions, type QuoteComponentDecision } from './quot
 import { readQuoteDossier, type QuoteDossierPage } from './quoteDossier';
 import { readQuoteCadState, type QuoteCadState } from './quoteCad';
 export type LocalChatMessage = QuoteChatMessage & { editorSummary?: string; scheduleFollowUp?: boolean; picker?: 'simulations' | 'templates'; preliminaryBudget?: PreliminaryQuoteBudget; budgetRevision?: number; budgetModel?: string; diagnostic?: boolean; questions?: string[]; warnings?: string[]; actions?: string[]; actionRevision?: number; receipt?: string; benchmarkRaw?: QuoteChatTurn[]; sources?: import('./quoteSourcePresentation').QuoteChatSource[]; choices?: QuoteChatChoice[]; choiceRevision?: number; selectedChoiceId?: string; catalogueRefs?: QuoteChatReference[];
+  /** Risultati del disegno visibili nella stessa chat. La versione è presente solo per un salvataggio riuscito. */
+  origineProgetto?: true; riferimentoProgetto?: string;
   /** Il testo davvero inviato al modello, quando la bolla ne mostra un altro (una risposta cliccata, senza il prefisso). */
   sent?: string };
 export type SavedQuoteBudget = { preliminaryBudget: PreliminaryQuoteBudget; budgetRevision: number; budgetModel: string };
@@ -85,6 +87,12 @@ export function readLocalQuoteSnapshot(raw: unknown): LocalQuoteSnapshot {
   const messages = bounded(r.messages, 50).map(raw => {
     const m = obj(raw); if (m.role !== "user" && m.role !== "assistant") throw new Error("Messaggio salvato non valido.");
     const message: LocalChatMessage = { role: m.role, text: str(m.text, 6000) };
+    if (m.origineProgetto === true) {
+      message.origineProgetto = true;
+      if (m.role === "assistant" && typeof m.riferimentoProgetto === "string" && m.riferimentoProgetto.length <= 512) {
+        message.riferimentoProgetto = m.riferimentoProgetto;
+      }
+    }
     if (m.editorSummary != null) { if (m.role !== 'assistant') throw new Error('Riepilogo editor non valido.'); message.editorSummary = str(m.editorSummary, 3000); }
     if (m.scheduleFollowUp != null) { if (m.role !== 'assistant' || typeof m.scheduleFollowUp !== 'boolean') throw new Error('Contesto cronoprogramma non valido.'); message.scheduleFollowUp = m.scheduleFollowUp; }
     if (m.preliminaryBudget != null) {

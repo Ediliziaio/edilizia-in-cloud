@@ -170,7 +170,7 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
     aperture: stato.aperture.map((a) => aperturaVista(a, modo)),
     locali: stato.locali.map((l) => localeVista(l, q, ambito)),
     elementi: stato.elementi.map((e) => elementoVista(e, modo)),
-    quote: stato.quote.map((x) => ({ p1: giu(x.p1), p2: giu(x.p2), scostamento: x.scostamento })),
+    quote: stato.quote.map((x) => ({ p1: giu(x.p1), p2: giu(x.p2), scostamento: x.scostamento, ...(x.origine ? {origine:x.origine} : {}) })),
     testi: stato.testi.map((t) => ({ posizione: giu(t.posizione), testo: t.testo, rotazione: -(t.rotazione ?? 0) })),
     ...((stato.aree ?? livello.fatto.aree)?.length
       ? { aree: (stato.aree ?? livello.fatto.aree ?? []).filter((a) => modo !== "progetto" || a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, nome: a.nome, contorno: a.contorno.map(giu), superficieMq: Math.round(areaPoligono(a.contorno) / 100) / 100, stato: a.stato ?? "esistente" })) }

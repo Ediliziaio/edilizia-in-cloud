@@ -16,9 +16,12 @@ export function readPlanReading(value: unknown): PlanReading {
   const lines = r.lines.map(value => {
     const l = object(value);
     if (typeof l.text !== "string" || l.text.length > 500 || typeof l.confidence !== "number" || !Number.isFinite(l.confidence) || l.confidence < 0 || l.confidence > 1
-      || !Array.isArray(l.bbox) || l.bbox.length !== 4 || l.bbox.some(n => typeof n !== "number" || !Number.isFinite(n) || n < 0 || n > 1)
+      || !Array.isArray(l.bbox) || l.bbox.length !== 4 || l.bbox.some((n, i) => typeof n !== "number" || !Number.isFinite(n) || n < (i < 2 ? -1e-6 : 0) || n > 1)
       || l.bbox[0] + l.bbox[2] > 1.001 || l.bbox[1] + l.bbox[3] > 1.001) throw new Error("Testo o posizione OCR non validi.");
-    return { text: l.text, confidence: l.confidence, bbox: l.bbox as PlanText["bbox"] };
+    // Alcuni ritagli ruotati di Vision riportano un'origine di circa -1e-9 sul bordo.
+    const x = Math.max(0, Number(l.bbox[0])), y = Math.max(0, Number(l.bbox[1]));
+    const bbox: PlanText["bbox"] = [x, y, Math.min(1 - x, Number(l.bbox[2])), Math.min(1 - y, Number(l.bbox[3]))];
+    return { text: l.text, confidence: l.confidence, bbox };
   });
   return { version: 1, engine: r.engine as PlanReading['engine'], page: Number(r.page), pages: Number(r.pages), width: Number(r.width), height: Number(r.height), lines };
 }
@@ -61,7 +64,18 @@ export async function readPlanLocally(blob: Blob, page: number, signal: AbortSig
   signal.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(() => controller.abort(), 130_000); // first local Swift compilation may take longer
   try {
-    const res = await fetch(`/__quote-lab/ocr?page=${page}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: blob, signal: controller.signal });
+    const richiesta = () => fetch(`/__quote-lab/ocr?page=${page}`, {
+      method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: blob, signal: controller.signal,
+    });
+    let res = await richiesta();
+    // Il lettore locale esegue una sola analisi alla volta, anche navigando tra due tavole.
+    for (const attesa of [150, 350, 750, 1500]) {
+      if (res.status !== 429) break;
+      await res.body?.cancel().catch((): void => undefined);
+      await new Promise<void>(resolve => setTimeout(resolve, attesa));
+      controller.signal.throwIfAborted();
+      res = await richiesta();
+    }
     if (!res.ok) throw new Error(res.status === 404 ? "Servizio OCR locale non avviato. Nessun servizio esterno utilizzato." : res.status === 429 ? "È già in corso una lettura. Attendi e riprova." : "Documento non leggibile: usa PNG, JPEG o PDF non protetto, massimo 12 MB e 20 pagine.");
     const value: unknown = await res.json(); controller.signal.throwIfAborted();
     return readPlanReading(value);

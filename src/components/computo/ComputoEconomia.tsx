@@ -102,13 +102,8 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0"><h2 className="text-base font-semibold">Economia del preventivo</h2>
-        <p className="text-xs text-muted-foreground">Il peso dei capitoli, lo sconto e l'IVA. Le voci restano ai loro prezzi: lo sconto è una riga del riepilogo.</p></div>
+        {!!bozza.capitoliEsclusiPdf.length && <p className="text-xs text-muted-foreground">L’economia riepiloga il computo completo. In testata trovi gli importi dei capitoli inclusi nel PDF.</p>}</div>
     </div>
-
-    <dl aria-label="Importi del preventivo" className="grid gap-2 sm:grid-cols-3">
-      {([ ["Totale dei lavori", `${formatEuro(totale)} €`], ["Sconto", `${formatEuro(sconto.importo)} €`], [analisi.totaleCliente == null ? "Imponibile · IVA da definire" : "Totale cliente", `${formatEuro(analisi.totaleCliente ?? netto)} €`] ] as const).map(([nome, valore], k) =>
-        <div key={nome} className={`min-w-0 rounded-lg border px-4 py-3 ${k === 2 ? "border-blue-200 bg-blue-50/60" : "bg-white"}`}><dt className="text-xs text-muted-foreground">{nome}</dt><dd className="mt-1 break-words text-lg font-semibold tabular-nums">{valore}</dd></div>)}
-    </dl>
     <div className="grid items-start gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 440px), 1fr))" }}>
     <section aria-label="Riepilogo per capitolo" className="min-w-0 overflow-hidden rounded-lg border bg-white">
       <h3 className="border-b px-3 py-2 text-sm font-semibold">Riepilogo per capitolo <span className="ml-1 text-xs font-normal text-muted-foreground">{capitoli.size} capitoli</span></h3>

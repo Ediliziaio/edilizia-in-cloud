@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DESTINAZIONI, type Apertura, type AreaLavoro, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
+import { aperturaNellaVista, DESTINAZIONI, quoteNellaVista, type Apertura, type AreaLavoro, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
 import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
@@ -24,7 +24,7 @@ import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } fro
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
-import { NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, TIPI_ZANZARIERA, type SistemaApertura, type TipoArea, type TipoCassonetto, type TipoOscurante, type TipoZanzariera } from "../../../../shared/planimetrie/modello.ts";
+import { funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, TIPI_MURO, TIPI_ZANZARIERA, type SistemaApertura, type TipoArea, type TipoCassonetto, type TipoMuro, type TipoOscurante, type TipoZanzariera } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
@@ -35,7 +35,9 @@ export interface AzioniPannello {
   destinazioneStanza: (id: string, d: Destinazione) => void;
   latoStanza: (id: string, lato: number, cm: number) => void;
   lunghezzaParete: (id: string, cm: number) => void;
+  altezzaParete: (id: string, cm: number) => void;
   spessoreParete: (id: string, cm: number) => void;
+  funzioneParete: (id: string, funzione: TipoMuro | "da_verificare") => void;
   modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore" | "zanzariera">>) => void;
   giraApertura: (id: string) => void;
   elimina: (sel: Selezione) => void;
@@ -109,15 +111,15 @@ export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, v
   }
   if (selezione?.tipo === "apertura") {
     const a = pianta.aperture.find((x) => x.id === selezione.id);
-    if (a) return <DettaglioApertura vista={vista} apertura={a} azioni={azioni} essenziale={essenziale} />;
+    if (a) return <DettaglioApertura vista={vista} apertura={aperturaNellaVista(pianta, a, vista)} azioni={azioni} essenziale={essenziale} />;
   }
   if (selezione?.tipo === "elemento") {
     const e = (pianta.elementi ?? []).find((x) => x.id === selezione.id);
     if (e) return <DettaglioElemento key={e.id} vista={vista} elemento={e} azioni={azioni} essenziale={essenziale} />;
   }
   if (selezione?.tipo === "quota") {
-    const q = (pianta.quote ?? []).find((x) => x.id === selezione.id);
-    if (q) return <DettaglioQuota quota={q} azioni={azioni} />;
+    const q = quoteNellaVista(pianta, vista).find(({ quota }) => quota.id === selezione.id);
+    if (q) return <DettaglioQuota {...q} azioni={azioni} />;
   }
   if (selezione?.tipo === "testo") {
     const t = (pianta.testi ?? []).find((x) => x.id === selezione.id);
@@ -176,7 +178,7 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs text-muted-foreground">Arredo</p>
+        <p className="text-xs text-muted-foreground">{e.alzateCad ? "Dalla tavola DWG" : "Arredo"}</p>
         <p className="font-semibold">{e.etichetta || nomeDelTipo(e.tipo)}</p>
         {vista === "progetto" && e.stato === "nuovo" && <p className="text-xs text-red-700">Nuovo, nel progetto</p>}
         {vista === "progetto" && e.stato === "da_demolire" && <p className="text-xs text-amber-700">Da togliere</p>}
@@ -197,7 +199,9 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
       </div>
       <div className="grid grid-cols-2 gap-2">
         <CampoMisura etichetta="Larghezza (cm)" valore={e.larghezza} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { larghezza: cm })} />
-        <CampoMisura etichetta="Profondità (cm)" valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
+        <CampoMisura etichetta={e.tipo === "piscina" || e.tipo === "auto" ? "Lunghezza (cm)" : "Profondità (cm)"} valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
+        {e.tipo === "piscina" && <CampoMisura etichetta="Profondità vasca (cm)" valore={e.altezza || 140} centimetri disabled={!ok}
+          onConferma={cm => { if (cm > 0) azioni.modificaElemento(e.id, { altezza: cm }); }} />}
       </div>
       <div className="space-y-1">
         <span className="text-xs text-muted-foreground">Rotazione: {e.rotazione}°</span>
@@ -243,13 +247,14 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
   );
 }
 
-function DettaglioQuota({ quota: q, azioni }: { quota: QuotaLavoro; azioni: AzioniPannello }) {
+function DettaglioQuota({ quota: q, daRivedere, azioni }: { quota: QuotaLavoro; daRivedere: boolean; azioni: AzioniPannello }) {
   return (
     <div className="space-y-3">
       <div>
         <p className="text-xs text-muted-foreground">Quota</p>
         <p className="text-lg font-semibold tabular-nums">{scriviMetri(dist(q.p1, q.p2))} m</p>
-        <p className="text-xs text-muted-foreground">Misura da sola la distanza fra i due punti.</p>
+        <p className="text-xs text-muted-foreground">{q.testoOriginale ? `Tavola originale · ${q.testoOriginale}` : q.riferimenti ? "Quota associativa" : "Distanza fra i due punti"}</p>
+        {daRivedere && <p className="text-xs text-amber-800">Aggancio da rivedere. Una delle posizioni misurate è cambiata o è stata rimossa.</p>}
       </div>
       <CampoMisura etichetta="Distanza dalla linea (cm)" valore={Math.abs(q.scostamento)} centimetri
         onConferma={(cm) => azioni.modificaQuota(q.id, { scostamento: q.scostamento < 0 ? -cm : cm })} />
@@ -306,7 +311,7 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
               >
                 <span className="truncate">
                   {l.nome}
-                  <span className="ml-1 text-xs text-muted-foreground">{etichettaDestinazione(l.destinazione, l.nome)}</span>
+                  <span className="ml-1 text-xs text-muted-foreground">{l.aperto ? "Zona aperta" : etichettaDestinazione(l.destinazione, l.nome)}</span>
                 </span>
                 <span className={cn("shrink-0 whitespace-nowrap pl-2 tabular-nums", q.stimata && "italic text-primary")}>
                   {q.stimata ? "≈ " : ""}
@@ -456,11 +461,11 @@ function DettaglioStanza({
         </Select>
       </div>
       <FinitureStanza value={locale.finiture ?? {}} onChange={(f) => azioni.finitureStanza(locale.id, f)} pavimentoComune={pavimentoComune} />
-      {!essenziale && diLavoro && (
+      {!essenziale && (diLavoro || vista === "progetto") && (
         <div className="space-y-1">
           <Label htmlFor="pl-unita">Appartamento (condominio, bifamiliare)</Label>
-          <Input id="pl-unita" key={`${locale.id}-unita`} defaultValue={diLavoro.unita ?? ""} placeholder="Es. A, Int. 3, Parti comuni" maxLength={40}
-            onBlur={(e) => e.target.value.trim() !== (diLavoro.unita ?? "") && azioni.unitaStanza(locale.id, e.target.value.trim())}
+          <Input id="pl-unita" key={`${locale.id}-unita-${locale.unita ?? ""}`} defaultValue={locale.unita ?? ""} placeholder="Es. A, Int. 3, Parti comuni" maxLength={40}
+            onBlur={(e) => e.target.value.trim() !== (locale.unita ?? "") && azioni.unitaStanza(locale.id, e.target.value.trim())}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           <p className="text-[11px] text-muted-foreground">Le stanze con la stessa sigla fanno un appartamento: nel computo trovi superfici e pareti per appartamento.</p>
         </div>
@@ -481,13 +486,17 @@ function DettaglioStanza({
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Perimetro</div>
+          <div className="text-xs text-muted-foreground">{q.aperto ? "Perimetro del contorno" : "Perimetro"}</div>
           <div className={`text-base font-semibold ${q.stimata ? "italic text-primary" : ""}`}>
             {q.stimata ? "≈ " : ""}
             {scriviMetri(q.perimetro * 100)} m
           </div>
         </div>
       </div>
+      {q.superficieDichiarataMq !== undefined && (
+        <p className="text-xs text-muted-foreground">Superficie indicata nella tavola DWG <strong className="tabular-nums text-foreground">{scriviMq(q.superficieDichiarataMq)}</strong></p>
+      )}
+      {q.aperto && <p className="text-xs text-muted-foreground">Zona comunicante. Il contorno serve a misurare il pavimento.</p>}
       <div className="space-y-1">
         <Label>Misure interne (da muro a muro)</Label>
         {!misurabile && (
@@ -578,6 +587,9 @@ function MagliaPilastri({ onMetti }: { onMetti: (passoCm: number) => void }) {
 function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; muro: Muro; azioni: AzioniPannello; essenziale?: boolean }) {
   const misurabile = modificabile(muro.stato, vista);
   const stimata = muro.origine === "stimata";
+  const altezzaStimata = (muro.origineAltezza ?? muro.origine) === "stimata";
+  const funzioneIncerta = funzionePareteDaVerificare(muro);
+  const etichette: Record<TipoMuro, string> = { esterno: "Perimetrale", portante: "Portante", tramezzo: "Tramezzo" };
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">
@@ -592,7 +604,16 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
         stimata={stimata}
         onConferma={(cm) => azioni.lunghezzaParete(muro.id, cm)}
       />
-      {!misurabile && vista === "progetto" && (
+      <CampoMisura
+        etichetta="Altezza della parete"
+        valore={muro.altezza}
+        stimata={altezzaStimata}
+        onConferma={(cm) => azioni.altezzaParete(muro.id, cm)}
+      />
+      {altezzaStimata && <Button size="sm" variant="outline" onClick={() => azioni.altezzaParete(muro.id, muro.altezza)}>
+        <Check /> {muro.stato === "nuovo" ? "Conferma altezza di progetto" : "Conferma altezza rilevata"}
+      </Button>}
+      {!misurabile && vista === "progetto" && !funzioneIncerta && (
         <p className="text-xs text-muted-foreground">Le pareti di oggi nel progetto non si spostano: puoi demolirle e disegnarne di nuove.</p>
       )}
       {!essenziale && (
@@ -605,7 +626,7 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
             <SelectContent>
               {[8, 10, 12, 15, 20, 25, 30, 40, 50].map((s) => (
                 <SelectItem key={s} value={String(s)}>
-                  {s} cm{s === 10 ? " · tramezzo" : s === 30 ? " · muro portante" : ""}
+                  {s} cm
                 </SelectItem>
               ))}
               {![8, 10, 12, 15, 20, 25, 30, 40, 50].includes(muro.spessore) && (
@@ -615,13 +636,28 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
           </Select>
         </div>
       )}
+      {(!essenziale || funzioneIncerta) && <div className="space-y-1">
+        <Label>Funzione della parete</Label>
+        <Select value={funzioneIncerta ? "da_verificare" : muro.tipo} disabled={!misurabile}
+          onValueChange={(tipo: TipoMuro | "da_verificare") => azioni.funzioneParete(muro.id, tipo)}>
+          <SelectTrigger aria-label="Funzione della parete"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="da_verificare">Da riscontrare</SelectItem>
+            {TIPI_MURO.map(tipo => <SelectItem key={tipo} value={tipo}>{etichette[tipo]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {funzioneIncerta && <p className="text-xs leading-relaxed text-muted-foreground">
+          Riscontra gli elaborati strutturali, poi classifica la parete in «Com’è oggi».
+        </p>}
+      </div>}
       <div className="flex flex-wrap gap-2 pt-1">
         {stimata && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "muro", id: muro.id })}>
             <Check /> Misura controllata
           </Button>
         )}
-        {!essenziale && <BottoneElimina vista={vista} stato={muro.stato} cosa="la parete" onClick={() => azioni.elimina({ tipo: "muro", id: muro.id })} />}
+        {!essenziale && !(vista === "progetto" && muro.stato === "esistente" && funzioneIncerta)
+          && <BottoneElimina vista={vista} stato={muro.stato} cosa="la parete" onClick={() => azioni.elimina({ tipo: "muro", id: muro.id })} />}
       </div>
       {!essenziale && misurabile && <CurvaParete onCurva={(f) => azioni.curvaParete(muro.id, f)} />}
     </div>
@@ -751,7 +787,7 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
             <Select
               value={zanzarieraDi(a) ?? "nessuna"}
               onValueChange={(v) => azioni.modificaApertura(a.id, { zanzariera: v === "nessuna" ? undefined : (v as TipoZanzariera) })}
-              disabled={!misurabile}
+              disabled={!misurabile && !(vista === "progetto" && a.stato === "esistente")}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>

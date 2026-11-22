@@ -1,8 +1,8 @@
 /**
  * Impianti dalla pianta: linee stimate e potenza del clima.
  *
- * Nessuno disegna i cavi a mano. Dai simboli posati nella pianta si stimano i
- * percorsi, che finiscono nel computo in metri:
+ * Dai simboli si stimano i percorsi iniziali. Il disegno può sostituire il
+ * tratto orizzontale di ciascun collegamento prima di calcolarne i metri:
  * - elettrico: dal quadro a ogni presa, interruttore, punto luce e split. Il tratto
  *   orizzontale va lungo le pareti (distanza «a squadra», |dx| + |dy|), più le
  *   calate in verticale (quadro a 1,60 m, presa a 0,30 m, punto luce a soffitto).
@@ -16,10 +16,9 @@
  *
  * Coordinate e misure del modello: cm, y in su.
  */
-import type { Elemento, Locale, Punto, StatoPianta } from "./modello.ts";
-import { areaPoligono } from "./geometria.ts";
-
-export type LineaImpianto = "elettrica" | "acqua" | "scarico" | "frigorifera" | "condensa" | "riscaldamento";
+import type { Elemento, LineaImpianto, Locale, Punto, StatoPianta, TracciatoImpianto } from "./modello.ts";
+import { areaPoligono, distanza } from "./geometria.ts";
+export type { LineaImpianto } from "./modello.ts";
 
 export interface Percorso {
   linea: LineaImpianto;
@@ -27,6 +26,8 @@ export interface Percorso {
   aId: string;
   da: Punto;
   a: Punto;
+  /** Presente quando il tratto orizzontale segue il disegno dell’utente. */
+  vertici?: Punto[];
   /** Orizzontale + verticale, senza sfrido, in cm. */
   lunghezzaCm: number;
 }
@@ -43,6 +44,8 @@ const QUOTA: Record<string, number> = {
 const UTENZE_ELETTRICHE = new Set(["presa", "interruttore", "punto_luce", "split", "caldaia", "lavatrice", "frigorifero", "pompa_calore", "wallbox", "inverter", "vmc", "termostato"]);
 const UTENZE_ACQUA = new Set(["punto_acqua", "lavabo", "wc", "bidet", "doccia", "vasca", "lavatrice", "cucina"]);
 const UTENZE_SCARICO = new Set(["scarico", "lavabo", "wc", "bidet", "doccia", "vasca", "lavatrice", "cucina"]);
+export const eElementoElettrico = (tipo: string) => tipo === "quadro_elettrico" || UTENZE_ELETTRICHE.has(tipo);
+export const eElementoScarico = (tipo: string) => tipo === "colonna_scarico" || UTENZE_SCARICO.has(tipo);
 const SORGENTI_ACQUA = ["collettore", "caldaia", "bollitore"];
 const GENERATORI = ["caldaia", "pompa_calore"];
 
@@ -66,7 +69,57 @@ function piuVicino(da: ElementoImpianto, fra: ElementoImpianto[]): ElementoImpia
  * unità esterna) quella linea non si stima: lo dice `mancano`.
  */
 export function percorsiImpianti(stato: StatoPianta) {
-  return percorsiDaElementi(stato.elementi, stato.locali.map((l) => l.contorno));
+  return percorsiDaElementi(stato.elementi, stato.locali, stato.tracciatiImpianti);
+}
+
+export function chiaveTratto({ linea, daId, aId }: Pick<TracciatoImpianto, "linea" | "daId" | "aId">) {
+  return `${linea}:${daId}:${aId}`;
+}
+
+export function puntiPercorso(p: Percorso): Punto[] {
+  return [p.da, ...(p.vertici ?? [{ x: p.a.x, y: p.da.y }]), p.a];
+}
+
+export function percorsoConVertici(p: Percorso, vertici: Punto[]): Percorso {
+  const sviluppo = (punti: Punto[]) => punti.slice(1).reduce((cm, punto, i) => cm + distanza(punti[i], punto), 0);
+  return {
+    ...p, vertici,
+    lunghezzaCm: sviluppo([p.da, ...vertici, p.a]) + Math.max(0, p.lunghezzaCm - sviluppo(puntiPercorso(p))),
+  };
+}
+
+export interface AttraversamentoImpianto {
+  punto: Punto;
+  muroId: string;
+  tipoMuro: StatoPianta["muri"][number]["tipo"];
+  aperturaId?: string;
+}
+
+/** Incroci in proiezione. La quota di posa va riscontrata sul progetto. */
+export function attraversamentiImpianto(p: Percorso, stato: Pick<StatoPianta, "muri" | "aperture">): AttraversamentoImpianto[] {
+  if (!p.vertici) return [];
+  const punti = puntiPercorso(p);
+  const esiti: AttraversamentoImpianto[] = [];
+  for (const muro of stato.muri) {
+    if (muro.stato === "da_demolire") continue;
+    const aperture = stato.aperture.filter(a => a.muroId === muro.id && a.stato !== "da_demolire");
+    const mx = muro.p2.x - muro.p1.x, my = muro.p2.y - muro.p1.y;
+    const lunghezza = Math.hypot(mx, my);
+    for (let i = 1; i < punti.length; i++) {
+      const a = punti[i - 1], b = punti[i];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const det = dx * my - dy * mx;
+      if (Math.abs(det) < 1e-6) continue;
+      const x = muro.p1.x - a.x, y = muro.p1.y - a.y;
+      const t = (x * my - y * mx) / det;
+      const u = (x * dy - y * dx) / det;
+      if (t <= 0 || t > 1 || (t === 1 && i === punti.length - 1) || u < 0 || u > 1) continue;
+      const offset = u * lunghezza;
+      const apertura = aperture.find(v => offset >= v.offset && offset <= v.offset + v.larghezza);
+      esiti.push({ punto: { x: a.x + t * dx, y: a.y + t * dy }, muroId: muro.id, tipoMuro: muro.tipo, aperturaId: apertura?.id });
+    }
+  }
+  return esiti;
 }
 
 function dentroPoligono(p: Punto, poly: readonly Punto[]): boolean {
@@ -85,16 +138,38 @@ export type PartenzaMancante = "quadro_elettrico" | "collettore" | "colonna_scar
  * una dorsale al punto più vicino di ogni stanza, poi di punto in punto dentro la stanza.
  * Senza, ogni punto ha la sua linea dal quadro (stima per eccesso).
  */
-export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze: readonly (readonly Punto[])[] = []): { percorsi: Percorso[]; mancano: PartenzaMancante[] } {
+type StanzaImpianti = readonly Punto[] | Pick<Locale, "contorno" | "unita">;
+
+export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze: readonly StanzaImpianti[] = [], tracciati: readonly TracciatoImpianto[] = []) {
   // quelli da togliere non contano
   const el = elementi.filter((e) => e.stato !== "da_demolire");
   const percorsi: Percorso[] = [];
   const mancano: PartenzaMancante[] = [];
+  const mancanoPerUnita = new Map<string, { partenza: PartenzaMancante; unita: string }>();
+  const puntiSenzaUnita = new Set<string>();
   const tipo = (t: string) => el.filter((e) => e.tipo === t);
+  const contorni = stanze.map(s => "contorno" in s ? { punti: s.contorno, unita: s.unita?.trim() ?? "" } : { punti: s, unita: "" });
+  const haUnita = contorni.some(c => c.unita);
+  const locali = new Map(el.map(e => [e.id, contorni.findIndex(c => c.punti.length >= 3 && dentroPoligono(e.posizione, c.punti))]));
+  const unita = (e: ElementoImpianto) => contorni[locali.get(e.id) ?? -1]?.unita ?? "";
+  const sorgentiCompatibili = (u: ElementoImpianto, sorgenti: ElementoImpianto[], ammetteColonnaComune = false) => {
+    if (!haUnita) return sorgenti;
+    const sigla = unita(u).toLowerCase();
+    if (!sigla) return [];
+    return sorgenti.filter(s => unita(s).toLowerCase() === sigla || (ammetteColonnaComune && /comun|condominial|androne/i.test(unita(s))));
+  };
+  const manca = (partenza: PartenzaMancante, utenza: ElementoImpianto) => {
+    mancano.push(partenza);
+    const sigla = unita(utenza) || (haUnita ? "Punti senza unità" : "");
+    if (sigla) mancanoPerUnita.set(partenza + "/" + sigla, { partenza, unita: sigla });
+    if (haUnita && !unita(utenza)) puntiSenzaUnita.add(utenza.id);
+  };
 
-  const collega = (linea: LineaImpianto, utenze: ElementoImpianto[], sorgenti: ElementoImpianto[], verticale: (u: ElementoImpianto, s: ElementoImpianto) => number) => {
+  const collega = (linea: LineaImpianto, utenze: ElementoImpianto[], sorgenti: ElementoImpianto[],
+    verticale: (u: ElementoImpianto, s: ElementoImpianto) => number, partenza?: PartenzaMancante) => {
     for (const u of utenze) {
-      const s = piuVicino(u, sorgenti);
+      const s = piuVicino(u, partenza ? sorgentiCompatibili(u, sorgenti, linea === "scarico") : sorgenti);
+      if (!s && partenza) manca(partenza, u);
       if (!s || s.id === u.id) continue;
       percorsi.push({ linea, daId: s.id, aId: u.id, da: s.posizione, a: u.posizione, lunghezzaCm: squadra(u.posizione, s.posizione) + verticale(u, s) });
     }
@@ -103,23 +178,24 @@ export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze
   // Elettrico: le linee corrono a pavimento; dal quadro si scende, al punto si risale.
   const quadri = tipo("quadro_elettrico");
   const utenzeEl = el.filter((e) => UTENZE_ELETTRICHE.has(e.tipo));
-  if (utenzeEl.length && !quadri.length) mancano.push("quadro_elettrico");
-  if (quadri.length && stanze.length) {
+  if (stanze.length) {
     const gruppi = new Map<number, ElementoImpianto[]>();
     const soli: ElementoImpianto[] = [];
     for (const u of utenzeEl) {
-      const i = stanze.findIndex((c) => c.length >= 3 && dentroPoligono(u.posizione, c));
+      const i = locali.get(u.id) ?? -1;
       if (i < 0) soli.push(u); else gruppi.set(i, [...(gruppi.get(i) ?? []), u]);
     }
-    collega("elettrica", soli, quadri, (u, s) => quota(s) + quota(u));
+    collega("elettrica", soli, quadri, (u, s) => quota(s) + quota(u), "quadro_elettrico");
     for (const gruppo of gruppi.values()) {
+      const compatibili = sorgentiCompatibili(gruppo[0], quadri);
+      if (!compatibili.length) { gruppo.forEach(u => manca("quadro_elettrico", u)); continue; }
       // dorsale: dal quadro al punto più vicino; poi il più vicino fra quelli da collegare
       const restanti = [...gruppo];
       let ultimo: ElementoImpianto | null = null;
       while (restanti.length) {
         let migliore = 0, da: ElementoImpianto | null = null, d = Infinity;
         restanti.forEach((u, i) => {
-          const s = ultimo ?? piuVicino(u, quadri)!;
+          const s = ultimo ?? piuVicino(u, compatibili)!;
           const dist = squadra(u.posizione, s.posizione);
           if (dist < d) { d = dist; migliore = i; da = s; }
         });
@@ -131,20 +207,18 @@ export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze
       }
     }
   } else {
-    collega("elettrica", utenzeEl, quadri, (u, s) => quota(s) + quota(u));
+    collega("elettrica", utenzeEl, quadri, (u, s) => quota(s) + quota(u), "quadro_elettrico");
   }
 
   // Acqua: dal collettore o dalla caldaia.
   const sorgentiAcqua = el.filter((e) => SORGENTI_ACQUA.includes(e.tipo));
   const utenzeAcqua = el.filter((e) => UTENZE_ACQUA.has(e.tipo));
-  if (utenzeAcqua.length && !sorgentiAcqua.length) mancano.push("collettore");
-  collega("acqua", utenzeAcqua, sorgentiAcqua, (u, s) => quota(s) + quota(u));
+  collega("acqua", utenzeAcqua, sorgentiAcqua, (u, s) => quota(s) + quota(u), "collettore");
 
   // Scarichi: alla colonna più vicina, a pavimento.
   const colonne = tipo("colonna_scarico");
   const utenzeScarico = el.filter((e) => UTENZE_SCARICO.has(e.tipo));
-  if (utenzeScarico.length && !colonne.length) mancano.push("colonna_scarico");
-  collega("scarico", utenzeScarico, colonne, (u) => quota(u));
+  collega("scarico", utenzeScarico, colonne, (u) => quota(u), "colonna_scarico");
 
   // Riscaldamento: dal generatore (caldaia o pompa di calore) a ogni termosifone, mandata e ritorno.
   const generatori = el.filter((e) => GENERATORI.includes(e.tipo));
@@ -159,7 +233,16 @@ export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze
   collega("frigorifera", split, esterne, (u, s) => Math.abs(quota(u) - quota(s)));
   collega("condensa", split, esterne, (u) => quota(u));
 
-  return { percorsi, mancano };
+  const daApplicare = new Map(tracciati.map(t => [chiaveTratto(t), t]));
+  const linee = percorsi.map(p => {
+    const chiave = chiaveTratto(p);
+    const tracciato = daApplicare.get(chiave);
+    if (!tracciato) return p;
+    daApplicare.delete(chiave);
+    return percorsoConVertici(p, tracciato.vertici);
+  });
+  return { percorsi: linee, mancano: [...new Set(mancano)], mancanoPerUnita: [...mancanoPerUnita.values()],
+    puntiSenzaUnita: [...puntiSenzaUnita], tracciatiDaRicollegare: [...daApplicare.values()] };
 }
 
 /** Metri con lo sfrido, arrotondati al decimetro. */

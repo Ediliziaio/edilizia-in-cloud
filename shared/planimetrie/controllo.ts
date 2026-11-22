@@ -117,8 +117,8 @@ function controllaStato(stato: StatoPianta, livello: Livello, ambito: Ambito, ou
     }
     // Senza pareti (stanze a riquadri da un sopralluogo) non c'è niente da confrontare.
     const dentro = puntoInterno(l.contorno);
-    if (muriBuoni.length && dentro && !ricostruiti.some(r => puntoNelPoligono(dentro, r.contorno))) {
-      avviso("locale_non_chiuso", l.id, `Il locale «${l.nome}» non è chiuso da pareti.`);
+    if (!l.aperto && muriBuoni.length && dentro && !ricostruiti.some(r => puntoNelPoligono(dentro, r.contorno))) {
+      avviso("locale_non_chiuso", l.id, `Controlla sulla tavola i raccordi tra le pareti di «${l.nome}»: il contorno resta da verificare.`);
     }
   }
 

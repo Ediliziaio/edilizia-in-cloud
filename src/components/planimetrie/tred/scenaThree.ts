@@ -8,80 +8,152 @@ import * as THREE from "three";
 import { textureFiniture } from "./textureFiniture";
 import { uvFinitura } from "@/lib/planimetrie/tred/uvFiniture";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import type { Materiale3D, Scena3D, Telecamera3D } from "@/lib/planimetrie/tred";
+import type { Materiale3D, Mesh3D, Scena3D, Telecamera3D } from "@/lib/planimetrie/tred";
+import { CAMPIONI_PBR } from "@/lib/planimetrie/tred/campioniPbr";
 
-function materialeThree(chiave: string, m: Materiale3D): THREE.MeshStandardMaterial {
+function materialeThree(m: Materiale3D | undefined, tessiture: ReturnType<typeof textureFiniture>): THREE.MeshStandardMaterial {
+  if (!m) return new THREE.MeshStandardMaterial();
   const trasparente = m.opacita < 1;
   const mat = new THREE.MeshStandardMaterial({
     name: m.nome,
     color: new THREE.Color(m.colore),
     roughness: m.ruvidita,
-    metalness: chiave === "metallo" ? 0.6 : chiave === "lamiera" ? 0.5 : 0,
+    metalness: m.metallico ?? 0,
     transparent: trasparente,
     opacity: m.opacita,
-    side: trasparente ? THREE.DoubleSide : THREE.FrontSide,
+    side: trasparente || m.doppioLato ? THREE.DoubleSide : THREE.FrontSide,
     depthWrite: !trasparente,
   });
+  if (m.finituraProgetto) mat.userData.finitura = true;
+  if (m.tessitura) {
+    mat.map = tessiture.carica(m.tessitura.trama);
+    const campione = CAMPIONI_PBR[m.tessitura.trama];
+    if (campione) {
+      mat.normalMap = tessiture.carica(m.tessitura.trama, "normale");
+      mat.normalScale.setScalar(campione.rilievo);
+      mat.roughnessMap = tessiture.carica(m.tessitura.trama, "rugosita");
+      if (mat.roughnessMap) mat.roughness = 1;
+    } else if (!m.tessitura.trama.startsWith("highland-")) {
+      mat.bumpMap = mat.map;
+      mat.bumpScale = m.tessitura.trama === "tessuto" ? .001
+        : m.tessitura.trama === "legno" || m.tessitura.trama === "intonaco" ? .004 : .016;
+    }
+    mat.userData.finitura = true;
+    if (m.tessitura.tinta) mat.color.set(m.tessitura.tinta);
+  }
   return mat;
 }
 
-/** Un gruppo con una mesh per oggetto della pianta; `userData` porta id, genere e riferimento. */
 /** Materiali dei fondi dei campi sportivi e delle loro linee. */
 const SUPERFICI_A_TERRA = new Set(["terra_rossa", "terra_rossa_scura", "resina_blu", "resina_blu_scura", "resina_arancio", "resina_verde", "erba_sintetica", "erba_sintetica_scura", "sabbia", "linee", "linee_blu"]);
+
+type MaterialeGruppo = { firma?: string; metri?: readonly number[]; oggetto: THREE.MeshStandardMaterial };
+type MeshGruppo = { dato: Mesh3D; materiale: MaterialeGruppo; oggetto: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> };
+const risorseGruppo = new WeakMap<THREE.Group, {
+  tessiture: ReturnType<typeof textureFiniture>;
+  materiali: Map<string, MaterialeGruppo>;
+  mesh: Map<string, MeshGruppo[]>;
+}>();
+
+function stessiValori(a?: readonly number[], b?: readonly number[]): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function geometriaThree(m: Mesh3D, tessitura?: Materiale3D["tessitura"]): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(m.posizioni, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(m.normali, 3));
+  g.setIndex(m.indici);
+  if (m.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(m.uv.map((v, i) => i % 2 ? 1 - v : v), 2));
+  else if (tessitura) g.setAttribute("uv", new THREE.BufferAttribute(uvFinitura(m.posizioni, m.normali, tessitura.metri), 2));
+  g.computeBoundingSphere();
+  return g;
+}
 
 export function creaGruppo(scena: Scena3D, opzioni: { onTextureReady?: () => void } = {}): THREE.Group {
   const gruppo = new THREE.Group();
   gruppo.name = "Planimetria";
-  const tessiture = textureFiniture(() => { if (!gruppo.userData.liberato) opzioni.onTextureReady?.(); });
-  gruppo.userData.texturePronte = tessiture.pronte;
-  const materiali = new Map(Object.entries(scena.materiali).map(([k, m]) => {
-    const mat = materialeThree(k, m);
-    if (m.finituraProgetto) mat.userData.finitura = true;
-    if (m.tessitura) {
-      mat.map = tessiture.carica(m.tessitura.trama);
-      mat.userData.finitura = true;
-      if (m.tessitura.tinta) mat.color.set(m.tessitura.tinta);
-    }
-    return [k, mat] as const;
-  }));
-  for (const m of scena.mesh) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(m.posizioni, 3));
-    g.setAttribute("normal", new THREE.Float32BufferAttribute(m.normali, 3));
-    g.setIndex(m.indici);
-    const tessitura = scena.materiali[m.materiale]?.tessitura;
-    if (tessitura) g.setAttribute("uv", new THREE.BufferAttribute(uvFinitura(m.posizioni, m.normali, tessitura.metri), 2));
-    g.computeBoundingSphere();
-    const mesh = new THREE.Mesh(g, materiali.get(m.materiale) ?? new THREE.MeshStandardMaterial());
-    mesh.name = m.nome;
-    mesh.userData = { id: m.id, genere: m.genere, riferimento: m.riferimento, materiale: m.materiale };
-    const trasparente = m.genere === "vetro";
-    // le superfici piatte dei campi (fondo, linee) non fanno ombra: su se stesse si righerebbero
-    mesh.castShadow = !trasparente && m.genere !== "soffitto" && m.genere !== "pavimento" && !SUPERFICI_A_TERRA.has(m.materiale);
-    mesh.receiveShadow = !trasparente;
-    if (trasparente) mesh.renderOrder = 1;
-    gruppo.add(mesh);
-  }
+  risorseGruppo.set(gruppo, { tessiture: textureFiniture(() => opzioni.onTextureReady?.()), materiali: new Map(), mesh: new Map() });
+  aggiornaGruppo(gruppo, scena);
   return gruppo;
 }
 
-export function liberaGruppo(gruppo: THREE.Object3D): void {
-  gruppo.userData.liberato = true;
-  const materiali = new Set<THREE.Material>();
-  const texture = new Set<THREE.Texture>();
-  gruppo.traverse((o) => {
-    if (o instanceof THREE.Mesh) {
-      o.geometry.dispose();
-      (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => materiali.add(m));
-      // con l'aspetto realistico il materiale in uso è una copia: si libera anche quello di base
-      if (o.userData.materialeBase instanceof THREE.Material) materiali.add(o.userData.materialeBase);
+/** Conserva i buffer GPU quando vertici, topologia e mappatura non cambiano. */
+export function aggiornaGruppo(gruppo: THREE.Group, scena: Scena3D): void {
+  const risorse = risorseGruppo.get(gruppo);
+  if (!risorse) return;
+  const materiali = new Map<string, MaterialeGruppo>();
+  const prossimeMesh = new Map<string, MeshGruppo[]>();
+  const trameUsate = new Set<string>();
+  const ordine: THREE.Object3D[] = [];
+  for (const m of scena.mesh) {
+    const dato = scena.materiali[m.materiale];
+    const tessitura = dato?.tessitura;
+    if (tessitura) trameUsate.add(tessitura.trama);
+    let materiale = materiali.get(m.materiale);
+    if (!materiale) {
+      const prima = risorse.materiali.get(m.materiale);
+      const firma = JSON.stringify(dato);
+      materiale = prima && prima.firma === firma ? prima : { firma, metri: tessitura?.metri.slice(), oggetto: materialeThree(dato, risorse.tessiture) };
+      materiali.set(m.materiale, materiale);
     }
-  });
-  materiali.forEach((m) => {
-    if (m instanceof THREE.MeshStandardMaterial && m.userData.finitura && m.map) texture.add(m.map);
-    m.dispose();
-  });
-  texture.forEach((t) => t.dispose());
+    const omonime = prossimeMesh.get(m.id) ?? [];
+    const precedente = risorse.mesh.get(m.id)?.[omonime.length];
+    const vecchio = precedente?.dato;
+    const riusaGeometria = precedente && vecchio && vecchio.materiale === m.materiale
+      && stessiValori(precedente.materiale.metri, tessitura?.metri)
+      && stessiValori(vecchio.posizioni, m.posizioni) && stessiValori(vecchio.indici, m.indici)
+      && stessiValori(vecchio.normali, m.normali) && stessiValori(vecchio.uv, m.uv);
+    const oggetto = precedente?.oggetto ?? new THREE.Mesh(geometriaThree(m, tessitura), materiale.oggetto);
+    if (precedente && !riusaGeometria) {
+      oggetto.geometry.dispose();
+      oggetto.geometry = geometriaThree(m, tessitura);
+      delete oggetto.userData.uv;
+    }
+    if (precedente?.materiale !== materiale) {
+      oggetto.material = materiale.oggetto;
+      oggetto.userData.materialeBase = materiale.oggetto;
+    }
+    oggetto.name = m.nome;
+    Object.assign(oggetto.userData, { id: m.id, genere: m.genere, riferimento: m.riferimento, materiale: m.materiale });
+    const trasparente = m.genere === "vetro" || m.materiale.startsWith("acqua")
+      || (m.materiale.startsWith("auto:") && (dato?.opacita ?? 1) < 1);
+    oggetto.castShadow = !trasparente && m.genere !== "soffitto" && m.genere !== "pavimento" && !SUPERFICI_A_TERRA.has(m.materiale);
+    oggetto.receiveShadow = !trasparente;
+    oggetto.renderOrder = trasparente ? 1 : 0;
+    if (!precedente) gruppo.add(oggetto);
+    omonime.push({ dato: m, materiale, oggetto });
+    prossimeMesh.set(m.id, omonime);
+    ordine.push(oggetto);
+  }
+  for (const [id, mesh] of risorse.mesh) {
+    for (let i = prossimeMesh.get(id)?.length ?? 0; i < mesh.length; i++) {
+      gruppo.remove(mesh[i].oggetto);
+      mesh[i].oggetto.geometry.dispose();
+    }
+  }
+  for (const [id, materiale] of risorse.materiali) {
+    if (materiali.get(id) !== materiale) materiale.oggetto.dispose();
+  }
+  risorse.tessiture.conserva(trameUsate);
+  risorse.materiali = materiali;
+  risorse.mesh = prossimeMesh;
+  gruppo.children = ordine;
+  gruppo.userData.texturePronte = risorse.tessiture.pronte();
+}
+
+export function liberaGruppo(gruppo: THREE.Group): void {
+  const risorse = risorseGruppo.get(gruppo);
+  if (!risorse) return;
+  risorseGruppo.delete(gruppo);
+  for (const mesh of risorse.mesh.values()) for (const { oggetto } of mesh) oggetto.geometry.dispose();
+  for (const materiale of risorse.materiali.values()) materiale.oggetto.dispose();
+  risorse.tessiture.conserva();
+  gruppo.clear();
+  delete gruppo.userData.texturePronte;
 }
 
 /**

@@ -185,7 +185,7 @@ export const misuraRuotata = (larghezza: number, altezza: number, r: Rotazione) 
  * Riduce, raddrizza (rotazione scelta da chi carica) e, se il fondo è scuro, inverte i colori.
  * Accetta anche una pagina di PDF già disegnata (`sorgente` canvas). Se qualcosa non va: null.
  */
-export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorgente?: HTMLCanvasElement, ritaglio?: RitaglioPianta | null): Promise<ImmaginePreparata | null> {
+export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorgente?: HTMLCanvasElement, ritaglio?: RitaglioPianta | null, opzioni?: { squadra?: boolean }): Promise<ImmaginePreparata | null> {
   if (!sorgente && !file.type.startsWith("image/")) return null;
   const url = sorgente ? null : URL.createObjectURL(file);
   try {
@@ -219,7 +219,7 @@ export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorg
       for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
       ctx.putImageData(pixel, 0, 0);
     }
-    const quadrato = serveQuadrato(m.larghezza, m.altezza);
+    const quadrato = opzioni?.squadra !== false && serveQuadrato(m.larghezza, m.altezza);
     const cambiata = !!sorgente || !!ritaglio || rotazione !== 0 || ridotta0.larghezza !== w0 || quadrato;
     if (!invertita && !cambiata) return { file, mime: file.type, larghezza: w0, altezza: h0, invertita: false };
     let uscita: HTMLCanvasElement = canvas;
@@ -251,34 +251,44 @@ export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorg
 }
 
 /** Disegna una pagina di un PDF (1, 2…) in un canvas, a circa 2400 px sul lato lungo. */
-export async function paginaPdf(file: Blob, pagina: number): Promise<{ canvas: HTMLCanvasElement; pagine: number }> {
-  const [pdfjs, worker] = await Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]);
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default as string;
-  const caricamento = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
-  const doc = await caricamento.promise;
-  try {
-    const n = Math.min(Math.max(1, pagina), doc.numPages);
-    const page = await doc.getPage(n);
-    const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: LATO_MASSIMO / Math.max(base.width, base.height) });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(viewport.width);
-    canvas.height = Math.round(viewport.height);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("PDF non disegnato.");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    return { canvas, pagine: doc.numPages };
-  } finally {
-    void caricamento.destroy();
-  }
+export async function paginaPdf(file: Blob, pagina: number) {
+  const { conPaginePdf } = await import("./paginaPdf");
+  return conPaginePdf(file, LATO_MASSIMO, (disegna) => disegna(pagina));
+}
+
+export async function preparaTavolePdf(file: Blob, tavole: ReadonlyArray<{
+  pagina: number;
+  rotazione: Rotazione;
+  ritaglio: RitaglioPianta | null;
+}>, signal: AbortSignal): Promise<ImmaginePreparata[]> {
+  signal.throwIfAborted();
+  const { conPaginePdf } = await import("./paginaPdf");
+  return conPaginePdf(file, LATO_MASSIMO, async (disegna) => {
+    const immagini: ImmaginePreparata[] = [];
+    for (const { pagina, rotazione, ritaglio } of tavole) {
+      signal.throwIfAborted();
+      try {
+        const { canvas } = await disegna(pagina);
+        try {
+          const immagine = await preparaImmagine(file, rotazione, canvas, ritaglio, { squadra: false });
+          if (!immagine || !immagine.larghezza || !immagine.altezza) throw new Error("Tavola non leggibile.");
+          immagini.push(immagine);
+        } finally {
+          canvas.width = canvas.height = 0;
+        }
+      } catch {
+        throw new Error(`Non riesco a preparare la pagina ${pagina} del PDF. Controlla il ritaglio e riprova.`);
+      }
+    }
+    signal.throwIfAborted();
+    return immagini;
+  });
 }
 
 /** L'anteprima mostra lo stesso ritaglio e orientamento che riceverà il motore. */
-export async function anteprimaFoglio(file: File, pagina: number, rotazione: Rotazione, ritaglio: RitaglioPianta | null) {
+export async function anteprimaFoglio(file: File, pagina: number, rotazione: Rotazione, ritaglio: RitaglioPianta | null, opzioni?: { squadra?: boolean }) {
   const pdf = file.type === "application/pdf" ? await paginaPdf(file, pagina) : null;
-  const pronta = await preparaImmagine(file, rotazione, pdf?.canvas, ritaglio);
+  const pronta = await preparaImmagine(file, rotazione, pdf?.canvas, ritaglio, opzioni);
   if (!pronta) throw new Error("Il documento non si legge: scegli una foto o un PDF valido.");
   return { file: pronta.file, pagine: pdf?.pagine ?? 1 };
 }

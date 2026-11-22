@@ -17,6 +17,7 @@ export interface PickedVoce {
   unita_misura: RstUnitaMisura;
   /** Unità della sorgente, prima dell'adattamento ai moduli legacy. */
   unita_originale?: string | null;
+  sourceUnit?: string | null;
   prezzo_unitario: number;
   costo_materiali: number;
   costo_manodopera: number;

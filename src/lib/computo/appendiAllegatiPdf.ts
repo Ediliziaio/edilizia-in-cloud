@@ -7,6 +7,7 @@ export async function appendiAllegatiPdf(base: ArrayBuffer, allegati: AllegatoPd
 } = {}): Promise<Blob> {
   const doc = await PDFDocument.load(new Uint8Array(base));
   const basePages = doc.getPageCount();
+  const pagineInScala = new Set<number>();
   const font = await doc.embedFont(opzioni.fontFamiglia === "times" ? StandardFonts.TimesRoman : opzioni.fontFamiglia === "courier" ? StandardFonts.Courier : StandardFonts.Helvetica);
   const ascii = (s: string) => s.normalize("NFKD").replace(/[^\x20-\x7e]/g, "");
   for (const a of allegati) {
@@ -22,8 +23,15 @@ export async function appendiAllegatiPdf(base: ArrayBuffer, allegati: AllegatoPd
     };
     if (a.blob.type === "application/pdf") {
       const source = await PDFDocument.load(bytes);
-      if (source.getPageCount() > 30) throw new Error(`L'allegato ${a.nome} supera 30 pagine.`);
+      if (!a.conservaScala && source.getPageCount() > 30) throw new Error(`L'allegato ${a.nome} supera 30 pagine.`);
       if (doc.getPageCount() - basePages + source.getPageCount() > 100) throw new Error("Gli allegati superano 100 pagine complessive.");
+      if (a.conservaScala) {
+        for (const p of await doc.copyPages(source, source.getPageIndices())) {
+          pagineInScala.add(doc.getPageCount());
+          doc.addPage(p);
+        }
+        continue;
+      }
       for (const p of source.getPages()) {
         const embedded = await doc.embedPage(p);
         const page = add(p.getWidth(), p.getHeight());
@@ -39,7 +47,7 @@ export async function appendiAllegatiPdf(base: ArrayBuffer, allegati: AllegatoPd
   }
   const pages = doc.getPages();
   pages.forEach((page, n) => {
-    if (n === 0 && opzioni.saltaPiedePrimaPagina) return;
+    if (pagineInScala.has(n) || (n === 0 && opzioni.saltaPiedePrimaPagina)) return;
     let testo = ascii(opzioni.piePagina ?? "Bozza locale");
     while (font.widthOfTextAtSize(testo, 7) > page.getWidth() - 180 && testo.length) testo = testo.slice(0, -1);
     if (testo) page.drawText(testo, { x: 40, y: 20, size: 7, font, color: rgb(.38, .44, .52) });

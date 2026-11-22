@@ -11,17 +11,18 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import type { Scena3D } from "@/lib/planimetrie/tred";
+import { apertureDelLocale, type PiantaPer3D, type Scena3D, type V3, type Vista3D } from "@/lib/planimetrie/tred";
+import { soleIndicativo } from "../../../../shared/planimetrie/orientamento";
 
 // Le scelte (facciata, infissi, ora…) stanno in un modulo senza three.js, così anche i dialoghi le leggono senza appesantire il bundle.
-import { ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type IdFacciata, type IdInfissi, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
+import { ammetteAlberiDiContesto, ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type IdFacciata, type IdInfissi, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 export { ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI };
 export type { IdFacciata, IdInfissi, OpzioniAspetto };
 
 // ─── Sole e cielo (funzioni pure) ────────────────────────────────────────────
 
 export interface StatoSole {
-  /** Direzione verso il sole (versore): x verso est, z verso sud (come la pianta, y in giù). */
+  /** Direzione verso il sole, negli assi della tavola. */
   direzione: [number, number, number];
   elevazioneGradi: number;
   colore: string;
@@ -35,17 +36,13 @@ export interface StatoSole {
 const mix = (a: string, b: string, t: number): string => new THREE.Color(a).lerp(new THREE.Color(b), t).getStyle();
 
 /** Il sole alle `ora` (7–19): basso e caldo al mattino e alla sera, alto e bianco a mezzogiorno; da est a ovest passando per sud. */
-export function sole(ora: number): StatoSole {
-  const o = Math.min(19, Math.max(7, ora));
-  const t = (o - 7) / 12;
-  const alto = Math.sin(Math.PI * t);
-  const elevazione = 6 + 54 * alto;
-  const azimut = (-90 + 180 * t) * (Math.PI / 180);
-  const el = (elevazione * Math.PI) / 180;
-  const direzione: [number, number, number] = [Math.sin(azimut) * Math.cos(el), Math.sin(el), Math.cos(azimut) * Math.cos(el)];
+export function sole(ora: number, nord?: number): StatoSole {
+  const { direzione, elevazioneGradi, fase: alto } = soleIndicativo(ora, nord);
+  // Senza un nord esplicito resta il percorso visivo delle viste già salvate.
+  if (nord === undefined) direzione[0] *= -1;
   return {
     direzione,
-    elevazioneGradi: elevazione,
+    elevazioneGradi,
     colore: mix("#ffae66", "#fff4e5", Math.min(1, alto * 1.4)),
     intensita: 1.6 + 0.9 * alto,
     cielo: { orizzonte: mix("#f2c192", "#dbe9f5", Math.min(1, alto * 1.3)), zenit: mix("#6b86b8", "#79afe0", Math.min(1, alto * 1.3)) },
@@ -276,6 +273,21 @@ export const TRAME: Record<string, { lato: number; disegna: Disegnatore; rilievo
     },
   },
   fogliame: { lato: 256, disegna: (ctx, n, rnd) => { ctx.fillStyle = "#5c8c40"; ctx.fillRect(0, 0, n, n); macchie(ctx, n, rnd, 200, (r) => rgb(70 + r * 60, 120 + r * 50, 50 + r * 30), [3, 10]); } },
+  tessuto: {
+    lato: 256,
+    rilievo: .08,
+    disegna: (ctx, n, rnd) => {
+      ctx.fillStyle = "#f5f3ef";
+      ctx.fillRect(0, 0, n, n);
+      for (let k = 0; k < n; k += 3) {
+        ctx.fillStyle = "rgba(75,63,52,0.08)";
+        ctx.fillRect(k, 0, 1, n);
+        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.fillRect(0, k, n, 1);
+      }
+      grani(ctx, n, rnd, 2800, .16);
+    },
+  },
 };
 
 /** Come si vede ogni materiale della scena nell'aspetto realistico: tessitura, lato in metri, e quanto è metallico. */
@@ -296,20 +308,57 @@ const LOOK: Record<string, { trama: string; metri: number; metallo?: number; ruv
   calcestruzzo: { trama: "cemento", metri: 2 },
   fogliame: { trama: "fogliame", metri: 1 },
   legno: { trama: "legno", metri: 1 },
+  stipite: { trama: "legno", metri: 1.15 },
+  tessuto: { trama: "tessuto", metri: .13 },
+  tessuto_cuscino: { trama: "tessuto", metri: .13 },
+  pavimento_piastrelle: { trama: "lastre", metri: 1.2 },
+  pavimento_gres: { trama: "lastre", metri: 1.2 },
 };
 
 // ─── Il motore dell'aspetto ──────────────────────────────────────────────────
 
 export interface Aspetto {
   /** Applica (o toglie) l'aspetto alla scena: ricostruisce materiali, cielo, sole, alberi. Va chiamato dopo `adattaAmbiente`. */
-  applica(gruppo: THREE.Group | null, scena: Scena3D, opzioni: OpzioniAspetto, ambiente: { sole: THREE.DirectionalLight; terreno: THREE.Mesh; hemi: THREE.HemisphereLight | null }): void;
+  applica(gruppo: THREE.Group | null, scena: Scena3D, opzioni: OpzioniAspetto & { sfondoNeutro?: boolean }, ambiente: { sole: THREE.DirectionalLight; terreno: THREE.Mesh; hemi: THREE.HemisphereLight | null }, finestra?: FinestraLuce): void;
   /** Disegna un fotogramma (con gli effetti se ci sono). */
   disegna(): void;
   dimensiona(larghezza: number, altezza: number): void;
   libera(): void;
 }
 
+interface FinestraLuce { centro: V3; fuori: [number, number] }
+
+/** La luce diurna entra dal vano più grande della stanza, dal lato opposto alla sua faccia interna. */
+export function finestraPerLuce(pianta: PiantaPer3D, localeId: string, vista: Vista3D): FinestraLuce | undefined {
+  const vano = apertureDelLocale(pianta, localeId, vista)
+    .filter(a => a.tipo === "finestra" || a.tipo === "portafinestra")
+    .sort((a, b) => b.larghezza_cm * b.altezza_cm - a.larghezza_cm * a.altezza_cm)[0];
+  if (!vano) return;
+  const muro = pianta.muri.find(m => m.id === vano.muroId);
+  if (!muro) return;
+  const [a, , c] = vano.angoli;
+  const centro: V3 = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2];
+  const dx = muro.b.x - muro.a.x, dz = muro.b.y - muro.a.y;
+  const lungo = Math.hypot(dx, dz);
+  if (!lungo) return;
+  const nx = -dz / lungo, nz = dx / lungo;
+  const dentro = (centro[0] - muro.a.x / 100) * nx + (centro[2] - muro.a.y / 100) * nz;
+  const segno = dentro >= 0 ? -1 : 1;
+  return { centro, fuori: [nx * segno, nz * segno] };
+}
+
 interface Avvio { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera }
+
+export function telaTrama(id: string): HTMLCanvasElement | null {
+  const trama = TRAME[id];
+  if (!trama || typeof document === "undefined") return null;
+  const tela = document.createElement("canvas");
+  tela.width = tela.height = trama.lato;
+  const ctx = tela.getContext("2d");
+  if (!ctx) return null;
+  trama.disegna(ctx, trama.lato, generatore(id.length * 7919 + trama.lato));
+  return tela;
+}
 
 export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   const texture = new Map<string, THREE.CanvasTexture>();
@@ -317,10 +366,13 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   let cielo: THREE.Mesh | null = null;
   let alberi: THREE.Group | null = null;
   let ambienteCielo: THREE.Texture | null = null;
+  let oraCielo: number | null = null;
+  let raggioPrato = 0;
+  let tramaPrato: THREE.Texture | null = null;
+  let scenaAlberi: Scena3D | null = null;
   let compositore: EffectComposer | null = null;
   let gtao: GTAOPass | null = null;
   let dimensioni = { w: 1, h: 1 };
-  let accesa = false;
   const sfondoOriginale = scene.background;
   const ambienteOriginale = scene.environment;
   const intensitaAmbienteOriginale = scene.environmentIntensity;
@@ -329,14 +381,9 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   const trama = (id: string): THREE.CanvasTexture | null => {
     const gia = texture.get(id);
     if (gia) return gia;
-    const t = TRAME[id];
-    if (!t || typeof document === "undefined") return null;
-    const c = document.createElement("canvas");
-    c.width = c.height = t.lato;
-    const ctx = c.getContext("2d");
-    if (!ctx) return null;
-    t.disegna(ctx, t.lato, generatore(id.length * 7919 + t.lato));
-    const tex = new THREE.CanvasTexture(c);
+    const tela = telaTrama(id);
+    if (!tela) return null;
+    const tex = new THREE.CanvasTexture(tela);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -347,17 +394,23 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   const materialeAspetto = (chiave: string, base: THREE.MeshStandardMaterial, opz: OpzioniAspetto): THREE.MeshStandardMaterial | null => {
     // Un campione scelto per la stanza resta lo stesso anche girando intorno.
     if (base.userData.finitura) return base;
-    const faccia = chiave === "muro" ? FACCIATE[opz.facciata] : null;
-    const look = faccia ? { trama: faccia.trama, metri: faccia.metri } : LOOK[chiave];
-    const colorePerInfissi = chiave === "telaio" || chiave === "oscurante" ? INFISSI[opz.infissi].colore : null;
+    const faccia = chiave === "muro" && !opz.dentro ? FACCIATE[opz.facciata] : null;
+    const look = faccia ? { trama: faccia.trama, metri: faccia.metri } : chiave === "muro" ? { trama: "intonaco", metri: 1 } : LOOK[chiave];
+    const colorePerInfissi = chiave === "telaio" || (chiave === "oscurante" && !opz.dentro) ? INFISSI[opz.infissi].colore : null;
     if (!look && !colorePerInfissi && chiave !== "vetro") return null;
-    const id = `${chiave}|${faccia ? opz.facciata : ""}|${colorePerInfissi ? opz.infissi : ""}`;
+    const id = `${chiave}|${opz.dentro ? "interno" : opz.facciata}|${colorePerInfissi ? opz.infissi : ""}`;
     const gia = materiali.get(id);
     if (gia) return gia;
     const m = base.clone();
-    if (colorePerInfissi) m.color = new THREE.Color(colorePerInfissi);
+    m.userData.materialeAspetto = true;
+    if (colorePerInfissi) {
+      m.color.set(colorePerInfissi);
+      m.metalness = opz.infissi === "legno" ? .03 : .28;
+      m.roughness = opz.infissi === "legno" ? .47 : .32;
+    }
     if (chiave === "vetro") {
-      m.color = new THREE.Color("#8fb8d4");
+      m.color.set(opz.dentro ? "#dce8ee" : "#b1cddd");
+      m.opacity = opz.dentro ? .13 : .26;
       m.roughness = 0.04;
       m.metalness = 0.1;
       m.envMapIntensity = 2.2;
@@ -371,7 +424,7 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
         const def = TRAME[look.trama];
         if (def?.rilievo) { m.bumpMap = tm; m.bumpScale = def.rilievo * 2; }
         if (faccia) m.color = new THREE.Color(faccia.colore);
-        else if (look.trama !== "intonaco") m.color = new THREE.Color("#ffffff");
+        else if (look.trama !== "intonaco" && look.trama !== "tessuto" && chiave !== "stipite") m.color.set("#ffffff");
         if ("metallo" in look && look.metallo) m.metalness = look.metallo;
         if ("ruvidita" in look && look.ruvidita) m.roughness = look.ruvidita;
       }
@@ -401,10 +454,18 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
     scene.add(cielo);
   };
 
+  const rimuoviAlberi = () => {
+    alberi?.traverse((o) => { if (o instanceof THREE.InstancedMesh) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); } });
+    if (alberi) scene.remove(alberi);
+    alberi = null;
+    scenaAlberi = null;
+  };
+
   const costruisciAlberi = (scena: Scena3D) => {
-    if (alberi) { alberi.traverse((o) => { if (o instanceof THREE.InstancedMesh) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); } }); scene.remove(alberi); alberi = null; }
+    rimuoviAlberi();
+    scenaAlberi = scena;
     // se la pianta ha un lotto disegnato (prato, aiuole, alberi suoi) il giardino lo ha deciso chi l'ha fatta
-    if (scena.mesh.some((m) => m.id.startsWith("area:") || /^albero/i.test(m.nome))) return;
+    if (!ammetteAlberiDiContesto(scena)) return;
     const posti = postiAlberi(scena.limiti);
     if (!posti.length) return;
     const alberiVeri = posti.filter((p) => !p.cespuglio), cespugli = posti.filter((p) => p.cespuglio);
@@ -444,7 +505,12 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   };
 
   const spegniEffetti = () => {
-    if (compositore) { compositore.dispose(); compositore = null; gtao = null; }
+    if (compositore) {
+      compositore.passes.forEach(p => p.dispose());
+      compositore.dispose();
+      compositore = null;
+      gtao = null;
+    }
   };
   const accendiEffetti = () => {
     if (compositore) return;
@@ -454,8 +520,8 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       compositore.addPass(new RenderPass(scene, camera));
       gtao = new GTAOPass(scene, camera, dimensioni.w, dimensioni.h);
       gtao.output = GTAOPass.OUTPUT.Default;
-      gtao.blendIntensity = 0.9;
-      gtao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.5, thickness: 1.2, scale: 1.1, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
+      gtao.blendIntensity = .66;
+      gtao.updateGtaoMaterial({ radius: .5, distanceExponent: 1.5, thickness: .72, scale: 1, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
       compositore.addPass(gtao);
       compositore.addPass(new OutputPass());
       compositore.setSize(dimensioni.w, dimensioni.h);
@@ -465,8 +531,8 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   };
 
   return {
-    applica(gruppo, scena, opz, ambiente) {
-      const attiva = opz.realistico && !opz.dentro;
+    applica(gruppo, scena, opz, ambiente, finestra) {
+      const attiva = opz.realistico;
       // materiali: si parte sempre da quelli di base della scena
       if (gruppo) {
         gruppo.traverse((o) => {
@@ -492,45 +558,87 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       const { min, max } = scena.limiti;
       const r = Math.max(4, Math.hypot(max[0] - min[0], max[2] - min[2]) / 2);
       const cx = (min[0] + max[0]) / 2, cz = (min[2] + max[2]) / 2;
-      if (!attiva) {
-        if (accesa) {
-          accesa = false;
-          scene.background = sfondoOriginale;
-          scene.environment = ambienteOriginale;
-          scene.environmentIntensity = intensitaAmbienteOriginale;
-          scene.fog = null;
-          renderer.toneMappingExposure = esposizioneOriginale;
-          if (cielo) { cielo.geometry.dispose(); (cielo.material as THREE.Material).dispose(); scene.remove(cielo); cielo = null; }
-          if (alberi) { alberi.traverse((o) => { if (o instanceof THREE.InstancedMesh) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); } }); scene.remove(alberi); alberi = null; }
-          if (ambienteCielo) { ambienteCielo.dispose(); ambienteCielo = null; }
-          const mt = ambiente.terreno.material as THREE.MeshStandardMaterial;
-          mt.map = null; mt.color.set("#dfe3e6"); mt.needsUpdate = true;
-          ambiente.sole.color.set("#fff4e5"); ambiente.sole.intensity = 1.6;
-          if (ambiente.hemi) ambiente.hemi.intensity = 0.9;
+      const mt = ambiente.terreno.material as THREE.MeshStandardMaterial;
+      if (!attiva || opz.dentro || opz.sfondoNeutro) {
+        if (cielo) cielo.visible = false;
+        rimuoviAlberi();
+        mt.map = null; mt.color.set("#dfe3e6"); mt.needsUpdate = true;
+        scene.background = sfondoOriginale;
+        scene.environment = ambienteOriginale;
+        scene.environmentIntensity = intensitaAmbienteOriginale;
+        scene.fog = null;
+        renderer.toneMappingExposure = esposizioneOriginale;
+        ambiente.sole.color.set("#fff4e5"); ambiente.sole.intensity = 1.6;
+        if (ambiente.hemi) {
+          ambiente.hemi.color.set("#fff");
+          ambiente.hemi.intensity = .9;
         }
+      }
+      if (!attiva) {
         spegniEffetti();
         return;
       }
-      accesa = true;
-      const st = sole(opz.ora);
+      const st = sole(opz.ora, scena.nord);
+      if (opz.sfondoNeutro && !opz.dentro) {
+        scene.background = new THREE.Color("#ecece7");
+        scene.environmentIntensity = .72;
+        mt.color.set("#deddd5");
+        ambiente.sole.intensity = st.intensita * .48;
+        ambiente.sole.color.set(st.colore);
+        const [dx, dy, dz] = st.direzione;
+        ambiente.sole.position.set(cx + dx * r * 3, (scena.nord === undefined ? Math.max(dy, .48) : dy) * r * 3, cz + dz * r * 3);
+        ambiente.sole.target.position.set(cx, 0, cz);
+        if (ambiente.hemi) ambiente.hemi.intensity = 1.05;
+        if (opz.effetti) accendiEffetti(); else spegniEffetti();
+        return;
+      }
+      if (opz.dentro) {
+        scene.background = new THREE.Color("#dce8f0");
+        scene.environmentIntensity = .62;
+        renderer.toneMappingExposure = .94;
+        if (ambiente.hemi) {
+          ambiente.hemi.color.set("#fbf2e7");
+          ambiente.hemi.intensity = finestra ? .55 : .91;
+        }
+        ambiente.sole.intensity = scena.nord !== undefined || finestra ? 2.22 : .48;
+        ambiente.sole.color.set(st.colore);
+        if (scena.nord !== undefined) {
+          const [dx, dy, dz] = st.direzione;
+          ambiente.sole.position.set(cx + dx * r * 3, dy * r * 3, cz + dz * r * 3);
+          ambiente.sole.target.position.set(cx, 0, cz);
+        } else if (finestra) {
+          const [x, y, z] = finestra.centro, [nx, nz] = finestra.fuori;
+          ambiente.sole.position.set(x + nx * 8 - nz * 2, y + 3 + st.direzione[1] * 2, z + nz * 8 + nx * 2);
+          ambiente.sole.target.position.set(x - nx * 2, .18, z - nz * 2);
+          const cam = ambiente.sole.shadow.camera;
+          cam.left = cam.bottom = -6;
+          cam.right = cam.top = 6;
+          cam.far = 32;
+          cam.updateProjectionMatrix();
+        }
+        if (opz.effetti) accendiEffetti(); else spegniEffetti();
+        return;
+      }
       // cielo, nebbia, riflessi del cielo sui vetri
-      costruisciCielo(st, r);
+      if (oraCielo !== opz.ora) {
+        costruisciCielo(st, r);
+        oraCielo = opz.ora;
+        ambienteCielo?.dispose();
+        ambienteCielo = null;
+        try {
+          const pm = new THREE.PMREMGenerator(renderer);
+          const riflessi = new THREE.Scene();
+          riflessi.add(cielo!.clone());
+          ambienteCielo = pm.fromScene(riflessi, 0.02).texture;
+          pm.dispose();
+        } catch { /* si resta con l'ambiente di sempre */ }
+      }
+      if (cielo) cielo.visible = true;
       scene.background = new THREE.Color(st.cielo.orizzonte);
       scene.fog = new THREE.Fog(st.cielo.orizzonte, r * 4.5, r * 10);
       renderer.toneMappingExposure = st.esposizione;
-      if (ambienteCielo) { ambienteCielo.dispose(); ambienteCielo = null; }
-      if (cielo) {
-        try {
-          const pm = new THREE.PMREMGenerator(renderer);
-          const s = new THREE.Scene();
-          const c2 = cielo.clone();
-          s.add(c2);
-          ambienteCielo = pm.fromScene(s, 0.02).texture;
-          pm.dispose();
-          scene.environment = ambienteCielo;
-          scene.environmentIntensity = 0.9;
-        } catch { /* si resta con l'ambiente di sempre */ }
-      }
+      scene.environment = ambienteCielo ?? ambienteOriginale;
+      scene.environmentIntensity = .9;
       // sole (con la sua ombra) e luce del cielo
       const d = st.direzione;
       ambiente.sole.position.set(cx + d[0] * r * 3, d[1] * r * 3, cz + d[2] * r * 3);
@@ -540,14 +648,18 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
       if (ambiente.hemi) { ambiente.hemi.intensity = st.emisfero; ambiente.hemi.color.set(st.cielo.zenit); }
       // il prato
       ambiente.terreno.scale.setScalar(r * 12);
-      const mt = ambiente.terreno.material as THREE.MeshStandardMaterial;
       const prato = trama("prato");
       if (prato) {
-        const pt = prato.clone(); pt.needsUpdate = true;
-        pt.repeat.set((r * 24) / 3, (r * 24) / 3);
-        mt.map = pt; mt.color.set("#c8e6a8"); mt.needsUpdate = true;
+        tramaPrato ??= prato.clone();
+        if (raggioPrato !== r) {
+          tramaPrato.repeat.set((r * 24) / 3, (r * 24) / 3);
+          tramaPrato.needsUpdate = true;
+          raggioPrato = r;
+        }
+        mt.map = tramaPrato; mt.color.set("#c8e6a8"); mt.needsUpdate = true;
       }
-      if (opz.alberi) costruisciAlberi(scena); else if (alberi) { scene.remove(alberi); alberi = null; }
+      if (opz.alberi && scenaAlberi !== scena) costruisciAlberi(scena);
+      else if (!opz.alberi && alberi) rimuoviAlberi();
       if (opz.effetti) accendiEffetti(); else spegniEffetti();
     },
     disegna() {
@@ -562,10 +674,11 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
     libera() {
       spegniEffetti();
       texture.forEach((t) => t.dispose());
+      tramaPrato?.dispose();
       materiali.forEach((m) => { m.map?.dispose(); m.dispose(); });
       if (cielo) { cielo.geometry.dispose(); (cielo.material as THREE.Material).dispose(); }
       if (ambienteCielo) ambienteCielo.dispose();
-      alberi?.traverse((o) => { if (o instanceof THREE.InstancedMesh) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); } });
+      rimuoviAlberi();
     },
   };
 }

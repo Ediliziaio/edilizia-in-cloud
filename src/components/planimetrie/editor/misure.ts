@@ -12,6 +12,15 @@ export function leggiMisura(testo: string): number | null {
   const t = testo.trim().toLowerCase().replace(/\s+/g, " ");
   if (!t) return null;
 
+  // Le tavole anglosassoni possono usare l'apostrofo e le virgolette tipografiche.
+  const imperiali = t.match(/^(?:(\d+)\s*(?:['’′]|ft)(?:\s*-?\s*(\d+(?:[.,]\d+)?)\s*(?:["”″]|in))?|(\d+(?:[.,]\d+)?)\s*(?:["”″]|in))$/);
+  if (imperiali) {
+    const piedi = Number(imperiali[1] ?? 0);
+    const pollici = Number((imperiali[2] ?? imperiali[3] ?? "0").replace(",", "."));
+    const cm = piedi * 30.48 + pollici * 2.54;
+    return Number.isFinite(cm) && cm > 0 ? Math.round(cm * 10) / 10 : null;
+  }
+
   // «4 m 20» / «4m20»
   const mcm = t.match(/^(\d+)\s*m\s*(\d{1,2})(?:\s*cm)?$/);
   if (mcm) return Number(mcm[1]) * 100 + Number(mcm[2]);
@@ -33,6 +42,14 @@ export function leggiMisura(testo: string): number | null {
 export function scriviMetri(cm: number): string {
   const arrotondata = Math.round(cm * 10) / 10;
   return (arrotondata / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: Number.isInteger(arrotondata) ? 2 : 3 });
+}
+
+/** Coordinate cartesiane digitate in metri, convertite in cm per il disegno. */
+export function leggiCoordinata(testo: string): number | null {
+  const t = testo.trim().replace("−", "-");
+  if (!/^[+-]?(?:\d+(?:[.,]\d{1,4})?|[.,]\d{1,4})\s*m?$/i.test(t)) return null;
+  const metri = Number(t.replace(/m$/i, "").replace(",", "."));
+  return Number.isFinite(metri) && Math.abs(metri) <= 1e7 ? Math.round(metri * 10_000) / 100 + 0 : null;
 }
 
 /** «90» — centimetri interi, per porte e finestre. */

@@ -47,11 +47,15 @@ type PdfPageHandle = {
 
 type ViewPosition = { page: number; fraction: number; left: number; top: number };
 const canvasTop = (container: HTMLElement, canvas: HTMLCanvasElement) =>
-  canvas.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+  container.hasAttribute("data-pdf-page-inset") && canvas.offsetParent === container
+    ? canvas.offsetTop
+    : canvas.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
 
 function capturePosition(container: HTMLDivElement): ViewPosition {
   const canvases = Array.from(container.querySelectorAll<HTMLCanvasElement>("canvas[data-page]"));
-  const canvas = canvases.find(item => canvasTop(container, item) + item.getBoundingClientRect().height > container.scrollTop)
+  // Il margine sopra la pagina può includere una frazione del foglio precedente.
+  const visibleTop = container.scrollTop + Number(container.dataset.pdfPageInset ?? 0);
+  const canvas = canvases.find(item => canvasTop(container, item) + item.getBoundingClientRect().height > visibleTop)
     ?? canvases.at(-1);
   return {
     page: Number(canvas?.dataset.page ?? 1), left: container.scrollLeft, top: container.scrollTop,
@@ -59,11 +63,15 @@ function capturePosition(container: HTMLDivElement): ViewPosition {
   };
 }
 
-function restorePosition(container: HTMLDivElement, position: ViewPosition, pageCount: number) {
+function restorePosition(container: HTMLDivElement, position: ViewPosition, pageCount: number, wholePageInset?: number) {
   const page = Math.min(pageCount, Math.max(1, position.page));
   const canvas = container.querySelector<HTMLCanvasElement>(`canvas[data-page="${page}"]`);
-  container.scrollTop = position.top === 0 && page === 1 ? 0 : canvas ? Math.max(0, canvasTop(container, canvas) + position.fraction * canvas.getBoundingClientRect().height) : position.top;
-  container.scrollLeft = position.left;
+  if (canvas && wholePageInset !== undefined) {
+    container.scrollTop = Math.max(0, canvasTop(container, canvas) - wholePageInset);
+  } else {
+    container.scrollTop = position.top === 0 && page === 1 ? 0 : canvas ? Math.max(0, canvasTop(container, canvas) + position.fraction * canvas.getBoundingClientRect().height) : position.top;
+  }
+  container.scrollLeft = wholePageInset === undefined ? position.left : 0;
 }
 
 /**
@@ -110,6 +118,8 @@ interface Props {
   showDownloadOnMobile?: boolean;
   allowOpenInNewTab?: boolean;
   headerLabel?: string;
+  /** Dimensiona ogni pagina entro larghezza e altezza disponibili. Lo zoom parte da questa vista. */
+  fitWholePage?: boolean;
 }
 
 export function PdfBlobLivePreviewPanel({
@@ -126,6 +136,7 @@ export function PdfBlobLivePreviewPanel({
   showDownloadOnMobile = false,
   allowOpenInNewTab = true,
   headerLabel = "Anteprima live PDF",
+  fitWholePage = false,
 }: Props) {
   // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
   // condiviso, così ogni pannello (compreso il Fotovoltaico) eredita
@@ -147,6 +158,8 @@ export function PdfBlobLivePreviewPanel({
   const affiancato = useDocumentoAffiancato();
   const [zoom, setZoom] = useState(1);
   const [adatta, setAdatta] = useState<AdattamentoDocumento>("pagina");
+  const wholePage = fitWholePage && zoom === 1;
+  const pageInset = affiancato ? 8 : 12;
   const [viewportWidth, setViewportWidth] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [layoutRevision, setLayoutRevision] = useState(0);
@@ -169,11 +182,11 @@ export function PdfBlobLivePreviewPanel({
       const width = container.clientWidth;
       if (width === 0) pendingPositionRef.current = lastVisiblePositionRef.current;
       setViewportWidth(width);
-      if (affiancato) setViewportHeight(container.clientHeight);
+      if (affiancato || fitWholePage) setViewportHeight(container.clientHeight);
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [affiancato]);
+  }, [affiancato, fitWholePage]);
 
   // Il visore PDF nativo dentro l'iframe non è consistente tra browser e,
   // nella pagina impostazioni, può restare bianco pur avendo ricevuto il blob.
@@ -247,7 +260,7 @@ export function PdfBlobLivePreviewPanel({
     const pdfDocument = pdfDocRef.current;
     if (!pdfDocument || pageCount === 0) return;
     const container = containerRef.current;
-    if (!container || container.clientWidth <= 24) return;
+    if (!container || container.clientWidth <= 24 || ((fitWholePage || affiancato) && viewportHeight <= pageInset * 2)) return;
     let cancelled = false;
     let renderTask: ReturnType<PdfPageHandle["render"]> | null = null;
     const position = pendingPositionRef.current ?? capturePosition(container);
@@ -257,16 +270,23 @@ export function PdfBlobLivePreviewPanel({
 
     (async () => {
       const containerWidth = container.clientWidth;
-      if (containerWidth <= 24 || (affiancato && viewportHeight <= 24)) return;
-      const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - (affiancato ? 16 : 24)) / A4_WIDTH_PT));
-      const scale = fitScale * zoom;
+      if (containerWidth <= 24) return;
+      const availableWidth = containerWidth - pageInset * 2;
       const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) => pdfDocument.getPage(i + 1)));
       if (cancelled || pdfDocRef.current !== pdfDocument) return;
-      const viewports = pages.map(page => page.getViewport({
-        scale: affiancato
-          ? scalaDocumento(page.getViewport({ scale: 1 }), { width: containerWidth, height: viewportHeight }, adatta) * zoom
-          : scale,
-      }));
+      const viewports = pages.map(page => {
+        if (affiancato && !fitWholePage) {
+          const scale = scalaDocumento(page.getViewport({ scale: 1 }), { width: containerWidth, height: viewportHeight }, adatta);
+          return page.getViewport({ scale: scale * zoom });
+        }
+        if (!fitWholePage) {
+          const fitScale = Math.min(1.6, Math.max(0.4, availableWidth / A4_WIDTH_PT));
+          return page.getViewport({ scale: fitScale * zoom });
+        }
+        const size = page.getViewport({ scale: 1 });
+        const fitScale = Math.min(1.6, availableWidth / size.width, (viewportHeight - pageInset * 2) / size.height);
+        return page.getViewport({ scale: fitScale * zoom });
+      });
       // Size EVERY page before scrolling: sequential canvas growth previously
       // displaced later pages while a selected destination was being reached.
       for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
@@ -276,9 +296,10 @@ export function PdfBlobLivePreviewPanel({
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = fitWholePage ? `${viewport.height}px` : "";
         canvas.style.maxWidth = zoom <= 1 ? "100%" : "none";
       }
-      restorePosition(container, position, pageCount);
+      restorePosition(container, position, pageCount, wholePage ? pageInset : undefined);
       lastVisiblePositionRef.current = capturePosition(container);
       layoutRef.current = { document: pdfDocument, position };
       setLayoutRevision(value => value + 1);
@@ -310,7 +331,7 @@ export function PdfBlobLivePreviewPanel({
     });
 
     return () => { cancelled = true; renderTask?.cancel?.(); invalidateNavigation(); };
-  }, [renderNonce, pageCount, zoom, viewportWidth, viewportHeight, adatta, invalidateNavigation, affiancato]);
+  }, [renderNonce, pageCount, zoom, viewportWidth, viewportHeight, adatta, affiancato, fitWholePage, wholePage, pageInset, invalidateNavigation]);
 
   useEffect(() => {
     const token = ++navigationTokenRef.current;
@@ -326,7 +347,7 @@ export function PdfBlobLivePreviewPanel({
       : resolveEdileSectionPage(layout.document, activeSection).then((page): Awaited<ReturnType<typeof resolvePdfDestination>> => page == null ? null : { page, top: null });
     void target.then(async destination => {
       let offset = 0;
-      if (destination?.top != null) {
+      if (destination?.top != null && !wholePage) {
         const page = await layout.document.getPage(destination.page);
         const height = page.getViewport({ scale: 1 }).height;
         offset = height > 0 ? Math.min(1, Math.max(0, (height - destination.top) / height)) : 0;
@@ -343,18 +364,18 @@ export function PdfBlobLivePreviewPanel({
         const canvas = container.querySelector<HTMLCanvasElement>(`canvas[data-page="${page}"]`);
         // Scroll this panel only, never the editor/browser window. PDF.js gets
         // the page from the native destination; no text search or fixed index.
-        if (canvas) container.scrollTop = Math.max(0, canvasTop(container, canvas) + offset * canvas.getBoundingClientRect().height - 12);
+        if (canvas) container.scrollTop = Math.max(0, canvasTop(container, canvas) + offset * canvas.getBoundingClientRect().height - (wholePage ? pageInset : 12));
       } else if (previous.document !== layout.document) {
         // Stay at the user's offset within the selected chapter after edits,
         // even when preceding content gained/lost pages. Zoom is independent.
-        restorePosition(container, { ...layout.position, page: page + layout.position.page - previous.page }, layout.document.numPages);
+        restorePosition(container, { ...layout.position, page: page + layout.position.page - previous.page }, layout.document.numPages, wholePage ? pageInset : undefined);
       }
       lastNavigationRef.current = { document: layout.document, section: identity, page, request: destinationRequest };
       lastVisiblePositionRef.current = capturePosition(container);
       setSectionStatus(`${activeDestination ? destinationLabel : "Sezione selezionata"} · pagina ${page} di ${layout.document.numPages}`);
     }).catch(() => { /* Una rigenerazione può chiudere il documento durante la risoluzione. */ });
     return invalidateNavigation;
-  }, [activeSection, activeDestination, destinationLabel, destinationRequest, layoutRevision, viewportWidth, invalidateNavigation]);
+  }, [activeSection, activeDestination, destinationLabel, destinationRequest, layoutRevision, viewportWidth, wholePage, pageInset, invalidateNavigation]);
 
   useEffect(() => () => {
     disposePdfDocument(pdfDocRef.current);
@@ -395,15 +416,16 @@ export function PdfBlobLivePreviewPanel({
             <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.max(ZOOM_MIN, +(value - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title="Riduci" className="h-6 w-6">
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
-            <button type="button" onClick={() => setZoom(1)} title="Adatta alla larghezza" className="min-w-[32px] text-center text-[10px] tabular-nums text-slate-600 hover:text-orange-600">
-              {Math.round(zoom * 100)}%
+            <button type="button" onClick={() => setZoom(1)} title={fitWholePage ? "Adatta pagina intera" : "Adatta alla larghezza"}
+              className={fitWholePage ? "h-6 min-w-[68px] rounded px-1.5 text-[11px] tabular-nums hover:bg-blue-50" : "min-w-[32px] text-center text-[10px] tabular-nums text-slate-600 hover:text-orange-600"}>
+              {wholePage ? "Pagina intera" : `${Math.round(zoom * 100)}%`}
             </button>
             <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.min(ZOOM_MAX, +(value + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} title="Ingrandisci" className="h-6 w-6">
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title="Adatta larghezza" className="h-6 w-6">
+            {!fitWholePage && <Button size="icon" variant="ghost" onClick={() => setZoom(1)} title="Adatta larghezza" className="h-6 w-6">
               <Maximize2 className="h-3.5 w-3.5" />
-            </Button>
+            </Button>}
           </div>
           )}
           <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title="Aggiorna ora" className="h-7 w-7">
@@ -421,7 +443,10 @@ export function PdfBlobLivePreviewPanel({
       </div>
       {sectionStatus && (activeDestination || edileEditorDestinations(activeSection).length > 0) && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionStatus}</p>}
       </ComandiDocumento>
-      <div data-confronto-superficie={affiancato ? true : undefined} className={affiancato ? "relative min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2" : "relative flex-1 min-h-0 overflow-auto bg-muted/40"} ref={containerRef} data-pdf-scroll-container onScroll={() => {
+      <div data-confronto-superficie={affiancato ? true : undefined} data-pdf-page-inset={fitWholePage ? pageInset : undefined}
+        className={affiancato ? "relative min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2" : "relative flex-1 min-h-0 overflow-auto bg-muted/40"}
+        style={fitWholePage ? { overflowAnchor: "none", ...(wholePage ? { scrollSnapType: "y mandatory", scrollPaddingBlockStart: pageInset } : {}) } : undefined}
+        ref={containerRef} data-pdf-scroll-container onScroll={() => {
         const container = containerRef.current;
         if (container && container.clientWidth > 24) lastVisiblePositionRef.current = capturePosition(container);
       }}>
@@ -452,9 +477,9 @@ export function PdfBlobLivePreviewPanel({
           </div>
         )}
         {url && !pdfError && pageCount > 0 && (
-          <div className={affiancato ? "flex min-w-full w-max flex-col items-center gap-3" : "flex flex-col items-center gap-3 px-3 py-3"}>
+          <div className={`flex flex-col items-center gap-3${affiancato ? "" : " p-3"}${(affiancato || fitWholePage) ? " w-max min-w-full" : ""}`}>
             {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
-              <div key={pageNumber} className="mx-auto rounded-sm bg-white shadow-md">
+              <div key={pageNumber} className="mx-auto rounded-sm bg-white shadow-md" style={wholePage ? { scrollSnapAlign: "start" } : undefined}>
                 <canvas data-page={pageNumber} className="block h-auto" aria-label={`Pagina ${pageNumber} di ${pageCount}`} />
               </div>
             ))}

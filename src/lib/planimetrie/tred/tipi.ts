@@ -1,4 +1,5 @@
 import type { TettoGeom } from "../../../../shared/planimetrie/tetto.ts";
+import type { TracciatoImpianto } from "../../../../shared/planimetrie/modello.ts";
 /**
  * Tipi del 3D delle planimetrie.
  *
@@ -51,6 +52,8 @@ export interface AperturaPer3D {
   /** Numero di ante e se scorre: assente = telaio non disegnato. */
   ante?: number;
   scorrevole?: boolean;
+  /** Una vetrata fissa resta chiusa durante la visita. */
+  fisso?: boolean;
   /** Oscurante e cassonetto scelti da chi ha fatto la pianta (tapparella, veneziana, persiana, scuri). */
   oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
   /** Zanzariera (sul filo interno del vano); `altezzaPersa` = cm presi in testa da un cassonetto monoblocco. */
@@ -70,6 +73,8 @@ export interface LocalePer3D {
   /** Contorno interno del locale (filo muro), in cm. */
   contorno: Punto2[];
   altezza: number;
+  unita?: string;
+  aperto?: boolean;
 }
 
 export interface ElementoPer3D {
@@ -85,6 +90,9 @@ export interface ElementoPer3D {
   profondita?: number;
   altezza?: number;
   localeId?: string;
+  colore?: string;
+  modello?: string;
+  alzateCad?: import("../../../../shared/planimetrie/modello.ts").AlzataCad[];
   /** Ascensore: senza la cabina (ai piani dove non si ferma, resta il vano con la porta di piano). */
   senzaCabina?: boolean;
   /** Altezza fino al pavimento del piano sopra, in cm (travi e solai ci arrivano a filo). */
@@ -103,11 +111,17 @@ export interface AreaPer3D {
 }
 
 export interface PiantaPer3D {
+  nord?: number;
   infissiProgetto?: import("../../../../shared/planimetrie/materialiProgetto.ts").InfissiProgetto;
   muri: MuroPer3D[];
   aperture: AperturaPer3D[];
   locali: LocalePer3D[];
   elementi: ElementoPer3D[];
+  tracciatiImpianti?: TracciatoImpianto[];
+  /** Reti aerauliche visualizzate nello studio della tavola, in cm. */
+  canaliAria?: { id: string; rete: "mandata" | "ripresa"; da: Punto2; a: Punto2; larghezza?: number; altezza?: number; quota: number }[];
+  raccordiAria?: RaccordoAria3D[];
+  incrociAria?: IncrocioAria3D[];
   aree?: AreaPer3D[];
   /** Il tetto sopra il piano (Livello.tetto): si vede quando c'è il soffitto. */
   tetto?: TettoGeom;
@@ -115,11 +129,40 @@ export interface PiantaPer3D {
   terreno?: Array<{ x: number; y: number; quota: number }>;
 }
 
+export type RaccordoAria3D = {
+  id: string;
+  tipo: "curva" | "derivazione";
+  rete: "mandata" | "ripresa";
+  punto: Punto2;
+  rami: { trattoId: string; asse: "x" | "y"; verso: -1 | 1 }[];
+  coperto: boolean;
+  selezionato?: boolean;
+};
+
+export type IncrocioAria3D = {
+  id: string;
+  punto: Punto2;
+  quoteCm: [number, number];
+  selezionato?: boolean;
+};
+
 // ─── Risultato ──────────────────────────────────────────────────────────────
 
 export type V3 = [number, number, number];
 
 export type GenereMesh = "muro" | "vano" | "tamponamento" | "nodo" | "pavimento" | "soffitto" | "vetro" | "elemento";
+
+export type StratoEsploso3D = "fondazioni" | "pavimenti" | "impianti" | "pareti" | "arredi" | "soffitti" | "copertura";
+
+export type ModelloAuto3D = "compatta" | "berlina" | "suv" | "highland";
+
+export interface PosizioneAuto3D {
+  modello: ModelloAuto3D;
+  centro: V3;
+  misure: V3;
+  rotazione: number;
+  colore?: string;
+}
 
 export interface Mesh3D {
   id: string;
@@ -130,8 +173,14 @@ export interface Mesh3D {
   materiale: string;
   /** id dell'oggetto della pianta da cui viene (muro, apertura, locale, elemento). */
   riferimento: string;
+  /** Strato esplicito per gli elementi che condividono lo stesso genere di mesh. */
+  stratoEsploso?: StratoEsploso3D | null;
+  /** La carrozzeria individua la posa dell'auto. Il visore e i render caricano il modello di dettaglio. */
+  auto?: PosizioneAuto3D;
   posizioni: number[];
   normali: number[];
+  /** UV originali del modello importato, nel verso glTF (V = 0 in alto). */
+  uv?: number[];
   indici: number[];
   /** Facce piane (rettangoli e poligoni) prima della triangolazione. */
   facce: number;
@@ -144,6 +193,8 @@ export interface Materiale3D {
   /** 1 = opaco. */
   opacita: number;
   ruvidita: number;
+  metallico?: number;
+  doppioLato?: boolean;
   /** Campione reale, ripetuto in metri (non dipende dalle dimensioni della stanza). */
   finituraProgetto?: boolean;
   tessitura?: { trama: string; metri: [number, number]; tinta?: string };
@@ -156,8 +207,10 @@ export interface Limiti3D {
 
 export interface Scena3D {
   mesh: Mesh3D[];
+  nord?: number;
   materiali: Record<string, Materiale3D>;
   limiti: Limiti3D;
+  scaviPiscine?: Array<import("./piscina").ScavoPiscina>;
   /** Cose della pianta che il 3D ha dovuto correggere o saltare, in parole semplici. */
   avvisi: string[];
   /** Linee degli impianti disegnate, con i metri stimati (sfrido compreso). Solo con `impianti`. */
@@ -168,6 +221,8 @@ export interface OpzioniScena {
   vista?: Vista3D;
   /** Soffitto dei locali. Predefinito: sì. */
   soffitto?: boolean;
+  /** Apre le portefinestre percorribili e disegna le soglie nel visore a piedi. */
+  passaggiAperti?: boolean;
   /** Sanitari e arredi. Predefinito: sì. */
   elementi?: boolean;
   /**

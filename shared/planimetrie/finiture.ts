@@ -4,7 +4,7 @@ export interface CampioneFinitura {
   nome: string;
   descrizione: string;
   colore: string;
-  trama: "rovere" | "marmo" | "pietra" | "cemento" | "piastrelle" | "intonaco";
+  trama: "rovere" | "rovere_miele" | "rovere_spina" | "marmo" | "marmo_calacatta" | "marmo_marquinia" | "pietra" | "travertino" | "cemento" | "piastrelle" | "intonaco";
   /** Misura reale del campione ripetuto (larghezza e altezza, in metri). */
   metri: [number, number];
   ruvidita: number;
@@ -19,6 +19,11 @@ export const PAVIMENTI_STANZA: readonly CampioneFinitura[] = [
   { id: "pietra", nome: "Pietra naturale sabbia", descrizione: "Pietra naturale calcarea color sabbia, pori e variazioni minerali visibili, finitura opaca", colore: "#ffffff", trama: "pietra", metri: [2.4, 2.4], ruvidita: 0.8 },
   { id: "piastrelle", nome: "Gres avorio", descrizione: "Gres porcellanato avorio opaco, piastrelle 60×60 cm, fughe sottili tono su tono", colore: "#e8dfce", trama: "piastrelle", metri: [1.2, 1.2], ruvidita: 0.55 },
   { id: "cotto", nome: "Cotto terracotta", descrizione: "Cotto terracotta naturale, piastrelle 30×30 cm opache con variazioni di tono", colore: "#b96f4c", trama: "piastrelle", metri: [0.6, 0.6], ruvidita: 0.9 },
+  { id: "rovere_miele", nome: "Parquet rovere miele", descrizione: "Parquet in rovere miele a listoni sfalsati, con nodi sottili e finitura oliata", colore: "#ffffff", trama: "rovere_miele", metri: [1.2, 1.2], ruvidita: 0.54 },
+  { id: "rovere_spina", nome: "Parquet rovere a spina", descrizione: "Parquet in rovere a spina di pesce, listelli a 90 gradi e finitura opaca", colore: "#ffffff", trama: "rovere_spina", metri: [1.4, 1.4], ruvidita: 0.65 },
+  { id: "marmo_calacatta", nome: "Calacatta bianco e oro", descrizione: "Marmo Calacatta bianco con venature grigie e oro, grandi lastre levigate", colore: "#ffffff", trama: "marmo_calacatta", metri: [2, 2], ruvidita: 0.26 },
+  { id: "marmo_marquinia", nome: "Nero Marquinia", descrizione: "Marmo Nero Marquinia con venature bianche sottili, superficie levigata", colore: "#ffffff", trama: "marmo_marquinia", metri: [1.8, 1.8], ruvidita: 0.28 },
+  { id: "travertino", nome: "Travertino beige", descrizione: "Travertino beige levigato a bande naturali, con porosità fine", colore: "#ffffff", trama: "travertino", metri: [1.4, 1.4], ruvidita: 0.69 },
 ];
 
 export const PARETI_STANZA: readonly CampioneFinitura[] = [
@@ -28,6 +33,7 @@ export const PARETI_STANZA: readonly CampioneFinitura[] = [
   { id: "legno", nome: "Rivestimento in rovere", descrizione: "Rivestimento in legno rovere naturale con venature visibili e doghe verticali opache", colore: "#ffffff", trama: "rovere", metri: [1.2, 2.4], ruvidita: 0.65 },
   { id: "pietra", nome: "Rivestimento in pietra", descrizione: "Rivestimento in pietra naturale calcarea color sabbia, pori e giunti sottili visibili", colore: "#ffffff", trama: "pietra", metri: [2.4, 2.4], ruvidita: 0.85 },
   { id: "marmo", nome: "Rivestimento in marmo", descrizione: "Rivestimento in marmo bianco Carrara con venature grigie naturali", colore: "#ffffff", trama: "marmo", metri: [2.4, 2.4], ruvidita: 0.28 },
+  ...PAVIMENTI_STANZA.filter(c => ["marmo_calacatta", "marmo_marquinia", "travertino"].includes(c.id)),
 ];
 
 export const SOFFITTI_STANZA: readonly CampioneFinitura[] = [
@@ -46,8 +52,13 @@ export function campioneFinitura(testo: string | undefined, superficie: Superfic
   const esatto = opzioni.find((c) => c.descrizione.toLowerCase() === t || c.nome.toLowerCase() === t || c.id === t);
   if (esatto) return esatto;
   const trova = (id: string) => opzioni.find((c) => c.id === id);
+  if (/calacatta/.test(t)) return trova("marmo_calacatta") ?? trova("marmo");
+  if (/marquinia/.test(t)) return trova("marmo_marquinia") ?? trova("marmo");
+  if (/travertino/.test(t)) return trova("travertino") ?? trova("pietra");
   if (/legno|parquet|rovere|noce/.test(t)) {
     if (superficie !== "pavimento") return trova("legno");
+    if (!/gres|porcellan|effetto/.test(t) && /spina di pesce/.test(t)) return trova("rovere_spina");
+    if (!/gres|porcellan|effetto/.test(t) && /miele/.test(t)) return trova("rovere_miele");
     return trova(/gres|porcellan|effetto/.test(t) ? "gres_legno" : /scur|noce|weng/.test(t) ? "noce" : "rovere");
   }
   if (/marmo|carrara/.test(t)) return trova("marmo");

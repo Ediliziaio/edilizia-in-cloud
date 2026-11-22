@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, FileUp, Loader2, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, FileUp, Files, Loader2, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/computo/importaVoci";
 import { leggiVociDaFile, type Avanzamento, type EsitoFile } from "@/lib/computo/leggiVoci";
 import type { StatoServer } from "@/lib/computo/estrazioneServer";
+import { DocumentiDelGestionale } from "./DocumentiDelGestionale";
 
 /**
  * Il popup di «Importa voci», uguale nel computo e nei preventivatori.
@@ -53,6 +54,8 @@ export interface ImportaVociDialogProps {
   etichettaConferma?: (n: number) => string;
   /** Al posto di «Le voci si aggiungono al documento.»: dove finiscono le voci in quest'uso. */
   notaDestinazione?: string;
+  /** Nella bozza del computo, apre la scelta di un altro computo della stessa azienda. */
+  daComputi?: { companyId: string; draftId: string; userId: string };
   /**
    * Sotto il riquadro dei file, al primo passo: altre fonti (computo o preventivo del gestionale).
    * Come funzione riceve `carica`: le voci di quella fonte passano dalla stessa schermata di scelta.
@@ -147,19 +150,23 @@ function SchedaFile({ lavoro }: { lavoro: Lavoro }) {
 }
 
 /** Un campo della tabella: si scrive liberamente, la voce si aggiorna a ogni tasto. */
-function Campo({ etichetta, valore, onCambia, classe = "", numero = false, disabilitato }: {
-  etichetta: string; valore: string; onCambia: (v: string) => void; classe?: string; numero?: boolean; disabilitato?: boolean;
+function Campo({ etichetta, valore, onCambia, etichettaMobile = etichetta, numero = false, disabilitato }: {
+  etichetta: string; valore: string; onCambia: (v: string) => void; etichettaMobile?: string; numero?: boolean; disabilitato?: boolean;
 }) {
-  return <input aria-label={etichetta} value={valore} disabled={disabilitato} inputMode={numero ? "decimal" : undefined}
-    onChange={e => onCambia(e.target.value)}
-    className={`h-8 w-full rounded-md border border-input bg-background px-2 text-xs disabled:bg-muted disabled:text-muted-foreground ${numero ? "text-right tabular-nums" : ""} ${classe}`} />;
+  return <>
+    <span className="mb-1 block text-[11px] text-muted-foreground sm:hidden" aria-hidden>{etichettaMobile}</span>
+    <input aria-label={etichetta} value={valore} disabled={disabilitato} inputMode={numero ? "decimal" : undefined}
+      onChange={e => onCambia(e.target.value)}
+      className={`h-8 w-full rounded-md border border-input bg-background px-1.5 text-xs disabled:bg-muted disabled:text-muted-foreground sm:px-2 ${numero ? "text-right tabular-nums" : ""}`} />
+  </>;
 }
 
-export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000, titolo, descrizione, etichettaConferma, notaDestinazione, altreFonti }: ImportaVociDialogProps) {
+export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000, titolo, descrizione, etichettaConferma, notaDestinazione, altreFonti, daComputi }: ImportaVociDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const [lavori, setLavori] = useState<Lavoro[]>([]);
   const [voci, setVoci] = useState<VoceImportata[]>([]);
   const [passo, setPasso] = useState<"scegli" | "lettura" | "anteprima">("scegli");
+  const [sorgente, setSorgente] = useState<"file" | "computo">("file");
   const [soloIncerte, setSoloIncerte] = useState(false);
   const [tutte, setTutte] = useState(false);
   /** Le voci tolte dalla selezione: restano in elenco, non si importano. */
@@ -171,7 +178,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   const azzera = () => {
     corsa.current?.abort();
     corsa.current = null;
-    setLavori([]); setVoci([]); setPasso("scegli"); setSoloIncerte(false); setTutte(false); setEscluse(new Set()); setFonte(null);
+    setLavori([]); setVoci([]); setPasso("scegli"); setSorgente("file"); setSoloIncerte(false); setTutte(false); setEscluse(new Set()); setFonte(null);
   };
   const chiudi = () => { azzera(); onOpenChange(false); };
   useEffect(() => () => corsa.current?.abort(), []);
@@ -228,21 +235,30 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   const mostrate = tutte ? visibili : visibili.slice(0, RIGHE_VISIBILI);
   const selezionate = useMemo(() => voci.filter(v => !escluse.has(v.id)), [voci, escluse]);
   const nonLavori = useMemo(() => voci.filter(eNonLavoro).length, [voci]);
-  const totale = useMemo(() => totaleVoci(selezionate), [selezionate]);
+  const copiaDaComputo = !!daComputi && fonte?.tipo === "computo";
+  const totale = totaleVoci(copiaDaComputo ? selezionate.filter(v => !v.opzionale) : selezionate);
   /** I capitoli nell'ordine del file, con le voci mostrate di ciascuno. */
   const gruppi = useMemo(() => {
     const m = new Map<string, VoceImportata[]>();
     for (const v of mostrate) {
       const c = v.capitolo.trim() || "Senza capitolo";
-      m.set(c, [...(m.get(c) ?? []), v]);
+      const vociCapitolo = m.get(c);
+      if (vociCapitolo) vociCapitolo.push(v);
+      else m.set(c, [v]);
     }
     return [...m.entries()];
   }, [mostrate]);
   const capitoliTutti = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const v of voci) { const c = v.capitolo.trim() || "Senza capitolo"; m.set(c, [...(m.get(c) ?? []), v.id]); }
+    for (const v of voci) {
+      const c = v.capitolo.trim() || "Senza capitolo";
+      const ids = m.get(c);
+      if (ids) ids.push(v.id);
+      else m.set(c, [v.id]);
+    }
     return m;
   }, [voci]);
+  const selezionatePerId = useMemo(() => new Map(selezionate.map(v => [v.id, v])), [selezionate]);
   const seleziona = (ids: string[], si: boolean) => setEscluse(e => {
     const n = new Set(e);
     for (const id of ids) { if (si) n.delete(id); else n.add(id); }
@@ -264,16 +280,36 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   };
 
   const caricaDaFonte = (lette: VoceImportata[], f: FonteVoci) => {
-    setLavori([]); setVoci(lette); setEscluse(new Set(lette.filter(eNonLavoro).map(v => v.id))); setFonte(f); setPasso("anteprima");
+    setLavori([]); setVoci(lette); setEscluse(new Set((daComputi && f.tipo === "computo" ? lette : lette.filter(eNonLavoro)).map(v => v.id)));
+    setSoloIncerte(false); setTutte(false); setFonte(f); setPasso("anteprima");
   };
 
   const inLettura = lavori.some(l => l.stato === "lettura" || l.stato === "attesa");
+  const daArchivio = !!daComputi && sorgente === "computo";
 
   return <Dialog open={open} onOpenChange={o => { if (!o) chiudi(); }}>
-    <DialogContent className={passo === "anteprima" ? "flex max-h-[92dvh] max-w-6xl flex-col" : "max-w-xl"}>
+    <DialogContent className={passo === "anteprima" ? "flex max-h-[92dvh] max-w-6xl flex-col" : "max-h-[92dvh] max-w-xl overflow-y-auto"}>
       <style>{`
         .importa-voci-scan{position:absolute;left:0;right:0;height:30%;background:linear-gradient(180deg,transparent,hsl(var(--primary)/.35),transparent);animation:importa-voci-scan 1.4s ease-in-out infinite}
         @keyframes importa-voci-scan{0%{top:-30%}100%{top:100%}}
+        @media(max-width:639px){
+          .importa-voci-tabella,.importa-voci-tabella tbody{display:block}
+          .importa-voci-capitolo{display:flex;align-items:center}
+          .importa-voci-riga{
+            display:grid;gap:4px 6px;padding:8px;
+            grid-template-columns:min-content minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.1fr) min-content;
+            grid-template-areas:'selezione descrizione descrizione descrizione descrizione rimuovi' '. codice unita quantita prezzo .' '. importo importo importo importo .';
+          }
+          .importa-voci-riga td{min-width:0;padding:0}
+          .importa-voci-riga [data-campo=selezione]{grid-area:selezione;padding-top:5px}
+          .importa-voci-riga [data-campo=codice]{grid-area:codice}
+          .importa-voci-riga [data-campo=descrizione]{grid-area:descrizione}
+          .importa-voci-riga [data-campo=unita]{grid-area:unita}
+          .importa-voci-riga [data-campo=quantita]{grid-area:quantita}
+          .importa-voci-riga [data-campo=prezzo]{grid-area:prezzo}
+          .importa-voci-riga [data-campo=importo]{grid-area:importo}
+          .importa-voci-riga [data-campo=rimuovi]{grid-area:rimuovi}
+        }
         .importa-voci-foglio-vivo{animation:importa-voci-respiro 1.8s ease-in-out infinite}
         @keyframes importa-voci-respiro{0%,100%{transform:translateY(0);box-shadow:0 1px 2px hsl(var(--primary)/.1)}50%{transform:translateY(-2px);box-shadow:0 6px 14px hsl(var(--primary)/.18)}}
         .importa-voci-fatto{animation:importa-voci-pop .35s ease-out both}
@@ -283,17 +319,22 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
       <DialogHeader>
         <DialogTitle>{titolo ?? "Importa voci"}</DialogTitle>
         <DialogDescription>
-          {passo === "scegli" && (descrizione ?? "Un computo o un preventivo che hai già: le voci si leggono da sole e le rivedi prima di aggiungerle.")}
+          {passo === "scegli" && (daArchivio ? "Scegli un computo e poi seleziona i capitoli o le singole lavorazioni da copiare." : descrizione ?? "Apri un file e rivedi le lavorazioni prima di aggiungerle.")}
           {passo === "lettura" && (inLettura ? "Sto leggendo i file. Puoi chiudere quando vuoi: niente cambia finché non confermi." : "Lettura finita.")}
-          {passo === "anteprima" && `${voci.length} ${voci.length === 1 ? "voce trovata" : "voci trovate"}${incerte ? `, ${incerte} da controllare` : ""}. Scegli quali importare, correggi quello che non va: niente cambia finché non confermi.`}
+          {passo === "anteprima" && (copiaDaComputo ? "Seleziona le lavorazioni da copiare. Controlla quantità, misure e prezzi per il nuovo lavoro." : `${voci.length} ${voci.length === 1 ? "voce trovata" : "voci trovate"}${incerte ? `, ${incerte} da controllare` : ""}. Scegli quali importare, correggi quello che non va: niente cambia finché non confermi.`)}
         </DialogDescription>
       </DialogHeader>
 
       <input ref={input} type="file" multiple hidden accept={ACCEPT_IMPORTA_VOCI} aria-label="File da cui importare le voci"
-        data-rilascio={passo === "scegli" ? "senza-filtro" : "no"}
+        data-rilascio={passo === "scegli" && !daArchivio ? "senza-filtro" : "no"}
         onChange={e => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void leggi(fs); }} />
 
-      {passo === "scegli" && <div data-zona-rilascio
+      {passo === "scegli" && daComputi && <div role="group" aria-label="Origine delle lavorazioni" className="flex flex-wrap gap-1 rounded-lg border bg-slate-50 p-1">
+        <Button type="button" size="sm" variant={!daArchivio ? "secondary" : "ghost"} aria-pressed={!daArchivio} onClick={() => setSorgente("file")}><FileUp className="mr-1.5 h-4 w-4" />Da file</Button>
+        <Button type="button" size="sm" variant={daArchivio ? "secondary" : "ghost"} aria-pressed={daArchivio} onClick={() => setSorgente("computo")}><Files className="mr-1.5 h-4 w-4" />Da un computo salvato</Button>
+      </div>}
+
+      {passo === "scegli" && !daArchivio && <div data-zona-rilascio
         className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-4 py-10 text-center">
         <Upload className="h-8 w-8 text-primary" aria-hidden />
         <div>
@@ -309,7 +350,8 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
           {consentiAi ? " Scansioni, foto e altri PDF li legge l'AI: controlla le voci segnalate." : " Scansioni e foto richiedono l'AI, che qui non è attiva."}
         </p>
       </div>}
-      {passo === "scegli" && (typeof altreFonti === "function" ? altreFonti(caricaDaFonte) : altreFonti)}
+      {passo === "scegli" && daArchivio && daComputi && <DocumentiDelGestionale companyId={daComputi.companyId} soloComputi={daComputi} mostraImporti onScelto={caricaDaFonte} />}
+      {passo === "scegli" && !daArchivio && (typeof altreFonti === "function" ? altreFonti(caricaDaFonte) : altreFonti)}
 
       {passo === "lettura" && <div className="space-y-3">
         <ul className="space-y-2">{lavori.map(l => <SchedaFile key={l.chiave} lavoro={l} />)}</ul>
@@ -348,19 +390,19 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
               onChange={e => seleziona(voci.map(v => v.id), e.target.checked)} />
             <span className="tabular-nums" data-testid="contatore-selezione"><strong>{selezionate.length}</strong> selezionate su {voci.length}</span>
           </label>
-          {nonLavori > 0 && <span className="text-xs text-muted-foreground">Spente {nonLavori} voci di oneri tecnici, IVA e visto: non sono lavori. Riaccendile se servono.</span>}
+          {!copiaDaComputo && nonLavori > 0 && <span className="text-xs text-muted-foreground">Spente {nonLavori} voci di oneri tecnici, IVA e visto: non sono lavori. Riaccendile se servono.</span>}
           {!!incerte && <Button size="sm" variant={soloIncerte ? "default" : "outline"} aria-pressed={soloIncerte} onClick={() => setSoloIncerte(s => !s)}>
             <AlertTriangle className="mr-1 h-3.5 w-3.5" />Da controllare ({incerte})
           </Button>}
           <span className="ml-auto text-xs text-muted-foreground">
-            {vociPresenti ? `Le ${vociPresenti} voci che ci sono già restano come sono: queste si aggiungono in fondo.` : (notaDestinazione ?? "Le voci si aggiungono al documento.")}
+            {vociPresenti ? "Le voci selezionate si aggiungono in fondo al documento." : (notaDestinazione ?? "Le voci si aggiungono al documento.")}
           </span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-          <table className="w-full min-w-[760px] text-xs">
-            <thead className="sticky top-0 z-10 bg-muted/90 text-left text-muted-foreground backdrop-blur">
-              <tr>
+          <table role="table" aria-label="Lavorazioni da importare" className="importa-voci-tabella w-full text-xs sm:min-w-[760px]">
+            <thead role="rowgroup" className="sticky top-0 z-10 bg-muted/90 text-left text-muted-foreground backdrop-blur max-sm:sr-only">
+              <tr role="row">
                 <th className="w-8 px-2 py-1.5"><span className="sr-only">Importa</span></th>
                 <th className="w-24 px-2 py-1.5 font-medium">Codice</th>
                 <th className="px-2 py-1.5 font-medium">Descrizione</th>
@@ -373,51 +415,52 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
             </thead>
             {gruppi.map(([capitolo, gruppo]) => {
               const ids = capitoliTutti.get(capitolo) ?? gruppo.map(v => v.id);
-              const scelte = ids.filter(id => !escluse.has(id)).length;
-              const totaleCapitolo = totaleVoci(voci.filter(v => ids.includes(v.id) && !escluse.has(v.id)));
-              return <tbody key={capitolo} data-capitolo={capitolo}>
-              <tr className="border-t bg-muted/50">
-                <td className="px-2 py-1.5">
-                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={`Seleziona il capitolo ${capitolo}`}
-                    checked={scelte === ids.length} ref={el => { if (el) el.indeterminate = scelte > 0 && scelte < ids.length; }}
+              const scelte = ids.map(id => selezionatePerId.get(id)).filter((v): v is VoceImportata => v !== undefined);
+              const totaleCapitolo = totaleVoci(copiaDaComputo ? scelte.filter(v => !v.opzionale) : scelte);
+              return <tbody role="rowgroup" key={capitolo} data-capitolo={capitolo}>
+              <tr role="row" className="importa-voci-capitolo border-t bg-muted/50">
+                <td role="cell" className="px-2 py-1.5">
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))] max-sm:h-5 max-sm:w-5" aria-label={`Seleziona il capitolo ${capitolo}`}
+                    checked={scelte.length === ids.length} ref={el => { if (el) el.indeterminate = scelte.length > 0 && scelte.length < ids.length; }}
                     onChange={e => seleziona(ids, e.target.checked)} />
                 </td>
-                <td colSpan={5} className="px-2 py-1.5 text-xs font-semibold">{capitolo}
-                  <span className="ml-2 font-normal text-muted-foreground tabular-nums">{scelte} su {ids.length}</span></td>
-                <td className="px-2 py-1.5 text-right text-xs font-semibold tabular-nums">{formatEuro(totaleCapitolo)} €</td>
-                <td />
+                <td role="cell" colSpan={5} className="px-2 py-1.5 text-xs font-semibold max-sm:min-w-0 max-sm:flex-1 max-sm:break-words max-sm:pl-0">{capitolo}
+                  <span className="ml-2 font-normal text-muted-foreground tabular-nums">{scelte.length} su {ids.length}</span></td>
+                <td role="cell" className="px-2 py-1.5 text-right text-xs font-semibold tabular-nums max-sm:shrink-0">{formatEuro(totaleCapitolo)} €</td>
+                <td role="cell" className="max-sm:hidden" />
               </tr>
               {gruppo.map(v => {
                 const { importo } = calcolaVoce(v);
                 const conMisure = v.misure.length > 0;
                 const scelta = !escluse.has(v.id);
-                return <tr key={v.id} className={`border-t align-top ${v.avvisi.length ? "bg-amber-50/70" : ""} ${scelta ? "" : "opacity-50"}`} data-incerta={v.avvisi.length ? "" : undefined} data-selezionata={scelta ? "" : undefined}>
-                  <td className="px-2 py-2.5">
-                    <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={`Importa ${v.descrizione.split("\n")[0].slice(0, 60) || "la voce"}`}
+                return <tr role="row" key={v.id} className={`importa-voci-riga border-t align-top ${v.avvisi.length ? "bg-amber-50/70" : ""} ${scelta ? "" : "opacity-50"}`} data-incerta={v.avvisi.length ? "" : undefined} data-selezionata={scelta ? "" : undefined}>
+                  <td role="cell" data-campo="selezione" className="px-2 py-2.5">
+                    <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))] max-sm:h-5 max-sm:w-5" aria-label={`Importa ${v.descrizione.split("\n")[0].slice(0, 60) || "la voce"}`}
                       checked={scelta} onChange={e => seleziona([v.id], e.target.checked)} />
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td role="cell" data-campo="codice" className="px-2 py-1.5">
                     <Campo etichetta="Codice" valore={v.tariffa} onCambia={t => modifica(v.id, { tariffa: t })} />
                     {piuFile && <span className="mt-1 block truncate text-[10px] text-muted-foreground" title={v.origine}>{v.origine}</span>}
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td role="cell" data-campo="descrizione" className="px-2 py-1.5">
                     <textarea aria-label="Descrizione" rows={2} value={v.descrizione} onChange={e => modifica(v.id, { descrizione: e.target.value })}
-                      className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 text-xs" />
+                      className="w-full resize-y rounded-md border border-input bg-background px-2 py-1 text-xs max-sm:min-h-[3.5rem]" />
                     {!!v.avvisi.length && <p className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
                       <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden />{v.avvisi.join(" · ")}
                     </p>}
+                    {copiaDaComputo && v.opzionale && <span className="text-[11px] font-medium text-blue-700">Opzionale · fuori dal totale</span>}
                     <input aria-label="Capitolo" value={v.capitolo} placeholder="Capitolo" onChange={e => modifica(v.id, { capitolo: e.target.value })}
                       className="mt-1 h-6 w-full rounded border border-transparent bg-transparent px-1 text-[11px] text-muted-foreground hover:border-input focus:border-input focus:bg-background" />
                   </td>
-                  <td className="px-2 py-1.5"><Campo etichetta="Unità di misura" valore={v.unita} onCambia={t => modifica(v.id, { unita: t })} /></td>
-                  <td className="px-2 py-1.5">
+                  <td role="cell" data-campo="unita" className="px-2 py-1.5"><Campo etichetta="Unità di misura" etichettaMobile="U.M." valore={v.unita} onCambia={t => modifica(v.id, { unita: t })} /></td>
+                  <td role="cell" data-campo="quantita" className="px-2 py-1.5">
                     <Campo etichetta="Quantità" numero disabilitato={conMisure}
                       valore={conMisure ? (calcolaVoce(v).quantita ?? "").toLocaleString("it-IT") : v.quantita} onCambia={t => modifica(v.id, { quantita: t })} />
                     {conMisure && <span className="mt-0.5 block text-right text-[10px] text-muted-foreground">da {v.misure.length} {v.misure.length === 1 ? "misura" : "misure"}</span>}
                   </td>
-                  <td className="px-2 py-1.5"><Campo etichetta="Prezzo" numero valore={v.prezzo} onCambia={t => modifica(v.id, { prezzo: t })} /></td>
-                  <td className="px-2 py-1.5 pt-3 text-right tabular-nums">{importo === null ? "—" : `${formatEuro(importo)} €`}</td>
-                  <td className="px-1 py-1.5">
+                  <td role="cell" data-campo="prezzo" className="px-2 py-1.5"><Campo etichetta="Prezzo" numero valore={v.prezzo} onCambia={t => modifica(v.id, { prezzo: t })} /></td>
+                  <td role="cell" data-campo="importo" className="px-2 py-1.5 pt-3 text-right tabular-nums"><span className="mr-1 text-muted-foreground sm:hidden" aria-hidden>Importo</span>{importo === null ? "—" : `${formatEuro(importo)} €`}</td>
+                  <td role="cell" data-campo="rimuovi" className="px-1 py-1.5">
                     <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Togli ${v.descrizione.split("\n")[0].slice(0, 60) || "la voce"}`} onClick={() => togli(v.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -435,11 +478,11 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
         {troppe && <p role="alert" className="text-xs text-amber-800">Con queste voci il documento ne avrebbe {vociPresenti + selezionate.length}: il massimo è {massimoVoci}. Togline qualcuna.</p>}
       </>}
 
-      <DialogFooter className="flex-wrap items-center gap-2 sm:justify-between">
+      <DialogFooter className="flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch sm:justify-between">
         {passo === "anteprima"
-          ? <span className="text-sm tabular-nums">{selezionate.length} di {voci.length} voci · totale selezionate: <strong>{formatEuro(totale)} €</strong></span>
+          ? <span className="text-sm tabular-nums max-sm:w-full">{selezionate.length} di {voci.length} voci · {copiaDaComputo ? "importo lavori" : "totale selezionate"} <strong>{formatEuro(totale)} €</strong></span>
           : <span />}
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-sm:w-full max-sm:justify-end">
           <Button variant="outline" onClick={chiudi}><X className="mr-1 h-4 w-4" />{passo === "anteprima" ? "Annulla" : "Chiudi"}</Button>
           {passo === "anteprima" && <Button onClick={conferma} disabled={!selezionate.length || troppe}>
             <Check className="mr-1 h-4 w-4" />{etichettaConferma ? etichettaConferma(selezionate.length) : `Aggiungi ${selezionate.length} ${selezionate.length === 1 ? "voce" : "voci"}`}

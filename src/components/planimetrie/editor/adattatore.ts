@@ -14,9 +14,12 @@
  * Unità: centimetri.
  */
 import {
+  eAmbienteInterno,
   nuovaPlanimetria,
+  origineMisura,
   originePeggiore,
   statoVuoto,
+  type AlzataCad,
   type Apertura as AperturaModello,
   type AreaEsterna as AreaModello,
   type Destinazione,
@@ -33,6 +36,7 @@ import {
   type Muro as MuroModello,
   type Origine,
   type Planimetria,
+  type PrezzoVocePlanimetria,
   type Proposta,
   type Quota as QuotaModello,
   type Ricalco,
@@ -41,10 +45,14 @@ import {
   type Testo as TestoModello,
   type StatoPianta,
   type TipoMuro,
+  type TracciatoImpianto,
 } from "../../../../shared/planimetrie/modello.ts";
-import { areaPoligono, puntoInterno, puntoNelPoligono, ricostruisciLocali } from "../../../../shared/planimetrie/geometria.ts";
+import { areaPoligono, contornoIncrociato, distanzaDalContorno, interniSovrapposti, puntoInterno, puntoNelPoligono, ricostruisciLocali } from "../../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita, type MappaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import { controllaPlanimetria, type Problema } from "../../../../shared/planimetrie/controllo.ts";
+import { unisciLocaliDopoDemolizione } from "../../../../shared/planimetrie/demolizioni.ts";
+import { rinominaRiferimentiQuota, seguiQuota } from "../../../../shared/planimetrie/quote.ts";
+import { dividiContornoSulTramezzo } from "@/lib/planimetrie/frazionamento";
 
 export type { Destinazione, Origine, Planimetria, Problema };
 
@@ -65,6 +73,8 @@ export interface Muro {
   tipo: TipoMuro;
   stato: StatoElemento;
   origine: Origine;
+  origineAltezza?: Origine;
+  funzioneDaVerificare?: boolean;
 }
 
 export type TipoApertura = "porta" | "finestra" | "portafinestra" | "varco";
@@ -100,9 +110,11 @@ export interface Locale {
   id: string;
   nome: string;
   destinazione: Destinazione;
-  /** Contorno sull'asse dei muri, in senso qualunque. */
+  /** Contorno sull'asse dei muri oppure al filo interno per le zone aperte o senza un aggancio valido. */
   contorno: Punto[];
   altezza: number;
+  aperto?: boolean;
+  alFiloInterno?: boolean;
   finiture?: Finiture;
   /** Appartamento (condominio, bifamiliare). */
   unita?: string;
@@ -133,17 +145,14 @@ export interface ElementoLavoro {
   larghezza: number;
   profondita: number;
   altezza?: number;
+  alzateCad?: AlzataCad[];
   stato: StatoElemento;
   origine: Origine;
 }
 
-/** Quota libera: misura da sola la distanza fra p1 e p2. Uguale in «oggi» e nel progetto. */
-export interface QuotaLavoro {
-  id: string;
-  p1: Punto;
-  p2: Punto;
-  /** Distanza della linea di quota, positiva a destra di p1→p2 sullo schermo. */
-  scostamento: number;
+export interface QuotaLavoro extends QuotaModello {
+  /** Presente soltanto fra le quote della proposta attiva. */
+  soloProgetto?: boolean;
 }
 
 /** Testo libero sulla pianta. Uguale in «oggi» e nel progetto. */
@@ -169,8 +178,18 @@ export interface Pianta {
   testi?: TestoLavoro[];
   /** Lotto e aree esterne. */
   aree?: AreaLavoro[];
+  /** Tratti disegnati nella variante attiva, in coordinate dell’editor. */
+  tracciatiImpianti?: TracciatoImpianto[];
   /** Nome e destinazione dei locali del progetto, quando sono diversi da quelli di oggi. */
-  nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione; finiture?: Finiture }>;
+  nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione; finiture?: Finiture; unita?: string | null }>;
+  /** Accessorio della proposta su un serramento che rimane in opera. */
+  zanzariereProgetto?: Record<string, TipoZanzariera | null>;
+  prezziProgetto?: Record<string, PrezzoVocePlanimetria>;
+}
+
+export function aperturaNellaVista(pianta: Pianta, apertura: Apertura, vista: "fatto" | "progetto"): Apertura {
+  const zanzariera = vista === "progetto" ? pianta.zanzariereProgetto?.[apertura.id] : undefined;
+  return zanzariera === undefined ? apertura : { ...apertura, zanzariera: zanzariera ?? undefined };
 }
 
 export const DESTINAZIONI: ReadonlyArray<{ valore: Destinazione; etichetta: string }> = [
@@ -197,7 +216,11 @@ export const SPESSORE_PORTANTE = 30;
 export const ALTEZZA_PIANO = 270;
 
 export function piantaVuota(): Pianta {
-  return { versione: 1, unita: "cm", muri: [], aperture: [], locali: [] };
+  // Le liste vuote appartengono al disegno: durante Annulla sostituiscono quelle del documento corrente.
+  return {
+    versione: 1, unita: "cm", muri: [], aperture: [], locali: [], elementi: [], quote: [], testi: [], aree: [],
+    tracciatiImpianti: [], letturaDocumento: undefined,
+  };
 }
 
 // ─── Geometria di lavoro ──────────────────────────────────────────────────────
@@ -216,7 +239,7 @@ function areaConSegno(punti: Punto[]): number {
 }
 
 /** Muro che giace sul lato a→b (stesso allineamento, lo copre almeno in parte). */
-function muroSulLato(pianta: Pianta, a: Punto, b: Punto): Muro | undefined {
+function muroSulLato(pianta: Pick<Pianta, "muri">, a: Punto, b: Punto): Muro | undefined {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
@@ -244,10 +267,10 @@ function muroSulLato(pianta: Pianta, a: Punto, b: Punto): Muro | undefined {
  * Contorno interno (il pavimento calpestabile): il contorno sull'asse spostato verso
  * l'interno di mezzo spessore del muro che sta su ciascun lato.
  */
-export function contornoInterno(pianta: Pianta, locale: Locale): Punto[] {
+export function contornoInterno(pianta: Pick<Pianta, "muri">, locale: Pick<Locale, "contorno" | "aperto" | "alFiloInterno">): Punto[] {
   const p = locale.contorno;
   const n = p.length;
-  if (n < 3) return p;
+  if (n < 3 || locale.aperto || locale.alFiloInterno) return p;
   const orario = areaConSegno(p) > 0; // y verso il basso: area positiva = senso orario a schermo
   // Retta di ogni lato spostata verso l'interno.
   const rette = p.map((a, i) => {
@@ -321,6 +344,7 @@ const arrotonda2 = (n: number) => Math.round(n * 100) / 100 + 0;
 
 /** Schermo (y in giù) ⇄ documento (y in su): la stessa operazione nei due versi. */
 export const capovolgi = (p: Punto): Punto => ({ x: arrotonda2(p.x), y: arrotonda2(0 - p.y) });
+const capovolgiAlzata = ([a, b]: AlzataCad): AlzataCad => [{ x: a.x, y: -a.y }, { x: b.x, y: -b.y }];
 
 const lunghezza = (a: Punto, b: Punto) => Math.hypot(b.x - a.x, b.y - a.y);
 
@@ -338,7 +362,11 @@ function origineVerso<T extends { origine: Origine; origineMisure?: Partial<Reco
 }
 
 function muroDaModello(m: MuroModello): Muro {
-  return { id: m.id, p1: capovolgi(m.p1), p2: capovolgi(m.p2), spessore: m.spessore, altezza: m.altezza, tipo: m.tipo, stato: m.stato, origine: origineDi(m) };
+  const origine = origineDi(m);
+  const origineAltezza = origineMisura(m, "altezza");
+  return { id: m.id, p1: capovolgi(m.p1), p2: capovolgi(m.p2), spessore: m.spessore, altezza: m.altezza, tipo: m.tipo, stato: m.stato, origine,
+    funzioneDaVerificare: m.funzioneDaVerificare,
+    ...(origineAltezza !== origine || m.origineMisure?.altezza ? { origineAltezza } : {}) };
 }
 
 function aperturaDaModello(a: AperturaModello): Apertura {
@@ -406,6 +434,15 @@ export function contornoSullAsse(contorno: Punto[], muri: MuroModello[]): Punto[
   });
 }
 
+function contornoDiLavoro(locale: LocaleModello, muriModello: MuroModello[], muri: Muro[]): Pick<Locale, "contorno" | "aperto" | "alFiloInterno"> {
+  if (locale.aperto) return { contorno: locale.contorno.map(capovolgi), aperto: true };
+  const contorno = contornoSullAsse(locale.contorno, muriModello).map(capovolgi);
+  if (contornoIncrociato(contorno) || contornoIncrociato(contornoInterno({ muri }, { contorno }).map(capovolgi))) {
+    return { contorno: locale.contorno.map(capovolgi), alFiloInterno: true };
+  }
+  return { contorno };
+}
+
 /**
  * Dal documento alla pianta di lavoro (un livello: il primo, o quello indicato).
  * Le pareti della proposta che non ci sono oggi entrano come «nuove»; quelle che la
@@ -416,9 +453,11 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
   if (!livello) return piantaVuota();
   const { fatto } = livello;
   const proposta = livello.proposte.find((p) => p.id === propostaId) ?? livello.proposte[0];
-  const muri = fatto.muri.map(muroDaModello);
+  const muriDiFatto = fatto.muri.map(muroDaModello);
+  const muri = [...muriDiFatto];
   const aperture = fatto.aperture.map(aperturaDaModello);
   const nomiProgetto: NonNullable<Pianta["nomiProgetto"]> = {};
+  const zanzariereProgetto: NonNullable<Pianta["zanzariereProgetto"]> = {};
   if (proposta) {
     for (const m of proposta.muri) {
       const i = muri.findIndex((x) => x.id === m.id);
@@ -429,39 +468,56 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
       const i = aperture.findIndex((x) => x.id === a.id);
       if (i < 0) aperture.push(aperturaDaModello(a));
       else if (a.stato === "da_demolire") aperture[i] = { ...aperture[i], stato: "da_demolire" };
+      else if (a.zanzariera !== aperture[i].zanzariera) zanzariereProgetto[a.id] = a.zanzariera ?? null;
     }
     for (const l of proposta.locali) {
       const oggi = fatto.locali.find((x) => x.id === l.id);
-      if (!oggi || oggi.nome !== l.nome || oggi.destinazione !== l.destinazione || JSON.stringify(oggi.finiture) !== JSON.stringify(l.finiture)) {
-        nomiProgetto[l.id] = { nome: l.nome, destinazione: l.destinazione, finiture: l.finiture ?? {} };
+      if (!oggi || oggi.nome !== l.nome || oggi.destinazione !== l.destinazione || oggi.unita !== l.unita || JSON.stringify(oggi.finiture) !== JSON.stringify(l.finiture)) {
+        nomiProgetto[l.id] = { nome: l.nome, destinazione: l.destinazione, finiture: l.finiture ?? {}, unita: l.unita ?? null };
       }
     }
   }
-  const locali: Locale[] = fatto.locali.map((l) => ({
-    id: l.id,
-    nome: l.nome,
-    destinazione: l.destinazione,
-    contorno: contornoSullAsse(l.contorno, fatto.muri).map(capovolgi),
-    altezza: l.altezza,
+  const daCad = !!livello.tavolaDwg || livello.ricalco?.bloccata !== undefined || /^cad-\d+$/.test(livello.id);
+  const muriPerContorni = daCad ? muriDiFatto : muri;
+  const locali: Locale[] = fatto.locali.map(l => ({
+    id: l.id, nome: l.nome, destinazione: l.destinazione, altezza: l.altezza, stato: "esistente", origine: origineDi(l),
+    ...contornoDiLavoro(l, fatto.muri, muriPerContorni),
     ...(l.finiture ? { finiture: l.finiture } : {}),
     ...(l.unita ? { unita: l.unita } : {}),
-    stato: "esistente",
-    origine: origineDi(l),
   }));
+  const parti = new Set(proposta?.frazionamenti?.flatMap(f => f.parti));
+  for (const l of proposta?.locali ?? []) {
+    if ((!parti.has(l.id) && !proposta?.distribuzioneBilocali) || locali.some(x => x.id === l.id)) continue;
+    const contorno = proposta?.distribuzioneBilocali && !l.aperto
+      ? contornoSullAsse(l.contorno, proposta.muri.filter(m => m.stato !== "da_demolire")) : l.contorno;
+    locali.push({
+      id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: contorno.map(capovolgi),
+      altezza: l.altezza, finiture: l.finiture, unita: l.unita, stato: "nuovo", origine: l.origine,
+      ...(l.aperto ? { aperto: true } : {}),
+      ...(contorno === l.contorno ? { alFiloInterno: true } : {}),
+    });
+  }
   // Arredi: quelli di oggi; nel progetto quelli che mancano sono da togliere, quelli in più sono nuovi.
   const elementi: ElementoLavoro[] = fatto.elementi.map((e) => {
     const tolto = !!proposta && !proposta.elementi.some((x) => x.id === e.id);
     return elementoDaModello(e, tolto ? "da_demolire" : "esistente");
   });
   for (const e of proposta?.elementi ?? []) if (!elementi.some((x) => x.id === e.id)) elementi.push(elementoDaModello(e, "nuovo"));
-  const quote = unisciPerId(fatto.quote, proposta?.quote).map(quotaDaModello);
+  const idQuoteOggi = new Set(fatto.quote.map(q => q.id));
+  const quote = unisciPerId(fatto.quote, proposta?.quote).map(q => ({
+    ...quotaDaModello(q), ...(!idQuoteOggi.has(q.id) && { soloProgetto: true }),
+  }));
   const testi = unisciPerId(fatto.testi, proposta?.testi).map(testoDaModello);
   // Aree esterne: come gli arredi (tolte nel progetto = da demolire, in più = nuove).
   // una proposta fatta prima delle aree non ha il campo: allora le aree sono quelle di oggi
   const areeProposta = proposta?.aree;
   const aree: AreaLavoro[] = (fatto.aree ?? []).map((a) => areaDaModello(a, areeProposta && !areeProposta.some((x) => x.id === a.id) ? "da_demolire" : "esistente"));
   for (const a of proposta?.aree ?? []) if (!aree.some((x) => x.id === a.id)) aree.push(areaDaModello(a, "nuovo"));
-  return { ...piantaVuota(), ambitoDocumento: doc.ambitoDocumento, ...(doc.letturaDocumento ? { letturaDocumento: { ...doc.letturaDocumento, protocolloVerifica: 1 as const } } : {}), muri, aperture, locali, elementi, quote, testi, ...(aree.length ? { aree } : {}), ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
+  return { ...piantaVuota(), ambitoDocumento: doc.ambitoDocumento, ...(doc.letturaDocumento ? { letturaDocumento: { ...doc.letturaDocumento, protocolloVerifica: 1 as const } } : {}), muri, aperture, locali, elementi, quote, testi,
+    ...(aree.length ? { aree } : {}), ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}),
+    ...(proposta?.prezziLavorazioni ? { prezziProgetto: proposta.prezziLavorazioni } : {}),
+    ...(proposta?.tracciatiImpianti ? { tracciatiImpianti: proposta.tracciatiImpianti.map(t => ({ ...t, vertici: t.vertici.map(capovolgi) })) } : {}),
+    ...(Object.keys(zanzariereProgetto).length ? { zanzariereProgetto } : {}) };
 }
 
 function unisciPerId<T extends { id: string }>(a: T[], b?: T[]): T[] {
@@ -504,14 +560,17 @@ function elementoDaModello(e: ElementoModello, stato: StatoLavori): ElementoLavo
     larghezza: e.larghezza,
     profondita: e.profondita,
     ...(e.altezza != null ? { altezza: e.altezza } : {}),
+    ...(e.alzateCad ? { alzateCad: e.alzateCad.map(capovolgiAlzata) } : {}),
     stato,
     origine: origineDi(e),
   };
 }
 
-function elementoAModello(e: ElementoLavoro, stato: StatoLavori, prima?: ElementoModello): ElementoModello {
+export function elementoAModello(e: ElementoLavoro, stato: StatoLavori, prima?: ElementoModello): ElementoModello {
   return {
     ...(prima?.localeId !== undefined ? { localeId: prima.localeId } : {}),
+    ...(prima?.colore ? { colore: prima.colore } : {}),
+    ...(prima?.modello && prima.tipo === e.tipo ? { modello: prima.modello } : {}),
     id: e.id,
     tipo: e.tipo,
     ...(e.etichetta ? { etichetta: e.etichetta } : {}),
@@ -520,13 +579,30 @@ function elementoAModello(e: ElementoLavoro, stato: StatoLavori, prima?: Element
     larghezza: e.larghezza,
     profondita: e.profondita,
     ...(e.altezza != null ? { altezza: e.altezza } : {}),
+    ...(e.alzateCad ? { alzateCad: e.alzateCad.map(capovolgiAlzata) } : {}),
     ...(stato !== "esistente" || prima?.stato ? { stato } : {}),
     ...origineVerso(e.origine, prima),
   };
 }
 
-const quotaDaModello = (q: QuotaModello): QuotaLavoro => ({ id: q.id, p1: capovolgi(q.p1), p2: capovolgi(q.p2), scostamento: arrotonda2(0 - q.scostamento) });
-const quotaAModello = (q: QuotaLavoro): QuotaModello => ({ id: q.id, p1: capovolgi(q.p1), p2: capovolgi(q.p2), scostamento: arrotonda2(0 - q.scostamento) });
+const quotaDaModello = (q: QuotaModello): QuotaLavoro => ({ ...q, p1: capovolgi(q.p1), p2: capovolgi(q.p2), scostamento: arrotonda2(0 - q.scostamento) });
+const quotaAModello = ({ soloProgetto: _soloProgetto, ...q }: QuotaLavoro): QuotaModello => ({
+  ...q, p1: capovolgi(q.p1), p2: capovolgi(q.p2), scostamento: arrotonda2(0 - q.scostamento),
+});
+
+export function quoteNellaVista(pianta: Pianta, vista: "fatto" | "progetto") {
+  const quote = (pianta.quote ?? []).filter(q => vista === "progetto" || !q.soloProgetto);
+  const muri = new Map(pianta.muri.filter(m => vista === "fatto" ? m.stato !== "nuovo" : m.stato !== "da_demolire").map(m => [m.id, m]));
+  return quote.map(q => seguiQuota(q, muri));
+}
+
+/** Memorizza i capi validi per conservarli anche dopo un'eliminazione o un taglio. */
+export function aggiornaQuote(pianta: Pianta): Pianta {
+  if (!pianta.quote?.some(q => q.riferimenti)) return pianta;
+  const muri = new Map(pianta.muri.map(m => [m.id, m]));
+  const quote = pianta.quote.map(q => seguiQuota(q, muri).quota);
+  return quote.some((q, i) => q !== pianta.quote![i]) ? { ...pianta, quote } : pianta;
+}
 const testoDaModello = (t: TestoModello): TestoLavoro => ({ id: t.id, posizione: capovolgi(t.posizione), testo: t.testo, rotazione: arrotonda2(0 - (t.rotazione ?? 0)) });
 const testoAModello = (t: TestoLavoro, prima?: TestoModello): TestoModello => ({
   id: t.id, posizione: capovolgi(t.posizione), testo: t.testo,
@@ -534,6 +610,8 @@ const testoAModello = (t: TestoLavoro, prima?: TestoModello): TestoModello => ({
 });
 
 function muroAModello(m: Muro, stato: StatoLavori, prima?: MuroModello): MuroModello {
+  const provenienza = origineVerso(m.origine, prima);
+  const altezzaCambiata = m.origineAltezza && m.origineAltezza !== (provenienza.origineMisure?.altezza ?? provenienza.origine);
   return {
     id: m.id,
     p1: capovolgi(m.p1),
@@ -542,12 +620,16 @@ function muroAModello(m: Muro, stato: StatoLavori, prima?: MuroModello): MuroMod
     altezza: m.altezza,
     tipo: m.tipo,
     stato,
-    ...origineVerso(m.origine, prima),
+    ...(m.funzioneDaVerificare !== undefined ? { funzioneDaVerificare: m.funzioneDaVerificare } : {}),
+    ...provenienza,
+    ...(altezzaCambiata ? { origineMisure: { ...provenienza.origineMisure, altezza: m.origineAltezza } } : {}),
   };
 }
 
 function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModello): AperturaModello {
   const battente = a.manovra === "battente" && a.tipo !== "varco";
+  const stessoSerramento = prima && a.tipo === prima.tipo && a.larghezza === prima.larghezza && a.altezza === prima.altezza
+    && a.sistema === prima.sistema && a.manovra === prima.manovra && a.ante === prima.ante;
   return {
     id: a.id,
     muroId: a.muroId,
@@ -557,6 +639,9 @@ function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModel
     altezza: a.altezza,
     davanzale: a.davanzale,
     manovra: a.tipo === "varco" ? "nessuna" : a.manovra,
+    ...(stessoSerramento && prima.luceNettaCm !== undefined && { luceNettaCm: prima.luceNettaCm }),
+    ...(stessoSerramento && prima.superficieApribileMq !== undefined && { superficieApribileMq: prima.superficieApribileMq }),
+    ...(stessoSerramento && prima.superficieIlluminanteMq !== undefined && { superficieIlluminanteMq: prima.superficieIlluminanteMq }),
     ...(a.ante ? { ante: a.ante } : {}),
     ...(a.sistema ? { sistema: a.sistema } : {}),
     ...(a.oscurante ? { oscurante: a.oscurante } : {}),
@@ -572,13 +657,15 @@ function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModel
   };
 }
 
-function localeAModello(pianta: Pianta, l: Locale, prima?: LocaleModello): LocaleModello {
+function localeAModello(pianta: Pick<Pianta, "muri">, l: Locale, prima?: LocaleModello): LocaleModello {
   return {
     id: l.id,
     nome: l.nome,
     destinazione: l.destinazione,
     contorno: contornoInterno(pianta, l).map(capovolgi),
     altezza: l.altezza,
+    ...(prima?.superficieDichiarataMq !== undefined ? { superficieDichiarataMq: prima.superficieDichiarataMq } : {}),
+    ...(l.aperto ? { aperto: true } : {}),
     ...(l.finiture ? { finiture: l.finiture } : {}),
     ...(l.unita ? { unita: l.unita } : {}),
     ...origineVerso(l.origine, prima),
@@ -597,31 +684,50 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
   const livelloBase: Livello = base.livelli[indice] ?? { id: "pt", nome: "Piano terra", quota: 0, fatto: statoVuoto(), proposte: [] };
   const fattoBase = livelloBase.fatto;
   const propostaBase = livelloBase.proposte.find((p) => p.id === propostaId);
+  const daCad = !!livelloBase.tavolaDwg || livelloBase.ricalco?.bloccata !== undefined || /^cad-\d+$/.test(livelloBase.id);
+  const muriCadPrecedenti = daCad ? fattoBase.muri.map(muroDaModello) : null;
 
   const muriOggi = pianta.muri.filter((m) => m.stato !== "nuovo");
+  const localiOggi = pianta.locali.filter(l => l.stato !== "nuovo").map(l => {
+    const prima = trova(fattoBase.locali, l.id);
+    const locale = localeAModello(daCad ? { muri: muriOggi } : pianta, l, prima);
+    if (!prima || !muriCadPrecedenti) return locale;
+    const sagoma = contornoDiLavoro(prima, fattoBase.muri, muriCadPrecedenti);
+    const ricalcolato = contornoInterno({ muri: muriCadPrecedenti }, sagoma).map(capovolgi);
+    // Il ritorno ai fili interni può arrotondare un contorno CAD anche senza una modifica geometrica.
+    return locale.contorno.length === ricalcolato.length && locale.contorno.every((p, i) => p.x === ricalcolato[i].x && p.y === ricalcolato[i].y)
+      ? { ...locale, contorno: prima.contorno } : locale;
+  });
   const fatto: StatoPianta = {
     ...fattoBase,
     muri: muriOggi.map((m) => muroAModello(m, "esistente", trova(fattoBase.muri, m.id))),
     aperture: pianta.aperture
       .filter((a) => a.stato !== "nuovo" && muriOggi.some((m) => m.id === a.muroId))
       .map((a) => aperturaAModello(a, "esistente", trova(fattoBase.aperture, a.id))),
-    locali: pianta.locali.filter((l) => l.stato !== "nuovo").map((l) => localeAModello(pianta, l, trova(fattoBase.locali, l.id))),
+    locali: localiOggi,
     ...(pianta.elementi
       ? { elementi: pianta.elementi.filter((e) => e.stato !== "nuovo").map((e) => elementoAModello(e, "esistente", trova(fattoBase.elementi, e.id))) }
       : {}),
-    ...(pianta.quote ? { quote: pianta.quote.map(quotaAModello) } : {}),
+    ...(pianta.quote ? { quote: quoteNellaVista(pianta, "fatto").map(({ quota }) => quotaAModello(quota)) } : {}),
     ...(pianta.testi ? { testi: pianta.testi.map((t) => testoAModello(t, trova(fattoBase.testi, t.id))) } : {}),
     ...(pianta.aree ? { aree: pianta.aree.filter((a) => a.stato !== "nuovo").map((a) => areaAModello(a, "esistente")) } : {}),
   };
+  if (fatto.tracciatiImpianti?.length) {
+    const ids = new Set(fatto.elementi.map(e => e.id));
+    fatto.tracciatiImpianti = fatto.tracciatiImpianti.filter(t => ids.has(t.daId) && ids.has(t.aId));
+  }
 
   const serveProposta =
     !!propostaBase ||
     Object.keys(pianta.nomiProgetto ?? {}).length > 0 ||
+    pianta.aperture.some(a => a.stato === "esistente" && pianta.zanzariereProgetto?.[a.id] !== undefined) ||
     pianta.muri.some((m) => m.stato !== "esistente") ||
     pianta.aperture.some((a) => a.stato !== "esistente") ||
     pianta.locali.some((l) => l.stato === "nuovo") ||
+    (pianta.quote ?? []).some(q => q.soloProgetto) ||
     (pianta.elementi ?? []).some((e) => e.stato !== "esistente") ||
-    (pianta.aree ?? []).some((a) => a.stato !== "esistente");
+    (pianta.aree ?? []).some((a) => a.stato !== "esistente") ||
+    !!pianta.tracciatiImpianti?.length;
   let proposte = livelloBase.proposte;
   if (serveProposta) {
     const muri = pianta.muri.map((m) => muroAModello(m, m.stato, trova(propostaBase?.muri, m.id) ?? trova(fattoBase.muri, m.id)));
@@ -629,11 +735,12 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
       ...(propostaBase ?? { elementi: fattoBase.elementi, quote: fattoBase.quote, testi: fattoBase.testi }),
       id: propostaId,
       nome: propostaBase?.nome ?? (propostaId === ID_PROPOSTA ? NOME_PROPOSTA : `Proposta ${propostaId}`),
+      ...(pianta.prezziProgetto ? { prezziLavorazioni: pianta.prezziProgetto } : {}),
       muri,
       aperture: pianta.aperture
         .filter((a) => pianta.muri.some((m) => m.id === a.muroId))
-        .map((a) => aperturaAModello(a, a.stato, trova(propostaBase?.aperture, a.id) ?? trova(fattoBase.aperture, a.id))),
-      locali: localiDelProgetto(pianta, muri, propostaBase),
+        .map((a) => aperturaAModello(aperturaNellaVista(pianta, a, "progetto"), a.stato, trova(propostaBase?.aperture, a.id) ?? trova(fattoBase.aperture, a.id))),
+      locali: localiDelProgetto(pianta, muri, propostaBase, daCad ? localiOggi : null),
       ...(pianta.elementi
         ? {
             elementi: pianta.elementi
@@ -641,16 +748,34 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
               .map((e) => elementoAModello(e, e.stato === "nuovo" ? "nuovo" : "esistente", trova(propostaBase?.elementi, e.id) ?? trova(fattoBase.elementi, e.id))),
           }
         : {}),
-      ...(pianta.quote ? { quote: pianta.quote.map(quotaAModello) } : {}),
+      ...(pianta.quote ? { quote: quoteNellaVista(pianta, "progetto").map(({ quota }) => quotaAModello(quota)) } : {}),
       ...(pianta.testi ? { testi: pianta.testi.map((t) => testoAModello(t, trova(propostaBase?.testi, t.id))) } : {}),
       ...(pianta.aree ? { aree: pianta.aree.filter((a) => a.stato !== "da_demolire").map((a) => areaAModello(a, a.stato === "nuovo" ? "nuovo" : "esistente")) } : {}),
     };
+    const tracciati = pianta.tracciatiImpianti?.map(t => ({ ...t, vertici: t.vertici.map(capovolgi) })) ?? propostaBase?.tracciatiImpianti;
+    if (tracciati) {
+      const ids = new Set(proposta.elementi.map(e => e.id));
+      proposta.tracciatiImpianti = tracciati.filter(t => ids.has(t.daId) && ids.has(t.aId));
+    }
     proposte = propostaBase ? proposte.map((p) => (p.id === propostaId ? proposta : p)) : [proposta, ...proposte];
   }
+  const altezzeCorrette = new Map(muriOggi.flatMap(m => {
+    const prima = trova(fattoBase.muri, m.id);
+    return m.origineAltezza === "rilevata" && prima && (m.altezza !== prima.altezza || origineMisura(prima, "altezza") !== "rilevata")
+      ? [[m.id, m.altezza] as const] : [];
+  }));
+  if (altezzeCorrette.size) proposte = proposte.map(p => p.id === propostaId ? p : {
+    ...p, muri: p.muri.map(m => {
+      const altezza = altezzeCorrette.get(m.id);
+      return altezza === undefined || m.stato === "nuovo"
+        ? m : { ...m, altezza, origineMisure: { ...m.origineMisure, altezza: "rilevata" } };
+    }),
+  });
 
   const livello: Livello = { ...livelloBase, fatto, proposte };
   const livelli = base.livelli.length ? base.livelli.map((l, i) => (i === indice ? livello : l)) : [livello];
-  return { ...base, ambitoDocumento: pianta.ambitoDocumento, ...(pianta.letturaDocumento ? { letturaDocumento: pianta.letturaDocumento } : {}), livelli };
+  const letturaDocumento = Object.hasOwn(pianta, "letturaDocumento") ? pianta.letturaDocumento : base.letturaDocumento;
+  return { ...base, ambitoDocumento: pianta.ambitoDocumento, letturaDocumento, livelli };
 }
 
 /**
@@ -659,22 +784,93 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
  * computo non cambiano), altrimenti quello della stanza di oggi più grande che ci
  * sta dentro (abbattendo un tramezzo, il soggiorno si prende la cucina).
  */
-function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase?: Proposta): LocaleModello[] {
-  const facce = ricostruisciLocali(muri);
+function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase: Proposta | undefined, localiCad: LocaleModello[] | null): LocaleModello[] {
+  const daCad = localiCad !== null;
+  if (propostaBase?.distribuzioneBilocali) {
+    const primaPerId = new Map(propostaBase.muri.map(m => [m.id, m]));
+    const localiDiLavoro = new Map(pianta.locali.map(l => [l.id, l]));
+    const localiOriginali = new Map(propostaBase.locali.map(l => [l.id, l]));
+    const daUnire: MuroModello[] = [];
+    const geometriaInvariata = muri.length === primaPerId.size && muri.every(m => {
+      const prima = primaPerId.get(m.id);
+      if (!prima || prima.spessore !== m.spessore || prima.p1.x !== m.p1.x || prima.p1.y !== m.p1.y ||
+        prima.p2.x !== m.p2.x || prima.p2.y !== m.p2.y) return false;
+      if (prima.stato === m.stato) return true;
+      if (prima.stato !== "esistente" || m.stato !== "da_demolire" || prima.tipo !== "tramezzo" || m.tipo !== "tramezzo") return false;
+      daUnire.push(m);
+      return true;
+    });
+    // I contorni di una distribuzione importata possono comprendere passaggi senza una faccia chiusa.
+    if (geometriaInvariata && propostaBase.locali.every(l => localiDiLavoro.has(l.id)) &&
+      pianta.locali.every(l => l.stato !== "nuovo" || localiOriginali.has(l.id))) {
+      const localiConModifiche = propostaBase.locali.map(l => {
+        const nomi = pianta.nomiProgetto?.[l.id];
+        const nuovo = localiDiLavoro.get(l.id);
+        const modificato = nuovo?.stato === "nuovo" ? { ...l, altezza: nuovo.altezza, nome: nuovo.nome,
+          destinazione: nuovo.destinazione, finiture: nuovo.finiture, unita: nuovo.unita } : l;
+        return nomi ? { ...modificato, ...nomi, unita: nomi.unita === undefined ? modificato.unita : nomi.unita ?? undefined } : modificato;
+      });
+      return daUnire.reduce((locali, muro) => unisciLocaliDopoDemolizione(locali, muro, muri) ?? locali, localiConModifiche);
+    }
+  }
   const usati = new Set<string>();
-  const stanze = pianta.locali.map((l) => ({ ...localeAModello(pianta, l), nuova: l.stato === "nuovo" }));
+  const sostituiti = new Set(propostaBase?.frazionamenti?.map(f => f.localeId));
+  const disegnati = new Set(propostaBase?.frazionamenti?.flatMap(f => f.parti));
+  const esterni = new Map(propostaBase?.distribuzioneBilocali
+    ? propostaBase.locali.filter(l => l.aperto && !eAmbienteInterno(l)).map(l => [l.id, l]) : []);
+  for (const id of esterni.keys()) disegnati.add(id);
+  let stanze = pianta.locali.filter(l => !sostituiti.has(l.id) && (!propostaBase?.distribuzioneBilocali || l.stato === "nuovo" || esterni.has(l.id))).map(l => {
+    const prima = propostaBase?.locali.find(p => p.id === l.id);
+    const esterno = esterni.get(l.id);
+    return { ...(esterno ?? localiCad?.find(s => s.id === l.id) ?? localeAModello(pianta, l, prima)), nuova: l.stato === "nuovo" };
+  });
+  const conservaContorniCad = daCad && !propostaBase?.distribuzioneBilocali && !disegnati.size && !muri.some(m => m.stato === "da_demolire");
+  if (conservaContorniCad) {
+    for (const muro of muri.filter(m => m.stato === "nuovo" && m.tipo === "tramezzo")) {
+      stanze = stanze.flatMap((l, i) => {
+        const parti = !l.aperto && dividiContornoSulTramezzo(l.contorno, muro, muri);
+        if (!parti) return [l];
+        const [prima, seconda] = parti.sort((a, b) => areaPoligono(b) - areaPoligono(a));
+        const id = `${muro.id.slice(0, 50)}-parte-${i + 1}`;
+        const esistente = propostaBase?.locali.find(s => s.id === id);
+        const finiture = pianta.nomiProgetto?.[l.id]?.finiture ?? l.finiture;
+        return [
+          { ...l, contorno: prima, superficieDichiarataMq: undefined },
+          { ...l, finiture, ...esistente, id, nome: esistente?.nome ?? "Stanza", destinazione: esistente?.destinazione ?? "altro",
+            contorno: seconda, superficieDichiarataMq: undefined, nuova: true },
+        ];
+      });
+    }
+    // I contorni CAD sono già al filo interno. Mantenerli evita che un raccordo lontano deformi il locale.
+    for (const l of stanze) disegnati.add(l.id);
+  }
   const dentro = (contenitore: Punto[]) => (c: { contorno: Punto[] }) => {
     const p = puntoInterno(c.contorno);
     return !!p && puntoNelPoligono(p, contenitore);
   };
-  const scegli = <T extends { id: string; contorno: Punto[] }>(lista: T[], contenitore: Punto[]) =>
-    lista
-      .filter((c) => !usati.has(c.id) && dentro(contenitore)(c))
-      .sort((a, b) => areaPoligono(b.contorno) - areaPoligono(a.contorno))[0];
+  const partiDisegnate = stanze.filter(s => disegnati.has(s.id));
+  const contorniCad = daCad ? [...stanze, ...(propostaBase?.locali ?? [])].filter(s => !s.aperto) : [];
+  const nuoviMuri = daCad ? new Set(muri.filter(m => m.stato === "nuovo").map(m => m.id)) : undefined;
+  const facce = ricostruisciLocali(muri).filter(f =>
+    !partiDisegnate.some(s => dentro(f.contorno)(s) || dentro(s.contorno)(f)));
+  // Il punto del locale originario può cadere nello spessore del nuovo muro.
+  const contieneParte = (s: { aperto?: boolean; contorno: Punto[] }, parte: Punto[]) =>
+    !s.aperto && areaPoligono(s.contorno) - areaPoligono(parte) > 1
+    && parte.every(p => puntoNelPoligono(p, s.contorno) || distanzaDalContorno(p, s.contorno) <= 0.5);
+  const scegli = <T extends { id: string; aperto?: boolean; contorno: Punto[] }>(lista: T[], contenitore: Punto[]) => {
+    const liberi = lista.filter(c => !usati.has(c.id));
+    const interi = liberi.filter(dentro(contenitore));
+    const candidati = interi.length ? interi : liberi.filter(c => contieneParte(c, contenitore));
+    return candidati.sort((a, b) => areaPoligono(b.contorno) - areaPoligono(a.contorno))[0];
+  };
 
   const out: LocaleModello[] = [];
   let progressivo = 1;
   for (const f of facce) {
+    // In un DWG una faccia chiusa può essere un vuoto, un cavedio o un contorno senza riscontro.
+    const contorniSovrapposti = contorniCad.filter(s => interniSovrapposti(s.contorno, f.contorno));
+    if (nuoviMuri && (!contorniSovrapposti.length || conservaContorniCad) && !f.muriIds.every(id => nuoviMuri.has(id))) continue;
+    if (daCad && contornoIncrociato(f.contorno)) continue;
     const fonte: LocaleModello | undefined =
       (propostaBase && scegli(propostaBase.locali, f.contorno)) ||
       scegli(stanze.filter((s) => s.nuova), f.contorno) ||
@@ -693,18 +889,19 @@ function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase?: P
       destinazione: nomi?.destinazione ?? fonte?.destinazione ?? "altro",
       contorno: f.contorno.map((p) => ({ x: arrotonda2(p.x), y: arrotonda2(p.y) })),
       altezza: fonte?.altezza ?? ALTEZZA_PIANO,
+      ...(fonte?.aperto ? { aperto: true } : {}),
       ...((nomi?.finiture ?? fonte?.finiture) ? { finiture: nomi?.finiture ?? fonte?.finiture } : {}),
-      ...(fonte?.unita ? { unita: fonte.unita } : {}),
-      origine: originePeggiore(...origini),
+      unita: nomi?.unita === undefined ? fonte?.unita : nomi.unita ?? undefined,
+      origine: originePeggiore(...origini, ...contorniSovrapposti.map(s => origineMisura(s, "contorno"))),
     });
   }
   // Stanze senza pareti intorno (disegnate solo come contorno): restano come sono.
   for (const s of stanze) {
-    if (usati.has(s.id) || facce.some((f) => dentro(f.contorno)(s))) continue;
+    if (usati.has(s.id) || (!disegnati.has(s.id) && facce.some(f => dentro(f.contorno)(s) || contieneParte(s, f.contorno)))) continue;
     usati.add(s.id);
     const { nuova: _nuova, ...locale } = s;
     const nomi = pianta.nomiProgetto?.[s.id];
-    out.push(nomi ? { ...locale, ...nomi } : locale);
+    out.push(nomi ? { ...locale, ...nomi, unita: nomi.unita === undefined ? locale.unita : nomi.unita ?? undefined } : locale);
   }
   return out;
 }
@@ -719,6 +916,9 @@ export interface LocaleVista {
   /** Al filo interno, in coordinate dello schermo. */
   contorno: Punto[];
   mq: number;
+  superficieDichiarataMq?: number;
+  aperto?: boolean;
+  unita?: string;
   /** In metri. */
   perimetro: number;
   /** Lunghezza interna di ogni lato, in cm (lato i = contorno[i] → contorno[i+1]). */
@@ -735,6 +935,7 @@ export interface ElementoVista {
   rotazione: number;
   larghezza: number;
   profondita: number;
+  alzateCad?: AlzataCad[];
 }
 
 export interface DatiVista {
@@ -771,6 +972,9 @@ export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto"
       contorno,
       finiture: l.finiture,
       mq: pavimento?.valore ?? areaPoligono(l.contorno) / 10_000,
+      superficieDichiarataMq: l.superficieDichiarataMq,
+      aperto: l.aperto,
+      unita: l.unita,
       perimetro: perimetro?.valore ?? 0,
       lati: contorno.map((a, i) => lunghezza(a, contorno[(i + 1) % contorno.length])),
       stimata: (pavimento?.origine ?? origineDi(l)) === "stimata",
@@ -784,6 +988,7 @@ export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto"
     rotazione: 0 - (e.rotazione ?? 0),
     larghezza: e.larghezza,
     profondita: e.profondita,
+    alzateCad: e.alzateCad?.map(capovolgiAlzata),
   }));
   const testi = (stato?.testi ?? []).map((t) => ({ id: t.id, posizione: capovolgi(t.posizione), testo: t.testo, rotazione: 0 - (t.rotazione ?? 0) }));
   return { ambito, locali, elementi, testi, problemi, quantita };
@@ -819,7 +1024,10 @@ export function aggiungiLivello(
       const loc = new Map(origine.fatto.locali.map((l) => [l.id, `${l.id}_${id}`]));
       fatto.locali = origine.fatto.locali.map((l) => ({ ...l, id: loc.get(l.id)! }));
       fatto.elementi = origine.fatto.elementi.map((e) => ({ ...e, id: `${e.id}_${id}`, stato: "esistente" as const, ...(e.localeId ? { localeId: loc.get(e.localeId) ?? null } : {}) }));
-      fatto.quote = origine.fatto.quote.map((q) => ({ ...q, id: `${q.id}_${id}` }));
+      if (origine.fatto.tracciatiImpianti?.length) fatto.tracciatiImpianti = origine.fatto.tracciatiImpianti.map(t => ({
+        ...t, daId: `${t.daId}_${id}`, aId: `${t.aId}_${id}`, vertici: t.vertici.map(p => ({ ...p })),
+      }));
+      fatto.quote = origine.fatto.quote.map((q) => ({ ...q, id: `${q.id}_${id}`, riferimenti: rinominaRiferimentiQuota(q, ids) }));
       fatto.testi = origine.fatto.testi.map((t) => ({ ...t, id: `${t.id}_${id}` }));
     }
     if (tutte) {
@@ -864,7 +1072,7 @@ export function eliminaLivello(doc: Planimetria, id: string): Planimetria {
 // ─── Proposte alternative (seconda parte del piano, A1) ──────────────────────
 
 /** La prossima lettera libera: A, B, C… (poi A2, B2…). */
-export function prossimaProposta(livello: Livello): string {
+export function prossimaProposta(livello: Pick<Livello, "proposte">): string {
   const usati = new Set(livello.proposte.map((p) => p.id));
   for (let giro = 1; giro < 10; giro++) {
     for (const l of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
@@ -885,7 +1093,7 @@ export function duplicaProposta(doc: Planimetria, livelloId: string, daId?: stri
   const id = prossimaProposta(livello);
   const origine = livello.proposte.find((p) => p.id === daId) ?? livello.proposte[0];
   const copia: Proposta = origine
-    ? { ...structuredClone(origine), id, nome: `Proposta ${id}` }
+    ? { ...structuredClone(origine), id, nome: `Proposta ${id}`, alternativaDi: origine.id }
     : { ...structuredClone(livello.fatto), id, nome: `Proposta ${id}` };
   const nuovo: Livello = { ...livello, proposte: [...livello.proposte, copia] };
   return { documento: { ...doc, livelli: doc.livelli.map((l) => (l.id === livelloId ? nuovo : l)) }, id };

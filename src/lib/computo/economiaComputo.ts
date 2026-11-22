@@ -179,7 +179,7 @@ export type AnalisiEconomia = {
 };
 
 export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
-  let totaleLavori = 0, costo = 0, vociSenzaCosto = 0;
+  let totaleLavori = 0, costo = 0, vociSenzaCosto = 0, sicurezza = 0;
   const perCapitolo = new Map<string, { costo: number; ricavo: number; senzaCosto: number }>();
   for (const v of bozza.voci) {
     if (v.opzionale) continue; // fuori dal totale: niente ricavo, niente costo
@@ -188,12 +188,12 @@ export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
     const c = perCapitolo.get(nome) ?? { costo: 0, ricavo: 0, senzaCosto: 0 };
     const ricavo = r.importo ?? 0;
     totaleLavori += ricavo; c.ricavo += ricavo;
+    if (v.sicurezza) sicurezza += ricavo;
     const cu = numeroEditor(v.costo ?? "");
     if (cu == null || r.quantita == null) { if (ricavo) { vociSenzaCosto++; c.senzaCosto++; } }
     else { const cv = arrotondaDecimale(r.quantita * cu / (v.unita.trim() === "%" ? 100 : 1)); costo += cv; c.costo += cv; }
     perCapitolo.set(nome, c);
   }
-  const sicurezza = bozza.voci.reduce((t, v) => t + (v.sicurezza ? calcolaVoce(v).importo ?? 0 : 0), 0);
   const sconto = calcolaSconto(totaleLavori, bozza.sconto, sicurezza).importo;
   const netto = totaleLavori - sconto;
   const margine = netto - costo;
@@ -306,7 +306,17 @@ export function analizzaEconomia(bozza: BozzaComputo): AnalisiEconomia {
  * più l'IVA quando è applicata (come la cifra che va in firma). Nullo senza importi.
  */
 export function totaleElencoComputo(bozza: BozzaComputo): number | null {
-  const { netto } = analizzaEconomia(bozza);
+  const esclusi = new Set(bozza.capitoliEsclusiPdf);
+  const voci = bozza.voci.filter(voce => !voce.opzionale && !esclusi.has(voce.capitolo.trim() || "Opere edili"));
+  let lavori = 0, sicurezza = 0;
+  for (const voce of voci) {
+    const importo = calcolaVoce(voce).importo ?? 0;
+    lavori += importo;
+    if (voce.sicurezza) sicurezza += importo;
+  }
+  const sconto = calcolaSconto(lavori, bozza.sconto, sicurezza);
+  if (sconto.errore) return null;
+  const netto = lavori - sconto.importo;
   if (!(netto > 0)) return null;
   return calcolaIvaComputo(netto, bozza).totale ?? arrotondaDecimale(netto);
 }

@@ -36,7 +36,6 @@
 .chat-only-workspace .quote-workbench-tabs [role=tab][data-state=active] { background: #1c385f; box-shadow: inset 0 -2px #f97316, 0 2px 4px #1e3a5f10; }
 .chat-only-workspace .chat-workspace-header { padding: 12px 17px; min-height: 66px; flex-shrink: 0; }
 .chat-only-workspace .quote-chat-identity > span { font-size: 13px; letter-spacing: -.015em; }
-.quote-chat-identity > span > i { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: #fff1e7; color: #c2410c; font-style: normal; }
 .chat-only-workspace .quote-chat-identity > small { font-size: 10px; margin-top: 3px; color: #64748b; }
 .quote-chat-header-meta { display: flex; align-items: center; gap: 12px; }
 .quote-model-details { position: relative; font-size: 10px; color: #536784; }
@@ -241,3 +240,96 @@
 .quote-chat-attach-alert span { flex: 1; }
 .quote-chat-attach-alert button { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; color: #991b1b; font-size: 16px; line-height: 1; }
 .quote-chat-attach-alert button:hover { background: #fee2e2; }
+
+.quote-message-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #3e5271;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.chat-only-workspace .chat-operation-status.working i { animation: none; background: #ea580c; }
+.chat-only-workspace .quote-live-reply {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #f2decd;
+  border-radius: 14px;
+  background: #fffcf8;
+}
+.quote-live-reply-text { animation: quote-soft-arrive 180ms ease-out both; }
+.quote-live-reply-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  min-height: 23px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7c4023;
+}
+.quote-live-reply-label { flex: 1; min-width: 0; }
+.quote-live-reply-label > span { display: block; animation: quote-soft-arrive 160ms ease-out both; }
+.quote-live-reply-time { flex: 0 0 auto; color: #64748b; font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.quote-chat-proposal {
+  margin-top: 12px;
+  padding: 12px 14px 6px;
+  border: 1px solid #dbe7f5;
+  border-radius: 14px;
+  background: #f6f9ff;
+  white-space: normal;
+  animation: quote-soft-arrive 240ms cubic-bezier(.22,1,.36,1) 60ms both;
+}
+.quote-chat-proposal-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.quote-chat-proposal-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #e7effc;
+  color: #1d4e89;
+}
+.quote-chat-proposal-summary { display: flex; flex-direction: column; gap: 2px; line-height: 1.45; }
+.quote-chat-proposal-summary strong { color: #152f54; font-size: 13px; }
+.quote-chat-proposal-summary > span { color: #536884; font-size: 12px; }
+.quote-chat-proposal-main button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid #cddcf0;
+  border-radius: 9px;
+  background: #fff;
+  color: #18497f;
+  font-size: 12px;
+  font-weight: 650;
+  transition: transform 150ms ease-out;
+}
+.quote-chat-proposal-main button:hover { background: #eaf2ff; }
+.quote-chat-proposal-main button:active { transform: scale(.98); }
+.quote-chat-proposal-main button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.chat-only-workspace .quote-chat-proposal .quote-turn-details { margin-top: 6px; }
+.quote-turn-details[open] .quote-turn-details-content { animation: quote-soft-arrive 180ms ease-out both; }
+
+@media (max-width: 600px) {
+  .quote-chat-proposal-main { grid-template-columns: auto minmax(0, 1fr); }
+  .quote-chat-proposal-main button { grid-column: 1 / -1; justify-self: start; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quote-live-reply-text, .quote-live-reply-label > span, .quote-chat-proposal,
+  .quote-turn-details[open] .quote-turn-details-content { animation: none; }
+  .quote-chat-proposal-main button { transition: none; }
+  .quote-chat-proposal-main button:active { transform: none; }
+}

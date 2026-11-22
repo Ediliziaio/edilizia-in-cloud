@@ -1,4 +1,5 @@
 import { materialiProgettoValidi, type MaterialiProgetto } from "./materialiProgetto.ts";
+import { modelloArredo } from "./modelliArredo.ts";
 /**
  * Planimetrie — il modello del documento (contratto fra editor, AI, 3D, esportazioni).
  *
@@ -24,6 +25,10 @@ import { materialiProgettoValidi, type MaterialiProgetto } from "./materialiProg
 
 import { rilievoValido, type Rilievo } from "./rilievo.ts";
 import { verificheLetturaValide, type LetturaDocumento } from "./letturaTipi.ts";
+import { letturaAssistitaValida, type LetturaAssistita } from "./letturaAssistita.ts";
+import { controlloDwgValido, type RiscontroDwg } from "./controlloDwg.ts";
+import { tavolaDwgValida, type TavolaDwg } from "./tavolaDwg.ts";
+import { urbanisticaValida, type DatiUrbanistici } from "./urbanistica.ts";
 
 export const VERSIONE_SCHEMA = 1 as const;
 
@@ -71,6 +76,13 @@ export interface Muro extends ConOrigine {
   altezza: number;
   tipo: TipoMuro;
   stato: StatoLavori;
+  /** Il tipo grafico del muro richiede ancora un riscontro. */
+  funzioneDaVerificare?: boolean;
+}
+
+export function funzionePareteDaVerificare(muro: Pick<Muro, "id" | "funzioneDaVerificare">) {
+  // Anche le ricostruzioni CAD salvate prima di questo campo avevano un tipo grafico inferito.
+  return muro.funzioneDaVerificare ?? /^cad-\d+-m\d+$/.test(muro.id);
 }
 
 export type TipoApertura = "porta" | "finestra" | "portafinestra" | "varco";
@@ -134,6 +146,10 @@ export interface Apertura extends ConOrigine {
   altezza: number;
   /** 0 per porte, portefinestre e varchi. */
   davanzale: number;
+  /** Misure effettive rilevate sul serramento, distinte dalle dimensioni del vano. */
+  luceNettaCm?: number;
+  superficieApribileMq?: number;
+  superficieIlluminanteMq?: number;
   manovra: Manovra;
   /** Ante (1-6): assente = una per le porte e le finestre fino a 1,4 m, due oltre. */
   ante?: number;
@@ -177,6 +193,8 @@ export const DESTINAZIONI: readonly Destinazione[] = [
 
 export interface Finiture {
   pavimento?: string;
+  /** Il locale usa una finitura esplicita nella propria variante. */
+  pavimentoSpecifico?: boolean;
   pareti?: string;
   soffitto?: string;
   /** Rivestimento a parete (piastrelle di bagno e cucina) fino all'altezza indicata. */
@@ -190,10 +208,22 @@ export interface Locale extends ConOrigine {
   destinazione: Destinazione;
   contorno: Punto[];
   altezza: number;
+  /** Superficie riportata nella tavola CAD, distinta dal calcolo sul contorno. */
+  superficieDichiarataMq?: number;
+  /** Zona di pavimento con un confine di misura che non è una parete. */
+  aperto?: boolean;
   finiture?: Finiture;
   /** Appartamento o unità immobiliare (condominio, bifamiliare): «A», «Int. 3», «Parti comuni». */
   unita?: string;
 }
+
+/** Le zone aperte possono essere interne, per esempio la cucina di un open space. */
+export function eAmbienteInterno({ destinazione, aperto }: { destinazione: string; aperto?: boolean }): boolean {
+  return !["balcone", "terrazzo", "giardino"].includes(destinazione) && (!aperto || destinazione !== "altro");
+}
+
+/** I due estremi sono relativi al centro, in frazioni di larghezza e profondità. */
+export type AlzataCad = [Punto, Punto];
 
 /** Simboli e arredi. `tipo` è libero (catalogo dei simboli: fase editor). */
 export interface Elemento extends ConOrigine {
@@ -208,8 +238,18 @@ export interface Elemento extends ConOrigine {
   altezza?: number;
   localeId?: string | null;
   etichetta?: string;
+  /** Colore della superficie principale dell'arredo, in sRGB. */
+  colore?: string;
+  modello?: string;
   stato?: StatoLavori;
+  /** Linee delle alzate, ordinate nella direzione di salita. */
+  alzateCad?: AlzataCad[];
 }
+
+export type RiferimentoQuota =
+  | { tipo: "estremo"; muroId: string; estremo: "p1" | "p2" }
+  | { tipo: "medio"; muroId: string }
+  | { tipo: "intersezione"; muroId: string; altroMuroId: string };
 
 /** Quota da disegnare: il valore è sempre la distanza fra p1 e p2, non si scrive a mano. */
 export interface Quota {
@@ -218,6 +258,10 @@ export interface Quota {
   p2: Punto;
   /** Distanza della linea di quota dal segmento, in cm (positiva a sinistra di p1→p2). */
   scostamento: number;
+  origine?: Origine;
+  /** Etichetta esplicita dell'entità DIMENSION nel CAD, conservata come riferimento. */
+  testoOriginale?: string;
+  riferimenti?: Partial<Record<"p1" | "p2", RiferimentoQuota>>;
 }
 
 export interface Testo {
@@ -252,6 +296,17 @@ export interface AreaEsterna {
   stato?: StatoLavori;
 }
 
+export const LINEE_IMPIANTO = ["elettrica", "acqua", "scarico", "frigorifera", "condensa", "riscaldamento"] as const;
+export type LineaImpianto = typeof LINEE_IMPIANTO[number];
+
+export interface TracciatoImpianto {
+  linea: LineaImpianto;
+  daId: string;
+  aId: string;
+  /** Vertici intermedi in cm. Gli estremi sono le posizioni dei simboli. */
+  vertici: Punto[];
+}
+
 /** Il contenuto di uno stato (fatto o una proposta) su un livello. */
 export interface StatoPianta {
   muri: Muro[];
@@ -262,13 +317,51 @@ export interface StatoPianta {
   testi: Testo[];
   /** Lotto e aree esterne (assenti nelle piante fatte prima). */
   aree?: AreaEsterna[];
+  tracciatiImpianti?: TracciatoImpianto[];
+}
+
+export const SANITARI_BAGNO = ["wc", "lavabo", "doccia", "bidet", "vasca"] as const;
+export type TipoSanitarioBagno = typeof SANITARI_BAGNO[number];
+
+export interface SpostamentoLocale {
+  id: string;
+  origineId: string;
+  destinazioneId: string;
+}
+
+export interface SpostamentoBagno extends SpostamentoLocale {
+  sanitari: TipoSanitarioBagno[];
+}
+
+export interface PrezzoVocePlanimetria {
+  importo: number;
+  unita: "m²" | "m" | "cad" | "a corpo";
+  fonte: string;
+  tariffa: string;
 }
 
 export interface Proposta extends StatoPianta {
   /** Breve, entra nelle chiavi: «A», «B». */
   id: string;
   nome: string;
+  /** Distribuzione dell’intero perimetro. I locali della variante sono modificabili anche se hanno nuovi ID. */
+  distribuzioneBilocali?: true;
+  frazionamenti?: Array<{
+    localeId: string;
+    parti: string[];
+    pareti: string[];
+    richiesta?: string;
+    motivazione?: string;
+  }>;
+  spostamentiBagno?: SpostamentoBagno[];
+  spostamentiCucina?: SpostamentoLocale[];
+  prezziLavorazioni?: Record<string, PrezzoVocePlanimetria>;
+  alternativaDi?: string;
 }
+
+export type RiscontroScalaModello =
+  | { stato: "da_verificare" }
+  | { stato: "confermata"; muroId: string; distanzaCm: number; verificataIl: string };
 
 export interface Livello {
   id: string;
@@ -279,8 +372,21 @@ export interface Livello {
   proposte: Proposta[];
   /** L'immagine da ricalcare sotto il disegno di questo piano (mappa, foto aerea, rilievo). */
   ricalco?: Ricalco;
+  riscontroScala?: RiscontroScalaModello;
+  /** Proposte da esaminare sulla tavola archiviata del singolo piano. */
+  letturaAssistita?: LetturaAssistita;
+  controlloDwg?: RiscontroDwg[];
+  tavolaDwg?: TavolaDwg;
   /** Il tetto sopra questo piano (di solito l'ultimo): nel 3D e nei render. */
   tetto?: Tetto;
+}
+
+export function scalaModelloDaVerificare(livello: Livello): boolean {
+  if (livello.ricalco?.calibrata === false || livello.riscontroScala?.stato === "da_verificare") return true;
+  const riscontro = livello.riscontroScala;
+  if (!riscontro) return false;
+  const muro = livello.fatto.muri.find(m => m.id === riscontro.muroId);
+  return !muro || Math.abs(Math.hypot(muro.p2.x - muro.p1.x, muro.p2.y - muro.p1.y) - riscontro.distanzaCm) > 1;
 }
 
 export type TipoTetto = "piano" | "una_falda" | "due_falde" | "padiglione" | "shed";
@@ -325,6 +431,10 @@ export interface Ricalco {
   /** Altezza / larghezza dell'immagine. */
   proporzione: number;
   opacita: number;
+  /** Conferma della scala del sottofondo tramite una misura nota o un CAD in unità reali. */
+  calibrata?: boolean;
+  /** Protegge posizione, scala e file del riferimento sul piano. */
+  bloccata?: boolean;
 }
 
 export interface Riferimenti {
@@ -334,6 +444,8 @@ export interface Riferimenti {
 }
 
 export interface Planimetria {
+  /** Fonti e valutazioni conservate insieme alla versione verificata. */
+  urbanistica?: DatiUrbanistici;
   /** Dichiarato dall'utente, mai dedotto dal numero di stanze. */
   ambitoDocumento?: "ambiente" | "alloggio";
   /** Segnalazioni della lettura iniziale: restano con il disegno anche dopo salvataggi e modifiche. */
@@ -459,6 +571,14 @@ const ID_PROPOSTA = /^[A-Za-z0-9_-]{1,20}$/;
 type Oggetto = Record<string, unknown>;
 const eOggetto = (v: unknown): v is Oggetto => typeof v === "object" && v !== null && !Array.isArray(v);
 const eNumero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const idValido = (v: unknown) => typeof v === "string" && ID_VALIDO.test(v);
+
+function riferimentoQuotaValido(r: unknown): boolean {
+  if (!eOggetto(r) || !idValido(r.muroId)) return false;
+  if (r.tipo === "estremo") return r.estremo === "p1" || r.estremo === "p2";
+  if (r.tipo === "intersezione") return idValido(r.altroMuroId) && r.altroMuroId !== r.muroId;
+  return r.tipo === "medio";
+}
 
 /**
  * Controlla la FORMA del documento (campi, tipi, misure positive, id unici). La
@@ -487,6 +607,7 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       && typeof dato.letturaDocumento.sorgente.percorso === "string" && /^[a-zA-Z0-9_-]+\/ricalco\/[a-zA-Z0-9._-]+$/.test(dato.letturaDocumento.sorgente.percorso)
       && typeof dato.letturaDocumento.sorgente.nome === "string" && dato.letturaDocumento.sorgente.nome.length <= 250)))) errori.push("La pianta: i controlli del documento originale non sono validi.");
   if (dato.materialiProgetto !== undefined && !materialiProgettoValidi(dato.materialiProgetto)) errori.push("La pianta: i materiali comuni non sono validi.");
+  if (dato.urbanistica !== undefined && !urbanisticaValida(dato.urbanistica)) errori.push("La pianta: i riferimenti urbanistici non sono validi.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");
   if (dato.lavoriFatti !== undefined && (!eOggetto(dato.lavoriFatti) || !Object.values(dato.lavoriFatti).every((v) => Array.isArray(v) && v.every((x) => typeof x === "string")))) {
@@ -537,9 +658,28 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
     }
     if (liv.ricalco !== undefined) {
       const r = liv.ricalco;
-      if (!eOggetto(r) || typeof r.percorso !== "string" || !r.percorso || ![r.x, r.y, r.larghezzaCm, r.proporzione, r.opacita].every(eNumero) || !((r.larghezzaCm as number) > 0)) {
+      if (!eOggetto(r) || typeof r.percorso !== "string" || !r.percorso || ![r.x, r.y, r.larghezzaCm, r.proporzione, r.opacita].every(eNumero) || !((r.larghezzaCm as number) > 0)
+        || (r.calibrata !== undefined && typeof r.calibrata !== "boolean") || (r.bloccata !== undefined && typeof r.bloccata !== "boolean")) {
         errori.push(`${nomeLiv}: l'immagine da ricalcare non è valida.`);
       }
+    }
+    if (liv.riscontroScala !== undefined) {
+      const r = liv.riscontroScala;
+      if (!eOggetto(r) || (r.stato !== "da_verificare" && (r.stato !== "confermata"
+        || typeof r.muroId !== "string" || !ID_VALIDO.test(r.muroId)
+        || !eNumero(r.distanzaCm) || r.distanzaCm <= 0
+        || typeof r.verificataIl !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.verificataIl)))) {
+        errori.push(`${nomeLiv}: il riscontro della scala del modello non è valido.`);
+      }
+    }
+    if (liv.letturaAssistita !== undefined && !letturaAssistitaValida(liv.letturaAssistita)) {
+      errori.push(`${nomeLiv}: le proposte sulla tavola non sono valide.`);
+    }
+    if (liv.controlloDwg !== undefined && !controlloDwgValido(liv.controlloDwg)) {
+      errori.push(`${nomeLiv}: i riscontri del DWG non sono validi.`);
+    }
+    if (liv.tavolaDwg !== undefined && !tavolaDwgValida(liv.tavolaDwg)) {
+      errori.push(`${nomeLiv}: i layer della tavola DWG non sono validi.`);
     }
 
     validaStato(liv.fatto, `${nomeLiv}, stato di fatto`, "fatto", true, errori, idPerAmbito);
@@ -554,11 +694,54 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       if (idProposte.has(pr.id as string)) errori.push(`${etichetta}: c'è due volte.`);
       idProposte.add(pr.id as string);
       if (typeof pr.nome !== "string" || !pr.nome.trim()) errori.push(`${etichetta}: manca il nome.`);
+      if (pr.alternativaDi !== undefined && (typeof pr.alternativaDi !== "string" || pr.alternativaDi === pr.id || !ID_PROPOSTA.test(pr.alternativaDi))) {
+        errori.push(`${etichetta}: la variante di partenza non è valida.`);
+      }
+      if (pr.distribuzioneBilocali !== undefined && pr.distribuzioneBilocali !== true) errori.push(etichetta + ": la distribuzione in bilocali non è valida.");
+      const f = pr.frazionamenti;
+      if (f !== undefined && (!Array.isArray(f) || f.length > 100 || f.some((r) => !eOggetto(r) ||
+        typeof r.localeId !== "string" || !ID_VALIDO.test(r.localeId) ||
+        !Array.isArray(r.parti) || r.parti.length < 2 || r.parti.length > 3 || r.parti.some(id => typeof id !== "string" || !ID_VALIDO.test(id)) ||
+        !Array.isArray(r.pareti) || r.pareti.length !== r.parti.length - 1 || r.pareti.some(id => typeof id !== "string" || !ID_VALIDO.test(id)) ||
+        (r.richiesta !== undefined && (typeof r.richiesta !== "string" || r.richiesta.length > 1000)) ||
+        (r.motivazione !== undefined && (typeof r.motivazione !== "string" || r.motivazione.length > 500))))) {
+        errori.push(`${etichetta}: il frazionamento non è valido.`);
+      }
+      if (pr.spostamentiBagno !== undefined && !spostamentiLocaliValidi(pr.spostamentiBagno, r =>
+        Array.isArray(r.sanitari) && r.sanitari.length > 0 && r.sanitari.length <= SANITARI_BAGNO.length &&
+        new Set(r.sanitari).size === r.sanitari.length && r.sanitari.every(s => (SANITARI_BAGNO as readonly unknown[]).includes(s)))) {
+        errori.push(`${etichetta}: gli spostamenti dei bagni non sono validi.`);
+      }
+      if (pr.spostamentiCucina !== undefined && !spostamentiLocaliValidi(pr.spostamentiCucina)) {
+        errori.push(`${etichetta}: gli spostamenti delle cucine non sono validi.`);
+      }
+      if (pr.prezziLavorazioni !== undefined && (!eOggetto(pr.prezziLavorazioni) || Object.entries(pr.prezziLavorazioni).length > 5000 ||
+        Object.entries(pr.prezziLavorazioni).some(([id, p]) => !/^[-\w:.]{1,220}$/.test(id) || !eOggetto(p)
+          || !eNumero(p.importo) || (p.importo as number) < 0 || !["m²", "m", "cad", "a corpo"].includes(p.unita as string)
+          || typeof p.fonte !== "string" || !p.fonte.trim() || p.fonte.length > 300 || typeof p.tariffa !== "string" || p.tariffa.length > 120))) {
+        errori.push(`${etichetta}: i prezzi delle lavorazioni non sono validi.`);
+      }
       validaStato(pr, etichetta, `progetto:${pr.id}`, false, errori, idPerAmbito);
     });
   });
 
   return errori.length ? { ok: false, errori } : { ok: true, planimetria: dato as unknown as Planimetria };
+}
+
+function spostamentiLocaliValidi(valore: unknown, datiValidi = (_riga: Oggetto) => true): boolean {
+  if (!Array.isArray(valore) || valore.length > 100) return false;
+  const id = new Set<string>(), locali = new Set<string>();
+  return valore.every(r => {
+    if (!eOggetto(r) || typeof r.id !== "string" || !ID_VALIDO.test(r.id) ||
+      typeof r.origineId !== "string" || !ID_VALIDO.test(r.origineId) ||
+      typeof r.destinazioneId !== "string" || !ID_VALIDO.test(r.destinazioneId) ||
+      r.origineId === r.destinazioneId || id.has(r.id) || locali.has(r.origineId) || locali.has(r.destinazioneId) ||
+      !datiValidi(r)) return false;
+    id.add(r.id);
+    locali.add(r.origineId);
+    locali.add(r.destinazioneId);
+    return true;
+  });
 }
 
 function validaStato(
@@ -616,6 +799,9 @@ function validaStato(
     positivo(o, "spessore", e, "lo spessore");
     positivo(o, "altezza", e, "l'altezza");
     scelta(o.tipo, TIPI_MURO, e, "il tipo");
+    if (o.funzioneDaVerificare !== undefined && typeof o.funzioneDaVerificare !== "boolean") {
+      errori.push(`${e}: il riscontro della funzione non è valido.`);
+    }
     statoLavori(o, e, true);
     origini(o, e);
   }, nomeDi("parete"));
@@ -627,6 +813,15 @@ function validaStato(
     positivo(o, "larghezza", e, "la larghezza");
     positivo(o, "altezza", e, "l'altezza");
     nonNegativo(o, "davanzale", e, "l'altezza del davanzale");
+    if (o.luceNettaCm !== undefined && (o.tipo !== "porta" || !eNumero(o.luceNettaCm) || o.luceNettaCm <= 0 || o.luceNettaCm > Number(o.larghezza))) {
+      errori.push(`${e}: la luce netta deve rientrare nella larghezza del vano della porta.`);
+    }
+    for (const [valore,nome] of [[o.superficieApribileMq,"apribile"],[o.superficieIlluminanteMq,"illuminante"]] as const) {
+      if (valore !== undefined && ((o.tipo !== "finestra" && o.tipo !== "portafinestra") || !eNumero(valore)
+        || valore < 0 || valore > Number(o.larghezza) * Number(o.altezza) / 10_000)) {
+        errori.push(`${e}: la superficie ${nome} deve rientrare nella superficie del vano finestrato.`);
+      }
+    }
     scelta(o.manovra, MANOVRE, e, "il modo di apertura");
     if (o.ante !== undefined && !(Number.isInteger(o.ante) && (o.ante as number) >= 1 && (o.ante as number) <= 6)) errori.push(`${e}: le ante devono essere da 1 a 6.`);
     if (o.sistema !== undefined) scelta(o.sistema, SISTEMI_APERTURA, e, "il sistema del serramento");
@@ -651,12 +846,17 @@ function validaStato(
     if (!Array.isArray(o.contorno) || o.contorno.length < 3) errori.push(`${e}: il contorno deve avere almeno tre punti.`);
     else o.contorno.forEach((pt: unknown, k: number) => punto(pt, e, `il punto ${k + 1} del contorno`));
     positivo(o, "altezza", e, "l'altezza");
+    if (o.superficieDichiarataMq !== undefined) positivo(o, "superficieDichiarataMq", e, "la superficie indicata sulla tavola");
+    if (o.aperto !== undefined && typeof o.aperto !== "boolean") errori.push(`${e}: l'indicazione di zona aperta non è valida.`);
     if (o.unita !== undefined && (typeof o.unita !== "string" || o.unita.length > 40)) errori.push(`${e}: l'unità immobiliare deve essere un testo breve.`);
     if (o.finiture !== undefined) {
       if (!eOggetto(o.finiture)) errori.push(`${e}: le finiture non sono valide.`);
-      else if (o.finiture.rivestimento !== undefined && o.finiture.rivestimento !== null) {
-        const r = o.finiture.rivestimento;
-        if (!eOggetto(r) || !(eNumero(r.altezza) && r.altezza > 0)) errori.push(`${e}: l'altezza del rivestimento deve essere un numero maggiore di zero.`);
+      else {
+        if (o.finiture.pavimentoSpecifico !== undefined && typeof o.finiture.pavimentoSpecifico !== "boolean") errori.push(`${e}: la finitura specifica del pavimento non è valida.`);
+        if (o.finiture.rivestimento !== undefined && o.finiture.rivestimento !== null) {
+          const r = o.finiture.rivestimento;
+          if (!eOggetto(r) || !(eNumero(r.altezza) && r.altezza > 0)) errori.push(`${e}: l'altezza del rivestimento deve essere un numero maggiore di zero.`);
+        }
       }
     }
     origini(o, e);
@@ -670,14 +870,56 @@ function validaStato(
     positivo(o, "profondita", e, "la profondità");
     if (o.altezza !== undefined) positivo(o, "altezza", e, "l'altezza");
     if (o.localeId !== undefined && o.localeId !== null && typeof o.localeId !== "string") errori.push(`${e}: il locale non è valido.`);
+    const alzate = o.alzateCad;
+    if (alzate !== undefined && (
+      o.tipo !== "scala" || !Array.isArray(alzate) || alzate.length < 2 || alzate.length > 41 ||
+      alzate.some((a) => !Array.isArray(a) || a.length !== 2 || a.some((p) => !eOggetto(p) ||
+        !eNumero(p.x) || !eNumero(p.y) || Math.abs(p.x) > 0.5 || Math.abs(p.y) > 0.5))
+    )) errori.push(`${e}: le alzate della scala CAD non sono valide.`);
+    if (o.colore !== undefined && (typeof o.colore !== "string" || !/^#[0-9a-f]{6}$/i.test(o.colore))) errori.push(`${e}: il colore dell'arredo non è valido.`);
+    if (o.modello !== undefined && (typeof o.tipo !== "string" || typeof o.modello !== "string" || !modelloArredo(o.tipo, o.modello))) {
+      errori.push(`${e}: il modello non appartiene a questa categoria di arredo.`);
+    }
     statoLavori(o, e, false);
     origini(o, e);
   }, nomeDi("elemento"));
+
+  if (stato.tracciatiImpianti !== undefined) {
+    const tracciati = stato.tracciatiImpianti;
+    if (!Array.isArray(tracciati)) errori.push(`${dove}: l’elenco dei tracciati impiantistici non è valido.`);
+    else {
+      const elementi = new Set<string>();
+      if (Array.isArray(stato.elementi)) for (const e of stato.elementi) {
+        if (eOggetto(e) && typeof e.id === "string") elementi.add(e.id);
+      }
+      const chiavi = new Set<string>();
+      tracciati.forEach((t: unknown, i: number) => {
+        const e = `${dove}, tracciato ${i + 1}`;
+        if (!eOggetto(t)) { errori.push(`${e}: tracciato non valido.`); return; }
+        scelta(t.linea, LINEE_IMPIANTO, e, "la linea");
+        if (typeof t.daId !== "string" || typeof t.aId !== "string" || t.daId === t.aId ||
+          !elementi.has(t.daId) || !elementi.has(t.aId)) errori.push(`${e}: i due simboli devono appartenere a questo disegno.`);
+        const chiave = JSON.stringify([t.linea, t.daId, t.aId]);
+        if (chiavi.has(chiave)) errori.push(`${e}: il collegamento è già disegnato.`);
+        chiavi.add(chiave);
+        if (!Array.isArray(t.vertici)) errori.push(`${e}: manca l’elenco dei vertici.`);
+        else t.vertici.forEach((p: unknown, k: number) => punto(p, e, `il vertice ${k + 1}`));
+      });
+    }
+  }
 
   elenco("quote", "delle quote", (o, e) => {
     punto(o.p1, e, "l'inizio");
     punto(o.p2, e, "la fine");
     if (!eNumero(o.scostamento)) errori.push(`${e}: la distanza dalla parete deve essere un numero.`);
+    if (o.origine !== undefined) scelta(o.origine, ORIGINI, e, "l'origine della misura");
+    if (o.testoOriginale !== undefined && (typeof o.testoOriginale !== "string" || o.testoOriginale.length > 100)) {
+      errori.push(`${e}: l'etichetta originale non è valida.`);
+    }
+    if (o.riferimenti !== undefined && (!eOggetto(o.riferimenti) || !Object.entries(o.riferimenti).every(([k, r]) =>
+      (k === "p1" || k === "p2") && riferimentoQuotaValido(r)))) {
+      errori.push(`${e}: gli agganci della quota non sono validi.`);
+    }
   }, nomeDi("quota"));
 
   if (stato.aree !== undefined) elenco("aree", "delle aree esterne", (o, e) => {

@@ -1,7 +1,7 @@
 import { get, set, setMany } from "idb-keyval";
 import type { AllegatoComputo } from "./editorNativo";
 
-export interface AllegatoPdfComputo { nome: string; tipo: AllegatoComputo["tipo"]; blob: Blob }
+export interface AllegatoPdfComputo { nome: string; tipo: AllegatoComputo["tipo"]; blob: Blob; conservaScala?: boolean }
 const key = (scope: string, id: string) => `computo-allegato:${scope}:${id}`;
 
 export async function caricaAllegatoLocale(scope: string, file: File, tipo: AllegatoComputo["tipo"]): Promise<AllegatoComputo> {

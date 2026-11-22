@@ -4,10 +4,11 @@ import { useEffect, useState, type RefObject } from 'react';
 export function useQuoteChatScroll(log: RefObject<HTMLDivElement>, token: string, active: boolean) {
   const [following, setFollowing] = useState(true);
   const [lastSeen, setLastSeen] = useState(token);
+  const followIfPinned = active && following;
   useEffect(() => {
     const element = log.current;
-    if (active && following && element) element.scrollTo?.({ top: element.scrollHeight, behavior: 'auto' });
-  }, [log, token, active, following]);
+    if (followIfPinned && element) element.scrollTo?.({ top: element.scrollHeight, behavior: 'auto' });
+  }, [log, token, followIfPinned]);
   const onScroll = () => {
     const element = log.current; if (!element) return;
     const bottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 96;
@@ -18,5 +19,5 @@ export function useQuoteChatScroll(log: RefObject<HTMLDivElement>, token: string
     const element = log.current;
     if (element) element.scrollTo?.({ top: element.scrollHeight, behavior: 'auto' });
   };
-  return { onScroll, jumpToLatest, followNextMessage: () => setFollowing(true), unread: !following && token !== lastSeen };
+  return { onScroll, jumpToLatest, followIfPinned, followNextMessage: () => setFollowing(true), unread: !following && token !== lastSeen };
 }

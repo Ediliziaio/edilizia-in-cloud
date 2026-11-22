@@ -22,6 +22,7 @@ export type WizardAiChange = {
   title: string;
   kind: "aggiunta" | "modifica" | "esclusione";
   chapter: string;
+  nota?: string;
   before?: WizardAiAmounts;
   after?: WizardAiAmounts;
 };
@@ -202,7 +203,7 @@ export function reconcileComputoDraft(
   base: NativeComputoRow[],
   seed: ChatDocument,
   draft: ChatDocument,
-  identity: { companyId: string; projectId: string },
+  identity: { companyId: string; projectId: string; chapterMaxLength?: number },
   chapters: Record<string, string> = {},
 ) {
   const original = new Map(base.map((row) => [row.id, row]));
@@ -291,7 +292,7 @@ export function reconcileComputoDraft(
       old?.capitolo_nome ??
       suggestedComputoChapter(line.title)
     ).trim();
-    if (!chapter || chapter.length > 200)
+    if (!chapter || chapter.length > (identity.chapterMaxLength ?? 200))
       throw new Error("Indica un capitolo valido per ogni voce.");
     // Titles and descriptions have separate excerpt limits in the AI protocol.
     // Renaming a row must not replace its complete native description with the excerpt.

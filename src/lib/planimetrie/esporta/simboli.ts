@@ -8,6 +8,7 @@
  */
 import { ellisse, rettangoloArrotondato, ruota, somma } from "./geometria";
 import { definizioneCampo, disegnoCampo, eCampo } from "../campiSport";
+import { disposizioneIsola, profonditaBracciCucina, quoteDivanoAngolare } from "../../../../shared/planimetrie/modelliArredo";
 import type { Primitiva, Tratto } from "./scena";
 import type { ElementoVista, Punto, StileDisegno } from "./tipi";
 
@@ -156,6 +157,7 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
     }
     case "cucina": {
       // piano di lavoro, lavello con gocciolatoio, piano cottura a 4 fuochi
+      if (L < 115 || P < 35) return [rett(-w, -h, w, h, C.piano)];
       const lavL = Math.min(L * 0.36, 80);
       const xl = -w + 8;
       const vasca = rett(xl, -h + P * 0.18, xl + lavL * 0.55, h - P * 0.16, C.metallo, 4);
@@ -177,18 +179,20 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       ];
     }
     case "divano_angolare": {
-      // a L: il lato lungo contro il muro in alto, la penisola (chaise) a destra verso la stanza
-      const sch = Math.min(P * 0.28, 24), br = 18, pen = Math.min(L * 0.38, 95);
-      const contorno: Punto[] = [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: h }, { x: w - pen, y: h }, { x: w - pen, y: -h + sch + 70 }, { x: -w, y: -h + sch + 70 }];
-      const seduta: Punto[] = [{ x: -w + br, y: -h + sch }, { x: w - sch, y: -h + sch }, { x: w - sch, y: h - 4 }, { x: w - pen + 4, y: h - 4 }, { x: w - pen + 4, y: -h + sch + 66 }, { x: -w + br, y: -h + sch + 66 }];
-      const posti = Math.max(2, Math.round((L - pen - br) / 65));
+      const { schienale: sch, bracciolo: br, penisola: pen, profonditaCorpo, posti } = quoteDivanoAngolare(L, P);
+      if (profonditaCorpo >= P) return formeSimbolo("divano", L, P);
+      const bordo = Math.min(4, pen * .08, (profonditaCorpo - sch) * .08);
+      const fronte = -h + profonditaCorpo;
+      const contorno: Punto[] = [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: h }, { x: w - pen, y: h }, { x: w - pen, y: fronte }, { x: -w, y: fronte }];
+      const seduta: Punto[] = [{ x: -w + br, y: -h + sch }, { x: w - br, y: -h + sch }, { x: w - br, y: h - bordo },
+        { x: w - pen + bordo, y: h - bordo }, { x: w - pen + bordo, y: fronte - bordo }, { x: -w + br, y: fronte - bordo }];
       const passo = (L - pen - br) / posti;
+      const cuscino = Math.min(24, passo * .44, (profonditaCorpo - sch) * .45);
       return [
         { punti: contorno, chiuso: true, riempimento: C.tessuto },
         { punti: seduta, chiuso: true, riempimento: C.tessutoChiaro },
-        ...Array.from({ length: posti }, (_, i) => linea(-w + br + passo * (i + 1), -h + sch + 3, -w + br + passo * (i + 1), -h + sch + 63)),
-        linea(w - pen + 4, -h + sch + 70, w - sch, -h + sch + 70),
-        rett(-w + 6, -h + sch + 10, -w + 30, -h + sch + 34, C.lenzuolo, 6),
+        ...Array.from({ length: posti }, (_, i) => linea(-w + br + passo * (i + 1), -h + sch + bordo, -w + br + passo * (i + 1), fronte - bordo)),
+        rett(-w + br + bordo, -h + sch + bordo, -w + br + bordo + cuscino, -h + sch + bordo + cuscino, C.lenzuolo, cuscino * .23),
       ];
     }
     case "poltrona":
@@ -204,8 +208,10 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
     }
     case "cucina_angolare": {
       // a L: il lato lungo contro il muro in alto, il ritorno sul muro di sinistra
-      const pr = Math.min(P, 62);
+      const pr = profonditaBracciCucina(L, P);
+      if (pr === L || pr === P) return formeSimbolo("cucina", L, P);
       const contorno: Punto[] = [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: -h + pr }, { x: -w + pr, y: -h + pr }, { x: -w + pr, y: h }, { x: -w, y: h }];
+      if (L < 170 || P < pr + 30 || pr < 35) return [{ punti: contorno, chiuso: true, riempimento: C.piano }];
       const r = Math.min(pr * 0.12, 8), cx = w - Math.min(L * 0.18, 40), cy = -h + pr / 2;
       const fuochi = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [cerchio(cx + sx * r * 1.6, cy + sy * r * 1.5, r, C.scuro), cerchio(cx + sx * r * 1.6, cy + sy * r * 1.5, r * 0.45)]));
       const lx = -w + pr + 30;
@@ -218,8 +224,11 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
         rett(-w + 2, h - Math.min(P * 0.3, 65), -w + pr - 2, h - 2, C.metallo, 2),
       ];
     }
-    case "isola_cucina":
-      return [rett(-w, -h, w, h, C.piano, 4), rett(-w + 4, -h + 4, w - 4, h - 4), ...[-1, 0, 1].map((k) => ell(k * L * 0.3, h + 18, 16, 16, C.legno))];
+    case "isola_cucina": {
+      const { banco, diametro, sedute, zSeduta } = disposizioneIsola(L, P);
+      return [rett(-w, -h, w, -h + banco, C.piano, Math.min(3, banco * .1)),
+        ...sedute.map(x => ell(x, zSeduta, diametro / 2, diametro / 2, C.legno))];
+    }
     case "lavastoviglie":
       return [rett(-w, -h, w, h, C.metallo, 2), linea(-w, h - 5, w, h - 5), rett(-w * 0.5, h - 4, w * 0.5, h - 2, C.scuro, 1)];
     case "auto": {

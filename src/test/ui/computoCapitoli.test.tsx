@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as monta, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import ComputoNativoEditor from "@/components/computo/ComputoNativoEditor";
 import { bozzaVuota, leggiBozzaComputo, voceVuota } from "@/lib/computo/editorNativo";
+
+const render = (editor: ReactElement) => monta(editor, {
+  wrapper: ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>,
+});
 
 vi.mock("@/components/ristrutturazione/ComputoEditor/AddVocePicker", () => ({ default: ({ onPick }: { onPick: (v: unknown[]) => void }) => <>
   <button onClick={() => onPick([{ descrizione: "Intonaco dal listino", unita_misura: "mq", prezzo_unitario: 24.5, costo_materiali: 5, costo_manodopera: 10, capitolo_nome: "Finiture", fonte: "Prezzario di prova", codice_tariffa: "TEST.123" }])}>Scegli voce di prova</button>
@@ -9,9 +15,20 @@ vi.mock("@/components/ristrutturazione/ComputoEditor/AddVocePicker", () => ({ de
 </> }));
 beforeEach(() => { localStorage.clear(); HTMLElement.prototype.scrollIntoView = vi.fn(); });
 describe("computo a capitoli come il flusso Ristrutturazione", () => {
-  it("Aggiungi lavorazione apre il listino e conserva quantità, prezzo e unità originali", async () => {
-    render(<ComputoNativoEditor storageKey="listino-volume" consentiListini initialFase={2} />);
+  it("aggiunge una lavorazione manuale anche con i listini disponibili", () => {
+    render(<ComputoNativoEditor storageKey="voce-manuale" consentiListini initialFase={2} />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione" }));
+    expect(screen.getByRole("heading", { name: "Opere edili" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Descrizione voce 1" })).toHaveFocus();
+    expect(screen.queryByRole("group", { name: "Modifica lavorazione nella riga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazione" }));
+    expect(screen.getByLabelText("Riepilogo del computo")).toHaveTextContent("2 voci");
+    expect(screen.getByRole("textbox", { name: "Descrizione voce 2" })).toHaveFocus();
+  });
+  it("mantiene il listino accessibile e conserva quantità, prezzo e unità originali", async () => {
+    render(<ComputoNativoEditor storageKey="listino-volume" consentiListini initialFase={2} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerca nei listini" }));
     fireEvent.click(await screen.findByRole("button", { name: "Scegli voce a volume" }));
     expect(screen.getByRole("combobox", { name: "Unità di misura" })).toHaveTextContent("mc - Metri cubi");
     expect(screen.getByLabelText("Quantità")).toHaveValue("2");
@@ -27,7 +44,7 @@ describe("computo a capitoli come il flusso Ristrutturazione", () => {
   });
   it("crea e conserva un capitolo vuoto senza aggiungere prezzi o lavorazioni fittizie", async () => {
     const { unmount } = render(<ComputoNativoEditor storageKey="capitoli" initialFase={2} />);
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi capitolo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crea il primo capitolo" }));
     fireEvent.change(screen.getByLabelText("Nome del capitolo"), { target: { value: "Demolizioni" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea capitolo" }));
     expect(screen.getByRole("heading", { name: "Demolizioni" })).toBeInTheDocument();
@@ -36,6 +53,8 @@ describe("computo a capitoli come il flusso Ristrutturazione", () => {
     unmount(); render(<ComputoNativoEditor storageKey="capitoli" initialFase={2} />);
     expect(screen.getByRole("heading", { name: "Demolizioni" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Voce libera" }));
+    expect(screen.getByLabelText("Descrizione voce 1")).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Apri voce 1" }));
     expect(screen.getByLabelText("Capitolo", { exact: true })).toHaveValue("Demolizioni");
   });
   it("rifiuta rinomine che unirebbero due capitoli e mantiene le voci", () => {

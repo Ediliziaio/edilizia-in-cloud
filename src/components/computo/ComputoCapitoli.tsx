@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Calculator, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Pencil, Plus, Ruler, Search, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Calculator, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Pencil, Plus, Ruler, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
@@ -16,18 +17,18 @@ const ETICHETTA_CAMPO = "mb-1 block text-xs font-medium text-slate-600 md:hidden
 const CAMPO_VOCE = "h-10 w-full min-w-0 bg-white px-2 text-base shadow-none focus:border-blue-400 md:h-7 md:border-transparent md:bg-transparent md:px-1.5 md:text-[13px] md:hover:border-slate-200 md:focus:bg-white";
 
 /**
- * Un'unica tabella a capitoli, con indice laterale e quantità, unità e prezzi
- * modificabili nelle righe. Misure e dettagli si aprono sotto la voce.
+ * Tabella a capitoli con descrizione, unità, quantità e prezzo modificabili nella riga.
+ * Misure e dettagli si aprono sotto la voce.
  * Le voci senza prezzo si preparano e si salvano
  * normalmente, con un filtro per ritrovarle. Invio nel prezzo passa alla riga dopo.
  */
-export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, onAdd, onCapitoli, onRename, onListino, onModifica, onEliminaCapitolo, renderDettaglio, indiceLaterale = true, onAttiva }: {
+export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, onAdd, onCapitoli, onRename, onListino, onModifica, onEliminaCapitolo, renderDettaglio, indiceLaterale = true, onAttiva, onStima, onSilvio, vociAggiornateDaSilvio }: {
   voci: VoceEditor[]; capitoliVuoti: string[];
   /** La voce aperta, se ce n'è una. */
   aperta?: string; onApri: (id: string | null) => void;
-  onAdd: (capitolo: string) => void; onCapitoli: (nomi: string[]) => void;
+  onAdd: (capitolo: string) => string | undefined; onCapitoli: (nomi: string[]) => void;
   onRename: (prima: string, dopo: string) => void; onListino?: (capitolo?: string) => void;
-  /** Quantità e prezzo scritti nella riga, senza aprire la voce. */
+  /** Campi modificati direttamente nella riga. */
   onModifica: (id: string, patch: Partial<VoceEditor>) => void;
   /** Toglie il capitolo e le sue voci (si torna indietro con «Annulla ultima modifica»). */
   onEliminaCapitolo: (nome: string) => void;
@@ -36,12 +37,18 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
   indiceLaterale?: boolean;
   /** Seleziona la voce nel PDF anche scrivendo nei campi rapidi, senza aprire i dettagli. */
   onAttiva?: (id: string) => void;
+  onStima?: (id: string) => void;
+  onSilvio?: (capitolo: string) => void;
+  vociAggiornateDaSilvio?: ReadonlySet<string>;
 }) {
   const [ricerca, setRicerca] = useState("");
   const [capitoloScelto, setCapitoloScelto] = useState<string | null>(null);
   const [stato, setStato] = useState<"tutte" | "da-prezzare" | "con-misure">("tutte");
   const [misureAperte, setMisureAperte] = useState<Set<string>>(() => new Set());
   const [rigaAttiva, setRigaAttiva] = useState<string | null>(null);
+  const [voceDaCompilare, setVoceDaCompilare] = useState<string | null>(null);
+  const descrizioneNuova = useRef<HTMLTextAreaElement | null>(null);
+  const rigaAggiornata = useRef<HTMLTableRowElement | null>(null);
   const [chiusi, setChiusi] = useState<Set<string>>(() => new Set(voci.length > 60 ? [...voci.map(v => v.capitolo.trim() || "Opere edili"), ...capitoliVuoti] : []));
   const conteggioPrecedente = useRef(voci.length);
   const [dialog, setDialog] = useState<{ originale?: string } | null>(null);
@@ -61,9 +68,13 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
   // Un computo importato con centinaia di voci si apre dall'indice dei capitoli,
   // senza costringere a scorrere tutte le lavorazioni del primo capitolo.
   useEffect(() => {
-    if (conteggioPrecedente.current <= 60 && voci.length > 60) setChiusi(new Set(capitoli.map(c => c.nome)));
+    const aggiuntaManuale = voci.at(-1)?.id === voceDaCompilare;
+    if (conteggioPrecedente.current <= 60 && voci.length > 60 && !aggiuntaManuale) setChiusi(new Set(capitoli.map(c => c.nome)));
     conteggioPrecedente.current = voci.length;
-  }, [voci.length, capitoli]);
+  }, [voci, capitoli, voceDaCompilare]);
+  useLayoutEffect(() => {
+    descrizioneNuova.current?.focus();
+  }, [voceDaCompilare]);
   const capitoloAperto = voci.find(v => v.id === aperta)?.capitolo.trim() || "Opere edili";
   useEffect(() => {
     if (!aperta) return;
@@ -95,12 +106,30 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
   const selezionato = (!aperta || capitoloScelto === capitoloAperto) && capitoli.some(c => c.nome === capitoloScelto) ? capitoloScelto : null;
   const daPrezzare = (voce: VoceEditor) => !voce.daQuantificare && !voce.prezzo.trim();
   const totaleCapitolo = (c: typeof capitoli[number]) => c.righe.reduce((s, r) => s + (r.calcolo.errori.length || r.voce.opzionale ? 0 : r.calcolo.importo ?? 0), 0);
-  const visibili = capitoli.map((c, indice) => ({ ...c, numero: indice + 1, righeVisibili: c.righe.filter(r =>
-    (r.voce.id === aperta || !filtro || c.nome.toLocaleLowerCase("it").includes(filtro) || `${r.voce.descrizione} ${r.voce.tariffa}`.toLocaleLowerCase("it").includes(filtro)) &&
-    (r.voce.id === aperta || r.voce.id === rigaAttiva || stato === "tutte" || (stato === "da-prezzare" ? daPrezzare(r.voce) : r.voce.misure.length > 0))) }))
-    .filter(c => (!selezionato || c.nome === selezionato) && ((!filtro && stato === "tutte") || c.righeVisibili.length || (stato === "tutte" && c.nome.toLocaleLowerCase("it").includes(filtro))));
+  const visibili = capitoli.map((c, indice) => ({
+    ...c, numero: indice + 1,
+    haAggiornamenti: c.righe.some(r => vociAggiornateDaSilvio?.has(r.voce.id)),
+    righeVisibili: c.righe.filter(({ voce }) => {
+      if (voce.id === aperta || voce.id === rigaAttiva || vociAggiornateDaSilvio?.has(voce.id)) return true;
+      const corrisponde = !filtro || c.nome.toLocaleLowerCase("it").includes(filtro) || `${voce.descrizione} ${voce.tariffa}`.toLocaleLowerCase("it").includes(filtro);
+      return corrisponde && (stato === "tutte" || (stato === "da-prezzare" ? daPrezzare(voce) : voce.misure.length > 0));
+    }),
+  })).filter(c => c.haAggiornamenti || (!selezionato || c.nome === selezionato) && ((!filtro && stato === "tutte") || c.righeVisibili.length || (stato === "tutte" && c.nome.toLocaleLowerCase("it").includes(filtro))));
+  const primaAggiornata = visibili.find(c => c.haAggiornamenti)?.righeVisibili.find(r => vociAggiornateDaSilvio?.has(r.voce.id))?.voce.id;
+  useEffect(() => {
+    if (!primaAggiornata) return;
+    const frame = requestAnimationFrame(() => rigaAggiornata.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" }));
+    return () => cancelAnimationFrame(frame);
+  }, [primaAggiornata]);
   const scegliCapitolo = (nome: string | null) => { onApri(null); setCapitoloScelto(nome); setRicerca(""); setStato("tutte"); if (nome) setChiusi(prev => { const next = new Set(prev); next.delete(nome); return next; }); };
-  const nuoveVoci = (nome: string, listino = false) => { setRicerca(""); setStato("tutte"); if (listino) onListino?.(nome); else onAdd(nome); };
+  const nuoveVoci = (nome: string, listino = false) => {
+    setRicerca(""); setStato("tutte");
+    if (listino) { onListino?.(nome); return; }
+    const id = onAdd(nome);
+    if (!id) return;
+    setChiusi(prev => new Set([...prev].filter(capitolo => capitolo !== nome)));
+    setVoceDaCompilare(id);
+  };
   const cambiaMisure = (id: string) => setMisureAperte(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   return <section aria-label="Capitoli del computo" className="min-w-0">
     <div className={`grid min-w-0 items-start gap-2 ${indiceLaterale ? "xl:grid-cols-[170px_minmax(0,1fr)]" : ""}`}>
@@ -115,35 +144,48 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
         {!!capitoli.length && <div className={indiceLaterale ? "xl:hidden" : undefined}>
           <Select value={selezionato ?? "__tutti__"} onValueChange={value => scegliCapitolo(value === "__tutti__" ? null : value)}>
             <SelectTrigger aria-label="Capitolo da visualizzare" className="h-10 max-w-sm bg-white text-sm md:h-8 md:text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__tutti__">Tutti i capitoli · {voci.length} voci</SelectItem>{capitoli.map((c, n) => <SelectItem key={c.nome} value={c.nome}>{String(n + 1).padStart(2, "0")} · {c.nome}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="__tutti__">Tutti i capitoli · {voci.length} {voci.length === 1 ? "voce" : "voci"}</SelectItem>{capitoli.map((c, n) => <SelectItem key={c.nome} value={c.nome}>{String(n + 1).padStart(2, "0")} · {c.nome}</SelectItem>)}</SelectContent>
           </Select>
         </div>}
+        <div className="flex flex-wrap items-center gap-2">
+          {!!voci.length && <div className="relative min-w-0 flex-1 max-md:basis-full">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input type="search" aria-label="Cerca lavorazioni" placeholder="Cerca una lavorazione" className="h-10 bg-white pl-8 text-base md:h-9 md:text-sm" value={ricerca} onChange={e => { setRicerca(e.target.value); setChiusi(new Set()); }} />
+          </div>}
+          {onListino && <Button variant="outline" size="sm" aria-label="Cerca nei listini" onClick={() => onListino(selezionato ?? undefined)}>
+            <Search className="mr-1.5 h-3.5 w-3.5" /><span className="hidden sm:inline">Cerca nei listini</span><span className="sm:hidden">Listini</span>
+          </Button>}
+          {!!capitoli.length && <Button size="sm" disabled={voci.length >= 5000} onClick={() => nuoveVoci(selezionato ?? capitoloAperto)}>
+            <Plus className="mr-1.5 h-4 w-4" />Aggiungi lavorazione
+          </Button>}
+        </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="relative min-w-0 flex-1 max-md:basis-full"><Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input type="search" aria-label="Cerca lavorazioni" placeholder="Cerca una lavorazione" className="h-10 bg-white pl-8 text-base md:h-8 md:text-xs" value={ricerca} onChange={e => { setRicerca(e.target.value); setChiusi(new Set()); }} /></div>
-          <div role="group" aria-label="Filtra lavorazioni" className="flex flex-wrap items-center gap-0.5">
+          {!!voci.length && <div role="group" aria-label="Filtra lavorazioni" className="flex flex-wrap items-center gap-0.5">
             {([["tutte", "Tutte", null], ["da-prezzare", "Da prezzare", voci.filter(daPrezzare).length], ["con-misure", "Con misure", voci.filter(v => v.misure.length).length]] as const).map(([id, label, count]) => <button key={id} type="button" aria-label={count == null ? label : `${label} ${count}`} aria-pressed={stato === id} onClick={() => { setStato(id); setChiusi(new Set()); }} className={`inline-flex h-8 items-center gap-1.5 rounded px-2 text-xs ${stato === id ? "bg-slate-800 font-medium text-white" : "text-slate-600 hover:bg-slate-100"}`}>{label}{count != null && <span className={stato === id ? "text-slate-200" : "text-slate-400"}>{count}</span>}</button>)}
-          </div>
+          </div>}
           {!!capitoli.length && <Button variant="ghost" size="icon" className="h-8 w-8" title={chiusi.size ? "Espandi tutti i capitoli" : "Comprimi tutti i capitoli"} aria-label={chiusi.size ? "Espandi tutti i capitoli" : "Comprimi tutti i capitoli"} onClick={() => setChiusi(chiusi.size ? new Set() : new Set(capitoli.map(c => c.nome)))}>{chiusi.size ? <ChevronsDown className="h-3.5 w-3.5" /> : <ChevronsUp className="h-3.5 w-3.5" />}</Button>}
-          <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" disabled={capitoli.length >= 200} onClick={() => apri()}><Plus className="h-3.5 w-3.5" />Aggiungi capitolo</Button>
+          {!!capitoli.length && <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" disabled={capitoli.length >= 200} onClick={() => apri()}><Plus className="h-3.5 w-3.5" />Aggiungi capitolo</Button>}
           <Select value="" disabled={capitoli.length >= 200} onValueChange={value => {
             if (!value || capitoli.some(c => c.nome.toLocaleLowerCase("it") === value.toLocaleLowerCase("it"))) return;
             onCapitoli([...capitoliVuoti, value]); setCapitoloScelto(null); setRicerca(""); setStato("tutte"); setChiusi(prev => { const next = new Set(prev); next.delete(value); return next; });
           }}><SelectTrigger aria-label="Capitoli frequenti" className="h-8 w-32 bg-white text-xs"><SelectValue placeholder="Capitolo rapido" /></SelectTrigger><SelectContent>{capitoliFrequenti.map(n => <SelectItem key={n} value={n} disabled={capitoli.some(c => c.nome.toLocaleLowerCase("it") === n.toLocaleLowerCase("it"))}>{n}</SelectItem>)}</SelectContent></Select>
-          {onListino && <Button variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" onClick={() => onListino(selezionato ?? undefined)}><Search className="h-3.5 w-3.5" />Cerca nei listini</Button>}
         </div>
         {!capitoli.length && <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-white p-5 text-center">
           <Calculator className="h-6 w-6 text-slate-400" /><h3 className="text-sm font-semibold">Costruisci il computo</h3>
-          <div className="flex flex-wrap justify-center gap-2"><Button size="sm" onClick={() => apri()}><Plus className="mr-1 h-4 w-4" />Crea il primo capitolo</Button><Button size="sm" variant="outline" onClick={() => onListino ? onListino() : onAdd("Opere edili")}>Aggiungi lavorazione</Button></div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button size="sm" onClick={() => nuoveVoci("Opere edili")}><Plus className="mr-1 h-4 w-4" />Aggiungi lavorazione</Button>
+            <Button size="sm" variant="outline" onClick={() => apri()}>Crea il primo capitolo</Button>
+          </div>
           <p className="text-xs text-muted-foreground">Puoi preparare le voci anche senza prezzo e completarlo dopo.</p>
         </div>}
         {!!capitoli.length && <div aria-label="Elenco dei capitoli" role="region" tabIndex={0} className="rounded-lg border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 md:overflow-x-auto">
           <table role="table" className="w-full table-fixed border-collapse text-xs max-md:block md:min-w-[650px]">
-            <caption className="sr-only">Lavorazioni del computo, raggruppate per capitolo. Quantità e prezzi si modificano nelle righe.</caption>
-            <colgroup className="max-md:hidden"><col /><col className="w-[76px]" /><col className="w-[58px]" /><col className="w-[96px]" /><col className="w-[110px]" /><col className="w-[34px]" /></colgroup>
-            <thead className="bg-slate-50 text-[11px] font-medium text-slate-500 max-md:hidden"><tr><th scope="col" className="px-3 py-2 text-left font-medium">Voce / lavorazione</th><th scope="col" className="px-2 py-2 text-right font-medium">Quantità</th><th scope="col" className="px-2 py-2 text-left font-medium">U.M.</th><th scope="col" className="px-2 py-2 text-right font-medium">Prezzo unit. €</th><th scope="col" className="px-2 py-2 text-right font-medium">Importo €</th><th scope="col"><span className="sr-only">Misure</span></th></tr></thead>
+            <caption className="sr-only">Lavorazioni del computo. Descrizione, unità, quantità e prezzo si modificano nella riga.</caption>
+            <colgroup className="max-md:hidden"><col /><col className="w-[76px]" /><col className="w-[76px]" /><col className="w-[96px]" /><col className="w-[110px]" /><col className={onStima ? "w-24" : "w-16"} /></colgroup>
+            <thead className="bg-slate-50 text-[11px] font-medium text-slate-500 max-md:hidden"><tr><th scope="col" className="px-3 py-2 text-left font-medium">Lavorazione</th><th scope="col" className="px-2 py-2 text-left font-medium">U.M.</th><th scope="col" className="px-2 py-2 text-right font-medium">Quantità</th><th scope="col" className="px-2 py-2 text-right font-medium">Prezzo unit. €</th><th scope="col" className="px-2 py-2 text-right font-medium">Importo €</th><th scope="col"><span className="sr-only">Azioni della voce</span></th></tr></thead>
             {visibili.map(c => {
               const contieneAperta = c.righe.some(r => r.voce.id === aperta);
-              const apertoCapitolo = contieneAperta || !chiusi.has(c.nome);
+              const apertoCapitolo = contieneAperta || c.haAggiornamenti || !chiusi.has(c.nome);
               const parziale = c.righe.some(r => r.calcolo.errori.length);
               return <tbody key={c.nome} className="border-t border-slate-200 max-md:block">
                 <tr className="bg-slate-50/90 max-md:block"><th colSpan={6} scope="rowgroup" className="px-2 py-1 font-normal max-md:block">
@@ -166,19 +208,35 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                     const precedente = c.righeVisibili[posizione - 1]?.voce;
                     const categoriaPrecedente = precedente ? [precedente.categoria?.trim(), precedente.sottocategoria?.trim()].filter(Boolean).join(" › ") : "";
                     const segni = [voce.corpo && "A corpo", voce.sicurezza && "Sicurezza", voce.detrazione && "Detrazione", voce.opzionale && "Opzionale · fuori dal totale", voce.fonte?.startsWith("Stima di mercato di Silvio") && "Prezzo stimato"].filter(Boolean) as string[];
+                    const evidenziata = vociAggiornateDaSilvio?.has(voce.id);
+                    const sfondo = evidenziata ? "bg-blue-100/85" : eAperta || misureVisibili ? "bg-blue-50/40" : "hover:bg-slate-50/60";
                     return <Fragment key={voce.id}>
                       {!!categoria && categoria !== categoriaPrecedente && <tr className="border-t border-slate-100 max-md:block"><td colSpan={6} className="bg-slate-50/40 py-1 pl-11 pr-2 text-[10px] font-medium text-slate-500 max-md:block max-md:px-3">{categoria}</td></tr>}
-                      <tr onClickCapture={() => onAttiva?.(voce.id)} onFocusCapture={() => { setRigaAttiva(voce.id); onAttiva?.(voce.id); }} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRigaAttiva(id => id === voce.id ? null : id); }} className={`group border-t border-slate-100 max-md:grid max-md:grid-cols-3 max-md:items-end max-md:gap-2 max-md:p-3 ${eAperta || misureVisibili ? "bg-blue-50/40" : "hover:bg-slate-50/60"}`}>
+                      <tr ref={primaAggiornata === voce.id ? rigaAggiornata : undefined} data-silvio-updated={evidenziata || undefined}
+                        onClickCapture={() => onAttiva?.(voce.id)} onFocusCapture={() => { setRigaAttiva(voce.id); onAttiva?.(voce.id); }} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRigaAttiva(id => id === voce.id ? null : id); }} className={`group scroll-mt-32 border-t border-slate-100 max-md:grid max-md:grid-cols-3 max-md:items-end max-md:gap-2 max-md:p-3 ${sfondo}`}>
                         <td className="align-middle max-md:col-span-full md:py-1 md:pl-3 md:pr-1">
                           <div className="flex min-w-0 items-start gap-2">
                             <span className="w-5 shrink-0 pt-1 text-right text-[10px] tabular-nums text-slate-400">{indice + 1}</span>
-                            <div className="min-w-0 flex-1"><button type="button" aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} aria-expanded={eAperta} onClick={() => { setMisureAperte(prev => { const next = new Set(prev); next.delete(voce.id); return next; }); onApri(eAperta ? null : voce.id); }} className="flex w-full items-center justify-between gap-2 rounded py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 max-md:min-h-9"><span title={voce.descrizione} className={`block min-w-0 break-words text-sm leading-5 md:truncate md:text-[13px] ${voce.descrizione.trim() ? "text-slate-900" : "italic text-slate-400"}`}>{voce.descrizione.trim() || "Nuova lavorazione"}</span><ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 md:hidden ${eAperta ? "rotate-180" : ""}`} aria-hidden="true" /></button>
-                              {(voce.tariffa || segni.length > 0 || calcolo.errori.length > 0 || daMisure) && <div className="flex items-center gap-x-2 text-[10px] leading-4 text-slate-500 max-md:flex-wrap md:overflow-hidden md:whitespace-nowrap">
+                            <div className="min-w-0 flex-1">
+                              <Textarea ref={voceDaCompilare === voce.id ? descrizioneNuova : undefined} rows={1} maxLength={30000}
+                                aria-label={`Descrizione voce ${indice + 1}`} placeholder="Scrivi la lavorazione" title={voce.descrizione || undefined}
+                                className={`${CAMPO_VOCE} min-h-0 resize-none overflow-hidden py-2 leading-5 focus:h-16 focus:overflow-auto md:py-0.5`}
+                                value={voce.descrizione} onChange={e => onModifica(voce.id, { descrizione: e.target.value })} />
+                              {(voce.tariffa || segni.length > 0 || calcolo.errori.length > 0 || daMisure || voce.daQuantificare) && <div className="flex items-center gap-x-2 text-[10px] leading-4 text-slate-500 max-md:flex-wrap md:overflow-hidden md:whitespace-nowrap">
                                 {voce.tariffa && <span className="font-mono">{voce.tariffa}</span>}{daMisure && <span>{voce.misure.length} {voce.misure.length === 1 ? "riga" : "righe"} di misura</span>}{segni.map(s => <span key={s} className={s.startsWith("Opzionale") ? "text-blue-700" : ""}>{s}</span>)}
                                 {!!calcolo.errori.length && <span className="text-amber-700">{daPrezzare(voce) ? "Da prezzare" : "Da completare"}</span>}
+                                {voce.daQuantificare && (calcolo.quantita !== null && !calcolo.errori.length
+                                  ? <button type="button" className="font-medium text-blue-700 underline underline-offset-2"
+                                      aria-label={`Conferma quantità voce ${indice + 1}`}
+                                      onClick={() => onModifica(voce.id, { daQuantificare: false })}>Conferma quantità</button>
+                                  : <span className="text-amber-700">Da quantificare</span>)}
                               </div>}
                             </div>
                           </div>
+                        </td>
+                        <td className="min-w-0 align-middle md:p-1">
+                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>U.M.</span>
+                          <Input aria-label={`Unità voce ${indice + 1}`} maxLength={40} className={CAMPO_VOCE} value={voce.unita} placeholder="U.M." onChange={e => onModifica(voce.id, { unita: e.target.value, corpo: ["corpo", "a corpo"].includes(e.target.value.trim().toLowerCase()) })} />
                         </td>
                         <td className="min-w-0 align-middle md:p-1">
                           <span aria-hidden="true" className={ETICHETTA_CAMPO}>Quantità</span>
@@ -187,35 +245,53 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                             : <Input aria-label={`Quantità voce ${indice + 1}`} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right`} placeholder="—" value={voce.quantita} onChange={e => onModifica(voce.id, { quantita: e.target.value })} />}
                         </td>
                         <td className="min-w-0 align-middle md:p-1">
-                          <span aria-hidden="true" className={ETICHETTA_CAMPO}>U.M.</span>
-                          <Input aria-label={`Unità voce ${indice + 1}`} maxLength={40} className={CAMPO_VOCE} value={voce.unita} placeholder="U.M." onChange={e => onModifica(voce.id, { unita: e.target.value, corpo: ["corpo", "a corpo"].includes(e.target.value.trim().toLowerCase()) })} />
-                        </td>
-                        <td className="min-w-0 align-middle md:p-1">
                           <span aria-hidden="true" className={ETICHETTA_CAMPO}>Prezzo €</span>
                           <Input data-prezzo-voce aria-label={`Prezzo voce ${indice + 1}`} inputMode="decimal" maxLength={40} className={`${CAMPO_VOCE} text-right tabular-nums`} placeholder="—" value={voce.prezzo} onKeyDown={prezzoSotto} onChange={e => onModifica(voce.id, { prezzo: e.target.value })} />
                         </td>
-                        <td className="text-right align-middle tabular-nums max-md:col-span-2 max-md:self-center md:px-2 md:py-1">
+                        <td className="text-right align-middle tabular-nums max-md:self-center max-md:text-left md:px-2 md:py-1">
                           <span aria-hidden="true" className="mr-2 text-xs text-slate-500 md:hidden">Importo</span>
-                          <strong className={`text-sm md:text-[13px] ${calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
+                          <strong className={`whitespace-nowrap text-sm md:text-[13px] ${calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
                         </td>
-                        <td className="align-middle max-md:justify-self-end md:py-1 md:pr-1">
-                          <Button variant="ghost" size="sm" className={`h-9 gap-1 px-1.5 md:h-7 md:w-7 md:p-0 ${daMisure || misureVisibili ? "text-blue-700" : "text-slate-600"}`} aria-expanded={misureVisibili} aria-label={`${misureVisibili ? "Nascondi" : "Mostra"} misure voce ${indice + 1}`} title={misureVisibili ? "Chiudi le misure" : "Misure e formule nella riga"} onClick={() => cambiaMisure(voce.id)}>
+                        <td className="align-middle max-md:col-span-2 md:py-1 md:pr-1">
+                          <div className="flex flex-wrap items-center justify-end gap-0.5 md:flex-nowrap">
+                          <Button type="button" variant="ghost" size="sm" className="h-9 gap-1 px-1.5 text-slate-600 md:h-7 md:w-7 md:p-0"
+                            aria-label={`${eAperta ? "Chiudi" : "Apri"} voce ${indice + 1}`} aria-expanded={eAperta} title={eAperta ? "Chiudi dettagli" : "Apri dettagli"}
+                            onClick={() => {
+                              setMisureAperte(prev => new Set([...prev].filter(id => id !== voce.id)));
+                              onApri(eAperta ? null : voce.id);
+                            }}>
+                            <ChevronDown className={`h-3.5 w-3.5 ${eAperta ? "rotate-180" : ""}`} /><span className="text-xs md:hidden">Dettagli</span>
+                          </Button>
+                          {onStima && <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-blue-800 md:h-7 md:w-7"
+                            aria-label={`Stima costi e tempi della voce ${indice + 1}`} title="Stima costi e tempi"
+                            onClick={() => onStima(voce.id)}><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /></Button>}
+                          <Button variant="ghost" size="sm" className={`h-9 gap-1 px-1.5 md:h-7 md:w-7 md:p-0 ${daMisure || misureVisibili ? "text-blue-700" : "text-slate-600"}`} aria-expanded={misureVisibili} aria-label={`${misureVisibili ? "Nascondi" : "Mostra"} misure voce ${indice + 1}`} title={misureVisibili ? "Chiudi le misure" : "Misure e formule nella riga"} onClick={() => { if (eAperta) onApri(null); cambiaMisure(voce.id); }}>
                             <Ruler className="h-3.5 w-3.5" /><span className="text-xs md:hidden">Misure</span>
                           </Button>
+                          </div>
                         </td>
                       </tr>
                       {misureVisibili && !eAperta && <tr onFocusCapture={() => onAttiva?.(voce.id)} onClickCapture={() => onAttiva?.(voce.id)} className="border-t border-blue-100 bg-blue-50/30 max-md:block"><td colSpan={6} className="px-3 py-2 max-md:block"><div className="md:max-h-[420px] md:overflow-auto md:overscroll-contain"><ComputoMisure misure={voce.misure} unita={voce.unita} onChange={misure => onModifica(voce.id, { misure })} /></div></td></tr>}
                       {eAperta && renderDettaglio && <tr id={`computo-dettaglio-${voce.id}`} className="max-md:block"><td colSpan={6} className="border-y border-blue-200 bg-blue-50/30 p-3 max-md:block">{renderDettaglio(voce, indice)}</td></tr>}
                     </Fragment>;
                   })}
-                  <tr className="border-t border-slate-100 max-md:block"><td colSpan={6} className="py-0.5 max-md:block max-md:px-3 md:pl-9"><div className="flex flex-wrap items-center gap-1"><Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome)}><Plus className="h-3 w-3" />Voce libera</Button>{onListino && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome, true)}><Search className="h-3 w-3" />Dal listino</Button>}</div></td></tr>
+                  <tr className="border-t border-slate-100 max-md:block"><td colSpan={6} className="py-0.5 max-md:block max-md:px-3 md:pl-9">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome)}><Plus className="h-3 w-3" />Voce libera</Button>
+                      {onListino && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-normal text-slate-600 md:h-6 md:text-[11px]" disabled={voci.length >= 5000} onClick={() => nuoveVoci(c.nome, true)}><Search className="h-3 w-3" />Dal listino</Button>}
+                      {onSilvio && <Button variant="ghost" size="sm" className="h-10 gap-1 px-1.5 text-xs font-medium text-blue-800 md:h-6 md:text-[11px]" aria-label={`Proponi voci con Silvio per ${c.nome}`} onClick={() => onSilvio(c.nome)}><Sparkles className="h-3 w-3" />Con Silvio</Button>}
+                    </div>
+                  </td></tr>
                 </>}
               </tbody>;
             })}
           </table>
           {!visibili.length && <p className="p-4 text-xs text-slate-500">{stato === "da-prezzare" ? "Nessuna voce da prezzare nei capitoli selezionati." : "Nessuna lavorazione trovata."}</p>}
         </div>}
-        {!!capitoli.length && <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500"><span>{capitoli.length} capitoli · {voci.length} voci{selezionato || filtro || stato !== "tutte" ? ` · ${visibili.reduce((n, c) => n + c.righeVisibili.length, 0)} visibili` : ""}</span><span className="max-md:hidden">Invio nel prezzo passa alla riga successiva.</span></div>}
+        {!!capitoli.length && <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+          <span>{capitoli.length} {capitoli.length === 1 ? "capitolo" : "capitoli"} · {voci.length} {voci.length === 1 ? "voce" : "voci"}{selezionato || filtro || stato !== "tutte" ? ` · ${visibili.reduce((n, c) => n + c.righeVisibili.length, 0)} visibili` : ""}</span>
+          <span className="max-md:hidden">Invio nel prezzo passa alla riga successiva.</span>
+        </div>}
       </div>
     </div>
     <Dialog open={!!dialog} onOpenChange={open => { if (!open) setDialog(null); }}><DialogContent className="max-w-md" aria-describedby={undefined}><DialogHeader><DialogTitle>{dialog?.originale ? "Rinomina capitolo" : "Nuovo capitolo"}</DialogTitle></DialogHeader>

@@ -10,6 +10,9 @@ export interface ArchivioRicalco {
   url: (percorso: string) => Promise<string>;
 }
 
+/** Riferimento della bozza in memoria, sostituito con il percorso archiviato al salvataggio. */
+export const PERCORSO_TAVOLA_NON_SALVATA = "tavola-da-ricalcare";
+
 const ESTENSIONI: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
 export function archivioRicalco(companyId: string): ArchivioRicalco {

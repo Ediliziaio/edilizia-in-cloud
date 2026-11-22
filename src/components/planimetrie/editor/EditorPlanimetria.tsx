@@ -17,13 +17,15 @@ import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
 import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
-import { FINITURE_TETTO, NOMI_FINITURA_TETTO, type FinituraTetto, type Ricalco, type Tetto } from "../../../../shared/planimetrie/modello.ts";
-import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
-import { STILE_AREA } from "./disegno";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { calibraRicalco, riallineaPianoAllaTavola } from "@/lib/planimetrie/calibrazioneTavola";
+import { FINITURE_TETTO, NOMI_FINITURA_TETTO, scalaModelloDaVerificare, validaPlanimetria, type FinituraTetto, type Ricalco, type RiscontroScalaModello, type Tetto } from "../../../../shared/planimetrie/modello.ts";
+import { funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { baricentro, STILE_AREA } from "./disegno";
+import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PanelRightClose, PanelRightOpen, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Eraser, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Magnet, Maximize2, MessageSquare, Minus, Mountain, MousePointer2, MoveHorizontal, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PenLine, Play, Plus, Redo2, Ruler, Scissors, SlidersHorizontal, Square, StretchHorizontal, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -35,9 +37,11 @@ import {
   aPlanimetria,
   ID_PROPOSTA,
   aggiungiLivello,
+  aggiornaQuote,
   daPlanimetria,
   datiVista,
   duplicaProposta,
+  prossimaProposta,
   eliminaLivello,
   eliminaProposta,
   rinominaProposta,
@@ -53,26 +57,80 @@ import {
 } from "./adattatore";
 import { copiaGruppoSuTuttiIPiani, copiaSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
 import * as C from "./comandi";
-import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
+import { applicaModificaCad, NOMI_COMANDI_CAD, preparaModificaCad, riferimentoCadVisibile, type ComandoCad } from "./comandiCad";
+import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino, puntoSulMuro, type Aggancio } from "./geometria";
 import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
 import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
 import { CATALOGO, GRUPPI_CATALOGO, urlImmagineSimbolo, type VoceCatalogo } from "./catalogo";
 import { SimboloArredo } from "./SimboloArredo";
 import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldamentoStanza } from "./arreda";
-import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../shared/planimetrie/impianti.ts";
+import { attraversamentiImpianto, btuConsigliati, chiaveTratto, metriConSfrido, percorsoConVertici, percorsiImpianti } from "../../../../shared/planimetrie/impianti.ts";
 import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
-import { TelaPlanimetria, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
+import { TelaPlanimetria, type AnimazioneChatTela, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
 import { ConfrontoDocumentoPianta, type SorgenteDocumentoPianta } from "../ConfrontoDocumentoPianta";
+import { FrazionamentoDialog } from "./FrazionamentoDialog";
+import { StudioBilocaliDialog } from "./StudioBilocaliDialog";
+import type { AvvioStudioBilocali } from "@/lib/planimetrie/studioBilocali";
+import { nuovoFascicoloUrbanistico } from "../../../../shared/planimetrie/urbanistica.ts";
+import { ChatDisegnoPlanimetria } from "./ChatDisegnoPlanimetria";
+import type { PassoChatDisegno, VistaChatDisegno } from "./comandiChat";
+import { muriSottoPennello, segnaDemolizioniDalPennello } from "./pennelloDemolizioni";
+import { NOMI_LINEE, TracciatiImpianti } from "./TracciatiImpianti";
+import { AccessoAbachiPianta } from "../AccessoAbachiPianta";
+import { DisegnoLayerDwg, LayerDwg, vistaLayerDwgIniziale } from "./LayerDwg";
+import { CoordinateDisegno } from "./CoordinateDisegno";
+import { creaAlternativaInterventi, piantaDaApplicare, propostaChatApplicabile } from "./interventiChat";
+import { studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { Anteprima3DEditor } from "./Anteprima3DEditor";
+import { DivisoreAnteprima3D, QUOTA_PIANTA_INIZIALE } from "./DivisoreAnteprima3D";
+import { NordPianta } from "./NordPianta";
+import "./anteprima-3d.css";
 
-export type Strumento = "seleziona" | "stanza" | "poligono" | "area" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
+const NESSUN_LATO_MODIFICABILE: ReadonlySet<string> = new Set();
+const VISTE_CONFRONTO_CHAT = [["prima", "Prima"], ["differenze", "Differenze"], ["dopo", "Dopo"]] as const;
+
+export type Strumento = "seleziona" | "stanza" | "poligono" | "area" | "parete" | "demolizioni" | "porta" | "finestra" | "arredo" | "quota" | "testo" | ComandoCad;
+
+const eComandoCad = (s: Strumento): s is ComandoCad => s === "taglia" || s === "estendi" || s === "offset";
+const ICONE_COMANDI_CAD = { taglia: Scissors, estendi: MoveHorizontal, offset: StretchHorizontal };
+
+type StrumentoPunto = "parete" | "quota" | "poligono" | "area";
+const eStrumentoPunto = (s: Strumento): s is StrumentoPunto => s === "parete" || s === "quota" || s === "poligono" || s === "area";
+const NOMI_STRUMENTI_PUNTO: Record<StrumentoPunto, string> = { parete: "Parete", quota: "Quota", poligono: "Stanza libera", area: "Area esterna" };
+
+type Calibrazione = { fase: "primo" } | { fase: "secondo"; primo: Punto }
+  | { fase: "misura"; primo: Punto; secondo: Punto; metri: string; ridimensiona: boolean; diProva: boolean; errore?: string };
+
+export type ControlliEditorPlanimetria = { evidenzia: (oggetto: Selezione, vista: C.Vista) => void };
 
 interface Props {
+  companyId?: string;
   /** Il documento della fase 1 (`shared/planimetrie/modello.ts`); senza, una pianta vuota. */
   piantaIniziale?: Planimetria;
+  livelloIniziale?: string;
+  propostaIniziale?: string;
+  muroIniziale?: string;
   /** Ogni modifica completa dà il documento aggiornato, pronto per il salvataggio. */
   onChange?: (planimetria: Planimetria) => void;
+  onContesto?: (livelloId: string | undefined, ambito: string) => void;
+  onAnteprimaChat?: (occupata: boolean) => void;
+  /** Quando il disegno è aperto da un computo, lavoriamo nel suo piano e nella sua variante. */
+  ambitoComputo?: { livelloId: string; propostaId: string | null };
+  inSilvio?: boolean;
+  onSelezione?: (oggetto: Selezione | null) => void;
+  controlli?: Ref<ControlliEditorPlanimetria>;
+  onPropostaComputo?: (anteprima: { documento: Planimetria; applicabile: boolean } | null) => void;
+  onRivediNelComputo?: () => void;
+  puoRivedereNelComputo?: boolean;
+  onVisteChat?: (tipo: VistaChatDisegno, documento: Planimetria, vista: C.Vista, propostaId: string, livelloId?: string) => void;
+  anteprima3DAperta?: boolean;
+  onChiudiAnteprima3D?: () => void;
+  onApri3DCompleto?: (documento: Planimetria, vista: C.Vista, propostaId: string, livelloId?: string) => void;
+  onSalvaDaChat?: (destinazione: "studio" | "computo") => void;
+  consentiComputoChat?: boolean;
+  consentiListinoChat?: boolean;
   /** Forza la vista da telefono (solo guardare e correggere misure). */
   soloVista?: boolean;
   className?: string;
@@ -82,8 +140,9 @@ interface Props {
 }
 
 type Gesto =
-  | { tipo: "pan"; da: Punto; camera: Camera; mosso: boolean; bersaglio: Bersaglio | null }
+  | { tipo: "pan"; da: Punto; camera: Camera; mosso: boolean; bersaglio: Bersaglio | null; tracciato?: boolean }
   | { tipo: "pinch"; distanza: number; centro: Punto; camera: Camera }
+  | { tipo: "demolizioni"; ultimo: Punto; prima: Sovrapposizioni["demolizioni"] }
   | { tipo: "rettangolo"; a: Punto }
   | { tipo: "riquadro"; a: Punto }
   | { tipo: "sposta-gruppo"; da: Punto; base: Pianta; gruppo: C.Gruppo; mosso: boolean }
@@ -112,7 +171,8 @@ interface MisuraInModifica {
   applica: (cm: number) => void;
 }
 
-const SUGGERIMENTI: Record<Strumento, string> = {
+const SUGGERIMENTI: Record<Exclude<Strumento, ComandoCad>, string> = {
+  demolizioni: "Passa sui tramezzi da segnare nella variante. Controlla il gruppo prima di confermarlo.",
   seleziona: "Tocca una stanza, una parete o una porta per vederne le misure. Trascina una parete per spostarla. Clic su una misura per correggerla. Maiusc+trascina seleziona più arredi, quote e testi.",
   stanza: "Trascina per disegnare la stanza: le misure compaiono mentre la disegni. Oppure usa «Scrivi le misure».",
   parete: "Clic per l'inizio, clic per la fine: la parete va dritta da sola. Puoi anche scrivere la lunghezza e premere Invio. Esc per finire.",
@@ -121,12 +181,13 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   poligono: "Clic su ogni angolo della stanza; clic sul primo punto (o Invio) per chiuderla. Le pareti vanno dritte a 90° e 45° da sole. Esc per annullare.",
   area: "Clic su ogni angolo dell'area (lotto, prato, vialetto…); clic sul primo punto o Invio per chiuderla. Esc per annullare.",
   arredo: "Clic sul foglio per posare l'arredo scelto. Poi trascinalo per spostarlo; R lo ruota di 90°.",
-  quota: "Clic sul primo punto, clic sul secondo: la quota misura da sola. Si agganciano angoli e pareti.",
+  quota: "Clicca due punti. Se agganci un estremo, un punto medio o un’intersezione, la quota segue la parete.",
   testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
 };
 
 /** Sul telefono: niente tastiera, niente clic e Maiusc; si tocca e si trascina col dito. */
-const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
+const SUGGERIMENTI_TELEFONO: Record<Exclude<Strumento, ComandoCad>, string> = {
+  demolizioni: "Passa con il dito sui tramezzi e controlla il gruppo prima di confermarlo.",
   seleziona: "Tocca una stanza, una parete o una porta: sotto compaiono le misure da correggere. Trascina una parete per spostarla.",
   stanza: "Trascina col dito per disegnare la stanza, oppure usa «Scrivi le misure».",
   parete: "Tocca l'inizio e poi la fine: la parete va dritta da sola.",
@@ -139,7 +200,10 @@ const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
   testo: "Tocca dove vuoi la scritta, poi scrivila qui sotto.",
 };
 
-export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio, sorgenteDocumento }: Props) {
+export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIniziale, propostaIniziale, muroIniziale, onChange, onContesto,
+  onAnteprimaChat, onVisteChat, anteprima3DAperta, onChiudiAnteprima3D, onApri3DCompleto,
+  onSalvaDaChat, consentiComputoChat, consentiListinoChat, soloVista, className, ricalco: archivio, sorgenteDocumento,
+  ambitoComputo, inSilvio, onSelezione, controlli, onPropostaComputo, onRivediNelComputo, puoRivedereNelComputo }: Props) {
   const telefono = useIsMobile();
   // Tablet (sotto 1280 px, iPad in orizzontale compreso): gli strumenti restano tutti, ma la barra scorre su una riga e il pannello delle stanze
   // sta sopra al disegno solo quando serve, invece di toglierne un terzo.
@@ -151,45 +215,153 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     mql.addEventListener("change", aggiorna);
     return () => mql.removeEventListener("change", aggiorna);
   }, []);
-  const stretto = telefono || compatto;
   const [pannelloAperto, setPannelloAperto] = useState(false);
-  const [confrontoAperto, setConfrontoAperto] = useState(!!piantaIniziale?.letturaDocumento);
+  const anteprimaAffiancata = !!(anteprima3DAperta && onChiudiAnteprima3D);
+  const idPianta2D = useId();
+  const bottonePianta2D = useRef<HTMLButtonElement>(null);
+  const focusMostraPianta = useRef(false);
+  const [quotaPianta, setQuotaPianta] = useState(QUOTA_PIANTA_INIZIALE);
+  const [piantaRipiegata, setPiantaRipiegata] = useState(false);
+  const piantaNascosta = anteprimaAffiancata && piantaRipiegata;
+  const mostraSolo3D = () => {
+    focusMostraPianta.current = true;
+    setPiantaRipiegata(true);
+  };
+  useLayoutEffect(() => {
+    if (!piantaNascosta || !focusMostraPianta.current) return;
+    focusMostraPianta.current = false;
+    bottonePianta2D.current?.focus();
+  }, [piantaNascosta]);
+  const [confrontoAperto, setConfrontoAperto] = useState(!ambitoComputo && !!piantaIniziale?.letturaDocumento);
+  const [frazionamento, setFrazionamento] = useState(false);
+  const [studioBilocali, setStudioBilocali] = useState<AvvioStudioBilocali | null>(null);
   const [evidenzaId, setEvidenzaId] = useState<string>();
+  const [schizzoSessione, setSchizzoSessione] = useState<SorgenteDocumentoPianta>();
   // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
   // (per chi disegna in cantiere, col dito: un tocco per gli angoli, due dita per spostarsi).
   const [modificaTelefono, setModificaTelefono] = useState(false);
   const sola = soloVista ?? (telefono && !modificaTelefono);
 
   // Il piano su cui si lavora (fase 5): ogni piano ha il suo annulla/ripeti.
-  const [livelloId, setLivelloId] = useState<string | undefined>(piantaIniziale?.livelli[0]?.id);
+  const pianoDiApertura = piantaIniziale?.livelli.find(piano => piano.id === (ambitoComputo?.livelloId ?? livelloIniziale)) ?? piantaIniziale?.livelli[0];
+  const propostaRichiesta = pianoDiApertura?.proposte.find(p => p.id === (ambitoComputo ? ambitoComputo.propostaId : propostaIniziale))?.id;
+  const propostaDiApertura = ambitoComputo ? propostaRichiesta : propostaRichiesta ?? pianoDiApertura?.proposte[0]?.id;
+  const [livelloId, setLivelloId] = useState<string | undefined>(pianoDiApertura?.id);
   // L'alternativa di progetto su cui si lavora (A, B, C…).
-  const [propostaId, setPropostaId] = useState<string>(piantaIniziale?.livelli[0]?.proposte[0]?.id ?? ID_PROPOSTA);
-  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale, undefined, piantaIniziale.livelli[0]?.proposte[0]?.id) : piantaVuota()));
+  const [propostaId, setPropostaId] = useState<string>(propostaDiApertura ?? ID_PROPOSTA);
+  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale, pianoDiApertura?.id, propostaDiApertura) : piantaVuota()));
   const [anteprima, setAnteprima] = useState<Pianta | null>(null);
-  const pianta = anteprima ?? storia.presente;
+  const idChat = useId();
+  const [chatAperta, setChatAperta] = useState(() => Boolean(inSilvio && !compatto && ambitoComputo?.propostaId && !soloVista));
+  const [strumentiAperti, setStrumentiAperti] = useState(false);
+  const strumentiVisibili = !ambitoComputo || strumentiAperti;
+  const [chatInCorso, setChatInCorso] = useState(false);
+  const [passoChat, setPassoChat] = useState<PassoChatDisegno | null>(null);
+  const [confrontoChat, setConfrontoChat] = useState<(typeof VISTE_CONFRONTO_CHAT)[number][0]>("differenze");
+  const [applicazioneChat, setApplicazioneChat] = useState<{ pianta: Pianta; annullabile: boolean } | null>(null);
+  const [animazioneChat, setAnimazioneChat] = useState<(AnimazioneChatTela & { quadro?: Pianta }) | null>(null);
+  const numeroAnimazioneChat = useRef(0);
+  const bottoneChat = useRef<HTMLButtonElement>(null);
+  const [mostraFonteChat, setMostraFonteChat] = useState(false);
+  const propostaChat = chatAperta ? passoChat : null;
+  const bloccoChat = chatAperta && (chatInCorso || !!propostaChat);
+  const propostaPronta = !!propostaChat && propostaChat.pianta !== storia.presente && !chatInCorso;
+  const vistaPrimaChat = propostaPronta && confrontoChat === "prima";
+  const vistaDifferenzeChat = propostaPronta && confrontoChat === "differenze";
+  const applicataDallaChat = applicazioneChat?.pianta === storia.presente;
+  const pianta = anteprima ?? propostaChat?.pianta ?? storia.presente;
   // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
   const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
+  const piantaDalDocumento = useRef(piantaIniziale ? storia.presente : undefined);
+  const [revisioneDocumento, aggiornaDocumento] = useState(0);
   // Immagine da ricalcare (mappa catastale, foto aerea, rilievo del lotto), per piano: si salva
   // nel documento (`Livello.ricalco`) se c'è un archivio, altrimenti resta finché la pagina è aperta.
-  const [ricalco, setRicalco] = useState<Ricalco | null>(() => piantaIniziale?.livelli[0]?.ricalco ?? null);
-  const documento = useMemo(() => {
-    const d = aPlanimetria(pianta, documentoBase.current, livelloId, propostaId);
+  const [ricalco, setRicalco] = useState<Ricalco | null>(() => pianoDiApertura?.ricalco ?? null);
+  const pianoDwg = /^cad-\d+$/.test(livelloId ?? "") || ricalco?.bloccata !== undefined;
+  const ricalcoBloccato = ricalco?.bloccata ?? (pianoDwg && !!ricalco);
+  const ricalcoCorrente = useRef({ ricalco, bloccata: ricalcoBloccato, livelloId });
+  ricalcoCorrente.current = { ricalco, bloccata: ricalcoBloccato, livelloId };
+  const [vistaLayerDwg, setVistaLayerDwg] = useState(vistaLayerDwgIniziale);
+  const [riscontroScala, setRiscontroScala] = useState<RiscontroScalaModello | undefined>(pianoDiApertura?.riscontroScala);
+  const [verificaScala, setVerificaScala] = useState<{ muroId: string; misura: string; errore?: string } | null>(null);
+  const aggiornaSfondo = (nuovo: Ricalco | null) => {
+    const prima = ricalcoCorrente.current;
+    if (prima.bloccata && prima.ricalco) {
+      if (nuovo) setRicalco({ ...prima.ricalco, opacita: nuovo.opacita });
+      return;
+    }
+    const cambiaScala = nuovo ? nuovo.percorso !== ricalco?.percorso || nuovo.larghezzaCm !== ricalco?.larghezzaCm
+      || nuovo.calibrata !== ricalco?.calibrata : ricalco?.calibrata === false;
+    if (cambiaScala && (storia.presente.muri.length || storia.presente.locali.length)) setRiscontroScala({ stato: "da_verificare" });
+    setRicalco(nuovo);
+  };
+  const caricaRicalco = async (file: File, signal?: AbortSignal) => {
+    const piano = ricalcoCorrente.current.livelloId;
+    const verifica = () => {
+      if (ricalcoCorrente.current.livelloId !== piano) throw new Error("Il piano attivo è cambiato durante il caricamento.");
+      if (documentoBase.current?.livelli.find(l => l.id === piano)?.tavolaDwg) throw new Error("Per sovrapporre un altro DWG o una foto usa una nuova planimetria.");
+      if (ricalcoCorrente.current.bloccata) throw new Error("Sblocca l’originale dalla barra Layer DWG per sostituirlo.");
+    };
+    verifica();
+    const proporzione = await new Promise<number>((ok, ko) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => { URL.revokeObjectURL(url); ok(img.naturalHeight / Math.max(1, img.naturalWidth)); };
+      img.onerror = () => { URL.revokeObjectURL(url); ko(new Error("Immagine non leggibile.")); };
+      img.src = url;
+    });
+    signal?.throwIfAborted();
+    verifica();
+    const percorso = archivio ? await archivio.carica(file) : URL.createObjectURL(file);
+    signal?.throwIfAborted();
+    verifica();
+    setCalibra(null);
+    aggiornaSfondo({ percorso, x: 0, y: 0, larghezzaCm: ricalco?.larghezzaCm ?? 3000, proporzione, opacita: 0.5, calibrata: false });
+  };
+  const documentoConfermato = useMemo(() => {
+    // Quando si registra un riscontro senza ridisegnare, conserva i contorni importati.
+    const d = documentoBase.current && piantaDalDocumento.current === storia.presente
+      ? documentoBase.current
+      : aPlanimetria(storia.presente, documentoBase.current, livelloId, propostaId);
     // l'immagine locale (senza archivio) non entra nel documento
     const lid = livelloId ?? d.livelli[0]?.id;
-    return lid ? impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null) : d;
-  }, [pianta, livelloId, propostaId, ricalco]);
+    if (!lid) return d;
+    const conSfondo = impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null);
+    return { ...conSfondo, livelli: conSfondo.livelli.map(l => l.id === lid ? { ...l, riscontroScala } : l) };
+  }, [storia.presente, livelloId, propostaId, ricalco, riscontroScala, revisioneDocumento]);
+  const documento = useMemo(() => pianta !== storia.presente
+    ? aPlanimetria(pianta, documentoConfermato, livelloId, propostaId)
+    : documentoConfermato, [pianta, storia.presente, documentoConfermato, livelloId, propostaId]);
+  const mostraProposta3D = !!propostaChat && propostaChat.pianta !== storia.presente && !vistaPrimaChat;
+  const documento3D = mostraProposta3D ? documento : documentoConfermato;
   // l'ultimo stato del documento, per le azioni del pannello che lavorano su tutti i piani
   const pianiRef = useRef({ documento, livelloId, propostaId });
   pianiRef.current = { documento, livelloId, propostaId };
   const vaiAlPianoRef = useRef<(id: string, doc: Planimetria, proposta?: string) => void>(() => {});
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
-  const [vista, setVista] = useState<C.Vista>("fatto");
+  const [precisione, setPrecisione] = useState(true);
+  const [riferimentoCad, setRiferimentoCad] = useState<string | null>(null);
+  const [offsetCm, setOffsetCm] = useState("100");
+  const [vista, setVista] = useState<C.Vista>(propostaRichiesta ? "progetto" : "fatto");
   const pavimentoComune = materialiDelProgetto(documento, vista === "fatto" ? "fatto" : `progetto:${propostaId}`).pavimento;
-  const [selezione, setSelezione] = useState<Selezione | null>(null);
+  const [selezione, setSelezione] = useState<Selezione | null>(muroIniziale ? { tipo: "muro", id: muroIniziale } : null);
   // Più arredi, quote e testi insieme (Maiusc+clic o Maiusc+trascina).
   const [gruppo, setGruppo] = useState<C.Gruppo>(C.gruppoVuoto);
   // Linee stimate degli impianti, dal quadro / collettore / colonna / unità esterna.
   const [mostraLinee, setMostraLinee] = useState(false);
+  const [pannelloTracciati, setPannelloTracciati] = useState(false);
+  const [trattoId, setTrattoId] = useState("");
+  const [verticiTracciato, setVerticiTracciato] = useState<Punto[] | null>(null);
+  const [puntoDaSpostare, setPuntoDaSpostare] = useState<number | null>(null);
+  const scegliTratto = useCallback((chiave: string) => {
+    setTrattoId(chiave);
+    setVerticiTracciato(null);
+    setPuntoDaSpostare(null);
+  }, []);
+  const chiudiTracciati = useCallback(() => {
+    setPannelloTracciati(false);
+    scegliTratto("");
+  }, [scegliTratto]);
   // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
   const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
@@ -200,7 +372,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [avviso, setAvviso] = useState<string | null>(null);
   // Arredo scelto dal catalogo, da posare col prossimo clic; primo punto della quota in corso.
   const [arredoScelto, setArredoScelto] = useState<VoceCatalogo | null>(null);
-  const [inizioQuota, setInizioQuota] = useState<Punto | null>(null);
+  const [inizioQuota, setInizioQuota] = useState<Aggancio | null>(null);
   const [puntiPoligono, setPuntiPoligono] = useState<Punto[]>([]);
   // Lotto e aree esterne: il tipo che lo strumento «area» disegna.
   const [tipoArea, setTipoArea] = useState<TipoArea>("prato");
@@ -218,8 +390,52 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const url = ricalco.percorso.startsWith("blob:") ? ricalco.percorso : urlRicalco?.percorso === ricalco.percorso ? urlRicalco.url : null;
     return url ? { url, x: ricalco.x, y: -ricalco.y, larghezzaCm: ricalco.larghezzaCm, proporzione: ricalco.proporzione, opacita: ricalco.opacita } : null;
   }, [ricalco, urlRicalco]);
+  const fonteChat = propostaChat?.riferimento;
+  const fileFonteChat = fonteChat?.file;
+  const [urlFonteChat, setUrlFonteChat] = useState<{ file: Blob; url: string } | null>(null);
+  useEffect(() => {
+    if (!fileFonteChat) {
+      setUrlFonteChat(null);
+      return;
+    }
+    const url = URL.createObjectURL(fileFonteChat);
+    setUrlFonteChat({ file: fileFonteChat, url });
+    return () => URL.revokeObjectURL(url);
+  }, [fileFonteChat]);
+  const sfondoChat = fonteChat && urlFonteChat && urlFonteChat.file === fileFonteChat && (chatInCorso || mostraFonteChat)
+    ? { ...fonteChat, url: urlFonteChat.url }
+    : null;
   // Metti in scala con due punti: i punti cliccati sul foglio (null = non si sta misurando).
-  const [calibra, setCalibra] = useState<Punto[] | null>(null);
+  const [calibra, setCalibra] = useState<Calibrazione | null>(null);
+  const avviaCalibrazione = () => {
+    if (ricalcoCorrente.current.bloccata) return;
+    setPiantaRipiegata(false);
+    setCalibra({ fase: "primo" });
+  };
+  const metriCalibrazione = calibra?.fase === "misura" ? Number(calibra.metri.trim().replace(",", ".")) : 0;
+  const distanzaValida = Number.isFinite(metriCalibrazione * 100) && metriCalibrazione > 0;
+  const pianoCalibrabile = documentoConfermato.livelli.find(l => l.id === (livelloId ?? documentoConfermato.livelli[0]?.id));
+  const ridimensionabile = !!pianoCalibrabile && !pianoCalibrabile.tavolaDwg
+    && [pianoCalibrabile.fatto, ...pianoCalibrabile.proposte].some(s => s.muri.length || s.locali.length || s.elementi.length || s.aree?.length);
+
+  const confermaCalibrazione = () => {
+    if (!ricalco || ricalcoBloccato || calibra?.fase !== "misura" || !distanzaValida) return;
+    const { primo, secondo } = calibra;
+    try {
+      const nuovo = calibraRicalco(ricalco, { x: primo.x, y: -primo.y }, { x: secondo.x, y: -secondo.y },
+        metriCalibrazione * 100, !calibra.diProva);
+      if (calibra.ridimensiona && pianoCalibrabile && ridimensionabile) {
+        const aggiornato = riallineaPianoAllaTavola(documentoConfermato, pianoCalibrabile.id, ricalco, nuovo);
+        vaiAlPiano(pianoCalibrabile.id, aggiornato, propostaId);
+      } else {
+        aggiornaSfondo(nuovo);
+      }
+      setCalibra(null);
+      setAvviso(`${calibra.diProva ? "Applicata scala di prova" : "Tavola in scala"} · larghezza ${scriviMetri(nuovo.larghezzaCm)} m`);
+    } catch (e) {
+      setCalibra({ ...calibra, errore: e instanceof Error ? e.message : "La scala non è stata applicata." });
+    }
+  };
 
   const svgRef = useRef<SVGSVGElement>(null);
   const contenitoreRef = useRef<HTMLDivElement>(null);
@@ -239,6 +455,17 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     return { pannelli: n, kwp: q["fatto:impianti:fotovoltaico.kwp"]?.valore ?? 0 };
   }, [documento]);
   const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId, propostaId), [pianta, documento, vista, livelloId, propostaId]);
+  const datiPrimaChat = useMemo(() => propostaPronta
+    ? datiVista(storia.presente, documentoConfermato, vista, livelloId, propostaId) : null,
+    [propostaPronta, storia.presente, documentoConfermato, vista, livelloId, propostaId]);
+  const primaChat = useMemo(() => datiPrimaChat && { pianta: storia.presente, locali: datiPrimaChat.locali }, [datiPrimaChat, storia.presente]);
+  const computoDaChat = useMemo(() => {
+    if (!consentiComputoChat || !applicataDallaChat || vista !== "progetto") return false;
+    const proposta = studioVariante(documentoConfermato, propostaId);
+    return !!proposta.righe.length && !proposta.bagniDaRivedere.length && !proposta.cucineDaRivedere.length;
+  }, [consentiComputoChat, applicataDallaChat, vista, documentoConfermato, propostaId]);
+  const pianoAttivo = livelloId ?? documento.livelli[0]?.id;
+  useEffect(() => { onContesto?.(pianoAttivo, dati.ambito); }, [pianoAttivo, dati.ambito, onContesto]);
   // Mansarda: altezze e superficie utile di ogni stanza sotto le falde (per il pannello)
   const sottotetto = useMemo(() => {
     const liv = documento.livelli.find((l) => l.id === (livelloId ?? documento.livelli[0]?.id));
@@ -257,14 +484,41 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   );
 
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
-  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo };
+  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo, precisione });
+  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo, precisione };
 
   useEffect(() => {
-    if (anteprima) return;
-    documentoBase.current = documento;
-    onChange?.(documento);
-  }, [documento, anteprima, onChange]);
+    documentoBase.current = documentoConfermato;
+    if (piantaDalDocumento.current !== storia.presente) piantaDalDocumento.current = undefined;
+    onChange?.(documentoConfermato);
+  }, [documentoConfermato, onChange, storia.presente]);
+
+  useEffect(() => { onAnteprimaChat?.(bloccoChat); }, [bloccoChat, onAnteprimaChat]);
+  useEffect(() => { onSelezione?.(selezione); }, [onSelezione, selezione]);
+  useEffect(() => {
+    if (!onPropostaComputo) return;
+    if (!propostaChat || !chatAperta || propostaChat.riferimento || vista !== "progetto") {
+      onPropostaComputo(null);
+      return;
+    }
+    const contesto = { documento: documentoConfermato, livelloId, propostaId };
+    onPropostaComputo({
+      documento: aPlanimetria(piantaDaApplicare(propostaChat, contesto), documentoConfermato, livelloId, propostaId),
+      applicabile: !chatInCorso && !sola && propostaChatApplicabile(propostaChat),
+    });
+  }, [chatAperta, chatInCorso, documentoConfermato, livelloId, onPropostaComputo, propostaChat, propostaId, sola, vista]);
+  useImperativeHandle(controlli, () => ({
+    evidenzia(oggetto, prossimaVista) {
+      setStrumento("seleziona");
+      if (!bloccoChat) setVista(prossimaVista);
+      setSelezione(oggetto);
+    },
+  }), [bloccoChat]);
+  useEffect(() => {
+    if (!animazioneChat) return;
+    const timer = setTimeout(() => setAnimazioneChat(null), 570);
+    return () => clearTimeout(timer);
+  }, [animazioneChat]);
 
   useEffect(() => {
     if (!avviso) return;
@@ -272,10 +526,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     return () => clearTimeout(t);
   }, [avviso]);
 
-  const applica = useCallback((nuova: Pianta) => {
+  const applica = useCallback((nuova: Pianta, daChat?: { annullabile: boolean }) => {
     setAnteprima(null);
-    setStoria((s) => esegui(s, nuova));
+    setPassoChat(null);
+    setAnimazioneChat(null);
+    setMostraFonteChat(false);
+    const confermata = aggiornaQuote(nuova);
+    setStoria(s => esegui(s, confermata));
+    if (daChat) setApplicazioneChat({ pianta: confermata, annullabile: daChat.annullabile });
   }, []);
+
+  // Il passaggio al documento ricostruisce solo i locali CAD toccati dai nuovi muri.
+  const chiudiDopoParete = useCallback((nuova: Pianta, vista: C.Vista) =>
+    pianoDwg ? nuova : C.chiudiStanze(nuova, vista), [pianoDwg]);
 
   // Correzione guidata: confermata una misura stimata, si passa alla prossima (o si dice che è finita)
   const avanti = useCallback((nuova: Pianta) => {
@@ -285,29 +548,45 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   }, []);
 
   const setStrumento = useCallback((s: Strumento) => {
+    if (gesto.current?.tipo === "demolizioni") gesto.current = null;
     setStrumentoStato(s);
     setInizioParete(null);
     setInizioQuota(null);
+    setRiferimentoCad(null);
     setPuntiPoligono([]);
     setSovrapposizioni({});
     setMisura(null);
+    chiudiTracciati();
     if (s !== "seleziona") {
+      setPiantaRipiegata(false);
       setSelezione(null);
       setGruppo(C.gruppoVuoto());
     }
-  }, []);
+  }, [chiudiTracciati]);
 
   // ─── dimensioni e inquadratura ─────────────────────────────────────────────
   useEffect(() => {
     const el = contenitoreRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => setDimensioni({ w: Math.max(200, e.contentRect.width), h: Math.max(200, e.contentRect.height) }));
+    if (!el || piantaNascosta) return;
+    const ro = new ResizeObserver(([e]) => {
+      const w = Math.max(200, e.contentRect.width), h = Math.max(200, e.contentRect.height);
+      setDimensioni(prima => prima.w === w && prima.h === h ? prima : { w, h });
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [piantaNascosta]);
 
-  const adatta = useCallback(() => {
-    const ps = angoliEsistenti(stato.current.pianta);
+  const ricalcoRef = useRef(ricalco);
+  ricalcoRef.current = ricalco;
+  const inquadra = useCallback((piantaDaInquadrare: Pianta) => {
+    const ps = angoliEsistenti(piantaDaInquadrare);
+    const sfondo = ricalcoRef.current;
+    if (!ps.length && sfondo) {
+      ps.push(
+        { x: sfondo.x, y: -sfondo.y },
+        { x: sfondo.x + sfondo.larghezzaCm, y: -sfondo.y + sfondo.larghezzaCm * sfondo.proporzione },
+      );
+    }
     if (!ps.length) {
       setCamera({ s: 0.8, tx: 80, ty: 80 });
       return;
@@ -317,7 +596,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     // margine: le porte aperte verso fuori sporgono dalla pianta
     // (sullo schermo stretto se ne tiene poco più di mezza: con tutta, la pianta restava piccola)
     const quota = dimensioniRef.current.w < 600 ? 0.6 : 1;
-    const margine = 25 + quota * Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
+    const margine = 25 + quota * Math.max(0, ...piantaDaInquadrare.aperture.map((a) => a.larghezza));
     const minX = Math.min(...xs) - margine;
     const maxX = Math.max(...xs) + margine;
     const minY = Math.min(...ys) - margine;
@@ -328,6 +607,108 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     cameraAdattata.current = inquadrata;
     setCamera(inquadrata);
   }, []);
+  const adatta = useCallback(() => inquadra(stato.current.pianta), [inquadra]);
+  useEffect(() => {
+    if (!chatAperta || !passoChat || !animazioneChat?.quadro) return;
+    const prima = angoliEsistenti(animazioneChat.prima.pianta);
+    const punti = angoliEsistenti(animazioneChat.quadro);
+    if (!punti.length) return;
+    if (!prima.length) {
+      inquadra(animazioneChat.quadro);
+      return;
+    }
+    const minX = Math.min(...prima.map(p => p.x)), maxX = Math.max(...prima.map(p => p.x));
+    const minY = Math.min(...prima.map(p => p.y)), maxY = Math.max(...prima.map(p => p.y));
+    const { s, tx, ty } = stato.current.camera;
+    const { w, h } = dimensioniRef.current;
+    if (punti.some(p => ((p.x < minX || p.x > maxX) && (p.x * s + tx < 12 || p.x * s + tx > w - 12))
+      || ((p.y < minY || p.y > maxY) && (p.y * s + ty < 12 || p.y * s + ty > h - 12)))) inquadra(animazioneChat.quadro);
+  }, [chatAperta, passoChat, animazioneChat, inquadra]);
+
+  const apriChatDisegno = () => {
+    setPassoChat(null);
+    setConfrontoChat("differenze");
+    setChatInCorso(false);
+    setStrumento("seleziona");
+    setGruppo(C.gruppoVuoto());
+    setCalibra(null);
+    setConfrontoAperto(false);
+    if (telefono) setModificaTelefono(true);
+    setChatAperta(true);
+  };
+  const chiudiChatDisegno = () => {
+    setChatAperta(false);
+    setChatInCorso(false);
+    if (passoChat) setSelezione(null);
+    setPassoChat(null);
+    setAnimazioneChat(null);
+    setMostraFonteChat(false);
+    setEvidenzaId(undefined);
+    bottoneChat.current?.focus({ preventScroll: true });
+  };
+
+  const inquadraPuntoChat = (centro: Punto) => {
+    setPiantaRipiegata(false);
+    setConfrontoChat("differenze");
+    setAnimazioneChat(null);
+    const { w, h } = dimensioniRef.current;
+    setCamera(c => {
+      const s = Math.max(c.s, Math.min(1.1, w / 670, h / 480));
+      return { s, tx: w / 2 - centro.x * s, ty: h / 2 - centro.y * s };
+    });
+  };
+  const evidenziaDaChat = (evidenza: Selezione, centra = false) => {
+    setSelezione(evidenza);
+    if (vistaPrimaChat) setConfrontoChat("differenze");
+    setAnimazioneChat({ numero: ++numeroAnimazioneChat.current, prima: { pianta, locali: dati.locali }, evidenza });
+    const stanza = evidenza.tipo === "locale" ? dati.locali.find(l => l.id === evidenza.id) : undefined;
+    const area = evidenza.tipo === "area" ? pianta.aree?.find(a => a.id === evidenza.id) : undefined;
+    const elemento = evidenza.tipo === "elemento" ? pianta.elementi?.find(e => e.id === evidenza.id) : undefined;
+    const apertura = evidenza.tipo === "apertura" ? pianta.aperture.find(a => a.id === evidenza.id) : undefined;
+    const muroId = evidenza.tipo === "muro" ? evidenza.id : apertura?.muroId;
+    const muro = muroId ? pianta.muri.find(m => m.id === muroId) : undefined;
+    const contorno = stanza?.contorno ?? area?.contorno;
+    const centro = contorno ? baricentro(contorno) : muro ? puntoSulMuro(muro, apertura?.posizione ?? dist(muro.p1, muro.p2) / 2) : elemento?.centro;
+    if (!centro) return;
+    if (centra) return inquadraPuntoChat(centro);
+    const x = centro.x * camera.s + camera.tx, y = centro.y * camera.s + camera.ty;
+    if (x < 35 || x > dimensioni.w - 35 || y < 35 || y > dimensioni.h - 35) {
+      setCamera({ ...camera, tx: dimensioni.w / 2 - centro.x * camera.s, ty: dimensioni.h / 2 - centro.y * camera.s });
+    }
+  };
+  const applicaSchizzo = async (passo: PassoChatDisegno, signal?: AbortSignal) => {
+    const fonte = passo.riferimento;
+    const lettura = passo.pianta.letturaDocumento;
+    if (!fonte?.schizzo || !lettura) return;
+    const nome = fonte.schizzo.slice(0, 250);
+    const file = new File([fonte.file], nome, { type: fonte.file.type });
+    const percorso = archivio ? await archivio.carica(file) : undefined;
+    signal?.throwIfAborted();
+    if (!percorso) setSchizzoSessione({ file, nome });
+    applica({ ...passo.pianta, letturaDocumento: { ...lettura, ...(percorso ? { sorgente: { percorso, nome } } : {}) } }, { annullabile: true });
+    setEvidenzaId(undefined);
+  };
+  const applicaDwg = async (passo: PassoChatDisegno, signal?: AbortSignal) => {
+    const fonte = passo.riferimento;
+    if (!fonte?.dwg) return;
+    const idAttivo = ricalcoCorrente.current.livelloId;
+    const piano = documentoConfermato.livelli.find(l => l.id === idAttivo) ?? documentoConfermato.livelli[0];
+    if (ricalcoCorrente.current.bloccata || piano.tavolaDwg) throw new Error("Apri un nuovo piano per importare la tavola DWG.");
+    const file = new File([fonte.file], fonte.dwg.nome.slice(0, 220).replace(/\.dwg$/i, "") + ".png", { type: fonte.file.type });
+    const percorso = archivio ? await archivio.carica(file) : URL.createObjectURL(file);
+    signal?.throwIfAborted();
+    if (ricalcoCorrente.current.livelloId !== idAttivo) throw new Error("Il piano attivo è cambiato durante il caricamento.");
+    const { fatto, tavolaDwg, controlloDwg } = fonte.dwg.livello;
+    documentoBase.current = { ...documentoConfermato, livelli: documentoConfermato.livelli.map(l => l.id === piano.id
+      ? { ...l, fatto, tavolaDwg, controlloDwg } : l) };
+    setRicalco({ percorso, x: fonte.x, y: -fonte.y, larghezzaCm: fonte.larghezzaCm,
+      proporzione: fonte.proporzione, opacita: fonte.opacita, calibrata: true, bloccata: true });
+    setRiscontroScala({ stato: "da_verificare" });
+    setVistaLayerDwg(vistaLayerDwgIniziale);
+    setCalibra(null);
+    applica(passo.pianta, { annullabile: false });
+    requestAnimationFrame(adatta);
+  };
   const cameraAdattata = useRef<Camera | null>(null);
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
@@ -335,9 +716,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   dimensioniRef.current = dimensioni;
   const giaAdattata = useRef(false);
   useEffect(() => {
-    if (giaAdattata.current || dimensioni.w === 800) return;
+    if (giaAdattata.current || (dimensioni.w === 800 && dimensioni.h === 560)) return;
     giaAdattata.current = true;
-    if (storia.presente.muri.length) adatta();
+    if (storia.presente.muri.length || ricalcoRef.current) adatta();
   }, [dimensioni, adatta, storia.presente.muri.length]);
 
   // Sul telefono il pannello in basso ruba spazio: si reinquadra la pianta. Altrove (tablet ruotato, schermo intero)
@@ -377,7 +758,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     };
     svg.addEventListener("wheel", ruota, { passive: false });
     return () => svg.removeEventListener("wheel", ruota);
-  }, [zoomAttorno]);
+  }, [zoomAttorno, piantaNascosta]);
 
   // ─── conversioni ───────────────────────────────────────────────────────────
   const schermo = useCallback((e: { clientX: number; clientY: number }): Punto => {
@@ -392,7 +773,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     },
     [schermo],
   );
-  const tolleranza = () => 12 / stato.current.camera.s;
+  const tolleranza = useCallback(() => 12 / stato.current.camera.s, []);
+  const aggancioDisegno = useCallback((pianta: Pianta, p: Punto, da?: Punto) => aggancia(pianta, p, {
+    tolleranza: tolleranza(), da, precisione: stato.current.precisione,
+    visibile: s => riferimentoCadVisibile(s, stato.current.vista),
+  }), [tolleranza]);
 
   const bersaglioDi = (el: EventTarget | null): Bersaglio | null => {
     const t = (el as Element | null)?.closest?.("[data-tipo]");
@@ -405,6 +790,40 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       estremo: (t.getAttribute("data-estremo") as "p1" | "p2" | null) ?? undefined,
       elemento: t,
     };
+  };
+
+  const gestoCad = (comando: ComandoCad, p: Punto, b: Bersaglio | null, conferma: boolean) => {
+    const { vista, storia } = stato.current;
+    const base = storia.presente;
+    const visibile = (m: Pianta["muri"][number]) => riferimentoCadVisibile(m.stato, vista);
+    const riferimento = base.muri.find(m => m.id === riferimentoCad && visibile(m));
+    const id = b?.tipo === "muro" || b?.tipo === "quota-muro" ? b.id
+      : b?.tipo === "apertura" ? base.aperture.find(a => a.id === b.id)?.muroId : undefined;
+    // Su tavole fitte una quota o un'etichetta può coprire la parete sotto il cursore.
+    const bersaglio = riferimento && comando === "offset" ? undefined
+      : muroPiuVicino(base, p, tolleranza() * 0.7, visibile)?.muro ?? base.muri.find(m => m.id === id && visibile(m));
+    if (!riferimento) {
+      if (conferma && bersaglio) setRiferimentoCad(bersaglio.id);
+      setSovrapposizioni(bersaglio ? { cad: { riferimento: bersaglio } } : {});
+      return;
+    }
+    const r = preparaModificaCad(base, {
+      comando, vista, riferimento, bersaglio, cursore: p,
+      distanzaCm: Number(offsetCm.trim().replace(",", ".")),
+    });
+    if (!conferma) {
+      setSovrapposizioni({ cad: { riferimento, esito: r.ok ? r : undefined } });
+      return;
+    }
+    if (r.ok === false) {
+      setAvviso(r.messaggio);
+      return;
+    }
+    const esito = applicaModificaCad(base, r);
+    applica(chiudiDopoParete(esito.pianta, vista));
+    setStrumento("seleziona");
+    setSelezione({ tipo: "muro", id: esito.id });
+    setAvviso(`${NOMI_COMANDI_CAD[comando]} completato · ${scriviMetri(dist(r.muro.p1, r.muro.p2))} m`);
   };
 
   // ─── misure scritte sulla pianta ──────────────────────────────────────────
@@ -452,9 +871,21 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   // ─── gesti ────────────────────────────────────────────────────────────────
   const iniziaPinch = () => {
     const [a, b] = [...puntatori.current.values()];
+    const precedente = gesto.current?.tipo === "demolizioni" ? gesto.current.prima : sovrapposizioniRef.current.demolizioni;
     gesto.current = { tipo: "pinch", distanza: dist(a, b), centro: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, camera: stato.current.camera };
     setAnteprima(null);
-    setSovrapposizioni({});
+    setSovrapposizioni(precedente ? { demolizioni: precedente } : {});
+  };
+
+  const tracciaDemolizioni = (da: Punto, a: Punto, inizio = false) => {
+    const toccati = muriSottoPennello(stato.current.storia.presente.muri, da, a, 7 / stato.current.camera.s);
+    setSovrapposizioni(prev => ({
+      demolizioni: {
+        traccia: inizio ? [a] : [...(prev.demolizioni?.traccia ?? []).slice(-239), a],
+        daSegnare: [...new Set([...(prev.demolizioni?.daSegnare ?? []), ...toccati.daSegnare])],
+        protetti: [...new Set([...(prev.demolizioni?.protetti ?? []), ...toccati.protetti])],
+      },
+    }));
   };
 
   /** Chiude la stanza libera: crea il locale e le pareti che mancano (fase 4). */
@@ -479,6 +910,63 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setStanzaNuova(r.id);
   };
 
+  const ultimoPunto = (str: Strumento) => str === "parete" ? inizioParete ?? undefined
+    : str === "quota" ? inizioQuota?.punto : puntiPoligono.at(-1);
+
+  const posaPuntoDisegno = (str: StrumentoPunto, a: Aggancio, numerico = false): boolean => {
+    const { vista, storia, inizioParete, inizioQuota, puntiPoligono } = stato.current;
+    if (str === "poligono" || str === "area") {
+      const ultimo = puntiPoligono.at(-1);
+      if (puntiPoligono.length >= 3 && dist(puntiPoligono[0], a.punto) <= 0.02) {
+        chiudiPoligono(puntiPoligono);
+        return true;
+      }
+      if (ultimo && dist(ultimo, a.punto) < 5) return false;
+      const punti = [...puntiPoligono, a.punto];
+      setPuntiPoligono(punti);
+      setSovrapposizioni({ poligonoInCorso: { punti, cursore: a.punto }, aggancio: a });
+      return false;
+    }
+    if (str === "parete") {
+      if (!inizioParete) {
+        setInizioParete(a.punto);
+        setSovrapposizioni({ pareteInCorso: { a: a.punto, b: a.punto }, aggancio: a });
+        return false;
+      }
+      if (dist(inizioParete, a.punto) < 5) {
+        if (numerico) { setAvviso("Indica un secondo punto ad almeno 5 cm dall’inizio della parete."); return false; }
+        setInizioParete(null);
+        setSovrapposizioni({});
+        return true;
+      }
+      const r = C.aggiungiParete(storia.presente, inizioParete, a.punto, { stato: C.statoNuovo(vista) });
+      applica(chiudiDopoParete(r.pianta, vista));
+      if (a.guida === "angolo" || a.ancora) {
+        setInizioParete(null);
+        setSovrapposizioni({});
+      } else {
+        setInizioParete(a.punto);
+        setSovrapposizioni({ pareteInCorso: { a: a.punto, b: a.punto }, aggancio: a });
+      }
+      return true;
+    }
+    if (!inizioQuota) {
+      setInizioQuota(a);
+      setSovrapposizioni({ quotaInCorso: { a: a.punto, b: a.punto }, aggancio: a });
+      return false;
+    }
+    if (dist(inizioQuota.punto, a.punto) < 1) return false;
+    const riferimenti = { ...(inizioQuota.ancora && { p1: inizioQuota.ancora }), ...(a.ancora && { p2: a.ancora }) };
+    const r = C.aggiungiQuota(storia.presente, inizioQuota.punto, a.punto, 40, {
+      ...(vista === "progetto" && { soloProgetto: true }),
+      ...((riferimenti.p1 || riferimenti.p2) && { riferimenti }),
+    });
+    applica(r.pianta);
+    setStrumento("seleziona");
+    setSelezione({ tipo: "quota", id: r.id });
+    return true;
+  };
+
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button === 2) return;
     if (e.pointerType === "pen") penne.current.add(e.pointerId);
@@ -499,67 +987,45 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const { pianta: pi, vista: v, strumento: str, selezione: sel } = stato.current;
     const pan = () => (gesto.current = { tipo: "pan", da: s, camera: stato.current.camera, mosso: false, bersaglio: b });
 
-    if (sola || e.button === 1 || spazioPremuto.current) return pan();
+    if (sola || bloccoChat || e.button === 1 || spazioPremuto.current) return pan();
 
     // Metti in scala l'immagine da ricalcare: due clic, poi la distanza vera
     if (calibra !== null && ricalco) {
-      const punti = [...calibra, p];
-      if (punti.length < 2) { setCalibra(punti); return; }
-      setCalibra(null);
-      const misurata = dist(punti[0], punti[1]);
-      const scritta = window.prompt("Quanto sono distanti davvero i due punti? (metri)", "");
-      const vera = Number((scritta ?? "").replace(",", ".")) * 100;
-      if (!(vera > 0) || misurata < 1) { setAvviso("Scala non cambiata."); return; }
-      const k = vera / misurata;
-      // il primo punto resta fermo, il resto dell'immagine si allarga o si stringe attorno a lui
-      const a = punti[0];
-      const xE = a.x - (a.x - ricalco.x) * k, yE = a.y - (a.y - -ricalco.y) * k;
-      setRicalco({ ...ricalco, larghezzaCm: Math.round(ricalco.larghezzaCm * k), x: Math.round(xE), y: Math.round(-yE) });
-      setAvviso(`Immagine in scala: larga ${(ricalco.larghezzaCm * k / 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} m.`);
+      if (calibra.fase === "primo") setCalibra({ fase: "secondo", primo: p });
+      if (calibra.fase === "secondo") {
+        if (dist(calibra.primo, p) < 1) setAvviso("Scegli un secondo punto più distante.");
+        else setCalibra({
+          fase: "misura", primo: calibra.primo, secondo: p, metri: "",
+          ridimensiona: ridimensionabile && pianoCalibrabile?.letturaAssistita?.percorso === ricalco.percorso, diProva: false,
+        });
+      }
+      return;
+    }
+    if (pannelloTracciati) {
+      gesto.current = { tipo: "pan", da: s, camera: stato.current.camera, mosso: false, bersaglio: b, tracciato: true };
       return;
     }
 
+    if (eComandoCad(str)) {
+      gestoCad(str, p, b, true);
+      return;
+    }
+
+    if (str === "demolizioni" && v === "progetto") {
+      gesto.current = { tipo: "demolizioni", ultimo: p, prima: sovrapposizioniRef.current.demolizioni };
+      tracciaDemolizioni(p, p, true);
+      return;
+    }
     if (str === "stanza") {
-      const a = aggancia(pi, p, { tolleranza: tolleranza() });
+      const a = aggancioDisegno(pi, p);
       gesto.current = { tipo: "rettangolo", a: a.punto };
       setSovrapposizioni({ rettangolo: { a: a.punto, b: a.punto }, aggancio: a });
       return;
     }
-    if (str === "poligono" || str === "area") {
+    if (eStrumentoPunto(str)) {
       const pts = stato.current.puntiPoligono;
-      const ultimo = pts[pts.length - 1];
-      if (pts.length >= 3 && dist(p, pts[0]) <= tolleranza() * 1.2) return chiudiPoligono(pts);
-      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: ultimo });
-      if (ultimo && dist(ultimo, a.punto) < 5) return;
-      const nuovi = [...pts, a.punto];
-      setPuntiPoligono(nuovi);
-      setSovrapposizioni({ poligonoInCorso: { punti: nuovi, cursore: a.punto }, aggancio: a });
-      return;
-    }
-    if (str === "parete") {
-      const inizio = stato.current.inizioParete;
-      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: inizio ?? undefined });
-      if (!inizio) {
-        setInizioParete(a.punto);
-        setSovrapposizioni({ pareteInCorso: { a: a.punto, b: a.punto }, aggancio: a });
-        return;
-      }
-      if (dist(inizio, a.punto) < 5) {
-        // secondo clic sullo stesso punto: fine
-        setInizioParete(null);
-        setSovrapposizioni({});
-        return;
-      }
-      const r = C.aggiungiParete(stato.current.storia.presente, inizio, a.punto, { stato: C.statoNuovo(v) });
-      applica(C.chiudiStanze(r.pianta, v));
-      // se si chiude su un angolo esistente, la parete finisce lì
-      if (a.guida === "angolo") {
-        setInizioParete(null);
-        setSovrapposizioni({});
-      } else {
-        setInizioParete(a.punto);
-        setSovrapposizioni({ pareteInCorso: { a: a.punto, b: a.punto }, aggancio: a });
-      }
+      if ((str === "poligono" || str === "area") && pts.length >= 3 && dist(p, pts[0]) <= tolleranza() * 1.2) return chiudiPoligono(pts);
+      posaPuntoDisegno(str, aggancioDisegno(pi, p, ultimoPunto(str)));
       return;
     }
     if (str === "porta" || str === "finestra") {
@@ -574,23 +1040,6 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni({});
       setStrumento("seleziona");
       setSelezione({ tipo: "elemento", id: r.id });
-      return;
-    }
-    if (str === "quota") {
-      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: stato.current.inizioQuota ?? undefined });
-      const inizio = stato.current.inizioQuota;
-      if (!inizio) {
-        setInizioQuota(a.punto);
-        setSovrapposizioni({ quotaInCorso: { a: a.punto, b: a.punto }, aggancio: a });
-        return;
-      }
-      if (dist(inizio, a.punto) < 5) return;
-      const r = C.aggiungiQuota(stato.current.storia.presente, inizio, a.punto, 40);
-      applica(r.pianta);
-      setInizioQuota(null);
-      setSovrapposizioni({});
-      setStrumento("seleziona");
-      setSelezione({ tipo: "quota", id: r.id });
       return;
     }
     if (str === "testo") {
@@ -725,6 +1174,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     ultimoCursore.current = p;
     const { pianta: pi, strumento: str } = stato.current;
 
+    if (g?.tipo === "demolizioni") {
+      if (dist(g.ultimo, p) * stato.current.camera.s >= 2) {
+        tracciaDemolizioni(g.ultimo, p);
+        g.ultimo = p;
+      }
+      return;
+    }
     if (g?.tipo === "pinch") {
       if (puntatori.current.size < 2) return;
       const [a, b] = [...puntatori.current.values()];
@@ -743,7 +1199,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       return;
     }
     if (g?.tipo === "rettangolo") {
-      const a = aggancia(pi, p, { tolleranza: tolleranza() });
+      const a = aggancioDisegno(pi, p);
       setSovrapposizioni({ rettangolo: { a: g.a, b: a.punto }, aggancio: a });
       return;
     }
@@ -765,7 +1221,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     }
     if (g?.tipo === "maniglia") {
       const senza = { ...g.base, muri: g.base.muri.filter((m) => m.id !== g.id) };
-      const a = aggancia(senza, p, { tolleranza: tolleranza(), da: g.altro });
+      const a = aggancioDisegno(senza, p, g.altro);
       setSovrapposizioni({ aggancio: a });
       setAnteprima(C.spostaAngolo(g.base, g.da, a.punto));
       return;
@@ -807,22 +1263,24 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     }
 
     // passaggio del mouse, senza tasti premuti
-    if (str === "parete") {
+    if (eComandoCad(str)) {
+      gestoCad(str, p, bersaglioDi(e.target), false);
+    } else if (str === "parete") {
       const inizio = stato.current.inizioParete;
-      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: inizio ?? undefined });
+      const a = aggancioDisegno(pi, p, inizio ?? undefined);
       setSovrapposizioni(inizio ? { pareteInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "stanza") {
-      setSovrapposizioni({ aggancio: aggancia(pi, p, { tolleranza: tolleranza() }) });
+      setSovrapposizioni({ aggancio: aggancioDisegno(pi, p) });
     } else if (str === "poligono" || str === "area") {
       const pts = stato.current.puntiPoligono;
-      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: pts[pts.length - 1] });
+      const a = aggancioDisegno(pi, p, pts[pts.length - 1]);
       setSovrapposizioni(pts.length ? { poligonoInCorso: { punti: pts, cursore: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "arredo" && stato.current.arredoScelto) {
       const v0 = stato.current.arredoScelto;
       setSovrapposizioni({ arredoFantasma: { tipo: v0.tipo, centro: p, larghezza: v0.larghezza, profondita: v0.profondita } });
     } else if (str === "quota") {
-      const inizio = stato.current.inizioQuota;
-      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: inizio ?? undefined });
+      const inizio = stato.current.inizioQuota?.punto;
+      const a = aggancioDisegno(pi, p, inizio);
       setSovrapposizioni(inizio ? { quotaInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "porta" || str === "finestra") {
       const v = stato.current.vista;
@@ -847,7 +1305,21 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     gesto.current = null;
     if (!g) return;
 
+    if (g.tipo === "demolizioni") {
+      if (e.type === "pointercancel") setSovrapposizioni(g.prima ? { demolizioni: g.prima } : {});
+      else tracciaDemolizioni(g.ultimo, inPianta(e));
+      return;
+    }
     if (g.tipo === "pan") {
+      if (g.tracciato && !g.mosso && e.type !== "pointercancel") {
+        if (verticiTracciato && trattoId) {
+          const p = inPianta(e);
+          const vertice = { x: Math.round(p.x), y: Math.round(p.y) };
+          setVerticiTracciato(puntoDaSpostare === null ? [...verticiTracciato, vertice] : verticiTracciato.map((v, i) => i === puntoDaSpostare ? vertice : v));
+          setPuntoDaSpostare(null);
+        } else if (g.bersaglio?.tipo === "tratto-impianto" && g.bersaglio.id) scegliTratto(g.bersaglio.id);
+        return;
+      }
       // un tocco senza trascinare: sul telefono seleziona e apre la misura
       if (!g.mosso && sola && g.bersaglio) {
         const b = g.bersaglio;
@@ -922,6 +1394,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   // ─── porta e finestra trascinate dalla barra ──────────────────────────────
   const trascinaDallaBarra = (quale: "porta" | "finestra") => (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;
+    setPiantaRipiegata(false);
     const da = { x: e.clientX, y: e.clientY };
     let mosso = false;
     const muovi = (ev: PointerEvent) => {
@@ -968,6 +1441,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     (sel: Selezione) => {
       const { vista: v } = stato.current;
       const base = stato.current.storia.presente;
+      const parete = sel.tipo === "muro" && v === "progetto" ? base.muri.find(m => m.id === sel.id) : undefined;
+      if (parete?.stato === "esistente" && funzionePareteDaVerificare(parete)) {
+        setAvviso("Riscontra la funzione della parete in «Com’è oggi» prima di proporre la demolizione.");
+        return;
+      }
       const nuova =
         sel.tipo === "muro" ? C.eliminaMuro(base, sel.id, v)
           : sel.tipo === "apertura" ? C.eliminaApertura(base, sel.id, v)
@@ -988,19 +1466,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       const inizio = stato.current.inizioParete;
       const cursore = ultimoCursore.current;
       if (!inizio || !cursore) return;
-      const a = aggancia(stato.current.pianta, cursore, { tolleranza: tolleranza(), da: inizio });
+      const a = aggancioDisegno(stato.current.pianta, cursore, inizio);
       const u = direzione({ p1: inizio, p2: dist(inizio, a.punto) > 1 ? a.punto : { x: inizio.x + 1, y: inizio.y } });
       const fine = { x: inizio.x + u.x * cm, y: inizio.y + u.y * cm };
       const r = C.aggiungiParete(stato.current.storia.presente, inizio, fine, { stato: C.statoNuovo(stato.current.vista) });
-      applica(C.chiudiStanze(r.pianta, stato.current.vista));
+      applica(chiudiDopoParete(r.pianta, stato.current.vista));
       setInizioParete(fine);
       setSovrapposizioni({ pareteInCorso: { a: fine, b: fine } });
     },
-    [applica],
+    [aggancioDisegno, applica, chiudiDopoParete],
   );
 
   useEffect(() => {
-    if (sola) return;
+    if (sola || bloccoChat) return;
     const tasto = (e: KeyboardEvent) => {
       const campo = (e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable=true], [role=combobox], [role=listbox]");
       if (e.code === "Space" && !campo) {
@@ -1008,9 +1486,24 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         return;
       }
       if (e.type !== "keydown" || campo) return;
+      if (e.key === "Escape" && calibra && calibra.fase !== "misura") {
+        e.preventDefault();
+        setCalibra(null);
+        return;
+      }
+      if (e.key === "Escape" && pannelloTracciati) {
+        e.preventDefault();
+        if (verticiTracciato) scegliTratto(trattoId);
+        else chiudiTracciati();
+        return;
+      }
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
+        if (verticiTracciato) {
+          scegliTratto(trattoId);
+          return;
+        }
         setAnteprima(null);
         setStoria((s) => (e.shiftKey ? ripeti(s) : annulla(s)));
       } else if (mod && e.key.toLowerCase() === "y") {
@@ -1069,7 +1562,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       window.removeEventListener("keydown", tasto);
       window.removeEventListener("keyup", tasto);
     };
-  }, [sola, elimina, setStrumento, pareteScritta, applica]);
+  }, [sola, bloccoChat, elimina, setStrumento, pareteScritta, applica, calibra, pannelloTracciati, verticiTracciato, trattoId, scegliTratto, chiudiTracciati]);
 
   // ─── azioni sul gruppo ─────────────────────────────────────────────────────
   const azioneGruppo = useCallback((azione: "ruota" | "specchia" | "copia" | "elimina" | "deseleziona") => {
@@ -1152,8 +1645,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       },
       latoStanza: (id, lato, cm) => applica(C.impostaLatoStanza(p(), id, lato, cm)),
       lunghezzaParete: (id, cm) => applica(C.impostaLunghezzaParete(p(), id, cm)),
-      spessoreParete: (id, cm) => applica(C.modificaMuro(p(), id, { spessore: cm, tipo: cm >= 20 ? "portante" : "tramezzo" })),
-      modificaApertura: (id, campi) => applica(C.modificaApertura(p(), id, { ...campi, origine: "rilevata" })),
+      spessoreParete: (id, cm) => applica(C.modificaMuro(p(), id, { spessore: cm })),
+      funzioneParete: (id, tipo) => applica(C.modificaMuro(p(), id, tipo === "da_verificare"
+        ? { funzioneDaVerificare: true } : { tipo, funzioneDaVerificare: false })),
+      altezzaParete: (id, cm) => applica(C.modificaMuro(p(), id, { altezza: cm, origineAltezza: "rilevata" })),
+      modificaApertura: (id, campi) => applica("zanzariera" in campi
+        ? C.impostaZanzariera(p(), id, stato.current.vista, campi.zanzariera)
+        : C.modificaApertura(p(), id, { ...campi, origine: "rilevata" })),
       giraApertura: (id) => applica(C.giraApertura(p(), id)),
       elimina,
       conferma: (sel) => {
@@ -1211,7 +1709,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         setSelezione(null);
         setAvviso("Parete curvata: la stanza segue la curva. Ctrl+Z per tornare com'era.");
       },
-      unitaStanza: (id, unita) => applica(C.modificaLocale(p(), id, { unita: unita || undefined })),
+      unitaStanza: (id, unita) => {
+        const l = stato.current.dati.locali.find(x => x.id === id);
+        if (l) applica(C.rinominaStanza(p(), id, l, { unita: unita || undefined }, stato.current.vista));
+      },
       magliaPilastri: (id, passo) => {
         const r = magliaPilastri(p(), id, stato.current.vista, passo);
         if (!r.aggiunti.length) {
@@ -1267,12 +1768,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setLivelloId(id);
     const pid = proposta ?? doc.livelli.find((l) => l.id === id)?.proposte[0]?.id ?? ID_PROPOSTA;
     setPropostaId(pid);
-    setStoria(nuovaStoria(daPlanimetria(doc, id, pid)));
-    setRicalco(doc.livelli.find((l) => l.id === id)?.ricalco ?? null);
+    const piantaPiano = daPlanimetria(doc, id, pid);
+    piantaDalDocumento.current = piantaPiano;
+    setStoria(nuovaStoria(piantaPiano));
+    const destinazione = doc.livelli.find((l) => l.id === id);
+    setRicalco(destinazione?.ricalco ?? null);
+    if (id !== livelloId) setVistaLayerDwg(vistaLayerDwgIniziale);
+    setRiscontroScala(destinazione?.riscontroScala);
+    setVerificaScala(null);
     setCalibra(null);
     setSelezione(null);
     setStrumento("seleziona");
     setTimeout(adatta, 0);
+    return piantaPiano;
   };
   vaiAlPianoRef.current = vaiAlPiano;
   const [telaioAperto, setTelaioAperto] = useState(false);
@@ -1335,6 +1843,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   // ─── alternative di progetto ──────────────────────────────────────────────
   const livelloCorrente = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
+  const tavolaDwg = livelloCorrente?.tavolaDwg;
+  const apriRiscontroScala = () => {
+    const muri = livelloCorrente?.fatto.muri ?? [];
+    const precedente = livelloCorrente?.riscontroScala;
+    const riferimento = muri.find(m => m.id === (precedente?.stato === "confermata" ? precedente.muroId : selezione?.id)) ?? muri[0];
+    if (riferimento) setVerificaScala({ muroId: riferimento.id, misura: "" });
+  };
+  const statoPerFrazionamento = livelloCorrente && ((vista === "progetto" ? livelloCorrente.proposte.find(p => p.id === propostaId) : undefined) ?? livelloCorrente.fatto);
   const vaiAllaProposta = (id: string, doc: Planimetria = documento) => {
     if (!livelloCorrente) return;
     vaiAlPiano(livelloCorrente.id, doc, id);
@@ -1359,52 +1875,78 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   };
 
   const cambiaVista = (v: C.Vista) => {
+    chiudiTracciati();
     setVista(v);
+    setPassoChat(null);
     setInizioParete(null);
+    setInizioQuota(null);
+    setRiferimentoCad(null);
     setSovrapposizioni({});
     setMisura(null);
   };
 
   const annullaPasso = () => {
     setAnteprima(null);
+    setPassoChat(null);
+    scegliTratto(trattoId);
     setStoria(annulla);
   };
-  const ripetiPasso = () => setStoria(ripeti);
+  const ripetiPasso = () => { setPassoChat(null); scegliTratto(trattoId); setStoria(ripeti); };
 
-  const vuota = storia.presente.muri.length === 0 && storia.presente.locali.length === 0;
+  const vuota = !(pianta.muri.length || pianta.locali.length || pianta.elementi?.length || pianta.aree?.length);
+  const comandoCad = eComandoCad(strumento) ? strumento : null;
+  const riferimentoPronto = !!riferimentoCad && pianta.muri.some(m => m.id === riferimentoCad && riferimentoCadVisibile(m.stato, vista));
+  const istruzioneCad = !riferimentoPronto ? "Seleziona la parete di riferimento." : comandoCad === "offset"
+    ? "Indica il lato sul disegno per creare la parallela." : comandoCad === "taglia"
+    ? "Clicca la parte di parete da rimuovere." : "Clicca l’estremità della parete da estendere.";
   const cursore =
-    strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "quota" ? "crosshair"
+    calibra || verticiTracciato || comandoCad || strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "demolizioni" || strumento === "quota" ? "crosshair"
       : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
       : strumento === "testo" ? "text" : "default";
 
   // ─── interfaccia ──────────────────────────────────────────────────────────
-  const impianti = useMemo(() => {
-    const visibili = (pianta.elementi ?? []).filter((e) => C.visibile(e.stato, vista)).map((e) => ({ id: e.id, tipo: e.tipo, posizione: e.centro, stato: e.stato }));
-    return percorsiDaElementi(visibili, dati.locali.map((l) => l.contorno));
-  }, [pianta, vista, dati]);
+  const statoImpianti = (vista === "progetto" && livelloCorrente.proposte.find(p => p.id === propostaId)) || livelloCorrente.fatto;
+  const impianti = useMemo(() => percorsiImpianti(statoImpianti), [statoImpianti]);
+  const lineePrimaChat = useMemo(() => {
+    if (!vistaPrimaChat || !mostraLinee) return undefined;
+    const pianoPrima = documentoConfermato.livelli.find(l => l.id === livelloId) ?? documentoConfermato.livelli[0];
+    const statoPrima = (vista === "progetto" && pianoPrima.proposte.find(p => p.id === propostaId)) || pianoPrima.fatto;
+    return percorsiImpianti(statoPrima).percorsi;
+  }, [vistaPrimaChat, mostraLinee, documentoConfermato, livelloId, propostaId, vista]);
   const totaliLinee = useMemo(() => {
-    const t = new Map<string, number>();
+    const t = new Map<(typeof impianti.percorsi)[number]["linea"], number>();
     for (const p of impianti.percorsi) t.set(p.linea, (t.get(p.linea) ?? 0) + p.lunghezzaCm);
     return t;
   }, [impianti]);
-  const NOMI_LINEE: Record<string, string> = { elettrica: "Elettrico", acqua: "Acqua", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa", riscaldamento: "Riscaldamento" };
   const NOMI_PARTENZE: Record<string, string> = { quadro_elettrico: "il quadro elettrico", collettore: "il collettore (o la caldaia)", colonna_scarico: "la colonna di scarico", unita_esterna: "l'unità esterna del clima", generatore: "la caldaia o la pompa di calore (Arredi → Energia)" };
+  const tratto = pannelloTracciati ? impianti.percorsi.find(p => chiaveTratto(p) === trattoId) : undefined;
+  const anteprimaTratto = tratto && verticiTracciato ? percorsoConVertici(tratto, verticiTracciato.map(p => ({ x: p.x, y: -p.y }))) : undefined;
+  const confrontoScarico = propostaChat?.confrontoScarico;
+  const tracciatoVisibile = anteprimaTratto ?? tratto ?? confrontoScarico?.dopo;
+  const attraversamenti = tracciatoVisibile ? attraversamentiImpianto(tracciatoVisibile, statoImpianti) : [];
+  const aggiornaTracciato = (chiave: string, vertici?: Punto[]) => {
+    const corrente = stato.current.storia.presente;
+    const tracciati = (corrente.tracciatiImpianti ?? []).filter(t => chiaveTratto(t) !== chiave);
+    if (tratto && vertici) tracciati.push({ linea: tratto.linea, daId: tratto.daId, aId: tratto.aId, vertici });
+    applica({ ...corrente, tracciatiImpianti: tracciati });
+    scegliTratto(chiave);
+  };
 
   const barraVista = (
-    <div className="inline-flex rounded-md border bg-background p-0.5 text-sm" role="radiogroup" aria-label="Quale pianta">
+    <div className="inline-flex rounded-md border bg-muted/60 p-0.5 text-xs" role="radiogroup" aria-label="Quale pianta">
       {(
         [
           ["fatto", "Com'è oggi"],
           ["progetto", "Progetto"],
         ] as const
-      ).map(([v, etichetta]) => (
+      ).filter(([v]) => !ambitoComputo || ambitoComputo.propostaId || v === "fatto").map(([v, etichetta]) => (
         <button
           key={v}
           type="button"
           role="radio"
           aria-checked={vista === v}
           onClick={() => cambiaVista(v)}
-          className={cn("rounded px-3 py-1.5 font-medium transition-colors", vista === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
+          className={cn("rounded px-2.5 py-1.5 font-medium transition-colors", vista === v ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
         >
           {etichetta}
         </button>
@@ -1420,7 +1962,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       <Button size="icon" variant="outline" className="h-9 w-9" aria-label="Ingrandisci" onClick={() => zoomAttorno(1.25, { x: dimensioni.w / 2, y: dimensioni.h / 2 })}>
         <Plus />
       </Button>
-      <Button size="sm" variant="outline" onClick={adatta} aria-label="Vedi tutta la pianta">
+      <Button size="sm" variant="outline" onClick={() => { setPiantaRipiegata(false); adatta(); }} aria-label="Vedi tutta la pianta">
         <Maximize2 /> <span className="hidden lg:inline">Tutta</span>
       </Button>
     </div>
@@ -1437,152 +1979,434 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     </div>
   );
 
+  const confrontoAttivo = piantaNascosta && vistaDifferenzeChat ? "dopo" : confrontoChat;
+  const confrontoVisteChat = propostaPronta && (
+    <div role="group" aria-label={piantaNascosta ? "Confronta la proposta in 3D" : "Confronta sulla pianta"}
+      className={cn("flex flex-wrap items-center gap-0.5", !piantaNascosta && "w-fit rounded-lg border bg-background/95 p-1 shadow-md")}>
+      {VISTE_CONFRONTO_CHAT.filter(([id]) => !piantaNascosta || id !== "differenze").map(([id, etichetta]) => <Button
+        key={id} type="button" size="sm"
+        variant={confrontoAttivo === id ? "secondary" : "ghost"}
+        className="pl-chat-controllo h-8 px-2 text-xs sm:px-3 sm:text-sm"
+        aria-pressed={confrontoAttivo === id}
+        onClick={() => { setAnimazioneChat(null); setConfrontoChat(id); }}>{etichetta}</Button>)}
+      {!piantaNascosta && <Button type="button" size="icon" variant="ghost" className="pl-chat-controllo size-8" aria-label="Riproduci le modifiche" title="Riproduci le modifiche"
+        disabled={!primaChat} onClick={() => {
+          if (!primaChat) return;
+          setConfrontoChat("differenze");
+          setAnimazioneChat({ numero: ++numeroAnimazioneChat.current, prima: primaChat, evidenza: propostaChat?.evidenza });
+        }}><Play className="size-3.5" /></Button>}
+    </div>
+  );
+
   return (
-    <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-lg border bg-background", confrontoAperto && "max-lg:min-h-[800px]", className)}>
-      {/* barra in alto */}
-      <div className="flex flex-wrap items-center gap-2 border-b p-2">
-        {telefono && soloVista === undefined && (
-          <Button size="sm" variant={modificaTelefono ? "default" : "outline"} onClick={() => { setModificaTelefono((v) => !v); setStrumento("seleziona"); }}>
-            <PenLine /> {modificaTelefono ? "Fine modifica" : "Modifica"}
-          </Button>
-        )}
-        {!sola && (
-          <div className={cn("flex items-center gap-1", stretto ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
-            <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
-            <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
-            <StanzaDaMisure
-              onAggiungi={(w, l, nome, destinazione) => {
-                const r = C.aggiungiStanzaDaMisure(storia.presente, w, l, { nome, destinazione, stato: C.statoNuovo(vista) });
-                applica(r.pianta);
-                setStrumento("seleziona");
-                setGruppo(C.gruppoVuoto());
-                setSelezione({ tipo: "locale", id: r.id });
-                setTimeout(adatta, 0);
-              }}
-            />
-            <BottoneStrumento attivo={strumento === "poligono"} onClick={() => setStrumento("poligono")} icona={<Hexagon />} etichetta="Stanza libera" titolo="Una stanza di qualunque forma: clic su ogni angolo" />
-            <BottoneStrumento attivo={strumento === "parete"} onClick={() => setStrumento("parete")} icona={<PenLine />} etichetta="Parete" />
-            <BottoneStrumento
-              attivo={strumento === "porta"}
-              onPointerDown={trascinaDallaBarra("porta")}
-              icona={<DoorOpen />}
-              etichetta="Porta"
-              titolo="Trascinala su una parete"
-            />
-            <BottoneStrumento
-              attivo={strumento === "finestra"}
-              onPointerDown={trascinaDallaBarra("finestra")}
-              icona={<AppWindow />}
-              etichetta="Finestra"
-              titolo="Trascinala su una parete"
-            />
-            <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
-            <StrumentoEsterni
-              attivo={strumento === "area"}
-              onRilievo={() => setRilievoAperto(true)}
-              conRilievo={!!documento.rilievo}
-              tipo={tipoArea}
-              onScegli={(t) => {
-                setTipoArea(t);
-                setStrumento("area");
-              }}
-            />
-            <CatalogoArredi
-              attivo={strumento === "arredo"}
-              onScegli={(voce) => {
-                setStrumento("arredo");
-                setArredoScelto(voce);
-              }}
-              onTelaio={() => setTelaioAperto(true)}
-            />
-            <BottoneStrumento attivo={strumento === "quota"} onClick={() => setStrumento("quota")} icona={<MoveHorizontal />} etichetta="Quota" titolo="Misura fra due punti" />
-            <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
-          </div>
-        )}
-        <div className={cn("flex items-center gap-2", stretto ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
-          {!sola && (
-            <SfondoDaRicalcare
-              ricalco={ricalco}
-              onCambia={setRicalco}
-              onCarica={async (file) => {
-                const proporzione = await new Promise<number>((ok, ko) => {
-                  const img = new Image();
-                  const u = URL.createObjectURL(file);
-                  img.onload = () => { ok(img.naturalHeight / Math.max(1, img.naturalWidth)); URL.revokeObjectURL(u); };
-                  img.onerror = () => ko(new Error("Immagine non leggibile."));
-                  img.src = u;
-                });
-                const percorso = archivio ? await archivio.carica(file) : URL.createObjectURL(file);
-                setRicalco({ percorso, x: 0, y: 0, larghezzaCm: ricalco?.larghezzaCm ?? 3000, proporzione, opacita: 0.5 });
-              }}
-              calibrando={calibra !== null}
-              onCalibra={() => { setCalibra([]); setAvviso("Clicca due punti dell'immagine di cui conosci la distanza (per esempio i due capi di una quota o di un lato del lotto)."); }}
-            />
-          )}
-          {!sola && (
-            <BarraPiani
-              livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota, tetto: l.tetto }))}
-              fotovoltaico={fotovoltaicoInfo}
-              livelloId={livelloId ?? documento.livelli[0]?.id}
-              onScegli={(id) => vaiAlPiano(id)}
-              onNuovo={nuovoPiano}
-              onModifica={modificaPiano}
-              onTogli={togliPiano}
-            />
-          )}
-          {barraVista}
-          {documento.letturaDocumento && <Button type="button" size="sm" variant={confrontoAperto ? "secondary" : "outline"} aria-pressed={confrontoAperto} onClick={() => setConfrontoAperto((v) => !v)}>Confronta foto e pianta</Button>}
-          {!sola && vista === "progetto" && livelloCorrente && livelloCorrente.proposte.length > 0 && (
-            <BarraProposte
-              proposte={livelloCorrente.proposte.map((x) => ({ id: x.id, nome: x.nome }))}
-              propostaId={propostaId}
-              onScegli={(id) => vaiAllaProposta(id)}
-              onNuova={nuovaProposta}
-              onRinomina={rinominaPropostaCorrente}
-              onTogli={togliPropostaCorrente}
-            />
-          )}
-          {!sola && (
-            <Button size="sm" variant={mostraLinee ? "default" : "outline"} aria-pressed={mostraLinee} onClick={() => setMostraLinee((v) => !v)} title="Percorsi stimati di cavi, tubi e linee del clima">
-              Linee impianti
+    <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-xl border bg-background shadow-sm", confrontoAperto && "max-lg:min-h-[800px]", chatAperta && "max-lg:min-h-[830px]", className)}>
+      <div className="flex shrink-0 flex-col border-b bg-background">
+        <div className="flex flex-wrap items-start justify-between gap-2 px-2.5 py-2.5">
+          {telefono && soloVista === undefined && (
+            <Button size="sm" variant={modificaTelefono ? "default" : "outline"} disabled={chatAperta} onClick={() => { setModificaTelefono((v) => !v); setStrumento("seleziona"); }}>
+              <PenLine /> {modificaTelefono ? "Fine modifica" : "Modifica"}
             </Button>
           )}
-          {annullaRipeti}
-          {!telefono && zoom}
-          {compatto && !telefono && (
-            <Button size="sm" variant={pannelloAperto ? "default" : "outline"} onClick={() => setPannelloAperto((v) => !v)} aria-pressed={pannelloAperto}>
-              {pannelloAperto ? <PanelRightClose /> : <PanelRightOpen />} Stanze
-            </Button>
+          {ambitoComputo && !sola && <Button type="button" size="sm" variant={strumentiAperti ? "secondary" : "outline"}
+            aria-expanded={strumentiAperti} onClick={() => setStrumentiAperti(aperti => !aperti)}>
+            <SlidersHorizontal aria-hidden="true" /> Strumenti del disegno
+          </Button>}
+          {!sola && strumentiVisibili && (
+            <fieldset disabled={bloccoChat} className="flex min-w-0 flex-1 flex-wrap items-center gap-1" aria-label="Strumenti di disegno">
+              <div className="flex flex-wrap items-center gap-1">
+                <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
+                <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
+                <StanzaDaMisure
+                  onAggiungi={(w, l, nome, destinazione) => {
+                    const r = C.aggiungiStanzaDaMisure(storia.presente, w, l, { nome, destinazione, stato: C.statoNuovo(vista) });
+                    applica(r.pianta);
+                    setStrumento("seleziona");
+                    setGruppo(C.gruppoVuoto());
+                    setSelezione({ tipo: "locale", id: r.id });
+                    setTimeout(adatta, 0);
+                  }}
+                />
+                <BottoneStrumento attivo={strumento === "poligono"} onClick={() => setStrumento("poligono")} icona={<Hexagon />} etichetta="Stanza libera" titolo="Una stanza di qualunque forma: clic su ogni angolo" />
+                <BottoneStrumento attivo={strumento === "parete"} onClick={() => setStrumento("parete")} icona={<PenLine />} etichetta="Parete" />
+                {!!pianta.muri.length && <BottoneStrumento attivo={strumento === "demolizioni"} icona={<Eraser />}
+                  etichetta="Segna demolizioni" titolo="Passa sui tramezzi e conferma nella variante"
+                  onClick={() => { setVista("progetto"); setCalibra(null); setStrumento("demolizioni"); }} />}
+              </div>
+              <div className="flex items-center gap-1 border-l pl-1">
+                <BottoneStrumento
+                  attivo={strumento === "porta"}
+                  onPointerDown={trascinaDallaBarra("porta")}
+                  onClick={() => setStrumento("porta")}
+                  icona={<DoorOpen />}
+                  etichetta="Porta"
+                  titolo="Trascinala su una parete"
+                />
+                <BottoneStrumento
+                  attivo={strumento === "finestra"}
+                  onPointerDown={trascinaDallaBarra("finestra")}
+                  onClick={() => setStrumento("finestra")}
+                  icona={<AppWindow />}
+                  etichetta="Finestra"
+                  titolo="Trascinala su una parete"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1 border-l pl-1">
+                <StrumentoEsterni
+                  attivo={strumento === "area"}
+                  onRilievo={() => setRilievoAperto(true)}
+                  conRilievo={!!documento.rilievo}
+                  tipo={tipoArea}
+                  onScegli={(t) => {
+                    setTipoArea(t);
+                    setStrumento("area");
+                  }}
+                />
+                <CatalogoArredi
+                  attivo={strumento === "arredo"}
+                  onScegli={(voce) => {
+                    setStrumento("arredo");
+                    setArredoScelto(voce);
+                  }}
+                  onTelaio={() => setTelaioAperto(true)}
+                />
+                <BottoneStrumento attivo={strumento === "quota"} onClick={() => setStrumento("quota")} icona={<MoveHorizontal />} etichetta="Quota" titolo="Misura fra due punti" />
+                <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
+              </div>
+            </fieldset>
           )}
+          {soloVista !== true && <Button ref={bottoneChat} type="button" size="sm" variant={(inSilvio ? !chatAperta : chatAperta) ? "default" : "outline"}
+            className={cn("ml-auto shrink-0 gap-2", !inSilvio && !chatAperta && "border-primary/25 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary")}
+            aria-controls={idChat} aria-expanded={chatAperta} disabled={inSilvio && bloccoChat} onClick={chatAperta ? chiudiChatDisegno : apriChatDisegno}>
+            <MessageSquare aria-hidden="true" className="h-4 w-4" /> {inSilvio ? chatAperta ? "Nascondi Silvio" : "Chiedi a Silvio" : "Chat del disegno"}
+          </Button>}
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t bg-slate-50/70 px-2.5 py-2">
+          <fieldset disabled={bloccoChat} className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Piano e visualizzazione">
+            {!sola && !ambitoComputo && (
+              <BarraPiani
+                livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota, tetto: l.tetto }))}
+                fotovoltaico={fotovoltaicoInfo}
+                livelloId={livelloId ?? documento.livelli[0]?.id}
+                onScegli={(id) => vaiAlPiano(id)}
+                onNuovo={nuovoPiano}
+                onModifica={modificaPiano}
+                onTogli={togliPiano}
+              />
+            )}
+            {barraVista}
+            {!sola && strumentiVisibili && (
+              <SfondoDaRicalcare
+                ricalco={ricalco}
+                bloccata={ricalcoBloccato}
+                riferimentoDwg={!!tavolaDwg}
+                onCambia={(sfondoAggiornato) => { setCalibra(null); aggiornaSfondo(sfondoAggiornato); }}
+                onCarica={caricaRicalco}
+                calibrando={calibra !== null}
+                onCalibra={avviaCalibrazione}
+                onVerifica={livelloCorrente?.fatto.muri.length && !bloccoChat && ricalco?.calibrata!==false
+                  && !scalaModelloDaVerificare(livelloCorrente) ? apriRiscontroScala : undefined}
+              />
+            )}
+            {(tavolaDwg || pianoDwg && ricalco) && <LayerDwg key={livelloCorrente.id} tavola={tavolaDwg}
+              vista={vistaLayerDwg} onVista={setVistaLayerDwg} bloccata={ricalcoBloccato || !ricalco}
+              onBlocca={ricalco && !sola ? () => {
+                setCalibra(null);
+                setRicalco({ ...ricalco, bloccata: !ricalcoBloccato });
+              } : undefined} />}
+            {!sola && !ambitoComputo && !!statoPerFrazionamento?.locali.length && <Button type="button" size="sm" variant="outline" onClick={() => {
+              if (!livelloCorrente?.fatto.locali.length) {
+                setFrazionamento(true);
+                return;
+              }
+              setStudioBilocali({ unita: documento.urbanistica?.intervento?.unitaPreviste === 3 ? 3 : 2 });
+            }}>Fraziona</Button>}
+            {studioBilocali && !sola && livelloCorrente && <StudioBilocaliDialog piano={livelloCorrente} documento={documento} avvio={studioBilocali}
+              onChiudi={() => setStudioBilocali(null)}
+              onCalibra={() => {
+                setStudioBilocali(null);
+                cambiaVista("fatto");
+                if (ricalco?.calibrata === false) avviaCalibrazione();
+                else apriRiscontroScala();
+              }}
+              onDisegnaPorta={() => {
+                setStudioBilocali(null);
+                cambiaVista("fatto");
+                setStrumento("porta");
+                setAvviso("Posiziona la porta esistente sulla parete perimetrale.");
+              }}
+              onDividiAmbiente={() => {
+                setStudioBilocali(null);
+                setFrazionamento(true);
+              }}
+              onCrea={({ proposta, intervento, profilo, daRivedere }) => {
+                const id = prossimaProposta({ proposte: documento.livelli.flatMap(l => l.proposte) });
+                const fascicolo = documento.urbanistica ?? nuovoFascicoloUrbanistico();
+                const riferimentiMilano = profilo === "milano" && !fascicolo.comune
+                  ? { comune: "Milano", codiceIstat: "015146", regione: "Lombardia" } : {};
+                const doc = {
+                  ...documento,
+                  urbanistica: { ...fascicolo, ...riferimentiMilano, intervento },
+                  livelli: documento.livelli.map(l => l.id === livelloCorrente.id
+                    ? { ...l, proposte: [...l.proposte, { ...proposta, id }] } : l),
+                };
+                setStudioBilocali(null);
+                vaiAllaProposta(id, doc);
+                if (daRivedere.length) setAvviso("Arredi da rivedere in " + daRivedere.length + " ambienti.");
+              }} />}
+            {frazionamento && !sola && livelloCorrente && statoPerFrazionamento && (
+              <FrazionamentoDialog
+                companyId={companyId}
+                scalaDaVerificare={scalaModelloDaVerificare(livelloCorrente)}
+                base={{ ...statoPerFrazionamento, id: prossimaProposta({proposte:documento.livelli.flatMap(l=>l.proposte)}), nome: "" }}
+                localeIniziale={selezione?.tipo === "locale" ? selezione.id : undefined}
+                onChiudi={() => setFrazionamento(false)}
+                onApplica={(variante) => {
+                  const doc = { ...documento, livelli: documento.livelli.map(l => {
+                    const origine = vista === "progetto" ? l.proposte.find(p=>p.id===propostaId) : undefined;
+                    const aggiunta = l.id === livelloCorrente.id ? variante : origine ? {...origine,id:variante.id,nome:variante.nome} : null;
+                    return aggiunta ? {...l,proposte:[...l.proposte,aggiunta]} : l;
+                  }) };
+                  setFrazionamento(false);
+                  vaiAllaProposta(variante.id, doc);
+                }}
+              />
+            )}
+            {documento.letturaDocumento && <Button type="button" size="sm" variant={confrontoAperto ? "secondary" : "outline"} aria-pressed={confrontoAperto} onClick={() => {
+              if (chatAperta) chiudiChatDisegno();
+              chiudiTracciati();
+              if (!confrontoAperto) setPiantaRipiegata(false);
+              setConfrontoAperto(!confrontoAperto);
+            }}>Confronta foto e pianta</Button>}
+            {!sola && !ambitoComputo && vista === "progetto" && livelloCorrente && livelloCorrente.proposte.length > 0 && (
+              <BarraProposte
+                proposte={livelloCorrente.proposte.map((x) => ({ id: x.id, nome: x.nome }))}
+                propostaId={propostaId}
+                onScegli={(id) => vaiAllaProposta(id)}
+                onNuova={nuovaProposta}
+                onRinomina={rinominaPropostaCorrente}
+                onTogli={togliPropostaCorrente}
+              />
+            )}
+            {!sola && strumentiVisibili && (
+              <Button size="sm" variant={mostraLinee ? "default" : "outline"} aria-pressed={mostraLinee} onClick={() => { if (mostraLinee) chiudiTracciati(); setMostraLinee(v => !v); }} title="Percorsi di cavi, tubi e linee del clima">
+                Linee impianti
+              </Button>
+            )}
+            {!sola && strumentiVisibili && vista === "progetto" && <Button size="sm" variant={pannelloTracciati ? "secondary" : "outline"} aria-pressed={pannelloTracciati}
+              onClick={() => {
+                if (pannelloTracciati) { chiudiTracciati(); return; }
+                if (chatAperta) chiudiChatDisegno();
+                setConfrontoAperto(false);
+                setStrumento("seleziona");
+                setSelezione(null);
+                setGruppo(C.gruppoVuoto());
+                setCalibra(null);
+                setMostraLinee(true);
+                setPiantaRipiegata(false);
+                setPannelloTracciati(true);
+              }}>Tracciati impianti</Button>}
+            {!sola && strumentiVisibili && <NordPianta nord={documentoConfermato.nord} onCambia={nord => {
+              documentoBase.current = { ...documentoConfermato, nord };
+              piantaDalDocumento.current = storia.presente;
+              aggiornaDocumento(n => n + 1);
+            }} />}
+            {strumentiVisibili && <div className="flex items-center gap-1.5 pl-0.5 text-xs">
+              <label htmlFor="ambito-documento-pianta" className="font-medium text-muted-foreground">Ambito</label>
+              <UniformSelect id="ambito-documento-pianta" aria-label="Cosa rappresenta la pianta?"
+                title={documento.ambitoDocumento === "ambiente" ? "Verifiche sui locali rappresentati" : documento.ambitoDocumento === "alloggio" ? "Verifiche sui locali e sull’intero alloggio" : "Specifica se la tavola mostra un ambiente o tutto l’alloggio."}
+                className="h-8 rounded-md border bg-background px-2 font-normal" value={documento.ambitoDocumento ?? ""}
+                disabled={soloVista || bloccoChat} onChange={(e) => applica({ ...pianta, ambitoDocumento: e.target.value === "ambiente" ? "ambiente" : e.target.value === "alloggio" ? "alloggio" : undefined })}>
+                <option value="">Da specificare</option><option value="ambiente">Singolo ambiente</option><option value="alloggio">Alloggio completo</option>
+              </UniformSelect>
+            </div>}
+          </fieldset>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <fieldset className="min-w-0" disabled={bloccoChat} aria-label="Cronologia">{annullaRipeti}</fieldset>
+            {!telefono && zoom}
+            {compatto && !telefono && !chatAperta && (
+              <Button size="sm" variant={pannelloAperto ? "default" : "outline"} onClick={() => setPannelloAperto((v) => !v)} aria-pressed={pannelloAperto}>
+                {pannelloAperto ? <PanelRightClose /> : <PanelRightOpen />} Stanze
+              </Button>
+            )}
+          </div>
+        </div>
+        {strumentiVisibili && <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-2.5 py-1.5">
+          {!sola && <fieldset disabled={bloccoChat} className="flex flex-wrap items-center gap-1" aria-label="Modifica pareti">
+            {(Object.keys(NOMI_COMANDI_CAD) as ComandoCad[]).map(comando => {
+              const Icona = ICONE_COMANDI_CAD[comando];
+              return <Button key={comando} type="button" size="sm" variant={strumento === comando ? "default" : "ghost"}
+                aria-pressed={strumento === comando} disabled={!pianta.muri.length}
+                onClick={() => { setCalibra(null); setStrumento(strumento === comando ? "seleziona" : comando); }}>
+                <Icona />{NOMI_COMANDI_CAD[comando]}
+              </Button>;
+            })}
+            <Button size="sm" type="button" variant={precisione ? "secondary" : "ghost"} aria-pressed={precisione}
+              title="Attiva o disattiva punti medi e intersezioni"
+              onClick={() => { setPrecisione(p => !p); setSovrapposizioni({}); }}><Magnet /> Agganci precisi</Button>
+            <CoordinateDisegno etichetta={NOMI_STRUMENTI_PUNTO[eStrumentoPunto(strumento) ? strumento : "parete"]}
+              precedente={eStrumentoPunto(strumento) ? ultimoPunto(strumento) : undefined}
+              onApri={() => { setCalibra(null); if (!eStrumentoPunto(strumento)) setStrumento("parete"); }}
+              onPunto={punto => posaPuntoDisegno(eStrumentoPunto(strumento) ? strumento : "parete", { punto, guida: "griglia" }, true)} />
+          </fieldset>}
+          <AccessoAbachiPianta documento={documento} livelloId={livelloCorrente.id} ambito={dati.ambito} quantita={dati.quantita}
+            nomeContesto={`${livelloCorrente.nome} · ${vista === "fatto" ? "Com’è oggi" : livelloCorrente.proposte.find(p => p.id === propostaId)?.nome ?? "Progetto"}`} />
+        </div>}
+        {!sola && comandoCad && <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-primary/15 bg-primary/5 px-3 py-1.5 text-xs">
+          <span role="status" className="font-medium text-primary">{istruzioneCad}</span>
+          {comandoCad === "offset" && <Label className="flex items-center gap-2 text-xs font-normal">Distanza (cm)
+            <Input className="h-8 w-24 bg-background" inputMode="decimal" value={offsetCm}
+              onChange={e => { setOffsetCm(e.target.value); setSovrapposizioni({}); }} />
+          </Label>}
+          {riferimentoPronto && <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setRiferimentoCad(null); setSovrapposizioni({}); }}>Cambia riferimento</Button>}
+        </div>}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b bg-slate-50/80 px-3 py-2 text-xs">
-        <div className="flex items-center gap-2"><label htmlFor="ambito-documento-pianta" className="font-medium">Cosa rappresenta la pianta?</label>
-          <UniformSelect id="ambito-documento-pianta" className="h-8 rounded-md border bg-background px-2 font-normal" value={documento.ambitoDocumento ?? ""} disabled={soloVista} onChange={(e) => applica({ ...pianta, ambitoDocumento: e.target.value === "ambiente" ? "ambiente" : e.target.value === "alloggio" ? "alloggio" : undefined })}>
-            <option value="">Da specificare</option><option value="ambiente">Singolo ambiente</option><option value="alloggio">Alloggio completo</option>
-          </UniformSelect>
+      {!sola && ricalco && (ricalco.calibrata === false || calibra) && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-primary/15 bg-primary/5 px-3 py-2 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Ruler className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            <div aria-live="polite">
+              <p className="text-sm font-semibold">{calibra ? "Imposta la scala" : "Scala da impostare"}</p>
+              <p className="text-xs text-muted-foreground">{calibra?.fase === "primo" ? "Seleziona il primo estremo di una quota nota sulla tavola."
+                : calibra?.fase === "secondo" ? "Seleziona l’altro estremo della stessa quota."
+                : calibra?.fase === "misura" ? "Inserisci la misura riportata sulla tavola."
+                : "Usa una quota nota per ricalcare con le misure corrette."}</p>
+            </div>
+          </div>
+          {calibra ? <Button type="button" size="sm" variant="ghost" onClick={() => setCalibra(null)}>Annulla calibrazione</Button>
+            : <Button type="button" size="sm" disabled={!sfondo || ricalcoBloccato} onClick={avviaCalibrazione}>Imposta scala</Button>}
         </div>
-        <span className="text-muted-foreground">{documento.ambitoDocumento === "ambiente" ? "Verifiche sui locali rappresentati; esclusi superficie e dotazioni dell’intero alloggio." : documento.ambitoDocumento === "alloggio" ? "Verifiche sui locali e sull’intero alloggio." : "La scelta non conferma misure o aperture."}</span>
-      </div>
+      )}
+
+      {!sola && livelloCorrente && ricalco?.calibrata !== false && scalaModelloDaVerificare(livelloCorrente) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <span>Scala del modello da verificare. Confronta la lunghezza di una parete con una quota nota.</span>
+          <Button size="sm" variant="outline" onClick={apriRiscontroScala} disabled={bloccoChat || !livelloCorrente.fatto.muri.length}>Verifica scala del modello</Button>
+        </div>
+      )}
+
+      {verificaScala && livelloCorrente && (() => {
+        const muri = livelloCorrente.fatto.muri;
+        const muro = muri.find(m => m.id === verificaScala.muroId);
+        const lunghezza = muro ? dist(muro.p1, muro.p2) : 0;
+        return <Dialog open onOpenChange={aperto => { if (!aperto) setVerificaScala(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Verifica scala del modello</DialogTitle>
+              <DialogDescription>Scegli una parete disegnata e confronta la lunghezza all’asse con la misura nota.</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-3" onSubmit={e => {
+              e.preventDefault();
+              const misura = Number(verificaScala.misura.trim().replace(",", ".")) * 100;
+              if (!muro || !Number.isFinite(misura) || misura <= 0 || Math.abs(misura - lunghezza) > 1) {
+                if (muro && Number.isFinite(misura) && misura>0) setRiscontroScala({stato:"da_verificare"});
+                setVerificaScala({ ...verificaScala, errore: "La misura non coincide con la parete. Seleziona il riferimento corretto o correggi la quota nel disegno." });
+                return;
+              }
+              setRiscontroScala({ stato: "confermata", muroId: muro.id, distanzaCm: misura, verificataIl: new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }) });
+              setVerificaScala(null);
+              setAvviso("Scala del modello riscontrata sulla parete selezionata.");
+            }}>
+              <Label className="block space-y-1.5"><span>Parete di riferimento</span>
+                <select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={verificaScala.muroId} onChange={e =>
+                  setVerificaScala({ ...verificaScala, muroId: e.target.value, errore: undefined })}>
+                  {muri.map((m, i) => <option key={m.id} value={m.id}>Parete {i + 1} · {scriviMetri(dist(m.p1, m.p2))} m</option>)}
+                </select>
+              </Label>
+              <Label className="block space-y-1.5"><span>Misura nota in metri</span>
+                <Input value={verificaScala.misura} inputMode="decimal" onChange={e => setVerificaScala({ ...verificaScala, misura: e.target.value, errore: undefined })} />
+              </Label>
+              {verificaScala.errore && <p role="alert" className="text-sm text-destructive">{verificaScala.errore}</p>}
+              <DialogFooter><Button type="submit" disabled={!verificaScala.misura.trim()}>Conferma riscontro</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>;
+      })()}
+
+      {!sola && calibra?.fase === "misura" && (
+        <Dialog open onOpenChange={(aperto) => { if (!aperto) setCalibra(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Scala della tavola</DialogTitle>
+              <DialogDescription>Inserisci la distanza fra i due punti selezionati sulla tavola.</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); confermaCalibrazione(); }}>
+              <div className="space-y-2">
+                <Label htmlFor="distanza-scala-tavola">Distanza in metri</Label>
+                <Input id="distanza-scala-tavola" inputMode="decimal" value={calibra.metri} placeholder="Es. 4,20"
+                  onChange={(e) => setCalibra({ ...calibra, metri: e.target.value, errore: undefined })} />
+              </div>
+              {ridimensionabile && <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-1 accent-primary" checked={calibra.ridimensiona}
+                  onChange={e => setCalibra({ ...calibra, ridimensiona: e.target.checked, errore: undefined })} />
+                <span>Ridimensiona il disegno con la tavola
+                  <span className="block text-xs text-muted-foreground">Aggiorna le misure in pianta, comprese le larghezze dei vani. Dopo il ricalcolo riparte la cronologia del piano.</span>
+                </span>
+              </label>}
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-1 accent-primary" checked={calibra.diProva}
+                  onChange={e => setCalibra({ ...calibra, diProva: e.target.checked, errore: undefined })} />
+                <span>Usa una quota di prova<span className="block text-xs text-muted-foreground">La scala resta da confermare.</span></span>
+              </label>
+              {calibra.errore && <p role="alert" className="text-sm text-destructive">{calibra.errore}</p>}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCalibra({ fase: "primo" })}>Scegli di nuovo i punti</Button>
+                <Button type="submit" disabled={!distanzaValida}>Applica scala</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <div className="relative flex min-h-0 flex-1 max-lg:flex-col">
-        {confrontoAperto && documento.letturaDocumento && <ConfrontoDocumentoPianta documento={documento} sorgente={sorgenteDocumento} archivio={archivio} solaLettura={soloVista}
-          onAggiorna={(d) => { if (soloVista) return; documentoBase.current = d; applica(daPlanimetria(d, livelloId, propostaId)); }}
-          onSeleziona={(v) => { setEvidenzaId(v.id); const r = v.riferimento; if (!r) return; if (r.livelloId !== livelloId) vaiAlPiano(r.livelloId); setVista("fatto"); setSelezione({ tipo: r.tipo, id: r.oggettoId }); setPannelloAperto(true); }} />}
-        {/* disegno */}
-        <div ref={contenitoreRef} className="relative min-h-[280px] min-w-0 flex-1 lg:min-h-0" style={{ cursor: cursore }}>
+        {confrontoAperto && !chatAperta && documento.letturaDocumento && <ConfrontoDocumentoPianta documento={documento} livelloId={livelloId}
+          sorgente={sorgenteDocumento ?? (documento.letturaDocumento.sorgente ? undefined : schizzoSessione)} archivio={archivio} solaLettura={soloVista}
+          onAggiorna={(d) => {
+            if (soloVista) return;
+            documentoBase.current = d;
+            if (d.livelli === documento.livelli) {
+              piantaDalDocumento.current = storia.presente;
+              aggiornaDocumento(v => v + 1);
+            } else {
+              const piantaVerificata = daPlanimetria(d, livelloId, propostaId);
+              piantaDalDocumento.current = piantaVerificata;
+              applica(piantaVerificata);
+            }
+          }}
+          onSeleziona={(v) => { setEvidenzaId(v.id); const r = v.riferimento; if (!r) return; if (r.livelloId !== (livelloId ?? documento.livelli[0]?.id)) vaiAlPiano(r.livelloId); setVista("fatto"); setSelezione({ tipo: r.tipo, id: r.oggettoId }); setPannelloAperto(true); }} />}
+        <div className={cn("flex min-h-0 min-w-0 flex-1", anteprimaAffiancata && "pl-editor-viste")}>
+        <div className={cn("flex min-h-0 min-w-0 flex-1", anteprimaAffiancata && "pl-editor-viste-con-3d")}
+          data-pianta-nascosta={piantaNascosta || undefined}
+          style={anteprimaAffiancata ? { "--peso-pianta": `${quotaPianta}fr`, "--peso-anteprima": `${100 - quotaPianta}fr` } as CSSProperties : undefined}>
+        {anteprimaAffiancata && !piantaNascosta && <div className="pl-editor-solo-3d">
+          <Button type="button" size="sm" variant="outline" className="h-8" aria-controls={idPianta2D} onClick={mostraSolo3D}>
+            <PanelLeftClose aria-hidden="true" /> Solo 3D
+          </Button>
+        </div>}
+        <div ref={contenitoreRef} id={idPianta2D} hidden={piantaNascosta}
+          className="relative min-h-[280px] min-w-0 flex-1 lg:min-h-0" style={{ cursor: cursore }}>
+          {!piantaNascosta && <>
           <TelaPlanimetria
             ref={svgRef}
-            pianta={pianta}
-            dati={dati}
-            latiModificabili={latiModificabili}
+            pianta={vistaPrimaChat ? storia.presente : pianta}
+            dati={vistaPrimaChat && datiPrimaChat ? datiPrimaChat : dati}
+            latiModificabili={bloccoChat ? NESSUN_LATO_MODIFICABILE : latiModificabili}
             misureSoloSelezione={sola || telefono}
             vista={vista}
-            selezione={selezione}
-            verificaEvidenziata={vista === "fatto" && confrontoAperto ? documento.letturaDocumento?.verifiche?.find((v) => v.id === evidenzaId && v.riferimento?.livelloId === (livelloId ?? documento.livelli[0]?.id) && v.riferimento?.oggettoId === selezione?.id) : undefined}
+            selezione={vistaPrimaChat ? null : selezione}
+            animazioneChat={chatAperta && !vistaPrimaChat ? animazioneChat : null}
+            confrontoChat={vistaDifferenzeChat && !animazioneChat ? primaChat : null}
+            confrontoTramezzo={vistaDifferenzeChat ? propostaChat?.confrontoTramezzo : undefined}
+            verificaEvidenziata={vista === "fatto" && !vistaPrimaChat && (confrontoAperto || chatAperta) ? documento.letturaDocumento?.verifiche?.find((v) => v.id === evidenzaId && v.riferimento?.livelloId === (livelloId ?? documento.livelli[0]?.id) && v.riferimento?.oggettoId === selezione?.id) : undefined}
             gruppo={gruppo}
-            lineeImpianti={mostraLinee ? impianti.percorsi : undefined}
-            sfondo={sfondo}
+            lineeImpianti={vistaPrimaChat ? lineePrimaChat : mostraLinee ? impianti.percorsi : undefined}
+            modificaTracciati={pannelloTracciati && !verticiTracciato}
+            tracciato={vistaPrimaChat ? undefined : tracciatoVisibile}
+            tracciatoPrima={vistaDifferenzeChat ? confrontoScarico?.prima : undefined}
+            attraversamentiTracciato={vistaPrimaChat ? undefined : attraversamenti}
+            puntoTracciatoAttivo={puntoDaSpostare}
+            sfondo={(!vistaPrimaChat && sfondoChat) || (!tavolaDwg && vistaLayerDwg.mostra ? sfondo : null)}
+            layerDwg={tavolaDwg && (vistaPrimaChat || !sfondoChat) ? <DisegnoLayerDwg tavola={tavolaDwg} vista={vistaLayerDwg} ricalco={ricalco} /> : null}
             camera={camera}
             larghezza={dimensioni.w}
             altezza={dimensioni.h}
@@ -1593,6 +2417,25 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
           />
+
+          {strumento === "demolizioni" && vista === "progetto" && !bloccoChat && sovrapposizioni.demolizioni && (
+            <section aria-label="Demolizioni da confermare" className="absolute bottom-3 left-3 right-3 z-[1] w-auto max-w-lg space-y-2 rounded-lg border border-amber-200 bg-background p-3 shadow-md">
+              <p role="status" className="text-sm font-medium">
+                {sovrapposizioni.demolizioni.daSegnare.length} {sovrapposizioni.demolizioni.daSegnare.length === 1 ? "tramezzo selezionato" : "tramezzi selezionati"}
+                {!!sovrapposizioni.demolizioni.protetti.length && " · " + sovrapposizioni.demolizioni.protetti.length
+                  + (sovrapposizioni.demolizioni.protetti.length === 1 ? " parete protetta" : " pareti protette")}
+              </p>
+              <p className="text-xs text-muted-foreground">Verifica la natura dei tramezzi sul rilievo. Le pareti portanti, esterne o da classificare restano protette.</p>
+              <div className="flex flex-wrap gap-1.5">
+                <Button type="button" size="sm" disabled={!sovrapposizioni.demolizioni.daSegnare.length} onClick={() => {
+                  const corrente = stato.current.storia.presente;
+                  applica(segnaDemolizioniDalPennello(corrente, sovrapposizioni.demolizioni!.daSegnare));
+                  setStrumento("seleziona");
+                }}>Conferma demolizioni</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setSovrapposizioni({})}>Azzera segni</Button>
+              </div>
+            </section>
+          )}
 
           {vista === "progetto" && (
             <div className="pointer-events-none absolute left-2 top-2 flex gap-3 rounded-md bg-background/90 px-2 py-1 text-xs shadow-sm">
@@ -1608,13 +2451,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             </div>
           )}
 
-          {vuota && !sola && strumento === "seleziona" && (
+          {vuota && !ricalco && !sola && !chatAperta && strumento === "seleziona" && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-w-sm rounded-lg border bg-background/95 p-5 text-center shadow-sm">
                 <p className="font-semibold">Comincia dalla prima stanza</p>
-                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure premi «Scrivi le misure» in alto e scrivi larghezza e lunghezza. Le altre stanze si attaccano da sole.</p>
-                <div className="mt-3 flex justify-center gap-2">
-                  <Button size="sm" onClick={() => setStrumento("stanza")}>
+                <p className="mt-1 text-sm text-muted-foreground">Dai le misure alla chat oppure traccia la stanza sulla tavola.</p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Button size="sm" onClick={apriChatDisegno}><MessageSquare className="h-4 w-4" /> Descrivi la pianta</Button>
+                  <Button size="sm" variant="outline" onClick={() => setStrumento("stanza")}>
                     <Square /> Disegna una stanza
                   </Button>
                 </div>
@@ -1641,14 +2485,24 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             />
           )}
 
-          {mostraLinee && (
+          {confrontoScarico && vistaDifferenzeChat && <div aria-label="Confronto dello scarico" className="absolute left-3 top-9 max-w-[90%] space-y-1 rounded-lg border bg-background/95 p-2.5 text-xs shadow-sm">
+            <p className="font-semibold">Percorso dello scarico</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-amber-700" />Prima</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-emerald-700" />Proposta</span>
+            </div>
+          </div>}
+          {mostraLinee && !vistaPrimaChat && !pannelloTracciati && !confrontoScarico && (
             <div className="pointer-events-none absolute right-2 top-2 max-w-xs space-y-1 rounded-md bg-background/95 p-2 text-xs shadow-sm">
-              <p className="font-semibold">Linee impianti (stima, con 10% di sfrido)</p>
+              <p className="font-semibold">Linee impianti stimate e disegnate · 10% di sfrido</p>
               {[...totaliLinee].map(([l, cm]) => (
                 <p key={l} className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4" style={{ background: COLORI_LINEE[l] }} />{NOMI_LINEE[l] ?? l}: {metriConSfrido(cm).toLocaleString("it-IT")} m</p>
               ))}
               {!totaliLinee.size && !impianti.mancano.length && <p className="text-muted-foreground">Metti prese, sanitari o split (dal pannello della stanza o da Arredi → Impianti).</p>}
-              {impianti.mancano.map((m) => <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]} (Arredi → Impianti): senza, quella linea non si stima.</p>)}
+              {impianti.mancano.map(m => {
+                const unita = impianti.mancanoPerUnita.filter(v => v.partenza === m).map(v => v.unita);
+                return <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]}{unita.length ? ` · ${unita.join(", ")}` : ""} (Arredi → Impianti).</p>;
+              })}
             </div>
           )}
 
@@ -1657,12 +2511,54 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               {avviso}
             </div>
           )}
+          {chatInCorso && chatAperta && <div className="pl-chat-proposta pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-lg border bg-background/95 px-2.5 py-1.5 text-xs font-medium text-primary shadow-sm">
+            <span className="pl-chat-attivita size-2 rounded-full bg-primary" aria-hidden="true" /> Silvio lavora sulla tavola
+          </div>}
+          {propostaPronta && <div className="pl-chat-proposta absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] space-y-1.5">
+            {vistaDifferenzeChat && <div className="flex w-fit items-center gap-3 rounded-md border bg-background/95 px-2.5 py-1 text-xs shadow-sm" aria-hidden="true">
+              <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[#b45309]" />Prima</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-[#0f766e]" />Modifiche</span>
+            </div>}
+            {confrontoVisteChat}
+          </div>}
 
-          {telefono && <div className="absolute bottom-2 right-2">{zoom}</div>}
+          {telefono && <div className={cn("absolute right-2", propostaPronta ? "bottom-14" : "bottom-2")}>{zoom}</div>}
+          </>}
+        </div>
+        {anteprimaAffiancata && !piantaNascosta && <DivisoreAnteprima3D idPianta={idPianta2D} quota={quotaPianta} onCambia={setQuotaPianta}
+          onNascondi={mostraSolo3D} />}
+        {anteprimaAffiancata && onChiudiAnteprima3D && <Anteprima3DEditor documento={documento3D} livelloId={livelloId} propostaId={propostaId} vista={vista}
+          fase={vistaPrimaChat ? "prima" : mostraProposta3D ? "proposta" : "corrente"} selezione={vistaPrimaChat ? null : selezione}
+          comandoPianta={<Button ref={bottonePianta2D} type="button" size={piantaNascosta ? "sm" : "icon"}
+            variant={piantaNascosta ? "outline" : "ghost"} className={cn("h-8 shrink-0", !piantaNascosta && "pl-editor-nascondi-pianta w-8")}
+            aria-label={piantaNascosta ? "Mostra pianta 2D" : "Nascondi pianta 2D"}
+            aria-controls={idPianta2D} aria-expanded={!piantaNascosta}
+            title={piantaNascosta ? "Mostra pianta 2D" : "Nascondi pianta 2D"}
+            onClick={() => setPiantaRipiegata(v => !v)}>
+            {piantaNascosta ? <><PanelLeftOpen aria-hidden="true" />Mostra pianta</>
+              : <><PanelLeftClose aria-hidden="true" /><span>Nascondi pianta</span></>}
+          </Button>}
+          confronto={piantaNascosta ? confrontoVisteChat : undefined}
+          onCompleta={onApri3DCompleto && (() => onApri3DCompleto(documento3D, vista, propostaId, livelloId))}
+          onSeleziona={vistaPrimaChat || chatInCorso || calibra ? undefined : oggetto => {
+            setStrumento("seleziona");
+            setGruppo(C.gruppoVuoto());
+            setSelezione(oggetto);
+          }}
+          onChiudi={onChiudiAnteprima3D} />}
+        </div>
         </div>
 
         {/* pannello */}
-        {!telefono && (!compatto || pannelloAperto) && (
+        {pannelloTracciati && <TracciatiImpianti percorsi={impianti.percorsi} daRicollegare={impianti.tracciatiDaRicollegare} elementi={statoImpianti.elementi}
+          selezionato={tratto} anteprima={anteprimaTratto} vertici={verticiTracciato} sposta={puntoDaSpostare}
+          attraversamenti={attraversamenti} scalaIncerta={scalaModelloDaVerificare(livelloCorrente)}
+          onScegli={scegliTratto} onModifica={() => setVerticiTracciato(tratto?.vertici?.map(p => ({ x: p.x, y: -p.y })) ?? [])}
+          onSposta={setPuntoDaSpostare} onTogliUltimo={() => { setVerticiTracciato(v => v?.slice(0, -1) ?? null); setPuntoDaSpostare(null); }}
+          onAzzera={() => { setVerticiTracciato([]); setPuntoDaSpostare(null); }}
+          onAnnulla={() => scegliTratto(trattoId)} onApplica={() => { if (tratto && verticiTracciato) aggiornaTracciato(trattoId, verticiTracciato); }}
+          onRipristina={aggiornaTracciato} onChiudi={chiudiTracciati} />}
+        {!pannelloTracciati && !chatAperta && !telefono && (!compatto || pannelloAperto) && (
           <aside className={cn("shrink-0 overflow-y-auto border-l p-3", compatto ? "absolute inset-y-0 right-0 z-10 w-72 bg-background shadow-xl" : "w-72 xl:w-80")}>
             {compatto && (
               <div className="mb-2 flex justify-end">
@@ -1676,9 +2572,77 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             )}
           </aside>
         )}
+        <ChatDisegnoPlanimetria id={idChat} aperta={chatAperta} base={storia.presente} passo={passoChat} inSilvio={inSilvio}
+          piano={livelloCorrente?.nome ?? "Piano terra"} vista={vista} selezione={selezione}
+          contesto={{ documento: documentoConfermato, livelloId, propostaId }} localiVisibili={dati.locali}
+          superfici={{ locali: dati.locali.length, metriQuadri: dati.locali.reduce((somma, l) => somma + l.mq, 0), stimata: dati.locali.some(l => l.stimata),
+            prima: datiPrimaChat?.locali.reduce((somma, l) => somma + l.mq, 0) }}
+          applicata={applicataDallaChat}
+          consentiListino={!!consentiListinoChat}
+          consentiComputo={computoDaChat}
+          onRivediNelComputo={propostaChat?.riferimento ? undefined : onRivediNelComputo}
+          puoRivedereNelComputo={puoRivedereNelComputo}
+          onSalvaDaChat={soloVista ? undefined : onSalvaDaChat}
+          onAnnullaApplicazione={applicataDallaChat && applicazioneChat?.annullabile && storia.passato.length && !soloVista ? () => {
+            annullaPasso();
+            setSelezione(null);
+            setAnimazioneChat(null);
+          } : undefined}
+          mostraFonte={mostraFonteChat} onCambiaFonte={() => setMostraFonteChat(v => !v)}
+          onEvidenzia={evidenziaDaChat}
+          onInquadraPunto={inquadraPuntoChat}
+          onMostra={(passo, quadro) => {
+            setPassoChat(passo && (passo.pianta !== storia.presente || passo.revisioneInterventi) ? passo : null);
+            if (passo && passoChat && !quadro && passo.revisioneInterventi && passo.pianta === passoChat.pianta) return;
+            if (!passo || passo.pianta !== stato.current.pianta) setConfrontoChat("differenze");
+            if (passo?.mostraImpianti) setMostraLinee(true);
+            setSelezione(passo?.evidenza ?? null);
+            setEvidenzaId(undefined);
+            if (!passo) setAnimazioneChat(null);
+            else if (passo.pianta !== stato.current.pianta || !passoChat) setAnimazioneChat({ numero: ++numeroAnimazioneChat.current,
+              prima: { pianta: stato.current.pianta, locali: stato.current.dati.locali }, evidenza: passo.evidenza, quadro: quadro ?? passo.pianta });
+            if (!passo?.riferimento) setMostraFonteChat(false);
+          }}
+          onInCorso={setChatInCorso}
+          onApplica={(passo, signal) => {
+            if (soloVista || !propostaChatApplicabile(passo) || (passo.revisioneInterventi && passo.revisioneInterventi.base !== storia.presente)) return;
+            if (passo.riferimento?.schizzo) return applicaSchizzo(passo, signal);
+            if (passo.riferimento?.dwg) return applicaDwg(passo, signal);
+            applica(piantaDaApplicare(passo, { documento: documentoConfermato, livelloId, propostaId }), { annullabile: true });
+            setSelezione(passo.evidenza ?? null);
+          }}
+          onCreaAlternativa={soloVista || ambitoComputo ? undefined : (passo, nome) => {
+            if (vista !== "progetto" || !propostaChatApplicabile(passo) || passo.revisioneInterventi?.base !== storia.presente) return false;
+            const lid = livelloId ?? documentoConfermato.livelli[0].id;
+            const piantaNuova = piantaDaApplicare(passo, { documento: documentoConfermato, livelloId: lid, propostaId });
+            const alternativa = creaAlternativaInterventi(documentoConfermato, lid, propostaId, piantaNuova, nome);
+            const verifica = validaPlanimetria(alternativa.documento);
+            if (verifica.ok === false) { setAvviso(verifica.errori[0]); return false; }
+            setPassoChat(null);
+            setAnimazioneChat(null);
+            setMostraFonteChat(false);
+            const piantaAlternativa = vaiAlPiano(lid, alternativa.documento, alternativa.id);
+            setApplicazioneChat({ pianta: piantaAlternativa, annullabile: false });
+            return true;
+          }}
+          onVerifica={v => {
+            setEvidenzaId(v?.id);
+            if (v?.riferimento) evidenziaDaChat({ tipo: v.riferimento.tipo, id: v.riferimento.oggettoId });
+          }}
+          onApriConfronto={() => { chiudiChatDisegno(); setVista("fatto"); setPiantaRipiegata(false); setConfrontoAperto(true); }}
+          onApriStudioBilocali={soloVista ? undefined : (studio) => {
+            if (telefono) setModificaTelefono(true);
+            setStudioBilocali(studio);
+          }}
+          onVista={onVisteChat ? tipo => onVisteChat(tipo, documentoConfermato, vista, propostaId, livelloId) : undefined}
+          onRiferimento={async (file, signal) => {
+            await caricaRicalco(file, signal);
+            requestAnimationFrame(adatta);
+          }}
+          onChiudi={chiudiChatDisegno} />
       </div>
 
-      {telefono && selezione && (
+      {!chatAperta && telefono && selezione && (
         <div className="max-h-[42vh] overflow-y-auto border-t bg-background p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
           <div className="mb-2 flex justify-end">
             <Button size="sm" variant="ghost" onClick={() => setSelezione(null)}>
@@ -1691,7 +2655,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
       {telaioAperto && <TelaioStrutturale aperto onChiudi={() => setTelaioAperto(false)} piani={documento.livelli.length} onCrea={creaTelaio} />}
       {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} angoliPianta={angoliPianta()} onCambia={cambiaRilievo} />}
-      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
+      {!sola && !chatAperta && !pannelloTracciati && !eComandoCad(strumento) && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
   );
 }
@@ -1939,12 +2903,15 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
  * si mette in scala (larghezza vera, oppure due punti a distanza nota) e la si lascia sotto il
  * disegno, semitrasparente. Si salva con il piano.
  */
-function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra }: {
+function SfondoDaRicalcare({ ricalco, bloccata, riferimentoDwg, onCambia, onCarica, calibrando, onCalibra, onVerifica }: {
   ricalco: Ricalco | null;
+  bloccata: boolean;
+  riferimentoDwg: boolean;
   onCambia: (r: Ricalco | null) => void;
   onCarica: (file: File) => Promise<void>;
   calibrando: boolean;
   onCalibra: () => void;
+  onVerifica?: () => void;
 }) {
   const [aperto, setAperto] = useState(false);
   const [caricando, setCaricando] = useState(false);
@@ -1958,32 +2925,34 @@ function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra 
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 space-y-3" align="end">
-        <p className="text-sm font-semibold">Immagine da ricalcare</p>
-        <p className="text-xs text-muted-foreground">Carica la mappa del terreno, una foto aerea o un rilievo, mettila in scala e ricalca sopra lotto, casa, vialetti. Si salva con questo piano.</p>
-        <Input type="file" accept="image/png,image/jpeg,image/webp" disabled={caricando}
+        <p className="text-sm font-semibold">{bloccata ? "Originale DWG bloccato" : "Immagine da ricalcare"}</p>
+        {!bloccata && !riferimentoDwg && <Input type="file" accept="image/png,image/jpeg,image/webp" disabled={caricando}
           onChange={async (e) => {
             const f = e.target.files?.[0];
             if (!f) return;
             setCaricando(true); setErrore(null);
             try { await onCarica(f); } catch (err) { setErrore(err instanceof Error ? err.message : "Immagine non caricata."); } finally { setCaricando(false); }
-          }} />
+          }} />}
         {caricando && <p className="text-xs text-muted-foreground">Carico l'immagine…</p>}
         {errore && <p className="text-xs text-destructive">{errore}</p>}
+        {onVerifica && <Button type="button" size="sm" variant="outline" className="w-full" onClick={()=>{setAperto(false);onVerifica();}}>Verifica scala del modello</Button>}
         {ricalco && (
           <>
+            {!bloccata && <>
             <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
               <Label className="text-xs" htmlFor="sfondo-larghezza">Larghezza reale (m)</Label>
               <Input id="sfondo-larghezza" key={`l-${ricalco.larghezzaCm}`} defaultValue={String(ricalco.larghezzaCm / 100).replace(".", ",")} inputMode="decimal"
-                onBlur={(e) => { const v = numero(e.target.value); if (v && v > 0 && Math.round(v * 100) !== ricalco.larghezzaCm) onCambia({ ...ricalco, larghezzaCm: Math.round(v * 100) }); }} />
+                onBlur={(e) => { const v = numero(e.target.value); if (v && v > 0 && Math.round(v * 100) !== ricalco.larghezzaCm) onCambia({ ...ricalco, larghezzaCm: Math.round(v * 100), calibrata:true }); }} />
             </div>
             <Button size="sm" variant="outline" className="w-full" onClick={() => { onCalibra(); setAperto(false); }} disabled={calibrando}>
               {calibrando ? "Clicca i due punti sul foglio…" : "Metti in scala con due punti"}
             </Button>
+            </>}
             <div className="space-y-1">
               <Label className="text-xs">Trasparenza</Label>
               <input type="range" min={0.1} max={1} step={0.05} value={ricalco.opacita} className="w-full" onChange={(e) => onCambia({ ...ricalco, opacita: Number(e.target.value) })} />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            {!bloccata && <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Sposta a destra (m)</Label>
                 <Input key={`x-${ricalco.x}`} defaultValue={String(ricalco.x / 100)} inputMode="decimal" onBlur={(e) => { const v = numero(e.target.value); if (v != null) onCambia({ ...ricalco, x: Math.round(v * 100) }); }} />
@@ -1992,8 +2961,8 @@ function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra 
                 <Label className="text-xs">Sposta in basso (m)</Label>
                 <Input key={`y-${ricalco.y}`} defaultValue={String(-ricalco.y / 100)} inputMode="decimal" onBlur={(e) => { const v = numero(e.target.value); if (v != null) onCambia({ ...ricalco, y: -Math.round(v * 100) }); }} />
               </div>
-            </div>
-            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onCambia(null)}>Togli l'immagine</Button>
+            </div>}
+            {!bloccata && !riferimentoDwg && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onCambia(null)}>Togli l'immagine</Button>}
           </>
         )}
       </PopoverContent>

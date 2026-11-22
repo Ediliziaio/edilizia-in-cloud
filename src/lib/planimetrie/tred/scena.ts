@@ -6,17 +6,24 @@ import { COLORI_INFISSI_PROGETTO } from "../../../../shared/planimetrie/material
  */
 import { finiturePareti } from "./finiturePareti";
 import { CostruttoreMesh } from "./costruttore";
-import { costruisciElemento, modelloElemento } from "./elementi";
-import { poligonoConBuchi, pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
+import { chiaveModelloElemento, costruisciElemento, modelloElemento } from "./elementi";
+import { attaccoDoccia3D } from "./doccia";
+import { per, piu, poligonoConBuchi, pulisciPoligono, puntoNelPoligono, v2, type V2 } from "./geometria2d";
 import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
 import { baseTetto, facceTetto, finituraDi, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, SUBSTRATO_VERDE_CM, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { meshImpianti } from "./impianti3d";
-import { MATERIALE_AREA, MATERIALI, materialeFinitura, materialeMuro, materialePavimento } from "./materiali";
+import { meshSchemaCanali } from "./raccordi3d";
+import { ritagliaScavi, scavoPiscina, superficieConScavi, type ScavoPiscina } from "./piscina";
+import { MATERIALE_AREA, MATERIALI, definizioneMateriale, materialeFinitura, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciAnteOscuranti, costruisciZanzariera, costruisciCassonetto, costruisciMuro, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
-import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
+import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, StratoEsploso3D, V3, Vista3D } from "./tipi";
 
 const CM = 0.01;
+const ELEMENTI_STRUTTURALI = new Set(["pilastro", "trave", "solaio", "scala", "scala_u", "scala_chiocciola", "ascensore", "muro_contenimento"]);
+const ELEMENTI_IMPIANTO = new Set(["presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico",
+  "collettore", "colonna_scarico", "termosifone", "split", "unita_esterna", "caldaia", "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc"]);
+const DESTINAZIONE_APERTA = /balcon|terrazz|giardino|cortile/;
 
 /** Il muro c'è in questa vista? */
 export function muroPresente(stato: StatoOggetto, vista: Vista3D): boolean {
@@ -30,6 +37,11 @@ export function comeApertura(stato: StatoOggetto, vista: Vista3D): "aperta" | "c
   if (vista === "fatto") return stato === "nuovo" ? "chiusa" : "aperta";
   if (vista === "progetto") return stato === "demolire" ? "chiusa" : "aperta";
   return stato === "demolire" ? "tamponata" : "aperta";
+}
+
+export function aperturaPercorribile(a: AperturaPer3D, vista: Vista3D): boolean {
+  return a.tipo !== "finestra" && !a.fisso && comeApertura(a.stato, vista) === "aperta" &&
+    a.davanzale <= 16 && a.altezza >= 175 && a.larghezza >= 55;
 }
 
 const NOMI_APERTURA: Record<AperturaPer3D["tipo"], string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
@@ -196,6 +208,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   const scartati = pianta.muri.filter((m) => muroPresente(m.stato, vista)).length - muri.length;
   if (scartati > 0) avvisi.push(`${scartati} muri senza lunghezza, spessore o altezza: non disegnati.`);
   const { estremi, nodi } = calcolaIncroci(muri);
+  const vaniAperti = new Map<string, VanoMuro[]>();
 
   for (const m of muri) {
     const e = estremi.get(m.id)!;
@@ -214,6 +227,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     );
     avvisi.push(...avvisiVani);
     const apertura = (v: VanoMuro) => richieste.find((r) => r.a.id === v.id)!;
+    vaniAperti.set(m.id, vani.filter(v => apertura(v).come === "aperta"));
 
     // Le spallette di un vano da aprire si colorano di giallo (si demolisce la muratura).
     const spallette = new Map<string, CostruttoreMesh>();
@@ -232,20 +246,31 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
 
     for (const v of vani) {
       const { a, come } = apertura(v);
+      const passaggio = aperturaPercorribile(a, vista);
+      const passa = opzioni.passaggiAperti && passaggio && v.s1 - v.s0 >= .55 && v.z1 - v.z0 >= 1.75;
+      if (passaggio && v.z0 <= .04 && come === "aperta") {
+        const centro = piu(m.a, per(m.d, (v.s0 + v.s1) / 2));
+        const soglia = new CostruttoreMesh();
+        // A filo del passaggio ma sotto il piano della finitura, per evitare facce coincidenti.
+        soglia.scatola(centro.x, centro.y, v.z0 - .023, v.s1 - v.s0, m.spessore + .06, .02, Math.atan2(m.d.y, m.d.x));
+        mesh.push(soglia.mesh({ id: `soglia:${a.id}`, nome: `Soglia ${nomeApertura(a)}`, genere: "pavimento",
+          materiale: "marciapiede", riferimento: a.id, stratoEsploso: "pavimenti" }));
+      }
       if (come === "tamponata") {
         const c = new CostruttoreMesh();
         costruisciTamponamento(m, v, c);
         mesh.push(c.mesh({ id: `tamponamento:${a.id}`, nome: `Chiusura ${nomeApertura(a)}`, genere: "tamponamento", materiale: "muro_nuovo", riferimento: a.id }));
       } else if (a.tipo === "finestra" || a.tipo === "portafinestra") {
-        const c = new CostruttoreMesh();
-        costruisciVetro(m, v, c);
-        mesh.push(c.mesh({ id: `vetro:${a.id}`, nome: `Vetro ${nomeApertura(a)}`, genere: "vetro", materiale: "vetro", riferimento: a.id }));
-        if (a.ante !== undefined) {
-          const t = new CostruttoreMesh();
-          costruisciTelaio(m, v, t, a.ante, !!a.scorrevole);
-          mesh.push(t.mesh({ id: `telaio:${a.id}`, nome: `Telaio ${nomeApertura(a)}`, genere: "elemento", materiale: "telaio", riferimento: a.id }));
+        if (!passa) {
+          const c = new CostruttoreMesh();
+          costruisciVetro(m, v, c);
+          mesh.push(c.mesh({ id: `vetro:${a.id}`, nome: `Vetro ${nomeApertura(a)}`, genere: "vetro", materiale: "vetro", riferimento: a.id }));
         }
-        if (a.zanzariera) {
+        const t = new CostruttoreMesh();
+        const profili = { pvc: .065, alluminio: .048, minimal: .032, legno: .063, legno_alluminio: .061 };
+        costruisciTelaio(m, v, t, passa ? 1 : a.ante ?? 1, !passa && !!a.scorrevole, pianta.infissiProgetto ? profili[pianta.infissiProgetto.profilo] : .045);
+        mesh.push(t.mesh({ id: `telaio:${a.id}`, nome: `Telaio ${nomeApertura(a)}`, genere: "elemento", materiale: "telaio", riferimento: a.id }));
+        if (a.zanzariera && !passa) {
           const mu = pianta.muri.find((x) => x.id === m.id);
           if (mu) {
             const lung = Math.hypot(mu.b.x - mu.a.x, mu.b.y - mu.a.y) || 1;
@@ -257,7 +282,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
             mesh.push(cz.mesh({ id: `zanzariera:${a.id}`, nome: `Zanzariera ${nomeApertura(a)}`, genere: "elemento", materiale: "zanzariera", riferimento: a.id }));
           }
         }
-        if (a.oscurante) {
+        if (a.oscurante && (!passa || a.oscurante.tipo === "persiana" || a.oscurante.tipo === "scuro")) {
           // l'esterno è la parte del muro senza stanze; se non si capisce, quella della normale
           const mu = pianta.muri.find((x) => x.id === m.id);
           const o = a.oscurante;
@@ -276,6 +301,21 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
             const nomi = { tapparella: "Tapparella", veneziana: "Veneziana", persiana: "Persiane", scuro: "Scuri" }[o.tipo];
             mesh.push(co.mesh({ id: `oscurante:${a.id}`, nome: `${nomi} ${nomeApertura(a)}`, genere: "elemento", materiale: avvolgibile ? "oscurante" : "legno", riferimento: a.id }));
           }
+        }
+      } else if (a.tipo === "porta") {
+        const t = new CostruttoreMesh();
+        costruisciTelaio(m, v, t, 1, false, .035, false);
+        mesh.push(t.mesh({ id: `stipite:${a.id}`, nome: `Stipite ${nomeApertura(a)}`, genere: "elemento", materiale: "stipite", riferimento: a.id }));
+        // Le ante esplicite sulla tavola si vedono in vista statica. In visita il vano è percorribile.
+        const ante = a.ante ?? 1;
+        if (!passa && ante > 1 && v.s1 - v.s0 > .12 * ante && v.z1 - v.z0 > .12) {
+          const pannelli = new CostruttoreMesh();
+          const larghezza = (v.s1 - v.s0 - .07) / ante;
+          for (let i = 0; i < ante; i++) {
+            const centro = piu(m.a, per(m.d, v.s0 + .035 + (i + .5) * larghezza));
+            pannelli.scatola(centro.x, centro.y, v.z0 + .012, larghezza - .005, .045, v.z1 - v.z0 - .047, Math.atan2(m.d.y, m.d.x));
+          }
+          mesh.push(pannelli.mesh({ id: `ante-porta:${a.id}`, nome: `Ante ${nomeApertura(a)}`, genere: "elemento", materiale: "legno", riferimento: a.id }));
         }
       }
     }
@@ -344,6 +384,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     if (!c.vuoto()) mesh.push(c.mesh({ id: `nodo:${i + 1}`, nome: `Incrocio muri ${i + 1}`, genere: "nodo", materiale: "muro", riferimento: "" }));
   });
 
+  const areeAperte = new Set(pianta.locali.filter(l => DESTINAZIONE_APERTA.test(l.destinazione)).map(l => l.id));
   for (const l of pianta.locali) {
     const contorno = pulisciPoligono(l.contorno.map((p) => v2(p.x * CM, p.y * CM)));
     if (contorno.length < 3) {
@@ -368,12 +409,14 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     if (!foro) {
       const pav = new CostruttoreMesh();
       pav.orizzontale(buchiPav.length ? poligonoConBuchi(contorno, buchiPav) : contorno, 0, true);
-      mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialeFinitura(l.finiture?.pavimento, "pavimento", materialePavimento(l.destinazione)), riferimento: l.id }));
+      mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento",
+        materiale: materialeFinitura(l.finiture?.pavimento, "pavimento", materialePavimento(l.destinazione)), riferimento: l.id,
+        stratoEsploso: areeAperte.has(l.id) ? null : "pavimenti" }));
     }
     // Le finiture sono della stanza, non dell'intero muro (l'esterno resta invariato).
     if (!colori) mesh.push(...finiturePareti(l, muri, pianta.aperture.filter((a) => comeApertura(a.stato, vista) === "aperta"), falde ? (x, z) => quotaIn(falde, x, z) : undefined));
     // all'aperto non c'è soffitto
-    if (conSoffitto && !falde && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
+    if (conSoffitto && !falde && !areeAperte.has(l.id)) {
       const sof = new CostruttoreMesh();
       const buchiSof = bucoDi(opzioni.buchiSoffitto);
       sof.orizzontale(buchiSof.length ? poligonoConBuchi(contorno, buchiSof) : contorno, l.altezza * CM, false);
@@ -381,36 +424,68 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     }
   }
 
+  const scaviPiscine: ScavoPiscina[] = [];
   if (conElementi) {
     for (const el of pianta.elementi) {
       const perMateriale = new Map<string, CostruttoreMesh>();
+      const modello = modelloElemento(el.tipo);
+      const centro = { x: el.centro.x * CM, z: el.centro.y * CM };
+      const rotazione = el.rotazione * Math.PI / 180;
+      const l = el.larghezza === undefined ? undefined : el.larghezza * CM;
+      const p = el.profondita === undefined ? undefined : el.profondita * CM;
+      const h = el.altezza === undefined ? undefined : el.altezza * CM;
+      const piscina = el.tipo === "piscina", auto = el.tipo === "auto";
+      const quota = piscina || auto ? quotaElementoEsterno(pianta, el.centro) : 0;
+      if (piscina && Math.min(l ?? modello.misure.l, p ?? modello.misure.p) > 0) {
+        scaviPiscine.push(scavoPiscina(centro, l ?? modello.misure.l, p ?? modello.misure.p, h ?? modello.misure.h, rotazione, quota));
+      }
+      const doccia = chiaveModelloElemento(el.tipo) === "doccia";
+      const attacco = doccia ? attaccoDoccia3D(v2(centro.x, centro.z), rotazione, l ?? modello.misure.l, p ?? modello.misure.p,
+        h ?? modello.misure.h, vista === "confronto" ? muri.filter(m => m.stato !== "demolire") : muri, estremi, vaniAperti) : null;
+      if (doccia && !attacco) avvisi.push(`${modello.nome} ${el.id}: parete piena per il fissaggio della colonna da verificare.`);
       costruisciElemento(
         el.tipo,
-        { x: el.centro.x * CM, z: el.centro.y * CM },
-        (el.rotazione * Math.PI) / 180,
+        centro,
+        rotazione,
         {
-          l: el.larghezza !== undefined ? el.larghezza * CM : undefined,
-          p: el.profondita !== undefined ? el.profondita * CM : undefined,
+          l, p, quota,
+          modello: el.modello,
+          attaccoDoccia: attacco ?? undefined,
           // in mansarda il lucernario sta sulla falda sopra di lui
           senzaCabina: el.senzaCabina,
           interpiano: el.interpiano !== undefined ? el.interpiano * CM : undefined,
+          alzateCad: el.alzateCad,
           h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02
             : el.tipo === "quota_terreno" ? (pianta.terreno?.length ? quotaTerreno(pianta.terreno, el.centro.x, el.centro.y) * CM : 0)
-            : el.altezza !== undefined ? el.altezza * CM : undefined,
+            : h,
         },
         (materiale) => {
           if (!perMateriale.has(materiale)) perMateriale.set(materiale, new CostruttoreMesh());
           return perMateriale.get(materiale)!;
         },
       );
-      const nome = `${modelloElemento(el.tipo).nome} ${el.id}`;
+      const nome = `${modello.nome} ${el.id}`;
+      const superficiePrincipale = ["tessuto", "tessuto_divano", "laccato", "legno", "ceramica", "carrozzeria"].find(m => perMateriale.has(m));
+      const stratoEsploso: StratoEsploso3D | null = el.localeId && areeAperte.has(el.localeId) ? null
+        : ELEMENTI_IMPIANTO.has(el.tipo) ? "impianti" : ELEMENTI_STRUTTURALI.has(el.tipo) ? "pareti" : "arredi";
       for (const [materiale, c] of perMateriale) {
-        mesh.push(c.mesh({ id: `elemento:${el.id}:${materiale}`, nome: perMateriale.size > 1 ? `${nome} (${MATERIALI[materiale]?.nome.toLowerCase() ?? materiale})` : nome, genere: "elemento", materiale, riferimento: el.id }));
+        const finitura = el.colore && materiale === superficiePrincipale ? `arredo:${materiale}:${el.colore.toLowerCase()}` : materiale;
+        const parte = c.mesh({ id: `elemento:${el.id}:${materiale}`, nome: perMateriale.size > 1 ? `${nome} (${MATERIALI[materiale]?.nome.toLowerCase() ?? materiale})` : nome,
+          genere: "elemento", materiale: finitura, riferimento: el.id, stratoEsploso });
+        if (auto && quota) for (let i = 1; i < parte.posizioni.length; i += 3) parte.posizioni[i] += quota;
+        if (auto && materiale === "carrozzeria") parte.auto = {
+          modello: el.modello === "suv" || el.modello === "berlina" || el.modello === "highland" ? el.modello : "compatta",
+          centro: [centro.x, quota, centro.z], misure: [l ?? modello.misure.l, h ?? modello.misure.h, p ?? modello.misure.p],
+          rotazione, colore: el.colore,
+        };
+        mesh.push(parte);
       }
     }
   }
 
   if (conSoffitto) mesh.push(...meshTetto(pianta, muri));
+
+  if (pianta.canaliAria?.length) mesh.push(...meshSchemaCanali(pianta));
 
   // Tubazioni e cavi stimati dai simboli degli impianti (su richiesta)
   let impianti: Scena3D["impianti"];
@@ -443,7 +518,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     }
     const c = new CostruttoreMesh();
     const q = (a.quota ?? 0) * CM;
-    c.orizzontale(contorno, q + (a.tipo === "aiuola" ? 0.08 : 0.004), true);
+    superficieConScavi(c, contorno, q + (a.tipo === "aiuola" ? 0.08 : 0.004), scaviPiscine);
     // un'area rialzata ha i fianchi (muretti del terrazzamento)
     if (Math.abs(q) > 0.05) {
       contorno.forEach((p, i) => {
@@ -462,11 +537,28 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     const f = meshFondazioni(pianta);
     if (f) mesh.push(f);
   }
-  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro")));
+  const margineTerreno = opzioni.terreno ?? (scaviPiscine.length ? 2 : 0);
+  if (margineTerreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, margineTerreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro"), scaviPiscine));
   const usati = new Set(mesh.map((m) => m.materiale));
-  const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
-  if (pianta.infissiProgetto && materiali.telaio) materiali.telaio = { ...materiali.telaio, colore: COLORI_INFISSI_PROGETTO[pianta.infissiProgetto.colore].hex, finituraProgetto: true };
-  return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi, ...(impianti ? { impianti } : {}) };
+  const materiali: Scena3D["materiali"] = {};
+  for (const id of usati) {
+    const materiale = definizioneMateriale(id);
+    if (materiale) materiali[id] = materiale;
+  }
+  if (pianta.infissiProgetto && materiali.telaio) {
+    const { colore, profilo } = pianta.infissiProgetto;
+    materiali.telaio = { ...materiali.telaio, colore: COLORI_INFISSI_PROGETTO[colore].hex,
+      ruvidita: profilo === "alluminio" || profilo === "minimal" ? .32 : .58, finituraProgetto: true };
+  }
+  return { mesh: mesh.filter((m) => m.indici.length > 0), nord: pianta.nord, materiali, limiti, avvisi, ...(impianti ? { impianti } : {}),
+    ...(scaviPiscine.length ? { scaviPiscine } : {}) };
+}
+
+function quotaElementoEsterno(pianta: PiantaPer3D, centro: V2): number {
+  const aree = (pianta.aree ?? []).filter(a => a.tipo !== "lotto" && puntoNelPoligono(centro, a.contorno));
+  if (aree.length) return Math.max(...aree.map(a => a.quota ?? 0)) * CM;
+  return pianta.terreno?.length && !pianta.locali.some(l => puntoNelPoligono(centro, l.contorno))
+    ? quotaTerreno(pianta.terreno, centro.x, centro.y) * CM : 0;
 }
 
 /**
@@ -494,7 +586,8 @@ export function meshFondazioni(pianta: PiantaPer3D): Mesh3D | null {
   return c.vuoto() ? null : c.mesh({ id: "fondazioni", nome: "Fondazioni", genere: "elemento", materiale: "calcestruzzo", riferimento: "fondazioni" });
 }
 
-export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: PuntoQuotato[], edificio?: { min: V3; max: V3 }): Mesh3D {
+export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: PuntoQuotato[], edificio?: { min: V3; max: V3 },
+  scavi: ScavoPiscina[] = []): Mesh3D {
   const t = new CostruttoreMesh();
   if (punti && punti.length >= 2) {
     const x0 = Math.min(limiti.min[0], ...punti.map((p) => p.x * CM)) - k, x1 = Math.max(limiti.max[0], ...punti.map((p) => p.x * CM)) + k;
@@ -509,7 +602,8 @@ export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: Pun
       const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
       let nn: V3 = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
       if (nn[1] < 0) nn = [-nn[0], -nn[1], -nn[2]];
-      t.poligono([a, b, c], nn);
+      const facce = scavi.length ? ritagliaScavi([a, b, c], scavi) : [[a, b, c]];
+      for (const f of facce) t.poligono(f, nn);
     };
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
       const a = h(i, j), b = h(i + 1, j), c = h(i + 1, j + 1), d = h(i, j + 1);
@@ -518,7 +612,8 @@ export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: Pun
     }
     return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
   }
-  t.orizzontale([v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -0.01, true);
+  superficieConScavi(t, [v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k),
+    v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -.01, scavi);
   return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
 }
 

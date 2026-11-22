@@ -5,12 +5,14 @@ import type { ChatDocument } from '@/lib/preventivi/quoteChatDocument';
 import { emptyChatDocument } from '@/lib/preventivi/quoteChatDocument';
 import { emptyQuoteProject } from '@/lib/preventivi/quoteProject';
 import QuoteWizardAiDialog from '@/components/quotes/QuoteWizardAiDialog';
+import ComputoSilvioAi from '@/components/computo/ComputoSilvioAi';
+import { bozzaVuota, misuraVuota, voceVuota } from '@/lib/computo/editorNativo';
 import NativeComputoAiDialog, { type NativeComputoAiContext } from '@/components/quotes/NativeComputoAiDialog';
 import type { NativeComputoModule } from '@/lib/preventivi/wizardAiDraft';
 const state = vi.hoisted(() => ({ company: 'd2000000-0000-4000-a000-000000000002', owner: 'user', renders: vi.fn(), load: vi.fn(async () => null), save: vi.fn(async () => ({ revision: 'saved' })), remove: vi.fn(async () => {}) }));
 vi.mock('@/lib/preventivi/wizardAiMemory', () => ({ createWizardAiMemory: () => ({ load: state.load, save: state.save, remove: state.remove }) }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ effectiveCompany: { id: state.company, name: 'Demo Azienda 2' }, user: { id: state.owner } }) }));
-vi.mock('@/components/quotes/dev/QuoteAssistedWorkspace', () => ({ default: function Workspace({ embedded }: { embedded: { document: ChatDocument; initial?: import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot; onSnapshot: (state: import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot) => void; onChange: (doc: ChatDocument, busy: boolean) => void; preview: (doc: ChatDocument) => React.ReactNode } }) {
+vi.mock('@/components/quotes/dev/QuoteAssistedWorkspace', () => ({ default: function Workspace({ embedded }: { embedded: { document: ChatDocument; initial?: import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot; initialInput?: string; onSnapshot: (state: import('@/lib/preventivi/wizardAiMemory').WizardAiSnapshot) => void; onChange: (doc: ChatDocument, busy: boolean) => void; preview: (doc: ChatDocument) => React.ReactNode } }) {
   const [current, setCurrent] = useState(embedded.initial?.snapshot.document ?? embedded.document);
   useEffect(() => {
     embedded.onChange(current, false);
@@ -18,7 +20,7 @@ vi.mock('@/components/quotes/dev/QuoteAssistedWorkspace', () => ({ default: func
   }, [embedded.onChange, embedded.onSnapshot, current]);
   const document: ChatDocument = { ...embedded.document, revision: 1, lines: [...embedded.document.lines, { id: 'new', title: 'Demolizione pavimento', description: 'Rimozione controllata', quantity: 12, unit: 'mq', quantityBasis: 'Misura confermata', referenceId: null, price: 18, included: true, manual: true, reference: null,
     original: { id: 'new', title: 'Demolizione pavimento', description: '', quantity: 12, unit: 'mq', quantityBasis: 'Misura confermata', referenceId: null } }] };
-  return <><button onClick={() => setCurrent(document)}>Proponi voce confermata</button><button onClick={() => embedded.onChange(document, true)}>Richiesta in corso</button>{embedded.preview(document)}</>;
+  return <>{embedded.initialInput && <p>{embedded.initialInput}</p>}<button onClick={() => setCurrent(document)}>Proponi voce confermata</button><button onClick={() => embedded.onChange(document, true)}>Richiesta in corso</button>{embedded.preview(document)}</>;
 } }));
 vi.mock('@/components/shared/PdfBlobLivePreviewPanel', () => ({ PdfBlobLivePreviewPanel: function Preview({ renderBlobUrl, depsKey }: { renderBlobUrl: () => Promise<string>; depsKey: string }) {
   useEffect(() => { void renderBlobUrl(); }, [depsKey]); return <div>PDF nativo</div>;
@@ -200,6 +202,28 @@ describe('wizard AI isolated modal', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Capitolo di Demolizione pavimento' }), { target: { value: 'Preparazione' } });
     expect(screen.getByRole('button', { name: 'Conferma e applica al preventivo' })).toBeEnabled();
   });
+});
+
+it('nel computo propone il capitolo di partenza e lascia intatta la voce esistente da prezzare', async () => {
+  const esistente = { ...voceVuota(), capitolo: 'Opere murarie', descrizione: 'Ripresa intonaco', costo: '12,30',
+    misure: [{ ...misuraVuota(), descrizione: 'Parete nord', formula: '2*3' }] };
+  const bozza = { ...bozzaVuota(), titolo: 'Ristrutturazione demo', voci: [esistente] };
+  const onApply = vi.fn();
+  render(<ComputoSilvioAi open onOpenChange={vi.fn()} bozza={bozza} companyId={state.company} draftId="computo"
+    renderPdf={async () => ""} chiavePdf="bozza" capitoloIniziale="Preparazione superfici" onApply={onApply} />);
+  expect(await screen.findByText(/capitolo «Preparazione superfici»/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Proponi voce confermata' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Rivedi e applica' }));
+
+  const capitolo = screen.getByRole('textbox', { name: 'Capitolo di Demolizione pavimento' });
+  expect(capitolo).toHaveValue('Preparazione superfici');
+  expect(onApply).not.toHaveBeenCalled();
+  fireEvent.change(capitolo, { target: { value: 'Demolizioni' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Conferma e applica al preventivo' }));
+  await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+  const [voci] = onApply.mock.calls[0];
+  expect(voci[0]).toEqual(esistente);
+  expect(voci[1]).toMatchObject({ capitolo: 'Demolizioni', quantita: '12', prezzo: '18' });
 });
 
 describe('all eight computo engines keep their native preview payload', () => {

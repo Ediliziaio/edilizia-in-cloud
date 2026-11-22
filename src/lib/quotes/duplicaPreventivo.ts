@@ -13,6 +13,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { allegaSchedeTecniche, type SchedaNonAllegata } from "@/lib/quotes/allegatiPreventivo";
+import { leggiAnalisiCostiPreventivo, salvaAnalisiCostiPreventivo } from "@/hooks/useAnalisiCostiPreventivo";
 
 /** Gli errori PostgREST sono oggetti semplici: si estrae un messaggio leggibile. */
 function comeErrore(e: unknown, fallback: string): Error {
@@ -65,6 +66,7 @@ export interface OpzioniCopia {
   comeRevisione: boolean;
   /** Numero revisione da assegnare (calcolato dal chiamante sui fratelli). */
   numeroRevisione?: number;
+  conAnalisiCosti?: boolean;
 }
 
 /**
@@ -103,7 +105,8 @@ export function costruisciCopiaQuote(
  * Pura: testabile a tavolino.
  */
 export function costruisciPayloadRighe(
-  righe: Array<Pick<Tables<"quote_items">, "id" | "name" | "item_type"> & Partial<Tables<"quote_items">>>,
+  righe: Array<Pick<Tables<"quote_items">, "id" | "name" | "item_type"> & Partial<Tables<"quote_items">> & { analisi_riga_id?: string | null }>,
+  conservaAnalisi = false,
 ) {
   return righe.map((r, idx) => ({
     sort_order: idx,
@@ -121,6 +124,7 @@ export function costruisciPayloadRighe(
     item_category: r.item_category ?? "prodotto",
     tariffa_id: r.tariffa_id ?? null,
     prezzo_acquisto: r.prezzo_acquisto ?? 0,
+    ...(conservaAnalisi ? { analisi_riga_id: r.analisi_riga_id ?? r.id } : {}),
     mostra_nel_pdf: r.mostra_nel_pdf ?? true,
     is_optional: r.is_optional ?? false,
     misura_x: r.misura_x ?? null,
@@ -139,6 +143,7 @@ export interface EsitoCopia {
   id: string;
   /** Le schede tecniche dell'originale che il database non ha lasciato allegare alla copia. */
   nonAllegate: SchedaNonAllegata[];
+  analisiNonCopiata?: boolean;
 }
 
 /**
@@ -189,6 +194,8 @@ export async function duplicaPreventivo(
     .eq("quote_id", quoteId)
     .order("sort_order");
   if (eRighe) throw comeErrore(eRighe, "Lettura righe non riuscita");
+  const costi = opts.comeRevisione && opts.conAnalisiCosti
+    ? await leggiAnalisiCostiPreventivo({ companyId, tipo: "preventivo", id: quoteId }) : null;
 
   // Allegati PDF selezionati: si copiano i riferimenti, non i file.
   const { data: allegati, error: eAllegati } = await supabase
@@ -226,7 +233,7 @@ export async function duplicaPreventivo(
     const { error: eRpc } = await supabase.rpc("save_quote_items_atomic", {
       p_quote_id: nuovo.id,
       p_company_id: companyId,
-      p_items: costruisciPayloadRighe(righe),
+      p_items: costruisciPayloadRighe(righe, !!costi),
     });
     if (eRpc) throw comeErrore(eRpc, "Copia righe non riuscita");
   }
@@ -245,5 +252,10 @@ export async function duplicaPreventivo(
     })),
   );
 
-  return { id: nuovo.id as string, nonAllegate };
+  let analisiNonCopiata = false;
+  if (costi) {
+    try { await salvaAnalisiCostiPreventivo({ companyId, tipo: "preventivo", id: nuovo.id }, costi.analisi, 0); }
+    catch { analisiNonCopiata = true; }
+  }
+  return { id: nuovo.id as string, nonAllegate, ...(analisiNonCopiata ? { analisiNonCopiata } : {}) };
 }

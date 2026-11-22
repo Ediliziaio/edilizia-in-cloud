@@ -6,9 +6,9 @@
  *   stanze su cui si apre, stato dei lavori, misure stimate.
  * - Stanze: le stesse quantità del computo (`calcolaQuantita`), quindi gli stessi numeri.
  */
-import type { Apertura, Locale, Planimetria, StatoPianta, TipoApertura } from "../../../shared/planimetrie/modello.ts";
+import { funzionePareteDaVerificare, type Apertura, type Locale, type Planimetria, type StatoPianta, type TipoApertura } from "../../../shared/planimetrie/modello.ts";
 import { distanzaDalContorno, facceDellApertura, TOLLERANZA_LOCALE_CM } from "../../../shared/planimetrie/geometria.ts";
-import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
+import { calcolaQuantita, type MappaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
 import { anteDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, NOMI_ZANZARIERA, sistemaDi } from "../../../shared/planimetrie/serramenti.ts";
 
@@ -16,10 +16,13 @@ export const PREFISSO_CODICE: Record<TipoApertura, string> = { porta: "P", fines
 const NOME_TIPO: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
 const NOME_MANOVRA = { battente: "Battente", scorrevole: "Scorrevole", nessuna: "—" } as const;
 const NOME_STATO = { esistente: "Esistente", nuovo: "Nuovo", da_demolire: "Da demolire" } as const;
+const NOMI_PARETE = { esterno: "Esterna", portante: "Portante", tramezzo: "Tramezzo" } as const;
+const r2 = (v: number) => Math.round(v * 100) / 100;
 
 export interface RigaSerramento {
   id: string;
   codice: string;
+  tipoApertura: TipoApertura;
   tipo: string;
   manovra: string;
   /** Sistema («A battente», «Scorrevole a scomparsa»…) e numero di ante (0 per i varchi). */
@@ -60,6 +63,20 @@ export interface RigaStanza {
   rivestimentoMq: number | null;
   finiture: string;
   stimata: boolean;
+}
+
+export interface RigaParete {
+  id: string;
+  codice: string;
+  tipo: string;
+  stato: string;
+  lunghezzaMl: number;
+  altezzaCm: number;
+  spessoreCm: number;
+  superficieMq: number;
+  volumeMc: number;
+  stimata: boolean;
+  funzioneDaVerificare: boolean;
 }
 
 const NOMI_SISTEMA_FINALE = (a: Apertura) => NOMI_SISTEMA[sistemaDi(a)];
@@ -133,6 +150,7 @@ export function abacoSerramenti(p: Planimetria, livelloId: string, ambito: strin
     return {
       id: a.id,
       codice: `${prefisso}${contatori[prefisso]}`,
+      tipoApertura: a.tipo,
       tipo: NOME_TIPO[a.tipo] ?? a.tipo,
       manovra: NOME_MANOVRA[a.manovra] ?? a.manovra,
       sistema: a.tipo === "varco" ? "—" : NOMI_SISTEMA_FINALE(a),
@@ -140,10 +158,10 @@ export function abacoSerramenti(p: Planimetria, livelloId: string, ambito: strin
       controtelaio: controtelaioDi(a, stato),
       ...descrizioneOscurante(a),
       anta: a.tipo === "varco" ? 0 : misureSerramento(a).anta,
-      larghezza: Math.round(a.larghezza),
-      altezza: Math.round(a.altezza),
-      davanzale: Math.round(a.davanzale),
-      superficieMq: Math.round((a.larghezza * a.altezza) / 100) / 100,
+      larghezza: r2(a.larghezza),
+      altezza: r2(a.altezza),
+      davanzale: r2(a.davanzale),
+      superficieMq: r2(a.larghezza * a.altezza / 10_000),
       stanze: stanze.length ? stanze.join(" / ") : "—",
       stato: NOME_STATO[a.stato] ?? a.stato,
       stimata: stimata(a),
@@ -151,12 +169,11 @@ export function abacoSerramenti(p: Planimetria, livelloId: string, ambito: strin
   });
 }
 
-export function abacoStanze(p: Planimetria, livelloId: string, ambito: string): RigaStanza[] {
+export function abacoStanze(p: Planimetria, livelloId: string, ambito: string, quantita?: MappaQuantita): RigaStanza[] {
   const stato = statoPerAmbito(p, livelloId, ambito);
   if (!stato) return [];
-  const q = calcolaQuantita(p);
+  const q = quantita ?? calcolaQuantita(p);
   const val = (localeId: string, misura: string) => q[`${ambito}:locale:${localeId}.${misura}`]?.valore;
-  const r2 = (v: number | undefined) => Math.round((v ?? 0) * 100) / 100;
   return stato.locali.map((l) => {
     const riv = val(l.id, "rivestimento_mq");
     const finiture = [
@@ -169,16 +186,33 @@ export function abacoStanze(p: Planimetria, livelloId: string, ambito: string): 
       id: l.id,
       nome: l.nome || "Stanza",
       destinazione: l.destinazione,
-      pavimentoMq: r2(val(l.id, "pavimento_mq")),
-      perimetroMl: r2(val(l.id, "perimetro_ml")),
-      paretiNetteMq: r2(val(l.id, "pareti_nette_mq")),
-      soffittoMq: r2(val(l.id, "soffitto_mq")),
-      altezzaCm: Math.round(l.altezza),
-      volumeMc: r2(val(l.id, "volume_mc")),
-      battiscopaMl: r2(val(l.id, "battiscopa_ml")),
-      rivestimentoMq: riv == null ? null : r2(riv),
+      pavimentoMq: val(l.id, "pavimento_mq") ?? 0,
+      perimetroMl: val(l.id, "perimetro_ml") ?? 0,
+      paretiNetteMq: val(l.id, "pareti_nette_mq") ?? 0,
+      soffittoMq: val(l.id, "soffitto_mq") ?? 0,
+      altezzaCm: r2(l.altezza),
+      volumeMc: val(l.id, "volume_mc") ?? 0,
+      battiscopaMl: val(l.id, "battiscopa_ml") ?? 0,
+      rivestimentoMq: riv ?? null,
       finiture: finiture || "—",
       stimata: stimata(l),
+    };
+  });
+}
+
+export function abacoPareti(p: Planimetria, livelloId: string, ambito: string, quantita?: MappaQuantita): RigaParete[] {
+  const stato = statoPerAmbito(p, livelloId, ambito);
+  if (!stato) return [];
+  const q = quantita ?? calcolaQuantita(p);
+  return stato.muri.map((m, i) => {
+    const misura = (nome: string) => q[`${ambito}:muro:${m.id}.${nome}`];
+    const lunghezza = misura("lunghezza_ml"), superficie = misura("superficie_mq"), volume = misura("volume_mc");
+    return {
+      id: m.id, codice: `M${i + 1}`, tipo: NOMI_PARETE[m.tipo], stato: NOME_STATO[m.stato],
+      lunghezzaMl: lunghezza?.valore ?? 0, superficieMq: superficie?.valore ?? 0, volumeMc: volume?.valore ?? 0,
+      altezzaCm: m.altezza, spessoreCm: m.spessore,
+      stimata: [lunghezza, superficie, volume].some(v => v?.origine === "stimata"),
+      funzioneDaVerificare: funzionePareteDaVerificare(m),
     };
   });
 }
@@ -204,5 +238,13 @@ export function csvStanze(righe: RigaStanza[]): string {
   return inCsv(
     ["Stanza", "Destinazione", "Pavimento m²", "Perimetro m", "Pareti nette m²", "Soffitto m²", "Altezza cm", "Volume m³", "Battiscopa m", "Rivestimento m²", "Finiture", "Misure"],
     righe.map((r) => [r.nome, r.destinazione, r.pavimentoMq, r.perimetroMl, r.paretiNetteMq, r.soffittoMq, r.altezzaCm, r.volumeMc, r.battiscopaMl, r.rivestimentoMq, r.finiture, r.stimata ? "stimate" : "rilevate"]),
+  );
+}
+
+export function csvPareti(righe: RigaParete[]): string {
+  return inCsv(
+    ["Codice", "Tipo", "Stato", "Lunghezza asse m", "Altezza cm", "Spessore cm", "Superficie netta m²", "Volume m³", "Misure", "Funzione"],
+    righe.map(r => [r.codice, r.tipo, r.stato, r.lunghezzaMl, r.altezzaCm, r.spessoreCm, r.superficieMq, r.volumeMc,
+      r.stimata ? "stimate" : "da modello", r.funzioneDaVerificare ? "da verificare" : null]),
   );
 }

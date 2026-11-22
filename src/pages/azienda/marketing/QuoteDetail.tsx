@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -63,6 +64,7 @@ export default function QuoteDetail() {
   // Marketing & Vendita (il venditore, di serie) non vede questi pulsanti,
   // che lo porterebbero su pagine negate (25/09/2026).
   const permessi = usePermissions();
+  const accessoAnalisi = useFeatureAccess("preventivi_analisi_costi");
   const puoCreareCommessa = permessi.isAdmin || permessi.canEditOrders;
   const puoVedereCommessa = permessi.isAdmin || permessi.canViewOrders;
   // Mandare il preventivo al cliente (PDF, firma, link) lo cambia: serve poterlo
@@ -178,7 +180,10 @@ export default function QuoteDetail() {
     if (!id || !companyId || duplicando) return;
     setDuplicando(true);
     try {
-      const { id: nuovoId, nonAllegate } = await duplicaPreventivo(id, companyId, { comeRevisione });
+      const { id: nuovoId, nonAllegate, analisiNonCopiata } = await duplicaPreventivo(id, companyId, {
+        comeRevisione,
+        conAnalisiCosti: accessoAnalisi.accessLevel === "enabled" && permessi.canViewCosts && permessi.canViewMargins && permessi.canEditPreventivi,
+      });
       const titolo = comeRevisione ? "Nuova revisione creata" : "Preventivo duplicato";
       const avviso = avvisoSchedeNonAllegate(nonAllegate);
       if (avviso) {
@@ -190,6 +195,7 @@ export default function QuoteDetail() {
             : "La copia parte in bozza: aprila e adattala.",
         });
       }
+      if (analisiNonCopiata) toast.warning("La revisione è stata creata. L’analisi costi è disponibile sull’originale.");
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
       toast.error("Operazione non riuscita", {

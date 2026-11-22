@@ -6,8 +6,9 @@
  * Coordinate della pianta di lavoro: cm, y verso il basso. Rotazione oraria sullo schermo; a 0° il
  * lato d'attacco del simbolo (schienale, cassetta del WC) guarda in alto.
  */
+import { segmentiSiIncrociano } from "../../../../shared/planimetrie/geometria.ts";
 import type { Destinazione } from "../../../../shared/planimetrie/modello.ts";
-import type { Pianta, Punto } from "./adattatore";
+import type { Locale, Pianta, Punto } from "./adattatore";
 import { CATALOGO, type VoceCatalogo } from "./catalogo";
 import { aggiungiElemento, statoNuovo, visibile, type Vista } from "./comandi";
 
@@ -28,6 +29,9 @@ const PROGRAMMA: Partial<Record<Destinazione, Richiesta[]>> = {
   // la piscina e la pergola si mettono a mano (dimensioni e posto sono scelte di progetto)
   giardino: [{ tipo: "barbecue", angolo: true }, { tipo: "tavolo_esterno", centro: true }, { tipo: "siepe", larghezzaMinima: 300 }],
 };
+const CUCINA_SOGGIORNO: Richiesta[] = [
+  { tipo: "cucina", larghezzaMinima: 180 }, { tipo: "divano" }, { tipo: "tavolo", centro: true }, { tipo: "mobile_tv" },
+];
 
 /** Letto singolo o matrimoniale, divano dritto o angolare, cucina lineare o ad angolo: uno basta. */
 const FAMIGLIE = new Set(["letto", "divano", "cucina"]);
@@ -79,12 +83,14 @@ interface Lato {
 }
 
 /** I lati della stanza visti da dentro: filo interno del muro, porte e finestre proiettate. */
-function latiDellaStanza(pianta: Pianta, contorno: Punto[], vista: Vista): { lati: Lato[]; zoneLibere: Rett[] } {
+function latiDellaStanza(pianta: Pianta, { contorno, alFiloInterno }: Locale, vista: Vista): { lati: Lato[]; zoneLibere: Rett[] } {
   const verso = areaConSegno(contorno) > 0 ? 1 : -1; // y in giù: area positiva = senso orario sullo schermo
   const muri = pianta.muri.filter((m) => visibile(m.stato, vista) && m.stato !== "da_demolire");
   const lati: Lato[] = [];
   const zoneLibere: Rett[] = [];
+  const portefinestre: Array<{ n: Punto; spazio: Rett }> = [];
   const mezzoSpessore = (p: Punto, q: Punto) => {
+    if (alFiloInterno) return 0;
     const m = muri.find((x) => {
       const dx = q.x - p.x, dy = q.y - p.y, l = Math.hypot(dx, dy) || 1;
       const dist = (r: Punto) => Math.abs((r.x - p.x) * dy - (r.y - p.y) * dx) / l;
@@ -112,12 +118,14 @@ function latiDellaStanza(pianta: Pianta, contorno: Punto[], vista: Vista): { lat
       const m = muri.find((x) => x.id === ap.muroId);
       if (!m) continue;
       const lm = Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y) || 1;
+      if (Math.abs((m.p2.x - m.p1.x) * u.x + (m.p2.y - m.p1.y) * u.y) / lm < .98) continue;
       const c = { x: m.p1.x + ((m.p2.x - m.p1.x) / lm) * ap.posizione, y: m.p1.y + ((m.p2.y - m.p1.y) / lm) * ap.posizione };
       // l'apertura sta su questo lato se il suo centro è sulla linea del lato
       const fuori = Math.abs((c.x - p.x) * n.x + (c.y - p.y) * n.y);
       const t = (c.x - a.x) * u.x + (c.y - a.y) * u.y;
-      if (fuori > 3 || t < -ap.larghezza / 2 || t > lunghezza + ap.larghezza / 2) continue;
-      const porta = ap.tipo !== "finestra";
+      const atteso = alFiloInterno ? m.spessore / 2 : 0;
+      if (Math.abs(fuori - atteso) > 3 || t < -ap.larghezza / 2 || t > lunghezza + ap.larghezza / 2) continue;
+      const porta = ap.tipo !== "finestra" && ap.sistema !== "fisso";
       const margine = porta ? 10 : 5;
       vietati.push({ da: t - ap.larghezza / 2 - margine, a: t + ap.larghezza / 2 + margine, ...(porta ? {} : { soloAlti: ap.davanzale }) });
       if (porta) {
@@ -128,10 +136,26 @@ function latiDellaStanza(pianta: Pianta, contorno: Punto[], vista: Vista): { lat
           x: c0.x + u.x * k * (ap.larghezza / 2 + margine) + n.x * h,
           y: c0.y + u.y * k * (ap.larghezza / 2 + margine) + n.y * h,
         })));
-        zoneLibere.push({ x0: Math.min(...pts.map((z) => z.x)), y0: Math.min(...pts.map((z) => z.y)), x1: Math.max(...pts.map((z) => z.x)), y1: Math.max(...pts.map((z) => z.y)) });
+        const spazio = { x0: Math.min(...pts.map(z => z.x)), y0: Math.min(...pts.map(z => z.y)),
+          x1: Math.max(...pts.map(z => z.x)), y1: Math.max(...pts.map(z => z.y)) };
+        zoneLibere.push(spazio);
+        if (ap.tipo === "portafinestra" && (Math.abs(n.x) > .999 || Math.abs(n.y) > .999)) portefinestre.push({ n, spazio });
       }
     }
     lati.push({ a, u, n, lunghezza, rotazione, vietati });
+  }
+  // Conserva il percorso rettilineo fra due portefinestre affacciate sullo stesso ambiente.
+  for (const [i, a] of portefinestre.entries()) for (const b of portefinestre.slice(i + 1)) {
+    if (a.n.x * b.n.x + a.n.y * b.n.y > -.999) continue;
+    const nordSud = Math.abs(a.n.y) > .999;
+    const x0 = nordSud ? Math.max(a.spazio.x0, b.spazio.x0) : Math.min(a.spazio.x0, b.spazio.x0);
+    const x1 = nordSud ? Math.min(a.spazio.x1, b.spazio.x1) : Math.max(a.spazio.x1, b.spazio.x1);
+    const y0 = nordSud ? Math.min(a.spazio.y0, b.spazio.y0) : Math.max(a.spazio.y0, b.spazio.y0);
+    const y1 = nordSud ? Math.max(a.spazio.y1, b.spazio.y1) : Math.min(a.spazio.y1, b.spazio.y1);
+    if (Math.min(x1 - x0, y1 - y0) < SPAZIO_PORTA) continue;
+    const sagoma = [{ x: x0 + 1, y: y0 + 1 }, { x: x1 - 1, y: y0 + 1 }, { x: x1 - 1, y: y1 - 1 }, { x: x0 + 1, y: y1 - 1 }];
+    if (sagoma.every(p => dentro(p, contorno)) && !sagoma.some((p, j) => contorno.some((q, k) =>
+      segmentiSiIncrociano(p, sagoma[(j + 1) % 4], q, contorno[(k + 1) % contorno.length])))) zoneLibere.push({ x0, y0, x1, y1 });
   }
   return { lati, zoneLibere };
 }
@@ -169,11 +193,13 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
   const vuoto: EsitoArreda = { pianta, aggiunti: [], saltati: [], giaPresenti: [] };
   if (!locale || locale.contorno.length < 3) return vuoto;
   const dest = destinazione ?? (vista === "progetto" ? pianta.nomiProgetto?.[localeId]?.destinazione : undefined) ?? locale.destinazione;
-  const programma = opzioni.programma ?? PROGRAMMA[dest];
+  const nome = (vista === "progetto" ? pianta.nomiProgetto?.[localeId]?.nome : undefined) ?? locale.nome;
+  const cucinaSoggiorno = (dest === "soggiorno" && /\b(cucina|cottura)\b/i.test(nome)) || (dest === "cucina" && /\b(soggiorno|living)\b/i.test(nome));
+  const programma = opzioni.programma ?? (cucinaSoggiorno ? CUCINA_SOGGIORNO : PROGRAMMA[dest]);
   if (!programma?.length) return vuoto;
 
   const contorno = locale.contorno;
-  const { lati, zoneLibere } = latiDellaStanza(pianta, contorno, vista);
+  const { lati, zoneLibere } = latiDellaStanza(pianta, locale, vista);
   const presenti = (pianta.elementi ?? []).filter((e) => visibile(e.stato, vista) && e.stato !== "da_demolire" && dentro(e.centro, contorno));
   const ostacoli: Rett[] = [...zoneLibere, ...presenti.map((e) => ingombro(e.centro, e.larghezza, e.profondita, e.rotazione))];
   const occupatiPerLato = lati.map(() => [] as Array<{ da: number; a: number }>);
@@ -181,8 +207,10 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
 
   const entra = (c: Punto, w: number, d: number, r: number) => {
     const box = ingombro(c, w, d, r);
-    const angoli = [{ x: box.x0 + 1, y: box.y0 + 1 }, { x: box.x1 - 1, y: box.y0 + 1 }, { x: box.x0 + 1, y: box.y1 - 1 }, { x: box.x1 - 1, y: box.y1 - 1 }];
-    return angoli.every((p) => dentro(p, contorno)) && !ostacoli.some((o) => sovrapposti(o, box)) ? box : null;
+    const angoli = [{ x: box.x0 + 1, y: box.y0 + 1 }, { x: box.x1 - 1, y: box.y0 + 1 }, { x: box.x1 - 1, y: box.y1 - 1 }, { x: box.x0 + 1, y: box.y1 - 1 }];
+    const attraversaBordo = angoli.some((p, i) => contorno.some((q, j) =>
+      segmentiSiIncrociano(p, angoli[(i + 1) % 4], q, contorno[(j + 1) % contorno.length])));
+    return !attraversaBordo && angoli.every(p => dentro(p, contorno)) && !ostacoli.some(o => sovrapposti(o, box)) ? box : null;
   };
   let etichettaCorrente: string | undefined;
   const posa = (voce: VoceCatalogo, centro: Punto, rotazione: number, larghezza = voce.larghezza) => {
@@ -225,7 +253,8 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
 
   const voce = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)!;
   const xs = contorno.map((p) => p.x), ys = contorno.map((p) => p.y);
-  const centroStanza = { x: arrotonda((Math.min(...xs) + Math.max(...xs)) / 2), y: arrotonda((Math.min(...ys) + Math.max(...ys)) / 2) };
+  const minX = Math.min(...xs), minY = Math.min(...ys), dimX = Math.max(...xs) - minX, dimY = Math.max(...ys) - minY;
+  const centroStanza = { x: arrotonda(minX + dimX / 2), y: arrotonda(minY + dimY / 2) };
 
   // Con perNumero: quanti ce ne sono già, per tipo; ognuno «consuma» una richiesta.
   const giaContati = new Map<string, number>();
@@ -278,16 +307,27 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
       if (messo) continue;
     }
     if (req.centro) {
-      // il tavolo in mezzo alla stanza, ruotato secondo il lato lungo; poi le sedie
-      const largo = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys);
-      const r = largo ? 0 : 90;
-      if (!entra(centroStanza, v.larghezza + 100, v.profondita + 100, r)) { esito.saltati.push(v.nome); continue; }
-      posa(v, centroStanza, r);
       const sedia = voce("sedia");
+      const primaRotazione = dimX >= dimY ? 0 : 90;
+      const profonditaConSedie = v.profondita + 2 * (sedia.profondita + PASSO);
+      const entraConSedie = (c: Punto, r: number) => !!entra(c, v.larghezza + 100, profonditaConSedie, r);
+      let scelta = entraConSedie(centroStanza, primaRotazione) ? { c: centroStanza, r: primaRotazione, distanza: 0 } : null;
+      if (!scelta) {
+        for (let i = 1; i < 16; i++) for (let j = 1; j < 16; j++) {
+          const c = { x: arrotonda(minX + i * dimX / 16), y: arrotonda(minY + j * dimY / 16) };
+          const distanza = Math.hypot(c.x - centroStanza.x, c.y - centroStanza.y);
+          if (scelta && scelta.distanza <= distanza) continue;
+          const r = [primaRotazione, 90 - primaRotazione].find(r => entraConSedie(c, r));
+          if (r !== undefined) scelta = { c, r, distanza };
+        }
+      }
+      if (!scelta) { esito.saltati.push(v.nome); continue; }
+      const { c: centro, r } = scelta, largo = r === 0;
+      posa(v, centro, r);
       const lungo = { x: largo ? 1 : 0, y: largo ? 0 : 1 }, corto = { x: largo ? 0 : 1, y: largo ? 1 : 0 };
       for (const lato of [-1, 1]) for (const k of v.larghezza >= 140 ? [-0.25, 0.25] : [0]) {
-        const off = v.profondita / 2 + sedia.profondita / 2 - 5;
-        const c = { x: arrotonda(centroStanza.x + lungo.x * k * v.larghezza + corto.x * lato * off), y: arrotonda(centroStanza.y + lungo.y * k * v.larghezza + corto.y * lato * off) };
+        const off = v.profondita / 2 + sedia.profondita / 2 + PASSO;
+        const c = { x: arrotonda(centro.x + lungo.x * k * v.larghezza + corto.x * lato * off), y: arrotonda(centro.y + lungo.y * k * v.larghezza + corto.y * lato * off) };
         // la sedia guarda il tavolo: lo schienale sta dalla parte opposta
         const rs = (r + (lato > 0 ? 180 : 0) + (largo ? 0 : 180)) % 360;
         if (entra(c, sedia.larghezza, sedia.profondita, rs)) posa(sedia, c, rs);
@@ -420,11 +460,11 @@ export function riscaldamentoStanza(pianta: Pianta, localeId: string, vista: Vis
   if (!locale) return esito;
   const gia = (pianta.elementi ?? []).filter((e) => e.tipo === "termosifone" && e.stato !== "da_demolire" && visibile(e.stato, vista) && dentro(e.centro, locale.contorno));
   if (gia.length) { esito.giaPresenti.push("Termosifone"); return esito; }
-  const { lati } = latiDellaStanza(pianta, locale.contorno, vista);
-  const sotto = lati.flatMap((l) => l.vietati.filter((v) => v.soloAlti != null).map((v) => ({ l, t: (v.da + v.a) / 2 }))).slice(0, 3);
+  const { lati } = latiDellaStanza(pianta, locale, vista);
+  const v = CATALOGO.find((x) => x.tipo === "termosifone")!;
+  const sotto = lati.flatMap((l) => l.vietati.filter((vano) => (vano.soloAlti ?? 0) >= v.altezza).map((vano) => ({ l, t: (vano.da + vano.a) / 2 }))).slice(0, 3);
   const volume = mqDi(locale.contorno) * (locale.altezza / 100);
   const watt = Math.round((volume * 40) / Math.max(1, sotto.length) / 50) * 50;
-  const v = CATALOGO.find((x) => x.tipo === "termosifone")!;
   const larghezza = Math.min(160, Math.max(60, Math.round(watt / 15 / 10) * 10)); // ~150 W ogni 10 cm di radiatore
   const voce = { ...v, larghezza, etichetta: `${watt.toLocaleString("it-IT")} W` };
   if (sotto.length) {

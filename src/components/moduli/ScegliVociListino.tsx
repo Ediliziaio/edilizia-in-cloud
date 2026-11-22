@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { chiedeQuantita, dettaglioNelPicker, prodottoInRiga, type VerticaleModulo } from "@/lib/moduli/prodottiListino";
 import { usePrezzarioVociGlobalSearch } from "@/lib/prezzario/queries";
+import { unitaCompatibili } from "@/lib/prezzario/confronto";
 import { GRUPPI_LAVORAZIONE, gruppoLavorazione } from "@/lib/tariffe/costoLavorazione";
 import { costoTariffa, unitaTariffa, type CostiTariffa } from "@/lib/listino/costoTariffa";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ interface Props {
   vociPresenti?: readonly string[];
   /** I capitoli del computo: dal pulsante generale si può scegliere dove mettere le voci. */
   capitoliComputo?: readonly string[];
+  unitaPrezzo?: string;
   fonti: FontiModulo;
 }
 
@@ -95,8 +97,9 @@ function useVociAzienda(attivo: boolean) {
   });
 }
 
-function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuantita, onPrezzo, onUnita, onConferma }: {
+function Voce({ riga, scelta, presente, conFocus, mostraCampi, onFocusPreso, onCambia, onQuantita, onPrezzo, onUnita, onConferma }: {
   riga: RigaScelta; scelta?: { quantita: string; prezzo: string; unita?: string }; presente: boolean; conFocus: boolean; onFocusPreso: () => void;
+  mostraCampi: boolean;
   onCambia: () => void; onQuantita: (q: string) => void; onPrezzo: (p: string) => void; onUnita: (u: string) => void; onConferma: () => void;
 }) {
   const [aperta, setAperta] = useState(false);
@@ -131,7 +134,7 @@ function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuan
         <span className="block text-sm font-semibold tabular-nums text-slate-900">{formatCurrency(riga.prezzo)}</span>
         <span className="block text-[10px] text-muted-foreground">{riga.unitaLabel}</span>
       </span>
-      {scelta && (
+      {scelta && mostraCampi && (
         <span className="flex w-full items-center justify-end gap-3 text-xs text-muted-foreground sm:w-auto">
           <label className="flex items-center gap-1.5">
             <span className="sm:hidden">Quantità</span>
@@ -208,7 +211,7 @@ function muoviTraSpunte(e: KeyboardEvent<HTMLElement>, contenitore: HTMLElement 
   spunte[prossima].focus();
 }
 
-export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, vociPresenti = [], capitoliComputo = [], fonti }: Props) {
+export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, vociPresenti = [], capitoliComputo = [], fonti, unitaPrezzo }: Props) {
   const isMobile = useIsMobile();
   const [termine, setTermine] = useState("");
   const [fonte, setFonte] = useState<"listino" | "prezzario">("listino");
@@ -321,7 +324,9 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
   const caricamento = fonte === "prezzario" ? prezzario.isFetching : lavorazioni.isFetching || prodotti.isFetching || articoli.isFetching || tariffe.isFetching;
   const chiaveElenco = JSON.stringify([fonte, schedaVista.tipo, schedaId, cercato]);
   const quanteMostrate = filtroMostrate.elenco === chiaveElenco ? filtroMostrate.quante : RIGHE_MOSTRATE;
-  const elenco = righe.slice(0, quanteMostrate);
+  const ammesse = unitaPrezzo ? righe.filter(r => !r.blocco && Number.isFinite(r.prezzo) && r.prezzo > 0 &&
+    unitaCompatibili(r.voce.sourceUnit?.trim() || r.voce.unita_originale, unitaPrezzo)) : righe;
+  const elenco = ammesse.slice(0, quanteMostrate);
   const conto = totaleScelte([...scelte.values()], mapUnita);
   const nScelte = scelte.size;
   // Le fonti danno al massimo 40 voci: se si tocca il tetto, sfogliando non si vedrebbe tutto.
@@ -335,8 +340,9 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
   const cambia = (r: RigaScelta) => {
     if (r.blocco) return;
     const nuova = !scelte.has(r.chiave);
-    setConFocus(nuova && r.chiedeQuantita ? r.chiave : null);
+    setConFocus(!unitaPrezzo && nuova && r.chiedeQuantita ? r.chiave : null);
     setScelte((prima) => {
+      if (unitaPrezzo) return prima.has(r.chiave) ? new Map() : new Map([[r.chiave, { riga: r, quantita: "1", prezzo: prezzoInCampo(r.prezzo) }]]);
       const dopo = new Map(prima);
       if (dopo.has(r.chiave)) dopo.delete(r.chiave); else dopo.set(r.chiave, { riga: r, quantita: r.chiedeQuantita ? "" : "1", prezzo: prezzoInCampo(r.prezzo) });
       return dopo;
@@ -381,9 +387,9 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         onOpenAutoFocus={(e) => { if (isMobile) e.preventDefault(); }}
       >
         <DialogHeader className="shrink-0 space-y-0 border-b px-4 py-3 pr-12 text-left">
-          <DialogTitle className="text-base">Aggiungi voci al computo</DialogTitle>
+          <DialogTitle className="text-base">{unitaPrezzo ? "Scegli il prezzo unitario" : "Aggiungi voci al computo"}</DialogTitle>
           <DialogDescription className="text-xs max-sm:hidden">
-            {targetCapitolo ? <>Vanno nel capitolo <strong>{targetCapitolo}</strong>. </> : null}Spunta quelle che ti servono e scrivi la quantità.
+            {unitaPrezzo ? `Voci quotate in €/${unitaPrezzo}.` : <>{targetCapitolo ? <>Vanno nel capitolo <strong>{targetCapitolo}</strong>. </> : null}Spunta quelle che ti servono e scrivi la quantità.</>}
           </DialogDescription>
         </DialogHeader>
 
@@ -425,7 +431,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
                     )}
                     <Voce
                       riga={r} scelta={scelte.get(r.chiave)} presente={voceGiaPresente(r.descrizione, presenti)}
-                      conFocus={conFocus === r.chiave} onFocusPreso={() => setConFocus(null)}
+                      conFocus={conFocus === r.chiave} mostraCampi={!unitaPrezzo} onFocusPreso={() => setConFocus(null)}
                       onCambia={() => cambia(r)} onQuantita={(q) => quantita(r.chiave, q)} onPrezzo={(p) => prezzo(r.chiave, p)} onUnita={(u) => unita(r.chiave, u)} onConferma={conferma}
                     />
                   </Fragment>
@@ -433,13 +439,13 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
               </ul>
             ) : !caricamento && (
               <p className="p-8 text-center text-sm text-muted-foreground">
-                {schedaVista.tipo === "scelte" ? "Non hai ancora scelto nessuna voce." : fonte === "prezzario" && cercato.trim().length < 2 ? "Scrivi almeno 2 lettere per cercare nel prezzario." : "Nessuna voce trovata. Prova un'altra parola, o aggiungi una voce libera."}
+                {schedaVista.tipo === "scelte" ? "Non hai ancora scelto nessuna voce." : fonte === "prezzario" && cercato.trim().length < 2 ? "Scrivi almeno 2 lettere per cercare nel prezzario." : unitaPrezzo ? `Nessuna voce con prezzo in €/${unitaPrezzo}. Prova un’altra ricerca.` : "Nessuna voce trovata. Prova un'altra parola, o aggiungi una voce libera."}
               </p>
             )}
-            {righe.length > elenco.length && (
+            {ammesse.length > elenco.length && (
               <div className="p-3 text-center">
                 <Button type="button" variant="outline" size="sm" onClick={() => setFiltroMostrate({ elenco: chiaveElenco, quante: quanteMostrate + RIGHE_MOSTRATE })}>
-                  Mostra altre voci ({righe.length - elenco.length})
+                  Mostra altre voci ({ammesse.length - elenco.length})
                 </Button>
               </div>
             )}
@@ -448,9 +454,9 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3 border-t bg-muted/30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={voceLibera} disabled={conto.mancanti > 0}>
+          {!unitaPrezzo && <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={voceLibera} disabled={conto.mancanti > 0}>
             <PlusCircle className="h-4 w-4" />{termine.trim() ? `Voce libera: «${termine.trim().slice(0, 30)}»` : "Voce libera"}
-          </Button>
+          </Button>}
           {capitoliDestinazione.length > 0 && (
             <UniformSelect
               aria-label="Capitolo in cui mettere le voci" value={capitoloScelto} onChange={(e) => setCapitoloScelto(e.target.value)}
@@ -467,7 +473,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
                 {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">{conto.unitaDaScegliere > 0 ? "scegli l'unità" : conto.prezziDaCorreggere > 0 ? "controlla il prezzo" : "scrivi la quantità"}</Badge>}
               </button>
             )}
-            <Button type="button" onClick={conferma} disabled={!conto.voci.length || conto.mancanti > 0}>Aggiungi al computo</Button>
+            <Button type="button" onClick={conferma} disabled={!conto.voci.length || conto.mancanti > 0}>{unitaPrezzo ? "Usa questo prezzo" : "Aggiungi al computo"}</Button>
           </div>
         </div>
       </DialogContent>

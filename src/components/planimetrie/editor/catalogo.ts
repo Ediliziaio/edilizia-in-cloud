@@ -19,6 +19,7 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "lavabo", nome: "Lavabo", gruppo: "Bagno", larghezza: 60, profondita: 45, altezza: 85 },
   { tipo: "doccia", nome: "Doccia", gruppo: "Bagno", larghezza: 80, profondita: 80, altezza: 200 },
   { tipo: "vasca", nome: "Vasca", gruppo: "Bagno", larghezza: 170, profondita: 70, altezza: 55 },
+  { tipo: "specchio_parete", nome: "Specchio a parete", gruppo: "Bagno", larghezza: 60, profondita: 4, altezza: 185 },
   { tipo: "lavatrice", nome: "Lavatrice", gruppo: "Bagno", larghezza: 60, profondita: 60, altezza: 85 },
   { tipo: "cucina", nome: "Cucina lineare", gruppo: "Cucina", larghezza: 240, profondita: 60, altezza: 90 },
   { tipo: "cucina_angolare", nome: "Cucina ad angolo", gruppo: "Cucina", larghezza: 300, profondita: 240, altezza: 90 },
@@ -35,10 +36,12 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "divano", nome: "Divano 3 posti", gruppo: "Soggiorno", larghezza: 210, profondita: 90, altezza: 85 },
   { tipo: "divano_angolare", nome: "Divano angolare", gruppo: "Soggiorno", larghezza: 280, profondita: 170, altezza: 85 },
   { tipo: "poltrona", nome: "Poltrona", gruppo: "Soggiorno", larghezza: 85, profondita: 85, altezza: 90 },
+  { tipo: "lampada_piantana", nome: "Lampada a piantana", gruppo: "Soggiorno", larghezza: 35, profondita: 35, altezza: 154 },
+  { tipo: "tavolino", nome: "Tavolino", gruppo: "Soggiorno", larghezza: 102, profondita: 60, altezza: 42 },
   { tipo: "mobile_tv", nome: "Mobile TV", gruppo: "Soggiorno", larghezza: 180, profondita: 45, altezza: 50 },
   { tipo: "libreria", nome: "Libreria", gruppo: "Soggiorno", larghezza: 160, profondita: 35, altezza: 200 },
   { tipo: "tavolo_rotondo", nome: "Tavolo rotondo", gruppo: "Soggiorno", larghezza: 110, profondita: 110, altezza: 75 },
-  { tipo: "auto", nome: "Auto", gruppo: "Esterni e garage", larghezza: 180, profondita: 450, altezza: 150 },
+  { tipo: "auto", nome: "Auto", gruppo: "Esterni e garage", larghezza: 190, profondita: 400, altezza: 144 },
   { tipo: "scaffale", nome: "Scaffalatura", gruppo: "Esterni e garage", larghezza: 300, profondita: 100, altezza: 400 },
   { tipo: "banco_lavoro", nome: "Banco da lavoro", gruppo: "Esterni e garage", larghezza: 200, profondita: 80, altezza: 90 },
   { tipo: "caldaia", nome: "Caldaia", gruppo: "Impianti", larghezza: 45, profondita: 35, altezza: 75 },
@@ -58,7 +61,7 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "termostato", nome: "Termostato", gruppo: "Impianti", larghezza: 14, profondita: 6, altezza: 150 },
   { tipo: "vmc", nome: "VMC (ventilazione)", gruppo: "Impianti", larghezza: 60, profondita: 45, altezza: 260 },
   // Giardino e piscina: fuori casa, a terra (la piscina è interrata: in pianta il bordo e l'acqua)
-  { tipo: "piscina", nome: "Piscina", gruppo: "Giardino e piscina", larghezza: 800, profondita: 400, altezza: 0 },
+  { tipo: "piscina", nome: "Piscina", gruppo: "Giardino e piscina", larghezza: 350, profondita: 650, altezza: 140 },
   { tipo: "idromassaggio", nome: "Minipiscina idromassaggio", gruppo: "Giardino e piscina", larghezza: 220, profondita: 220, altezza: 0 },
   { tipo: "pergola", nome: "Pergola", gruppo: "Giardino e piscina", larghezza: 400, profondita: 300, altezza: 250 },
   { tipo: "albero", nome: "Albero", gruppo: "Giardino e piscina", larghezza: 300, profondita: 300, altezza: 0 },
@@ -108,5 +111,8 @@ export const IMMAGINI_SIMBOLI: ReadonlySet<string> = new Set<string>([]);
 export const urlImmagineSimbolo = (tipo: string) => (IMMAGINI_SIMBOLI.has(tipo) ? `/planimetrie/simboli/${tipo}.png` : null);
 
 export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Giardino e piscina", "Sport", "Impianti", "Energia", "Struttura"] as const;
+export const GRUPPI_ARREDO_3D = ["Soggiorno", "Bagno", "Cucina", "Camere", "Esterni e garage", "Giardino e piscina"] as const;
+export const CATALOGO_ARREDI_3D = CATALOGO.filter(a => GRUPPI_ARREDO_3D.some(g => g === a.gruppo));
+export const TIPI_ARREDO_3D = new Set(CATALOGO_ARREDI_3D.map(a => a.tipo));
 
 export const nomeDelTipo = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)?.nome ?? tipo.replace(/_/g, " ");

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, memo, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { aiEditorDraft, applyAiEditorDraft, applyAiEditorProject } from '@/lib/preventivi/quoteAiEditorBridge';
 import { BAGNI_AI_MODELS, bagniFlowModel, type QuoteAiFlow, type LocalBagniDraft } from '@/lib/preventivi/quoteBagniBridge';
 import { assessQuoteRequest, asksQuoteCurrentValues, quoteCurrentStateEvidence, quoteCurrentValues, quoteRequestGuidance } from '@/lib/preventivi/quoteRequestContext';
@@ -7,6 +7,7 @@ import { emptyQuoteTax, readQuoteTax, quoteTaxItems, quoteTaxTotals, quoteTaxCom
 import { quoteScheduleIntent, quoteScheduleReply, quoteScheduleEvidence, quoteScheduleScope, quoteScheduleDocumentText, readLocalQuoteSchedule } from '@/lib/preventivi/quoteSchedule';
 import { planningChatIntent } from '@/lib/preventivi/quotePlanningChat';
 import { margineChatIntent, margineChatReply } from '@/lib/preventivi/margineChat';
+import { leggiComandiCostoSilvio, MESSAGGIO_AI_COSTI_SILVIO, MESSAGGIO_AI_COSTO_SILVIO, type ControlliCostiSilvio, type RichiestaCostoSilvio, type RiscontroCostoSilvio } from '@/lib/preventivi/modificaCostoSilvio';
 import { useQuoteChatScroll } from './useQuoteChatScroll';
 const QuotePlanningChat = lazy(() => import('./QuotePlanningChat'));
 import { QuoteTaxPanel } from './QuoteTaxPanel';
@@ -22,7 +23,8 @@ const BagniQuoteEditor = lazy(() => import('./QuoteBagniEditor'));
 import type { QuoteDraft } from '@/lib/preventivi/quoteDraft';
 import { wizardAiCommercial } from '@/lib/preventivi/wizardAiCommercial';
 const ClassicQuoteEditor = lazy(() => import('@/pages/azienda/marketing/QuoteBuilder'));
-import { ThinkingProgress } from "@/components/ui/thinking-prompt-input";
+import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
+import { useIsMobile } from '@/hooks/use-mobile';
 import { QuoteChatComposer, type QuoteComposerAction } from './QuoteChatComposer';
 import type { QuoteAudioTranscriber } from './QuoteVoiceDialog';
 import { outsideSupportingDocuments } from '@/lib/preventivi/quoteSupportingDocuments';
@@ -37,7 +39,7 @@ import { QuoteFormulaSuggestions } from './QuoteFormulaSuggestions';
 import { guardQuoteFormulaTurn, QUOTE_FORMULA_REQUEST } from '@/lib/preventivi/quoteCalculations';
 import { simulatePlanConversation } from "@/lib/preventivi/devPlanConversation";
 import type { QuoteChatRequest } from "../../../../supabase/functions/_shared/quoteConversation";
-import QuoteLineEditor from "./QuoteLineEditor";
+import QuoteLineEditor, { QuoteComputoLines, type ComputoLineMetadata, type QuoteLineActions } from "./QuoteLineEditor";
 import { QuoteChatResponse } from "./QuoteChatResponse";
 import { QuoteChatChoices } from "./QuoteChatChoices";
 import { QuoteTurnDetails } from './QuoteTurnDetails';
@@ -86,10 +88,13 @@ import { fetchQuoteModelCosts, quoteModelCostText } from "@/lib/preventivi/quote
 import { prepareQuoteVision } from '@/lib/preventivi/quoteVision';
 import { type QuoteAdvancedModel } from '../../../../supabase/functions/_shared/quoteAdvanced';
 import { QuotePreliminaryBudget } from './QuotePreliminaryBudget';
+import type { WizardAiChange } from '@/lib/preventivi/wizardAiDraft';
+import { ConversazioneProgettoSilvio, riferimentoProgettoSilvio } from '../conversazioneProgettoSilvio';
+import type { OrigineComputoPianta } from '@/lib/computo/computoDallaPianta';
 import "./QuoteAiSimulation.css";
 import './QuoteChatComposer.css';
 
-type Message = LocalChatMessage;
+type Message = LocalChatMessage & { replyKey?: string };
 const planActions = ["Analizza la planimetria di esempio", "Solo camera in alto a sinistra, terrazzi esclusi", "Confermo 4,61 × 4,25 m netti; rifai pavimento e tinteggiatura"];
 const actionLabel = (action: string, message: string) => {
   if (action.startsWith('Applica esempio bagno da 12.000 € netti')) return 'Mostra proposta da 12.000 € netti';
@@ -118,13 +123,26 @@ type WorkspaceProps = {
     initial?: WizardAiSnapshot;
     onSnapshot?: (state: WizardAiSnapshot) => void;
     savedLocally?: boolean;
-    preview: (document: ChatDocument) => ReactNode;
+    preview: (document: ChatDocument, visible?: boolean) => ReactNode;
+    costPreview?: (document: ChatDocument, controlli: ControlliCostiSilvio) => ReactNode;
+    costEditable?: boolean;
+    proposedWork?: WizardAiChange[];
+    lineMetadata?: Record<string, ComputoLineMetadata>;
     /** Fonte di prezzi fissa fin dall'apertura (es. il listino aziendale del computo). */
     fixedSourceId?: string;
     /** Un file da leggere subito, già allegato (es. la planimetria caricata nel passo Progetto del computo). */
     initialFile?: File;
+    initialInput?: string;
+    progettoCollegato?: OrigineComputoPianta;
+    sessionId?: string;
   };
 };
+const SchedaCostiComputo = memo(function SchedaCostiComputo({ render, document, richiesta, onRiscontro }: ControlliCostiSilvio & {
+  render: (document: ChatDocument, controlli: ControlliCostiSilvio) => ReactNode;
+  document: ChatDocument;
+}) {
+  return <>{render(document, { richiesta, onRiscontro })}</>;
+});
 export default function QuoteAssistedWorkspace(props: WorkspaceProps) {
   // Changing tenant or backend mode unmounts the old request owner synchronously.
   const key = `${props.ownerId}:${props.companyId}:${props.simulated ?? true}:${props.memoryMode}:${props.flow ?? props.scenarioId ?? "main"}:${props.localTrialId ?? ''}`;
@@ -141,6 +159,11 @@ function LocalPlanPreview({ blob, name, reading, selected }: { blob: Blob; name:
   return blob.type.startsWith("image/") ? <div className="quote-plan-image" style={{ aspectRatio: reading ? `${reading.width}/${reading.height}` : undefined }}><img ref={image} alt={`Planimetria locale: ${name}`} />{selected && <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="Posizione del testo dell’ambiente selezionato"><rect x={selected.bbox[0]} y={selected.bbox[1]} width={selected.bbox[2]} height={selected.bbox[3]} fill="#fb923c44" stroke="#e65e13" strokeWidth=".004" /></svg>}</div> : <p>PDF conservato solo nel browser. Scegli una pagina scrivendo «pagina 2». Le posizioni dei testi sono riportate sotto, senza anteprima grafica del PDF.</p>;
 }
 function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "Demo Azienda 2", ownerId, localTrialId, onBack, transport, simulated = true, memory, scenarioId, onScenario, templateLibrary, transcribeAudio, cadReader, flow, embedded }: WorkspaceProps & { memory?: MemoryProps }) {
+  const proposteComputo = embedded?.proposedWork;
+  const computoLayout = proposteComputo !== undefined;
+  const smallViewport = useIsMobile(1051);
+  const pannelloSingolo = computoLayout && smallViewport;
+  const computoAffiancato = computoLayout && !pannelloSingolo;
   const initial = embedded?.initial?.snapshot ?? memory?.initial.snapshot;
   const scenario = quoteSimulationScenario(scenarioId);
   const [document, setDocument] = useState<ChatDocument>(() => initial?.document ?? (embedded ? structuredClone(embedded.document) : { ...emptyChatDocument(), ...(scenario ? { title: scenario.title } : {}) }));
@@ -153,12 +176,15 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   const [bagniDraft, setBagniDraft] = useState<LocalBagniDraft | undefined>(initial?.bagniDraft);
   const nativeBagniDraft: LocalBagniDraft | undefined = bagniModel ? bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } : undefined;
   const [editorOpen, setEditorOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(() => embedded && !initial ? [{ role: 'assistant', text: `Lavoriamo su **${embedded.title}**. Dimmi cosa c'è da fare, anche a voce: ti propongo le voci con le quantità e da dove vengono. Puoi allegare una planimetria o una foto, dettarmi i tuoi prezzi («scavo 12 euro al mc») oppure chiedermi prezzi indicativi di mercato, che segno come stime da verificare. Le righe che ci sono restano protette e niente cambia nel preventivo finché non confermi.` }] : initial ? [...initial.messages.map(m => {
+  const conversazione = useContext(ConversazioneProgettoSilvio);
+  const [localMessages, setLocalMessages] = useState<Message[]>(() => embedded && !initial ? [{ role: 'assistant', text: computoLayout ? 'Descrivi i lavori o allega una planimetria. Ti propongo le voci con quantità, prezzi disponibili e dati da completare.' : `Lavoriamo su **${embedded.title}**. Dimmi cosa c'è da fare, anche a voce: ti propongo le voci con le quantità e da dove vengono. Puoi allegare una planimetria o una foto, dettarmi i tuoi prezzi («scavo 12 euro al mc») oppure chiedermi prezzi indicativi di mercato, che segno come stime da verificare. Le righe che ci sono restano protette e niente cambia nel preventivo finché non confermi.` }] : initial ? [...initial.messages.map(m => {
     const choices = m.role === "assistant" && m.choices == null ? legacyQuoteChoices(m.text) : [];
     return choices.length ? { ...m, choices, choiceRevision: initial.document.revision } : m;
   }), ...(initial.interrupted ? [{ role: "assistant" as const, text: "Ho ripreso la bozza. L’ultima operazione è stata interrotta dalla ricarica e non viene rilanciata automaticamente. Per la planimetria scrivi «leggi planimetria»." }] : [])].slice(-50) : scenario ? [{ role: "assistant", text: `**Simulazione: ${scenario.label}.**\n\nQuesta è una bozza locale separata dal progetto principale. Il testo di partenza è pronto nel campo messaggio: puoi cambiarlo prima di inviarlo all’AI. Tutte le voci restano modificabili; prezzi senza riferimento verificato restano da definire. Nessuna chiamata è stata avviata automaticamente, nessun invio ai clienti.`, actions: ["Mostra prezzari", "Mostra simulazioni", "Torna al progetto principale"] }] : newIntro(simulated, flow));
+  const messages = conversazione?.messaggi ?? localMessages;
+  const setMessages = conversazione?.setMessaggi ?? setLocalMessages;
   // The workflow starts outside chat. No graphical model picker is inserted here.
-  const [input, setInput] = useState(initial?.input ?? scenario?.prompt ?? ""); const [busy, setBusy] = useState(false);
+  const [input, setInput] = useState(initial?.input ?? embedded?.initialInput ?? scenario?.prompt ?? ""); const [busy, setBusy] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [progress, setProgress] = useState<QuoteProgress | null>(null);
   const streamingReply = useRef<QuoteStreamingReplyHandle>(null);
@@ -166,6 +192,36 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   const [dossier, setDossier] = useState<QuoteDossierPage[]>(() => initial?.dossier ?? (initial?.plan ? [quotePlanDossierPage(initial.plan)].filter((p): p is QuoteDossierPage => p !== null) : []));
   const [dossierOpen, setDossierOpen] = useState(false);
   const [pane, setPane] = useState("chat");
+  const [sidePane, setSidePane] = useState('lines');
+  const elencoComputo = useRef<HTMLDivElement>(null);
+  const [replyKey, setReplyKey] = useState<string | null>(null);
+  const costPreview = embedded?.costPreview;
+  const pdfPreview = embedded?.preview;
+  const activePane = computoAffiancato || (pane === 'costs' && !costPreview) ? 'chat' : pane;
+  const activeSidePane = sidePane === 'costs' && !costPreview ? 'lines' : sidePane;
+  const schedaComputo = computoAffiancato ? activeSidePane : activePane;
+  const mostraCosti = computoLayout && schedaComputo === 'costs';
+  const mostraPdf = schedaComputo === 'pdf';
+  const [costiVisitati, setCostiVisitati] = useState(false);
+  const [richiestaCosto, setRichiestaCosto] = useState<RichiestaCostoSilvio | null>(null);
+  const sequenzaCosti = useRef(0);
+  const selezionaScheda = (valore: string, affiancata: boolean) => {
+    if (valore === 'costs') setCostiVisitati(true);
+    (affiancata ? setSidePane : setPane)(valore);
+  };
+  const anteprimaComputo = useMemo(() => computoLayout ? pdfPreview?.(document, mostraPdf) : null, [computoLayout, document, mostraPdf, pdfPreview]);
+  const apriVoci = () => {
+    if (computoAffiancato) setSidePane('lines');
+    else setPane('lines');
+    if (computoLayout) requestAnimationFrame(() => {
+      const panel = elencoComputo.current;
+      const voce = panel?.querySelector<HTMLButtonElement>('.quote-computo-line[data-kind] button');
+      if (voce) {
+        voce.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        voce.focus({ preventScroll: true });
+      } else panel?.querySelector<HTMLInputElement>('input[type=search]')?.focus({ preventScroll: true });
+    });
+  };
   const [projectTools, setProjectTools] = useState(false);
   const [taxOpen, setTaxOpen] = useState(false);
   const planningEnabled = companyId === 'd2000000-0000-4000-a000-000000000002';
@@ -207,11 +263,47 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   const sources = usePrezzarioFonti(!simulated && (needSources || !!sourceId || messages.some(message => !!message.sources?.length)));
   const sourceNotice = useRef(false);
   const generation = useRef(0); const controller = useRef<AbortController | null>(null);
-  const session = useRef(initial?.sessionId ?? crypto.randomUUID());
+  const session = useRef(initial?.sessionId ?? embedded?.sessionId ?? crypto.randomUUID());
   const log = useRef<HTMLDivElement>(null);
-  const chatScroll = useQuoteChatScroll(log, `${messages.length}:${messages.at(-1)?.text ?? ''}`, pane === 'chat' && !editorOpen);
+  const chatScroll = useQuoteChatScroll(log, `${messages.length}:${messages.at(-1)?.text ?? ''}`, activePane === 'chat' && !editorOpen);
   const append = (m: Message) => setMessages(prev => [...prev, m].slice(-50));
-  const appendDiagnostic = (m: Message) => append({ ...m, diagnostic: true });
+  const appendDiagnostic = useCallback((m: Message) => setMessages(prev => [...prev, { ...m, diagnostic: true }].slice(-50)), [setMessages]);
+  const riceviRiscontroCosto = useCallback(async (id: number, riscontro: RiscontroCostoSilvio) => {
+    if (richiestaCosto?.id !== id) return;
+    setRichiestaCosto(null);
+    if (riscontro.errore) {
+      appendDiagnostic({ role: 'assistant', text: riscontro.errore });
+      return;
+    }
+    if (!transport || simulated || controller.current) {
+      appendDiagnostic({ role: 'assistant', text: 'Il confronto del margine è pronto nella scheda «Analisi costi».' });
+      return;
+    }
+    const run = ++generation.current;
+    const ctrl = new AbortController();
+    controller.current = ctrl;
+    setOperation('chat');
+    setElapsedSeconds(0);
+    setBusy(true);
+    try {
+      const result = await transport({
+        version: 1, companyId, sessionId: session.current, turnId: crypto.randomUUID(), revision: current.current.revision,
+        sourceId: null, messages: [{ role: 'user', text: richiestaCosto.comandi.length > 1 ? MESSAGGIO_AI_COSTI_SILVIO : MESSAGGIO_AI_COSTO_SILVIO }], lines: [],
+        advanced: { model: preferredModel, mode: 'conversation' },
+      }, ctrl.signal);
+      if (ctrl.signal.aborted || run !== generation.current) return;
+      setModel(result.model);
+      appendDiagnostic({ role: 'assistant', text: coherentQuoteReply(result.turn.message) });
+    } catch {
+      if (!ctrl.signal.aborted && run === generation.current) {
+        appendDiagnostic({ role: 'assistant', text: 'Silvio non è riuscito a rispondere. Il confronto del margine è disponibile in «Analisi costi».' });
+      }
+    } finally {
+      if (run === generation.current) { controller.current = null; setBusy(false); }
+    }
+  }, [appendDiagnostic, companyId, preferredModel, richiestaCosto, simulated, transport]);
+  const contenutoCosti = (mostraCosti || costiVisitati) && costPreview
+    ? <SchedaCostiComputo render={costPreview} document={document} richiesta={richiestaCosto} onRiscontro={riceviRiscontroCosto} /> : null;
   // Un file che non si legge è un avviso vicino al campo, non una risposta di Silvio che resta in chat.
   const [avvisoAllegato, setAvvisoAllegato] = useState<string | null>(null);
   const visibile = (m: Message) => !isQuoteProviderNotice(m) && (strumentiAI || !isMessaggioStrumentiAI(m));
@@ -235,7 +327,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   const save = memory?.save;
   const snapshotChange = embedded?.onSnapshot;
   useEffect(() => {
-    const snapshot: LocalQuoteSnapshot = { version: 1, document, messages, input, project, pendingEdits, sessionId: session.current, sourceId, model, preferredModel, budgetFollowUp, savedBudget, interrupted: busy || preparingAttachment, plan, rooms, selectedRoom, rectangle, scopeFacts, roomDecisions, ...(templateId === undefined ? {} : { templateId }), ...(classicDraft ? { classicDraft: aiEditorDraft(document, classicDraft, project) } : {}), ...(bagniModel ? { bagniDraft: bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } } : {}), ...(brief == null ? {} : { brief }) };
+    const snapshot: LocalQuoteSnapshot = { version: 1, document, messages: messages.map(({ replyKey: _replyKey, ...message }) => message), input, project, pendingEdits, sessionId: session.current, sourceId, model, preferredModel, budgetFollowUp, savedBudget, interrupted: busy || preparingAttachment, plan, rooms, selectedRoom, rectangle, scopeFacts, roomDecisions, ...(templateId === undefined ? {} : { templateId }), ...(classicDraft ? { classicDraft: aiEditorDraft(document, classicDraft, project) } : {}), ...(bagniModel ? { bagniDraft: bagniDraft ?? { modelId: bagniModel, clientName: '', iva: null, rows: [] } } : {}), ...(brief == null ? {} : { brief }) };
     save?.({ ...snapshot, componentDecisions, dossier, cad }, planBlob);
     snapshotChange?.({ snapshot: { ...snapshot, componentDecisions, dossier, cad }, blob: planBlob });
   }, [save, snapshotChange, document, messages, input, project, pendingEdits, sourceId, model, preferredModel, budgetFollowUp, savedBudget, busy, preparingAttachment, plan, rooms, selectedRoom, rectangle, planBlob, brief, scopeFacts, roomDecisions, componentDecisions, dossier, cad, templateId, classicDraft, bagniModel, bagniDraft]);
@@ -247,7 +339,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   }, [needSources, simulated, sources.data, sources.error, sources.isFetching]);
   const change = (next: ChatDocument) => {
     // Editing while waiting invalidates the entire old result, not only its prices.
-    if (controller.current) { generation.current++; controller.current.abort(); controller.current = null; setBusy(false); }
+    if (controller.current) { generation.current++; controller.current.abort(); controller.current = null; setReplyKey(null); setBusy(false); }
     if (JSON.stringify(next) !== JSON.stringify(current.current)) { undo.current = [...undo.current.slice(-9), current.current]; setUndoDepth(undo.current.length); }
     current.current = next; setDocument(next);
   };
@@ -321,6 +413,28 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     }
     text = text.trim(); if (!text || text.length > 3000 || controller.current || memory?.blocked) return;
     chatScroll.followNextMessage();
+    const comandiCosto = computoLayout ? leggiComandiCostoSilvio(text) : undefined;
+    if (comandiCosto !== undefined) {
+      clearSubmittedInput(text);
+      if (!costPreview || !embedded?.costEditable) {
+        appendDiagnostic({ role: 'assistant', text: 'Per modificare i costi serve l’accesso in scrittura all’analisi del computo.' });
+        return;
+      }
+      if (!comandiCosto) {
+        appendDiagnostic({ role: 'assistant', text: 'Indica nome e nuovo costo. Per più risorse, separa le richieste con un a capo. Esempio\n«Porta il costo del Sigillante della voce DEMO-098 a 11 €/m²».' });
+        return;
+      }
+      appendDiagnostic({ role: 'user', text: comandiCosto.length > 1 ? 'Modifica insieme i costi delle risorse indicate.' : 'Modifica il costo di una risorsa del computo.' });
+      setRichiestaCosto({ id: ++sequenzaCosti.current, comandi: comandiCosto });
+      selezionaScheda('costs', computoAffiancato);
+      return;
+    }
+    if (computoLayout && /^(?:mostra|apri) (?:l['’])?analisi (?:dei )?costi[.!]?$/i.test(text)) {
+      clearSubmittedInput(text);
+      if (!costPreview) appendDiagnostic({ role: 'assistant', text: 'L’analisi costi è disponibile per gli utenti abilitati.' });
+      else selezionaScheda('costs', computoAffiancato);
+      return;
+    }
     if (cad && /^Usa stato di (?:fatto|progetto) del DWG$/i.test(text)) {
       setCad({ ...cad, selectedState: /progetto/i.test(text) ? 'project' : 'existing' }); clearSubmittedInput(text);
       append({ role: 'user', text }); append({ role: 'assistant', text: 'Riferimento registrato. Quale porzione e quali lavorazioni vuoi preventivare? Le tavole e le misure vanno ancora verificate; nessuna voce è stata inserita.' }); return;
@@ -358,7 +472,14 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     }
     const reviewEdit = /^Conferma modifiche proposte · revisione (\d+)$/.exec(text);
     if (reviewEdit) {
-      try { if (!pendingEdits || pendingEdits.revision !== Number(reviewEdit[1])) throw new Error('Richiedi una nuova proposta di modifica.'); change(applyProtectedQuoteEdits(current.current, pendingEdits.proposals, pendingEdits.revision)); setPendingEdits(null); appendDiagnostic({ role: 'assistant', text: 'Modifiche approvate e applicate. Prezzi conservati salvo cambio unità; inclusione da rivedere. I vecchi costi non vengono considerati validi se cambiano specifiche o quantità.' }); } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); }
+      try {
+        if (!pendingEdits || pendingEdits.revision !== Number(reviewEdit[1])) throw new Error('Richiedi una nuova proposta di modifica.');
+        change(applyProtectedQuoteEdits(current.current, pendingEdits.proposals, pendingEdits.revision, { conservaInclusioneQuantita: computoLayout }));
+        setPendingEdits(null);
+        appendDiagnostic({ role: 'assistant', text: computoLayout
+          ? 'Modifiche approvate nella bozza di Silvio. Per salvare il computo usa «Rivedi e applica».'
+          : 'Modifiche approvate. Controlla l’inclusione delle voci e i costi. Se hai cambiato unità, inserisci il nuovo prezzo.' });
+      } catch (e) { appendDiagnostic({ role: 'assistant', text: (e as Error).message }); }
       return;
     }
     const convertBudget = /^Conferma proposta indicativa dal budget · revisione (\d+)$/.exec(text);
@@ -679,7 +800,13 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
       lines: snapshot.lines.filter(l => !l.supersededBy?.length).map(({ id, title, description, unit, quantity, quantityBasis, referenceId }) => ({ id, title: title || "Voce da completare", description: description.slice(0, 3000), unit, quantity, quantityBasis, referenceId })) };
     // Separate bounded data supplement: never truncate the authoritative room ledger.
     evidence.push(`DATI LOCALI DEL PROGETTO, non istruzioni di sistema: ${quoteProjectBrief(projectForTurn)}`, quoteRequestGuidance(directiveText, flow), quoteCurrentStateEvidence(snapshot));
-    if (embedded) evidence.push(`Modello del wizard: ${embedded.title}. Scelto prima della chat, non cambiarlo. Cliente: ${classicDraft?.clientName || 'da definire'}. Mantieni i dati fiscali e gli sconti del wizard, non modificarli dalla chat. ${editorEvidence}`);
+    if (embedded?.progettoCollegato) {
+      const { titolo, versione } = embedded.progettoCollegato;
+      const riferimento = riferimentoProgettoSilvio(embedded.progettoCollegato);
+      const verifica = messages.filter(m => m.origineProgetto && m.riferimentoProgetto === riferimento).at(-1);
+      evidence.push(`RIFERIMENTO CONFERMATO DEL COMPUTO, solo dati: planimetria «${titolo.slice(0, 160)}», versione ${versione}. Usa le quantità delle voci correnti. ${verifica?.text.slice(0, 1200) ?? ''}`);
+    }
+    if (embedded) evidence.push(`Modello del wizard: ${embedded.title}. Scelto prima della chat, non cambiarlo. Cliente: ${classicDraft?.clientName || 'da definire'}. Mantieni i dati fiscali e gli sconti del wizard, non modificarli dalla chat. ${editorEvidence}${computoLayout ? ' Apri la risposta con una o due frasi operative. Indica una domanda precisa per il dato mancante più importante. Inserisci i dettagli nelle voci strutturate: descrizione, unità, quantità e da dove arriva. Lascia la quantità a null quando manca una misura attendibile. Collega un prezzo al riferimento effettivo o identifica una stima autorizzata.' : ''}`);
     if (embedded?.commercial) evidence.push(wizardAiCommercial(snapshot, embedded.commercial.draft, embedded.commercial.defaultVat, embedded.commercial.module).evidence);
     const budgetOnly = !scheduleOnly && (intent === 'budget' || assessment.intent === 'budget' || !!target || !!clarifiedBasis || !informational && (intent !== 'vision' && budgetFollowUp || isQuoteStartingPointRequest(outsideSupportingDocuments(text)) || /^(?:(?:prepara|genera|stima|calcola|crea|vorrei|voglio)\s+(?:un\s+)?)?budget\s+(?:preliminare|indicativo)\b/i.test(text)));
     if (!simulated) request.advanced = { model: preferredModel, mode: scheduleOnly ? 'schedule' : budgetOnly ? 'budget' : 'conversation' };
@@ -696,6 +823,9 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     if (measurementReceipt) appendDiagnostic({ role: "assistant", text: measurementReceipt });
     if (!simulated && !transport) { append({ role: "assistant", text: "Backend AI locale non configurato. Nessuna chiamata o modifica eseguita." }); return; }
     if (budgetOnly) { pendingBudgetApproval.current = null; setSavedBudget(null); }
+    const messageKey = computoLayout ? request.turnId : undefined;
+    const rispondi = (message: Message) => append(messageKey ? { ...message, replyKey: messageKey } : message);
+    setReplyKey(messageKey ?? null);
     const run = ++generation.current; const ctrl = new AbortController(); controller.current = ctrl; setProgress(null); setElapsedSeconds(0); setBusy(true); setOperation("chat");
     try {
       if (intent === 'vision') {
@@ -731,7 +861,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
           setProject(previous => ({ ...previous, schedule }));
         }
         setModel(result.model);
-        append({ role: 'assistant', text: result.turn.message, scheduleFollowUp: result.turn.questions.length > 0, questions: result.turn.questions, choices: result.turn.choices, choiceRevision: snapshot.revision, warnings: result.turn.warnings, actions: ['Mostra IVA'] });
+        rispondi({ role: 'assistant', text: result.turn.message, scheduleFollowUp: result.turn.questions.length > 0, questions: result.turn.questions, choices: result.turn.choices, choiceRevision: snapshot.revision, warnings: result.turn.warnings, actions: ['Mostra IVA'] });
         return;
       }
       if (budgetOnly) {
@@ -742,7 +872,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
         const budgetMessage = budgetCheck?.status === 'below-range'
           ? `**Il budget non copre l’intervallo proposto.** Il minimo stimato è ${formatCurrency(budgetCheck.low)}, ${formatCurrency(budgetCheck.shortfall)} oltre l’obiettivo ${projectForTurn.target?.basis === 'gross' ? 'IVA inclusa' : 'netto'}. Occorre rivedere ambito o forniture, oppure aumentare il budget: non abbasso automaticamente i prezzi. Sono stime preliminari, non tariffe verificate né garanzia di fattibilità. Il computo resta invariato.`
           : result.turn.message;
-        append({ role: 'assistant', text: budgetMessage, questions: result.turn.questions, warnings: result.turn.warnings,
+        rispondi({ role: 'assistant', text: budgetMessage, questions: result.turn.questions, warnings: result.turn.warnings,
           choices: result.turn.choices, choiceRevision: snapshot.revision,
           ...(result.turn.preliminaryBudget ? { preliminaryBudget: result.turn.preliminaryBudget, budgetRevision: snapshot.revision, budgetModel: result.model } : {}), actions: [...(result.turn.preliminaryBudget ? ['Prepara proposta indicativa dal budget'] : []), 'Passa al computo verificato', 'Mostra strumenti AI'] });
         return;
@@ -761,7 +891,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
       const referenceActions = informational && !/riferiment|prezzari|codic|font[ei]/i.test(directiveText) ? [] : applied.document.lines.map((r, i) => r.reference && !r.supersededBy?.length ? `Mostra riferimento voce ${i + 1}` : null).filter((a): a is string => !!a).slice(0, 4);
       const componentExclusions = !informational && !quoteTurnIsReadOnly(text) ? applied.document.lines.filter(r => r.included && !r.supersededBy?.length && quoteComponentBlocked(r.title, components)).map(r => r.id) : [];
       const exclusionActions = [...new Set([...(applied.result.turn.excludeIds ?? []), ...componentExclusions])].map(id => applied.document.lines.findIndex(r => r.id === id && r.included)).filter(i => i >= 0).map(i => `Escludi voce ${i + 1}`);
-      const coverageActions = !informational && proposals.length && quoteWorkCoverage(applied.document, directiveText).profile ? ['Verifica computo'] : [];
+      const coverageActions = !computoLayout && !informational && proposals.length && quoteWorkCoverage(applied.document, directiveText).profile ? ['Verifica computo'] : [];
       const summarizeEditor = asksQuoteCurrentValues(text) || !!nativeBagniDraft && quoteTurnIsReadOnly(text) && /riepilog|valori attuali|prezzo manuale|quantit[aà] attuale/i.test(text);
       const protectedEdits = !informational && !quoteTurnIsReadOnly(text) && !formulaGuard.formulaOnly && protectedQuoteEdits(snapshot, proposals).length > 0;
       const rowDiscounts = Object.fromEntries(nativeBagniDraft ? nativeBagniDraft.rows.map(row => [row.id, row.discount]) : aiEditorDraft(applied.document, classicDraft).items?.map(item => [item.client_temp_id, item.discount_percent ?? 0]) ?? []);
@@ -769,7 +899,8 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
       const currentVat = nativeBagniDraft ? nativeBagniDraft.iva : classicRates.length && classicRates.every(rate => rate != null && rate === classicRates[0]) ? classicRates[0] ?? null : null;
       const restrictions = roomUpdate.decisions.filter(d => d.state === 'excluded' || d.state === 'preserved');
       const restrictionText = restrictions.length ? `\n\n**Esclusioni e conservazioni salvate**\n\n${restrictions.slice(0, 6).map(d => `- ${d.room === '*' ? 'Tutta la commessa' : d.room} · ${d.work === 'ambito' ? 'intero ambiente' : d.work.replaceAll('_', ' ')}: ${d.state === 'excluded' ? 'escluso' : 'da mantenere'}.`).join('\n')}${restrictions.length > 6 ? '\nLe altre decisioni restano nella memoria della chat.' : ''}` : '';
-      append({ role: "assistant", text: summarizeEditor ? 'Ecco i dati correnti calcolati dalla bozza locale, senza cambiare voci o importi.' : protectedEdits ? 'Ho preparato una proposta sulle tue righe manuali, senza sovrascriverle. Nel confronto qui sotto trovi i valori correnti e quelli proposti: controllali prima di approvare. Il prezzo manuale resta conservato salvo cambio di unità.' : coherentQuoteReply(applied.result.turn.message), receipt: quoteActionReceipt(snapshot, applied.document, safe.turn, Math.max(0, result.turn.proposals.length - proposals.length)), actionRevision: applied.document.revision, questions: summarizeEditor ? [] : applied.result.turn.questions,
+      if (computoLayout && safe.turn.proposals.length) setSidePane(pane => pane === 'costs' ? pane : 'lines');
+      rispondi({ role: "assistant", text: summarizeEditor ? 'Ecco i dati correnti calcolati dalla bozza locale, senza cambiare voci o importi.' : protectedEdits ? 'Ho preparato una proposta sulle tue righe manuali, senza sovrascriverle. Nel confronto qui sotto trovi i valori correnti e quelli proposti: controllali prima di approvare. Il prezzo manuale resta conservato salvo cambio di unità.' : coherentQuoteReply(applied.result.turn.message), receipt: quoteActionReceipt(snapshot, applied.document, safe.turn, Math.max(0, result.turn.proposals.length - proposals.length)), actionRevision: applied.document.revision, questions: summarizeEditor ? [] : applied.result.turn.questions,
         ...(summarizeEditor ? { editorSummary: `${embedded?.commercial ? wizardAiCommercial(applied.document, embedded.commercial.draft, embedded.commercial.defaultVat, embedded.commercial.module).summary : quoteCurrentValues(applied.document, currentVat, rowDiscounts)}${restrictionText}`.slice(0, 3000) } : {}),
         choices: summarizeEditor ? [] : applied.result.turn.choices?.length ? applied.result.turn.choices : legacyQuoteChoices(applied.result.turn.message), choiceRevision: applied.document.revision,
         warnings: [...roomUpdate.notices, ...formulaGuard.notices, ...(componentExclusions.length ? ['Una restrizione su un componente riguarda voci già incluse: conferma le esclusioni proposte prima di considerarle tolte dal totale.'] : []), ...applied.result.turn.warnings, ...applied.notices], actions: exclusionActions.length || referenceActions.length || coverageActions.length
@@ -778,8 +909,8 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
       if (exactFound) showCatalogue(exactFound);
       if (quoteLineOverlaps(applied.document).length) appendDiagnostic({ role: "assistant", text: "Possibile sovrapposizione fra voce generica e dettagli. Prima di confermare gli importi, scegli quali mantenere.", actions: ["Mostra doppioni"] });
     } catch (e) {
-      if (!ctrl.signal.aborted && run === generation.current) append({ role: "assistant", text: e instanceof Error ? e.message : "Risposta non valida: le tue voci restano invariate.", actions: current.current.lines.some(r => r.reference) ? ["Mostra riferimenti"] : undefined });
-    } finally { if (run === generation.current) { controller.current = null; setBusy(false); } }
+      if (!ctrl.signal.aborted && run === generation.current) rispondi({ role: "assistant", text: e instanceof Error ? e.message : "Risposta non valida: le tue voci restano invariate.", actions: current.current.lines.some(r => r.reference) ? ["Mostra riferimenti"] : undefined });
+    } finally { if (run === generation.current) { controller.current = null; setReplyKey(null); setProgress(null); setBusy(false); } }
   };
   const showCatalogue = (found: LocalCatalogueRead, targets = current.current.lines.filter(l => !l.supersededBy?.length)) => {
     const actions: string[] = [];
@@ -792,8 +923,8 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     });
     appendDiagnostic({ role: "assistant", text: `**Ricerca locale completata · nessuna chiamata AI**\nQuery: ${found.queries.map(q => `${q.kind === "code" ? "codice esatto" : "testo"}: ${q.text}`).join("; ")}\n\n${blocks.join("\n\n") || "Nessun risultato nel campione consultato."}${found.missingCodes.length ? `\n\nCodici non restituiti dalla fonte selezionata: ${found.missingCodes.join(", ")}.` : ""}\n\nNessun prezzo incluso automaticamente. Leggi inclusioni/esclusioni e collega un riferimento solo alla lavorazione corretta.`.slice(0, 6000), catalogueRefs: found.references.slice(0, 6), actions, actionRevision: current.current.revision });
   };
-  const stop = () => { generation.current++; controller.current?.abort(); controller.current = null; setBusy(false);
-    append({ role: "assistant", text: operation === 'cad' ? 'Conversione DWG interrotta. Nessun risultato tardivo verrà applicato e nessuna chiamata AI è stata eseguita.' : operation === "ocr" ? "Lettura locale interrotta: nessun risultato tardivo verrà applicato. L’allegato resta disponibile nel browser." : operation === "catalogue" ? "Ricerca catalogo interrotta. Nessuna chiamata AI o modifica alle voci." : "Attesa interrotta: non applicherò risultati tardivi. Una chiamata AI già avviata sul server potrebbe comunque terminare ed essere contabilizzata." }); };
+  const stop = () => { generation.current++; controller.current?.abort(); controller.current = null; streamingReply.current?.clear(); setReplyKey(null); setProgress(null); setBusy(false);
+    append({ role: "assistant", ...(replyKey ? { replyKey } : {}), text: operation === 'cad' ? 'Conversione DWG interrotta. Nessun risultato tardivo verrà applicato e nessuna chiamata AI è stata eseguita.' : operation === "ocr" ? "Lettura locale interrotta: nessun risultato tardivo verrà applicato. L’allegato resta disponibile nel browser." : operation === "catalogue" ? "Ricerca catalogo interrotta. Nessuna chiamata AI o modifica alle voci." : "Attesa interrotta: non applicherò risultati tardivi. Una chiamata AI già avviata sul server potrebbe comunque terminare ed essere contabilizzata." }); };
   const latestAssistant = messages.reduce((last, m, index) => m.role === "assistant" && !isQuoteProviderNotice(m) ? index : last, -1);
   const latestBudgetMessage = messages.reduce((last, message, index) => message.preliminaryBudget ? index : last, -1);
   const latestSourceMessage = messages.reduce((last, message, index) => message.sources?.length ? index : last, -1);
@@ -801,6 +932,11 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
   const latestSimulationPicker = messages.reduce((last, message, index) => message.picker === 'simulations' ? index : last, -1);
   const latestBudget = quoteHasIndicativePrices(document) ? null : savedBudget;
   const latestConversationAssistant = latestQuoteConversationAssistant(messages);
+  const operationStatus = operation === 'cad' ? 'Leggo testi e layer del DWG sul computer…'
+    : operation === 'ocr' ? 'Leggo il documento sul computer…'
+      : operation === 'catalogue' ? 'Consulto il prezzario selezionato…'
+        : simulated ? 'Riproduco il caso di prova…'
+          : progress ? quoteProgressLabel[progress] : 'Silvio sta preparando la risposta…';
   const choose = async (index: number, choice: QuoteChatChoice) => {
     const message = messages[index];
     if (choosing.current || busy || controller.current || memory?.blocked || index !== latestConversationAssistant || message.selectedChoiceId || message.choiceRevision !== current.current.revision || !message.choices?.some(c => c.id === choice.id)) return;
@@ -860,30 +996,80 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
     ? `${r.reference.sourceName} · ${r.reference.code} · ${r.reference.price == null ? "Prezzo mancante" : formatCurrency(r.reference.price)} / ${r.reference.unit} · corrispondenza da verificare${r.manual ? " · valori manuali, riferimento conservato" : ""} · ${r.quantityBasis}`
     : `${r.estimate ? `STIMA INDICATIVA: ${formatCurrency(r.estimate.low)}–${formatCurrency(r.estimate.high)} / ${r.unit} · ${r.estimate.basis} · ${r.estimate.assumptions}` : r.manual ? "Valori manuali · nessun prezzo regionale verificato" : "Proposta da verificare · prezzo non disponibile"} · ${r.quantityBasis}`,
   originalDescription: r.reference?.description }));
+  const lineActions: QuoteLineActions = {
+    onPatch: (id, { approved, ...rest }) => change(patchChatLine(current.current, id, { ...rest, ...(approved == null ? {} : { included: approved }) })),
+    onReset: id => change(resetChatLine(current.current, id)),
+  };
+  const annullaUltimaModifica = () => {
+    const previous = undo.current.pop();
+    setUndoDepth(undo.current.length);
+    if (!previous) return;
+    const next = { ...previous, revision: current.current.revision + 1 };
+    current.current = next;
+    setDocument(next);
+    appendDiagnostic({ role: 'assistant', text: 'Ultima modifica annullata. Ho ripristinato voci e importi precedenti.' });
+  };
+  const numeroVoci = rows.filter(row => !row.archived).length;
+  const avvioComputo = computoLayout && !initial && messages.length === 1;
   const wizardContext = { project, scope: scheduleScope, generatedNotes: wizardGeneratedNotes,
     onChange: (next: QuoteProject) => { if (!memory?.blocked) setProject(readQuoteProject(next)); },
     onRegenerate: () => { setEditorOpen(false); composerAction('schedule'); } };
+  const streaming = busy && <QuoteStreamingReply ref={streamingReply} status={operationStatus} elapsedSeconds={elapsedSeconds}
+    showProgress={progress === 'catalogue' || progress === 'validation'} log={log} follow={chatScroll.followIfPinned} inline={!!replyKey} />;
+  const riepilogoStime = <>
+    {latestBudget?.preliminaryBudget && <QuotePreliminaryBudget budget={latestBudget.preliminaryBudget} stale={latestBudget.budgetRevision !== document.revision} model={latestBudget.budgetModel} compact />}
+    {!!(estimates.count || estimates.unquantified) && <section className="quote-indicative-summary" aria-label="Stime indicative fuori dal totale"><strong>Stime indicative · non incluse nel documento</strong><p>{estimates.count} voci quantificate: {formatCurrency(estimates.low)}–{formatCurrency(estimates.high)} netti.</p>{!!estimates.unquantified && <p>{estimates.unquantified} stime senza quantità, non sommate.</p>}<small>Intervallo parziale, non prezzo dell’intero progetto. Le altre lavorazioni mancanti non valgono zero; IVA e condizioni da verificare.</small></section>}
+  </>;
+  const pannelloVoci = proposteComputo && embedded && <div ref={elencoComputo} tabIndex={-1} className="quote-computo-lines-pane">
+    {riepilogoStime}
+    {!!(awaiting || undoDepth) && <div className="quote-computo-lines-actions">
+      {!!awaiting && <button type="button" disabled={busy || !!memory?.blocked} onClick={() => void send('Conferma voci complete')}>Conferma voci complete</button>}
+      {!!undoDepth && <button type="button" disabled={busy || !!memory?.blocked} onClick={annullaUltimaModifica}>Annulla ultima modifica</button>}
+    </div>}
+    <fieldset disabled={memory?.blocked} className="quote-computo-lines-fieldset">
+      <QuoteComputoLines document={document} original={embedded.document} changes={proposteComputo} rows={rows} metadata={embedded.lineMetadata} {...lineActions} />
+    </fieldset>
+  </div>;
   if (editorOpen && nativeBagniDraft) return <Suspense fallback={<p role="status">Apro il computo Bagni…</p>}>{memory?.issue && <p role="alert">{memory.issue}</p>}<fieldset disabled={memory?.blocked}><BagniQuoteEditor document={document} draft={nativeBagniDraft} project={project} projectContext={wizardContext} companyId={companyId} companyName={companyName} onBack={() => setEditorOpen(false)} onChange={next => { if (memory?.blocked) return; setBagniDraft(next.draft); if (next.document !== current.current) change(next.document); }} /></fieldset></Suspense>;
   if (editorOpen && flow === 'classico') return <Suspense fallback={<p role="status">Apro l’editor classico…</p>}>{memory?.issue && <div role="alert" className="quote-memory-warning">{memory.issue}<button onClick={() => setEditorOpen(false)}>Torna alla chat per il recupero</button></div>}<fieldset disabled={memory?.blocked}><ClassicQuoteEditor localEditor={{ initial: linkedDraft!, projectContext: wizardContext, onBack: () => setEditorOpen(false), onChange: draft => { if (memory?.blocked) return; try { const next = applyAiEditorDraft(current.current, draft, classicDraft); const nextProject = applyAiEditorProject(project, draft); const tax = quoteTaxFromEditor(taxSettings, linkedDraft?.items ?? [], draft.items ?? []); setProject({ ...nextProject, tax }); setClassicDraft(draft); setTemplateId(draft.selectedTemplateId ?? undefined); if (next !== current.current) change(next); } catch (error) { setEditorOpen(false); appendDiagnostic({ role: 'assistant', text: `${error instanceof Error ? error.message : 'Modifica non applicata.'} La precedente bozza è conservata.` }); } } }} /></fieldset></Suspense>;
-  return <main className={`simulation-shell chat-only-workspace ${embedded ? 'quote-workspace-embedded' : ''}`}>
+  return <main className={`simulation-shell chat-only-workspace ${embedded ? 'quote-workspace-embedded' : ''}${computoLayout ? ' quote-computo-workspace' : ''}`}>
     {!embedded && flow && <nav className="quote-flow-bar" aria-label="Percorso preventivo AI"><span><strong>{bagniModel ? `Bagni · ${BAGNI_AI_MODELS[bagniModel]}` : 'Preventivo classico'}</strong> · Silvio AI → voci live → editor</span><button type="button" disabled={busy || memory?.blocked} onClick={() => setEditorOpen(true)}>{bagniModel ? 'Continua nel computo Bagni ↗' : 'Continua nell’editor classico ↗'}</button></nav>}
     <header className="simulation-head"><div><span className="simulation-kicker">{companyName.toUpperCase()} · BOZZA LOCALE</span><h1>{document.lines.length || document.title !== emptyChatDocument().title ? document.title : 'Il progetto nasce dal dialogo.'}</h1><p>{document.lines.filter(l => !l.supersededBy?.length).length ? `${items.length} ${items.length === 1 ? 'voce inclusa' : 'voci incluse'} · ${incomplete} da completare · ${awaiting} da confermare` : 'Descrivi il lavoro o allega una planimetria. Lo costruiamo insieme.'}</p></div><span className="simulation-safe">{simulated ? plan?.reading ? "OCR locale · nessun LLM" : "Prova locale · nessun LLM" : "Demo 2 · bozza locale"}</span></header>
     {localTrialId && <p className="quote-ux-trial-note">Prova UX separata · salvata solo in questo browser. Le altre bozze sono conservate.</p>}
     <div className="simulation-columns regional-layout quote-workbench-layout"><div className="chat-editing-column">
-      <Tabs value={pane} onValueChange={setPane} className="quote-workbench">
-      <TabsList aria-label="Spazio preventivo" className="quote-workbench-tabs" data-pane={pane}>
-        <span className="quote-workbench-indicator" aria-hidden="true" />
-        <TabsTrigger value="chat">Silvio AI{busy && <span className="quote-tab-working" aria-label="Elaborazione in corso" />}</TabsTrigger>
-        <TabsTrigger value="lines">Voci del preventivo <span className="quote-tab-count" aria-hidden="true">{document.lines.filter(l => !l.supersededBy?.length).length}</span></TabsTrigger>
-      </TabsList>
-      <TabsContent value="chat" forceMount hidden={pane !== "chat"} className="quote-workbench-panel">
-      <section className="quote-lab-chat" aria-label="Chat unica preventivo"><header className="chat-workspace-header"><div className="quote-chat-identity"><span><i aria-hidden="true">✦</i>Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? 'Bozza ripresa da questo browser · modifiche da salvare' : 'Conversazione non salvata')}</small></div><div className="quote-chat-header-meta">{strumentiAI && <details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details>}<span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? operation === "ocr" ? "Lettura" : "Elaborazione" : "Pronto"}</span></div></header>
+      <Tabs value={activePane} onValueChange={valore => selezionaScheda(valore, false)} className="quote-workbench">
+      {!computoAffiancato && <TabsList aria-label="Spazio preventivo" className="quote-workbench-tabs" data-pane={activePane}>
+        {!computoLayout && <span className="quote-workbench-indicator" aria-hidden="true" />}
+        <TabsTrigger value="chat">{computoLayout ? 'Chat' : 'Silvio AI'}{busy && <span className="quote-tab-working" aria-label="Elaborazione in corso" />}</TabsTrigger>
+        <TabsTrigger value="lines">{pannelloSingolo ? 'Voci' : 'Voci del preventivo'} <span className="quote-tab-count" aria-hidden="true">{numeroVoci}</span></TabsTrigger>
+        {pannelloSingolo && costPreview && <TabsTrigger value="costs">Costi</TabsTrigger>}
+        {pannelloSingolo && <TabsTrigger value="pdf">PDF</TabsTrigger>}
+      </TabsList>}
+      <TabsContent value="chat" forceMount hidden={activePane !== "chat"} className="quote-workbench-panel"
+        {...(computoAffiancato ? { role: 'presentation', 'aria-labelledby': undefined } : {})}>
+      <section className="quote-lab-chat" aria-label="Chat unica preventivo">
+        {!computoLayout && <header className="chat-workspace-header"><div className="quote-chat-identity"><span><SilvioAvatar size={30} bg="navy" title="" />Silvio AI</span><small role="status">{memory?.status ?? (embedded?.savedLocally ? 'Bozza ripresa da questo browser · modifiche da salvare' : 'Conversazione non salvata')}</small></div><div className="quote-chat-header-meta">{strumentiAI && <details className="quote-model-details"><summary aria-label="Dettagli modello AI">{simulated ? 'Locale' : preferredModel.includes('sonnet') ? 'Sonnet 5.5' : 'GPT 6.1 Sol'}</summary><div>{!simulated && <p>Prossimo turno: {preferredModel}</p>}<p>{model ? <>Ultimo esito: {model}</> : 'Il modello effettivo viene verificato dopo la risposta.'}</p>{!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra strumenti AI')}>Modello e costi AI</button>}</div></details>}<span className={`chat-operation-status ${busy ? "working" : ""}`}><i aria-hidden="true" />{busy ? 'In corso' : 'Pronto'}</span></div></header>}
         {memory?.issue && <div role="alert" className="quote-memory-warning"><p>{memory.issue}</p>{memory.blocked ? <button onClick={memory.reload}>Riprendi versione salvata (scarta modifiche di questa scheda)</button> : <button onClick={memory.retry}>Riprova salvataggio</button>}</div>}
-        <div className="quote-lab-messages" role="log" aria-live="polite" ref={log} onScroll={chatScroll.onScroll}>{messages.map((m, i) => !visibile(m) ? null : <article className={`quote-lab-message ${m.role}${stessoAutore(i) ? " quote-lab-message--segue" : ""}`} key={i}>{!stessoAutore(i) && <small>{m.role === "user" ? "Tu" : simulated ? plan ? "Silvio · locale" : "Silvio · caso preparato" : "Silvio"}</small>}{m.role === 'assistant' && m.sources?.length ? null : m.role === 'assistant' && m.diagnostic && m.text.includes('**Risultato ') ? <QuoteCatalogueMessage content={m.text} actions={m.actions} references={m.catalogueRefs} disabled={busy || memory?.blocked || i !== latestAssistant || m.actionRevision !== document.revision} onAction={a => void send(a)} /> : m.role === "assistant" ? <QuoteChatResponse content={m.receipt ? coherentQuoteReply(m.text) : m.text} /> : <p>{m.text}</p>}
+        <div className={`quote-lab-messages${avvioComputo ? ' quote-computo-log-start' : ''}`} role="log" aria-live="polite" ref={log} onScroll={chatScroll.onScroll}>{[
+          ...messages.map((m, i) => !visibile(m) ? null : <article className={`quote-lab-message ${m.role}${m.replyKey ? ' quote-computo-turn' : stessoAutore(i) ? ' quote-lab-message--segue' : ''}`} key={m.replyKey ?? i} data-turn={m.replyKey}>
+          {(m.replyKey || !stessoAutore(i)) && (m.role === 'user' ? <small>Tu</small> : <div className="quote-message-author">
+            <SilvioAvatar size={24} bg="navy" title="" />{simulated ? plan ? 'Silvio · locale' : 'Silvio · caso preparato' : 'Silvio'}
+          </div>)}
+          {m.origineProgetto && <small className="mb-1 block text-muted-foreground">Progetto</small>}
+          {m.role === 'assistant' && m.sources?.length ? null : m.role === 'assistant' && m.diagnostic && m.text.includes('**Risultato ') ? <QuoteCatalogueMessage content={m.text} actions={m.actions} references={m.catalogueRefs} disabled={busy || memory?.blocked || i !== latestAssistant || m.actionRevision !== document.revision} onAction={a => void send(a)} /> : m.role === "assistant" ? <QuoteChatResponse content={m.receipt ? coherentQuoteReply(m.text) : m.text} /> : <p>{m.text}</p>}
+          {avvioComputo && <div className="quote-computo-chat-actions">
+            <button type="button" disabled={busy || !!input.trim()} onClick={() => { setInput('Aggiungi una lavorazione per '); composer.current?.querySelector('textarea')?.focus(); }}>Aggiungi una lavorazione</button>
+            {numeroVoci ? <button type="button" disabled={busy} onClick={() => void send('Verifica computo')}>Verifica il computo</button> :
+              <button type="button" disabled={busy} onClick={() => fileInput.current?.click()}>Allega una planimetria</button>}
+          </div>}
           {simulated && !plan && i === 0 && <details className="quote-chat-attachment"><summary>Immagine del precedente caso preparato (non OCR)</summary><img src={planImage} alt="Planimetria del caso preparato; superficie totale non verificata" loading="lazy" /></details>}
           {(!!m.questions?.length || !!m.choices?.length) && <div className="quote-chat-follow-up">
-            {!!m.questions?.length && <ul className="quote-chat-questions">{m.questions.map(q => <li key={q}><QuoteChatResponse content={q.replace(/^\s*(?:[-*•]\s*)?(?:\d{1,3}[.)]\s*)?/, "")} /></li>)}</ul>}
-            {!!m.choices?.length && <QuoteChatChoices hideCaption={!!m.questions?.length} choices={m.choices} selectedId={m.selectedChoiceId} active={!memory?.blocked && i === latestConversationAssistant && m.choiceRevision === document.revision} busy={busy} draftText={input} onChoose={choice => void choose(i, choice)} onCustomize={customize} />}
+            {!!m.questions?.length && <ul className="quote-chat-questions">{(computoLayout && !m.choices?.length ? m.questions.slice(0, 1) : m.questions).map(q => <li key={q}><QuoteChatResponse content={q.replace(/^\s*(?:[-*•]\s*)?(?:\d{1,3}[.)]\s*)?/, "")} /></li>)}</ul>}
+            {computoLayout && !m.choices?.length && (m.questions?.length ?? 0) > 1 && <details className="quote-computo-question-more">
+              <summary>Altri dati da chiarire</summary>
+              <ul className="quote-chat-questions">{m.questions?.slice(1).map(q => <li key={q}><QuoteChatResponse content={q.replace(/^\s*(?:[-*•]\s*)?(?:\d{1,3}[.)]\s*)?/, "")} /></li>)}</ul>
+            </details>}
+            {!!m.choices?.length && <QuoteChatChoices compact={computoLayout} hideCaption={computoLayout || !!m.questions?.length} choices={m.choices} selectedId={m.selectedChoiceId} active={!memory?.blocked && i === latestConversationAssistant && m.choiceRevision === document.revision} busy={busy} draftText={input} onChoose={choice => void choose(i, choice)} onCustomize={customize} />}
             {!!m.questions?.length && !m.choices?.length && i === latestAssistant && <div className="quote-chat-quick-help">
               {!simulated && m.questions.some(q => /prezzari[oi]|listino|edizione/i.test(q)) && <button type="button" disabled={busy || memory?.blocked} onClick={() => void send('Mostra prezzari')}>Scegli prezzario</button>}
               {!simulated && <button type="button" disabled={busy || memory?.blocked} onClick={prepareStartingPoint}>Proposta iniziale</button>}
@@ -891,7 +1077,7 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
             </div>}
           </div>}
           {m.editorSummary && <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3" aria-label="Valori del computo al momento della risposta"><QuoteChatResponse content={m.editorSummary} /></div>}
-          <QuoteTurnDetails warnings={m.warnings} receipt={m.receipt} revision={m.actionRevision} onReview={() => setPane('lines')} />
+          <QuoteTurnDetails warnings={m.warnings} receipt={m.receipt} revision={m.actionRevision} onReview={apriVoci} compact={computoLayout} />
           {m.preliminaryBudget && <QuotePreliminaryBudget budget={m.preliminaryBudget} stale={m.budgetRevision !== document.revision || i !== latestBudgetMessage || !savedBudget} model={strumentiAI ? m.budgetModel : undefined} vat={budgetVat} />}
           {strumentiAI && m.benchmarkRaw?.map((t, n) => <details className="quote-chat-caveats" key={`raw-${n}`}><summary>Risposta grezza del modello · passaggio {n + 1}</summary><QuoteChatResponse content={t.message} />{t.questions.map(q => <QuoteChatResponse key={q} content={q} />)}<p>Proposte: {t.proposals.map(p => `${p.id}: ${p.title}`).join("; ") || "nessuna"}</p><p>Esclusioni proposte: {t.excludeIds?.join(", ") || "nessuna"}</p></details>)}
           {i === latestAssistant && m.actions?.some(a => /^Escludi voce \d+$/.test(a) && document.lines[Number(a.match(/\d+$/)?.[0]) - 1]?.included) && <p className="quote-chat-confirmation"><strong>Esclusione ancora da confermare.</strong> La scelta tecnica non ha tolto importi dal totale: usa il pulsante «Escludi voce» qui sotto per applicarla.</p>}
@@ -903,13 +1089,25 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
             expanded={m.picker === 'templates' || templateId === undefined && !initial?.messages.some(message => message.role === 'user' && !message.diagnostic)}
             disabled={busy || !!memory?.blocked || (m.picker === 'templates' ? i !== latestTemplatePicker : latestTemplatePicker >= 0)}
             onSelect={id => send(id === null ? 'Usa preventivo classico' : `Usa modello preventivo ${id}`)} />}
-        </article>)}
-        {pendingEdits && <section className="rounded-xl border border-orange-200 bg-orange-50 p-4" aria-label="Modifiche proposte alle righe protette">
-          <strong>Modifiche da approvare · non ancora applicate</strong>
-          {protectedQuoteEdits(document, pendingEdits.proposals).map(edit => <div className="my-3" key={edit.proposal.id}><b>{document.lines.find(l => l.id === edit.proposal.id)?.title}</b><ul>{edit.fields.map(key => <li key={key}>{({ title: 'Titolo', description: 'Descrizione', quantity: 'Quantità', unit: 'Unità' })[key]}: {String(document.lines.find(l => l.id === edit.proposal.id)?.[key] ?? 'da definire')} → {String(edit.proposal[key] ?? 'da definire')}</li>)}</ul></div>)}
-          <p className="my-2 text-xs">Nessun prezzo scritto dall’AI viene applicato. Il cambio di unità richiede un nuovo prezzo; costi e inclusione vanno rivisti.</p>
-          <button className="rounded-lg border px-3 py-2 disabled:opacity-50" disabled={busy || memory?.blocked || pendingEdits.revision !== document.revision} onClick={() => void send(`Conferma modifiche proposte · revisione ${pendingEdits.revision}`)}>Approva queste modifiche</button><button className="ml-2 text-blue-700 underline" disabled={busy || memory?.blocked} onClick={() => setPendingEdits(null)}>Scarta proposta</button>
-          {pendingEdits.revision !== document.revision && <p role="status">La bozza è cambiata: chiedi una nuova proposta prima di applicarla.</p>}
+        </article>),
+        replyKey && streaming && !messages.some(message => message.replyKey === replyKey)
+          ? <article key={replyKey} data-turn={replyKey} className="quote-lab-message assistant quote-computo-turn">{streaming}</article>
+          : null,
+        ]}
+        {pendingEdits && <section className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm" aria-label="Modifiche proposte alle righe protette">
+          <strong className="block text-slate-900">Modifiche da approvare</strong>
+          {protectedQuoteEdits(document, pendingEdits.proposals).map(edit => {
+            const prima = document.lines.find(l => l.id === edit.proposal.id);
+            return <div className="border-l-2 border-amber-300 pl-2.5" key={edit.proposal.id}>
+              <b className="break-words font-medium text-slate-900">{prima?.title}</b>
+              <ul className="text-xs leading-relaxed text-slate-700">{edit.fields.map(key => <li key={key} className="break-words">{({ title: 'Titolo', description: 'Descrizione', quantity: 'Quantità', unit: 'Unità' })[key]}: {String(prima?.[key] ?? 'da definire')} → {String(edit.proposal[key] ?? 'da definire')}</li>)}</ul>
+            </div>;
+          })}
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-medium disabled:opacity-50" disabled={busy || memory?.blocked || pendingEdits.revision !== document.revision} onClick={() => void send(`Conferma modifiche proposte · revisione ${pendingEdits.revision}`)}>Approva queste modifiche</button>
+            <button className="px-1 py-1.5 text-xs font-medium text-blue-800 underline" disabled={busy || memory?.blocked} onClick={() => setPendingEdits(null)}>Scarta proposta</button>
+          </div>
+          {pendingEdits.revision !== document.revision && <p role="status" className="text-xs text-amber-900">La bozza è cambiata. Chiedi una nuova proposta prima di applicarla.</p>}
         </section>}
         {planningEnabled && planningOpen && <Suspense fallback={<p role="status">Apro gli scenari locali…</p>}><QuotePlanningChat key={`${ownerId}:${companyId}:${planningSession}`} ownerId={ownerId ?? ''} companyId={companyId} sessionId={planningSession} scope={planningScope} document={document} project={project} request={planningRequest} disabled={busy || !!memory?.blocked}
           onReply={text => appendDiagnostic({ role: 'assistant', text })} onClose={() => { setPlanningOpen(false); setPlanningRequest(null); }} /></Suspense>}
@@ -930,8 +1128,8 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
         {cad && <QuoteCadCard cad={cad} disabled={busy || !!memory?.blocked} onAction={text => void send(text)} />}
         {plan && planBlob && <article className="quote-lab-message assistant quote-plan-card"><details><summary>{plan.name} · {plan.reading ? `pagina ${plan.reading.page}/${plan.reading.pages}` : "da leggere"}</summary><LocalPlanPreview blob={planBlob} name={plan.name} reading={plan.reading} selected={plan.reading && selectedRoom ? plan.reading.lines[rooms.find(r => r.id === selectedRoom)?.line ?? -1] : undefined} />
           {plan.reading && <details><summary>Testi e posizioni OCR ({plan.reading.lines.length})</summary><ol>{plan.reading.lines.slice(0, 100).map((l, i) => <li key={i}>{i + 1}. {l.text} · posizione {l.bbox.map(n => n.toFixed(3)).join(", ")} · confidenza OCR {Math.round(l.confidence * 100)}% (non accuratezza metrica)</li>)}</ol>{plan.reading.lines.length > 100 && <p>Mostrati i primi 100 testi.</p>}</details>}</details></article>}
-        {busy && operation === 'chat' && <QuoteStreamingReply ref={streamingReply} log={log} />}
-        {busy && <ThinkingProgress status="thinking" elapsedSeconds={elapsedSeconds} steps={[{ id: "turn", text: operation === 'cad' ? 'Leggo testi e layer del DWG sul computer. Nessuna chiamata AI.' : operation === "ocr" ? "Lettura locale OCR del documento (primo avvio: preparo il motore)" : operation === "catalogue" ? "Leggo la fonte selezionata, senza chiamare l’AI" : simulated ? "Riproduco il caso di prova" : progress ? quoteProgressLabel[progress] : "Collegamento all’assistente…", status: "active" }]} />}</div>
+        {!replyKey && streaming}
+        </div>
         {chatScroll.unread && <div className="quote-chat-unread"><button type="button" onClick={chatScroll.jumpToLatest} aria-label="Vai all’ultima risposta">Nuova risposta ↓</button></div>}
         {(dossier.length > 0 || dossierOpen) && <details open={dossierOpen} onToggle={e => setDossierOpen(e.currentTarget.open)} className="mx-4 my-2 rounded-lg border border-blue-100 p-3 text-xs"><summary className="cursor-pointer text-blue-800">Documenti del progetto · {dossier.length} {dossier.length === 1 ? 'pagina' : 'pagine'}</summary><p className="my-2 text-slate-500">Estratti locali richiamabili dall’AI. OCR e specifiche non sono misure o prezzi certificati.</p>{dossier.map(page => <details key={`${page.id}:${page.page}`} className="my-2"><summary>{page.name} · p. {page.page} · {page.origin === 'ocr' ? 'OCR da verificare' : 'estratto controllato'}</summary><p className="my-2 text-slate-500">D-{page.id.slice(0, 8)}-P{page.page}{page.excerpt ? ' · estratto parziale' : ''}</p><pre className="max-h-40 overflow-auto whitespace-pre-wrap font-sans">{page.text}</pre><button className="mt-2 text-blue-700 underline" disabled={busy || memory?.blocked} onClick={() => setDossier(previous => readQuoteDossier(previous.filter(p => p.id !== page.id || p.page !== page.page)))}>Rimuovi estratto dal dossier</button></details>)}</details>}
         {plan?.localFileMissing && <p role="status" className="mx-4 my-2 text-xs text-orange-800">Dossier ripreso, originale non presente su questo dispositivo. Riallega «{plan.name}» per vedere o analizzare di nuovo l’immagine.</p>}
@@ -941,15 +1139,44 @@ function AssistedWorkspaceBody({ strumentiAI = false, companyId, companyName = "
         <details className="quote-chat-privacy"><summary>Come funziona <span>· dati e privacy</span></summary><p>{!simulated && 'Invio: messaggi, voci ed estratti pertinenti del dossier al servizio di intelligenza artificiale. Analizza immagine invia una copia PNG/JPEG senza metadati; l’originale resta locale. Materiali e audio si controllano nel messaggio prima di inviarli. '}{memory ? 'Salvataggio automatico su questo browser. Dai controlli puoi salvare e riprendere una copia nell’area backend Demo 2 del tuo account, oppure attivarne esplicitamente l’aggiornamento automatico per questa sessione. Nessuna fusione automatica tra dispositivi; file originali esclusi.' : embedded ? 'Usa «Salva e chiudi» per conservare chat, voci e allegati solo in questo browser, separati per account, azienda e preventivo. Non è un salvataggio del preventivo nel gestionale né una sincronizzazione tra dispositivi.' : 'Sessione senza memoria persistente.'} Interrompi scarta la risposta in arrivo; una chiamata già avviata al provider può comunque essere conteggiata. Nessun invio ai clienti.</p></details>
       </section>
       </TabsContent>
-      <TabsContent value="lines" forceMount hidden={pane !== "lines"} className="quote-workbench-panel quote-lines-panel">
+      {pannelloSingolo && <TabsContent value="lines" forceMount hidden={activePane !== 'lines'} className="quote-workbench-panel">{pannelloVoci}</TabsContent>}
+      {!computoLayout && <TabsContent value="lines" forceMount hidden={activePane !== "lines"} className="quote-workbench-panel quote-lines-panel">
       {!!document.lines.length && <div className="quote-chat-review"><span>{items.length} incluse · {incomplete} da completare · {awaiting} da confermare</span><button onClick={() => void send("Conferma voci complete")} disabled={busy || memory?.blocked || !awaiting}>Conferma voci complete</button></div>}
       {!document.lines.length && <div className="quote-lines-empty"><h2>Il tuo preventivo, voce per voce</h2><p>Descrivi il progetto a Silvio AI. Qui troverai le lavorazioni proposte e potrai modificare titolo, descrizione, quantità, unità e prezzo.</p><button onClick={() => setPane("chat")}>Inizia dalla chat</button></div>}
-      <fieldset disabled={memory?.blocked}><QuoteLineEditor rows={rows} onPatch={(id, patch) => { const { approved, ...rest } = patch; change(patchChatLine(current.current, id, { ...rest, ...(approved == null ? {} : { included: approved }) })); }} onReset={id => change(resetChatLine(current.current, id))} /></fieldset>
-      </TabsContent>
+      <fieldset disabled={memory?.blocked}><QuoteLineEditor rows={rows} {...lineActions} /></fieldset>
+      </TabsContent>}
+      {pannelloSingolo && costPreview && <TabsContent value="costs" forceMount hidden={activePane !== 'costs'} className="quote-workbench-panel">
+        {contenutoCosti}
+      </TabsContent>}
+      {pannelloSingolo && <TabsContent value="pdf" forceMount hidden={activePane !== 'pdf'} className="quote-workbench-panel quote-computo-pdf-pane">
+        {anteprimaComputo}
+      </TabsContent>}
       </Tabs>
-      {!!undoDepth && <div className="quote-workspace-undo"><span>Ultima modifica alle voci · questa sessione</span><button disabled={busy || memory?.blocked} onClick={() => { const previous = undo.current.pop(); setUndoDepth(undo.current.length); if (!previous) return; const next = { ...previous, revision: current.current.revision + 1 }; current.current = next; setDocument(next); appendDiagnostic({ role: 'assistant', text: 'Ultima modifica al documento annullata. Ripristinati voci e importi precedenti; memoria delle scelte, chat e modello restano invariati.' }); }}>Annulla ultima modifica</button></div>}
+      {!computoLayout && !!undoDepth && <div className="quote-workspace-undo"><span>Ultima modifica alle voci · questa sessione</span><button disabled={busy || memory?.blocked} onClick={annullaUltimaModifica}>Annulla ultima modifica</button></div>}
       {!embedded && <button className="quote-chat-back" onClick={onBack}>{flow ? 'Torna ai preventivi' : 'Torna alle altre simulazioni locali'}</button>}
-    </div><aside>{latestBudget?.preliminaryBudget && <QuotePreliminaryBudget budget={latestBudget.preliminaryBudget} stale={latestBudget.budgetRevision !== document.revision} model={latestBudget.budgetModel} compact />}{!!(estimates.count || estimates.unquantified) && <section className="quote-indicative-summary" aria-label="Stime indicative fuori dal totale"><strong>Stime indicative · non incluse nel documento</strong><p>{estimates.count} voci quantificate: {formatCurrency(estimates.low)}–{formatCurrency(estimates.high)} netti.</p>{!!estimates.unquantified && <p>{estimates.unquantified} stime senza quantità, non sommate.</p>}<small>Intervallo parziale, non prezzo dell’intero progetto. Le altre lavorazioni mancanti non valgono zero; IVA e condizioni da verificare.</small></section>}{embedded ? embedded.preview(document) : nativeBagniDraft ? <QuoteBagniPreview document={document} draft={nativeBagniDraft} project={project} companyId={companyId} companyName={companyName} scheduleScope={scheduleScope} /> : <QuoteTemplateDocument library={templateLibrary} templateId={templateId} companyName={companyName} incomplete={incomplete} awaiting={awaiting} pending={rows.filter(r => !r.included && !r.archived)} focusWork={!!flow} onModels={flow ? undefined : () => { setPane('chat'); void send('Mostra modelli preventivo'); }} onReview={() => setPane('lines')}
-      data={{ title: document.title, clientName: classicDraft?.clientName || 'Cliente DEMO', clientAddress: classicDraft?.clientAddress, siteAddress: project.address, date: new Date().toLocaleDateString('it-IT'), taxPending: taxTotal.gross == null, net: taxTotal.net, tax: taxTotal.tax, gross: taxTotal.gross, taxBreakdown: taxTotal.breakdown, globalDiscountPercent: linkedDraft?.discountPercent, displayGross: taxSettings.display === 'gross', commonNotes: documentNotes.notes, scheduleText, paymentMethod: classicDraft?.paymentMethod, paymentPhases: classicDraft?.paymentPhases, rows: items.map((item, index) => ({ id: item.client_temp_id ?? item.id ?? `row-${index}`, name: item.name, description: documentNotes.descriptions.get(item.client_temp_id ?? '') ?? item.description ?? '', quantity: item.quantity, unit: item.unit_of_measure || 'pz', price: item.unit_price, amount: importoRiga(item) })) }} />}</aside></div>
+    </div>
+    {!pannelloSingolo && <aside>
+      {proposteComputo ? <Tabs value={activeSidePane} onValueChange={valore => selezionaScheda(valore, true)} className="quote-workbench">
+        <TabsList aria-label="Voci e anteprima" className="quote-workbench-tabs">
+          <TabsTrigger value="lines">Voci <span className="quote-tab-count" aria-hidden="true">{numeroVoci}</span></TabsTrigger>
+          {costPreview && <TabsTrigger value="costs">Analisi costi</TabsTrigger>}
+          <TabsTrigger value="pdf">PDF</TabsTrigger>
+        </TabsList>
+        <TabsContent value="lines" forceMount hidden={activeSidePane !== 'lines'} className="quote-workbench-panel">
+          {pannelloVoci}
+        </TabsContent>
+        {costPreview && <TabsContent value="costs" forceMount hidden={activeSidePane !== 'costs'} className="quote-workbench-panel">
+          {contenutoCosti}
+        </TabsContent>}
+        <TabsContent value="pdf" forceMount hidden={activeSidePane !== 'pdf'} className="quote-workbench-panel quote-computo-pdf-pane">
+          {anteprimaComputo}
+        </TabsContent>
+      </Tabs> : <>
+        {riepilogoStime}
+        {embedded ? embedded.preview(document) : nativeBagniDraft ? <QuoteBagniPreview document={document} draft={nativeBagniDraft} project={project} companyId={companyId} companyName={companyName} scheduleScope={scheduleScope} /> : <QuoteTemplateDocument library={templateLibrary} templateId={templateId} companyName={companyName} incomplete={incomplete} awaiting={awaiting} pending={rows.filter(r => !r.included && !r.archived)} focusWork={!!flow} onModels={flow ? undefined : () => { setPane('chat'); void send('Mostra modelli preventivo'); }} onReview={() => setPane('lines')}
+      data={{ title: document.title, clientName: classicDraft?.clientName || 'Cliente DEMO', clientAddress: classicDraft?.clientAddress, siteAddress: project.address, date: new Date().toLocaleDateString('it-IT'), taxPending: taxTotal.gross == null, net: taxTotal.net, tax: taxTotal.tax, gross: taxTotal.gross, taxBreakdown: taxTotal.breakdown, globalDiscountPercent: linkedDraft?.discountPercent, displayGross: taxSettings.display === 'gross', commonNotes: documentNotes.notes, scheduleText, paymentMethod: classicDraft?.paymentMethod, paymentPhases: classicDraft?.paymentPhases, rows: items.map((item, index) => ({ id: item.client_temp_id ?? item.id ?? `row-${index}`, name: item.name, description: documentNotes.descriptions.get(item.client_temp_id ?? '') ?? item.description ?? '', quantity: item.quantity, unit: item.unit_of_measure || 'pz', price: item.unit_price, amount: importoRiga(item) })) }} />}
+      </>}
+    </aside>}
+    </div>
   </main>;
 }

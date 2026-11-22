@@ -1,0 +1,209 @@
+import { useState } from "react";
+import { Box, CheckCircle2, Layers3, Plus, Ruler, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  MASSIMO_PIANI_DWG, METRI_PER_UNITA_DWG, UNITA_DWG, direzioniDistinteDwg, ritaglioInCoordinateDwg, unitaCompatibiliDwg, unitaDwgValida,
+  type QuotaDwg, type RiferimentoDwg, type RichiestaModelloDwg, type RiscontroQuotaDwg,
+} from "@/lib/planimetrie/coordinateDwg";
+import type { RitaglioPianta } from "@/lib/planimetrie/documentoImmagine";
+
+interface SelezionePiano {
+  id: string;
+  nome: string;
+  quotaMetri: string;
+  ritaglio: RitaglioPianta;
+}
+
+const misuraRitaglio = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+const classeSelect = "h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const direzioneQuota = ({ angolo }: QuotaDwg) => angolo < 5 || angolo > 175 ? "orizzontale" : Math.abs(angolo - 90) < 5 ? "verticale" : "obliqua";
+
+function opzioniQuote(scelta: QuotaDwg | undefined, quote: QuotaDwg[]) {
+  const viste = new Set<string>();
+  return (scelta ? [scelta, ...quote] : quote).filter(q => {
+    const chiave = [q.testo, q.lunghezza.toPrecision(5), Math.round(q.angolo) % 180].join("|");
+    if (viste.has(chiave)) return false;
+    viste.add(chiave);
+    return true;
+  });
+}
+
+function leggiMetri(valore: string) {
+  const testo = valore.trim();
+  const metri = /^\d+(?:[.,]\d{1,4})?$/.test(testo) ? Number(testo.replace(",", ".")) : 0;
+  return metri > 0 && metri <= 1e6 ? metri : null;
+}
+
+function stessoRitaglio(a: RitaglioPianta, b: RitaglioPianta) {
+  return Math.abs(a.x - b.x) < 0.1 && Math.abs(a.y - b.y) < 0.1
+    && Math.abs(a.width - b.width) < 0.1 && Math.abs(a.height - b.height) < 0.1;
+}
+
+export function PianiDaDwg({ riferimento, ritaglio, occupato, onAggiunto, onRicostruisci }: {
+  riferimento: RiferimentoDwg;
+  ritaglio: RitaglioPianta | null;
+  occupato: boolean;
+  onAggiunto: () => void;
+  onRicostruisci: (richiesta: RichiestaModelloDwg, tagli: RitaglioPianta[], quoteConfermate: RiscontroQuotaDwg[]) => void;
+}) {
+  const [piani, setPiani] = useState<SelezionePiano[]>([]);
+  const [unita, setUnita] = useState(riferimento.unita?.toString() ?? "");
+  const [altezza, setAltezza] = useState("2.70");
+  const [layerMuri, setLayerMuri] = useState("");
+  const [quoteScelte, setQuoteScelte] = useState([{ id: "", metri: "" }, { id: "", metri: "" }]);
+  const numero = piani.length;
+  const quotaGiaUsata = (quota: number) => piani.some((p) => Number(p.quotaMetri) === quota);
+  const unitaSelezionata = Number(unita);
+  const taglioDiRiferimento = piani[0]?.ritaglio ?? ritaglio;
+  const rettangoloDiRiferimento = taglioDiRiferimento && ritaglioInCoordinateDwg(riferimento.rettangolo, taglioDiRiferimento);
+  const larghezzaMetri = rettangoloDiRiferimento && unitaDwgValida(unitaSelezionata)
+    ? (rettangoloDiRiferimento[2] - rettangoloDiRiferimento[0]) * METRI_PER_UNITA_DWG[unitaSelezionata] : null;
+  const quote = riferimento.quote ?? [];
+  const quoteNelPiano = rettangoloDiRiferimento ? quote.filter(({ punto: [x, y] }) =>
+    x >= rettangoloDiRiferimento[0] && y >= rettangoloDiRiferimento[1] && x <= rettangoloDiRiferimento[2] && y <= rettangoloDiRiferimento[3]) : quote;
+  const prima = quote.find(q => q.id === quoteScelte[0].id) ?? quoteNelPiano[0] ?? quote[0];
+  const seconda = quote.find(q => q.id === quoteScelte[1].id) ?? (prima && (
+    quoteNelPiano.find(q => direzioniDistinteDwg(prima, q)) ?? quote.find(q => direzioniDistinteDwg(prima, q))));
+  const righeQuote = [prima, seconda].map((quota, i) => ({ quota, testo: quoteScelte[i].metri, metri: leggiMetri(quoteScelte[i].metri) }));
+  const quoteInserite = righeQuote.flatMap(({ quota, metri }) => quota && metri !== null ? [{ quota, metri }] : []);
+  const quoteNonValide = righeQuote.some(r => r.testo.trim() && (!r.quota || r.metri === null));
+  const unitaCompatibili = unitaCompatibiliDwg(quoteInserite);
+  const discordanza = quoteInserite.length > 0 && (!unitaCompatibili.length || (unitaDwgValida(unitaSelezionata) && !unitaCompatibili.includes(unitaSelezionata)));
+  const doppiaDirezione = prima && seconda && direzioniDistinteDwg(prima, seconda);
+  const quoteConfermate = doppiaDirezione && quoteInserite.length === 2 && unitaDwgValida(unitaSelezionata) && !discordanza ? quoteInserite : [];
+  const suggerita = (discordanza || !unitaDwgValida(unitaSelezionata)) && unitaCompatibili.length === 1 ? unitaCompatibili[0] : null;
+  const scegliQuota = (i: number, id: string, metri: string) =>
+    setQuoteScelte(correnti => correnti.map((r, j) => (i === j ? { id, metri } : r)));
+  const metri = Number(altezza);
+  const righeValide = piani.every((p) => p.nome.trim() && p.quotaMetri.trim() && Number.isFinite(Number(p.quotaMetri)));
+  const aggiungi = () => {
+    if (!ritaglio || piani.some((p) => stessoRitaglio(p.ritaglio, ritaglio)) || numero >= MASSIMO_PIANI_DWG) return;
+    const nomi = ["Piano terra", "Primo piano", "Secondo piano", "Terzo piano", "Quarto piano", "Quinto piano"];
+    let quota = numero * 3;
+    while (quotaGiaUsata(quota)) quota += 3;
+    setPiani([...piani, { id: crypto.randomUUID(), nome: nomi[numero], quotaMetri: String(quota), ritaglio }]);
+    onAggiunto();
+  };
+  const ricostruisci = () => {
+    if (!unitaDwgValida(unitaSelezionata) || !numero || !righeValide || discordanza || quoteNonValide) return;
+    const richiesta = {
+      unita: unitaSelezionata,
+      altezza: Math.round(metri * 100),
+      layerMuri,
+      piani: piani.map((p) => ({
+        nome: p.nome,
+        quota: Math.round(Number(p.quotaMetri) * 100),
+        rettangolo: ritaglioInCoordinateDwg(riferimento.rettangolo, p.ritaglio),
+      })),
+    };
+    onRicostruisci(richiesta, piani.map((p) => p.ritaglio), quoteConfermate);
+  };
+  const modifica = (id: string, patch: Partial<Pick<SelezionePiano, "nome" | "quotaMetri">>) =>
+    setPiani((correnti) => correnti.map((p) => p.id === id ? { ...p, ...patch } : p));
+  const selezioneAggiunta = ritaglio && piani.some((p) => stessoRitaglio(p.ritaglio, ritaglio));
+
+  return (
+    <section aria-labelledby="titolo-modello-dwg" className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Layers3 className="h-5 w-5" aria-hidden="true" /></span>
+          <div>
+            <h2 id="titolo-modello-dwg" className="font-semibold">Pianta modificabile e 3D</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">Ritaglia e aggiungi ogni piano, poi verifica le quote.</p>
+          </div>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={aggiungi}
+          disabled={occupato || !ritaglio || !!selezioneAggiunta || numero >= MASSIMO_PIANI_DWG}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {selezioneAggiunta ? "Ritaglio aggiunto" : "Aggiungi ritaglio come piano"}
+        </Button>
+      </div>
+
+      {numero > 0 && (
+        <ul className="space-y-2">
+          {piani.map((p, indice) => (
+            <li key={p.id} className="grid grid-cols-[minmax(0,1fr)_6.5rem_auto] items-end gap-2 rounded-lg bg-muted/45 p-2.5 sm:grid-cols-[minmax(0,1fr)_8.5rem_auto]">
+              <div className="space-y-1">
+                <Label htmlFor={`${p.id}-nome`} className="text-xs">Piano {indice + 1}</Label>
+                <Input id={`${p.id}-nome`} value={p.nome} maxLength={70} onChange={(event) => modifica(p.id, { nome: event.target.value })} className="bg-card" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${p.id}-quota`} className="text-xs">Quota (m)</Label>
+                <Input id={`${p.id}-quota`} aria-label={`Quota del piano ${indice + 1} in metri`} type="number" step="0.01" value={p.quotaMetri}
+                  onChange={(event) => modifica(p.id, { quotaMetri: event.target.value })} className="bg-card" />
+              </div>
+              <Button type="button" variant="ghost" size="icon" className="h-10 w-9" aria-label={`Rimuovi ${p.nome || `piano ${indice + 1}`}`}
+                onClick={() => setPiani((correnti) => correnti.filter((selezione) => selezione.id !== p.id))}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="unita-dwg" className="text-xs">Unità del DWG</Label>
+          <select id="unita-dwg" value={unita} onChange={(event) => setUnita(event.target.value)} className={classeSelect} disabled={occupato}>
+            <option value="">Scegli l’unità</option>
+            {Object.entries(UNITA_DWG).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="altezza-muri-dwg" className="text-xs">Altezza dei muri (m)</Label>
+          <Input id="altezza-muri-dwg" type="number" step="0.01" min={2} max={8} value={altezza} onChange={(event) => setAltezza(event.target.value)} />
+        </div>
+      </div>
+      {larghezzaMetri !== null && <p className="text-xs leading-relaxed text-muted-foreground" aria-live="polite">
+        Larghezza {piani.length ? "del primo piano ritagliato" : "del ritaglio"} con questa unità{" "}
+        <strong className="font-semibold tabular-nums text-foreground">{misuraRitaglio.format(larghezzaMetri)} m</strong>.
+      </p>}
+      <fieldset className="space-y-2.5 rounded-lg border bg-muted/20 p-3" disabled={occupato}>
+        <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold"><Ruler className="h-4 w-4 text-primary" aria-hidden="true" /> Verifica la scala</legend>
+        {!!quote.length && <>
+          <p className="text-xs leading-relaxed text-muted-foreground">Scegli due quote in direzioni diverse e riporta le loro misure in metri.</p>
+          {righeQuote.map(({ quota, testo, metri }, i) => (
+            <div key={i} className="grid grid-cols-[minmax(0,1fr)_6rem] items-end gap-2">
+              <div className="space-y-1">
+                <Label htmlFor={`quota-dwg-${i}`} className="text-xs">Quota {i + 1} sulla tavola</Label>
+                <select id={`quota-dwg-${i}`} className={classeSelect} value={quota?.id ?? ""} onChange={e => scegliQuota(i, e.target.value, "")}>
+                  <option value="" disabled>Scegli una quota</option>
+                  {opzioniQuote(quota, [...quoteNelPiano, ...quote]).map(q => <option key={q.id} value={q.id}>{q.testo} · {direzioneQuota(q)}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`quota-dwg-metri-${i}`} className="text-xs">Quota {i + 1} in m</Label>
+                <Input id={`quota-dwg-metri-${i}`} value={testo} type="text" inputMode="decimal" maxLength={14}
+                  placeholder="m" aria-invalid={!!testo.trim() && metri === null} disabled={!quota}
+                  onChange={e => quota && scegliQuota(i, quota.id, e.target.value)} />
+              </div>
+            </div>
+          ))}
+        </>}
+        {riferimento.unita !== null && <p className="text-xs text-muted-foreground">Unità dichiarata dal file · {UNITA_DWG[riferimento.unita]}</p>}
+        {quoteNonValide ? <p role="alert" className="text-xs text-destructive">Inserisci le quote in metri, per esempio 3,50.</p>
+          : discordanza || suggerita ? <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950">
+            <p>{suggerita ? `Unità compatibile con le quote inserite · ${UNITA_DWG[suggerita]}` : "Le quote indicano scale diverse. Controlla i valori in metri sulla tavola."}</p>
+            {suggerita && <Button type="button" size="sm" variant="outline" className="mt-2 h-8" onClick={() => setUnita(String(suggerita))}>Usa {UNITA_DWG[suggerita].toLowerCase()}</Button>}
+          </div> : quoteConfermate.length ? <p role="status" className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Scala coerente su due quote</p>
+            : <p role="status" className="text-xs text-muted-foreground">
+              {quoteInserite.length === 2 && !doppiaDirezione ? "Scegli due quote in direzioni diverse per completare il riscontro. " :
+                !quote.length ? "Quote CAD leggibili assenti. " : ""}Puoi aprire la pianta e completare il riscontro nell’editor. Le quantità metriche restano sospese nel computo.
+            </p>}
+      </fieldset>
+      <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Layer dei muri</summary>
+        <Input aria-label="Nome del layer dei muri" value={layerMuri} onChange={(event) => setLayerMuri(event.target.value)}
+          placeholder="Automatico" maxLength={120} className="mt-2 max-w-xs" />
+      </details>
+      <Button type="button" className="w-full gap-2 sm:w-auto" disabled={occupato || !numero || !unitaDwgValida(unitaSelezionata)
+        || !righeValide || metri < 2 || metri > 8 || discordanza || quoteNonValide} onClick={ricostruisci}>
+        <Box className="h-4 w-4" aria-hidden="true" />
+        Ricava pianta e 3D
+      </Button>
+    </section>
+  );
+}

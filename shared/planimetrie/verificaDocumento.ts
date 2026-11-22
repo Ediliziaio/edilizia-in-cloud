@@ -1,4 +1,4 @@
-import type { Planimetria } from "./modello.ts";
+import { scalaModelloDaVerificare, type Planimetria } from "./modello.ts";
 import type { VerificaLettura } from "./letturaTipi.ts";
 import { controllaPlanimetria } from "./controllo.ts";
 
@@ -93,6 +93,11 @@ export function revocaVerifica(doc: Planimetria, id: string): Planimetria {
 
 export function controlloPrimaDellUso(doc: Planimetria, uso: UsoPlanimetria): { ok: boolean; uso: UsoPlanimetria; problemi: string[]; daVerificare: VerificaLettura[] } {
   const problemi = controllaPlanimetria(doc).filter((p) => p.gravita === "errore" || (doc.letturaDocumento && ["parete_staccata", "locale_non_chiuso"].includes(p.codice))).map((p) => p.messaggio);
+  for (const livello of doc.livelli) {
+    if ((livello.fatto.muri.length || livello.fatto.locali.length || livello.proposte.length) && scalaModelloDaVerificare(livello)) {
+      problemi.push(`${livello.nome} · riscontra la scala del modello nell’editor.`);
+    }
+  }
   const daVerificare = verificheDelDocumento(doc).filter((v) => !verificaConfermata(doc, v));
   return { ok: !problemi.length && !daVerificare.length, uso, problemi, daVerificare };
 }
