@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { CampoScorteFurgone } from "@/components/campo/CampoScorteFurgone";
 import { CampoInventario } from "@/components/campo/CampoInventario";
 import { CampoPrelievi } from "@/components/campo/CampoPrelievi";
 import { Button } from "@/components/ui/button";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
-import { bozzeCantieriPrelievo } from "@/lib/campo/bozzaPrelievo";
 import { cn } from "@/lib/utils";
 
 const schede = [
@@ -50,14 +49,14 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
         {vedeInventario ? "Magazzino" : "Scorte del furgone"}
       </h1>
       {vedeInventario && (
-        <nav aria-label="Sezioni magazzino" className="sticky top-0 z-10 grid grid-cols-3 gap-1.5 border-b bg-background px-1 py-1 sm:px-4 sm:py-2">
+        <nav aria-label="Sezioni magazzino" className="sticky top-0 z-10 grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1">
           {schedeVisibili.map((s) => (
             <button
               key={s.id}
               onClick={() => setSchedaScelta(s.id)}
               aria-pressed={scheda === s.id}
-              className={cn("min-h-11 rounded-xl px-1.5 text-xs font-semibold sm:text-sm",
-                scheda === s.id ? "bg-primary text-primary-foreground" : "bg-muted/60 text-foreground")}
+              className={cn("min-h-11 rounded-md px-1 text-xs font-semibold sm:text-sm",
+                scheda === s.id ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-background/60")}
             >
               {s.label}
             </button>
@@ -74,7 +73,6 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
         )}
         {vedeInventario && (
           <div hidden={scheda !== "inventario"} className="space-y-3 sm:space-y-4">
-            {puoPrelevare && !cantiereIniziale && <BozzeDaRiprendere companyId={config.companyId} userId={config.userId} />}
             <CampoInventario
               key={config.data!.livello}
               companyId={config.companyId}
@@ -91,36 +89,6 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
         {scheda === "prelievi" && <CampoPrelievi companyId={config.companyId} puoPrelevare={puoPrelevare} />}
         {scheda === "furgone" && <CampoScorteFurgone companyId={config.companyId} />}
       </div>
-    </section>
-  );
-}
-
-function BozzeDaRiprendere({ companyId, userId }: { companyId: string; userId: string }) {
-  const [bozze, setBozze] = useState(() => bozzeCantieriPrelievo(companyId, userId));
-  useEffect(() => {
-    const aggiorna = () => setBozze(bozzeCantieriPrelievo(companyId, userId));
-    window.addEventListener("storage", aggiorna);
-    return () => window.removeEventListener("storage", aggiorna);
-  }, [companyId, userId]);
-  if (!bozze.length) return null;
-
-  return (
-    <section aria-labelledby="bozze-prelievi" className="rounded-xl border bg-card p-3">
-      <h2 id="bozze-prelievi" className="px-2 text-sm font-semibold">Prelievi da riprendere</h2>
-      <ul className="mt-1 divide-y">
-        {bozze.map(({ cantiere, bozza }) => (
-          <li key={cantiere}>
-            <Link to={`/campo/magazzino?order_id=${encodeURIComponent(cantiere)}&riprendi=1`}
-              className="flex min-h-12 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm">
-              <span className="min-w-0 break-words">
-                <span className="block font-medium">{bozza.nomeCantiere || bozza.righe[0].articolo.name}</span>
-                <span className="text-xs text-muted-foreground">{bozza.inVerifica ? "Invio da verificare" : "Bozza da inviare"}</span>
-              </span>
-              <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
-            </Link>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
