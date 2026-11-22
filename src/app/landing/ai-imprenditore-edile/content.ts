@@ -451,7 +451,7 @@ export const ps = {
 export const ctaFinale = {
   line1: "Finisci di lavorare a sensazione.",
   line2: "Inizia a guadagnare davvero.",
-  sub: "30 minuti. Gratis. Un consulente, i tuoi flussi reali, nessuna carta di credito.",
+  sub: "30 minuti. Gratis. Un consulente, i tuoi flussi reali.",
   button: "Prenota la Consulenza Gratuita →",
   trust: [
     "31 giorni prova senza rischio",

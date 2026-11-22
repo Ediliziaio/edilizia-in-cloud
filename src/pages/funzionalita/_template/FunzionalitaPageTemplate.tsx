@@ -316,7 +316,7 @@ export default function FunzionalitaPageTemplate({
   ].slice(0, 6);
 
   return (
-    <div className="min-h-screen bg-white text-[#111111] overflow-x-hidden">
+    <div className="scorri-pad-4 min-h-screen bg-white text-[#111111] overflow-x-hidden">
       <JsonLd id={`jsonld-breadcrumb-${config.slug}`} data={breadcrumbLd} />
       <JsonLd id={`jsonld-software-${config.slug}`} data={softwareAppLd} />
       <JsonLd id={`jsonld-howto-${config.slug}`} data={howToLd} />

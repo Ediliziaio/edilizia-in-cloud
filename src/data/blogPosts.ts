@@ -2447,7 +2447,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Crea il tuo computo metrico in 10 minuti",
-        body: "Con Edilizia in Cloud importi il prezzario regionale, misuri le quantità dal progetto e generi il CME professionale in pochi clic. Collegato in modo nativo al budget di commessa, alla fatturazione elettronica e al CRM. Prova gratis 31 giorni — senza carta di credito.",
+        body: "Con Edilizia in Cloud importi il prezzario regionale, misuri le quantità dal progetto e generi il CME professionale in pochi clic. Collegato in modo nativo al budget di commessa, alla fatturazione elettronica e al CRM. Prova gratis 31 giorni.",
       },
     ],
   },
@@ -5750,7 +5750,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "cta",
         heading: "Vedi come funziona l'AI nel tuo gestionale edilizia",
-        body: "Prova Edilizia in Cloud gratis per 31 giorni, senza carta di credito — con tutte le 8 funzioni AI attive sui tuoi cantieri reali. Se non serve, smetti, niente da pagare.",
+        body: "Prova Edilizia in Cloud gratis per 31 giorni — con tutte le 8 funzioni AI attive sui tuoi cantieri reali. Se non serve, smetti, niente da pagare.",
       },
     ],
   },

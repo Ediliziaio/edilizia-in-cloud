@@ -39,6 +39,6 @@ export const DOMANDE_OFFERTA = [
   },
   {
     q: "La demo mi impegna a qualcosa?",
-    a: "No. Trenta minuti in videochiamata, senza carta di credito e senza obbligo di acquisto. Alla fine decidi tu.",
+    a: "No. Trenta minuti in videochiamata, senza obbligo di acquisto. Alla fine decidi tu.",
   },
 ] as const;

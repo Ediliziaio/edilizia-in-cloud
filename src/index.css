@@ -1058,6 +1058,10 @@ html .react-flow .react-flow__edges svg {
    laterale del contenitore (1.5rem = px-6; con px-4 usare anche `scorri-pad-4`). */
 @media (max-width: 639px) {
   .scorri-mobile {
+    /* Senza questo la fila allarga la colonna che la contiene (pulsanti larghi
+       il doppio dello schermo): la sua larghezza non deve contare per il genitore. */
+    contain: inline-size;
+    min-width: 0;
     display: flex !important;
     gap: 12px !important;
     overflow-x: auto;

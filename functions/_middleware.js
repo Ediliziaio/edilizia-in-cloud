@@ -1269,7 +1269,7 @@ const ROUTES = {
     <p>Edilizia in Cloud collega ufficio e cantiere: meno dati ricopiati, costi previsti e reali sulla commessa. Il risparmio va misurato sui processi della singola impresa; nessun ROI fisso garantito.</p>
 
     <h2>Senza vincoli e con prova gratuita</h2>
-    <p>Ogni piano parte con 31 giorni di prova gratuita completa, senza carta di credito obbligatoria all'inizio e con il supporto del team per importare anagrafiche, cantieri e fatture esistenti. Non ci sono costi di attivazione, non c'è un contratto minimo: l'abbonamento è mensile e si può cambiare piano o disdire in qualsiasi momento. I dati restano sempre tuoi e sono esportabili in formato strutturato.</p>
+    <p>Ogni piano parte con 31 giorni di prova gratuita completa e con il supporto del team per importare anagrafiche, cantieri e fatture esistenti. Non ci sono costi di attivazione, non c'è un contratto minimo: l'abbonamento è mensile e si può cambiare piano o disdire in qualsiasi momento. I dati restano sempre tuoi e sono esportabili in formato strutturato.</p>
 
     <h2>Quale piano scegliere per la tua impresa edile</h2>
     <p>La scelta dipende dal fatturato e dalle esigenze gestionali, non dal numero di utenti: gli utenti sono illimitati in tutti i piani. Se la tua impresa fattura fino a 500K € e vuoi soprattutto commesse, fatturazione SDI e marginalità ordinate, il <strong>Gestionale</strong> è il punto di partenza naturale. Se fatturi tra 500K e 2M €, gestisci più cantieri contemporaneamente, affidi lavorazioni in subappalto e vuoi anche CRM e controllo di tesoreria, il <strong>Professionista</strong> ti dà giornale lavori, subappalti con ritenute, banca PSD2 e HR con cedolini. Se superi i 2M € o lavori multi-sede e vuoi delegare lavoro agli agenti AI e integrare altri sistemi via API, <strong>Impresa AI</strong> è la scelta giusta. In ogni caso puoi iniziare da un piano e fare l'upgrade quando l'impresa cresce, senza perdere alcun dato.</p>
@@ -2868,7 +2868,7 @@ function resolveRoute(pathname) {
             {
               "@type": "Question",
               name: `Quanto costa Edilizia in Cloud per un'impresa edile di ${cityName}?`,
-              acceptedAnswer: { "@type": "Answer", text: `Edilizia in Cloud parte con avvio assistito con prova gratuita di 31 giorni senza carta di credito. I piani crescono in base al numero di cantieri, utenti e moduli (HR, subappalti, controllo margini).` },
+              acceptedAnswer: { "@type": "Answer", text: `Edilizia in Cloud parte con avvio assistito con prova gratuita di 31 giorni. I piani crescono in base al numero di cantieri, utenti e moduli (HR, subappalti, controllo margini).` },
             },
             {
               "@type": "Question",

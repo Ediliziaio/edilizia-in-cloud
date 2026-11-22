@@ -25,7 +25,7 @@ export default function PricingSection() {
             Provalo <span className="text-eic-orange">gratis</span>.<br className="hidden sm:block" /> Il piano lo costruiamo su di te.
           </h2>
           <p className="text-gray-500 text-base md:text-lg max-w-2xl mx-auto mb-2">
-            Inizia senza carta con il piano Scopri. Quando vuoi crescere, definiamo insieme il piano giusto
+            Inizia con il piano Scopri. Quando vuoi crescere, definiamo insieme il piano giusto
             in una <span className="text-gray-700 font-semibold">consulenza gratuita</span> — paghi solo per ciò che ti serve davvero.
           </p>
           <p className="text-gray-400 text-sm mb-8">

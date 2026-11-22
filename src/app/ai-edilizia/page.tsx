@@ -138,7 +138,7 @@ const faqs = [
   },
   {
     q: "Cosa succede se non continuo dopo la prova?",
-    a: "Nessun rinnovo automatico, nessuna carta richiesta. I dati restano tuoi e puoi esportarli.",
+    a: "Nessun rinnovo automatico. I dati restano tuoi e puoi esportarli.",
   },
 ];
 
@@ -253,7 +253,7 @@ function HeroAI() {
             <span className="text-sm font-semibold text-white/66">30 minuti con un consulente, gratis. Zero pressione.</span>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {["31 giorni gratis", "Senza carta", "Setup in 48 ore"].map((item) => (
+            {["31 giorni gratis", "Avvio assistito", "Setup in 48 ore"].map((item) => (
               <div key={item} className="rounded-md border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-bold text-white/78">
                 <Check className="mr-2 inline h-4 w-4 text-eic-orange" strokeWidth={2} />
                 {item}
@@ -741,7 +741,7 @@ function FinalCTA() {
         <div className="mt-8">
           <CTAButton>Prenota la consulenza gratuita</CTAButton>
         </div>
-        <p className="mt-5 text-sm font-semibold text-white/56">31 giorni gratis al termine della consulenza · Senza carta di credito · Risposta entro 24h</p>
+        <p className="mt-5 text-sm font-semibold text-white/56">31 giorni gratis al termine della consulenza · Risposta entro 24h</p>
       </div>
     </section>
   );

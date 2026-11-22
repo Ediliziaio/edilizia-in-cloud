@@ -828,7 +828,7 @@ export default function DiventaPartner() {
         className="py-12 sm:py-20 md:py-28"
         style={{ backgroundColor: "#f8fafb" }}
       >
-        <div className="max-w-6xl mx-auto px-5 sm:px-6">
+        <div className="scorri-pad-5 max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
             <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Il viaggio del partner

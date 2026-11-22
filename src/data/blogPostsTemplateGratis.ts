@@ -92,7 +92,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
       {
         type: "cta",
         heading: "Il Prossimo Venerdì Sera, il Preventivo È Già Partito",
-        body: "Con Edilizia in Cloud il modello è già pronto: listino integrato, voci riutilizzabili, esclusioni salvate, firma digitale dal telefono del cliente. Dieci minuti, non due ore. Provalo gratis per 31 giorni, senza carta di credito.",
+        body: "Con Edilizia in Cloud il modello è già pronto: listino integrato, voci riutilizzabili, esclusioni salvate, firma digitale dal telefono del cliente. Dieci minuti, non due ore. Provalo gratis per 31 giorni.",
       },
     ],
   },
@@ -317,7 +317,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
       {
         type: "cta",
         heading: "Riprenditi il Sabato: Fai il Test con un Cantiere Vero",
-        body: "Prova Edilizia in Cloud gratis per 31 giorni: cantieri, ore, preventivi e costi collegati tra loro. Nessuna carta di credito. Se non fa per te, torni ai fogli senza aver perso nulla — ma almeno l'avrai misurato.",
+        body: "Prova Edilizia in Cloud gratis per 31 giorni: cantieri, ore, preventivi e costi collegati tra loro. Se non fa per te, torni ai fogli senza aver perso nulla — ma almeno l'avrai misurato.",
       },
     ],
   },
@@ -382,7 +382,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
       {
         type: "cta",
         heading: "Svuota la Chat: un'App di Cantiere Vera, 31 Giorni Gratis",
-        body: "Prova l'app mobile di Edilizia in Cloud: timbrature GPS, rapportini con foto, DDT e avanzamento lavori collegati alla commessa. 31 giorni gratis, senza carta di credito. La squadra la impara in un giorno — e il DDT non lo cerchi più tra 118 messaggi.",
+        body: "Prova l'app mobile di Edilizia in Cloud: timbrature GPS, rapportini con foto, DDT e avanzamento lavori collegati alla commessa. 31 giorni gratis. La squadra la impara in un giorno — e il DDT non lo cerchi più tra 118 messaggi.",
       },
     ],
   },
@@ -451,7 +451,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
       {
         type: "cta",
         heading: "Dal Computo al Preventivo in un Passaggio, Varianti Comprese",
-        body: "Con Edilizia in Cloud il computo diventa preventivo con un clic: listino tuo, voci riusabili, varianti tracciate e confronto con i costi reali a consuntivo. Provalo gratis per 31 giorni, senza carta di credito: la prossima revisione non la rifai a mano.",
+        body: "Con Edilizia in Cloud il computo diventa preventivo con un clic: listino tuo, voci riusabili, varianti tracciate e confronto con i costi reali a consuntivo. Provalo gratis per 31 giorni: la prossima revisione non la rifai a mano.",
       },
     ],
   },
@@ -521,7 +521,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
       {
         type: "cta",
         heading: "La Recensione che Conta È la Tua: 31 Giorni Gratis",
-        body: "Le opinioni degli altri ti portano fino alla porta. Il giudizio vero lo dai tu, con i tuoi cantieri. Prova Edilizia in Cloud gratis per 31 giorni, con assistenza in italiano inclusa e senza carta di credito.",
+        body: "Le opinioni degli altri ti portano fino alla porta. Il giudizio vero lo dai tu, con i tuoi cantieri. Prova Edilizia in Cloud gratis per 31 giorni, con assistenza in italiano inclusa.",
       },
     ],
   },
@@ -590,7 +590,7 @@ export const blogPostsTemplateGratis: BlogPost[] = [
       {
         type: "cta",
         heading: "Il Bando Arriva: Fatti Trovare con il Progetto Pronto",
-        body: "Prepara il progetto di digitalizzazione con dati veri: prova Edilizia in Cloud gratis per 31 giorni, senza carta di credito. Quando esce il voucher, tu hai già il preventivo del fornitore e la squadra formata. Il tuo concorrente non ti aspetta.",
+        body: "Prepara il progetto di digitalizzazione con dati veri: prova Edilizia in Cloud gratis per 31 giorni. Quando esce il voucher, tu hai già il preventivo del fornitore e la squadra formata. Il tuo concorrente non ti aspetta.",
       },
     ],
   },

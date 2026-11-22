@@ -463,7 +463,7 @@ export default function CityHub() {
               <h3 className="font-bold text-[#111111] mb-2">Quanto costa Edilizia in Cloud</h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Si parte dal piano Scopri, gratis per sempre fino a tre commesse attive. I piani Gestionale, Professionista
-                e Impresa AI si provano per 31 giorni con setup e migrazione dati inclusi, senza carta di credito, e il
+                e Impresa AI si provano per 31 giorni con setup e migrazione dati inclusi, e il
                 preventivo si definisce in una consulenza gratuita. Gli utenti sono sempre illimitati.{" "}
                 <Link to="/prezzi/" className="font-semibold text-eic-orange hover:underline">Vedi i piani</Link>.
               </p>

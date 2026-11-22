@@ -503,7 +503,6 @@ function Prenota({ onPrenotato }: { onPrenotato: (p: PrenotazioneFatta) => void 
           <ul className="space-y-4 lg:pt-6">
             {[
               { Icon: Clock, testo: "30 minuti in videochiamata" },
-              { Icon: CreditCard, testo: "Nessuna carta di credito" },
               { Icon: CalendarCheck, testo: "Conferma immediata" },
               { Icon: Users, testo: "Porta chi vuoi: socio, amministrazione, capocantiere" },
             ].map(({ Icon, testo }) => (

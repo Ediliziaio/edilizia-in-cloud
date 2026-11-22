@@ -543,7 +543,6 @@ export default function Prezzi() {
                 <span className="text-5xl font-extrabold text-[#111111]">{"\u20AC"}0</span>
                 <span className="text-gray-400 text-base mb-2">{"\u00B7"} per sempre</span>
               </div>
-              <p className="text-xs text-gray-400">Nessuna carta richiesta</p>
             </div>
             <Link
               to="/demo/?plan=scopri"

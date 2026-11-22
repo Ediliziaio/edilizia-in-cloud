@@ -1264,7 +1264,7 @@ export default function CalcolatoreMargineCommessa() {
             </Link>
           </div>
           <p className="mt-5 text-xs text-white/55">
-            Piano gratuito disponibile · Nessuna carta per iniziare la prova ·
+            Piano gratuito disponibile ·
             Onboarding 1-a-1 incluso
           </p>
         </div>

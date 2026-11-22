@@ -23,6 +23,10 @@ export default function HeroRete({ className = "" }: { className?: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const ridotto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Su telefono si ridisegna un frame sì e uno no (a velocità doppia, così il
+    // moto resta uguale): metà lavoro mentre la pagina sta ancora partendo.
+    const leggero = window.matchMedia("(pointer: coarse)").matches;
+    const passo = leggero ? 2 : 1;
 
     let w = 0;
     let h = 0;
@@ -66,8 +70,8 @@ export default function HeroRete({ className = "" }: { className?: string }) {
       // posizioni
       for (const p of palline) {
         if (!ridotto) {
-          p.x += p.vx;
-          p.y += p.vy;
+          p.x += p.vx * passo;
+          p.y += p.vy * passo;
           if (p.x < -20) p.x = w + 20;
           if (p.x > w + 20) p.x = -20;
           if (p.y < -20) p.y = h + 20;
@@ -135,8 +139,10 @@ export default function HeroRete({ className = "" }: { className?: string }) {
 
     let raf = 0;
     let attiva = false;
+    let salta = false;
     const giro = () => {
-      disegna();
+      salta = leggero && !salta;
+      if (!salta) disegna();
       raf = requestAnimationFrame(giro);
     };
     const avvia = () => {

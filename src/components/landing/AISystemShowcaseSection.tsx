@@ -144,8 +144,28 @@ function useGsapSection() {
       cleanup = () => ctx.revert();
     }
 
-    run();
-    return () => cleanup?.();
+    // GSAP si carica solo quando la sezione si avvicina allo schermo: all'apertura
+    // della pagina (soprattutto su telefono) non deve pesare sull'avvio.
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      run();
+      return () => cleanup?.();
+    }
+    let partito = false;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting || partito) return;
+        partito = true;
+        io.disconnect();
+        run();
+      },
+      { rootMargin: "900px 0px" },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      cleanup?.();
+    };
   }, []);
 
   return ref;
@@ -186,7 +206,7 @@ export default function AISystemShowcaseSection() {
             <SilvioCervello groups={agentGroups} />
           </div>
 
-          <div className="space-y-3 md:space-y-4" data-ai-reveal>
+          <div className="min-w-0 space-y-3 md:space-y-4" data-ai-reveal>
             {/* Su telefono le quattro schede stanno in una fila da scorrere. */}
             <div className="scorri-mobile scorri-pad-4 space-y-3 md:space-y-4">
             {[

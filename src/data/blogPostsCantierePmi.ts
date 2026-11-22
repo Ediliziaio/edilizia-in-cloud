@@ -104,7 +104,7 @@ export const blogPostsCantierePmi: BlogPost[] = [
       },
       {
         type: "cta",
-        body: "Vuoi provare il rapportino con foto, ore dalle timbrature, dettatura vocale e firma del cliente? Edilizia in Cloud è gratis per 31 giorni, senza carta di credito: carica un cantiere vero e fai compilare la squadra per una settimana.",
+        body: "Vuoi provare il rapportino con foto, ore dalle timbrature, dettatura vocale e firma del cliente? Edilizia in Cloud è gratis per 31 giorni: carica un cantiere vero e fai compilare la squadra per una settimana.",
       },
     ],
   },
@@ -403,7 +403,7 @@ export const blogPostsCantierePmi: BlogPost[] = [
       {
         type: "section",
         heading: "Quanto costa e come si prova senza stravolgere lo studio",
-        body: "Il modo giusto di provare un gestionale edile, per un geometra, è partire da un cantiere solo: importa il computo di una commessa reale, trasformalo in preventivo con i tuoi costi, apri il cantiere e fai registrare al capocantiere rapportini e presenze per due settimane. Alla fine confronti il margine che vedi con quello che immaginavi. Se la differenza ti sorprende, il software ha già fatto il suo lavoro.\n\nEdilizia in Cloud si prova per 31 giorni con setup e migrazione dati inclusi, senza carta di credito; il piano Scopri è gratuito per sempre fino a tre commesse attive, e i piani superiori si definiscono in una consulenza gratuita. Il confronto con gli altri software del mercato, prezzi pubblici compresi, è nell'articolo sui [migliori software gestionali per l'edilizia](/blog/migliori-software-gestionali-edilizia-confronto/).",
+        body: "Il modo giusto di provare un gestionale edile, per un geometra, è partire da un cantiere solo: importa il computo di una commessa reale, trasformalo in preventivo con i tuoi costi, apri il cantiere e fai registrare al capocantiere rapportini e presenze per due settimane. Alla fine confronti il margine che vedi con quello che immaginavi. Se la differenza ti sorprende, il software ha già fatto il suo lavoro.\n\nEdilizia in Cloud si prova per 31 giorni con setup e migrazione dati inclusi; il piano Scopri è gratuito per sempre fino a tre commesse attive, e i piani superiori si definiscono in una consulenza gratuita. Il confronto con gli altri software del mercato, prezzi pubblici compresi, è nell'articolo sui [migliori software gestionali per l'edilizia](/blog/migliori-software-gestionali-edilizia-confronto/).",
       },
       {
         type: "callout",

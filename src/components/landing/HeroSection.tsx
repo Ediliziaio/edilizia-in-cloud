@@ -43,6 +43,12 @@ export default function HeroSection() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // La pagina arriva già disegnata (prerender): chi la apre ha già l'apertura
+    // sotto gli occhi. Rifare l'entrata la farebbe sparire e riapparire, e su
+    // telefono si aggiunge al tempo in cui la pagina sembra ferma. Su telefono
+    // non carichiamo proprio GSAP all'avvio (serviva solo a entrata e parallasse).
+    const giaDisegnata = !!document.querySelector('meta[name="x-prerendered"]');
+    if (giaDisegnata && window.matchMedia("(max-width: 767px)").matches) return;
 
     let mounted = true;
     let revert: (() => void) | null = null;
@@ -71,7 +77,7 @@ export default function HeroSection() {
         const motion = gsap.matchMedia();
         motion.add("(prefers-reduced-motion: no-preference)", () => {
           const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
-          timeline
+          if (!giaDisegnata) timeline
             .from(".gsap-hero-item", { opacity: 0, y: 28, duration: 0.72, stagger: 0.09, clearProps: "opacity,transform" })
             .from(".gsap-dashboard", { opacity: 0, y: 42, scale: 0.97, duration: 0.9, clearProps: "opacity,transform" }, 0.18)
             .from(".gsap-card", { opacity: 0, y: 14, duration: 0.42, stagger: 0.035, clearProps: "opacity,transform" }, 0.55);
