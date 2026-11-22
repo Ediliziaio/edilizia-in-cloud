@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Minus, Package, Plus, RefreshCcw } from "lucide-react";
+import { ChevronDown, Loader2, Minus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { formatoQuantitaMagazzino } from "@/lib/campo/magazzino";
 import { toast } from "sonner";
 
 interface ScortaFurgone {
@@ -15,10 +16,16 @@ interface ScortaFurgone {
   unita_misura: string | null;
 }
 
+const statiScorta = {
+  esaurita: { label: "Esaurita", className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
+  bassa: { label: "Bassa", className: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" },
+  disponibile: { label: "OK", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
+} as const;
+
 export function CampoScorteFurgone({ companyId }: { companyId: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [segnalazioneId, setSegnalazioneId] = useState<string | null>(null);
+  const [scortaApertaId, setScortaApertaId] = useState<string | null>(null);
 
   // Scorte furgone personali
   const scorteQuery = useQuery({
@@ -77,115 +84,86 @@ export function CampoScorteFurgone({ companyId }: { companyId: string }) {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Segnalazione inviata all'ufficio");
-      setSegnalazioneId(null);
-    },
-    onError: (err: unknown) => {
+    onSuccess: () => toast.success("Segnalazione inviata all'ufficio"),
+    onError: (err: unknown) =>
       toast.error("Errore segnalazione riordino", {
         description: err instanceof Error ? err.message : "Riprova tra qualche istante.",
-      });
-      setSegnalazioneId(null);
-    },
+      }),
   });
 
-  const scarseCount = scorte.filter((s) => (s.quantita ?? 0) <= (s.quantita_minima ?? 1)).length;
+  if (scorteQuery.isLoading) return (
+    <div role="status" className="flex justify-center py-5 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin" />
+      <span className="sr-only">Carico le scorte</span>
+    </div>
+  );
+  if (scorteQuery.isError) return (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2.5 text-sm">
+      <p>Impossibile caricare le scorte.</p>
+      <Button variant="outline" size="sm" className="min-h-11" onClick={() => void scorteQuery.refetch()} disabled={scorteQuery.isFetching}>
+        {scorteQuery.isFetching ? "Riprovo…" : "Riprova"}
+      </Button>
+    </div>
+  );
+  if (scorte.length === 0) return (
+    <p className="rounded-xl border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">Nessuna scorta assegnata.</p>
+  );
 
+  const scarseCount = scorte.filter((s) => (s.quantita ?? 0) <= (s.quantita_minima ?? 1)).length;
   return (
     <>
-    {scarseCount > 0 && (
-      <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl mb-4">
-        <AlertTriangle className="w-4 h-4 text-primary shrink-0" />
-        <p className="text-xs text-primary">
-          {scarseCount} articol{scarseCount > 1 ? "i" : "o"} in esaurimento
-        </p>
-      </div>
-    )}
-
-    {scorteQuery.isLoading ? (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    ) : scorteQuery.isError ? (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-border py-10 text-center">
-        <p className="text-sm font-medium">Non riesco a caricare le scorte</p>
-        <p className="text-xs text-muted-foreground">Controlla la connessione e riprova.</p>
-        <Button variant="outline" size="sm" onClick={() => scorteQuery.refetch()} disabled={scorteQuery.isFetching}>
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          {scorteQuery.isFetching ? "Riprovo…" : "Riprova"}
-        </Button>
-      </div>
-    ) : scorte.length === 0 ? (
-      <div className="flex flex-col items-center py-16 gap-3 text-center">
-        <Package className="w-10 h-10 text-muted-foreground" />
-        <p className="text-muted-foreground text-sm">Nessuna scorta assegnata</p>
-        <p className="text-xs text-muted-foreground max-w-xs">
-          Le scorte del furgone le carica l'ufficio sulla tua scheda. Quando ci sono, le vedi qui e puoi aggiornarle a fine giornata.
-        </p>
-      </div>
-    ) : (
-      <div className="space-y-3">
+      {scarseCount > 0 && <p className="mb-1.5 px-0.5 text-xs font-medium text-muted-foreground">{scarseCount} da riordinare</p>}
+      <ul aria-label="Scorte furgone" className="divide-y rounded-xl border bg-card">
         {scorte.map((s) => {
           const qta = s.quantita ?? 0;
           const isScarso = qta <= (s.quantita_minima ?? 1);
+          const stato = qta <= 0 ? statiScorta.esaurita : isScarso ? statiScorta.bassa : statiScorta.disponibile;
+          const invioSegnalazione = segnalaMutation.isPending && segnalaMutation.variables?.id === s.id;
           return (
-            <div
-              key={s.id}
-              className={cn(
-                "bg-muted border rounded-2xl p-4",
-                isScarso ? "border-primary/30" : "border-border"
-              )}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <p className="font-medium text-foreground">{s.descrizione}</p>
-                {isScarso && (
-                  <span className="text-[10px] bg-primary/10 text-primary border border-primary/30 rounded-full px-2 py-0.5">
-                    Scarso
+            <Collapsible key={s.id} asChild open={scortaApertaId === s.id}
+              onOpenChange={(aperta) => setScortaApertaId(aperta ? s.id : null)}>
+              <li className="first:rounded-t-xl last:rounded-b-xl">
+                <CollapsibleTrigger type="button"
+                  className="group grid min-h-11 w-full grid-cols-[minmax(0,1fr)_fit-content(35%)_3.5rem_1rem] items-center gap-1.5 rounded-[inherit] px-2.5 py-1.5 text-left text-sm leading-tight hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                  <span className="[overflow-wrap:anywhere]">{s.descrizione}</span>
+                  <span className="text-right font-semibold tabular-nums [overflow-wrap:anywhere]">
+                    {formatoQuantitaMagazzino.format(qta)} {s.unita_misura || "pz"}
                   </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => updateQtaMutation.mutate({ id: s.id, delta: -1 })}
-                    disabled={qta <= 0 || updateQtaMutation.isPending}
-                    aria-label={`Diminuisci ${s.descrizione}`}
-                    className="w-11 h-11 rounded-xl bg-background border border-border flex items-center justify-center active:bg-muted disabled:opacity-30"
-                  >
-                    <Minus className="w-4 h-4 text-foreground" />
-                  </button>
-                  <span className="text-xl font-bold text-foreground w-12 text-center tabular-nums">
-                    {qta}
+                  <span className={`justify-self-end rounded-full px-1.5 text-xs font-semibold leading-5 ${stato.className}`}>
+                    {stato === statiScorta.disponibile ? (
+                      <><span aria-hidden="true">{stato.label}</span><span className="sr-only">Disponibile</span></>
+                    ) : stato.label}
                   </span>
-                  <button
-                    onClick={() => updateQtaMutation.mutate({ id: s.id, delta: 1 })}
-                    disabled={updateQtaMutation.isPending}
-                    aria-label={`Aumenta ${s.descrizione}`}
-                    className="w-11 h-11 rounded-xl bg-background border border-border flex items-center justify-center active:bg-muted"
-                  >
-                    <Plus className="w-4 h-4 text-foreground" />
-                  </button>
-                  <span className="text-xs text-muted-foreground">{s.unita_misura ?? "pz"}</span>
-                </div>
-
-                {isScarso && segnalazioneId !== s.id && (
-                  <button
-                    onClick={() => { setSegnalazioneId(s.id); segnalaMutation.mutate(s); }}
-                    className="text-xs bg-primary/10 text-primary border border-primary/30 px-3 py-2 rounded-lg"
-                  >
-                    Segnala
-                  </button>
-                )}
-                {segnalazioneId === s.id && segnalaMutation.isPending && (
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                )}
-              </div>
-            </div>
+                  <ChevronDown aria-hidden="true" className="h-4 w-4 text-muted-foreground group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2 data-[state=closed]:hidden">
+                  <div className="flex items-center gap-1.5">
+                    <Button type="button" variant="outline" size="icon" className="min-h-11 w-11"
+                      onClick={() => updateQtaMutation.mutate({ id: s.id, delta: -1 })}
+                      disabled={qta <= 0 || updateQtaMutation.isPending}
+                      aria-label={`Diminuisci ${s.descrizione}`}>
+                      <Minus aria-hidden="true" />
+                    </Button>
+                    <Button type="button" variant="outline" size="icon" className="min-h-11 w-11"
+                      onClick={() => updateQtaMutation.mutate({ id: s.id, delta: 1 })}
+                      disabled={updateQtaMutation.isPending}
+                      aria-label={`Aumenta ${s.descrizione}`}>
+                      <Plus aria-hidden="true" />
+                    </Button>
+                  </div>
+                  {isScarso && (
+                    <Button type="button" variant="outline" size="sm" className="min-h-11 text-xs"
+                      aria-label={`Segnala riordino ${s.descrizione}`} aria-busy={invioSegnalazione}
+                      onClick={() => segnalaMutation.mutate(s)} disabled={segnalaMutation.isPending}>
+                      {invioSegnalazione ? "Invio…" : "Segnala"}
+                    </Button>
+                  )}
+                </CollapsibleContent>
+              </li>
+            </Collapsible>
           );
         })}
-      </div>
-    )}
+      </ul>
     </>
   );
 }
