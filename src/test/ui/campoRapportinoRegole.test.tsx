@@ -1,3 +1,5 @@
+import "fake-indexeddb/auto";
+import type { RapportoInCoda } from "@/lib/campo/rapportoInCoda";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoRapportino from "@/pages/campo/CampoRapportino";
@@ -22,6 +24,14 @@ const state = vi.hoisted(() => ({
   verificaErrore: false, verificaCaricamento: false,
   params: "", proposta: null as RapportinoVocaleDraft | null, modulo: undefined as ModuloSchema | undefined,
 }));
+vi.mock("@/lib/campo/sync-queue", async (importOriginal) => {
+  const originale = await importOriginal<typeof import("@/lib/campo/sync-queue")>();
+  return { ...originale, syncQueue: { ...originale.syncQueue, enqueue: async (voce: { payload: RapportoInCoda; operationId: string }) => {
+    const { inviaRapportoInCoda } = await import("@/lib/campo/rapportoInCoda");
+    await inviaRapportoInCoda(voce.payload, voce.operationId);
+    return voce.operationId;
+  } } };
+});
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(state.params), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isSubappaltatore: false }) }));
@@ -62,9 +72,11 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {
     const result = { data: table === "campo_rapportini" ? { id: "report" } : {}, error: null as Error | null };
+    let ricevuta = false;
+    const lettura = async () => ricevuta ? { ...result, data: state.gia } : result;
     const query = { insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); return query; },
       update: (value: unknown) => { if (table === "campo_rapportini") state.update(value); return query; }, in: () => query,
-      select: () => query, eq: () => query, single: async () => result, maybeSingle: async () => result,
+      select: (colonne?: string) => { ricevuta = colonne?.startsWith("invio_operazione_id") ?? false; return query; }, eq: () => query, is: () => query, single: async () => result, maybeSingle: lettura,
       then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
     return query;
   }, functions: { invoke: async () => ({ data: { pdf_url: "https://local.invalid/rapportino.pdf" }, error: null as null }) },
@@ -388,7 +400,7 @@ describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
     fireEvent.click(screen.getByRole("button", { name: "Traccia Firma del cliente" }));
     expect(invio).toBeEnabled();
     fireEvent.click(invio);
-    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ lavoro_completato: true, ore_lavorate: 0, ore_straordinario: 0, firma_cliente_nome: "Luca Bianchi", firma_cliente_url: "https://local.invalid/firma.png" })));
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ lavoro_completato: true, ore_lavorate: 0, ore_straordinario: 0, firma_cliente_nome: "Luca Bianchi", firma_cliente_url: expect.stringMatching(/^campo-rapportini\/company\/order\/firme\/.*_cliente\.png$/) })));
     expect(state.insert.mock.calls[0][0]).not.toHaveProperty("presenze");
   });
 

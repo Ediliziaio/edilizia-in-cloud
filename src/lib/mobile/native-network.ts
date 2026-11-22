@@ -2,7 +2,7 @@ import { Network, type ConnectionStatus } from "@capacitor/network";
 import { isNative } from "./platform";
 
 export type NetworkState = { connected: boolean; connectionType: string };
-let currentState: NetworkState = { connected: navigator.onLine, connectionType: "unknown" };
+let currentState: NetworkState = { connected: typeof navigator === "undefined" || navigator.onLine !== false, connectionType: "unknown" };
 const listeners = new Set<(state: NetworkState) => void>();
 
 export async function initNetworkMonitor() {

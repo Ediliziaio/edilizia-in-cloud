@@ -10,11 +10,14 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {
-  PrelievoNonRegistrato, useCampoCantieriPrelievo, useCampoInventario, usePrelievoRegistra,
+  useCampoCantieriPrelievo, useCampoInventario,
   type CantierePrelievo, type StockCampo,
 } from "@/hooks/campo/useCampoPrelievo";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import type { PrelievoInCoda } from "@/lib/campo/prelievoInCoda";
 import {
   BOZZA_PRELIEVO_VUOTA, bozzaPerCantiere, bozzeCantieriPrelievo, quantitaNelleBozze, salvaBozzaPrelievo,
   type BozzaPrelievo, type PrelievoLocale,
@@ -42,7 +45,10 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   onRegistrato: () => void;
 }) {
   const leggiBozze = useCallback(() => puoPrelevare ? bozzeCantieriPrelievo(companyId, userId) : [], [companyId, userId, puoPrelevare]);
-  const [bozze, setBozze] = useState(leggiBozze);
+  const [bozzePresenti, setBozze] = useState(leggiBozze);
+  const coda = useCodaCampo(companyId, userId, "prelievo");
+  const giaInCoda = new Set(coda.map(voce => voce.operationId));
+  const bozze = bozzePresenti.filter(locale => !giaInCoda.has(locale.bozza.id));
   const [cantiereScelto, setCantiereScelto] = useState(cantiereIniziale);
   const [erroreBozza, setErroreBozza] = useState<string | null>(null);
   const [erroreInvio, setErroreInvio] = useState<string | null>(null);
@@ -58,7 +64,6 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const online = useOnlineStatus();
   const inventario = useCampoInventario(companyId, cerca, soloDisponibili, attivo);
   const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare);
-  const prelievo = usePrelievoRegistra(companyId);
 
   useEffect(() => {
     if (!puoPrelevare) return;
@@ -66,7 +71,11 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
       if (!inInvio.current) setBozze(leggiBozze());
     };
     window.addEventListener("storage", leggiAggiornamento);
-    return () => window.removeEventListener("storage", leggiAggiornamento);
+    const togliListener = syncQueue.on("change", leggiAggiornamento);
+    return () => {
+      window.removeEventListener("storage", leggiAggiornamento);
+      togliListener();
+    };
   }, [leggiBozze, puoPrelevare]);
 
   const articoli = inventario.data?.pages.flat() ?? [];
@@ -74,7 +83,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const assegnabili = cantieri.isError ? [] : cantieri.data ?? [];
   const cantieriPerId = new Map(assegnabili.map((cantiere) => [cantiere.id, cantiere]));
   const cantiereAttivo = cantiereScelto ?? (bozze.length === 1 ? bozze[0].cantiere : assegnabili.length === 1 ? assegnabili[0].id : "");
-  const attiva = bozzaPerCantiere(bozze, companyId, userId, cantiereAttivo);
+  const attiva = bozzaPerCantiere(bozzePresenti, companyId, userId, cantiereAttivo);
   const { bozza } = attiva;
   const { righe, inVerifica } = bozza;
   const carrello = new Map(righe.map((riga) => [riga.articolo.id, riga]));
@@ -102,7 +111,9 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   };
   const quantitaValide = bozze.filter((locale) =>
     locale.bozza.righe.every((riga) => !verificaQuantita(riga.articolo, riga.quantita, locale.bozza.inVerifica).errore));
-  const pronti = new Set(quantitaValide.filter((locale) => locale.bozza.inVerifica || cantieriPerId.has(locale.cantiere))
+  const cantiereConfermato = (locale: PrelievoLocale) => cantieriPerId.has(locale.cantiere)
+    || (!online && !!locale.bozza.orderId && !!locale.bozza.nomeCantiere);
+  const pronti = new Set(quantitaValide.filter((locale) => locale.bozza.inVerifica || cantiereConfermato(locale))
     .map((locale) => locale.chiave));
   const daInviare = (daVerificare.length ? daVerificare : bozze).filter((locale) => pronti.has(locale.chiave));
   const bozzeRitiro = daVerificare.length ? [] : !online && !cantieri.data
@@ -110,10 +121,11 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
     : daInviare;
   const haRitiro = bozzeRitiro.reduce((totale, { bozza }) => totale + bozza.righe.length, 0) > 1;
   const mostraRitiro = haRitiro && vistaRitiro;
-  const puoInviare = online && puoPrelevare && !inSalvataggio && daInviare.length > 0;
+  const puoInviare = puoPrelevare && !inSalvataggio && daInviare.length > 0;
   const articoliInBozza = bozze[0]?.bozza.righe.length ?? 0;
   const numeroInvii = daInviare.length || bozze.length;
-  const invia = daVerificare.length ? "Verifica invio" : richiedeConferma
+  const invia = !online ? numeroInvii === 1 ? "Metti in coda" : "Metti in coda " + numeroInvii + " prelievi"
+    : daVerificare.length ? "Verifica invio" : richiedeConferma
     ? numeroInvii === 1 ? "Invia richiesta" : `Invia ${numeroInvii} richieste`
     : numeroInvii === 1 ? "Registra prelievo" : `Registra ${numeroInvii} prelievi`;
 
@@ -168,44 +180,32 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
     inInvio.current = true;
     setInSalvataggio(true);
     setErroreInvio(null);
-    const esiti = { consegnato: 0, richiesto: 0, rifiutato: 0 };
+    const preparati: PrelievoLocale[] = [];
     try {
       for (const locale of daInviare) {
-        // Prima si fissa la bozza sul dispositivo. Un ricontrollo ripete lo stesso identificativo.
         const tentativo = scriviBozza(locale, { ...locale.bozza, orderId: locale.cantiere, inVerifica: true });
-        if (!tentativo) break;
-        const salvata = { ...locale, bozza: tentativo };
-        try {
-          const esito = await prelievo.mutateAsync({
-            orderId: tentativo.orderId, warehouseId: tentativo.righe[0].articolo.warehouse_id,
-            righe: tentativo.righe.map((riga) => ({ stock_item_id: riga.articolo.id, quantita: quantitaPrelievo(riga.quantita) })),
-            note: tentativo.note.trim(), requestId: tentativo.id,
-          });
-          esiti[esito.stato]++;
-        } catch (error) {
-          const nome = nomePrelievo(locale, cantieriPerId);
-          if (error instanceof PrelievoNonRegistrato) {
-            scriviBozza(salvata, { ...tentativo, inVerifica: false });
-            setErroreInvio(`${nome} · ${error.message}`);
-            void inventario.refetch();
-            void cantieri.refetch();
-          } else {
-            setErroreInvio(`Verifica l’invio per ${nome}. Gli altri prelievi restano salvati.`);
-          }
-          break;
-        }
-        if (!scriviBozza(salvata, BOZZA_PRELIEVO_VUOTA)) break;
+        if (!tentativo) throw new Error("Controlla le bozze prima di riprovare.");
+        preparati.push({ ...locale, bozza: tentativo });
       }
-      if (esiti.consegnato) toast.success(esiti.consegnato === 1 ? "Prelievo registrato" : `${esiti.consegnato} prelievi registrati`);
-      if (esiti.richiesto) toast.success(esiti.richiesto === 1 ? "Richiesta inviata" : `${esiti.richiesto} richieste inviate`);
-      if (esiti.rifiutato) toast.info(esiti.rifiutato === 1 ? "Prelievo rifiutato" : `${esiti.rifiutato} prelievi rifiutati`);
-      const rimaste = leggiBozze();
-      setBozze(rimaste);
-      if (!rimaste.length && (esiti.consegnato || esiti.richiesto || esiti.rifiutato)) {
+      await syncQueue.enqueueBatch<PrelievoInCoda>(preparati.map(locale => ({
+        type: "prelievo",
+        dedupKey: JSON.stringify([companyId, userId, locale.bozza.id]),
+        operationId: locale.bozza.id,
+        payload: { company_id: companyId, user_id: userId, order_id: locale.cantiere, locale },
+      })));
+      if (!online) toast.success(preparati.length === 1 ? "Prelievo in coda" : "Prelievi in coda");
+      if (preparati.length === bozze.length) {
         setAperto(false);
         setVistaRitiro(false);
         onRegistrato();
       }
+    } catch {
+      for (const locale of preparati) {
+        const prima = daInviare.find(item => item.chiave === locale.chiave);
+        if (prima) salvaBozzaPrelievo(locale.chiave, locale.bozza, prima.bozza);
+      }
+      setBozze(leggiBozze());
+      setErroreInvio("Non riesco a mettere i prelievi in coda. Le bozze restano disponibili.");
     } finally {
       inInvio.current = false;
       setInSalvataggio(false);
@@ -406,7 +406,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
                       <Warehouse aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                       <span className="min-w-0 break-words">{gruppo.righe[0].articolo.magazzino ?? "Senza ubicazione"}</span>
                     </p>
-                    {!gruppo.inVerifica && !cantieriPerId.has(locale.cantiere) && (
+                    {!gruppo.inVerifica && !cantiereConfermato(locale) && (
                       <UniformSelect aria-label="Cantiere di destinazione" value="" disabled={bloccata || !assegnabili.length}
                         onChange={(event) => aggiornaBozza(locale, { ...gruppo, orderId: event.target.value })}
                         className="h-11 w-full rounded-lg px-2 text-sm">
@@ -456,7 +456,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
             })}
           </div>
           <div className="shrink-0 space-y-1.5 border-t bg-background px-3 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 sm:px-4">
-            {!online && <p role="status" className="text-xs text-muted-foreground">Bozze salvate. Torna online per inviare.</p>}
+            {!online && <p role="status" className="text-xs text-muted-foreground">I prelievi in coda partono quando torna la rete.</p>}
             {online && !daVerificare.length && daInviare.length > 0 && daInviare.length < bozze.length && (
               <p className="text-xs text-muted-foreground">Invii solo i prelievi pronti.</p>
             )}

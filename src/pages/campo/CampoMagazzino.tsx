@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { CampoScorteFurgone } from "@/components/campo/CampoScorteFurgone";
 import { CampoInventario } from "@/components/campo/CampoInventario";
-import { CampoPrelievi } from "@/components/campo/CampoPrelievi";
+import { CampoPrelievi, PrelieviInCoda } from "@/components/campo/CampoPrelievi";
 import { Button } from "@/components/ui/button";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { cn } from "@/lib/utils";
@@ -86,7 +86,10 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
             />
           </div>
         )}
-        {scheda === "prelievi" && <CampoPrelievi companyId={config.companyId} puoPrelevare={puoPrelevare} />}
+        {scheda === "prelievi" && <>
+          <PrelieviInCoda companyId={config.companyId} userId={config.userId} />
+          <CampoPrelievi companyId={config.companyId} puoPrelevare={puoPrelevare} />
+        </>}
         {scheda === "furgone" && <CampoScorteFurgone companyId={config.companyId} />}
       </div>
     </section>

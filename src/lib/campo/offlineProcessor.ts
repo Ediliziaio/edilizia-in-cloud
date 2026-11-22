@@ -9,7 +9,7 @@ import {
 } from "./sync-queue";
 
 /** Non aggira RLS: nessuna RPC security-definer generica e nessun target libero. */
-export async function processCampoOffline(item: SyncItem): Promise<void> {
+export async function processCampoOffline(item: SyncItem) {
   const payload = item.payload as Record<string, unknown>;
   const row = (item.type === "foto" ? payload.riga : payload) as
     | Record<string, unknown>
@@ -22,6 +22,14 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
     throw new SyncDeferredError(
       "Questa operazione appartiene a un altro utente o richiede verifica dell’autore",
     );
+  if (item.type === "prelievo") {
+    const { inviaPrelievoInCoda } = await import("./prelievoInCoda");
+    return inviaPrelievoInCoda(item.payload as import("./prelievoInCoda").PrelievoInCoda, await syncOperationId(item));
+  }
+  if (item.type === "rapportino") {
+    const { inviaRapportoInCoda } = await import("./rapportoInCoda");
+    return inviaRapportoInCoda(item.payload as import("./rapportoInCoda").RapportoInCoda, await syncOperationId(item));
+  }
   if (item.type === "documento_ddt") {
     const { inviaDocumentoPersistente } = await import(
       "../ddt/documentiPersistenti"

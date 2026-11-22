@@ -2,8 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
-import { withClientTimeout } from "@/lib/query-timeout";
-import { queryKeys } from "@/lib/queryKeys";
+import type { PrelievoEsito } from "@/lib/campo/prelievoInCoda";
 import { livelloMagazzinoCampo } from "../../../shared/campo-magazzino";
 
 type CampoRpc = Database["public"]["Functions"];
@@ -17,13 +16,6 @@ export interface RigaPrelievo {
   quantita: number;
   unita?: string | null;
 }
-
-interface PrelievoEsito {
-  id: string;
-  stato: "richiesto" | "consegnato" | "rifiutato";
-}
-
-export class PrelievoNonRegistrato extends Error {}
 
 const INVENTARIO_PER_PAGINA = 60;
 
@@ -79,52 +71,6 @@ export function useCampoCantieriPrelievo(companyId: string, enabled: boolean) {
       const { data, error } = await supabase.rpc("campo_magazzino_cantieri", { p_azienda: companyId }).abortSignal(signal);
       if (error) throw error;
       return data ?? [];
-    },
-  });
-}
-
-export function usePrelievoRegistra(companyId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    networkMode: "always",
-    mutationFn: async ({ orderId, warehouseId, righe, note, requestId }: {
-      orderId: string;
-      warehouseId: string | null;
-      righe: { stock_item_id: string; quantita: number }[];
-      note: string;
-      requestId: string;
-    }): Promise<PrelievoEsito> => {
-      const { data, error } = await withClientTimeout(supabase.rpc("campo_magazzino_preleva", {
-        p_azienda: companyId,
-        p_cantiere: orderId,
-        p_magazzino: warehouseId,
-        p_righe: righe,
-        p_note: note || null,
-        p_richiesta_id: requestId,
-      }), "Registrazione prelievo");
-      if (error) {
-        // Questi errori vengono emessi dopo il controllo dell'identificativo e annullano la scrittura.
-        const nonRegistrato = error.code === "22023" || error.code === "P0001"
-          || (error.code === "42501" && error.message.startsWith("Scegli un cantiere aperto"));
-        if (nonRegistrato) throw new PrelievoNonRegistrato(error.message);
-        throw new Error(error.message);
-      }
-      if (!data || typeof data !== "object" || Array.isArray(data) || typeof data.id !== "string"
-        || (data.stato !== "richiesto" && data.stato !== "consegnato" && data.stato !== "rifiutato")) {
-        throw new Error("Il magazzino non ha confermato l’esito. Riprova a inviare questo prelievo.");
-      }
-      return { id: data.id, stato: data.stato };
-    },
-    onSuccess: ({ stato }, { orderId }) => {
-      void qc.invalidateQueries({ queryKey: ["campo-warehouse-stock", companyId] });
-      void qc.invalidateQueries({ queryKey: ["campo-miei-prelievi", companyId] });
-      void qc.invalidateQueries({ queryKey: ["prelievi-campo-attesa", companyId] });
-      void qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      if (stato === "consegnato") {
-        void qc.invalidateQueries({ queryKey: queryKeys.warehouse.movementsRegistry(companyId) });
-        void qc.invalidateQueries({ queryKey: queryKeys.warehouse.campoMateriali(companyId, orderId) });
-        void qc.invalidateQueries({ queryKey: ["order-material-usage", orderId, companyId] });
-      }
     },
   });
 }

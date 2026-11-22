@@ -20770,6 +20770,7 @@ export type Database = {
           gps_lat: number | null
           gps_lng: number | null
           id: string
+          invio_operazione_id: string | null
           lavoro_completato: boolean | null
           materiali_usati: Json | null
           meteo: string | null
@@ -20816,6 +20817,7 @@ export type Database = {
           gps_lat?: number | null
           gps_lng?: number | null
           id?: string
+          invio_operazione_id?: string | null
           lavoro_completato?: boolean | null
           materiali_usati?: Json | null
           meteo?: string | null
@@ -20862,6 +20864,7 @@ export type Database = {
           gps_lat?: number | null
           gps_lng?: number | null
           id?: string
+          invio_operazione_id?: string | null
           lavoro_completato?: boolean | null
           materiali_usati?: Json | null
           meteo?: string | null

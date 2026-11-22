@@ -5,6 +5,7 @@ import { campoDayWindow, summarizeCampoTime } from "@/lib/campo/timeSummary";
 import { loadCampoDayPunches } from "@/lib/campo/loadTimePunches";
 import { syncQueue, syncItemScope } from "@/lib/campo/sync-queue";
 import { erroreDiRete, type rigaTimbratura } from "@/lib/campo/timbra";
+import type { RapportoInCoda } from "@/lib/campo/rapportoInCoda";
 
 const EMPTY_PUNCHES: Awaited<ReturnType<typeof loadCampoDayPunches>> = [];
 
@@ -20,11 +21,15 @@ function useTimbratureInCoda(userId: string | undefined, companyId: string | nul
         if (!attivo) return;
         setRighe(items
           .filter((i) => {
-            if (i.type !== "timbratura" || i.status === "done") return false;
+            if ((i.type !== "timbratura" && i.type !== "rapportino") || i.status === "done") return false;
             const scope = syncItemScope(i);
             return scope.owner === userId && scope.companyId === companyId;
           })
-          .map((i) => i.payload as RigaInCoda));
+          .flatMap(i => {
+            if (i.type === "timbratura") return [i.payload as RigaInCoda];
+            const uscita = (i.payload as RapportoInCoda).uscita;
+            return uscita && i.status !== "failed" ? [uscita] : [];
+          }));
       }).catch(() => { /* Senza IndexedDB la coda è vuota: resta quello che dice il server. */ });
     };
     leggi();

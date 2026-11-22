@@ -1,8 +1,10 @@
+import "fake-indexeddb/auto";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CampoInventario } from "@/components/campo/CampoInventario";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
-import { PrelievoNonRegistrato } from "@/hooks/campo/useCampoPrelievo";
+import { inviaPrelievoInCoda, type PrelievoInCoda } from "@/lib/campo/prelievoInCoda";
+import { syncOperationId, syncQueue } from "@/lib/campo/sync-queue";
 import {
   BOZZA_PRELIEVO_VUOTA, bozzeCantieriPrelievo, chiaveBozzaPrelievo, leggiBozzaPrelievo, salvaBozzaPrelievo,
 } from "@/lib/campo/bozzaPrelievo";
@@ -13,7 +15,6 @@ const state = vi.hoisted(() => ({ mutate: vi.fn(), refetch: vi.fn(), disponibile
 ] }));
 
 vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
-  PrelievoNonRegistrato: class extends Error {},
   useCampoInventario: (_azienda: string, _cerca: string, soloDisponibili: boolean) => ({
     data: state.datiInCache ? { pages: [[
       { id: "tubo", warehouse_id: state.depositoTubo, name: "Tubo corrugato", internal_code: "TUB-12", unita_misura: "m", disponibile: state.disponibile, magazzino: "Deposito nord", ubicazione: "Corsia A · Scaffale 4" },
@@ -23,13 +24,32 @@ vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
     refetch: state.refetch,
   }),
   useCampoCantieriPrelievo: () => ({ data: state.datiInCache ? state.cantieri : undefined, refetch: state.refetch }),
-  usePrelievoRegistra: () => ({ reset: vi.fn(), mutateAsync: state.mutate }),
 }));
 vi.mock("@/hooks/useOnlineStatus", () => ({ useOnlineStatus: () => state.online }));
 
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  rpc: async (_nome: string, args: {
+    p_azienda: string; p_cantiere: string; p_magazzino: string; p_righe: unknown[]; p_note: string; p_richiesta_id: string;
+  }) => {
+    try {
+      const esito = await state.mutate({
+        orderId: args.p_cantiere, warehouseId: args.p_magazzino, righe: args.p_righe, note: args.p_note, requestId: args.p_richiesta_id,
+      });
+      return { data: { id: args.p_richiesta_id, ...esito }, error: null };
+    } catch (errore) {
+      return { data: null, error: errore };
+    }
+  },
+} }));
+
+let scollega = () => {};
+
 const cantieriAssegnati = [...state.cantieri];
 const chiave = chiaveBozzaPrelievo("azienda", "operaio", "C065");
-beforeEach(() => {
+beforeEach(async () => {
+  for (const voce of await syncQueue.getAll()) await syncQueue.remove(voce.id);
+  syncQueue.registerProcessor(async voce => inviaPrelievoInCoda(voce.payload as PrelievoInCoda, await syncOperationId(voce)));
+  scollega = syncQueue.on("enqueued", () => { if (state.online) void syncQueue.processQueue(); });
   Element.prototype.scrollIntoView ??= vi.fn();
   state.cantieri = [...cantieriAssegnati];
   state.disponibile = 10;
@@ -41,7 +61,7 @@ beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { scollega(); cleanup(); vi.restoreAllMocks(); });
 
 function modulo(cantiereIniziale: string | undefined, userId = "operaio") {
   return <CampoInventario companyId="azienda" userId={userId} attivo puoPrelevare richiedeConferma={false}
@@ -138,39 +158,43 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     expect(within(ripreso).getByLabelText("Note facoltative")).toHaveValue("Per il montaggio");
   });
 
-  it("verifica con lo stesso identificativo dopo il riavvio, anche se la giacenza è già stata scalata", async () => {
-    state.mutate.mockRejectedValueOnce(new Error("Connessione interrotta"));
+  it("accoda prima di inviare e ritenta con lo stesso identificativo anche dopo il rimontaggio", async () => {
+    state.mutate.mockRejectedValueOnce(new Error("Failed to fetch"));
     const campo = apriDaCantiere("C065");
     fireEvent.change(campo, { target: { value: "10" } });
     fireEvent.click(screen.getByRole("button", { name: /^Rivedi ·/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Registra prelievo" }));
-    await screen.findByRole("button", { name: "Verifica invio" });
+    await waitFor(async () => expect(await syncQueue.getAll("prelievo")).toMatchObject([{ status: "pending", retryCount: 1 }]));
     cleanup();
     sessionStorage.clear();
 
     state.online = false;
     state.disponibile = 0;
-    const riaperto = inventario("C065");
-    fireEvent.click(screen.getByRole("button", { name: /Verifica prelievo/ }));
-    expect(await screen.findByRole("textbox", { name: "Verifica quantità di Tubo corrugato" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Verifica invio" })).toBeDisabled();
+    inventario("C065");
     expect(state.mutate).toHaveBeenCalledTimes(1);
+    expect(leggiBozzaPrelievo(chiave)).toMatchObject({ inVerifica: true });
+
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 1500);
     state.online = true;
-    riaperto.rerender(modulo("C065"));
-    fireEvent.click(screen.getByRole("button", { name: "Verifica invio" }));
-    await waitFor(() => expect(state.mutate).toHaveBeenCalledTimes(2));
+    await syncQueue.processQueue();
+    expect(state.mutate).toHaveBeenCalledTimes(2);
     expect(state.mutate.mock.calls[1][0]).toEqual(state.mutate.mock.calls[0][0]);
-    await waitFor(() => expect(leggiBozzaPrelievo(chiave)).toEqual(BOZZA_PRELIEVO_VUOTA));
+    expect(leggiBozzaPrelievo(chiave)).toEqual(BOZZA_PRELIEVO_VUOTA);
   });
 
-  it("permette di correggere la bozza se il magazzino respinge la registrazione", async () => {
-    state.mutate.mockRejectedValueOnce(new PrelievoNonRegistrato("Giacenza insufficiente"));
+  it("riapre la bozza quando il magazzino conferma che la registrazione è stata respinta", async () => {
+    state.mutate.mockRejectedValueOnce({ code: "P0001", message: "Giacenza insufficiente" });
     apriDaCantiere("C065");
     fireEvent.click(screen.getByRole("button", { name: /^Rivedi ·/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Registra prelievo" }));
-    await waitFor(() => expect(state.refetch).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole("textbox", { name: "Verifica quantità di Tubo corrugato" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Registra prelievo" })).toBeEnabled();
+    await waitFor(async () => {
+      expect(state.mutate).toHaveBeenCalledTimes(1);
+      expect(await syncQueue.getAll("prelievo")).toEqual([]);
+      expect(leggiBozzaPrelievo(chiave)).toMatchObject({ inVerifica: false });
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Rivedi ·/ }));
+    expect(await screen.findByRole("textbox", { name: "Verifica quantità di Tubo corrugato" })).toBeEnabled();
   });
 
   it("recupera l’identificativo di un invio rimasto in sospeso prima dell’aggiornamento", async () => {
@@ -295,7 +319,7 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     expect(scaffale.getByText("2,25 m", { exact: true })).toBeInTheDocument();
     const ripiano = within(lista.getByRole("region", { name: "Deposito nord · Corsia B · Ripiano 1" }));
     expect(ripiano.getByText("Viti zincate")).toBeInTheDocument();
-    expect(dialogo.getByRole("button", { name: "Registra 2 prelievi" })).toBeDisabled();
+    expect(dialogo.getByRole("button", { name: "Metti in coda 2 prelievi" })).toBeEnabled();
   });
 
   it("segnala lo spostamento di un articolo prima di indicarlo nella lista di ritiro", async () => {
@@ -311,29 +335,29 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     expect(dialogo.getByRole("button", { name: "Registra prelievo" })).toBeDisabled();
   });
 
-  it("ripristina due bozze offline e ritenta soltanto l’invio rimasto incerto", async () => {
+  it("accoda due cantieri offline e ritenta soltanto l’invio rimasto incerto", async () => {
     apriDaCantiere("C065");
     scegliCantiere("C064");
     aggiungiTubo();
     cleanup();
     sessionStorage.clear();
     state.online = false;
-    const riaperto = inventario();
+    inventario();
     fireEvent.click(screen.getByRole("button", { name: "Rivedi · 2 prelievi" }));
-    expect(await screen.findByText("Bozze salvate. Torna online per inviare.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Registra 2 prelievi" })).toBeDisabled();
+    fireEvent.click(await screen.findByRole("button", { name: "Metti in coda 2 prelievi" }));
+    await waitFor(async () => expect(await syncQueue.getAll("prelievo")).toHaveLength(2));
+    expect(state.mutate).not.toHaveBeenCalled();
 
+    state.mutate.mockResolvedValueOnce({ stato: "consegnato" }).mockRejectedValueOnce(new Error("Failed to fetch"));
     state.online = true;
-    state.mutate.mockResolvedValueOnce({ stato: "consegnato" }).mockRejectedValueOnce(new Error("Risposta persa"));
-    riaperto.rerender(modulo(undefined));
-    fireEvent.click(screen.getByRole("button", { name: "Registra 2 prelievi" }));
-    const verifica = await screen.findByRole("button", { name: "Verifica invio" });
-    await waitFor(() => expect(verifica).toBeEnabled());
+    await syncQueue.processQueue();
     expect(bozzeCantieriPrelievo("azienda", "operaio")).toMatchObject([
       { cantiere: "C064", bozza: { inVerifica: true } },
     ]);
-    fireEvent.click(verifica);
-    await waitFor(() => expect(state.mutate).toHaveBeenCalledTimes(3));
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 1500);
+    await syncQueue.processQueue();
+    expect(state.mutate).toHaveBeenCalledTimes(3);
     expect(state.mutate.mock.calls[2][0]).toEqual(state.mutate.mock.calls[1][0]);
     expect(state.mutate.mock.calls[0][0].orderId).toBe("C065");
   });

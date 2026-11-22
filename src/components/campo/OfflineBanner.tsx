@@ -10,13 +10,41 @@ import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { syncQueue } from "@/lib/campo/sync-queue";
 import type { JSX } from "react";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const { queueCount, isSyncing, failedCount, lastError, retry } = useOfflineSync();
   const [draftCount, setDraftCount] = useState(0);
+
+  useEffect(() => syncQueue.on("processed", (esito) => {
+    if (!esito || esito.companyId !== profile?.company_id || esito.userId !== user?.id) return;
+    if (esito.tipo === "prelievo") {
+      void import("@/lib/campo/prelievoInCoda").then(({ aggiornaPrelieviCampo }) => aggiornaPrelieviCampo(queryClient, esito));
+      if (esito.errore) toast.error("Controlla il prelievo", { description: esito.errore });
+      else if (esito.stato === "rifiutato") toast.info("Prelievo rifiutato");
+      else toast.success(esito.stato === "richiesto" ? "Richiesta al magazzino inviata" : "Prelievo registrato");
+      return;
+    }
+    void import("@/lib/orders/refreshCommessaCampoQueries").then(({ refreshCommessaCampoQueries }) =>
+      refreshCommessaCampoQueries(queryClient, esito.orderId, esito.companyId));
+    void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+    void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
+    void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
+    if (esito.chiudeGiornata) void import("@/lib/campo/refreshTimeQueries").then(({ refreshCampoTimeQueries }) =>
+      refreshCampoTimeQueries(queryClient));
+    if (esito.avvisoMezzi) toast.warning("Rapportino inviato. Comunica all’ufficio dove hai lasciato mezzi e attrezzi.");
+    toast.success(esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato");
+    if (esito.id && esito.pdf) {
+      const id = esito.id;
+      void import("@/lib/campo/rapportinoPdf").then(({ notifyRapportinoPdf }) => notifyRapportinoPdf(id, esito.orderId, queryClient));
+    }
+  }), [profile?.company_id, queryClient, user?.id]);
 
   // Conta bozze salvate
   useEffect(() => {
@@ -41,7 +69,7 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <WifiOff className="w-4 h-4 shrink-0" />
         <span className="flex-1 leading-tight">
-          Sei offline. Le bozze restano sul telefono; non sono inviate. Solo le operazioni in coda verranno sincronizzate.
+          {queueCount > 0 ? "La coda parte quando torna la rete." : "Sei offline. Puoi mettere gli invii in coda."}
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {draftCount > 0 && (

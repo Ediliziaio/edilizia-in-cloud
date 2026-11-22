@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { SCHEMA_COME_OGGI, leggiSchema, type ModuloSchema } from "../../supabase/functions/_shared/moduliCantiere";
 
 export type TipoModulo = "rapportino" | "verbale";
@@ -16,9 +17,10 @@ const db = () => supabase as any;
 
 /** Lo schema che vale su una commessa. Con un database senza la funzione (PGRST202, 42883) si lavora come oggi. */
 export function useModuloRapportino(orderId: string | undefined): { schema: ModuloSchema; isLoading: boolean; isError: boolean } {
+  const { user, profile } = useAuth();
   const q = useQuery<ModuloSchema>({
-    queryKey: ["modulo-rapportino", orderId],
-    enabled: !!orderId,
+    queryKey: ["modulo-rapportino", orderId, profile?.company_id, user?.id],
+    enabled: !!orderId && !!user?.id && !!profile?.company_id,
     staleTime: 5 * 60_000,
     retry: 1,
     queryFn: async () => {
