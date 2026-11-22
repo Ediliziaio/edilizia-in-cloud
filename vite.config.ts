@@ -273,11 +273,11 @@ export default defineConfig(({ command, mode }) => ({
         // Pattern globale + esclusione esplicita /templates/** (foto picker).
         globPatterns: ["**/*.{ico,svg,woff2}", "icons/**/*.png"],
         globIgnores: ["**/templates/**", "**/img/**"],
-        // NO navigateFallback: Cloudflare Pages handles SPA routing server-side
-        // via _redirects (/* /index.html 200). Caching index.html in the SW
-        // causes stale chunk-hash references after deploys → "Failed to fetch
-        // dynamically imported module" loop. Let navigation always hit the network
-        // so the browser always gets the fresh index.html with correct chunk hashes.
+        // VitePWA abilita un fallback a index.html per impostazione predefinita.
+        // Senza index.html nel precache, quel fallback interrompe la registrazione
+        // delle regole offline. Cloudflare gestisce la navigazione online e la
+        // regola NetworkFirst qui sotto la riapertura offline dell'area campo.
+        navigateFallback: null,
         cleanupOutdatedCaches: true,
         // skipWaiting: true — force the new SW to take over immediately.
         // The old SW had NetworkFirst for assets which poisoned the assets-runtime
