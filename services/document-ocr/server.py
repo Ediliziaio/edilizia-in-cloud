@@ -7,11 +7,39 @@ import hmac
 import json
 import os
 import shutil
+import signal
 import subprocess
 
 
 MAX_BYTES = 22 * 1024 * 1024
 CAPACITY = BoundedSemaphore(2)
+
+
+class PaginaNonValida(ValueError):
+    pass
+
+
+def esegui_ocr(cmd, root):
+    # OCRmyPDF can spawn renderer and Tesseract children. Stop the entire group
+    # on timeout before releasing the request slot and removing its files.
+    with subprocess.Popen(
+        cmd, cwd=root, env={**os.environ, "TMPDIR": str(root)}, stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+    ) as processo:
+        try:
+            codice = processo.wait(timeout=22)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(processo.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            processo.wait()
+            raise
+        # OCRmyPDF's documented exit codes for invalid and encrypted input.
+        if codice in (2, 8):
+            raise PaginaNonValida()
+        if codice:
+            raise subprocess.CalledProcessError(codice, cmd)
 
 
 def trascrivi(pdf: bytes) -> str:
@@ -21,14 +49,23 @@ def trascrivi(pdf: bytes) -> str:
         sidecar = root / "trascrizione.txt"
         copia = root / "copia.pdf"
         input_file.write_bytes(pdf)
-        subprocess.run(
+        info = subprocess.run(
+            ["pdfinfo", str(input_file)], cwd=root, stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=2, env={**os.environ, "LC_ALL": "C"},
+        )
+        if info.returncode == 1:
+            raise PaginaNonValida()
+        info.check_returncode()
+        if not any(riga.split() == [b"Pages:", b"1"] for riga in info.stdout.splitlines()):
+            raise PaginaNonValida()
+        esegui_ocr(
             [
                 "ocrmypdf", "--language", "ita", "--pages", "1", "--jobs", "1",
                 "--force-ocr", "--rotate-pages", "--deskew", "--optimize", "0",
                 "--output-type", "pdf", "--tesseract-timeout", "14", "--sidecar",
                 str(sidecar), str(input_file), str(copia),
             ],
-            cwd=root, stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=22,
+            root,
         )
         trascrizione = sidecar.read_text(encoding="utf-8").strip()
         if not trascrizione or "[OCR skipped" in trascrizione:
@@ -85,15 +122,24 @@ class Handler(BaseHTTPRequestHandler):
             pdf = self.rfile.read(size)
             if len(pdf) != size or not pdf.startswith(b"%PDF-"):
                 return self.invia(400, {"errore": "Pagina PDF non valida"})
-            testo = trascrivi(pdf)
+            try:
+                testo = trascrivi(pdf)
+            except PaginaNonValida:
+                return self.invia(422, {"errore": "È richiesta una singola pagina PDF leggibile"})
+            except (OSError, ValueError, subprocess.SubprocessError) as errore:
+                print(f"OCR non disponibile ({type(errore).__name__})", flush=True)
+                return self.invia(503, {"errore": "Servizio OCR temporaneamente non disponibile"})
             self.invia(200, {"testo": testo, "completa": bool(testo) and "[OCR skipped" not in testo})
-        except (OSError, ValueError, subprocess.SubprocessError):
-            self.invia(422, {"errore": "Pagina non trascrivibile"})
         finally:
             CAPACITY.release()
 
 
 if __name__ == "__main__":
-    if not os.environ.get("OCR_SERVIZIO_TOKEN") or not shutil.which("ocrmypdf"):
-        raise SystemExit("Configura OCR_SERVIZIO_TOKEN e installa OCRmyPDF con Tesseract italiano.")
+    if not os.environ.get("OCR_SERVIZIO_TOKEN") or not all(
+        shutil.which(cmd) for cmd in ("ocrmypdf", "tesseract", "pdfinfo", "pdftotext")
+    ):
+        raise SystemExit("Configura OCR_SERVIZIO_TOKEN e installa OCRmyPDF, Tesseract e Poppler.")
+    lingue = subprocess.run(["tesseract", "--list-langs"], capture_output=True, check=True, timeout=5)
+    if not {b"ita", b"osd"}.issubset(lingue.stdout.splitlines()):
+        raise SystemExit("Installa i dati Tesseract ita e osd per la lettura e la rotazione delle pagine.")
     ThreadingHTTPServer(("", int(os.environ.get("PORT", "8080"))), Handler).serve_forever()

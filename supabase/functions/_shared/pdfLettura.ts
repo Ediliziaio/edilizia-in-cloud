@@ -75,6 +75,16 @@ export function pdfTextByLines(items: PdfTextItem[]): string {
   return lines.map(line => line.cells.sort((a, b) => a.x - b.x).map(c => c.text).join("\t")).join("\n").trim();
 }
 
+// Alcuni font incorporati restituiscono codici di controllo al posto dei caratteri visibili.
+export function testoPdfCorrotto(testo: string): boolean {
+  for (let i = 0; i < testo.length; i++) {
+    const codice = testo.charCodeAt(i);
+    if ((codice < 32 && codice !== 9 && codice !== 10 && codice !== 13) ||
+      (codice >= 127 && codice <= 159)) return true;
+  }
+  return false;
+}
+
 export function pdfCoverage(pages: PdfReadPage[], total: number, truncated = false) {
   const unread = pages.filter(p => p.method === "unreadable").map(p => p.page);
   const inspected = new Set(pages.map(p => p.page));
@@ -120,10 +130,11 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
       page = await pdf.getPage(number);
       const content = await page.getTextContent();
       const text = pdfTextByLines(content.items);
+      const corrotto = testoPdfCorrotto(text);
       // A short header on top of a scanned table must not bypass OCR.
       const operators = page.getOperatorList ? await page.getOperatorList() : null;
       const image = operators ? hasLargePdfImage(operators, options, page.getViewport?.({ scale: 1 })) : false;
-      if (text && !image) pages.push({ page: number, text, method: "native", positioned: options.keepPositions ? pdfPositionedItems(content.items) : undefined });
+      if (text && !image && !corrotto) pages.push({ page: number, text, method: "native", positioned: options.keepPositions ? pdfPositionedItems(content.items) : undefined });
       else if (!text && operators?.fnArray.length === 0) pages.push({ page: number, text: "", method: "blank" });
       else if (options.ocrPage && (!options.pagineOcr || prioritarie.has(number)) && ocrCalls < (options.maxOcrPages ?? 8)) {
         ocrCalls++;
@@ -131,7 +142,7 @@ export async function readPdfPages(pdf: PdfDocumentLike, options: {
         if (!result.text.trim() || result.finishReason !== "stop") {
           pages.push({ page: number, text: result.text.trim(), method: "unreadable", warning: "OCR vuoto, interrotto o completezza non confermata." });
         } else pages.push({ page: number, text: result.text.trim(), method: "ocr" });
-      } else pages.push({ page: number, text, method: "unreadable", warning: "Pagina da leggere con OCR." });
+      } else pages.push({ page: number, text: corrotto ? "" : text, method: "unreadable", warning: "Pagina da leggere con OCR." });
     } catch (error) {
       // Carta mancante, abbonamento sospeso o scaduto, credito finito (11/11/2026): non è
       // la pagina, e vale per tutte le pagine. Si rilancia, così chi legge dice il motivo

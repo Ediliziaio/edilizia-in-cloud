@@ -1,5 +1,5 @@
 /** Lettore server: i moduli PDF vengono inclusi nel bundle Edge. */
-import { pdfTextByLines, readPdfPages, type PdfDocumentLike, type PdfPageLike } from "./pdfLettura.ts";
+import { pdfTextByLines, readPdfPages, testoPdfCorrotto, type PdfDocumentLike, type PdfPageLike } from "./pdfLettura.ts";
 export * from "./pdfLettura.ts";
 
 // deno-lint-ignore no-explicit-any -- remote PDF libraries are loaded dynamically.
@@ -54,7 +54,7 @@ async function leggiPagineTestoPdf(bytes: Uint8Array, maxPages: number, maxChars
         page = await pdf.getPage(pagina);
         const righe = pdfTextByLines((await page.getTextContent()).items);
         const testo = conservaColonne ? righe : righe.replace(/\t/g, " ");
-        if (testo.trim().length < minCharsPerPage) {
+        if (testo.trim().length < minCharsPerPage || testoPdfCorrotto(testo)) {
           illeggibili.push(pagina);
           continue;
         }
