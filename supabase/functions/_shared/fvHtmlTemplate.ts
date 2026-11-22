@@ -1,3 +1,4 @@
+import { statoMisureFv } from "./fvVerificaMisure.ts";
 import { STILE_STAMPA_PAGINE_FV } from "./fvStampaPagina.ts";
 import {flussiAnnoOrarioFv} from "./fvSimulazioneEnergetica.ts";
 import {coverIndustrialeFv,copertinaIndustrialeAttiva} from "./fvCopertinaIndustriale.ts";
@@ -1547,7 +1548,7 @@ function pageTetto3D(d: FvPdfTemplateData, pageN: number, total: number, da: num
     <div style="border:1px solid #DCE5EB;border-radius:12px;overflow:hidden;height:96mm;margin:3mm 0">${svgTettoDocumento(tetto, "3d")}</div>
     <style>.fv-roof-table{width:100%;border-collapse:collapse;font-size:8pt;line-height:1.3;table-layout:fixed;margin:3mm 0}.fv-roof-table th,.fv-roof-table td{padding:2mm 1.5mm;text-align:left;border-bottom:1px solid #dce5eb;overflow-wrap:anywhere}.fv-roof-table th{color:#fff;font-size:7.5pt}.fv-roof-table th:first-child{width:29%}</style>
     ${tabellaFaldeDocumento(tetto, da)}
-    <p style="font-size:8pt;line-height:1.4;color:#64748b">Superficie = area sulla falda inclinata. Azimut: nord 0°, est 90°, sud 180°. * Pendenza stimata, da verificare. Altezza alla gronda ${fmtNum(tetto.altezza, 1)} m, indicativa.</p>
+    <p style="font-size:8pt;line-height:1.4;color:#64748b">Superficie = area sulla falda inclinata. Azimut: nord 0°, est 90°, sud 180°. * Pendenza stimata, da verificare. Altezza alla gronda ${fmtNum(tetto.altezza, 1)} m${piano.schema3d ? ", inserita nel modello" : ", illustrativa"}. ${escHtml(statoMisureFv(piano).testo)}</p>
     <div class="callout callout-info" style="font-size:9pt"><span class="callout-icon">i</span><div><strong>Ricostruzione geometrica del tetto.</strong>La vista usa le falde tracciate e le pendenze indicate nel progetto; pareti e altezza sono illustrative. La superficie disponibile e la posa si confermano con il rilievo.</div></div>
   </div>${footer(d, pageN, total)}</div>`;
 }

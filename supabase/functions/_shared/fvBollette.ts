@@ -86,7 +86,7 @@ export type AnalisiConsumiFv = {
   correzioniPerPod?: Record<string, AnalisiConsumiFv["correzioni"]>;
   consumiAggiuntivi?: Array<{ id: string; nome: string; kwhAnnui: number }>;
   prezzoImmissione: number;
-  scenario?: "consigliata" | "accumulo" | "massima";
+  scenario?: "contenuta" | "consigliata" | "accumulo" | "massima";
 };
 export const profiloInizialeFv = (azienda = false): ProfiloOrarioFv => ({
   tipo: azienda ? "azienda" : "residenziale",
@@ -443,7 +443,7 @@ export function leggiAnalisiConsumi(raw: unknown): AnalisiConsumiFv | null {
     numero(raw.prezzoImmissione) && raw.prezzoImmissione >= 0 &&
     raw.prezzoImmissione <= 2
   ) out.prezzoImmissione = raw.prezzoImmissione;
-  if (["consigliata", "accumulo", "massima"].includes(String(raw.scenario))) {
+  if (["contenuta", "consigliata", "accumulo", "massima"].includes(String(raw.scenario))) {
     out.scenario = raw.scenario as AnalisiConsumiFv["scenario"];
   }
   if (

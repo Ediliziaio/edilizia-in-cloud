@@ -199,9 +199,12 @@ describe("Google Solar autentico e misura delle falde", () => {
         (r.dsm.valori as Float32Array)[i] = i % 100 < 50 ? 97 : 103;
       }
     }
-    expect(() => misureTettoSolarFv(mappa(), r.dsm, r.mask)).toThrow(
-      /terreno.*irregolare/i,
-    );
+    const parziale = misureTettoSolarFv(mappa(), r.dsm, r.mask, "2025-06-15");
+    expect(parziale.altezza).toBeNull();
+    expect(parziale.terreno).toBeNull();
+    expect(parziale.avvisoAltezza).toMatch(/terreno.*irregolare/i);
+    expect(parziale.falde[0].inclinazione).toBeCloseTo(26.565, 2);
+    expect(parziale.falde[0].misuraSolar).toMatchObject({ data: "2025-06-15" });
     const q = rasters();
     (q.dsm.valori as Float32Array).fill(-9999);
     expect(() => misureTettoSolarFv(mappa(), q.dsm, q.mask)).toThrow();

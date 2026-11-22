@@ -1,4 +1,5 @@
 import { leggiMappaFv, type MappaFv } from "./fvMappa.ts";
+import { leggiConfermaMisure, type ConfermaMisureFv } from "./fvVerificaMisure.ts";
 /** Geometria commerciale in metri, condivisa da editor, salvataggio e PDF.
  * Nessuna verifica elettrica o strutturale: la posa proposta è da confermare.
  */
@@ -16,6 +17,7 @@ export type DisegnoCommercialeFv = {
   schema3d?: {altezza:number;pendenza:number;copertura?:import("./fvAspettoTetto.ts").CoperturaFv};
   vistePdf?: { satellite: boolean; pianta: boolean; treD: boolean };
   mappa?: MappaFv;
+  confermaMisure?: ConfermaMisureFv;
 };
 const EPS = 0.00001;
 const finito = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -268,7 +270,8 @@ export function leggiDisegnoCommerciale(raw: unknown): DisegnoCommercialeFv | nu
     if (!record(v) || typeof v.satellite !== "boolean" || typeof v.pianta !== "boolean" || typeof v.treD !== "boolean") return null;
     vistePdf = { satellite: v.satellite, pianta: v.pianta, treD: v.treD };
   }
-  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),...(mappa?{mappa}:{}),...(vistePdf?{vistePdf}:{}),
+  const confermaMisure = leggiConfermaMisure(raw.confermaMisure);
+  return { modalita: "disegno_commerciale", versione: 1, falde, pannelli, ostacoli, ...(industriale?{industriale}:{}),...(rilievo ? {rilievo} : {}),...(schema3d?{schema3d}:{}),...(mappa?{mappa}:{}),...(vistePdf?{vistePdf}:{}),...(confermaMisure?{confermaMisure}:{}),
     modulo: { corto: m.corto, lungo: m.lungo, stimato: m.stimato !== false }, distanzaBordo: raw.distanzaBordo, spazioModuli: raw.spazioModuli };
 }
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

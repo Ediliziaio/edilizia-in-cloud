@@ -178,6 +178,26 @@ describe("Endpoint bollette: identità, OCR e conti AI", () => {
     expect(r.status).toBe(402);
     expect((await r.json()).error).toMatch(/Crediti AI/);
   });
+  it("riusa una lettura JSON completa dalla cache senza dichiararla troncata", async () => {
+    ai.mockResolvedValue({
+      content: JSON.stringify({ forniture: [{ pod, consumo_annuo_kwh: 6000, spesa_annua_eur: 1800 }] }),
+      rawResponse: { cached: true },
+    });
+    const r = await invoke();
+    expect(r.status).toBe(200);
+    expect((await r.json()).documenti[0].dati.consumo_annuo_kwh).toBe(6000);
+  });
+  it("riusa anche l'OCR completo dalla cache mantenendo la copertura della pagina", async () => {
+    ai.mockResolvedValueOnce({ content: `POD ${pod}\nConsumo annuo: 6000 kWh`, rawResponse: { cached: true } });
+    pdf.mockImplementation(async (_b, o) => {
+      const r = await o.ocrPage(1, bytes);
+      expect(r.finishReason).toBe("stop");
+      return { text: r.text, pages: [{ page: 1, text: r.text, method: "ocr" }], coverage: { pages_total: 1, pages_unreadable: [] } };
+    });
+    const r = await invoke();
+    expect(r.status).toBe(200);
+    expect((await r.json()).documenti[0].pagine_non_lette).toEqual([]);
+  });
   it("non conferma una risposta AI troncata o JSON non valido", async () => {
     ai.mockResolvedValue({
       content: "{",

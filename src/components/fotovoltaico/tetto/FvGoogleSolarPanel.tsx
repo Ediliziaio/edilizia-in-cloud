@@ -155,7 +155,7 @@ export function FvGoogleSolarPanel({
       const { misureTettoSolarFv } = await import(
         "@/lib/fotovoltaico/solarRaster"
       );
-      const valore = misureTettoSolarFv(mappa, attuale.dsm, attuale.mask);
+      const valore = misureTettoSolarFv(mappa, attuale.dsm, attuale.mask, attuale.foto.data);
       setMisure({ chiave: chiaveMisure, valore });
     } catch (e) {
       setErrore(e instanceof Error ? e.message : "Quote non disponibili");
@@ -243,9 +243,10 @@ export function FvGoogleSolarPanel({
           {proponi && (
             <div className="space-y-2 text-xs">
               <p>
-                Gronda minima dal terreno: {proponi.altezza.toFixed(2)}{" "}
-                m · scarto del piano: {proponi.scarto.toFixed(2)} m
+                {proponi.altezza == null ? "Altezza da confermare manualmente" : `Gronda minima dal terreno: ${proponi.altezza.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m`}
+                {" · "}scarto del piano: {proponi.scarto.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m
               </p>
+              {proponi.avvisoAltezza && <p className="text-amber-800">{proponi.avvisoAltezza}. Le pendenze restano consultabili; l’altezza già inserita viene mantenuta.</p>}
               {proponi.falde.map((f) => (
                 <p key={f.id}>
                   {f.nome}: {f.inclinazione.toFixed(1)}° · azimut{" "}

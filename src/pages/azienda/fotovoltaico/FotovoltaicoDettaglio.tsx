@@ -56,6 +56,8 @@ import { pdfFirmatoPreventivo, scaricaCopiaPdf } from "@/lib/preventivi/pdfFirma
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FV_ARCHETIPI_LABEL, type FvArchetipo } from "@/lib/fotovoltaico/tipi";
 import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
+import { leggiDisegnoCommerciale } from "../../../../supabase/functions/_shared/fvDisegnoCommerciale";
+import { statoMisureFv } from "../../../../supabase/functions/_shared/fvVerificaMisure";
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
   configurato: { label: "Configurato", variant: "navy" as const },
@@ -160,6 +162,9 @@ export default function FotovoltaicoDettaglio() {
   }
 
   const stato = STATI_LABEL[progetto.stato as keyof typeof STATI_LABEL] ?? STATI_LABEL.bozza;
+  const disegnoTetto = leggiDisegnoCommerciale(progetto.layout_overlay);
+  const fotoTetto = disegnoTetto?.mappa?.fotoSolar;
+  const verificaTetto = disegnoTetto ? statoMisureFv(disegnoTetto) : null;
   const formatEur = (n: number | null | undefined, frac = 0) =>
     n == null
       ? "—"
@@ -465,9 +470,10 @@ export default function FotovoltaicoDettaglio() {
                 />
               </FvCard>
               <FvCard title="Tetto e impianto">
-                <Row label="Fonte dati tetto" value={progetto.fonte_dati_tetto ?? "—"} soloComputer />
-                <Row label="Qualità dati" value={progetto.qualita_dati_tetto ?? "—"} soloComputer />
-                <Row label="Imagery date" value={progetto.imagery_date ?? "—"} soloComputer />
+                <Row label="Fonte della produzione" value={progetto.fonte_dati_tetto === "pvgis" ? "PVGIS" : progetto.fonte_dati_tetto === "solar_api" ? "Google Solar" : "Stima manuale"} />
+                <Row label="Foto del tetto" value={fotoTetto ? "Google Solar" : disegnoTetto?.mappa ? "Google Maps" : "Non prevista"} />
+                {fotoTetto && <><Row label="Data della foto" value={new Date(`${fotoTetto.data}T12:00:00`).toLocaleDateString("it-IT")} /><Row label="Qualità della foto" value={`${({ HIGH: "Alta", MEDIUM: "Media", BASE: "Base" })[fotoTetto.qualita]} · ${Math.round(fotoTetto.risoluzione * 100)} cm/pixel`} /></>}
+                {verificaTetto && <Row label="Misure del tetto" value={verificaTetto.confermata ? "Confrontate con il rilievo" : "Indicative, da verificare"} />}
                 <Row
                   label="Ore sole annue"
                   value={

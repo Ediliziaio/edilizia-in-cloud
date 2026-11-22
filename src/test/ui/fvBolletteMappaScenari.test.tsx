@@ -524,7 +524,7 @@ describe("Scenari della configurazione", () => {
     const cards = screen.getAllByRole("article");
     expect(cards).toHaveLength(3);
     fireEvent.click(
-      within(cards[1]).getByRole("button", {
+      within(cards.find(c => c.textContent?.includes("Con accumulo"))!).getByRole("button", {
         name: "Usa questa configurazione",
       }),
     );
@@ -538,6 +538,8 @@ describe("Scenari della configurazione", () => {
         "capacita_accumulo_kwh",
         "accumulo_id",
         "analisi_consumi",
+        "prezzo_vendita_manuale",
+        "prodotti_extra",
       ].sort(),
     );
     expect(p.con_accumulo).toBe(true);
@@ -546,12 +548,12 @@ describe("Scenari della configurazione", () => {
     expect(p.numero_pannelli_scelti).toBe(p.layout_overlay.pannelli.length);
     expect(p.potenza_kwp).toBe(p.numero_pannelli_scelti * .45);
     fireEvent.click(
-      within(cards[2]).getByRole("button", {
+      within(cards.find(c => c.textContent?.includes("Investimento contenuto"))!).getByRole("button", {
         name: "Usa questa configurazione",
       }),
     );
     expect(scegli.mock.calls[1][0].numero_pannelli_scelti)
-      .toBeGreaterThanOrEqual(p.numero_pannelli_scelti);
+      .toBeLessThanOrEqual(p.numero_pannelli_scelti);
   });
   it("richiede conferma delle misure stimate prima del conteggio fisico", () => {
     const data = {

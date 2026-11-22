@@ -74,7 +74,7 @@ type OpzioniAiBolletta = {
 };
 type EsitoAiBolletta = {
   content?: string;
-  rawResponse?: { choices?: Array<{ finish_reason?: string }> };
+  rawResponse?: { cached?: boolean; choices?: Array<{ finish_reason?: string }> };
 };
 export type DipendenzeBollettaFv = {
   headers: {
@@ -253,8 +253,8 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
         stage: string,
         messages: AiRouterMessage[],
         json = false,
-      ) =>
-        await deps.aiRouterComplete({
+      ) => {
+        const risultato = await deps.aiRouterComplete({
           supabase: supabaseAdmin,
           taskKey: "pdf_vision_extract",
           companyId: progetto.company_id,
@@ -271,6 +271,13 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
           estimatedCostEur: .10,
           ...(json ? { responseFormat: { type: "json_object" } } : {}),
         });
+        // Questa chiave salva soltanto risposte finite (cacheSoloSeFinita).
+        // Il router restituisce {cached:true} senza choices: anche una lettura
+        // valida riutilizzata veniva quindi scartata come OCR/JSON troncato.
+        return risultato.rawResponse?.cached === true
+          ? { ...risultato, rawResponse: { ...risultato.rawResponse, choices: [{ finish_reason: "stop" }] } }
+          : risultato;
+      };
       let text = "",
         pages: Array<{ page: number; text: string }> = [],
         totali = 1,

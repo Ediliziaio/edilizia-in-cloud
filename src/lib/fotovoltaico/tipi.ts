@@ -179,6 +179,8 @@ export interface FvProgetto {
   azimut_tetto: number | null;
   inclinazione_tetto: number | null;
   layout_tetto: Record<string, unknown> | unknown[] | null;
+  /** JSON letto dal database: validare con leggiDisegnoCommerciale prima dell'uso. */
+  layout_overlay?: unknown;
   // Perdita frazionaria 0..1 da ombreggiamento vicino (alberi/edifici adiacenti).
   // 0 = nessuno. L'orizzonte lontano è già incluso in PVGIS H(i)_y.
   // Persistito via migrazione 20271021010000_fv_perdita_ombreggiamento.sql.
