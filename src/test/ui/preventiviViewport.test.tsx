@@ -6,7 +6,7 @@ afterEach(()=>{cleanup();vi.restoreAllMocks()});
 describe('Breakpoint telefono e tablet',()=>{
  it('inizia con la misura reale e si aggiorna al cambio di orientamento',()=>{
   const handlers=new Set<()=>void>();
-  vi.spyOn(window,'matchMedia').mockImplementation(query=>({media:query,matches:false,addEventListener:(_event:string,fn:()=>void)=>handlers.add(fn),removeEventListener:(_event:string,fn:()=>void)=>handlers.delete(fn)}) as MediaQueryList);
+  vi.spyOn(window,'matchMedia').mockImplementation(query=>({media:query,matches:false,onchange:null,addListener:()=>{},removeListener:()=>{},dispatchEvent:()=>true,addEventListener:(_event:string,fn:()=>void)=>{handlers.add(fn)},removeEventListener:(_event:string,fn:()=>void)=>{handlers.delete(fn)}}) as MediaQueryList);
   const original=window.innerWidth;
   Object.defineProperty(window,'innerWidth',{value:820,configurable:true,writable:true});
   const {result,unmount}=renderHook(()=>({telefono:useIsMobile(),compatto:useIsMobile(1024)}));
