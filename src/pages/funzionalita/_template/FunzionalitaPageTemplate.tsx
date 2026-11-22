@@ -4,6 +4,8 @@ import { visualThemeForFeature, marketingVisualIntro } from "@/lib/marketing/vis
 import { marketingMessages } from "@/lib/marketing/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ModuloRete from "@/components/landing/ModuloRete";
+import LavagnaFlussoSection from "@/components/landing/LavagnaFlussoSection";
+import { FLUSSO_FUNZIONALITA } from "@/components/landing/flussiEic";
 import { CartePrimaDopo, PassiAnimati } from "@/components/landing/SilvioAlLavoro";
 import { useAlzaChat } from "@/hooks/useAlzaChat";
 import { Link } from "react-router-dom";
@@ -441,6 +443,8 @@ export default function FunzionalitaPageTemplate({
       </section>
 
       {afterHero}
+
+      {FLUSSO_FUNZIONALITA[config.slug] && <LavagnaFlussoSection nome={FLUSSO_FUNZIONALITA[config.slug]} sfondo="bg-slate-50" />}
 
       {/* ════════════════════════════════════════════════════════════ */}
       {/* BETA / TRUST BANNER                                           */}

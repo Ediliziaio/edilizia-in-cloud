@@ -1,4 +1,6 @@
 import MestiereEsploso from "@/components/landing/MestiereEsploso";
+import LavagnaFlussoSection from "@/components/landing/LavagnaFlussoSection";
+import { FLUSSO_MESTIERE } from "@/components/landing/flussiEic";
 import { FunzioniMestiere } from "@/components/landing/SilvioAlLavoro";
 import { marketingMessages } from "@/lib/marketing/messages";
 import type { ReactElement } from "react";
@@ -373,6 +375,8 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         </div>
       </section>
 
+      {FLUSSO_MESTIERE[mestiereSlug] && <LavagnaFlussoSection nome={FLUSSO_MESTIERE[mestiereSlug]} sfondo="bg-slate-50" />}
+
       {/* ── SOCIAL PROOF STRIP ── */}
       <section ref={socialAnim.ref as React.RefObject<HTMLDivElement>} className="py-8 bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-6">
@@ -507,10 +511,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 <p className="text-gray-400 text-xs mt-1">sui tuoi dati, prima e dopo</p>
               </div>
               <div className="text-center">
-                <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-eic-orange/50 bg-eic-orange/10">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wide">Verifica</p>
-                  <p className="text-3xl font-extrabold text-eic-orange">Su misura</p>
-                  <p className="text-gray-500 text-[10px]">nella tua impresa</p>
+                <div className="inline-flex h-32 w-32 flex-col items-center justify-center gap-0.5 rounded-full border-2 border-eic-orange/50 bg-eic-orange/10 px-3 text-center">
+                  <p className="text-[10px] uppercase leading-none tracking-wide text-gray-500">Verifica</p>
+                  <p className="whitespace-nowrap text-xl font-extrabold leading-tight text-eic-orange">Su misura</p>
+                  <p className="text-[10px] leading-tight text-gray-500">nella tua impresa</p>
                 </div>
               </div>
             </div>
