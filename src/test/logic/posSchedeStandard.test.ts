@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applicaFontiProposteAiPos, preparaContestoAiPos } from "../../../supabase/functions/_shared/posAiContesto";
 import { normalizzaPos, posVuoto, vociMancanti } from "../../../supabase/functions/_shared/posModello";
 import { applicaRiusoPos } from "../../../supabase/functions/_shared/posRiuso";
-import { nuovaDaSchedaStandard, SCHEDE_STANDARD_POS } from "../../../supabase/functions/_shared/posSchedeStandard";
+import { nuovaDaSchedaStandard, SCHEDE_STANDARD_POS, suggerisciSchedePos } from "../../../supabase/functions/_shared/posSchedeStandard";
 import { costruisciHtmlPos } from "../../../supabase/functions/_shared/posHtml";
 import type { RiferimentoPsc } from "../../../supabase/functions/_shared/posPsc";
 import type { ComputoPerPos } from "../../../supabase/functions/_shared/posAiFonti";
@@ -70,8 +70,11 @@ describe("fonti delle schede POS", () => {
     for (const testo of ["DM-07.03", "Rev. 02 · pagine 4", "Carrello dedicato"]) expect(html).toContain(testo);
   });
 
-  it("offre sedici schede univoche e lascia alla persona la scelta dei dettagli del cantiere", () => {
-    expect(new Set(SCHEDE_STANDARD_POS.map(s => s.id)).size).toBe(16);
+  it("offre schede univoche e lascia alla persona la scelta dei dettagli del cantiere", () => {
+    expect(new Set(SCHEDE_STANDARD_POS.map(s => s.id)).size).toBe(SCHEDE_STANDARD_POS.length);
+    expect(suggerisciSchedePos("posa impianto fotovoltaico").map(s => s.id)).toEqual(["fotovoltaico"]);
+    expect(suggerisciSchedePos("movimentazione con autogrù").map(s => s.id)).toEqual(["sollevamento"]);
+    expect(suggerisciSchedePos("lavori stradali in presenza di traffico veicolare").map(s => s.id)).toEqual(["traffico"]);
     const scheda = SCHEDE_STANDARD_POS.find(s => s.id === "serramenti")!;
     const l = nuovaDaSchedaStandard(scheda, "ser");
     const pos = { ...posVuoto(), lavorazioni: [l] };
@@ -141,6 +144,41 @@ describe("accesso alle fonti della commessa", () => {
     scaricato = new Blob(["PSC cambiato"]);
     expect((await pscPerAiPos(db, ref.company_id, ref.order_id, ref, leggi)).fonte).toBeNull();
     expect(letture).toBe(1);
+  });
+});
+
+describe("Voci delle due bozze di computo ricevute", () => {
+  it("riconosce tramezzo e varco e non propone la posa per la sola fornitura", () => {
+    expect(suggerisciSchedePos("Nuovo tramezzo").map(s => s.id)).toEqual(["tramezzi"]);
+    const [varco] = suggerisciSchedePos("Realizzazione varco su muratura");
+    expect(varco.id).toBe("varco");
+    const l = nuovaDaSchedaStandard(varco, "varco");
+    expect(l.fonti_scheda?.quesiti?.every(q => q.risposta === "")).toBe(true);
+    expect(l.programma_demolizioni).toMatchObject({ applicabilita: "da_valutare", sequenza: "" });
+    expect(l).toMatchObject({ verificata: false, dpi: "" });
+    expect(suggerisciSchedePos("Sola fornitura di serramenti")).toEqual([]);
+    expect(suggerisciSchedePos("Fornitura senza posa con scarico in cantiere").map(s => s.id)).toEqual(["allestimento"]);
+    expect(suggerisciSchedePos("Fornitura e posa di serramenti").map(s => s.id)).toEqual(["serramenti"]);
+  });
+
+  it.each([[7.4, false], [7.55, true]] as const)("conserva la superficie %s della fonte selezionata e omette il riepilogo", async (quantita, includeVarco) => {
+    const { leggiComputoPerPos } = await import("../../../supabase/functions/_shared/posComputo");
+    const data = [
+      { id: "l1", descrizione_breve: "Nuovo tramezzo", unita_misura: "m²", quantita, prezzo_unitario: null as number | null },
+      ...(includeVarco ? [{ id: "l2", descrizione_breve: "Realizzazione varco", unita_misura: "cad", quantita: 1 }] : []),
+      { id: "tot", descrizione_breve: "Riepilogo economico" },
+    ];
+    const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+      maybeSingle: async () => ({ data: { id: includeVarco ? "c2" : "c1", titolo: "Computo parti comuni", stato: "verificato" } }),
+      range: async () => ({ data }) };
+    const { fonte } = await leggiComputoPerPos({ from: () => q }, "azienda", "commessa", true);
+    expect(fonte?.voci.map(v => v.titolo)).toEqual(["Nuovo tramezzo", ...(includeVarco ? ["Realizzazione varco"] : [])]);
+    const [voce] = fonte!.voci;
+    const l = nuovaDaSchedaStandard(suggerisciSchedePos(voce.titolo)[0], "l1");
+    l.fonti_scheda!.computo = { ...fonte!, voci: [voce] };
+    const html = costruisciHtmlPos({ contenuto: { ...posVuoto(), lavorazioni: [l] }, stato: "bozza", revisione: 0, revisioni: [] });
+    expect(html).toContain(`${String(quantita).replace(".", ",")} m²`);
+    expect(html).not.toContain(includeVarco ? "7,4 m²" : "7,55 m²");
   });
 });
 

@@ -43,6 +43,18 @@ export function confrontaPos(attuale: PosContenuto, fonte: PosContenuto): Differ
     return canonico(a)===canonico(b)?[]:[{campo,titolo,attuale:a,rilevato:b,nonRilevato:assente(b)}];
   });
 }
+function interamenteVuoto(v: unknown): boolean {
+  if (v == null) return true;
+  if (typeof v === "string") return !v.trim();
+  if (Array.isArray(v)) return v.length === 0;
+  return typeof v === "object" && Object.values(v).every(interamenteVuoto);
+}
+
+/** Un gruppo parzialmente compilato resta alla scelta individuale, anche se manca il nominativo. */
+export function gruppiVuotiPos(differenze: readonly DifferenzaPos[]): CampoConfrontoPos[] {
+  return differenze.filter(d => !d.nonRilevato && interamenteVuoto(d.attuale) && !interamenteVuoto(d.rilevato)).map(d => d.campo);
+}
+
 /** Explicit selection includes removal; an empty source is never applied by default. */
 export function applicaConfrontoPos(attuale: PosContenuto, fonte: PosContenuto, selezionati: readonly CampoConfrontoPos[]): PosContenuto {
   const nuovo=structuredClone(attuale);

@@ -56,10 +56,10 @@ const ARGOMENTI: Record<CampoEmergenzePos, RegExp> = {
   antincendio: /\bestintor[ei]\b|\bidrant[ei]\b|presid[io]+ antincendio/i,
   accesso_soccorsi: /(?:mezz[oi]|veicol[oi]) (?:di |del )?(?:soccorso|emergenza)|accesso (?:per |de[il] )?(?:i )?soccors[oi]|\bambulan[sz][ae]\b/i,
   allarme: /\ballarme\b|chiamat[ae] (?:al |dei )?(?:soccorsi|112|118|115)|numero unico di emergenza/i,
-  planimetria: /planimetri[ae] (?:di |delle |del )?(?:cantiere|emergenz[ae]|evacuazione|esodo)|tavol[ae] (?:di |delle )?(?:evacuazione|emergenz[ae]|esodo)/i,
+  planimetria: /planimetri[ae] (?:di |delle |del )?(?:cantiere|emergenz[ae]|evacuazione|esodo)|layout (?:di |del )cantiere|tavol[ae] (?:di |delle )?(?:evacuazione|emergenz[ae]|esodo)/i,
 };
 const OPERATIVO: Record<CampoEmergenzePos, RegExp> = {
-  raccolta: /presso |accanto |davanti |nell['’]|nella |nel |in via |cancello|cortile|piazzal|parcheggi|lato (?:nord|sud|est|ovest)/i,
+  raccolta: /presso |accanto |davanti |in via |cancello|cortile|piazzal|parcheggi|ingress[oi]|portineria|lato (?:nord|sud|est|ovest)|area (?:nord|sud|est|ovest)/i,
   esodo: /presso |attraverso |porta |cancello|scala|corridoio|rampa|verso |imbocc|lato (?:nord|sud|est|ovest)/i,
   primo_soccorso: /presso |accanto |baracca|infermeria|portineria|ubicat|collocat|installat|deposito|locale/i,
   antincendio: /presso |accanto |baracca|portineria|ubicat|collocat|installat|deposito|locale|uscita|cancello/i,
@@ -81,7 +81,12 @@ export function proponiEmergenzeDalPsc(psc: PscPerPos): PropostaEmergenzaPsc[] {
         const dopo = righe[indice + 1];
         const puoContinuare = dopo && !campi.some(k => ARGOMENTI[k].test(dopo)) &&
           !/[.!?;]$/.test(riga) && (riga.endsWith(":") || !OPERATIVO[campo].test(riga));
-        const estratto = (puoContinuare ? riga + " " + dopo : riga).trim();
+        const precedente = righe[indice - 1];
+        const riportaRinvio = campo === "planimetria" && precedente && ARGOMENTI.raccolta.test(precedente) &&
+          /(?:individuat|indicat|riportat|rimand)/i.test(precedente) && !/[.!?;]$/.test(precedente);
+        const estratto = (riportaRinvio ? precedente + " " + riga : puoContinuare ? riga + " " + dopo : riga).trim();
+        if (campo === "raccolta" && ARGOMENTI.planimetria.test(estratto) &&
+          /(?:individuat|indicat|riportat|rimand).{0,80}(?:layout|planimetri|tavol)/i.test(estratto)) continue;
         if (estratto.length < 26 || estratto.length > 600 || PROVVISORIO.test(estratto) || !OPERATIVO[campo].test(estratto)) continue;
         const alternative = risultati.get(campo) ?? [];
         if (alternative.length >= LIMITE_ESTRATTI_EMERGENZA || alternative.some(r => r.estratto === estratto)) continue;

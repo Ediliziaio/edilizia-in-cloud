@@ -181,6 +181,22 @@ describe("elenchi di cantiere (Allegato XV 3.2.1 d ed e)", () => {
     expect(html).toContain("Nessuna sostanza o preparato pericoloso dichiarato nelle lavorazioni.");
   });
 
+  it("distingue i campi ancora vuoti dalle assenze dichiarate e non presume l’assenza del PSC nella bozza", () => {
+    const p = posVuoto();
+    p.lavorazioni = [{ ...lavorazioneVuota("l1"), titolo: "Fase da confermare" }];
+    const html = costruisciHtmlPos(dati(p, { stato: "bozza" }));
+    expect(html).toContain("Elenco di opere provvisionali, macchine e impianti da completare");
+    expect(html).toContain("Elenco delle sostanze e dei preparati pericolosi da completare");
+    expect(html).not.toContain("Nessuna opera provvisionale, macchina o impianto dichiarato");
+    expect(html).not.toContain("Nessuna sostanza o preparato pericoloso dichiarato");
+    expect(html).toContain("PSC non riportato nella bozza");
+    expect(html).not.toContain("Per questo cantiere non è previsto il PSC.");
+    p.procedure_psc.psc_presente = true;
+    expect(costruisciHtmlPos(dati(p, { stato: "bozza" }))).toContain("Procedure di dettaglio da verificare rispetto al PSC");
+    p.procedure_psc.richieste = true;
+    expect(costruisciHtmlPos(dati(p, { stato: "bozza" }))).toContain("Nel PSC sono state richieste delle procedure");
+  });
+
   it("le attrezzature della scheda tecnica entrano nell'elenco delle macchine con il riferimento d'inventario", () => {
     const p = conLavorazioni();
     p.versione_tecnica = 1;

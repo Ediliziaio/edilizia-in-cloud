@@ -1,10 +1,10 @@
 import { estraiPagineTestoPdf, extractPdfWithCoverage } from "./pdfExtraction.ts";
-import type { VoceComputoPos } from "./posFontiScheda.ts";
+import { leggiComputoPerPos, type ComputoPerPos } from "./posComputo.ts";
+export type { ComputoPerPos } from "./posComputo.ts";
 import { improntaPsc, LIMITE_PSC_BYTES, normalizzaRiferimentoPsc, stessaFontePsc, type RiferimentoPsc } from "./posPsc.ts";
 import { erroreAiPerUtente } from "./erroriAi.ts";
 import { verificaFontePsc } from "./posPscFonte.ts";
 
-export type ComputoPerPos = { id: string; titolo: string; stato: string; voci: VoceComputoPos[] };
 export type PscPerPos = { riferimento: RiferimentoPsc; letturaIntegrale?: boolean; pagine: { pagina: number; testo: string; metodo?: "ocr" }[] };
 export type FasePerPos = { id: string; name: string };
 export type FontePropostaPos<T> = { fonte: T | null; avviso?: string };
@@ -12,7 +12,6 @@ export type FontePropostaPos<T> = { fonte: T | null; avviso?: string };
 // The caller has already checked the company, POS write permission and order ownership.
 // deno-lint-ignore no-explicit-any
 type Db = any;
-const stringa = (v: unknown, limite: number) => typeof v === "string" ? v.trim().slice(0, limite) : "";
 
 export async function fasiPerAiPos(db: Db, companyId: string, orderId: string): Promise<FasePerPos[]> {
   const { data, error } = await db.from("order_work_phases").select("id,name").eq("company_id", companyId)
@@ -26,37 +25,8 @@ export async function computoPerAiPos(db: Db, companyId: string, orderId: string
     _user_id: userId, _permission: "can_view_orders", _company_id: companyId,
   });
   if (errorePermesso || permesso !== true) return { fonte: null, avviso: "Computo escluso dalla proposta: accesso alla commessa non verificato." };
-  const cerca = (stato: string) => db.from("computo_uploads").select("id,titolo,file_name,stato")
-    .eq("company_id", companyId).eq("order_id", orderId).eq("stato", stato).in("extraction_status", ["review", "completed"])
-    .order(stato === "contrattuale" ? "contrattuale_dal" : "created_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false }).order("id").limit(1).maybeSingle();
-  let result = await cerca("contrattuale");
-  if (!result.error && !result.data) result = await cerca("verificato");
-  if (!result.error && !result.data) result = await cerca("bozza");
-  if (result.error) return { fonte: null, avviso: "Archivio computi temporaneamente non leggibile." };
-  const computo = result.data;
-  if (!computo) return { fonte: null, avviso: "Nessun computo con voci leggibili collegato alla commessa." };
-  const { data, error } = await db.from("computo_voci_estratte")
-    .select("id,numero_ordine,codice_voce,codice_tariffa,codice_prezzario,descrizione_breve,descrizione_estesa,unita_misura,quantita,super_categoria,categoria,capitolo_nome,quadro_voce")
-    .eq("company_id", companyId).eq("computo_upload_id", computo.id)
-    .order("ordine").order("id").limit(1000);
-  if (error) return { fonte: null, avviso: "Voci del computo temporaneamente non leggibili." };
-  const voci: VoceComputoPos[] = ((data ?? []) as Record<string, unknown>[]).flatMap(v => {
-    const titolo = stringa(v.descrizione_estesa || v.descrizione_breve, 320);
-    const id = stringa(v.id, 64);
-    if (!titolo || !id || v.quadro_voce === "somme_a_disposizione") return [];
-    return [{
-      id, titolo, codice: stringa(v.codice_tariffa || v.codice_prezzario || v.codice_voce || v.numero_ordine, 80),
-      capitolo: stringa(v.capitolo_nome || v.categoria || v.super_categoria, 180),
-      unita: stringa(v.unita_misura, 24),
-      ...(typeof v.quantita === "number" && Number.isFinite(v.quantita) ? { quantita: v.quantita } : {}),
-    }];
-  });
-  if (!voci.length) return { fonte: null, avviso: "Il computo collegato è privo di voci leggibili." };
-  return {
-    fonte: { id: computo.id, titolo: stringa(computo.titolo || computo.file_name, 200), stato: computo.stato, voci },
-    ...(data.length === 1000 ? { avviso: "Letto il primo blocco di 1.000 voci del computo. Verifica le altre voci nella commessa." } : {}),
-  };
+  const { fonte, avviso } = await leggiComputoPerPos(db, companyId, orderId);
+  return { fonte, ...(avviso ? { avviso } : {}) };
 }
 
 type LeggiPaginePsc = (bytes: Uint8Array, maxPages: number, maxChars: number, impronta: string) =>

@@ -1,7 +1,7 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileText, RefreshCw } from "lucide-react";
+import { FileText, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,8 @@ export function RiferimentoPscPos(
   const qc = useQueryClient();
   const formId = useId();
   const [selezione, setSelezione] = useState("");
+  const [ricerca, setRicerca] = useState("");
+  const [ultimoCaricamento, setUltimoCaricamento] = useState<string[]>([]);
   const [rev, setRev] = useState("");
   const [carica, setCarica] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -42,7 +44,19 @@ export function RiferimentoPscPos(
     docs.data?.filter((d) =>
       d.archivio !== valore?.archivio || d.id !== valore?.id
     ) || [];
-  const fonte = docs.data?.find((d) => `${d.archivio}:${d.id}` === selezione);
+  const chiaveFonte = (d: NonNullable<typeof corrente>) => `${d.archivio}:${d.id}`;
+  const nuovaFonte = ultimoCaricamento.length === 1
+    ? docs.data?.find(d => d.archivio === "sicurezza_documenti" && d.file_path === ultimoCaricamento[0])
+    : undefined;
+  const selezioneCorrente = selezione || (nuovaFonte && chiaveFonte(nuovaFonte)) || "";
+  const fonte = docs.data?.find(d => chiaveFonte(d) === selezioneCorrente);
+  const normalizza = (testo: string) => testo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const termini = normalizza(ricerca.trim()).split(/\s+/).filter(Boolean);
+  const visibili = docs.data?.filter(d => {
+    const testo = normalizza([d.titolo, d.file_name, d.data_documento, d.revisione].join(" "));
+    return chiaveFonte(d) === selezioneCorrente || termini.every(t => testo.includes(t));
+  });
+
   const solaLettura = ro || !perms.canViewSicurezzaCantiere ||
     perms.solaLettura;
   const controlla = async () => {
@@ -71,6 +85,7 @@ export function RiferimentoPscPos(
     try {
       onChange(await identificaPsc(fonte, fonte.revisione || rev));
       setSelezione("");
+      setUltimoCaricamento([]);
       setRev("");
     } catch (e) {
       setErrore(e instanceof Error ? e.message : "Collegamento non riuscito");
@@ -196,6 +211,15 @@ export function RiferimentoPscPos(
       )}
       {!solaLettura && !docs.isError && (
         <div className="space-y-2">
+          {(docs.data?.length ?? 0) > 1 && <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+            <Input type="search" className="h-9 pl-9" aria-label="Cerca un PSC della commessa" placeholder="Cerca per titolo, nome file o revisione"
+              value={ricerca} onChange={e => setRicerca(e.target.value)} />
+          </div>}
+          {ultimoCaricamento.length > 0 && <p role="status" className="text-xs text-muted-foreground">
+            {nuovaFonte ? "PSC caricato. Controlla la revisione e usa il riferimento." : "Caricamento completato. Scegli il PSC dall’elenco aggiornato."}
+          </p>}
+          {termini.length > 0 && visibili?.length === 0 && <p className="text-xs text-muted-foreground">Nessun PSC corrisponde alla ricerca.</p>}
           <div className="flex flex-wrap gap-2">
             <div className="min-w-0 flex-1">
               <Label htmlFor={`${formId}-originale`} className="text-xs">
@@ -205,18 +229,19 @@ export function RiferimentoPscPos(
                 id={`${formId}-originale`}
                 className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                 disabled={busy || docs.isPending}
-                value={selezione}
+                value={selezioneCorrente}
                 onChange={(e) => {
+                  setUltimoCaricamento([]);
                   setSelezione(e.target.value);
                   setRev("");
                   setRiscontro("");
                 }}
               >
                 <option value="">Scegli un PSC della commessa</option>
-                {docs.data?.map((d) => (
+                {visibili?.map((d) => (
                   <option
-                    key={`${d.archivio}:${d.id}`}
-                    value={`${d.archivio}:${d.id}`}
+                    key={chiaveFonte(d)}
+                    value={chiaveFonte(d)}
                   >
                     {d.titolo} · {d.data_documento || "senza data"}
                     {d.revisione ? ` · rev. ${d.revisione}` : ""}
@@ -276,7 +301,14 @@ export function RiferimentoPscPos(
           companyId={companyId}
           orderId={orderId}
           preset={{ tipo: "psc" }}
+          soloPsc
           open={carica}
+          onCaricati={percorsi => {
+            setSelezione("");
+            setRev("");
+            setRicerca("");
+            setUltimoCaricamento(percorsi);
+          }}
           onOpenChange={(v) => {
             setCarica(v);
             if (!v) {

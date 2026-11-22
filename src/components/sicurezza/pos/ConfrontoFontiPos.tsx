@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { datiAppPos } from '@/hooks/usePos';
-import { applicaConfrontoPos, confrontaPos, testoConfrontoPos, type CampoConfrontoPos } from '@/lib/sicurezza/confrontoPos';
+import { applicaConfrontoPos, confrontaPos, gruppiVuotiPos, testoConfrontoPos, type CampoConfrontoPos } from '@/lib/sicurezza/confrontoPos';
 import type { PosContenuto } from '../../../../supabase/functions/_shared/posModello';
 
 export function ConfrontoFontiPos({companyId,posId,bozza,onClose,onApplica}: {companyId:string;posId:string;bozza:PosContenuto;onClose:()=>void;onApplica:(p:PosContenuto,avvisi:string[])=>void}) {
@@ -16,12 +16,16 @@ export function ConfrontoFontiPos({companyId,posId,bozza,onClose,onApplica}: {co
   const errore=lettura.isError?(lettura.error instanceof Error?lettura.error.message:'Fonti non disponibili'):'';
   const differenze=useMemo(()=>fonte?confrontaPos(bozza,fonte.contenuto):[],[bozza,fonte]);
   const applicabili=scelti.filter(k=>differenze.some(d=>d.campo===k));
+  const daCompilare = gruppiVuotiPos(differenze);
   return <Dialog open onOpenChange={o=>{if(!o)onClose();}}><DialogContent className="flex max-h-[88dvh] max-w-4xl flex-col overflow-hidden">
     <DialogHeader><DialogTitle>Confronta con i dati dell’app</DialogTitle><DialogDescription>Confronto con questa bozza, incluse le modifiche non salvate. Scegli quali dati sostituire; nulla viene salvato automaticamente. Un dato non rilevato non prova che una nomina o una persona siano state rimosse.</DialogDescription></DialogHeader>
     <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
       {errore?<div role="alert"><p>{errore}</p><Button variant="outline" onClick={()=>setTentativo(x=>x+1)}>Riprova</Button></div>:!fonte?<p role="status">Lettura delle fonti in corso…</p>:<>
         {fonte.contesto.avvisi.length>0&&<div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><p className="font-medium">Da verificare nelle fonti</p><ul className="list-disc pl-5">{fonte.contesto.avvisi.map((a,i)=><li key={i}>{a}</li>)}</ul></div>}
         <p className="text-sm text-muted-foreground">{differenze.length?`${differenze.length===1?'Un gruppo di dati diverso':`${differenze.length} gruppi di dati diversi`}. Nessuna sostituzione preselezionata.`:'I dati confrontabili coincidono con la bozza.'} Lavorazioni, valutazione del rumore, procedure PSC, allegati, autonomi, ruolo dell’impresa, turni e organizzazione restano invariati. La formazione richiede una nuova verifica se aggiorni lavoratori o formazione.</p>
+        {!!daCompilare.length && <Button type="button" variant="outline" size="sm" onClick={() => setScelta({ identita, campi: daCompilare })}>
+          Seleziona solo i gruppi vuoti ({daCompilare.length})
+        </Button>}
         {differenze.map(d=><section key={d.campo} className="rounded-lg border p-3">
           <label className="flex cursor-pointer items-start gap-2 font-medium"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={scelti.includes(d.campo)} onChange={e=>setScelta({identita,campi:e.target.checked?[...scelti,d.campo]:scelti.filter(k=>k!==d.campo)})}/><span>Sostituisci {d.titolo}</span></label>
           {d.nonRilevato&&<p className="my-2 text-sm text-amber-800">Non rilevato nell’app. Se selezioni questa voce, cancelli il valore presente nel POS: verifica prima la fonte.</p>}

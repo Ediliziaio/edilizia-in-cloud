@@ -137,9 +137,16 @@ export function useCaricaDocumentiSicurezza(companyId: string | null | undefined
         if (n.file.size > LIMITE_FILE_SICUREZZA) throw new Error(`«${n.file.name}» supera i 50 MB.`);
       }
       for (const n of nuovi) {
-        if (n.subappaltatoreId) await caricaPerSubappaltatore(companyId, n);
-        else await caricaInSicurezza(companyId, n);
+        if (n.tipo !== "psc") continue;
+        const intestazione = new TextDecoder().decode(await n.file.slice(0, 1024).arrayBuffer());
+        if (!intestazione.includes("%PDF-")) throw new Error(`«${n.file.name}» deve essere un PDF. Salva la scansione in PDF e riprova.`);
       }
+      const percorsi: string[] = [];
+      for (const n of nuovi) {
+        if (n.subappaltatoreId) await caricaPerSubappaltatore(companyId, n);
+        else percorsi.push(await caricaInSicurezza(companyId, n));
+      }
+      return percorsi;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: chiaviDocumentiSicurezza.tutti });
@@ -153,15 +160,17 @@ export function useCaricaDocumentiSicurezza(companyId: string | null | undefined
 }
 
 async function caricaInSicurezza(companyId: string, n: NuovoDocumentoSicurezza) {
-  const estensione = n.file.name.includes(".") ? n.file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "bin";
+  const estensione = n.tipo === "psc" ? "pdf" :
+    n.file.name.includes(".") ? n.file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "bin";
+  const mime = n.tipo === "psc" ? "application/pdf" : n.file.type;
   const percorso = `${companyId}/documenti/${n.orderId ?? "azienda"}/${crypto.randomUUID()}.${estensione || "bin"}`;
   const { error: errFile } = await supabase.storage.from(BUCKET_SICUREZZA)
-    .upload(percorso, n.file, { contentType: n.file.type || "application/octet-stream" });
+    .upload(percorso, n.file, { contentType: mime || "application/octet-stream" });
   if (errFile) throw new Error(`Non riesco a caricare «${n.file.name}». Riprova tra poco.`);
   const { error } = await supabase.from("sicurezza_documenti" as never).insert({
     company_id: companyId, order_id: n.orderId, subappaltatore_id: null,
     tipo: n.tipo, titolo: n.titolo.trim() || n.file.name, file_path: percorso, file_name: n.file.name,
-    mime_type: n.file.type || null, size_bytes: n.file.size,
+    mime_type: mime || null, size_bytes: n.file.size,
     data_documento: n.dataDocumento, data_scadenza: n.dataScadenza, note: n.note,
   } as never);
   if (error) {
@@ -169,6 +178,7 @@ async function caricaInSicurezza(companyId: string, n: NuovoDocumentoSicurezza) 
     await supabase.storage.from(BUCKET_SICUREZZA).remove([percorso]);
     throw new Error(`Non riesco a salvare «${n.file.name}». Riprova tra poco.`);
   }
+  return percorso;
 }
 
 /** Nella scheda del subappaltatore, come il suo caricamento singolo: stesso bucket, stesso percorso. */

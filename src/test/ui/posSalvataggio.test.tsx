@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { posVuoto } from "../../../supabase/functions/_shared/posModello";
+import { posVuoto, type ContestoPos } from "../../../supabase/functions/_shared/posModello";
 import type { ReactNode } from "react";
 const s=vi.hoisted(()=>({company:'azienda-a',conflitto:false,tipoDocumento:'pos' as string|null,filtri:[] as Array<[string,unknown]>,clock:1}));
 vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=>s.company}));
@@ -14,7 +14,7 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{auth:{getSession:async(
   return {data:{id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[] as never[],contenuto:update?.contenuto||{},iter:update?.iter||{},approvato_da_nome:null as null,approvato_il:null as null,created_at:'2026-10-27T00:00:00Z',updated_at:`2026-10-27T00:00:0${++s.clock}Z`,document_type:s.tipoDocumento,commessa:null as null},error:null as null};
  }};return q;
 }}}));
-import { usePos, useSalvaPos, useApprovaPos, type PosRiga } from '@/hooks/usePos';
+import { usePos, useSalvaPos, useApprovaPos, useCreaPos, chiaveDatiAppPos, type PosRiga } from '@/hooks/usePos';
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});beforeEach(()=>{s.company='azienda-a';s.conflitto=false;s.tipoDocumento='pos';s.filtri=[];s.clock=1;});
 function contesto(seed=true){const qc=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
  const originale={id:'pos-1',company_id:'azienda-a',order_id:'ordine-1',status:'bozza',revisione:0,revisioni:[],contenuto:posVuoto(),daCompilare:false,iter:{},approvato_da_nome:null,approvato_il:null,created_at:'2026-10-27T00:00:00Z',updated_at:'2026-10-27T00:00:01Z',commessa:null} as PosRiga;
@@ -35,4 +35,19 @@ describe('Salvataggio POS senza sovrascrivere una versione diversa',()=>{
   await waitFor(() => expect(h.result.current.isSuccess).toBe(true));
   expect(h.result.current.data?.id ?? null).toBe(tipo === null ? 'pos-1' : null);
  });
+});
+
+it("dà subito il risultato di creazione e conserva il contesto solo per il POS e l’azienda giusti", async () => {
+  const { qc, wrapper } = contesto(false);
+  const avvisi = ["Indicare il turno"];
+  const dati: ContestoPos = { avvisi, mezzi: [], subappaltatori: [] };
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ pos_id: "nuova-bozza", avvisi, contesto: dati }), { status: 200 })));
+  const invalida = vi.spyOn(qc, "invalidateQueries").mockReturnValue(new Promise(() => {}));
+  const h = renderHook(() => useCreaPos(), { wrapper });
+  await act(async () => {
+    await expect(h.result.current.mutateAsync({ orderId: "ordine-1" })).resolves.toMatchObject({ pos_id: "nuova-bozza" });
+  });
+  expect(qc.getQueryData(chiaveDatiAppPos("azienda-a", "nuova-bozza"))).toEqual({ contesto: dati });
+  expect(qc.getQueryData(chiaveDatiAppPos("azienda-b", "nuova-bozza"))).toBeUndefined();
+  expect(invalida).toHaveBeenCalledWith({ queryKey: ["pos", "elenco", "azienda-a"] });
 });

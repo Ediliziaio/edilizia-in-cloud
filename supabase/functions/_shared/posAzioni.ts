@@ -7,7 +7,7 @@ export const eAzioneBrowserPos = (a: string): a is (typeof AZIONI_BROWSER_POS)[n
 
 /** Le azioni di genera-pos e quali di esse scrivono (o consumano credito) e quindi non spettano a chi è in sola lettura. */
 export const AZIONI_POS = [
-  "fonte_rapporto_rumore", "apri_originale_addetto", "apri_documento_mezzo", "crea", "dati_app", "computo_ai", "lavorazioni_ai", "approva",
+  "fonte_rapporto_rumore", "apri_originale_addetto", "apri_documento_mezzo", "crea", "crea_manuale", "dati_app", "computo_ai", "lavorazioni_ai", "testo_lavorazione_ai", "approva",
   "stato_ocr_psc", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore",
   "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf",
   ...AZIONI_BROWSER_POS,
@@ -19,6 +19,6 @@ export type AzionePos = typeof AZIONI_POS[number];
  * originali è lettura: prima le prime due erano trattate come scritture e chi era in sola lettura riceveva 403 anche
  * davanti al PDF di un POS già emesso, mentre lavorazioni_ai (credito AI) passava.
  */
-const SCRIVONO: ReadonlySet<AzionePos> = new Set<AzionePos>(["crea", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai",
+const SCRIVONO: ReadonlySet<AzionePos> = new Set<AzionePos>(["crea", "crea_manuale", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai", "testo_lavorazione_ai",
   "prepara_emissione", "completa_emissione", "annulla_emissione", "avvia_ocr_psc", "riprova_ocr_psc", "ocr_rapporto_rumore"]);
 export const scriveAzionePos = (azione: AzionePos): boolean => SCRIVONO.has(azione);

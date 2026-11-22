@@ -580,6 +580,8 @@ export interface VoceMancante {
   riferimento: string;
   sezione: SezionePos;
   testo: string;
+  /** Campo dell’editor da aprire quando la voce riguarda un dato preciso. */
+  campo?: string;
   /** La lavorazione a cui si riferisce: l'editor conta le voci scheda per scheda. */
   lavorazione_id?: string;
   /** Voci dello stesso tipo ripetute per ogni lavorazione: l'editor le raggruppa invece di elencarle una a una. */
@@ -587,7 +589,7 @@ export interface VoceMancante {
 }
 
 const vuoto = (s: string | null | undefined) => !s || !s.trim();
-const daCompletare = (s: string | null | undefined) =>
+export const daCompletare = (s: string | null | undefined) =>
   vuoto(s) || /^(?:in attesa(?: di (?:verifica|valutazione|rapporto))?|[a-z ]{0,40}\bda (?:confermare|valutare|definire|verificare|acquisire|misurare)|non ancora (?:valutato|definito|disponibile|misurato)|tbd)[.! ]*$/i.test(s!.trim());
 /**
  * «Nessuna», «non presenti», «assenti», «N/A», «nessuna sostanza pericolosa»… contano come risposta: la voce è stata
@@ -614,33 +616,34 @@ const dataIsoValida = (s: string): boolean => {
  */
 export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   const m: VoceMancante[] = [];
-  const add = (riferimento: string, sezione: SezionePos, testo: string) => m.push({ riferimento, sezione, testo });
+  const add = (riferimento: string, sezione: SezionePos, testo: string, campo?: string) =>
+    m.push({ riferimento, sezione, testo, ...(campo ? { campo } : {}) });
   const { opera, impresa } = pos;
 
   // Opera e committente
-  if (vuoto(opera.committente.nominativo)) add("3.2.1", "opera", "Committente: nome e cognome o ragione sociale");
-  if (vuoto(opera.committente.indirizzo)) add("3.2.1", "opera", "Committente: indirizzo");
-  if (vuoto(opera.cantiere.via) || vuoto(opera.cantiere.localita)) add("3.2.1", "opera", "Indirizzo del cantiere: via e località");
-  if (vuoto(opera.descrizione_attivita)) add("3.2.1 c)", "opera", "Descrizione dell'attività di cantiere");
-  if (vuoto(opera.modalita_organizzative)) add("3.2.1 c)", "opera", "Modalità organizzative del cantiere");
-  if (vuoto(opera.turni_lavoro)) add("3.2.1 c)", "opera", "Turni di lavoro");
-  if (opera.modalita_organizzative_da_verificare) add("3.2.1 c)", "opera", "Modalità organizzative proposte dall'AI: rileggile, adattale a questo cantiere e conferma");
+  if (vuoto(opera.committente.nominativo)) add("3.2.1", "opera", "Committente: nome e cognome o ragione sociale", "comm-nome");
+  if (vuoto(opera.committente.indirizzo)) add("3.2.1", "opera", "Committente: indirizzo", "comm-ind");
+  if (vuoto(opera.cantiere.via) || vuoto(opera.cantiere.localita)) add("3.2.1", "opera", "Indirizzo del cantiere: via e località", vuoto(opera.cantiere.via) ? "cant-via" : "cant-loc");
+  if (vuoto(opera.descrizione_attivita)) add("3.2.1 c)", "opera", "Descrizione dell'attività di cantiere", "descr-att");
+  if (vuoto(opera.modalita_organizzative)) add("3.2.1 c)", "opera", "Modalità organizzative del cantiere", "mod-org");
+  if (vuoto(opera.turni_lavoro)) add("3.2.1 c)", "opera", "Turni di lavoro", "turni");
+  if (opera.modalita_organizzative_da_verificare) add("3.2.1 c)", "opera", "Modalità organizzative proposte dall'AI: rileggile, adattale a questo cantiere e conferma", "mod-org");
   // Le date si dichiarano quando ci sono, ma una data che non esiste o una fine prima dell'inizio non passano:
   // le guardie del database (requisiti, attrezzature) le leggono e l'approvazione cadrebbe in fondo, con un errore.
   const da = opera.data_inizio.trim();
   const a = opera.data_fine.trim();
-  if (da && !dataIsoValida(da)) add("3.2.1 c)", "opera", "Data di inizio lavori non valida");
-  if (a && !dataIsoValida(a)) add("3.2.1 c)", "opera", "Data di fine lavori non valida");
-  if (da && a && dataIsoValida(da) && dataIsoValida(a) && a < da) add("3.2.1 c)", "opera", "Fine lavori prima dell'inizio: controlla le date");
+  if (da && !dataIsoValida(da)) add("3.2.1 c)", "opera", "Data di inizio lavori non valida", "data-inizio");
+  if (a && !dataIsoValida(a)) add("3.2.1 c)", "opera", "Data di fine lavori non valida", "data-fine");
+  if (da && a && dataIsoValida(da) && dataIsoValida(a) && a < da) add("3.2.1 c)", "opera", "Fine lavori prima dell'inizio: controlla le date", "data-fine");
 
   // Impresa
-  if (vuoto(impresa.ragione_sociale)) add("3.2.1 a) 1", "impresa", "Ragione sociale dell'impresa");
-  if (vuoto(impresa.datore_lavoro)) add("3.2.1 a) 1", "impresa", "Nominativo del datore di lavoro");
+  if (vuoto(impresa.ragione_sociale)) add("3.2.1 a) 1", "impresa", "Ragione sociale dell'impresa", "rag-soc");
+  if (vuoto(impresa.datore_lavoro)) add("3.2.1 a) 1", "impresa", "Nominativo del datore di lavoro", "datore");
   if (vuoto(impresa.sede_legale.indirizzo) || vuoto(impresa.sede_legale.telefono)) {
-    add("3.2.1 a) 1", "impresa", "Sede legale: indirizzo e telefono");
+    add("3.2.1 a) 1", "impresa", "Sede legale: indirizzo e telefono", vuoto(impresa.sede_legale.indirizzo) ? "sede_legale-ind" : "sede_legale-tel");
   }
   if (impresa.ruolo === "esecutrice_subappalto" && vuoto(impresa.subappalto_a)) {
-    add("3.2.1 a) 1", "impresa", "Impresa affidataria per cui si lavora in subappalto");
+    add("3.2.1 a) 1", "impresa", "Impresa affidataria per cui si lavora in subappalto", "sub-a");
   }
 
   // Figure (lettere a e b)
@@ -648,11 +651,11 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   const capocantiere = pos.preposti.find((p) => p.ruolo === "capocantiere" && !vuoto(p.nominativo));
   if (!direttore) add("3.2.1 a) 6", "figure", "Nominativo del direttore tecnico di cantiere");
   if (!capocantiere) add("3.2.1 a) 6", "figure", "Nominativo del capocantiere");
-  if (vuoto(pos.rspp.nominativo)) add("3.2.1 a) 5", "figure", "Nominativo del responsabile del servizio di prevenzione e protezione (RSPP)");
+  if (vuoto(pos.rspp.nominativo)) add("3.2.1 a) 5", "figure", "Nominativo del responsabile del servizio di prevenzione e protezione (RSPP)", "rspp-nome");
   if (pos.medico_competente.previsto && vuoto(pos.medico_competente.nominativo)) {
-    add("3.2.1 a) 4", "figure", "Nominativo del medico competente");
+    add("3.2.1 a) 4", "figure", "Nominativo del medico competente", "medico-nome");
   }
-  if (vuoto(pos.rls.nominativo)) add("3.2.1 a) 3", "figure", "Nominativo del rappresentante dei lavoratori per la sicurezza (RLS o RLST)");
+  if (vuoto(pos.rls.nominativo)) add("3.2.1 a) 3", "figure", "Nominativo del rappresentante dei lavoratori per la sicurezza (RLS o RLST)", "rls-nome");
   const figureConNome: FiguraPos[] = [
     ...pos.dirigenti, ...pos.preposti, pos.rspp, pos.rls,
     ...(pos.medico_competente.previsto ? [pos.medico_competente] : []),
@@ -669,13 +672,13 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     if (!conNome.some((a) => a.antincendio)) add("3.2.1 a) 3", "emergenze", "Addetto antincendio ed evacuazione");
     if (!conNome.some((a) => a.primo_soccorso)) add("3.2.1 a) 3", "emergenze", "Addetto al primo soccorso");
   } else if (pos.emergenze.gestione === "comune" && vuoto(pos.emergenze.imprese_gestione_comune)) {
-    add("3.2.1 a) 3", "emergenze", "Imprese che gestiscono insieme le emergenze");
+    add("3.2.1 a) 3", "emergenze", "Imprese che gestiscono insieme le emergenze", "imprese-comune");
   }
 
   if (pos.versione_evidenze_operative === 1) {
     const campi = Object.entries(CAMPI_EMERGENZE_POS).filter(([k]) => k !== "planimetria");
     const assenti = campi.filter(([k]) => daCompletare(pos.emergenze.piano?.[k as keyof PianoEmergenzePos] ?? ""));
-    if (assenti.length) add("Controllo operativo", "emergenze", `Organizzazione delle emergenze da completare: ${assenti.map(([, label]) => label).join(", ")}`);
+    if (assenti.length) add("Controllo operativo", "emergenze", `Organizzazione delle emergenze da completare: ${assenti.map(([, label]) => label).join(", ")}`, `emergenza-${assenti[0][0]}`);
   }
 
   const emergenzeDaRiesaminare = fontiEmergenzeDaRiesaminare(pos.emergenze.fonti_psc, pos.emergenze.piano,
@@ -701,7 +704,7 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
 
   // Rumore
   if (daCompletare(pos.rumore.esito) && !pos.rumore.righe.some((r) => !daCompletare(r.esposizione))) {
-    add("3.2.1 f)", "rumore", "Esito del rapporto di valutazione del rumore");
+    add("3.2.1 f)", "rumore", "Esito del rapporto di valutazione del rumore", "rumore-esito");
   }
 
   const rapporto = pos.rumore.rapporto;
@@ -726,8 +729,8 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   pos.lavorazioni.forEach((l, i) => {
     const nome = l.titolo.trim() || `n. ${i + 1}`;
     // Le voci di una scheda portano l'id della lavorazione: l'editor sa quante ne mancano a ognuna.
-    const addL = (riferimento: string, _sezione: SezionePos, testo: string, gruppo?: VoceMancante["gruppo"]) =>
-      m.push({ riferimento, sezione: "lavorazioni", testo, lavorazione_id: l.id, ...(gruppo ? { gruppo } : {}) });
+    const addL = (riferimento: string, _sezione: SezionePos, testo: string, gruppo?: VoceMancante["gruppo"], campo?: string) =>
+      m.push({ riferimento, sezione: "lavorazioni", testo, lavorazione_id: l.id, ...(gruppo ? { gruppo } : {}), ...(campo ? { campo } : {}) });
     const programma = l.programma_demolizioni;
     if (programma?.applicabilita === "da_valutare" || (!programma && pos.versione_controlli === 2 && titoloDemolizionePos(l.titolo))) {
       addL("art. 151", "lavorazioni", `Lavorazione «${nome}»: indica se serve il programma delle demolizioni`);
@@ -740,7 +743,7 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
       addL("art. 151", "lavorazioni", `Lavorazione «${nome}»: spiega perché il programma delle demolizioni non si applica`);
     }
     const senzaRisposta = l.fonti_scheda?.quesiti?.filter(q => daCompletare(q.risposta)).length ?? 0;
-    if (senzaRisposta) addL("3.2.1 c) g)", "lavorazioni", `Lavorazione «${nome}»: completa i dettagli del cantiere (${senzaRisposta} da chiarire)`);
+    if (senzaRisposta) addL("3.2.1 c) g)", "lavorazioni", `Lavorazione «${nome}»: completa i dettagli del cantiere (${senzaRisposta} da chiarire)`, undefined, `lv-${i}-quesito-${l.fonti_scheda!.quesiti!.findIndex(q => daCompletare(q.risposta))}`);
     if (pscSchedaDaRiesaminare(l.fonti_scheda?.psc, pos.procedure_psc.documento)) {
       addL("3.2.1 h)", "lavorazioni", `Lavorazione «${nome}»: riesamina gli estratti rispetto al PSC di riferimento`);
     }
@@ -750,20 +753,23 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     if (l.riscontri_dpi?.some(r => !dpiPrevistiPos(l.dpi).includes(r.previsto))) {
       addL("3.2.1 i)", "lavorazioni", `Lavorazione «${nome}»: aggiorna i collegamenti DPI dopo le modifiche alla scheda`);
     }
-    const manca: string[] = [];
-    if (vuoto(l.descrizione)) manca.push("descrizione");
-    if (vuoto(l.rischi)) manca.push("rischi");
-    if (vuoto(l.misure)) manca.push("misure preventive e protettive");
-    if (vuoto(l.dpi)) manca.push("DPI");
+    const manca: Array<{ testo: string; campo: string }> = [];
+    if (vuoto(l.descrizione)) manca.push({ testo: "descrizione", campo: "descrizione" });
+    if (vuoto(l.rischi)) manca.push({ testo: "rischi", campo: "rischi-misure" });
+    if (vuoto(l.misure)) manca.push({ testo: "misure preventive e protettive", campo: "rischi-misure" });
+    if (vuoto(l.dpi)) manca.push({ testo: "DPI", campo: "rischi-misure" });
     if (pos.versione_controlli === 2) {
       // Ognuna delle tre voci va detta, anche con «Nessuna»: un montaggio di ponteggio senza opere provvisionali non è «completo».
-      if (vuoto(l.macchine)) manca.push("macchine (anche «nessuna»)");
-      if (vuoto(l.opere_provvisionali)) manca.push("opere provvisionali (anche «nessuna»)");
-      if (vuoto(l.impianti)) manca.push("impianti (anche «nessuno»)");
-    } else if (vuoto(l.macchine) && vuoto(l.opere_provvisionali) && vuoto(l.impianti)) manca.push("macchine, opere provvisionali e impianti (anche «nessuna»)");
-    if (vuoto(l.sostanze)) manca.push("sostanze pericolose (anche «nessuna»)");
-    if (l.svolgimento !== "diretto" && vuoto(l.svolgimento_con)) manca.push("impresa con cui si svolge");
-    if (manca.length) addL("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);
+      if (vuoto(l.macchine)) manca.push({ testo: "macchine (anche «nessuna»)", campo: "macchine" });
+      if (vuoto(l.opere_provvisionali)) manca.push({ testo: "opere provvisionali (anche «nessuna»)", campo: "opere_provvisionali" });
+      if (vuoto(l.impianti)) manca.push({ testo: "impianti (anche «nessuno»)", campo: "impianti" });
+    } else if (vuoto(l.macchine) && vuoto(l.opere_provvisionali) && vuoto(l.impianti)) {
+      manca.push({ testo: "macchine, opere provvisionali e impianti (anche «nessuna»)", campo: "macchine" });
+    }
+    if (vuoto(l.sostanze)) manca.push({ testo: "sostanze pericolose (anche «nessuna»)", campo: "sostanze" });
+    if (l.svolgimento !== "diretto" && vuoto(l.svolgimento_con)) manca.push({ testo: "impresa con cui si svolge", campo: "con" });
+    if (manca.length) addL("3.2.1 d) e) g) i)", "lavorazioni",
+      `Lavorazione «${nome}»: ${manca.map(v => v.testo).join(", ")}`, undefined, `lv-${i}-${manca[0].campo}`);
     // Con la tabella per rischio ogni rischio ha le sue misure (proprie o comuni a tutta la lavorazione): è il senso della lettera g).
     const valutazione = valutazioneAttiva(l);
     if (valutazione) {
@@ -774,7 +780,7 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
       });
     }
     if (pos.versione_prodotti === 1) {
-      if (!l.prodotti_riesaminati) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`, "prodotti-riesame");
+      if (!l.prodotti_riesaminati) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`, "prodotti-riesame", `lv-${i}-riesame-prodotti`);
       if (!nessuno(l.sostanze) && !vuoto(l.sostanze) && !l.prodotti?.length) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: identifica i singoli prodotti e le rispettive SDS`, "prodotti-identifica");
       for (const p of l.prodotti || []) {
         const errori = erroriProdottoPos(p, l.fase_id);
@@ -787,7 +793,7 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     if(pos.versione_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const e=erroriSceltaMezzo(a.anagrafica,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 d)","lavorazioni",`Attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
     if(pos.versione_fonti_tecniche===1&&l.tecnica) { for(const tipo of ["rischio","attrezzatura"] as const) { const righe=tipo==="rischio"?l.tecnica.rischi:l.tecnica.attrezzature;for(const r of righe){const e=erroriFontiTecniche(r.fonti,tipo,undefined,l.fase_id,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 d) g)","lavorazioni",`Fonti ${tipo} in «${nome}»: ${e.join("; ")}`);} } }
     if (pos.versione_tecnica===1) { const tecnici=erroriTecnicaPos(l.tecnica); if(tecnici.length) addL("3.2.1 c) d) g) i)","lavorazioni",`Lavorazione «${nome}»: ${tecnici.join("; ")}`); }
-    if (l.origine !== "utente" && !l.verificata) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`);
+    if (l.origine !== "utente" && !l.verificata) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`, undefined, `lv-${i}-conferma`);
   });
 
   // Sostanze: servono le schede di sicurezza allegate
@@ -811,7 +817,7 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
           fonte.estratti.some(r => r.metodo === "ocr" && r.confermato && String(r.pagina) === v.pagina && r.testo === v.procedura);
         if (!citazione) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: ricollega un estratto OCR confermato dalla lavorazione`);
       }
-      if (vuoto(v.procedura) || vuoto(v.indicazioni)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: completa prescrizione e risposta operativa`);
+      if (vuoto(v.procedura) || vuoto(v.indicazioni)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: completa prescrizione e risposta operativa`, `psc-${i}-${vuoto(v.procedura) ? "p" : "i"}`);
       if(v.lavorazione_id && !pos.lavorazioni.some(l=>l.id===v.lavorazione_id)) add("3.2.1 h)", "psc", `Procedura PSC ${i+1}: lavorazione non più presente`);
     });
   }
@@ -824,10 +830,9 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
 }
 
 /** Percentuale indicativa di completezza, per la lista dei POS. */
-export function completezzaPercento(pos: PosContenuto): number {
+export function completezzaPercento(pos: PosContenuto, mancanti = vociMancanti(pos).length): number {
   // Le voci «fisse» controllate da vociMancanti quando il POS è vuoto.
   const totale = vociMancanti(posVuoto()).length;
-  const mancanti = vociMancanti(pos).length;
   return Math.max(0, Math.min(100, Math.round(((totale - Math.min(mancanti, totale)) / totale) * 100)));
 }
 

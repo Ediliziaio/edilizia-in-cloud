@@ -15,7 +15,7 @@ describe("azioni di genera-pos", () => {
     }
   });
   it("creare, approvare, emettere, i modelli e l'AI (che consuma credito) scrivono", () => {
-    for (const a of ["crea", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai"] as const) {
+    for (const a of ["crea", "crea_manuale", "approva", "emetti", "salva_modello", "archivia_modello", "lavorazioni_ai", "testo_lavorazione_ai"] as const) {
       expect(scriveAzionePos(a), a).toBe(true);
     }
   });
@@ -25,7 +25,7 @@ describe("azioni di genera-pos", () => {
     }
   });
   it("ogni azione è classificata", () => {
-    expect(AZIONI_POS.length).toBe(21);
+    expect(AZIONI_POS.length).toBe(23);
   });
 });
 

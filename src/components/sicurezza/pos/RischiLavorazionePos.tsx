@@ -55,11 +55,11 @@ export function RischiLavorazionePos({ l, n, ro, cambia }: Props) {
   const modificaRiga = (k: number, fn: (r: RischioLavorazione) => void) => modificaValutazione((x) => fn(x.righe[k]));
 
   return (
-    <section className="space-y-2 sm:col-span-2" aria-label={`Rischi, misure e DPI della lavorazione ${n + 1}`}>
+    <section id={`lv-${n}-rischi-misure`} tabIndex={-1} className="space-y-2 sm:col-span-2" aria-label={`Rischi, misure e DPI della lavorazione ${n + 1}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-700">Rischi, misure e DPI</p>
         {!ro && (
-          <div className="flex gap-1">
+          <div className="flex min-w-0 flex-wrap gap-1">
             <Button type="button" size="sm" variant="outline" className="tap-compact h-8" onClick={() => modificaValutazione((x) => { x.righe.push(rigaVuota()); })}>
               <Plus className="mr-1 h-4 w-4" aria-hidden="true" />Aggiungi un rischio
             </Button>

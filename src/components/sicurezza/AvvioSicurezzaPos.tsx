@@ -20,6 +20,8 @@ interface Props {
   orderId: string;
   solaLettura: boolean;
   usaNelPos?: (riferimento: RiferimentoPsc | null) => void;
+  vaiAllaLettura?: () => void;
+  idImpostazioni?: string;
 }
 
 export function AvvioSicurezzaPos(props: Props) {
@@ -44,9 +46,10 @@ export function AvvioSicurezzaPos(props: Props) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {q.isError ? <Button size="sm" variant="outline" onClick={() => void q.refetch()}>Riprova</Button> : !q.isLoading && <>
-            {pronto && props.usaNelPos && !props.solaLettura && <Button size="sm" variant="outline" onClick={() => props.usaNelPos?.(decisione?.psc ?? null)}>Allinea questa bozza</Button>}
-            <Button size="sm" variant="ghost" aria-expanded={aperto} onClick={() => setAperto(!aperto)}>
+          {q.isError ? <Button id={props.idImpostazioni} size="sm" variant="outline" onClick={() => void q.refetch()}>Riprova</Button> : !q.isLoading && <>
+            {pronto && originale && props.vaiAllaLettura && <Button type="button" size="sm" variant="outline" onClick={props.vaiAllaLettura}>Leggi o scansiona PSC</Button>}
+            {!props.vaiAllaLettura && pronto && props.usaNelPos && !props.solaLettura && <Button size="sm" variant="outline" onClick={() => props.usaNelPos?.(decisione?.psc ?? null)}>Allinea questa bozza</Button>}
+            <Button id={props.idImpostazioni} size="sm" variant="ghost" aria-expanded={aperto} onClick={() => setAperto(!aperto)}>
               {aperto ? "Chiudi" : "Impostazioni PSC"} <ChevronDown className="ml-1 h-4 w-4" aria-hidden />
             </Button>
           </>}
