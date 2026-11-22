@@ -33,6 +33,7 @@ const purchasingPrefixes = new Set([
   'oda-pagamenti-riepilogo', 'commessa-impegni-acquisti', 'order-economics-canonical', 'orders',
 ]);
 export function isPurchasingQuery(key: readonly unknown[]) {
+  if (key[0] === "generale-movimenti-operazione") return ["acquisti", "ddt", "fatture"].includes(String(key[6]));
   return typeof key[0] === 'string' && purchasingPrefixes.has(key[0]);
 }
 function avvisaSchede(event: 'commit' | 'purchasing') {

@@ -22,6 +22,7 @@ const db = supabase as any;
 
 /** Quante righe al massimo per tipo: un'operazione grande ne ha centinaia, non migliaia al mese. */
 export const LIMITE_MOVIMENTI = 500;
+export type VistaOperazione = "rapportini" | "lavorazioni" | "acquisti" | "ddt" | "squadre" | "fatture";
 
 export interface RapportinoOperazione {
   id: string;
@@ -87,6 +88,24 @@ export interface GiornataMezzoOperazione {
   mezzo: { nome: string | null; targa: string | null } | null;
 }
 
+interface FaseOperazione {
+  id: string;
+  order_id: string;
+  name: string;
+  status: string | null;
+  percentuale: number | null;
+  end_date: string | null;
+}
+
+interface SubappaltoOperazione {
+  id: string;
+  order_id: string;
+  numero_contratto: string | null;
+  descrizione_lavori: string | null;
+  stato: string | null;
+  subappaltatori_sicurezza: { ragione_sociale: string } | null;
+}
+
 export interface MovimentiOperazione {
   rapportini: RapportinoOperazione[];
   ordini: OrdineOperazione[];
@@ -95,6 +114,8 @@ export interface MovimentiOperazione {
   giornale: GiornaleOperazione[];
   timbrature: TimbraturaOperazione[];
   mezzi: GiornataMezzoOperazione[];
+  fasi: FaseOperazione[];
+  subappalti: SubappaltoOperazione[];
   fornitori: Record<string, string>;
   /** Tipi che hanno toccato il limite: l'elenco non è completo. */
   troncati: string[];
@@ -108,37 +129,44 @@ async function leggi<T>(tabella: string, colonne: string, companyId: string, ids
   return (data ?? []) as T[];
 }
 
-export function useMovimentiOperazione(r: RiepilogoGenerale, attivo: boolean) {
+export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazione) {
   const companyId = useEffectiveCompanyId();
   const ids = [r.generale.id, ...r.figlie.map((f) => f.id)];
   return useQuery({
-    queryKey: ["generale-movimenti-operazione", companyId, r.generale.id, ids.join(","), r.permessi.costi],
-    enabled: attivo && !!companyId,
+    queryKey: ["generale-movimenti-operazione", companyId, r.generale.id, ids.join(","), r.permessi.costi, r.permessi.importi, vista],
+    enabled: !!companyId,
     staleTime: 30_000,
+    refetchOnMount: "always",
+    refetchInterval: 30_000,
     queryFn: async (): Promise<MovimentiOperazione> => {
-      const [rapportini, ordini, ddt, costi, giornale, timbrature, mezzi] = await Promise.all([
-        leggi<RapportinoOperazione>(
+      const [rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi, subappalti] = await Promise.all([
+        vista === "rapportini" ? leggi<RapportinoOperazione>(
           "campo_rapportini",
           "id, order_id, data_lavoro, ore_lavorate, descrizione_lavori, stato, approvato, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)",
           companyId!, ids, "data_lavoro",
           (q) => (q as { is: (c: string, v: null) => unknown }).is("annullato_at", null),
-        ),
-        leggi<OrdineOperazione>("purchase_orders", "id, order_id, oda_number, status, issue_date, total, supplier_id", companyId!, ids, "issue_date"),
-        leggi<DdtOperazione>("ddt_ricezione", "id, order_id, numero_ddt, data_ricezione, stato, supplier_id, purchase_order_id", companyId!, ids, "data_ricezione"),
-        r.permessi.costi
+        ) : [],
+        vista === "acquisti" ? leggi<OrdineOperazione>("purchase_orders",
+          `id, order_id, oda_number, status, issue_date, supplier_id${r.permessi.importi ? ", total" : ""}`, companyId!, ids, "issue_date") : [],
+        vista === "ddt" ? leggi<DdtOperazione>("ddt_ricezione", "id, order_id, numero_ddt, data_ricezione, stato, supplier_id, purchase_order_id", companyId!, ids, "data_ricezione") : [],
+        vista === "fatture" && r.permessi.costi
           ? leggi<CostoOperazioneRiga>("company_costs", "id, order_id, name, amount, documento_data, due_date, is_paid, paid_date, supplier_id", companyId!, ids, "documento_data")
           : Promise.resolve(null),
-        leggi<GiornaleOperazione>("giornale_lavori", "id, order_id, data_lavori, lavorazioni_eseguite, personale_presente, stato", companyId!, ids, "data_lavori"),
-        leggi<TimbraturaOperazione>(
+        vista === "rapportini" ? leggi<GiornaleOperazione>("giornale_lavori", "id, order_id, data_lavori, lavorazioni_eseguite, personale_presente, stato", companyId!, ids, "data_lavori") : [],
+        vista === "squadre" ? leggi<TimbraturaOperazione>(
           "campo_timbrature",
           "id, order_id, tipo, timestamp_evento, persona:profiles!campo_timbrature_user_id_fkey(first_name, last_name)",
           companyId!, ids, "timestamp_evento",
-        ),
-        leggi<GiornataMezzoOperazione>(
+        ) : [],
+        vista === "squadre" ? leggi<GiornataMezzoOperazione>(
           "mezzi_giornate",
           "id, order_id, giorno, usato, contatore, mezzo:mezzi!mezzi_giornate_mezzo_id_fkey(nome, targa)",
           companyId!, ids, "giorno",
-        ),
+        ) : [],
+        vista === "lavorazioni" ? leggi<FaseOperazione>("order_work_phases",
+          "id, order_id, name, status, percentuale, end_date", companyId!, ids, "updated_at") : [],
+        vista === "squadre" && r.permessi.costi ? leggi<SubappaltoOperazione>("contratti_subappalto",
+          "id, order_id, numero_contratto, descrizione_lavori, stato, subappaltatori_sicurezza(ragione_sociale)", companyId!, ids, "created_at") : [],
       ]);
       const idFornitori = [...new Set([...ordini, ...ddt, ...(costi ?? [])].map((x) => x.supplier_id).filter((x): x is string => !!x))];
       const fornitori: Record<string, string> = {};
@@ -155,8 +183,10 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, attivo: boolean) {
         giornale.length >= LIMITE_MOVIMENTI && "giornale",
         timbrature.length >= LIMITE_MOVIMENTI && "timbrature",
         mezzi.length >= LIMITE_MOVIMENTI && "giornate dei mezzi",
+        fasi.length >= LIMITE_MOVIMENTI && "lavorazioni",
+        subappalti.length >= LIMITE_MOVIMENTI && "subappalti",
       ].filter((x): x is string => !!x);
-      return { rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fornitori, troncati };
+      return { rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi, subappalti, fornitori, troncati };
     },
   });
 }

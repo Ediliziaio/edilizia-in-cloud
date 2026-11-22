@@ -5,15 +5,18 @@
  * figlie, con la colonna «Commessa». Sola lettura: il codice della commessa porta sulla
  * commessa, dove si registra e si modifica come sempre.
  */
-import { BookOpen, ClipboardList, Clock, PackageCheck, ReceiptText, Truck } from "lucide-react";
+import { BookOpen, Building2, ClipboardList, Clock, ListTree, PackageCheck, ReceiptText, Truck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { formattaEuro, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
-import { useMovimentiOperazione } from "@/hooks/useMovimentiOperazione";
+import { LIMITE_MOVIMENTI, useMovimentiOperazione, type VistaOperazione } from "@/hooks/useMovimentiOperazione";
+import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
+import type { DDTStato } from "@/hooks/useDDTRicezione";
 import { dataBreve } from "../piano/formato";
 import { cn } from "@/lib/utils";
+import { faseCompletata } from "@/lib/orders/schedaCommessa";
 
-type Vista = "rapportini" | "forniture" | "squadre" | "fatture";
-export const VISTE_OPERAZIONE: readonly string[] = ["rapportini", "forniture", "squadre", "fatture"];
 const ora = (t: string | null) => (t ? new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 /** 31/12/9999 è la convenzione per «pagamento non noto»: non è una data da mostrare. */
@@ -30,12 +33,12 @@ export function MovimentiOperazione({
   onApri,
 }: {
   riepilogo: RiepilogoGenerale;
-  vista: string;
+  vista: VistaOperazione;
   /** Porta la scheda su quella commessa (generale o figlia). */
-  onApri: (orderId: string) => void;
+  onApri: (orderId: string, faseId?: string) => void;
 }) {
   const g = riepilogo.generale;
-  const { data, isLoading, isError, refetch } = useMovimentiOperazione(riepilogo, VISTE_OPERAZIONE.includes(vista));
+  const { data, isLoading, isError, refetch } = useMovimentiOperazione(riepilogo, vista);
   const commesse = new Map<string, { codice: string | null; nome: string | null; generale: boolean }>([
     [g.id, { codice: g.codice, nome: g.nome, generale: true }],
     ...riepilogo.figlie.map((f) => [f.id, { codice: f.codice, nome: f.nome, generale: false }] as const),
@@ -46,21 +49,13 @@ export function MovimentiOperazione({
       <button type="button" onClick={() => onApri(id)} className="flex min-w-0 flex-col items-start text-left hover:underline" title="Apri il cantiere di questa commessa">
         <span className="flex items-center gap-1.5 whitespace-nowrap font-mono text-xs">
           {c?.codice ?? "—"}
-          {c?.generale && <span className="rounded bg-indigo-50 px-1 text-[10px] font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200">Generale</span>}
+          {c?.generale && <span className="rounded bg-sky-50 px-1 text-[10px] font-medium text-sky-800">Generale</span>}
         </span>
         {!c?.generale && <span className="max-w-[12rem] truncate text-xs text-muted-foreground">{c?.nome}</span>}
       </button>
     );
   };
 
-  if (!VISTE_OPERAZIONE.includes(vista)) {
-    return (
-      <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-        Questa sezione si consulta una commessa alla volta: scegli la generale o una delle commesse in «Registra e consulta su».
-        In «Tutta l'operazione» ci sono rapportini e giornale, forniture e DDT, squadre (timbrature e mezzi), fatture e costi.
-      </p>
-    );
-  }
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (isError || !data)
     return (
@@ -74,13 +69,13 @@ export function MovimentiOperazione({
 
   const fornitore = (id: string | null) => (id ? data.fornitori[id] || "—" : "—");
   const quante = (n: number, una: string, tante: string) => `${n.toLocaleString("it-IT")} ${n === 1 ? una : tante}`;
-  const v = vista as Vista;
+  const v = vista;
 
   return (
     <section aria-label="Movimenti di tutta l'operazione" className="space-y-4">
       {data.troncati.length > 0 && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Mostro i più recenti: {data.troncati.join(", ")} oltre {500}. Per l'elenco completo scegli una commessa.
+          Mostro i più recenti: {data.troncati.join(", ")} oltre {LIMITE_MOVIMENTI}. Per l'elenco completo scegli una commessa.
         </p>
       )}
 
@@ -180,11 +175,51 @@ export function MovimentiOperazione({
               ))}
             </tbody>
           </Riquadro>
+          {riepilogo.permessi.costi && <Riquadro
+            icona={Building2} titolo="Ditte e subappalti"
+            sintesi={quante(data.subappalti.length, "contratto", "contratti")}
+            vuoto="Nessun subappalto registrato." righe={data.subappalti.length}>
+            <thead><tr><Th>Commessa</Th><Th>Ditta</Th><Th>Contratto</Th><Th>Lavori</Th><Th>Stato</Th></tr></thead>
+            <tbody>
+              {data.subappalti.map(x => <tr key={x.id} className="border-t">
+                <Td><Commessa id={x.order_id} /></Td>
+                <Td>{x.subappaltatori_sicurezza?.ragione_sociale ?? "—"}</Td>
+                <Td>{x.numero_contratto ?? "—"}</Td>
+                <Td className="max-w-xs truncate" title={x.descrizione_lavori ?? undefined}>{x.descrizione_lavori ?? "—"}</Td>
+                <Td>{parola(x.stato)}</Td>
+              </tr>)}
+            </tbody>
+          </Riquadro>}
         </>
       )}
 
-      {v === "forniture" && (
-        <>
+      {v === "lavorazioni" && <Riquadro
+        icona={ListTree} titolo="Fasi e avanzamento"
+        sintesi={`${data.fasi.filter(faseCompletata).length} completate su ${data.fasi.length}`}
+        vuoto="Nessuna fase registrata. Scegli una commessa per importare un computo o creare le fasi."
+        righe={data.fasi.length}>
+        <thead><tr><Th>Commessa</Th><Th>Fase</Th><Th>Stato</Th><Th>Avanzamento</Th><Th>Fine prevista</Th></tr></thead>
+        <tbody>
+          {data.fasi.map(fase => {
+            const completata = faseCompletata(fase);
+            const progresso = completata ? 100 : Math.max(0, Math.min(100, Number(fase.percentuale) || 0));
+            return <tr key={fase.id} className="border-t">
+              <Td><Commessa id={fase.order_id} /></Td>
+              <Td><button type="button" className="text-left font-medium text-primary hover:underline"
+                onClick={() => onApri(fase.order_id, fase.id)}>{fase.name}</button></Td>
+              <Td>{completata ? "Completata" : parola(fase.status)}</Td>
+              <Td><div className="flex items-center gap-2">
+                <Progress className="h-1.5 w-20" aria-label={`Avanzamento ${fase.name}`} value={progresso}
+                  indicatorClassName={cn("motion-reduce:transition-none", completata && "bg-emerald-600")} />
+                <span className="tabular-nums">{progresso}%</span>
+              </div></Td>
+              <Td className="whitespace-nowrap">{dataBreve(fase.end_date)}</Td>
+            </tr>;
+          })}
+        </tbody>
+      </Riquadro>}
+
+      {v === "acquisti" && (
           <Riquadro
             icona={PackageCheck}
             titolo="Ordini ai fornitori"
@@ -200,7 +235,8 @@ export function MovimentiOperazione({
                 <tr key={x.id} className="border-t">
                   <Td className="whitespace-nowrap">{dataBreve(x.issue_date)}</Td>
                   <Td><Commessa id={x.order_id} /></Td>
-                  <Td className="font-mono text-xs">{x.oda_number ?? "—"}</Td>
+                  <Td className="font-mono text-xs"><Link className="text-primary hover:underline"
+                    to={`/azienda/ordini-acquisto/${x.id}`}>{x.oda_number ?? "Apri ordine"}</Link></Td>
                   <Td>{fornitore(x.supplier_id)}</Td>
                   {riepilogo.permessi.importi && <Td className="text-right tabular-nums">{x.total != null ? formattaEuro(x.total) : "—"}</Td>}
                   <Td>{parola(x.status)}</Td>
@@ -208,6 +244,8 @@ export function MovimentiOperazione({
               ))}
             </tbody>
           </Riquadro>
+      )}
+      {v === "ddt" && (
           <Riquadro icona={PackageCheck} titolo="DDT ricevuti" sintesi={quante(data.ddt.length, "DDT", "DDT")} vuoto="Nessun DDT sull'operazione." righe={data.ddt.length}>
             <thead>
               <tr><Th>Arrivato il</Th><Th>Commessa</Th><Th>Numero</Th><Th>Fornitore</Th><Th>Ordine</Th><Th>Stato</Th></tr>
@@ -217,15 +255,16 @@ export function MovimentiOperazione({
                 <tr key={x.id} className="border-t">
                   <Td className="whitespace-nowrap">{dataBreve(x.data_ricezione)}</Td>
                   <Td><Commessa id={x.order_id} /></Td>
-                  <Td className="font-mono text-xs">{x.numero_ddt ?? "—"}</Td>
+                  <Td className="font-mono text-xs"><Link className="text-primary hover:underline"
+                    to={`/azienda/ddt/${x.id}`}>{x.numero_ddt ?? "Apri DDT"}</Link></Td>
                   <Td>{fornitore(x.supplier_id)}</Td>
                   <Td>{x.purchase_order_id ? "Sì" : "Senza ordine"}</Td>
-                  <Td>{parola(x.stato)}</Td>
+                  <Td>{x.stato && x.stato in DDT_STATO_META
+                    ? <DDTStatusBadge stato={x.stato as DDTStato} size="sm" /> : parola(x.stato)}</Td>
                 </tr>
               ))}
             </tbody>
           </Riquadro>
-        </>
       )}
 
       {v === "fatture" && data.costi && (

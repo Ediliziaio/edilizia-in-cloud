@@ -25,6 +25,11 @@ export function refreshRapportinoQueries(qc: QueryClient, orderId: string | null
 export function isRapportinoQueryKey(queryKey: readonly unknown[], orderId: string, companyId?: string | null): boolean {
     const prefix = queryKey[0];
     if (typeof prefix !== "string") return false;
+    if (prefix === "generale-movimenti-operazione") {
+      return (!companyId || queryKey[1] === companyId)
+        && typeof queryKey[3] === "string" && queryKey[3].split(",").includes(orderId)
+        && ["rapportini", "lavorazioni", "squadre"].includes(String(queryKey[6]));
+    }
     if (ORDER_FIRST.has(prefix)) {
       if (queryKey[1] !== orderId) return false;
       return !WITH_COMPANY_SUFFIX.has(prefix) || !companyId || queryKey[2] == null || queryKey[2] === companyId;

@@ -195,9 +195,10 @@ interface OrderWorkPhasesProps {
   organizationContent?: ReactNode;
   logisticaIntegrata?: boolean;
   propostaMappa?: PropostaCommessaMappa;
+  faseIniziale?: string | null;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra, logisticaIntegrata, propostaMappa }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra, logisticaIntegrata, propostaMappa, faseIniziale }: OrderWorkPhasesProps) {
   const paginaLavorazioni = view === "lavorazioni" && logisticaIntegrata;
   const showWork = true;
   const showTeam = showWork;
@@ -213,6 +214,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     ? propostaMappa : undefined);
   const [organizza, setOrganizza] = useState<AperturaLavoro | null>(() => {
     if (proposta) return { attiva: INTERA_COMMESSA, ids: [INTERA_COMMESSA], sezione: "chi" };
+    if (faseIniziale) return { attiva: faseIniziale, ids: [faseIniziale], sezione: "sottofasi" };
     if (!import.meta.env.DEV) return null;
     const parametri = new URLSearchParams(window.location.search);
     const subappalto = parametri.get("subappalto");
@@ -790,6 +792,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const bersagli = albero.filter((a) => organizza.ids.includes(a.id));
     const attiva = albero.find((a) => a.id === organizza.attiva);
     if ((organizza.sezione === "previsionale" || organizza.sezione === "subappalto") && !attiva) return null;
+    if (faseIniziale === organizza.attiva && !attiva) return null;
     const fase = phases.find((p) => p.id === attiva?.faseId);
     const voce = !!attiva && attiva.id !== INTERA_COMMESSA && attiva.id !== fase?.id;
     const puoModificare = canEditOrders && !solaLettura;

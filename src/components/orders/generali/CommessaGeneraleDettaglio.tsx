@@ -32,7 +32,6 @@ import { ModificaGeneraleDialog } from "@/components/orders/generali/ModificaGen
 import { BottoneRendiconto } from "@/components/orders/generali/rendiconto/RendicontoGenerale";
 import { PerPartire } from "@/components/orders/generali/PerPartire";
 import { PerLavorare } from "@/components/orders/generali/PerLavorare";
-import { DocumentoContrattoAppalto } from "@/components/orders/generali/contratto/DocumentoContrattoAppalto";
 import { riquadriDelModello, schedeDelModello } from "@/components/orders/generali/schede";
 import { SpostaFigliaDialog, type AzioneFiglia } from "@/components/orders/generali/SpostaFigliaDialog";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
@@ -192,10 +191,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
           <Button size="sm" variant="outline" disabled={costiComuni.ricarica} onClick={() => void costiComuni.riprova()}>Riprova</Button>
         </div>
       )}
-      {!immobiliare && <>
-        <DocumentoContrattoAppalto riepilogo={r} puoModificare={puoModificare} />
-        {elencoCommesse}
-      </>}
+      {!immobiliare && elencoCommesse}
       <QuadroGenerale r={r} t={totali} quote={quote} costiInAttesa={costiComuni.inAttesa} puoModificare={puoModificare} />
 
       {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il

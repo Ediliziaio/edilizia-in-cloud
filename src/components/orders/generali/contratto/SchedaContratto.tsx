@@ -3,8 +3,8 @@
 // aggiornato, quanto è a SAL e quanto manca (Previsto · Reale · A finire), ritenute e anticipazione;
 // ogni numero si apre sulle righe da cui viene. Sotto: contratto, SAL, elenco prezzi, misure.
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, FileCheck2, Info, Pencil } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { AlertTriangle, FileCheck2, FolderOpen, Info, Pencil } from "lucide-react";
 import { IntestazioneScheda } from "../design/ElementiScheda";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,7 +25,6 @@ import { MisureOrdini } from "./MisureOrdini";
 import { FattureContratto, SalContratto } from "./SalContratto";
 import { NumeroCheSiApre, ProssimoPasso, type RigaOrigine } from "./campi";
 import { dataIt, euro, percentoIt } from "./formato";
-import { DocumentoContrattoAppalto } from "./DocumentoContrattoAppalto";
 
 type Sezione = typeof SEZIONI_CONTRATTO[number];
 
@@ -100,7 +99,11 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
         </TabsList>
 
         <TabsContent value="contratto" className="mt-4 space-y-4">
-          <DocumentoContrattoAppalto riepilogo={riepilogo} puoModificare={modifiche} />
+          <Button asChild variant="outline" size="sm" className="gap-1.5">
+            <Link to={`/azienda/ordini/${generaleId}?scheda=documenti#contratto-appalto`}>
+              <FolderOpen className="size-4" aria-hidden="true" /> Contratto originale nei Documenti
+            </Link>
+          </Button>
           {dati.contratto && <RiepilogoDati dati={dati} onModifica={modifiche ? () => setModifica(true) : undefined} />}
           <AttiAggiuntivi generaleId={generaleId} atti={dati.atti} puoModificare={modifiche && !!dati.contratto} />
           <Garanzie generaleId={generaleId} garanzie={dati.garanzie} puoModificare={modifiche} />
