@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import type { RapportoInCoda } from "@/lib/campo/rapportoInCoda";
+import { inviaRapportoInCoda, type RapportoInCoda } from "@/lib/campo/rapportoInCoda";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoRapportino from "@/pages/campo/CampoRapportino";
@@ -25,16 +25,16 @@ const state = vi.hoisted(() => ({
   subappaltatore: false,
   mezzi: vi.fn(),
   mezziDisponibili: [] as unknown[],
+  navigate: vi.fn(),
 }));
 vi.mock("@/lib/campo/sync-queue", async (importOriginal) => {
   const originale = await importOriginal<typeof import("@/lib/campo/sync-queue")>();
   return { ...originale, syncQueue: { ...originale.syncQueue, enqueue: async (voce: { payload: RapportoInCoda; operationId: string }) => {
-    const { inviaRapportoInCoda } = await import("@/lib/campo/rapportoInCoda");
     await inviaRapportoInCoda(voce.payload, voce.operationId);
     return voce.operationId;
   } } };
 });
-vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
+vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => state.navigate, useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isSubappaltatore: state.subappaltatore }) }));
 vi.mock("@/hooks/useGPS", () => ({ useGPS: () => ({ requestPosition: vi.fn() }) }));
@@ -135,9 +135,10 @@ describe("Rilevazioni da rapportino", () => {
     fireEvent.change(screen.getByLabelText("Ore lavorate · Escavatore Beta"), { target: { value: "6,25" } });
     fireEvent.change(screen.getByLabelText("Litri riforniti · Escavatore Beta"), { target: { value: "18,5" } });
     compilaOre(); invia();
-    await waitFor(() => expect(state.mezzi).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(state.navigate).toHaveBeenCalledWith("/campo/lavoro/order?tab=rapportini"));
+    expect(state.mezzi).toHaveBeenCalledWith(expect.objectContaining({
       p_order_id: "order", p_righe: [{ mezzo_id: "escavatore", usato: true, dove: "invariato", ore_lavorate: 6.25, litri_riforniti: 18.5 }],
-    })));
+    }));
     expect(inviato()).not.toHaveProperty("mezzi_usati");
   });
 });
@@ -166,7 +167,8 @@ describe("Parti spente", () => {
     state.schema = spenti("mezzi");
     render(<CampoRapportino />);
     compilaOre(); invia();
-    await waitFor(() => expect(state.insert).toHaveBeenCalled());
+    await waitFor(() => expect(state.navigate).toHaveBeenCalledWith("/campo/lavoro/order?tab=rapportini"));
+    expect(state.insert).toHaveBeenCalled();
     expect(state.mezzi).not.toHaveBeenCalled();
   });
   it("un respinto con materiali, fasi e foto, a parti spente, non perde nulla al rimando", async () => {

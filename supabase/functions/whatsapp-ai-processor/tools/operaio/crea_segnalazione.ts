@@ -11,7 +11,7 @@ import { errResult, okResult } from "../shared/types.ts";
 import { sceltaCantiere } from "../shared/sceltaCantiere.ts";
 import { requireSiteAccess } from "../shared/siteAccess.ts";
 import { allegatoOperativo } from "../shared/allegatoOperativo.ts";
-import { collegaMessaggioTicket, linkTicket } from "./segui_ticket.ts";
+import { collegaMessaggioTicket, linkTicket, salvaMessaggioTicket } from "./segui_ticket.ts";
 
 export const creaSegnalazioneDef: Omit<ToolDef, "handler"> = {
   name: "crea_segnalazione",
@@ -121,10 +121,16 @@ export async function creaSegnalazione(
   }
   if (!ticketId) return errResult("ticket_non_creato", "Non sono riuscito ad aprire la segnalazione. Riprova, oppure chiama l'ufficio se è urgente.");
   let allegato = "";
-  try {
-    const file = await allegatoOperativo(ctx, "ticket", ticketId);
-    if (file) allegato = ` ${file.tipoMedia} allegato.`;
-  } catch { allegato = " Il file resta disponibile nella chat WhatsApp del gestionale."; }
+  if (ctx.mediaCorrente) {
+    try {
+      if (!ctx.user_id) throw new Error("ticket_autore_non_disponibile");
+      const file = await allegatoOperativo(ctx, "ticket", ticketId);
+      if (file) {
+        await salvaMessaggioTicket(ctx, ticketId, file.origine, `📎 ${file.nome}`, file.path);
+        allegato = ` ${file.tipoMedia} allegato.`;
+      }
+    } catch { allegato = " Il file resta disponibile nella chat WhatsApp del gestionale."; }
+  }
   let rispostaDiretta = " Rispondi qui per aggiungere dettagli o chiedere lo stato.";
   try { await collegaMessaggioTicket(ctx, origine, ticketId); }
   catch { rispostaDiretta = ""; }

@@ -68,9 +68,11 @@ describe("l'avviso arriva all'azienda e a noi", () => {
   });
   it("email anche a noi, con azienda, numero e codice", () => {
     expect(allarme).toContain('tipo: "whatsapp_account_bloccato"');
-    // I tipi che iniziano per whatsapp_ vanno per email al titolare (avvisoEmail.vaPerEmail).
-    expect(allarme).toContain('["Errore Meta", String(p.codice)]');
-    expect(allarme).toContain('["Cosa deve fare il cliente", cosaFare]');
+    expect(allarme).toContain('avvisaSuperAdmin(admin, {');
+    expect(allarme).toContain('{ etichetta: "Azienda", valore: azienda }');
+    expect(allarme).toContain('{ etichetta: "Numero", valore: p.numero || "—" }');
+    expect(allarme).toContain('{ etichetta: "Errore Meta", valore: String(p.codice) }');
+    expect(allarme).toContain('{ etichetta: "Cosa deve fare il cliente", valore: cosaFare }');
   });
   it("ogni guasto dice cosa fare per ripartire", () => {
     const puro = leggi("supabase/functions/_shared/whatsappCanaleFermo.ts");

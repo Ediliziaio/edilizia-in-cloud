@@ -834,17 +834,23 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     expect(consegne[0].text).toContain("Ticket aperto in Assistenza");
     expect(consegne[0].text).toContain("Vocale allegato");
     expect(originali.get(`ticket-attachments/${vocale.id}/wa-${vocale.id}.ogg`)?.size).toBe(6);
+    expect(db.tabelle.ticket_messages ?? []).toContainEqual(expect.objectContaining({
+      id: vocale.id, ticket_id: vocale.id, attachment_url: `${vocale.id}/wa-${vocale.id}.ogg`,
+    }));
     const foto = await registra({ id: "wamid.ticket-foto", type: "image", image: { id: "345692" }, context: { id: "wamid.risposta1" } },
       new Blob(["FOTO"], { type: "image/jpeg" }));
     await elabora(foto);
     expect(originali.get(`ticket-attachments/${vocale.id}/wa-${foto.id}.jpg`)?.size).toBe(4);
-    expect(db.tabelle.ticket_messages).toEqual([expect.objectContaining({ id: foto.id, ticket_id: vocale.id })]);
+    expect(db.tabelle.ticket_messages).toHaveLength(2);
+    expect(db.tabelle.ticket_messages).toContainEqual(expect.objectContaining({
+      id: foto.id, ticket_id: vocale.id, attachment_url: `${vocale.id}/wa-${foto.id}.jpg`,
+    }));
     expect(db.tabelle.tickets).toHaveLength(1);
     db.tabelle.tickets[0].status = "in_lavorazione";
     await elabora(await registra({ id: "wamid.ticket-stato", type: "text", context: { id: "wamid.risposta2" },
       text: { body: "A che punto è?" } }));
     expect(consegne.at(-1)?.text).toContain("è in lavorazione");
-    expect(db.tabelle.ticket_messages).toHaveLength(1);
+    expect(db.tabelle.ticket_messages).toHaveLength(2);
     expect(m.ai).not.toHaveBeenCalled();
   });
 
@@ -982,18 +988,18 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     const original = fetch;
     let letture = 0;
     let generazioni = 0;
-    let pdfNuovo: Riga | undefined;
+    let percorsoPdfNuovo: string | null = null;
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (String(url).endsWith("/silvio-extract-pdf")) {
         letture++;
-        if (pdfNuovo) expect(JSON.parse(String(init?.body)).storage_path).toBe(pdfNuovo.media_storage_path);
-        return rispostaJson({ text: `Posa ceramica\t${pdfNuovo ? "15,00" : "12,50"}\tmq`, coverage: { complete: true } });
+        if (percorsoPdfNuovo) expect(JSON.parse(String(init?.body)).storage_path).toBe(percorsoPdfNuovo);
+        return rispostaJson({ text: `Posa ceramica\t${percorsoPdfNuovo ? "15,00" : "12,50"}\tmq`, coverage: { complete: true } });
       }
       if (String(url).endsWith("/ai-genera-preventivo-v2")) {
         generazioni++;
-        expect(JSON.parse(String(init?.body)).descrizione).toContain(`Posa ceramica\t${pdfNuovo ? "15,00" : "12,50"}\tmq`);
+        expect(JSON.parse(String(init?.body)).descrizione).toContain(`Posa ceramica\t${percorsoPdfNuovo ? "15,00" : "12,50"}\tmq`);
         return rispostaJson({ success: true, sezioni: [{ righe: [{
-          nome: "Posa ceramica", quantita: pdfNuovo ? 15 : 12.5, unita_misura: "mq", unit_price: 32, item_category: "posa",
+          nome: "Posa ceramica", quantita: percorsoPdfNuovo ? 15 : 12.5, unita_misura: "mq", unit_price: 32, item_category: "posa",
         }] }] });
       }
       return original(url, init);
@@ -1021,9 +1027,10 @@ describe("Assistente WhatsApp locale sullo scenario di Demo Azienda 2", () => {
     bozza.codice = codice;
     const altra = { ...bozza, id: randomUUID(), cliente: "Rossi" };
     db.tabelle.whatsapp_preventivi_bozze.push({ ...altra, codice: String(altra.id).slice(0, 10).toUpperCase() });
-    pdfNuovo = await registra({ id: "wamid.rev-pdf", type: "document", document: {
+    const pdfNuovo = await registra({ id: "wamid.rev-pdf", type: "document", document: {
       id: "349981", mime_type: "application/pdf", filename: "Computo aggiornato.pdf", caption: "Sostituisci PDF",
     } }, new Blob(["%PDF-1.7 aggiornato"], { type: "application/pdf" }));
+    percorsoPdfNuovo = String(pdfNuovo.media_storage_path);
     await elabora(pdfNuovo);
     expect(consegne.at(-1)?.text).toContain("seguito dal codice della bozza");
     expect(letture).toBe(1);

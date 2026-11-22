@@ -25,6 +25,18 @@ export function linkTicket(id: string) {
   return `https://app.ediliziaincloud.com/azienda/assistenza/${id}`;
 }
 
+export async function salvaMessaggioTicket(ctx: ToolCtx, ticketId: string, messageId: string, testo: string, allegato?: string) {
+  if (!ctx.user_id) throw new Error("ticket_autore_non_disponibile");
+  const { error } = await ctx.supabase.from("ticket_messages").upsert({
+    id: messageId,
+    ticket_id: ticketId,
+    sender_id: ctx.user_id,
+    message: testo,
+    ...(allegato ? { attachment_url: allegato } : {}),
+  }, { onConflict: "id", ignoreDuplicates: true });
+  if (error) throw new Error("ticket_messaggio_non_salvato");
+}
+
 export async function seguiTicket(ctx: ToolCtx, id: string, tipo: string, testo: string): Promise<string | null> {
   if (!ctx.role_grants.includes("segnalazione.write") || !idWhatsAppValido(ctx.requestId)) return null;
   const chiedeStato = /\b(?:stato|a che punto|come procede|novit[àa]|in carico)\b/i.test(testo);
@@ -46,6 +58,9 @@ export async function seguiTicket(ctx: ToolCtx, id: string, tipo: string, testo:
     return `Il ticket «${ticket.subject}» è ${stato}.${nome ? ` In carico a ${nome}.` : ""}\n${link}`;
   }
   if (["risolto", "chiuso"].includes(String(ticket.status))) return `Il ticket è chiuso.\n${link}`;
+  if (!ctx.user_id) return allegato
+    ? `Il file è disponibile nella chat WhatsApp del gestionale. Per aggiungerlo al ticket serve un profilo collegato.\n${link}`
+    : `Per aggiungere un aggiornamento al ticket serve un profilo collegato.\n${link}`;
 
   let file: Awaited<ReturnType<typeof allegatoOperativo>> = null;
   if (allegato) {
@@ -53,13 +68,9 @@ export async function seguiTicket(ctx: ToolCtx, id: string, tipo: string, testo:
     catch { return `Il file resta nella chat WhatsApp. Riprova rispondendo al ticket.\n${link}`; }
     if (!file) return `Il file non è arrivato completo. Rimandalo rispondendo al ticket.\n${link}`;
   }
-  if (ctx.user_id) {
-    const { error: messaggioErrore } = await ctx.supabase.from("ticket_messages").upsert({
-      id: ctx.requestId, ticket_id: id, sender_id: ctx.user_id,
-      message: [nota, file ? `${file.tipoMedia} negli allegati del ticket.` : null].filter(Boolean).join("\n"),
-    }, { onConflict: "id", ignoreDuplicates: true });
-    if (messaggioErrore) return `Verifica l’aggiornamento nel ticket prima di riprovare.\n${link}`;
-  } else if (!file) return `Puoi aggiungere una foto o un vocale rispondendo a questo ticket.\n${link}`;
+  const messaggio = nota || (file ? `📎 ${file.nome}` : "");
+  try { await salvaMessaggioTicket(ctx, id, ctx.requestId, messaggio, file?.path); }
+  catch { return `Verifica l’aggiornamento nel ticket prima di riprovare.\n${link}`; }
   await collegaMessaggioTicket(ctx, ctx.requestId, id);
   return `${file ? `${file.tipoMedia} aggiunto al ticket.` : "Aggiornamento aggiunto al ticket."}\n${link}`;
 }
