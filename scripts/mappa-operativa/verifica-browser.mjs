@@ -626,18 +626,18 @@ async function verificaCarburante(page, viewport) {
   await expect(salvati).toContainText("Verificato");
   const registro = page.getByRole("region", { name: "Viaggi e tratte della commessa" });
   const riepilogo = registro.getByRole("region", { name: "Percorrenze e carburante" });
-  await expect(riepilogo.getByRole("definition").first()).toHaveText("10");
+  await expect(riepilogo.getByText("10 km", { exact: true })).toBeVisible();
   await expect(registro.getByRole("region", { name: "Viaggi registrati" })).toContainText("1 viaggio");
   await registro.getByRole("button", { name: "Oggi", exact: true }).click();
   await expect(riepilogo).toHaveCount(0);
   await expect(registro).toContainText("Nessun viaggio con tratte e orari nel periodo.");
   await registro.getByRole("button", { name: "Ultimi 30 giorni", exact: true }).click();
-  await expect(riepilogo.getByRole("definition").first()).toHaveText("10");
+  await expect(riepilogo.getByText("10 km", { exact: true })).toBeVisible();
   await expect(registro.getByRole("region", { name: "Viaggi registrati" })).toContainText("1 viaggio");
   await registro.getByRole("button", { name: "Periodo", exact: true }).click();
   await registro.getByLabel("Viaggi dal").fill("2026-11-21");
   await registro.getByLabel("Viaggi al").fill("2026-11-21");
-  await expect(riepilogo.getByRole("definition").first()).toHaveText("10");
+  await expect(riepilogo.getByText("10 km", { exact: true })).toBeVisible();
   await salvati.getByText("Vedi tappe", { exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: path.join(output, `giro-notturno-${viewport.width}.png`), fullPage: true, timeout: 60_000,
