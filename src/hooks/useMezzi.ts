@@ -1330,6 +1330,7 @@ export function useAzioneAttrezzo() {
           : vecchio,
       );
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "mezzi" && q.queryKey[1] !== "codice" });
+      void qc.invalidateQueries({ predicate: ({ queryKey }) => queryKey[0] === "mezzi-viaggi" && queryKey[2] === "mappa-mezzi" });
       const testo: Record<AzioneAttrezzo, string> = {
         prendo: "Ora è in carico a te",
         cantiere: "Segnato: lasciato in cantiere",

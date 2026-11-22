@@ -12,6 +12,7 @@ import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { viaggiKey } from "@/hooks/useMezziViaggi";
 import { toast } from "sonner";
 import { syncQueue } from "@/lib/campo/sync-queue";
 import { bozzeCantieriPrelievo } from "@/lib/campo/bozzaPrelievo";
@@ -42,8 +43,9 @@ export default function OfflineBanner(): JSX.Element | null {
     void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
     void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
     void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
+    void queryClient.invalidateQueries({ queryKey: viaggiKey(esito.companyId) });
     if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
-    if (esito.avvisoMezzi) toast.warning("Rapportino inviato. Comunica all’ufficio dove hai lasciato mezzi e attrezzi.");
+    if (esito.avvisoMezzi) toast.warning("Rapportino inviato. Comunica all’ufficio le rilevazioni e dove hai lasciato mezzi e attrezzature.");
     toast.success(esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato");
     if (esito.id && esito.pdf) void notifyRapportinoPdf(esito.id, esito.orderId, queryClient);
   }), [companyId, queryClient, user?.id]);

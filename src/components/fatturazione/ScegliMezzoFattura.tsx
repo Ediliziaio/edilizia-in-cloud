@@ -18,13 +18,15 @@ export function ScegliMezzoFattura({
   collegati,
   occupato,
   onSelect,
+  ricercaIniziale = "",
 }: {
   companyId: string;
   collegati: Set<string>;
   occupato: boolean;
   onSelect: (id: string) => void;
+  ricercaIniziale?: string;
 }) {
-  const [cerca, setCerca] = useState("");
+  const [cerca, setCerca] = useState(ricercaIniziale);
   const termine = useDebounce(cerca, 250);
   const q = useQuery({
     queryKey: ["fattura-collegamenti-mezzi", companyId, termine],

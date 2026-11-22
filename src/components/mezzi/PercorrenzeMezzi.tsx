@@ -10,8 +10,8 @@ import { formatCurrency } from "@/lib/formatters";
 const fmt = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
 const euro = (n: number | null) => n == null ? "—" : formatCurrency(n);
 
-export function PercorrenzeMezzi({ ordine, mezzo, dal, al, costi, distanza = true }: {
-  ordine?: string; mezzo?: string; dal?: string; al?: string; costi: boolean; distanza?: boolean;
+export function PercorrenzeMezzi({ ordine, mezzo, dal, al, costi, distanza = true, compatto = false, filtraMezzo }: {
+  ordine?: string; mezzo?: string; dal?: string; al?: string; costi: boolean; distanza?: boolean; compatto?: boolean; filtraMezzo?: string;
 }) {
   const company = useEffectiveCompanyId();
   const actor = useAuth().user?.id;
@@ -27,10 +27,38 @@ export function PercorrenzeMezzi({ ordine, mezzo, dal, al, costi, distanza = tru
       return data;
     },
   });
-  const t = query.data?.totali;
+  const mezzi = query.data?.mezzi ?? [];
+  const visibili = filtraMezzo ? mezzi.filter(m => m.mezzo_id === filtraMezzo) : mezzi;
+  const t = filtraMezzo ? visibili[0] : query.data?.totali;
   if (query.isPending) return <p role="status" className="text-xs text-muted-foreground">Caricamento percorrenze…</p>;
   if (query.isError) return <p role="alert" className="text-xs text-amber-800">Percorrenze non disponibili. <button type="button" onClick={() => void query.refetch()} className="underline">Riprova</button></p>;
   if (!t?.viaggi) return null;
+  if (compatto) return <section aria-label="Percorrenze e carburante" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+    <div className="flex flex-wrap items-center gap-2"><Fuel className="size-4 text-primary" aria-hidden="true" />
+      <h3 className="font-semibold">{dal ? "Totali del periodo" : "Carburante e percorrenze"}</h3>
+      {!dal && <span className="text-xs text-muted-foreground">Intera commessa</span>}
+    </div>
+    <p className="text-muted-foreground">{t.viaggi} {t.viaggi === 1 ? "viaggio" : "viaggi"}</p>
+    <p><strong className="tabular-nums">{fmt.format(t.km_verificati)} km</strong> verificati</p>
+    {t.km_dichiarati > 0 && <p className="text-muted-foreground">{fmt.format(t.km_dichiarati)} km da verificare</p>}
+    {t.km_stimati > 0 && <p className="text-muted-foreground">{fmt.format(t.km_stimati)} km stimati</p>}
+    {costi && <p><strong className="tabular-nums">{euro(t.costo_carburante)}</strong> stima carburante{t.litri == null ? "" : ` · ${fmt.format(t.litri)} L`}</p>}
+    {costi && t.costo_tariffa != null && <p>{euro(t.costo_tariffa)} a tariffa km</p>}
+    {t.tratte_senza_km > 0 && <p className="text-xs text-amber-800 dark:text-amber-300">{t.tratte_senza_km} tratte senza km</p>}
+    {costi && (t.km_senza_parametri ?? 0) > 0 && <p className="text-xs text-amber-800 dark:text-amber-300">{fmt.format(t.km_senza_parametri!)} km con consumo o prezzo da definire</p>}
+    {costi && ordine && !dal && visibili.length > 0 && <details className="basis-full text-xs">
+      <summary className="cursor-pointer font-medium text-primary">Fatture per mezzo</summary>
+      <ul className="mt-1 divide-y">
+        {visibili.map(m => <li key={m.mezzo_id} className="flex flex-wrap items-center justify-between gap-1 py-1.5">
+          <Link className="text-primary underline-offset-2 hover:underline" to={`/azienda/mezzi/${m.mezzo_id}?tab=fatture`}>
+            {m.nome}{m.targa ? ` · ${m.targa}` : ""}
+          </Link>
+          <span className="tabular-nums text-muted-foreground">{euro(m.costo_carburante)} stima carburante</span>
+        </li>)}
+      </ul>
+    </details>}
+    {costi && <p className="basis-full text-xs text-muted-foreground">{t.mimit ? "Stima con prezzi MIMIT al netto IVA · " : ""}Il consuntivo si aggiorna dalle spese e dalle fatture imputate.</p>}
+  </section>;
   const valori = [
     ...(distanza ? [["Km verificati", fmt.format(t.km_verificati)], ["Km dichiarati", fmt.format(t.km_dichiarati)], ["Km stimati", fmt.format(t.km_stimati)]] : []),
     ...(costi ? [["Litri stimati", t.litri == null ? "—" : `${fmt.format(t.litri)} L`], ["Stima carburante", euro(t.costo_carburante)]] : []),
@@ -49,8 +77,8 @@ export function PercorrenzeMezzi({ ordine, mezzo, dal, al, costi, distanza = tru
         <dd className="text-sm font-semibold tabular-nums">{valore}</dd>
       </div>)}
     </dl>
-    {ordine && query.data?.mezzi.length ? <ul className="divide-y text-xs">
-      {query.data.mezzi.map(m => <li key={m.mezzo_id} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-1.5">
+    {ordine && visibili.length ? <ul className="divide-y text-xs">
+      {visibili.map(m => <li key={m.mezzo_id} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-1.5">
         <Link className="font-medium text-primary hover:underline" to={`/azienda/mezzi/${m.mezzo_id}?tab=viaggi&vista=mappa`}>
           {m.nome}{m.targa ? ` · ${m.targa}` : ""}
         </Link>

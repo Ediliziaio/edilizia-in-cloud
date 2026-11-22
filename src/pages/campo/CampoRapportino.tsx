@@ -41,6 +41,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { CampiModulo } from "@/components/campo/CampiModulo";
+import { useRilevazioniMezziRapportino } from "@/hooks/campo/useRilevazioniMezziRapportino";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoreInTesto, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
@@ -484,6 +485,27 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     },
   });
   // Il rapportino respinto si riapre già compilato: nessuno deve riscrivere la giornata da zero.
+  const { data: rilevazioniSalvate } = useRilevazioniMezziRapportino(companyId, orderId, daRifare ? rapportinoGiaOggi?.id : undefined);
+  const rilevazioniRiprese = useRef<string | null>(null);
+  const idRapportoDaRifare = daRifare ? rapportinoGiaOggi?.id : undefined;
+  useEffect(() => {
+    if (!idRapportoDaRifare || !rilevazioniSalvate?.length || rilevazioniRiprese.current === idRapportoDaRifare) return;
+    let annullato = false;
+    void Promise.resolve().then(() => {
+      if (annullato) return;
+      rilevazioniRiprese.current = idRapportoDaRifare;
+      setMezziSel(precedenti => ({
+        ...Object.fromEntries(rilevazioniSalvate.map(m => [m.mezzo_id, {
+          usato: m.usato, dove: "invariato",
+          ore_lavorate: m.ore_lavorate?.toString(),
+          litri_riforniti: m.litri_riforniti?.toString(),
+          litri_consumati: m.litri_consumati?.toString(),
+        } satisfies RigaMezzoGiornata])),
+        ...precedenti,
+      }));
+    });
+    return () => { annullato = true; };
+  }, [idRapportoDaRifare, rilevazioniSalvate]);
   const riapertoFatto = useRef(false);
   const presenzeRiapertoFatto = useRef(false);
   useEffect(() => {
@@ -913,7 +935,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         ? { id: rapportinoGiaOggi.id, versione: rapportinoGiaOggi.updated_at ?? null } : undefined;
       const presenzeCorrette = daRifare && puoScriverePresenze
         ? correggiPresenzeRapportino(rapportinoGiaOggi?.presenze, squadra, presenzeSel, presenzeModificate) : undefined;
-      const righeMezzi = !parti.mezzi || confermaCliente || workDay < shiftWorkDay(campoWorkDay(), -1) ? [] : righeDaSalvare(mezziSel);
+      const righeMezzi = !parti.mezzi || confermaCliente || workDay < shiftWorkDay(campoWorkDay(), -1) ? [] : righeDaSalvare(mezziSel, moduloCantiere.rilevazioni_mezzi);
       const payload: RapportoInCoda = {
         company_id: companyId,
         user_id: user.id,
@@ -1492,7 +1514,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   const mezziAmmessi = workDay >= shiftWorkDay(campoWorkDay(), -1);
   const compilaArrivo = !lavoro_completato && (parti.mezzi || (daRifare && arrivo.length > 0));
   const mezziPerArrivo = useMezziDellaGiornata(compilaArrivo && !!companyId && !!user?.id ? orderId : undefined);
-  const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} /> : null;
+  const rilevazioniMezziInVista = Object.values(moduloCantiere.rilevazioni_mezzi ?? {}).some(Boolean);
+  const numeroMezziUsati = Object.values(mezziSel).filter(m => m.usato).length;
+  const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} rilevazioni={moduloCantiere.rilevazioni_mezzi} /> : null;
   const bloccoCampiFase = campiDiFase.length > 0 ? fasiPerCampi.map(f => (
     <div key={f.id} className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm font-semibold">{f.nome}</p>
@@ -1859,7 +1883,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               suggeriti={(mezziPerArrivo.data ?? []).filter(m => mezziSel[m.id]?.usato || (workDay === campoWorkDay() && m.dove_ora === "con_te")).map(m => m.id)}
               errore={mezziPerArrivo.isError} riprova={() => void mezziPerArrivo.refetch()} />}
 
-            {semplice && !soloOreAllOperaio && (parti.fasi || parti.materiali || parti.mezzi || (parti.straordinario && !oreNonMie) || (parti.avanzamento && puoDichiararePercentuali)) && (
+            {semplice && !soloOreAllOperaio && parti.mezzi && rilevazioniMezziInVista && bloccoMezzi}
+            {semplice && !soloOreAllOperaio && (parti.fasi || parti.materiali || (parti.mezzi && !rilevazioniMezziInVista) || (parti.straordinario && !oreNonMie) || (parti.avanzamento && puoDichiararePercentuali)) && (
               <details className="rounded-2xl border bg-background px-3 shadow-sm sm:px-4">
                 <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
                 <div className="space-y-3 pb-3">
@@ -1867,7 +1892,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   {parti.avanzamento && puoDichiararePercentuali && bloccoAvanzamento}
                   {parti.fasi && bloccoFasi}
                   {parti.materiali && bloccoMateriali}
-                  {parti.mezzi && bloccoMezzi}
+                  {parti.mezzi && !rilevazioniMezziInVista && bloccoMezzi}
                 </div>
               </details>
             )}
@@ -1902,7 +1927,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               {bloccoMateriali}
             </details>}
             {parti.mezzi && bloccoMezzi && <details className="rounded-2xl border p-3">
-              <summary className="min-h-11 cursor-pointer text-sm font-semibold">Mezzi e attrezzi · facoltativo</summary>
+              <summary className="min-h-11 cursor-pointer text-sm font-semibold">Mezzi e attrezzi · {numeroMezziUsati ?
+                `${numeroMezziUsati} ${numeroMezziUsati === 1 ? "usato" : "usati"}` : "facoltativo"}</summary>
               {bloccoMezzi}
             </details>}
             </>}

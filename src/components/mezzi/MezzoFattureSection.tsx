@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 
+const RipartoCarburanteDialog = lazy(() => import("./RipartoCarburanteDialog"));
 const RiepilogoFatturaRicevuta = lazy(() => import("@/components/fatturazione/RiepilogoFatturaRicevuta").then(m => ({ default: m.RiepilogoFatturaRicevuta })));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,10 +40,11 @@ export function totaleDaConfermare(righe: ReadonlyArray<Pick<Riga, "importo" | "
   return { quante: aperte.length, importo: Math.round(aperte.reduce((s, r) => s + Number(r.importo ?? 0), 0) * 100) / 100 };
 }
 
-export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: string; puoModificare: boolean }) {
+export function MezzoFattureSection({ mezzoId, puoModificare, ripartoCarburante = false }: { mezzoId: string; puoModificare: boolean; ripartoCarburante?: boolean }) {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
   const [fatturaId, setFatturaId] = useState<string | null>(null);
+  const [fatturaRiparto, setFatturaRiparto] = useState<Riga | null>(null);
   const [quota, setQuota] = useState<Riga | null>(null);
   const [importoQuota, setImportoQuota] = useState("");
   const chiave = ["mezzo-fatture", mezzoId, companyId];
@@ -125,6 +127,8 @@ export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: strin
               </div>
               {!r.confermata && <Badge variant="outline">Da confermare</Badge>}
               <span className="font-medium tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
+              {ripartoCarburante && r.confermata && r.importo != null && Number(r.importo) !== 0 && f?.data_fattura &&
+                <Button variant="outline" size="sm" onClick={() => setFatturaRiparto(r)}>Riparto carburante</Button>}
               {puoModificare && <Button variant="ghost" size="sm" onClick={() => { setQuota(r); setImportoQuota(r.importo == null ? "" : String(r.importo)); }} aria-label={`Modifica importo fattura ${f?.numero_fattura ?? ""}`}>Importo</Button>}
               {puoModificare && !r.confermata && <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Conferma" title="Conferma" onClick={() => conferma.mutate([r.id])}><Check className="h-4 w-4" /></Button>}
               {puoModificare && <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Togli" title="Togli" onClick={() => togli.mutate(r.id)}><X className="h-4 w-4" /></Button>}
@@ -132,6 +136,12 @@ export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: strin
           );
         })}
       </div>
+      {fatturaRiparto?.fatture_ricevute && companyId && <Suspense fallback={<p role="status">Carico il riparto…</p>}>
+        <RipartoCarburanteDialog key={fatturaRiparto.id} companyId={companyId} mezzoId={mezzoId}
+          numero={fatturaRiparto.fatture_ricevute.numero_fattura} dataFattura={fatturaRiparto.fatture_ricevute.data_fattura}
+          quota={Number(fatturaRiparto.importo)} onClose={() => setFatturaRiparto(null)}
+          onFattura={() => { setFatturaId(fatturaRiparto.fattura_ricevuta_id); setFatturaRiparto(null); }} />
+      </Suspense>}
       {fatturaId && <Suspense fallback={<p>Carico il dettaglio della fattura…</p>}><RiepilogoFatturaRicevuta companyId={companyId} fatturaId={fatturaId} onClose={() => { setFatturaId(null); aggiorna(); }} /></Suspense>}
       <Dialog open={!!quota} onOpenChange={open => { if (!open && !salvaQuota.isPending) setQuota(null); }}>
         <DialogContent><DialogHeader><DialogTitle>Importo attribuito al mezzo</DialogTitle><DialogDescription>Indica solo la quota di questa fattura riferita al mezzo, al netto IVA. Per una nota di credito usa un importo negativo. Il pagamento della fattura resta indipendente.</DialogDescription></DialogHeader>

@@ -9,8 +9,22 @@ export const giorno = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome"
 const demoStradale = import.meta.env.VITE_MAPPA_DEMO_REALE;
 const scenario = new URLSearchParams(globalThis.location?.search).get("scenario");
 const demoMimit = scenario === "mimit-demo";
-const carburanteDemo = scenario === "carburante" || demoMimit;
+const commessaLunga = scenario === "commessa-lunga";
+const carburanteDemo = scenario === "carburante" || demoMimit || commessaLunga;
 const usaPartenze = ["partenze", "giro", "copertura", "ritardo", "flotta"].includes(scenario);
+const demoAttrezzature = scenario === "attrezzature-rapportino";
+const rapportoDemoId = "rapportino-demo-mezzi";
+let salvaRigheDemo = [];
+let schemaRapportoDemo = null;
+if (demoAttrezzature) {
+  try {
+    salvaRigheDemo = JSON.parse(sessionStorage.getItem("eic-demo-mezzi-rapportino") ?? "[]");
+    schemaRapportoDemo = JSON.parse(sessionStorage.getItem("eic-demo-mezzi-modulo") ?? "null");
+  } catch { /* Si riparte con i valori della demo. */ }
+}
+const nomeEscavatoreDemo = "Escavatore Beta";
+const nomeTrapanoDemo = "Trapano a batteria";
+export { rapportoDemoId };
 const puntoFuoriDemo = { lat: 45.9, lng: 9.7 };
 export const sedeDemo = { lat: 45.46588, lng: 9.19032 };
 export const magazzinoDemo = { lat: 45.51888, lng: 9.21705 };
@@ -69,7 +83,7 @@ const agendaCopertura = [appointments[0],
   appointments[2],
 ];
 export const dati = {
-  carburanteDemo, demoMimit, calls: [], rpcCalls: [], storicoCalls: [], viaggiCalls: [], schede: [], appointments: scenario === "ritardo" ? agendaRitardo : scenario === "copertura" ? agendaCopertura : demoStradale ? appointments.slice(0, 3) : appointments,
+  carburanteDemo, demoMimit, commessaLunga, demoAttrezzature, calls: [], rpcCalls: [], storicoCalls: [], viaggiCalls: [], schede: [], appointments: scenario === "ritardo" ? agendaRitardo : scenario === "copertura" ? agendaCopertura : demoStradale ? appointments.slice(0, 3) : appointments,
   ordini, posizioni: [],
   routing: true,
 };
@@ -104,7 +118,7 @@ export const flotta = [
   { id: "flotta-furgone", nome: "Furgone Alfa", targa: "AB123CD", tipo: "furgone", contatore_unita: "km", contatore: 14832.4, marca: "Fiat", modello: "Ducato" },
   { id: "flotta-escavatore", nome: "Escavatore Beta", tipo: "macchina_movimento_terra", contatore_unita: "ore", contatore: 812.4 },
   { id: "flotta-auto", nome: "Auto Gamma", targa: "DE456FG", tipo: "autovettura", contatore_unita: "km" },
-].map(m => ({ ...m, company_id: company, stato: "in_servizio", gestione: "singola", classe: "mezzo", possesso: "proprieta", deleted_at: null }));
+].map(m => ({ ...m, company_id: company, stato: "in_servizio", gestione: "singola", classe: "mezzo", possesso: commessaLunga ? (m.id === "flotta-furgone" ? "noleggio_breve" : m.id === "flotta-auto" ? "leasing" : "proprieta") : "proprieta", deleted_at: null }));
 const dataPrima = giorni => new Date(Date.parse(giorno) - giorni * 86400000).toISOString().slice(0, 10);
 const sede = { ...sedeDemo, fonte: "Sede operativa configurata" };
 const cantiereA = { ...sitoA, fonte: "Posizione del cantiere" };
@@ -121,10 +135,10 @@ const viaggiFurgone = [
   viaggio("dichiarato-alfa", dataPrima(2), "05:45", "06:58", 18.5, "dichiarati", [tratto("Sede", "Deposito temporaneo", sede, null)]),
   viaggio("incompleto-alfa", dataPrima(9), "05:20", "06:58", null, null, [tratto("Deposito temporaneo", "Rimessa da confermare", null, null)]),
 ];
-let parametriCarburante = { tipo: "gasolio", litri_100: demoMimit ? 10 : 8.5, dal: dataPrima(29) };
+let parametriCarburante = { tipo: "gasolio", litri_100: demoMimit || commessaLunga ? 10 : 8.5, dal: dataPrima(29) };
 let prezzoCarburante = { euro_litro: 1.5, dal: dataPrima(29) };
-let preferenzaCarburante = { zona: "lombardia", zona_impostata: null, preferisci_mimit: demoMimit };
-let preferenzaDal = demoMimit ? dataPrima(1) : undefined;
+let preferenzaCarburante = { zona: "lombardia", zona_impostata: null, preferisci_mimit: demoMimit || commessaLunga };
+let preferenzaDal = commessaLunga ? dataPrima(365) : demoMimit ? dataPrima(1) : undefined;
 const territoriMimit = [
   { chiave: "lombardia", nome: "Lombardia", prezzi: { gasolio: 2.44, benzina: 1.95 } },
   { chiave: "bolzano", nome: "Bolzano", prezzi: { gasolio: 3.66, benzina: 2.1 } },
@@ -150,12 +164,64 @@ if (demoMimit) {
     tratte: [tratta("andata-demo", "Sede", "Lambrate", 18), tratta("ritorno-demo", "Lambrate", "Sede", 22)],
   });
 }
+if (commessaLunga) {
+  const crea = (id, quando, mezzo, tratte, stato = "verificato") => {
+    const partenza = quando + "T08:00:00+01:00";
+    const arrivo = quando + "T10:00:00+01:00";
+    registro.set(id, { id, company_id: company, mezzo_id: mezzo.id, mezzo_nome: mezzo.nome,
+      conducente: autistaDemo.label, conducente_hr_id: autistaDemo.id, stato, versione: 1,
+      partenza, arrivo, updated_at: arrivo, contatore_inizio: null, contatore_fine: null, tariffa_km: null, note: "", tratte });
+  };
+  const t = (id, da, a, km, orderId) => ({ id, da, a, km, minuti: 20, fonte: "dichiarati",
+    destinazione: orderId ? "commessa" : "generale", order_id: orderId });
+  for (let i = 0; i < 72; i++) {
+    const mezzo = i % 3 === 0 ? flotta[2] : flotta[0];
+    crea(`giro-storico-${i}`, dataPrima(16 + i * 2), mezzo,
+      [t("a", "Sede", "Lambrate", 15 + i % 4, "cm-b"), t("r", "Lambrate", "Sede", 16 + i % 4, "cm-b")]);
+  }
+  crea("giro-lambrate", dataPrima(2), flotta[0], [t("a", "Sede", "Lambrate", 30, "cm-b"), t("r", "Lambrate", "Sede", 30, "cm-b")]);
+  crea("giro-garibaldi", dataPrima(3), flotta[0], [t("a", "Sede", "Garibaldi", 15, "cm-a"), t("r", "Garibaldi", "Sede", 15, "cm-a")]);
+  crea("giro-generale", dataPrima(4), flotta[0], [t("a", "Sede", "Officina", 10, null)]);
+  crea("giro-gamma", dataPrima(4), flotta[2], [t("a", "Sede", "Lambrate", 20, "cm-b")], "inviato");
+}
+const idPianoNoleggio = "piano-noleggio-demo";
+const idPianoMezzo = "piano-mezzo-demo";
+const idPianoLeasing = "piano-leasing-demo";
 const nelPeriodo = (v, p) => {
   const g = v.partenza.slice(0, 10);
   return (!p.p_dal || g >= p.p_dal) && (!p.p_al || g <= p.p_al);
 };
+const righeFatturaDemo = [
+  { numero_linea: 1, descrizione: "Rifornimento gasolio", imponibile: 120, quantita: 1, prezzo_unitario: 120, aliquota_iva: 22 },
+  { numero_linea: 2, descrizione: "Lavaggio furgone", imponibile: 30, quantita: 1, prezzo_unitario: 30, aliquota_iva: 22 },
+];
+const xmlFatturaDemo = `<FatturaElettronica versione="FPR12">
+  <FatturaElettronicaHeader><CedentePrestatore><DatiAnagrafici><Anagrafica><Denominazione>Distributore Milano</Denominazione></Anagrafica></DatiAnagrafici></CedentePrestatore></FatturaElettronicaHeader>
+  <FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD01</TipoDocumento><Data>${giorno}</Data><Numero>CARB-018</Numero><Divisa>EUR</Divisa></DatiGeneraliDocumento></DatiGenerali>
+  <DatiBeniServizi>${righeFatturaDemo.map(r => `<DettaglioLinee><NumeroLinea>${r.numero_linea}</NumeroLinea><Descrizione>${r.descrizione}</Descrizione><Quantita>1</Quantita><PrezzoUnitario>${r.imponibile}</PrezzoUnitario><PrezzoTotale>${r.imponibile}</PrezzoTotale><AliquotaIVA>22</AliquotaIVA>
+    <AltriDatiGestionali><TipoDato>Targa</TipoDato><RiferimentoTesto>${flotta[0].targa}</RiferimentoTesto></AltriDatiGestionali></DettaglioLinee>`).join("")}</DatiBeniServizi></FatturaElettronicaBody>
+</FatturaElettronica>`;
 const elenco = {
   mezzi: flotta,
+  mezzi_piani_cantiere: commessaLunga ? [
+    { id: idPianoNoleggio, company_id: company, order_id: "cm-b", mezzo_id: flotta[0].id, dal: dataPrima(80), al: dataPrima(70), quantita: 1, fornitore_noleggio: "Noleggi Milano", annullato: false },
+    { id: idPianoMezzo, company_id: company, order_id: "cm-b", mezzo_id: flotta[1].id, dal: dataPrima(14), al: dataPrima(1), quantita: 1, annullato: false },
+    { id: idPianoLeasing, company_id: company, order_id: "cm-b", mezzo_id: flotta[2].id, dal: dataPrima(30), al: dataPrima(1), quantita: 1, annullato: false },
+  ] : [],
+  mezzi_piani_costi: commessaLunga ? [
+    { id: idPianoNoleggio, piano_id: idPianoNoleggio, tariffa: 420, base: "totale", extra: 0 },
+    { id: idPianoMezzo, piano_id: idPianoMezzo, tariffa: 90, base: "totale", extra: 0 },
+    { id: idPianoLeasing, piano_id: idPianoLeasing, tariffa: 180, base: "totale", extra: 0 },
+  ] : [],
+  fattura_ricevuta_mezzi: commessaLunga ? [{ id: "quota-demo", company_id: company, mezzo_id: flotta[0].id,
+    fattura_ricevuta_id: "fattura-demo", importo: 150, confermata: true, origine: "targa",
+    mezzi: { nome: flotta[0].nome, targa: flotta[0].targa },
+    fatture_ricevute: { numero_fattura: "CARB-018", data_fattura: giorno, cedente_ragione_sociale: "Distributore Milano", totale_documento: 183 },
+  }] : [],
+  fatture_ricevute: commessaLunga ? [{ id: "fattura-demo", company_id: company, tipo_documento: "TD01",
+    numero_fattura: "CARB-018", data_fattura: giorno, cedente_ragione_sociale: "Distributore Milano", imponibile_totale: 150,
+    totale_documento: 183, iva_totale: 33, righe: righeFatturaDemo, xml_raw: xmlFatturaDemo, stato: "ricevuta",
+  }] : [],
   purchase_orders: carburanteDemo ? ordiniPerRitiro : [],
   ddt_ricezione: carburanteDemo ? [{
     id: "ddt-a", company_id: company, order_id: "cm-b", purchase_order_id: "oda-a", numero_ddt: "DDT-01", data_ricezione: giorno, stato: "verificato",
@@ -179,6 +245,9 @@ const elenco = {
   ],
 };
 const righe = (tabella) => tabella === "appointments" ? dati.appointments :
+  tabella === "mezzi_giornate" && demoAttrezzature ? salvaRigheDemo.map(m => ({ ...m, mezzi: { nome: nomeEscavatoreDemo } })) :
+  tabella === "moduli_cantiere" && demoAttrezzature ? [schemaRapportoDemo ?? { id: "modulo-demo",
+    nome: "Rapportino", attivo: true, tipo: "rapportino", company_id: company, schema: { rilevazioni_mezzi: { ore: true, litri: true } } }] :
   tabella === "mappa_posizioni" ? [
     ...dati.posizioni,
     { record_id: "cm-e", tipo: "cantiere", company_id: company, lat: 45.51496, lng: 9.20929 },
@@ -235,6 +304,7 @@ export const supabase = {
       range: (da, a) => { risultato = risultato.slice(da, a + 1); return catena; },
       limit: () => catena,
       or: (espressione) => {
+        if (tabella === "mezzi_giornate") risultato = risultato.filter(r => r.ore_lavorate != null || r.litri_riforniti != null || r.litri_consumati != null);
         if (tabella === "orders") risultato = risultato.filter(r => espressione.split(",").some(filtro => {
           const [k, , v] = filtro.split(".");
           return r[k] === v;
@@ -249,7 +319,7 @@ export const supabase = {
       },
       is: (k, v) => { if (tabella === "orders") risultato = risultato.filter(r => r[k] === v); return catena; },
       gt: () => catena, gte: () => catena, lte: () => catena, lt: () => catena,
-      eq: (k, v) => { if (["orders", "order_statuses", "order_status_history", "purchase_orders", "ddt_ricezione"].includes(tabella) || k === "id" || k === "assigned_to") risultato = risultato.filter(r => r[k] === v); return catena; },
+      eq: (k, v) => { if (["orders", "order_statuses", "order_status_history", "purchase_orders", "ddt_ricezione", "fattura_ricevuta_mezzi", "mezzi_giornate", "moduli_cantiere"].includes(tabella) || k === "id" || k === "assigned_to") risultato = risultato.filter(r => r[k] === v); return catena; },
       in: (k, v) => { if (["record_id", "order_id", "id", "status", "purchase_order_id"].includes(k)) risultato = risultato.filter(r => v.includes(r[k])); return catena; },
       maybeSingle: () => { singola = true; return catena; }, single: () => { singola = true; return catena; },
     };
@@ -258,6 +328,7 @@ export const supabase = {
   rpc: (name, p) => {
     dati.rpcCalls.push(name);
     const esegui = async () => {
+      if (name === "fornitore_per_nome") return null;
       if (name === "carburante_mimit_giorno") return p.p_giorno === dataPrima(1) ? { giorno: p.p_giorno, territori: territoriMimit } : null;
       if (name === "mezzo_carburante_riferimento_salva") {
         preferenzaDal = p.p_dal;
@@ -268,7 +339,7 @@ export const supabase = {
         const riferimento = preferenzaDal && p.p_giorno >= preferenzaDal ? preferenzaCarburante :
           { zona: "lombardia", zona_impostata: null, preferisci_mimit: false };
         const dato = territoriMimit.find(t => t.chiave === riferimento.zona)?.prezzi.gasolio;
-        const stima = riferimento.preferisci_mimit && dato && p.p_giorno === dataPrima(1)
+        const stima = riferimento.preferisci_mimit && dato && (commessaLunga || p.p_giorno === dataPrima(1))
           ? { fonte: "mimit", zona: riferimento.zona, euro_litro: dato / 1.22, euro_litro_lordo: dato }
           : { fonte: "aziendale", zona: riferimento.zona, euro_litro: prezzoCarburante.euro_litro, euro_litro_lordo: null };
         return { consumo: parametriCarburante, prezzi: { gasolio: prezzoCarburante }, riferimento, zone: territoriMimit, stima };
@@ -279,6 +350,29 @@ export const supabase = {
         return null;
       }
       if (name === "mezzi_quadro_percorrenze") {
+        if (commessaLunga) {
+          const riepilogo = () => ({ viaggi: 0, km_verificati: 0, km_dichiarati: 0, km_stimati: 0, litri: 0,
+            costo_carburante: 0, costo_tariffa: null, tratte_senza_km: 0, km_senza_parametri: 0, mimit: true });
+          const totali = riepilogo();
+          const mezzi = new Map();
+          for (const v of registro.values()) {
+            if (!nelPeriodo(v, p) || (p.p_mezzo && p.p_mezzo !== v.mezzo_id)) continue;
+            const tratte = v.tratte.filter(t => !p.p_ordine || t.order_id === p.p_ordine);
+            if (!tratte.length) continue;
+            const m = mezzi.get(v.mezzo_id) ?? { ...riepilogo(), mezzo_id: v.mezzo_id, nome: v.mezzo_nome,
+              targa: flotta.find(f => f.id === v.mezzo_id)?.targa };
+            for (const somma of [totali, m]) {
+              somma.viaggi++;
+              for (const t of tratte) {
+                somma[v.stato === "verificato" ? "km_verificati" : "km_dichiarati"] += t.km;
+                somma.litri += t.km / 10;
+              }
+              somma.costo_carburante = Math.round(somma.litri * 200) / 100;
+            }
+            mezzi.set(v.mezzo_id, m);
+          }
+          return { totali, mezzi: [...mezzi.values()] };
+        }
         if (demoMimit) {
           const viaggi = [...registro.values()].filter(v => v.stato !== "bozza" && nelPeriodo(v, p) &&
             (!p.p_mezzo || v.mezzo_id === p.p_mezzo) && (!p.p_ordine || v.tratte.some(t => t.order_id === p.p_ordine)));
@@ -310,7 +404,10 @@ export const supabase = {
           litri, costo_carburante: Math.round(litri * prezzoCarburante.euro_litro * 100) / 100, costo_tariffa: null, km_senza_parametri: 0 };
         return { totali, mezzi: [{ mezzo_id: flotta[0].id, nome: flotta[0].nome, targa: flotta[0].targa, ...totali }] };
       }
-      if (name === "mezzi_piano_fonti") return { fonti: [], legami: [] };
+      if (name === "mezzi_piano_fonti") return commessaLunga && p.p_order_id === "cm-b" ? {
+        fonti: [{ id: "costo-noleggio-demo", tipo: "costo", nome: "Fattura noleggio", importo: 400, data: dataPrima(70) }],
+        legami: [{ id: "legame-noleggio-demo", piano_id: idPianoNoleggio, fonte_id: "costo-noleggio-demo", tipo: "costo", importo: 400 }],
+      } : { fonti: [], legami: [] };
       if (name === "mezzi_storico_percorsi") {
         dati.viaggiCalls.push(p);
         const items = viaggiFurgone.filter(v => p.p_company === company && p.p_mezzo === v.furgone &&
@@ -378,11 +475,60 @@ export const supabase = {
           partenza: v.partenza, arrivo: v.arrivo });
         return { id: p.p_id, versione: v.versione + 1 };
       }
-      if (name === "mezzi_viaggi_elenco") return { items: [...registro.values()].filter(v =>
-        (!p.p_mezzo || p.p_mezzo === v.mezzo_id) && nelPeriodo(v, p) &&
-        (!p.p_order || v.tratte.some(t => t.order_id === p.p_order)))
-        .map(v => p.p_order ? { ...v, ambito_commessa: true, tratte: v.tratte.filter(t => t.order_id === p.p_order) } : v), has_more: false };
+      if (name === "mezzi_viaggi_elenco") {
+        const viaggi = [...registro.values()].filter(v => (!p.p_mezzo || p.p_mezzo === v.mezzo_id) && nelPeriodo(v, p) &&
+          (!p.p_order || v.tratte.some(t => t.order_id === p.p_order)))
+          .sort((a, b) => b.partenza.localeCompare(a.partenza));
+        const offset = p.p_offset ?? 0;
+        return { items: viaggi.slice(offset, offset + 50)
+          .map(v => p.p_order ? { ...v, ambito_commessa: true, tratte: v.tratte.filter(t => t.order_id === p.p_order) } : v),
+          has_more: offset + 50 < viaggi.length };
+      }
       if (name === "mezzi_viaggi_storico") return [];
+      if (demoAttrezzature && name === "modulo_rapportino_per_ordine") return schemaRapportoDemo?.schema ?? {
+        rilevazioni_mezzi: { ore: true, litri: true },
+      };
+      if (demoAttrezzature && name === "moduli_cantiere_uso") return {};
+      if (demoAttrezzature && name === "moduli_cantiere_salva") {
+        schemaRapportoDemo = { id: "modulo-demo", nome: p.p_nome, schema: p.p_schema, attivo: true, tipo: "rapportino", company_id: company };
+        sessionStorage.setItem("eic-demo-mezzi-modulo", JSON.stringify(schemaRapportoDemo));
+        return "modulo-demo";
+      }
+      if (demoAttrezzature && name === "campo_mezzi_giornata") {
+        const base = { targa: null, veicolo: false, contatore: null, contatore_unita: null,
+          dove_ora: "cantiere", su_mezzo: null, segnato_oggi: false };
+        return [
+          { ...base, id: "flotta-furgone", nome: "Furgone Alfa", tipo: "furgone", targa: "AB123CD", veicolo: true, contatore: 12780, contatore_unita: "km", dove_ora: "con_te" },
+          { ...base, id: "flotta-escavatore", nome: nomeEscavatoreDemo, tipo: "macchina_movimento_terra", contatore_unita: "ore" },
+          { ...base, id: "flotta-trapano", nome: nomeTrapanoDemo, tipo: "attrezzatura", dove_ora: "a_bordo", su_mezzo: "Furgone Alfa" },
+          { ...base, id: "flotta-tagliapiastrelle", nome: "Tagliapiastrelle", tipo: "attrezzatura" },
+        ];
+      }
+      if (demoAttrezzature && name === "campo_mezzi_fine_giornata") {
+        for (const m of p.p_righe) {
+          const precedente = salvaRigheDemo.find(r => r.mezzo_id === m.mezzo_id && r.order_id === p.p_order_id);
+          const nuova = { ...precedente, ...m, company_id: company, order_id: p.p_order_id, rapportino_id: p.p_rapportino_id };
+          salvaRigheDemo = [...salvaRigheDemo.filter(r => r !== precedente), nuova];
+        }
+        sessionStorage.setItem("eic-demo-mezzi-rapportino", JSON.stringify(salvaRigheDemo));
+        return p.p_righe.length;
+      }
+      if (name === "mappa_attrezzature_giorno") {
+        if (!demoAttrezzature || p.p_company !== company || p.p_dopo || p.p_giorno !== giorno) return [];
+        const risorsa = (id, nome, posizione, extra = {}) => ({
+          id, scheda_id: id, nome, posizione, custode: null, a_bordo_id: null, a_bordo_nome: null, quantita: null, unita_misura: null, ...extra,
+        });
+        const deposito = (ora, fonte = "Scansione QR") => ({ nome: "Magazzino centrale", fonte, quando: ora, ...magazzinoDemo });
+        const taglia = salvaRigheDemo.find(m => m.mezzo_id === "flotta-tagliapiastrelle" && m.dove === "magazzino");
+        const tap = risorsa("flotta-tagliapiastrelle", "Tagliapiastrelle", taglia
+          ? deposito(`${giorno}T16:20:00+01:00`, "Rapportino")
+          : { nome: "Riqualificazione Lambrate", fonte: "Assegnazione al cantiere", order_id: "cm-b", quando: `${giorno}T07:40:00+01:00`, ...sitoB });
+        const trapano = risorsa("flotta-trapano", nomeTrapanoDemo, {
+          nome: "A bordo · Furgone Alfa", fonte: "Assegnazione al mezzo", quando: `${giorno}T07:15:00+01:00`,
+        }, { custode: "Ada Demo", a_bordo_id: "flotta-furgone", a_bordo_nome: "Furgone Alfa" });
+        const laser = risorsa("flotta-laser", "Livello laser", deposito(`${giorno}T08:05:00+01:00`));
+        return p.p_personale ? [trapano] : [tap, trapano, laser, risorsa("flotta-ponteggio", "Ponteggio modulare", null, { quantita: 22, unita_misura: "pezzi" })];
+      }
       if (name === "mappa_mezzi_giorno") {
         if (p.p_company !== company || scenario === "flotta-senza-permesso" || p.p_dopo) return [];
         const luogo = (nome, fonte, punto, order_id, extra = {}) => ({ nome, fonte, ...punto, order_id, ...extra });

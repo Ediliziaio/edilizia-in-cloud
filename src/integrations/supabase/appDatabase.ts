@@ -15,16 +15,23 @@ export type DriveFolderMode = "automatic" | "manual";
 export type DriveFileRow = { id: string; company_id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; shared: boolean; created_by: string | null; created_at: string };
 type Tasks = Database["public"]["Tables"]["tasks"];
 type Account = Database["public"]["Tables"]["bank_accounts"];
+type GiornataMezzo = Database["public"]["Tables"]["mezzi_giornate"];
 type Quote = Database["public"]["Tables"]["quotes"];
 export type PuntoMezzoMappa = {
-  nome: string; fonte: string; order_id: string | null; lat: number | null; lng: number | null;
+  nome: string; fonte: string; order_id?: string | null; lat?: number | null; lng?: number | null;
   quando?: string | null; dal?: string;
+};
+export type AttrezzaturaGiornoMappa = {
+  id: string; scheda_id: string; nome: string; posizione: PuntoMezzoMappa | null; custode: string | null;
+  a_bordo_id: string | null; a_bordo_nome: string | null; quantita: number | null; unita_misura: string | null;
 };
 export type MezzoGiornoMappa = {
   id: string; nome: string; targa: string | null; tipo: string; stradale: boolean; unita: string;
   posizione: PuntoMezzoMappa | null; destinazione: PuntoMezzoMappa | null; destinazioni: number;
   metri_registrati: number | null; metri_stimati: number | null; fonti_registrate: string[];
   contaore: number | null; contaore_aggiornato: string | null;
+  attrezzatura?: AttrezzaturaGiornoMappa;
+  posizioneVeicolo?: PuntoMezzoMappa;
 };
 export type PuntoStoricoMezzo = { lat: number | null; lng: number | null; fonte: string };
 export type ViaggioStoricoMezzo = {
@@ -112,6 +119,10 @@ export type AppDatabase = Omit<Database, "public"> & {
         Args: { p_company: string; p_giorno: string; p_personale: boolean; p_dopo?: string };
         Returns: MezzoGiornoMappa[];
       };
+      mappa_attrezzature_giorno: {
+        Args: { p_company: string; p_giorno: string; p_personale: boolean; p_dopo?: string };
+        Returns: AttrezzaturaGiornoMappa[];
+      };
       mappa_storico_cantieri: {
         Args: { p_company: string; p_anno: number | null; p_personale: boolean; p_dopo?: string };
         Returns: {
@@ -169,7 +180,8 @@ export type AppDatabase = Omit<Database, "public"> & {
         Returns: { mese: string | null; entrate: number; uscite: number; saldo: number; entry_count: number }[];
       };
     };
-    Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "tasks" | "order_attachments" | "media_library_folders" | "quotes"> & {
+    Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "tasks" | "order_attachments" | "media_library_folders" | "quotes" | "mezzi_giornate"> & {
+      mezzi_giornate: Omit<GiornataMezzo,"Row"> & { Row: GiornataMezzo["Row"] & { ore_lavorate: number | null; litri_riforniti: number | null; litri_consumati: number | null } };
       tasks: Tasks & { Row: Tasks["Row"] & { fish_call_id: string | null } };
       ai_fish_assistance: { Row: { [K in keyof FishAssistanceCase]: FishAssistanceCase[K] }; Insert: never; Update: never; Relationships: [] };
       mappa_posizioni: {

@@ -43,11 +43,12 @@ const Azione = forwardRef<HTMLButtonElement, ComponentProps<typeof Button>>(func
 });
 
 export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numeroContratto, contrattoId, salId, cedentePiva, notaDiCredito,
-  primaNotaId, costoId, vaiPrimaNota, vaiTesoreria, vaiEmail, fornitoreId }: {
+  primaNotaId, costoId, vaiPrimaNota, vaiTesoreria, vaiEmail, fornitoreId, targheXml = [] }: {
   fatturaId: string; companyId: string; puoModificare: boolean;
   numeroContratto?: string | null; contrattoId?: string | null; salId?: string | null; cedentePiva?: string | null; notaDiCredito: boolean;
   primaNotaId?: string | null; costoId?: string | null;
   fornitoreId?: string | null;
+  targheXml?: string[];
   /** Chi non può aprire quelle pagine vede il testo, senza link. */
   vaiPrimaNota?: boolean; vaiTesoreria?: boolean; vaiEmail?: boolean;
 }) {
@@ -103,6 +104,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     },
   });
   const [apriMezzo, setApriMezzo] = useState(false);
+  const [targaRicerca, setTargaRicerca] = useState("");
   // Solo i contratti di questo fornitore: uno di un altro subappaltatore sarebbe un errore.
   // La P.IVA si confronta qui, pulita: nella scheda della ditta può avere spazi o il prefisso IT.
   const { data: contratti = [] } = useQuery({
@@ -161,7 +163,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     mutationFn: async (mezzoId: string) => {
       esigiRigaSalvata(await db.from("fattura_ricevuta_mezzi").insert({ company_id: companyId, fattura_ricevuta_id: fatturaId, mezzo_id: mezzoId, origine: "manuale", confermata: true }).select("id").single());
     },
-    onSuccess: () => { setApriMezzo(false); aggiorna(); }, onError: errore,
+    onSuccess: () => { setApriMezzo(false); setTargaRicerca(""); aggiorna(); }, onError: errore,
   });
   const [apriDdt, setApriDdt] = useState(false);
   const [tuttiDdt, setTuttiDdt] = useState(false);
@@ -204,6 +206,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
       esito: "automatico", prove: proveTraccia(daCollegareDaSola), acconto: daCollegareDaSola.acconto && !daCollegareDaSola.salId });
   }, [daCollegareDaSola, fatturaId, salvaSubappalto]);
   const collegati = new Set((data?.mezzi ?? []).map((m) => m.mezzo_id));
+  const targheCollegate = new Set((data?.mezzi ?? []).map(m => m.mezzi?.targa?.toUpperCase().replace(/[\s-]+/g, "")));
+  const daXml = targheXml.filter(targa => !targheCollegate.has(targa));
   const ddt = data?.ddt ?? [];
   const ddtVisti = tuttiDdt ? ddt : ddt.slice(0, DDT_A_VISTA);
   return (
@@ -227,10 +231,16 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
         )}
         {isError ? <span role="alert" className="text-xs text-destructive">Collegamenti non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></span> : !data?.mezzi.length && <span className="text-muted-foreground">Nessuno</span>}
         {puoModificare && (
-          <Popover open={apriMezzo} onOpenChange={setApriMezzo}>
+          <Popover open={apriMezzo} onOpenChange={open => { setApriMezzo(open); if (!open) setTargaRicerca(""); }}>
             <PopoverTrigger asChild><Azione aria-label="Collega un mezzo">Collega</Azione></PopoverTrigger>
             <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0">
-              {apriMezzo && <ScegliMezzoFattura companyId={companyId} collegati={collegati} occupato={aggiungiMezzo.isPending} onSelect={(v) => aggiungiMezzo.mutate(v)} />}
+              {daXml.length > 0 && <div className="flex max-h-24 flex-wrap items-center gap-1 overflow-y-auto border-b p-2">
+                <span className="text-xs text-muted-foreground">Targhe dall’XML</span>
+                {daXml.map(targa => <Button key={targa} size="sm" variant="outline" className="h-7 px-2 text-xs"
+                  onClick={() => setTargaRicerca(targa)}>{targa}</Button>)}
+              </div>}
+              {apriMezzo && <ScegliMezzoFattura key={targaRicerca} ricercaIniziale={targaRicerca}
+                companyId={companyId} collegati={collegati} occupato={aggiungiMezzo.isPending} onSelect={(v) => aggiungiMezzo.mutate(v)} />}
               {aggiungiMezzo.isError && <p role="alert" className="p-3 text-xs text-destructive">{messaggioSalvataggio(aggiungiMezzo.error)}</p>}
             </PopoverContent>
           </Popover>

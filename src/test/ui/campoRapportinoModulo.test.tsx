@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   schema: undefined as unknown,
   subappaltatore: false,
   mezzi: vi.fn(),
+  mezziDisponibili: [] as unknown[],
 }));
 vi.mock("@/lib/campo/sync-queue", async (importOriginal) => {
   const originale = await importOriginal<typeof import("@/lib/campo/sync-queue")>();
@@ -49,6 +50,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data:
     queryKey[0] === "campo-articoli-commessa-rapportino" ? [] :
     queryKey[0] === "campo-rapportino-cantiere" ? { order_code: "C-123", description: "Ristrutturazione Via Roma" } :
+    queryKey[0] === "campo-mezzi-giornata" ? state.mezziDisponibili :
     queryKey[0] === "campo-fasi-commessa" ? state.fasi :
     queryKey[0] === "campo-sottofasi" ? state.sottofasi :
     queryKey[0] === "campo-ruolo" ? state.role :
@@ -86,7 +88,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   state.role = { isCapocantiere: false, esisteCapo: true }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
-  state.fasi = []; state.sottofasi = []; state.schema = undefined; state.subappaltatore = false;
+  state.fasi = []; state.sottofasi = []; state.mezziDisponibili = []; state.schema = undefined; state.subappaltatore = false;
   state.verificaErrore = false; state.verificaCaricamento = false;
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
 });
@@ -120,6 +122,23 @@ describe("Senza modello si lavora come oggi", () => {
     compilaOre(); invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalled());
     expect(inviato()).not.toHaveProperty("campi_extra");
+  });
+});
+
+describe("Rilevazioni da rapportino", () => {
+  it("invia al registro mezzi ore e litri decimali solo se abilitati", async () => {
+    state.schema = { ...SCHEMA_COME_OGGI, rilevazioni_mezzi: { ore: true, litri: true } };
+    state.mezziDisponibili = [{ id: "escavatore", nome: "Escavatore Beta", tipo: "macchina_movimento_terra", veicolo: false,
+      dove_ora: "cantiere", contatore_unita: "ore" }];
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Usato oggi · Escavatore Beta" }));
+    fireEvent.change(screen.getByLabelText("Ore lavorate · Escavatore Beta"), { target: { value: "6,25" } });
+    fireEvent.change(screen.getByLabelText("Litri riforniti · Escavatore Beta"), { target: { value: "18,5" } });
+    compilaOre(); invia();
+    await waitFor(() => expect(state.mezzi).toHaveBeenCalledWith(expect.objectContaining({
+      p_order_id: "order", p_righe: [{ mezzo_id: "escavatore", usato: true, dove: "invariato", ore_lavorate: 6.25, litri_riforniti: 18.5 }],
+    })));
+    expect(inviato()).not.toHaveProperty("mezzi_usati");
   });
 });
 

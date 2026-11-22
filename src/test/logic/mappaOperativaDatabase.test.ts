@@ -18,6 +18,8 @@ describe.sequential("migrazione Mappa operativa", () => {
     db = new PGlite();
     await db.waitReady;
     await db.exec(readFileSync("src/test/fixtures/mappaOperativaDatabase.sql", "utf8"));
+    const mezziGiornate = readFileSync("supabase/migrations/20280927203000_mezzi_fine_giornata.sql", "utf8");
+    await db.exec(mezziGiornate.slice(0, mezziGiornate.indexOf("-- ── Diario del giorno")));
     const migration = [
       "20290507115000_mappa_operativa_calendari.sql",
       "20290507115100_mappa_viaggi_da_completare.sql",
@@ -26,6 +28,8 @@ describe.sequential("migrazione Mappa operativa", () => {
       "20290507115400_mappa_mezzi_calendario.sql",
       "20290507115500_mezzi_storico_percorsi.sql",
       "20290507115600_carburante_viaggi_commessa.sql",
+      "20290507120000_mappa_attrezzature.sql",
+      "20290507120100_rapportino_rilevazioni_mezzi.sql",
     ].map(file => readFileSync(`supabase/migrations/${file}`, "utf8")).join("\n");
     await db.exec(migration);
     await db.exec(migration);
@@ -72,6 +76,108 @@ describe.sequential("migrazione Mappa operativa", () => {
     `);
   }, 30_000);
   afterAll(async () => { await db?.close(); });
+
+  it("posiziona le attrezzature alla data scelta e rispetta i permessi di persone e commesse", async () => {
+    const oggiSql = "(now() at time zone 'Europe/Rome')::date";
+    const ieri = `(${oggiSql}-1)`;
+    const tap = id(750), trapano = id(751), laser = id(752), ponteggio = id(753), straniero = id(754);
+    await db.exec(`reset role;
+      insert into mezzi(id,company_id,nome,contatore_unita,tipo,gestione,quantita_totale,unita_misura) values
+        ('${tap}','${az}','Tagliapiastrelle','nessuno','attrezzatura','singola',null,null),
+        ('${trapano}','${az}','Trapano','nessuno','attrezzatura','singola',null,null),
+        ('${laser}','${az}','Laser','nessuno','attrezzatura','singola',null,null),
+        ('${ponteggio}','${az}','Ponteggio','nessuno','attrezzatura','quantita',30,'pezzi'),
+        ('${straniero}','${esterna}','Laser esterno','nessuno','attrezzatura','singola',null,null);
+      insert into mezzi_assegnazioni(company_id,mezzo_id,order_id,hr_profilo_id,su_mezzo_id,dal) values
+        ('${az}','${tap}','${ordine}',null,null,${ieri}+time '09:00'),
+        ('${az}','${trapano}',null,'${id(23)}','${id(25)}',${ieri}+time '09:00');
+      insert into mezzi_scansioni(company_id,mezzo_id,azione,created_at) values
+        ('${az}','${laser}','magazzino',${ieri}+time '08:30');
+      insert into mezzi_allocazioni(company_id,mezzo_id,order_id,quantita,dal,created_at) values
+        ('${az}','${ponteggio}','${ordine}',8,${ieri},${ieri}+time '09:00');
+      insert into fixture_perms values ('${operaio}','${az}','can_view_mezzi'),('${operaio}','${az}','can_view_calendar'),('${operaio}','${az}','can_view_orders');`);
+    const mappa = (azienda: string, personale: boolean) =>
+      db.query("select * from mappa_attrezzature_giorno($1,(now() at time zone 'Europe/Rome')::date,$2)",[azienda,personale]).then(r => r.rows);
+    await ruolo(ufficio);
+    expect(await mappa(az,false)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: tap, posizione: expect.objectContaining({ order_id: ordine, lat: 45.5, quando: expect.any(String) }) }),
+      expect.objectContaining({ id: trapano, custode: "Carla Operaio", a_bordo_id: id(25) }),
+      expect.objectContaining({ id: laser, custode: null, posizione: expect.objectContaining({ nome: "Magazzino centrale", lat: 45.7, fonte: "Scansione QR" }) }),
+      expect.objectContaining({ scheda_id: ponteggio, quantita: 8, posizione: expect.objectContaining({ order_id: ordine }) }),
+      expect.objectContaining({ scheda_id: ponteggio, quantita: 22, posizione: null }),
+    ]));
+    expect(await mappa(esterna,false)).toEqual([]);
+    await ruolo(operaio);
+    const personale = await mappa(az,true);
+    expect(personale).toEqual(expect.arrayContaining([expect.objectContaining({ id: tap }), expect.objectContaining({ scheda_id: ponteggio, quantita: 8 })]));
+    expect(personale).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: trapano })]));
+    await ruolo(esterno);
+    expect(await mappa(az,false)).toEqual([]);
+    await db.exec(`reset role;
+      delete from fixture_perms where uid='${operaio}' and company='${az}' and permesso in ('can_view_mezzi','can_view_calendar','can_view_orders');
+      insert into hr_sedi values ('${id(755)}','${az}',45.4,9.4,true,'Magazzino nord');`);
+    await ruolo(ufficio);
+    expect(await mappa(az,false)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: laser, posizione: expect.objectContaining({ nome: "Magazzino · sede da specificare", lat: null, lng: null }) }),
+    ]));
+  });
+
+  it("salva le rilevazioni per cantiere, accetta zero e ripete l'invio senza duplicati", async () => {
+    const mezzo = id(760), secondo = id(761), report = id(762), reportB = id(763);
+    const oggiSql = "(now() at time zone 'Europe/Rome')::date";
+    await db.exec(`reset role;
+      insert into orders(id,company_id,description) values ('${secondo}','${az}','Secondo cantiere');
+      insert into order_campo_assignments values ('${az}','${secondo}','${operaio}',${oggiSql},${oggiSql},null);
+      insert into mezzi(id,company_id,nome,contatore_unita,tipo,assegnato_hr_profilo_id) values
+        ('${mezzo}','${az}','Escavatore Beta','ore','macchina_movimento_terra','${id(22)}');
+      insert into campo_rapportini values
+        ('${report}','${az}','${ordine}','${operaio}',${oggiSql},null),
+        ('${reportB}','${az}','${secondo}','${operaio}',${oggiSql},null);
+      insert into fixture_moduli values ('${az}','{"rilevazioni_mezzi":{"ore":true,"litri":true,"consumo":true}}');`);
+    await ruolo(operaio);
+    const salva = (order: string, reportId: string, ore: number, litri: number) =>
+      db.query("select campo_mezzi_fine_giornata($1,(now() at time zone 'Europe/Rome')::date,$2,$3)", [
+        order, JSON.stringify([{ mezzo_id: mezzo, usato: true, dove: "invariato", ore_lavorate: ore, litri_riforniti: litri, litri_consumati: 2.75 }]), reportId,
+      ]);
+    await salva(ordine, report, 6.25, 18.5);
+    await salva(ordine, report, 6.25, 18.5);
+    await salva(secondo, reportB, 1.75, 0);
+    await expect(salva(secondo, report, 2, 0)).rejects.toMatchObject({ code: "42501" });
+    await expect(salva(secondo, reportB, 25, 0)).rejects.toMatchObject({ code: "23514" });
+    await db.exec("reset role");
+    const leggi = () => db.query("select rapportino_id,ore_lavorate,litri_riforniti,litri_consumati from mezzi_giornate where mezzo_id=$1 order by rapportino_id",[mezzo]).then(r => r.rows);
+    expect(await leggi()).toEqual([
+      { rapportino_id: report, ore_lavorate: "6.25", litri_riforniti: "18.5", litri_consumati: "2.75" },
+      { rapportino_id: reportB, ore_lavorate: "1.75", litri_riforniti: "0", litri_consumati: "2.75" },
+    ]);
+    await db.exec(`update fixture_moduli set schema='{"rilevazioni_mezzi":{"ore":true,"litri":false}}' where company_id='${az}'`);
+    await ruolo(operaio);
+    await salva(ordine, report, 5.5, 9999);
+    await db.exec("reset role");
+    expect((await leggi())[0]).toEqual({ rapportino_id: report, ore_lavorate: "5.5", litri_riforniti: "18.5", litri_consumati: "2.75" });
+  });
+
+  it("la riconsegna dal rapportino aggiorna la mappa anche se l'attrezzatura non è più in carico", async () => {
+    const attrezzo = id(768), rapporto = id(769);
+    const oggiSql = "(now() at time zone 'Europe/Rome')::date";
+    await db.exec(`reset role;
+      insert into mezzi(id,company_id,nome,contatore_unita,tipo,assegnato_order_id) values
+        ('${attrezzo}','${az}','Carotatrice','nessuno','attrezzatura','${ordine}');
+      insert into campo_rapportini values ('${rapporto}','${az}','${ordine}','${operaio}',${oggiSql},null);`);
+    await ruolo(operaio);
+    const args = [ordine, JSON.stringify([{ mezzo_id: attrezzo, usato: false, dove: "magazzino" }]), rapporto];
+    const salva = () => db.query(`select campo_mezzi_fine_giornata($1,${oggiSql},$2,$3)`, args);
+    await salva();
+    await salva();
+    await ruolo(ufficio);
+    const vista = await db.query(`select posizione,custode from mappa_attrezzature_giorno($1,${oggiSql},false) where id=$2`, [az, attrezzo]);
+    expect(vista.rows).toEqual([{
+      posizione: expect.objectContaining({ nome: "Magazzino · sede da specificare", fonte: "Rapportino", quando: expect.any(String) }),
+      custode: null,
+    }]);
+    await db.exec("reset role");
+    expect((await db.query("select dove from mezzi_giornate where mezzo_id=$1", [attrezzo])).rows).toEqual([{ dove: "magazzino" }]);
+  });
 
   it("valorizza le singole tratte con i prezzi del giorno e applica una sola tariffa al viaggio", async () => {
     const mezzo = id(181), benzina = id(182), cantiereB = id(183);

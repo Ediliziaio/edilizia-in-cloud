@@ -9,11 +9,12 @@
 import { useMemo } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { cn } from "@/lib/utils";
+import { RilevazioniMezziRapportino } from "@/components/orders/RilevazioniMezziRapportino";
 import { CampiModuloLettura } from "@/components/campo/CampiModuloLettura";
 import { bloccoFasi, oreBrevi, type FaseBlocco, type MaterialeBlocco } from "../../../supabase/functions/genera-pdf-rapportino/model";
 
 interface Props {
-  report: { fasi_lavorate?: unknown; materiali_usati?: unknown; foto_urls?: unknown; campi_extra?: unknown };
+  report: { id?: string; company_id?: string; order_id?: string; fasi_lavorate?: unknown; materiali_usati?: unknown; foto_urls?: unknown; campi_extra?: unknown };
   /** Apre una foto a tutto schermo; riceve l'indirizzo com'è salvato nel rapportino. */
   onFoto?: (url: string) => void;
   compatto?: boolean;
@@ -139,7 +140,10 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
       </div>
     );
   }
-  if (!conFasi && !b.altriMateriali.length && !b.altreFoto.length && !b.altriCampi.length) return null;
+  const rilevazioniMezzi = report.id && report.company_id && report.order_id
+    ? <RilevazioniMezziRapportino reportId={report.id} companyId={report.company_id} orderId={report.order_id} />
+    : null;
+  if (!conFasi && !b.altriMateriali.length && !b.altreFoto.length && !b.altriCampi.length) return rilevazioniMezzi;
   return (
     <div className={cn("space-y-4", className)}>
       {conFasi && (
@@ -151,6 +155,7 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
         </div>
       )}
       <CampiModuloLettura valori={b.altriCampi} />
+      {rilevazioniMezzi}
       {b.altriMateriali.length > 0 && (
         <div>
           <p className={ETICHETTA}>{conFasi ? "Altri materiali" : "Materiali usati"} ({b.altriMateriali.length})</p>

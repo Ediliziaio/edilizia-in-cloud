@@ -6,7 +6,7 @@ import type { Coordinate } from "../../../../shared/mappa-operativa/calcoli";
 import { caricaSfondoVettoriale, preparaSfondoMappa } from "./caricaSfondo";
 import { fonteCartografica, stileMappa, tilesMappa } from "./servizio";
 import type { LineaPercorso } from "./tratte";
-export type Pin = { id: string; titolo: string; punto: Coordinate; numero?: number; tipo?: "base" | "gps" | "mezzo" | "destinazione_mezzo"; etichetta?: string; avviso?: boolean };
+export type Pin = { id: string; titolo: string; punto: Coordinate; numero?: number; tipo?: "base" | "gps" | "mezzo" | "destinazione_mezzo" | "attrezzatura"; etichetta?: string; avviso?: boolean };
 
 export type InquadraturaMappa = Coordinate & { zoom: number; firma: string };
 
@@ -228,17 +228,18 @@ export default function CartografiaOperativa({
       const nodo = document.createElement("span");
       const daVerificare = g.pin.some(p => p.avviso);
       const gps = primo.tipo === "gps";
-      const flotta = primo.tipo === "mezzo" || primo.tipo === "destinazione_mezzo";
+      const attrezzo = primo.tipo === "attrezzatura" && g.pin.length === 1;
+      const flotta = primo.tipo === "attrezzatura" || primo.tipo === "mezzo" || primo.tipo === "destinazione_mezzo";
       const destinazione = primo.tipo === "destinazione_mezzo" && g.pin.length === 1;
       const base = g.pin.length === 1 && primo.tipo === "base";
       const ciclo = g.pin.length === 2 && g.pin.every(p => p.tipo === "base");
       nodo.textContent = daVerificare ? "!" : ciclo ? "P/R" : mostraSequenza ? sequenza : String(g.pin.length > 1 ? g.pin.length : primo.etichetta ?? primo.numero ?? "●");
       const forma = (gps || flotta) && g.pin.length === 1 ? "rounded-lg" : "rounded-full";
-      const colore = daVerificare ? "bg-amber-800" : gps ? "bg-violet-700" : destinazione ? "bg-amber-700" : flotta ? "bg-sky-800" : base ? (primo.etichetta === "R" ? "bg-pink-700" : "bg-teal-700") : "bg-slate-900";
+      const colore = daVerificare ? "bg-amber-800" : gps ? "bg-violet-700" : destinazione ? "bg-amber-700" : attrezzo ? "bg-teal-700" : flotta ? "bg-sky-800" : base ? (primo.etichetta === "R" ? "bg-pink-700" : "bg-teal-700") : "bg-slate-900";
       nodo.className = `grid size-9 place-items-center ${forma} border-2 border-white font-bold text-white shadow-md ${mostraSequenza ? "text-[10px]" : "text-xs"} ${colore}`;
       const testo = daVerificare ? `Pin fuori copertura · ${g.pin.filter(p => p.avviso).map(p => p.titolo).join(", ")}` :
         numeri.length === 2 ? `Tappe ${numeri.join(" e ")}` :
-        g.pin.length > 1 ? `${g.pin.length} ${gps ? "timbrature vicine" : flotta ? "punti mezzi vicini" : nomiPin ? "cantieri vicini" : "tappe vicine"}` : primo.titolo;
+        g.pin.length > 1 ? `${g.pin.length} ${gps ? "timbrature vicine" : flotta ? "risorse vicine" : nomiPin ? "cantieri vicini" : "tappe vicine"}` : primo.titolo;
       const punto = primo.punto;
       const marker = L.marker([punto.lat, punto.lng], {
         icon: L.divIcon({ html: nodo, className: "", iconSize: [36, 36], iconAnchor: [18, 18] }),

@@ -110,3 +110,21 @@ create policy fixture_hr_timbrature on hr_timbrature for select to authenticated
     select 1 from public.hr_profili p where p.id=profilo_id and p.company_id=hr_timbrature.company_id and p.user_id=auth.uid()
   )
  ));
+
+alter table mezzi add column su_mezzo_id uuid, add column quantita_totale numeric, add column unita_misura text;
+alter table mezzi_assegnazioni add column su_mezzo_id uuid;
+alter table hr_sedi add column created_at timestamptz default '2020-01-01Z';
+create table mezzi_scansioni(id uuid primary key default gen_random_uuid(),company_id uuid,mezzo_id uuid,azione text,created_at timestamptz);
+create table mezzi_allocazioni(id uuid primary key default gen_random_uuid(),company_id uuid,mezzo_id uuid,
+  order_id uuid,luogo text,quantita numeric,dal date,al date,created_at timestamptz);
+create table campo_rapportini(id uuid primary key,company_id uuid,order_id uuid,user_id uuid,data_lavoro date,annullato_at timestamptz);
+create table fixture_moduli(company_id uuid,schema jsonb);
+create function public.modulo_rapportino_per_ordine(uuid) returns jsonb language sql stable security definer as $$
+  select m.schema from public.fixture_moduli m join public.orders o on o.company_id=m.company_id and o.id=$1
+$$;
+create function public.miei_hr_profili() returns setof uuid language sql stable security definer as $$
+  select h.id from public.hr_profili h where h.user_id=auth.uid()
+$$;
+create function public.numero_italiano(t text) returns numeric language sql immutable as $$
+  select nullif(t,'')::numeric
+$$;
