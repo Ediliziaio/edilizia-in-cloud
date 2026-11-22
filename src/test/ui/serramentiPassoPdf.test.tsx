@@ -43,6 +43,7 @@ vi.mock("@/hooks/useSerramentoPDF", () => ({
 }));
 
 import { StepPdf } from "@/components/serramenti/StepPdf";
+import { renderSerramentoBlob } from "@/hooks/useSerramentoPDF";
 
 type Riga = Record<string, unknown>;
 const serramento = (prezzo: number, quantita = 1): Riga => ({
@@ -86,6 +87,19 @@ describe("passo PDF: importi della copia di firma", () => {
     render(<StepPdf progettoId="sr1" detail={conIva(true)} />);
     expect(firma.props).toMatchObject({ subtotal: 10000, vatAmount: 1000, total: 11000 });
   });
+});
+
+it("il PDF da scaricare rispetta l'esclusione delle condizioni; il PDF per la firma le include", async () => {
+  render(<StepPdf progettoId="sr1" detail={preventivo({ condizioni_nel_pdf: false, totale_min: 11000, totale_max: 11000 })} />);
+  const generaPdf = firma.props?.generaPdfBlob as (destinazione: "copia" | "firma") => Promise<Blob>;
+  await generaPdf("copia");
+  expect(renderSerramentoBlob).toHaveBeenLastCalledWith(expect.objectContaining({
+    detail: expect.objectContaining({ progetto: expect.objectContaining({ condizioni_nel_pdf: false }) }),
+  }));
+  await generaPdf("firma");
+  expect(renderSerramentoBlob).toHaveBeenLastCalledWith(expect.objectContaining({
+    detail: expect.objectContaining({ progetto: expect.objectContaining({ condizioni_nel_pdf: true }) }),
+  }));
 });
 
 describe("passo PDF: le esigenze del cliente sono facoltative", () => {

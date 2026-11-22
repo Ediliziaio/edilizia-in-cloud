@@ -6,12 +6,13 @@
  */
 import { useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, FileText, Loader2, Share } from "lucide-react";
+import { ArrowLeft, Download, Eye, FileText, Loader2, Share } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { condividiFile } from "@/lib/mobile/condividiFile";
+import { downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 
 interface Props {
   onIndietro: () => void;
@@ -39,10 +40,14 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
     return pdfPronto.current;
   };
 
-  const usaPdf = async (azione: "manda" | "guarda") => {
+  const usaPdf = async (azione: "scarica" | "manda" | "guarda") => {
     setPdfInCorso(true);
     try {
       const blob = await preparaPdf();
+      if (azione === "scarica") {
+        downloadQuotePdf(blob, nomeFile);
+        return;
+      }
       if (azione === "manda") {
         const esito = await condividiFile(blob, nomeFile, titolo);
         if (esito === "serve-un-tocco") {
@@ -97,10 +102,13 @@ export function BarraInvioMobile({ onIndietro, titolo, generaPdf, pdfBloccato, c
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-52">
-            <DropdownMenuItem className="gap-2 py-2.5" onSelect={() => { void usaPdf("manda"); }}>
+            <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { void usaPdf("scarica"); }}>
+              <Download className="h-4 w-4" /> Scarica PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { void usaPdf("manda"); }}>
               <Share className="h-4 w-4" /> Manda il PDF
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 py-2.5" onSelect={() => { void usaPdf("guarda"); }}>
+            <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { void usaPdf("guarda"); }}>
               <Eye className="h-4 w-4" /> Guarda il PDF
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -83,7 +83,7 @@ describe.each(families)('%s: wizard originale con confini dati simulati', (modul
     fireEvent.click(within(nav()).getByRole('button', { name: 'Computo' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Modifica computo sintetico' }));
     fireEvent.click(within(nav()).getByRole('button', { name: 'PDF' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('modifiche');
+    expect(await screen.findByRole('alert')).toHaveTextContent('PDF in attesa del salvataggio');
     expect(screen.queryByRole('region', { name: 'Payload PDF sintetico' })).not.toBeInTheDocument();
     act(() => state.finishComputo());
     expect(await screen.findByRole('region', { name: 'Payload PDF sintetico' })).toHaveTextContent('Voce aggiunta in locale');

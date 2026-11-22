@@ -10,10 +10,10 @@ import { UniformSelect } from "@/components/ui/uniform-select";
  * Una regola resta ferma: il PDF che va in firma le ha sempre, perché il preventivo firmato è il contratto. Qui si
  * dice, e chi manda in firma passa dal progetto di `perLaFirma()`.
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { Link } from "react-router-dom";
-import { Eye, FileText, Lock, RotateCcw, TriangleAlert } from "lucide-react";
+import { ChevronDown, Eye, FileText, Lock, RotateCcw, TriangleAlert } from "lucide-react";
 import { AnteprimaCondizioniDialog } from "@/components/preventivi/CondizioniContratto";
 import type { ModelloArchivio } from "@/lib/condizioni/archivio";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,8 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
   const puoRiscrivere = puoRiscrivereLeCondizioni(permessi);
   const riscritte = condizioniRiscritte(progetto);
   const fuoriDalPdf = condizioniTolteDalPdf(progetto);
+  const dettaglioId = useId();
+  const [dettagliAperti, setDettagliAperti] = useState(false);
   const [apertoEditor, setApertoEditor] = useState(false);
   const [bozza, setBozza] = useState("");
   // Da dove partono le condizioni di questo preventivo: la stessa regola del PDF (`condizioniDelPdf`).
@@ -78,17 +80,17 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
 
   return (
     <div className="rounded-lg border">
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-xs font-medium">
             <FileText className="h-3.5 w-3.5 text-slate-600" aria-hidden="true" />
             Condizioni contrattuali
           </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className={cn("mt-0.5 text-xs text-muted-foreground", !spenteNelModello && !fuoriDalPdf && "max-lg:hidden")}>
             {spenteNelModello
-              ? "L'azienda le tiene fuori da tutti i preventivi: nel modello sono spente."
+              ? "Disattivate nel modello."
               : fuoriDalPdf
-                ? "Questo PDF esce senza la parte contrattuale. Quando lo mandi in firma ci sono comunque."
+                ? "Escluse dalla copia PDF. Incluse nella firma."
                 : riscritte
                   ? "Nel PDF escono le condizioni scritte per questo preventivo."
                   : dallArchivio
@@ -97,24 +99,31 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
           </p>
         </div>
         {!spenteNelModello && (
-          <label className="flex shrink-0 items-center gap-2 text-[11px] font-medium">
-            <span>Nel PDF</span>
-            <Switch
-              checked={!fuoriDalPdf}
-              aria-label="Includi le condizioni contrattuali nel PDF"
-              onCheckedChange={(v) => onChange({ condizioni_nel_pdf: v ? null : false })}
-            />
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="flex min-h-11 shrink-0 items-center gap-2 text-xs font-medium">
+              <span>Nel PDF</span>
+              <Switch
+                checked={!fuoriDalPdf}
+                aria-label="Includi le condizioni contrattuali nel PDF"
+                onCheckedChange={(v) => onChange({ condizioni_nel_pdf: v ? null : false })}
+              />
+            </label>
+            <button type="button" aria-label="Dettagli condizioni contrattuali"
+              aria-controls={dettaglioId} aria-expanded={dettagliAperti}
+              className="inline-flex size-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 lg:hidden"
+              onClick={() => setDettagliAperti((aperti) => !aperti)}>
+              <ChevronDown aria-hidden="true" className={cn("size-4", dettagliAperti && "rotate-180")} />
+            </button>
+          </div>
         )}
       </div>
 
       {!spenteNelModello && (
-        <div className="space-y-2 px-3 py-2">
+        <div id={dettaglioId} className={cn("space-y-2 border-t px-3 py-2", !dettagliAperti && "max-lg:hidden")}>
           {fuoriDalPdf && (
             <p className="flex items-start gap-1.5 rounded bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
               <TriangleAlert aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0" />
-              Va bene per il primo invio, quello in cui mostri il prezzo. Il preventivo firmato è il contratto: quando
-              lo mandi in firma le condizioni tornano da sole.
+              Le condizioni si includono automaticamente nel PDF da firmare.
             </p>
           )}
 

@@ -17,6 +17,7 @@
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SelettoreFase } from "@/components/preventivatore/SelettoreFase";
 
 // ─── PAGE HEADER (titolo + chips + actions) ───────────────────────────────────
 
@@ -408,6 +409,7 @@ export function QuoteStepper({
   className,
 }: QuoteStepperProps) {
   const completedCount = completedSteps?.filter(Boolean).length;
+  const selezionabile = (indice: number) => indice <= current + 1 || Boolean(allowJumpForward);
   const pct = Math.round(((completedCount ?? (current + 1)) / steps.length) * 100);
   return (
     <div
@@ -416,14 +418,18 @@ export function QuoteStepper({
         className,
       )}
     >
-      {/* Telefono: i passi dividono la riga in parti uguali (prima scorrevano di
-          lato e il terzo non si vedeva); via la barra «Step 1 di 3» sotto. */}
-      <div className="flex gap-0 overflow-x-auto max-sm:overflow-visible">
+      <div className="flex lg:hidden">
+        <SelettoreFase corrente={steps[current]?.key ?? ""} onSelect={(key) => onSelect?.(steps.findIndex((step) => step.key === key))}
+          passi={steps.map((step, i) => ({
+            ...step, breve: step.labelBreve, bloccato: !selezionabile(i),
+            completato: completedSteps ? Boolean(completedSteps[i]) : i < current,
+          }))} />
+      </div>
+      <div className="hidden gap-0 overflow-x-auto lg:flex">
         {steps.map((s, i) => {
           const isActive = i === current;
           const isCompleted = completedSteps ? !!completedSteps[i] : i < current;
-          const isClickable =
-            i < current || isActive || allowJumpForward || i === current + 1;
+          const isClickable = selezionabile(i);
           return (
             <button
               key={s.key}
@@ -467,7 +473,7 @@ export function QuoteStepper({
           );
         })}
       </div>
-      <div className="bg-slate-50 px-4 sm:px-6 py-1.5 sm:py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100 max-sm:hidden">
+      <div className="hidden items-center gap-3 border-t border-slate-100 bg-slate-50 px-6 py-2 text-xs text-slate-500 lg:flex">
         <span className="shrink-0">
           <strong className="text-slate-900">
             Step {current + 1} di {steps.length}
