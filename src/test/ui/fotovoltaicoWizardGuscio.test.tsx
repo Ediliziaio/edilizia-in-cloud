@@ -363,10 +363,14 @@ it("se la stima automatica fallisce consente il retry dalla località senza chie
 
 it("il disegno aggiorna quantità, potenza e prezzi solo dopo conferma; Annulla conserva la configurazione", async () => {
   const {creaDisegnoTetto,disponiModuliAutomaticamente}=await import("../../../supabase/functions/_shared/fvDisegnoCommerciale");
+  // La prova riguarda la conferma del disegno. Carica prima il modulo 3D per
+  // misurare separatamente l'attesa dei controlli dall'importazione del bundle.
+  await import("@/components/fotovoltaico/tetto/FvEditorTettoInterno");
   seminaBozza(5,{layout_overlay:disponiModuliAutomaticamente(creaDisegnoTetto("due_falde"),12),con_accumulo:false});
   monta();await arrivaAllaFase5();
   fireEvent.click(screen.getByRole("button",{name:"Modifica disposizione pannelli"}));
-  fireEvent.keyDown(await screen.findByRole("button",{name:"Modulo 1"},{timeout:5000}),{key:"Delete"});
+  const dialogo = await screen.findByRole("dialog", { name: "Piano di posa dei pannelli" });
+  fireEvent.keyDown(await within(dialogo).findByRole("button",{name:"Modulo 1"},{timeout:5000}),{key:"Delete"});
   expect(screen.getByLabelText("Riepilogo disposizione")).toHaveTextContent("11 pannelli");
   expect(screen.getByLabelText("Numero pannelli")).toHaveValue(12);
   fireEvent.click(screen.getByRole("button",{name:"Annulla"}));
