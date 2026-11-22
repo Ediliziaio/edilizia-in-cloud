@@ -25,7 +25,7 @@ import { StoricoContenutiPos } from "@/components/sicurezza/pos/StoricoContenuti
  * una nuova revisione. Firme, consultazione dell'RLS e verifiche di impresa
  * affidataria e CSE (art. 101 c. 3) si segnano anche dopo l'approvazione.
  */
-import { lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -218,9 +218,9 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
   const [erroreApprovazione,setErroreApprovazione]=useState<string|null>(null);
   const [mancantiServer, setMancantiServer] = useState<VoceMancante[] | null>(null);
   const [preparazioneAperta, setPreparazioneAperta] = useState(false);
-  const bozzaDaVerificare = useRef<PosContenuto | null>(null);
   const [guidaAttiva, setGuidaAttiva] = useState(false);
   const [ultimaVoce, setUltimaVoce] = useState<string | null>(null);
+  const [navigazioneGuida, setNavigazioneGuida] = useState<{ voce: VoceMancante } | null>(null);
   const destinazioneElenco = useRef<VoceMancante | string | null>(null);
   const [revisioneAperta, setRevisioneAperta] = useState(false);
   const [descrRevisione, setDescrRevisione] = useState("");
@@ -279,29 +279,34 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
   function vaiAVoce(voce: VoceMancante) {
     setUltimaVoce(chiaveVoce(voce));
     if (voce.campo !== "pos-impostazioni-psc") sezioniApertura.apri(voce.sezione);
-    requestAnimationFrame(() => {
-      const radice = radiceEditor.current;
-      if (!radice) return;
-      const sezione = document.getElementById(`pos-${voce.sezione}`);
-      const scheda = voce.lavorazione_id ? [...radice.querySelectorAll<HTMLElement>("[data-pos-lavorazione]")]
-        .find(el => el.dataset.posLavorazione === voce.lavorazione_id) : undefined;
-      const apriScheda = scheda?.querySelector<HTMLButtonElement>("[data-pos-apri-scheda]");
-      if (apriScheda?.getAttribute("aria-expanded") === "false") apriScheda.click();
-      if (voce.campo === "pos-impostazioni-psc") {
-        const impostazioni = document.getElementById(voce.campo);
-        if (impostazioni?.getAttribute("aria-expanded") === "false") impostazioni.click();
-      }
-      requestAnimationFrame(() => {
-        const campo = voce.campo ? document.getElementById(voce.campo) : null;
-        // Gli indici delle schede possono cambiare. Il salto preciso vale solo all’interno della scheda giusta.
-        const obiettivo = campo && (scheda ?? radice).contains(campo) && !campo.closest("[hidden]") ? campo : null;
-        const titolo = sezione?.querySelector<HTMLButtonElement>("header button") ?? null;
-        (obiettivo ?? scheda ?? sezione)?.scrollIntoView({ behavior: "smooth", block: obiettivo || scheda ? "center" : "start" });
-        const focus = obiettivo?.matches(":disabled") ? apriScheda ?? titolo : obiettivo ?? apriScheda ?? titolo;
-        focus?.focus({ preventScroll: true });
-      });
-    });
+    setNavigazioneGuida({ voce });
   }
+
+  useLayoutEffect(() => {
+    const radice = radiceEditor.current;
+    if (!radice || !navigazioneGuida) return;
+    const { voce } = navigazioneGuida;
+    const sezione = document.getElementById(`pos-${voce.sezione}`);
+    const scheda = voce.lavorazione_id ? [...radice.querySelectorAll<HTMLElement>("[data-pos-lavorazione]")]
+      .find(el => el.dataset.posLavorazione === voce.lavorazione_id) : undefined;
+    const apriScheda = scheda?.querySelector<HTMLButtonElement>("[data-pos-apri-scheda]");
+    const apri = voce.campo === "pos-impostazioni-psc" ? document.getElementById(voce.campo) : apriScheda;
+    const raggiungiCampo = () => {
+      const campo = voce.campo ? document.getElementById(voce.campo) : null;
+      // Gli indici delle schede possono cambiare. Il salto preciso vale solo all’interno della scheda giusta.
+      const obiettivo = campo && (scheda ?? radice).contains(campo) && !campo.closest("[hidden]") ? campo : null;
+      const titolo = sezione?.querySelector<HTMLButtonElement>("header button") ?? null;
+      (obiettivo ?? scheda ?? sezione)?.scrollIntoView({ behavior: "smooth", block: obiettivo || scheda ? "center" : "start" });
+      const focus = obiettivo?.matches(":disabled") ? apriScheda ?? titolo : obiettivo ?? apriScheda ?? titolo;
+      focus?.focus({ preventScroll: true });
+    };
+    if (apri?.getAttribute("aria-expanded") === "false") {
+      apri.click();
+      const frame = requestAnimationFrame(raggiungiCampo);
+      return () => cancelAnimationFrame(frame);
+    }
+    raggiungiCampo();
+  }, [navigazioneGuida]);
 
   function avviaGuida(contenuto: PosContenuto) {
     const daVerificare = contenuto === bozza ? mancanti : vociMancanti(contenuto);
@@ -588,15 +593,8 @@ function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompi
                   });
                   setSporco(true);
                 }
-                bozzaDaVerificare.current = preparata ?? bozza;
                 setPreparazioneAperta(false);
-              }} onCloseAutoFocus={event => {
-                const contenuto = bozzaDaVerificare.current;
-                if (!contenuto) return;
-                event.preventDefault();
-                bozzaDaVerificare.current = null;
-                avviaGuida(contenuto);
-              }} />}
+              }} onVaiAllaVerifica={avviaGuida} />}
           </Dialog>
         </div>}
         <BarraSezioniPos sempreVisibile={anteprimaAffiancata} sezioni={sezioniMenu} onVai={vaiASezione} percento={percento} mancantiTotali={mancanti.length}

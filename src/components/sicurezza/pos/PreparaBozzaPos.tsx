@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,11 +21,12 @@ interface Props {
   orderId: string;
   onClose: () => void;
   onContinua: (preparata: PosContenuto | null) => void;
-  onCloseAutoFocus: (event: Event) => void;
+  onVaiAllaVerifica: (preparata: PosContenuto) => void;
 }
 
 export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisponibili, rileggiFonti, companyId, orderId,
-  onClose, onContinua, onCloseAutoFocus }: Props) {
+  onClose, onContinua, onVaiAllaVerifica }: Props) {
+  const confermata = useRef<PosContenuto | null>(null);
   const puoAggiungereFasi = bozza.impresa.ruolo !== "affidataria";
   const fasi = useFasiFascicolo(companyId, puoAggiungereFasi ? orderId : undefined);
   const [scelte, setScelte] = useState<Record<string, boolean>>({});
@@ -70,6 +71,7 @@ export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisp
 
   function continua() {
     if (!daInserire) {
+      confermata.current = bozza;
       onContinua(null);
       return;
     }
@@ -82,11 +84,18 @@ export function PreparaBozzaPos({ bozza, fonte, fontiInCaricamento, fontiNonDisp
       const nuova = { ...nuovaDaSchedaStandard(modello, crypto.randomUUID()), titolo: fase.name, fase_id: fase.id };
       preparata.lavorazioni.push(nuova);
     }
+    confermata.current = preparata;
     onContinua(preparata);
   }
 
   return (
-    <DialogContent onCloseAutoFocus={onCloseAutoFocus} className="flex max-h-[88dvh] min-w-0 max-w-2xl flex-col gap-0 overflow-hidden p-0">
+    <DialogContent onCloseAutoFocus={event => {
+      if (!confermata.current) return;
+      event.preventDefault();
+      const contenuto = confermata.current;
+      confermata.current = null;
+      onVaiAllaVerifica(contenuto);
+    }} className="flex max-h-[88dvh] min-w-0 max-w-2xl flex-col gap-0 overflow-hidden p-0">
       <DialogHeader className="shrink-0 space-y-1 px-4 pb-3 pt-5 pr-10 sm:px-6 sm:pr-10">
         <DialogTitle>Prepara la bozza POS</DialogTitle>
         <DialogDescription>Scegli cosa inserire e passa alla prima voce da verificare.</DialogDescription>
@@ -158,12 +167,13 @@ function Suggerimento({ titolo, dettaglio, checked, onChange, children }: {
   onChange: (valore: boolean) => void;
   children: ReactNode;
 }) {
+  const id = useId();
   return (
     <li className="space-y-1.5 px-3 py-2.5">
-      <label className="flex min-w-0 cursor-pointer items-start gap-2 text-sm font-medium">
-        <Checkbox aria-label={titolo} className="mt-0.5 shrink-0" checked={checked} onCheckedChange={v => onChange(v === true)} />
-        <span className="min-w-0 break-words">{titolo}{dettaglio && <span className="block text-xs font-normal text-muted-foreground">{dettaglio}</span>}</span>
-      </label>
+      <div className="flex min-w-0 items-start gap-2 text-sm font-medium">
+        <Checkbox id={id} aria-label={titolo} className="mt-0.5 shrink-0" checked={checked} onCheckedChange={v => onChange(v === true)} />
+        <label htmlFor={id} className="min-w-0 cursor-pointer break-words">{titolo}{dettaglio && <span className="block text-xs font-normal text-muted-foreground">{dettaglio}</span>}</label>
+      </div>
       <details className="ml-6 text-xs text-muted-foreground">
         <summary aria-label={`Mostra anteprima per ${titolo}`} className="w-fit cursor-pointer font-medium text-primary">Mostra anteprima</summary>
         <div className="mt-1.5 space-y-2 rounded bg-muted/50 p-2">{children}</div>

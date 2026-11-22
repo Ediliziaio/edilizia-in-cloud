@@ -185,10 +185,13 @@ describe("editor del POS", () => {
     fireEvent.click(preparazione.getByRole("button", { name: "Annulla" }));
     expect(await screen.findByLabelText("Committente: cognome e nome o ragione sociale")).toHaveValue("");
     expect(screen.queryByDisplayValue("Posa cartongesso")).toBeNull();
+    await waitFor(() => expect(apri).toHaveFocus());
     fireEvent.click(apri);
     preparazione = within(screen.getByRole("dialog", { name: "Prepara la bozza POS" }));
-    expect(preparazione.getByRole("checkbox", { name: "Posa cartongesso" })).not.toBeChecked();
-    fireEvent.click(preparazione.getByRole("checkbox", { name: "Posa cartongesso" }));
+    const faseScelta = preparazione.getByRole("checkbox", { name: "Posa cartongesso" });
+    expect(faseScelta).not.toBeChecked();
+    fireEvent.click(faseScelta);
+    expect(faseScelta).toBeChecked();
     fireEvent.click(preparazione.getByRole("button", { name: "Applica e vai alla verifica" }));
     await waitFor(() => expect(screen.getByLabelText("Committente: indirizzo")).toHaveFocus(), { timeout: 4000 });
     expect(screen.getByLabelText("Committente: cognome e nome o ragione sociale")).toHaveValue("Committente Demo");
