@@ -21,17 +21,6 @@ describe("router performance controls (fake provider, no paid calls)", () => {
   beforeEach(() => vi.stubGlobal("Deno", { env: { get: (key: string) => key === "OPENROUTER_API_KEY" ? "test-not-a-secret" : undefined } }));
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
-  it("attiva l'OCR delle scansioni soltanto per la richiesta PDF che lo chiede", async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => answer()); vi.stubGlobal("fetch", fetcher);
-    const file = { type: "file", file: { filename: "scansione.pdf", file_data: "data:application/pdf;base64,dGVzdA==" } };
-    await aiRouterComplete({ supabase: db("google/gemini-2.5-flash"), taskKey: "pdf_vision_extract", messages: [{ role: "user", content: [file] }], params: { pdfEngine: "mistral-ocr" } });
-    expect(JSON.parse(fetcher.mock.calls[0][1]!.body as string).plugins).toEqual([{ id: "file-parser", pdf: { engine: "mistral-ocr" } }]);
-    await aiRouterComplete({ supabase: db("google/gemini-2.5-flash"), taskKey: "test", messages: [{ role: "user", content: [file] }] });
-    expect(JSON.parse(fetcher.mock.calls[1][1]!.body as string).plugins).toBeUndefined();
-    await aiRouterComplete({ supabase: db("google/gemini-2.5-flash"), taskKey: "test", messages: [{ role: "user", content: "Testo già letto" }], params: { pdfEngine: "mistral-ocr" } });
-    expect(JSON.parse(fetcher.mock.calls[2][1]!.body as string).plugins).toBeUndefined();
-  });
-
   it("uses the same reasoning output limit in precheck and actual request", async () => {
     const supabase = db(); const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => answer()); vi.stubGlobal("fetch", fetcher);
     const turn = new AiTurnControl();

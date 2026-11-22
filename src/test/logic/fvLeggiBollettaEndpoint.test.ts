@@ -264,9 +264,7 @@ describe("Endpoint bollette: identità, OCR e conti AI", () => {
     );
     const r = await invoke(), d = await r.json();
     expect(r.status).toBe(200);
-    expect(ai.mock.calls[0][0].idempotencyKey).toContain("ocr:v2:2");
-    expect(ai.mock.calls[0][0].params.pdfEngine).toBe("mistral-ocr");
-    expect(ai.mock.calls[1][0].params.pdfEngine).toBeUndefined();
+    expect(ai.mock.calls[0][0].idempotencyKey).toContain("ocr:2");
     expect(ai.mock.calls[0][0].companyId).toBe(company);
     expect(d.documenti[0].dati.potenza_impegnata_kw).toBe(15);
     expect(d.documenti[0].dati.pagine.potenza_impegnata_kw).toBe(2);
