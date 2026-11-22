@@ -75,11 +75,10 @@ import { RiportaDaIncassareDialog, siRiportaDaIncassare } from "@/components/fat
 import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fatturazione/HubEsterno";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, SelettoreSezione } from "@/components/mobile/FiltriMobile";
 const PER_PAGE = 25;
 
 // Mobile: Fatture, Incassi e Fiscalità; le altre schede restano al desktop.
-const HUB_TABS_MOBILE: BillingHubTab[] = ["fatture", "incassi", "fiscalita"];
 
 type BillingHubTab = "fatture" | "rubrica" | "incassi" | "sdi" | "fiscalita";
 
@@ -143,62 +142,34 @@ function BillingHubTabs({
   onChange: (tab: BillingHubTab) => void;
 }) {
   return (
-    // Mobile: due linguette affiancate da 36px, senza icone né descrizioni;
-    // sta sotto il titolo della pagina (vedi l'ordine nel contenitore).
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm max-sm:-order-1 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none">
-      <div className="flex min-w-max gap-1 max-sm:grid max-sm:min-w-0 max-sm:grid-cols-3">
-        {HUB_TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          const TabIcon = tab.icon;
+    <>
+      <SelettoreSezione nome="Sezioni documenti" valore={activeTab} sezioni={HUB_TABS} onScegli={onChange} className="max-sm:-order-1 lg:hidden" />
+      <nav aria-label="Sezioni documenti" className="hidden flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex">
+        {HUB_TABS.map(({ id, icon: Icon, label, description }) => {
+          const attiva = activeTab === id;
           return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onChange(tab.id)}
-              className={cn(
-                // v8.6.75 (LOOP-AZ-4) — min-w-[170px] su mobile spingeva
-                // i tab fuori viewport. Su mobile (<md) min-w-0 + flex-1
-                // (icon-only o wrap). Su md+ ritorna min-w-[170px] per
-                // layout descrittivo originale.
-                "flex min-w-0 md:min-w-[170px] items-center gap-2 rounded-xl px-3 py-2 text-left transition-all flex-1 md:flex-initial",
-                "tap-compact max-sm:h-8 max-sm:justify-center max-sm:rounded-md max-sm:py-0",
-                !HUB_TABS_MOBILE.includes(tab.id) && "max-sm:hidden",
-                isActive
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
-              )}
-            >
-              <span className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg max-sm:hidden",
-                isActive ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500",
-              )}>
-                <TabIcon className="h-4 w-4" />
+            <button key={id} type="button" aria-current={attiva ? "page" : undefined} onClick={() => onChange(id)}
+              className={cn("flex min-w-0 flex-1 basis-40 items-center gap-2 rounded-xl px-3 py-2 text-left",
+                attiva ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950")}>
+              <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", attiva ? "bg-white/15" : "bg-slate-100")}>
+                <Icon aria-hidden="true" className="size-4" />
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold max-sm:text-xs">{tab.id === "incassi" ? <><span className="max-sm:hidden">Registro incassi</span><span className="sm:hidden">Incassi</span></> : tab.label}</span>
-                <span className={cn(
-                  "block truncate text-[11px] max-sm:hidden",
-                  isActive ? "text-white/70" : "text-slate-500",
-                )}>
-                  {tab.description}
-                </span>
+                <span className="block text-sm font-semibold">{label}</span>
+                <span className={cn("block text-[11px]", attiva ? "text-white/70" : "text-slate-500")}>{description}</span>
               </span>
             </button>
           );
         })}
-      </div>
-    </div>
+      </nav>
+    </>
   );
 }
 
-
 function DocumentiFiscaliHub() {
-  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") as BillingHubTab | null;
-  const schedaValida = HUB_TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : "fatture";
-  // Mobile: un indirizzo verso una scheda che qui non c'è apre le fatture.
-  const activeHubTab = isMobile && !HUB_TABS_MOBILE.includes(schedaValida) ? "fatture" : schedaValida;
+  const activeHubTab = HUB_TABS.find(({ id }) => id === requestedTab)?.id ?? "fatture";
 
   const handleHubTabChange = (tab: BillingHubTab) => {
     const next = new URLSearchParams(searchParams);
@@ -238,6 +209,9 @@ function DocumentiFiscaliHub() {
 // ─── Inner Component ──────────────────────────────────────
 function DocumentiFiscaliListInner() {
   const isMobile = useIsMobile();
+  const [tabellaSuTablet, setTabellaSuTablet] = useState(false);
+  const soloVistaCompatta = tabellaSuTablet ? "sm:hidden" : "lg:hidden";
+  const soloTabella = tabellaSuTablet ? "max-sm:hidden" : "max-lg:hidden";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTipo = searchParams.get("tipo");
@@ -673,7 +647,7 @@ function DocumentiFiscaliListInner() {
           <div className="flex flex-wrap items-center gap-2">
             {elencoEmesse && !esterna && (
               <Button type="button" variant={soloBozzeFatture ? "secondary" : "outline"} size="sm" aria-pressed={soloBozzeFatture}
-                className="gap-1.5 max-sm:h-8 max-sm:px-3 max-sm:text-xs" onClick={() => {
+                className="gap-1.5 max-sm:h-11 max-sm:px-3 max-sm:text-sm" onClick={() => {
                   setStatoFilter(soloBozzeFatture ? "all" : "bozza", true);
                   azzeraFiltriElenco();
                 }}>
@@ -701,7 +675,7 @@ function DocumentiFiscaliListInner() {
             </Button>
             {!isCommercialistaMode && (
               <>
-                <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+                <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:h-11 max-sm:px-3 max-sm:text-sm">
                   <Link to="/azienda/documenti/scontrini"><ReceiptText className="h-4 w-4" />Scontrini</Link>
                 </Button>
                 {/* Da telefono la fatturazione non si imposta (solo computer o tablet).
@@ -717,7 +691,7 @@ function DocumentiFiscaliListInner() {
                 {puoCreare && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:gap-1 max-sm:px-3 max-sm:text-xs">
+                    <Button className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-11 max-sm:gap-1 max-sm:px-3 max-sm:text-sm">
                       <Plus className="h-4 w-4" /> <span className="max-sm:hidden">Nuovo documento</span><span className="sm:hidden">Nuovo</span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -798,7 +772,7 @@ function DocumentiFiscaliListInner() {
 
       {/* ── Tabs ───────────────────────────────────────── */}
       {/* Mobile: il tipo di documento sta nel pannello dei filtri. */}
-      <div role="group" aria-label="Filtra per tipo di documento" className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
+      <div role="group" aria-label="Filtra per tipo di documento" className={cn("flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm", soloTabella)}>
         {TIPO_TABS.map((tab) => {
           const count = counts?.[tab.countKey as keyof typeof counts] ?? 0;
           const isActive = activeTab === tab.id;
@@ -846,14 +820,14 @@ function DocumentiFiscaliListInner() {
       {/* ── Filters ────────────────────────────────────── */}
       {/* Mobile: ricerca e bottone dei filtri (tipo e stato nel pannello). */}
       <CercaConFiltri
-        className="sm:hidden"
+        className={soloVistaCompatta}
         valore={searchRaw}
         onCambia={(v) => { setSearchRaw(v); setPage(0); clearSelection(); }}
         segnaposto="Cliente, numero, importo, data o note…"
         filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
-      <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:hidden">
+      <div className={cn("flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm", soloTabella)}>
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}>
             <SelectTrigger aria-label="Filtra per stato" className="w-[190px] h-9 text-xs">
@@ -897,10 +871,16 @@ function DocumentiFiscaliListInner() {
         <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Puoi trovare le bozze con il filtro Bozza.</p>
       )}
 
+      <div className="hidden justify-end sm:flex lg:hidden">
+        <Button type="button" variant="outline" className="h-11" onClick={() => setTabellaSuTablet(v => !v)}>
+          {tabellaSuTablet ? "Vista compatta" : "Vista tabella"}
+        </Button>
+      </div>
+
       {/* ── Bulk Actions Bar ───────────────────────────── */}
       {/* Mobile no: niente selezione multipla. */}
       {someSelected && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5 max-sm:hidden">
+        <div className={cn("flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5", soloTabella)}>
           <span className="text-sm font-medium">{selectedDocs.length} selezionat{selectedDocs.length === 1 ? "o" : "i"}</span>
 
           {/* Niente export su telefono. */}
@@ -997,7 +977,7 @@ function DocumentiFiscaliListInner() {
         <>
         {/* Mobile: una riga per documento (cliente, numero · data · scadenza,
             importo e stato), senza casella, colonne, menu e piè con l'export. */}
-        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+        <div className={cn("divide-y divide-border overflow-hidden rounded-lg border bg-card", soloVistaCompatta)}>
           {docs.map((doc) => {
             const scadenza = getScadenzaInfo(doc);
             const isDdt = doc.tipo === "ddt";
@@ -1006,7 +986,7 @@ function DocumentiFiscaliListInner() {
                 key={doc.id}
                 type="button"
                 onClick={() => apriDocumento(doc)}
-                className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+                className="flex min-h-[52px] w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-semibold leading-tight">{doc.cliente_snapshot?.ragione_sociale || "—"}</div>
@@ -1034,7 +1014,7 @@ function DocumentiFiscaliListInner() {
             );
           })}
         </div>
-        <div className="border rounded-lg overflow-hidden max-sm:hidden">
+        <div className={cn("overflow-hidden rounded-lg border", soloTabella)}>
           <BarraScorrimentoOrizzontale contenitore={riquadroTabella} className="mx-3 my-2" />
           <div>
             <Table wrapperRef={setRiquadroTabella} wrapperClassName={elencoEmesse ? "max-h-[70vh] tabella-scorrevole" : undefined} className={elencoEmesse ? "[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap" : undefined}>
@@ -1405,10 +1385,10 @@ function DocumentiFiscaliListInner() {
             Pagina {page + 1} di {totalPages}
           </p>
           <div className="flex items-center gap-2">
-            <Button aria-label="Pagina precedente" variant="outline" size="sm" disabled={page === 0} onClick={() => { setPage(page - 1); clearSelection(); }}>
+            <Button aria-label="Pagina precedente" variant="outline" size="sm" className="max-lg:size-11" disabled={page === 0} onClick={() => { setPage(page - 1); clearSelection(); }}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button aria-label="Pagina successiva" variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); clearSelection(); }}>
+            <Button aria-label="Pagina successiva" variant="outline" size="sm" className="max-lg:size-11" disabled={page >= totalPages - 1} onClick={() => { setPage(page + 1); clearSelection(); }}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

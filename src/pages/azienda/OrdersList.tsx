@@ -16,6 +16,7 @@ import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABEL
 import { leggiEconomiaCommesse, COLONNE_MARGINI_COMMESSE } from "@/lib/economiaCommesse";
 import "./OrdersList/orders-list.css";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { SelettoreSezione } from "@/components/mobile/FiltriMobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -152,6 +153,7 @@ function OrdersListInner() {
   // un link condiviso ?view=pipeline (o il localStorage del desktop) lasciava il
   // telefono inchiodato sulla pipeline senza via d'uscita → forziamo la tabella.
   const isMobile = useIsMobile();
+  const [tabellaSuTablet, setTabellaSuTablet] = useState(false);
   // Da telefono una generale si legge soltanto (piano §3.4): la scelta non si offre.
   const modelliCreabili = isMobile ? [] : modelliGenerali;
   const conBivio = appaltatoreEnabled || modelliCreabili.length > 0;
@@ -1637,7 +1639,7 @@ function OrdersListInner() {
             type="single"
             value={viewMode}
             onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
-            className="hidden sm:flex border rounded-md"
+            className="hidden md:flex border rounded-md"
           >
             <ToggleGroupItem value="table" aria-label="Vista tabella" className="h-8 px-2.5">
               <LayoutList className="h-3.5 w-3.5" />
@@ -1939,7 +1941,14 @@ function OrdersListInner() {
             />
           ) : (
             <div className="space-y-4 max-sm:space-y-0">
+              <div className="hidden justify-end sm:flex lg:hidden">
+                <Button type="button" variant="outline" className="h-11" onClick={() => setTabellaSuTablet(v => !v)}>
+                  {tabellaSuTablet ? "Mostra elenco compatto" : "Mostra colonne"}
+                </Button>
+              </div>
               <OrdersTable
+                tabellaSuTablet={tabellaSuTablet}
+                mostraImporti={orderPerms.canViewOrderAmounts}
                 riferimentiPipeline={riferimentiPipeline}
                 pipelineFallback={archivioTabella.errore ? "Non disponibile" : archivioTabella.caricamento ? "…" : mostraPipelinePrincipale(effectiveCompany?.id) ? "Principale" : "Senza pipeline"}
                 canDelete={canDeleteOrders}
@@ -1970,14 +1979,14 @@ function OrdersListInner() {
                     {visibleShowingFrom}–{visibleShowingTo} / {visibleTotalCount}
                   </p>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
+                    <Button aria-label="Pagina precedente" variant="outline" size="sm" className="max-lg:min-h-11 max-lg:min-w-11" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
                       <ChevronLeft className="h-4 w-4" />
                       <span className="hidden sm:inline ml-1">Precedente</span>
                     </Button>
                     <span className="text-sm font-medium px-1">
                       {page} / {totalPages}
                     </span>
-                    <Button variant="outline" size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
+                    <Button aria-label="Pagina successiva" variant="outline" size="sm" className="max-lg:min-h-11 max-lg:min-w-11" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
                       <span className="hidden sm:inline mr-1">Successivo</span>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
@@ -2091,9 +2100,10 @@ export default function OrdersList() {
   return (
     <div className="space-y-3 overflow-x-hidden">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
-      <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+      <SelettoreSezione nome="Sezioni commesse" valore={activeTab} sezioni={tabs} onScegli={handleTabChange} className="lg:hidden" />
+      <div className="hidden rounded-xl border border-slate-200 bg-white p-1 shadow-sm lg:block">
         <nav
-          className="flex min-h-0 items-center gap-1 overflow-x-auto scroll-smooth px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-h-0 flex-wrap items-center gap-1 px-0.5"
           role="tablist"
           aria-label="Sezioni commesse"
         >
