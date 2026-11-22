@@ -108,6 +108,7 @@ export function RevisioneProposteAiPos({ risultato, modalitaVuota, preesistenti,
   risultato: RisultatoPropostePos; modalitaVuota: boolean; preesistenti: Lavorazione[]; destinazioneId?: string; onClose: () => void;
   onApplica: (lavorazioni: Lavorazione[], modalita: string, aggiornamenti: Record<string, AggiornamentoPropostaPos>) => void;
 }) {
+  const idScelte = useId();
   const giaPresente = (l: Lavorazione) => preesistenti.some(e => stessaLavorazionePos(l, e));
   const stessaFase = (proposta: Lavorazione, esistente: Lavorazione) =>
     !proposta.fase_id || !esistente.fase_id || proposta.fase_id === esistente.fase_id;
@@ -161,29 +162,30 @@ export function RevisioneProposteAiPos({ risultato, modalitaVuota, preesistenti,
             <ul className="space-y-1">{risultato.avvisi.map(a => <li key={a}>{a}</li>)}</ul>
           </div>}
           {!!modalita && <div className="space-y-2 rounded-md border p-2.5">
-            <label className="flex items-start gap-2 text-sm font-medium">
-              <Checkbox checked={accettaModalita} onCheckedChange={v => scegliModalita(v === true)} />
-              Inserisci anche le modalità organizzative
-            </label>
+            <div className="flex items-start gap-2">
+              <Checkbox id={`${idScelte}-modalita`} checked={accettaModalita} onCheckedChange={v => scegliModalita(v === true)} />
+              <Label htmlFor={`${idScelte}-modalita`}>Inserisci anche le modalità organizzative</Label>
+            </div>
             <p className="whitespace-pre-line text-xs text-muted-foreground">{modalita}</p>
           </div>}
           <ul className="space-y-2">
             {risultato.lavorazioni.map(l => {
+              const idScelta = `${idScelte}-scheda-${l.id}`;
               const azione = aggiornamenti[l.id];
               const esistente = preesistenti.find(x => x.id === azione?.id);
               const testi = esistente && azione?.modo === "testi" ? testiMancantiDaProposta(esistente, l) : [];
               const destinazioni = preesistenti.filter(x => stessaFase(l, x) && (azione?.id === x.id ||
                 !Object.entries(aggiornamenti).some(([id, scelta]) => scelte.has(id) && scelta.id === x.id)));
               return <li key={l.id} className="space-y-2 rounded-lg border p-3">
-                <label className="flex items-start gap-2 text-sm font-semibold">
-                  <Checkbox checked={scelte.has(l.id)} onCheckedChange={v => scegli(prev => {
+                <div className="flex items-start gap-2">
+                  <Checkbox id={idScelta} checked={scelte.has(l.id)} onCheckedChange={v => scegli(prev => {
                     const next = new Set(prev);
                     if (v === true) next.add(l.id);
                     else next.delete(l.id);
                     return next;
                   })} />
-                  {l.titolo || l.descrizione}
-                </label>
+                  <Label htmlFor={idScelta} className="break-words font-semibold">{l.titolo || l.descrizione}</Label>
+                </div>
                 {l.titolo && !testi.length && <p className="break-words text-xs text-muted-foreground">{l.descrizione}</p>}
                 {!!testi.length && <div className="grid gap-2 rounded-md bg-muted/50 p-2.5 text-xs">
                   {testi.map(t => <div key={t.id}><p className="font-medium">{t.titolo}</p><p className="whitespace-pre-wrap break-words text-muted-foreground">{t.testo}</p></div>)}

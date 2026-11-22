@@ -12,6 +12,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { nuovaDaSchedaStandard, SCHEDE_STANDARD_POS } from "../../../supabase/functions/_shared/posSchedeStandard";
 import { lavorazioneVuota, posVuoto, type PosContenuto } from "../../../supabase/functions/_shared/posModello";
 
+// In JSDOM le prove con più passaggi ridisegnano tutte le sezioni dell’editor.
+vi.setConfig({ testTimeout: 15_000 });
+
 const stato = vi.hoisted(() => ({
   errore: null as Error | null,
   puoLeggereComputo: false,
@@ -349,7 +352,7 @@ describe('La conferma riguarda il documento effettivamente letto',()=>{
   fireEvent.click(screen.getByText("Salva", { selector: "button" }));
   await waitFor(() => expect(stato.salva).toHaveBeenCalledTimes(2));
   expect(stato.salva.mock.calls[1][0].attesa_updated_at).toBe("2026-10-27T12:03:00Z");
- }, 15_000);
+ });
 });
 
 
@@ -480,7 +483,9 @@ describe("la proposta dell'AI", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
     fireEvent.click(screen.getByRole("button", { name: "Genera proposte" }));
     const revisione = await screen.findByRole("dialog", { name: "Rivedi le proposte AI" });
-    fireEvent.click(within(revisione).getByRole("checkbox", { name: "Sola consegna al varco" }));
+    const daEscludere = within(revisione).getByRole("checkbox", { name: "Sola consegna al varco" });
+    fireEvent.click(daEscludere);
+    expect(daEscludere).toHaveAttribute("aria-checked", "false");
     fireEvent.click(within(revisione).getByRole("button", { name: "Applica alla bozza (1)" }));
     expect(screen.queryByDisplayValue("Sola consegna al varco")).toBeNull();
     fireEvent.click(screen.getByText("Fonti della scheda"));
