@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   FishLiveVoice,
@@ -22,7 +22,7 @@ const dateLabel = (date: string) =>
   }).format(new Date(date.slice(0, 10) + "T12:00:00Z"));
 
 export default function LocalLeadTrialPage() {
-  const client = useMemo(createLocalAssistanceClient, []);
+  const [client] = useState(createLocalAssistanceClient);
   const [setup, setSetup] = useState<LocalLeadSetup | null>(null);
   const [trial, setTrial] = useState<LocalLeadSnapshot | null>(null);
   const [error, setError] = useState("");
@@ -30,7 +30,7 @@ export default function LocalLeadTrialPage() {
   const [params, setParams] = useSearchParams();
   const trialId = params.get("prova");
 
-  const refresh = useCallback(async (id: string) => {
+  async function refresh(id: string) {
     try {
       setTrial(await client.leadSnapshot(id));
       setError("");
@@ -39,7 +39,7 @@ export default function LocalLeadTrialPage() {
         error instanceof Error ? error.message : "Esito locale da verificare.",
       );
     }
-  }, [client]);
+  }
   useEffect(() => {
     let active = true;
     void client
@@ -56,8 +56,20 @@ export default function LocalLeadTrialPage() {
     };
   }, [client]);
   useEffect(() => {
-    if (setup && trialId) void refresh(trialId);
-  }, [refresh, setup, trialId]);
+    if (!setup || !trialId) return;
+    let active = true;
+    void client.leadSnapshot(trialId).then(
+      (data) => {
+        if (!active) return;
+        setTrial(data);
+        setError("");
+      },
+      (error: unknown) => {
+        if (active) setError(error instanceof Error ? error.message : "Esito locale da verificare.");
+      },
+    );
+    return () => { active = false; };
+  }, [client, setup, trialId]);
 
   const localLead: LocalLeadVoice | undefined = setup && {
     day: setup.day,
