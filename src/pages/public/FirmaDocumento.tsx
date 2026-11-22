@@ -68,9 +68,9 @@ function secondiRestanti(iso?: string | null): number {
  */
 function Wrapper({ children, largo = false }: { children: React.ReactNode; largo?: boolean }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 pt-10">
+    <div className="min-h-screen bg-gray-50 flex items-start justify-center p-3 pt-4 sm:p-4 sm:pt-8">
       <div className={`w-full ${largo ? 'max-w-3xl' : 'max-w-md'} bg-white rounded-2xl shadow-lg overflow-hidden`}>
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-4 sm:p-6">
           <div className="flex items-center gap-3">
             <Shield className="h-7 w-7 text-orange-400" />
             <div>
@@ -79,7 +79,7 @@ function Wrapper({ children, largo = false }: { children: React.ReactNode; largo
             </div>
           </div>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -92,6 +92,7 @@ export default function FirmaDocumento() {
   const [erroreMsg, setErroreMsg] = useState('');
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpTimer, setOtpTimer] = useState(600);
+  const otpScadenza = useRef(0);
   const [otpTentativi, setOtpTentativi] = useState(0);
   const [otpError, setOtpError] = useState('');
   // L'unico consenso: documento, clausole 1341, recesso e privacy, prima che parta il codice.
@@ -130,21 +131,11 @@ export default function FirmaDocumento() {
     return () => { document.title = prima; };
   }, [sessione]);
 
-  // Countdown OTP — usa ref per evitare stale closure su timer ID
-  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Usa l'orario di scadenza anche se il telefono torna da una scheda in secondo piano.
   useEffect(() => {
     if (step !== 'otp') return;
-    if (otpTimerRef.current) clearInterval(otpTimerRef.current);
-    otpTimerRef.current = setInterval(() => {
-      setOtpTimer(prev => {
-        if (prev <= 1) {
-          if (otpTimerRef.current) { clearInterval(otpTimerRef.current); otpTimerRef.current = null; }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => { if (otpTimerRef.current) { clearInterval(otpTimerRef.current); otpTimerRef.current = null; } };
+    const intervallo = setInterval(() => setOtpTimer(Math.max(0, Math.ceil((otpScadenza.current - Date.now()) / 1000))), 1000);
+    return () => clearInterval(intervallo);
   }, [step]);
 
   // Geolocation silenzioso
@@ -196,9 +187,9 @@ export default function FirmaDocumento() {
   };
 
   const copiaFirmata = <div className="space-y-2">
-    {pdfFirmatoUrl ? <a href={pdfFirmatoUrl} target="_blank" rel="noopener noreferrer">
-      <Button variant="outline" className="gap-2 h-11"><FileText className="h-4 w-4" />Scarica copia firmata</Button>
-    </a> : <Button variant="outline" disabled={recuperoPdfInCorso} onClick={() => void recuperaCopiaFirmata()}>
+    {pdfFirmatoUrl ? <Button asChild className="min-h-11 gap-2">
+      <a href={pdfFirmatoUrl} target="_blank" rel="noopener noreferrer"><FileText className="size-4" />Scarica copia firmata</a>
+    </Button> : <Button variant="outline" className="min-h-11" disabled={recuperoPdfInCorso} onClick={() => void recuperaCopiaFirmata()}>
       {recuperoPdfInCorso ? 'Recupero copia…' : 'Recupera copia firmata'}
     </Button>}
   </div>;
@@ -213,6 +204,7 @@ export default function FirmaDocumento() {
       if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non inviato. Riprova.'));
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true) throw new Error('Invio del codice non confermato. Riprova.');
+      otpScadenza.current = Date.now() + 600_000;
       setOtpTimer(600);
       setOtpTentativi(0);
       setOtpDigits(['', '', '', '', '', '']);
@@ -225,8 +217,16 @@ export default function FirmaDocumento() {
     }
   };
 
+  const compilaCodice = (cifre: string) => {
+    const nuove = Array.from({ length: 6 }, (_, i) => cifre[i] ?? '');
+    setOtpDigits(nuove);
+    inputRefs.current[Math.min(cifre.length, 5)]?.focus();
+    if (cifre.length === 6) void verificaOtp(cifre);
+  };
+
   const handleOtpInput = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
+    if (value.length > 1) { compilaCodice(value.slice(0, 6)); return; }
     const newDigits = [...otpDigits];
     newDigits[index] = value.slice(-1);
     setOtpDigits(newDigits);
@@ -242,6 +242,7 @@ export default function FirmaDocumento() {
     // se ne manda uno nuovo.
     const restanti = secondiRestanti(sessione?.otp_valido_fino);
     if (restanti > 30) {
+      otpScadenza.current = Date.now() + Math.min(600, restanti) * 1000;
       setOtpTimer(Math.min(600, restanti));
       setOtpDigits(['', '', '', '', '', '']);
       setOtpError('');
@@ -256,11 +257,7 @@ export default function FirmaDocumento() {
     const cifre = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
     if (cifre.length < 2) return; // una cifra sola: comportamento normale
     e.preventDefault();
-    const nuove = ['', '', '', '', '', ''];
-    cifre.split('').forEach((c, i) => { nuove[i] = c; });
-    setOtpDigits(nuove);
-    setTimeout(() => inputRefs.current[Math.min(cifre.length, 5)]?.focus(), 0);
-    if (cifre.length === 6) verificaOtp(cifre);
+    compilaCodice(cifre);
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -270,6 +267,8 @@ export default function FirmaDocumento() {
   };
 
   const verificaOtp = async (otp?: string) => {
+    if (verificaOtpInCorso || invioOtpInCorso) return;
+    if (otpTimer === 0) { setOtpError('Richiedi un nuovo codice per continuare.'); return; }
     const otpValue = otp ?? otpDigits.join('');
     if (otpValue.length !== 6) { setOtpError('Inserisci il codice a 6 cifre'); return; }
     setVerificaOtpInCorso(true);
@@ -499,7 +498,6 @@ export default function FirmaDocumento() {
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Documento da firmare</h2>
-          <p className="text-slate-500 text-sm mt-1">Leggilo, accetta e inserisci il codice: è tutto qui.</p>
         </div>
         {/* Da /stima (?avvia=1) il documento è appena stato letto: si resta sul consenso, senza riproporlo. */}
         {sessione.pdf_url && new URLSearchParams(window.location.search).get('avvia') !== '1' && <AnteprimaDocumento url={sessione.pdf_url} />}
@@ -553,7 +551,7 @@ export default function FirmaDocumento() {
               href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 p-2 rounded border border-slate-200 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              className="flex min-h-11 items-center justify-center gap-2 px-2 rounded border border-slate-200 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
               Apri il documento a schermo intero
             </a>
@@ -563,7 +561,7 @@ export default function FirmaDocumento() {
           const clausole = clausoleDaApprovare(sessione);
           const b2c = sessione.tipo_firmatario === 'b2c';
           return (
-            <div className="space-y-3 rounded-xl border-2 border-orange-200 bg-orange-50/40 p-4">
+            <div className="space-y-3 rounded-xl border-2 border-orange-200 bg-orange-50/40 p-3 sm:p-4">
               <div className="flex items-start gap-3">
                 <Checkbox id="accetto" className="mt-0.5" checked={accettato} onCheckedChange={v => setAccettato(!!v)} />
                 <label htmlFor="accetto" className="cursor-pointer text-sm text-slate-800">
@@ -610,8 +608,8 @@ export default function FirmaDocumento() {
           La tua firma elettronica ha valore legale ai sensi del CAD e del Regolamento eIDAS
         </p>
         <Button
-          variant="outline"
-          className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+          variant="ghost"
+          className="min-h-11 w-full text-red-700 hover:bg-red-50 hover:text-red-700"
           disabled={invioOtpInCorso}
           onClick={() => { setRifiutoMotivo(''); setRifiutoDialogAperto(true); }}
         >
@@ -628,14 +626,12 @@ export default function FirmaDocumento() {
         {avanzamento('codice')}
         <div>
           <h2 className="text-xl font-bold text-slate-800">Inserisci il codice</h2>
-          <p className="text-slate-500 text-sm mt-1">Controlla la tua email{sessione.signer_telefono_mascherato ? ' e gli SMS' : ''} e inserisci il codice a 6 cifre</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Codice a 6 cifre inviato {sessione.signer_email_mascherata ? <>a <strong className="break-all font-medium text-slate-700">{sessione.signer_email_mascherata}</strong></> : 'via email'}
+            {sessione.signer_telefono_mascherato ? <> e via SMS al <strong className="font-medium text-slate-700">{sessione.signer_telefono_mascherato}</strong></> : null}.
+          </p>
         </div>
-        {sessione.signer_email_mascherata && (
-          <p className="text-slate-500 text-sm -mt-3">Inviato a <span className="font-medium text-slate-700">{sessione.signer_email_mascherata}</span>{sessione.signer_telefono_mascherato && <> e al <span className="font-medium text-slate-700">{sessione.signer_telefono_mascherato}</span></>}</p>
-        )}
-        {/* 6 campi da 40 px + 5 spazi = 270 px: entrano in un iPhone SE (prima 48 px sforavano la card).
-            autoComplete one-time-code: iOS e Android propongono il codice arrivato. */}
-        <div className="flex gap-1.5 sm:gap-2 justify-center">
+        <div className="mx-auto grid w-full max-w-[22rem] grid-cols-6 gap-1.5 sm:gap-2">
           {otpDigits.map((digit, i) => (
             <input
               key={i}
@@ -644,55 +640,36 @@ export default function FirmaDocumento() {
               inputMode="numeric"
               pattern="[0-9]*"
               autoComplete={i === 0 ? 'one-time-code' : 'off'}
-              maxLength={1}
+              maxLength={i === 0 ? 6 : 1}
               aria-label={`Cifra ${i + 1} di 6`}
               value={digit}
               onChange={e => handleOtpInput(i, e.target.value)}
               onKeyDown={e => handleOtpKeyDown(i, e)}
               onPaste={handleOtpPaste}
-              className="w-10 h-12 sm:w-12 sm:h-14 text-center text-2xl font-bold border-2 rounded-xl focus:border-orange-500 outline-none transition-colors"
+              className="h-12 w-full min-w-0 sm:h-14 text-center text-2xl font-bold border-2 rounded-xl focus:border-orange-500 outline-none transition-colors"
               autoFocus={i === 0}
             />
           ))}
         </div>
         {otpError && (
-          <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg p-3 text-sm">
+          <div role="alert" className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg p-3 text-sm">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{otpError}</span>
           </div>
         )}
-        {otpTimer === 0 && (
-          <div className="flex flex-col items-center gap-3 text-red-600 bg-red-50 rounded-lg p-4 text-sm">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span className="font-medium">Il codice è scaduto. Richiedine uno nuovo per continuare.</span>
-            </div>
-            <Button
-              variant="outline"
-              className="gap-2 border-red-200 text-red-600 hover:bg-red-100 hover:text-red-700"
-              onClick={inviaOtp}
-              disabled={invioOtpInCorso}
-            >
-              {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin" />Invio...</> : 'Reinvia codice'}
-            </Button>
-          </div>
-        )}
-        <div className="flex items-center justify-between text-sm">
-          <span className={`font-mono ${otpTimer < 60 ? 'text-red-500' : 'text-slate-500'}`}>
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className={`font-mono ${otpTimer < 60 ? 'text-red-600' : 'text-slate-500'}`}>
             {otpTimer > 0 ? `Codice valido: ${formatTimer(otpTimer)}` : 'Codice scaduto'}
           </span>
-          <button
-            onClick={inviaOtp}
-            disabled={invioOtpInCorso || otpTimer > 540}
-            className="text-orange-500 underline disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-          >
-            {invioOtpInCorso ? 'Invio...' : 'Reinvia codice'}
-          </button>
+          <Button type="button" variant="ghost" className="min-h-11 px-2 text-orange-700"
+            onClick={inviaOtp} disabled={invioOtpInCorso || verificaOtpInCorso || otpTimer > 540}>
+            {invioOtpInCorso ? 'Invio…' : 'Reinvia codice'}
+          </Button>
         </div>
         <Button
           className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
           onClick={() => verificaOtp()}
-          disabled={verificaOtpInCorso || otpDigits.some(d => !d)}
+          disabled={verificaOtpInCorso || invioOtpInCorso || otpTimer === 0 || otpDigits.some(d => !d)}
         >
           {verificaOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Verifica...</> : 'Verifica codice'}
         </Button>
@@ -782,9 +759,6 @@ export default function FirmaDocumento() {
             In attesa della firma di {altriFirmatari.filter((f) => !f.firmato).map((f) => f.nome).join(' e ')}.
           </p>
         )}
-        <p className="text-slate-500 text-sm max-w-xs">
-          Non è richiesta nessuna ulteriore azione. Per assistenza contatta l&apos;azienda che ti ha inviato il link.
-        </p>
       </div>
     </Wrapper>
   );
@@ -802,22 +776,18 @@ export default function FirmaDocumento() {
             Firmato il {format(new Date(firmaTimestamp), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}
           </p>
         )}
-        <p className="text-slate-500 text-sm max-w-xs">
-          La firma elettronica è stata registrata correttamente.
-          {sessione?.tipo_firmatario === 'b2c' && ' Riceverai una copia via email.'}
-        </p>
+        {sessione?.tipo_firmatario === 'b2c' && <p className="max-w-xs text-sm text-slate-500">Riceverai una copia via email.</p>}
         {manca && altriFirmatari.length > 0 && (
           <p className="text-amber-700 text-sm max-w-xs">
             Manca ancora la firma di {altriFirmatari.filter((f) => !f.firmato).map((f) => f.nome).join(' e ') || 'del cointestatario'}: quando firma, riceverai il documento con tutte e due le firme.
           </p>
         )}
         {sessione?.pdf_url && (
-          <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" className="gap-2 h-11">
-              <FileText className="h-4 w-4" />
-              Apri documento originale
-            </Button>
-          </a>
+          <Button asChild variant="ghost" className="min-h-11 gap-2">
+            <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer">
+              <FileText className="size-4" />Apri documento originale
+            </a>
+          </Button>
         )}
         {(sessione?.azienda_telefono || sessione?.azienda_email) && (
           <div className="w-full mt-2 pt-4 border-t border-slate-100 text-sm text-slate-600 space-y-1">

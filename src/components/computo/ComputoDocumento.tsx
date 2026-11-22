@@ -186,8 +186,8 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
     {invioFirma}
     {creaCommessa && <section aria-label="Commessa" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white p-3">
       <div className="min-w-0"><h3 className="text-sm font-semibold">Dal preventivo alla commessa</h3>
-        <p className="text-xs text-muted-foreground">La commessa nasce dal preventivo firmato: se il cliente non l'ha firmato online, registri la firma su carta con la scansione. Poi si apre la commessa con cliente, voci e rate già compilati.</p></div>
-      <Button type="button" size="sm" variant="outline" disabled={creando || disabilitato || !bozza.voci.length} onClick={async () => {
+        <p className="text-xs text-muted-foreground">Con il preventivo firmato trasferisci cliente, voci e rate. Puoi anche registrare la firma su carta.</p></div>
+      <Button type="button" className="min-h-11" size="sm" variant="outline" disabled={creando || disabilitato || !bozza.voci.length} onClick={async () => {
         setCreando(true);
         try { await creaCommessa(); } catch (e) { toast.error((e as Error).message); } finally { setCreando(false); }
       }}>{creando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Briefcase className="mr-1 h-4 w-4" />}Crea la commessa</Button>

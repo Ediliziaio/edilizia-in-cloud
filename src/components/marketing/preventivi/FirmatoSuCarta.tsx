@@ -89,12 +89,11 @@ export function FirmatoSuCartaDialog({ open, onOpenChange, quote, modulo, onFirm
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!salvando) onOpenChange(o); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent struttura="scorrevole" className="max-w-md">
         <DialogHeader>
           <DialogTitle>Firmato su carta</DialogTitle>
           <DialogDescription>
-            Il cliente ha firmato il preventivo stampato? Carica la scansione: il preventivo diventa il contratto, come con la
-            firma digitale, e il documento resta collegato. Non si può sostituire né cancellare.
+            Carica il preventivo firmato. La scansione resta archiviata come contratto e non può essere sostituita.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

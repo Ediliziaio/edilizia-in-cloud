@@ -11,7 +11,7 @@ export function ModuleConversionSummary({ riepilogo, vociScelte, onCambiaVoci }:
   const proposte = (voci ?? []).filter((v) => v.proposta);
   const altre = (voci ?? []).filter((v) => !v.proposta);
   const rigaVoce = (v: NonNullable<typeof voci>[number]) => <li key={v.id}>
-    <label className="flex cursor-pointer items-start gap-2 rounded-md p-1.5 hover:bg-muted/60">
+    <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/60">
       <Checkbox className="mt-0.5" checked={!!vociScelte?.has(v.id)} onCheckedChange={(c) => cambia(v.id, c === true)} aria-label={v.nome} />
       <span className="min-w-0"><span className="break-words">{v.nome}</span> <span className="text-xs text-muted-foreground">· {v.quantita} {v.unita ?? ""}</span></span>
     </label>
@@ -28,10 +28,10 @@ export function ModuleConversionSummary({ riepilogo, vociScelte, onCambiaVoci }:
     </div>
     {voci?.length && vociScelte && onCambiaVoci ? <section aria-label="Materiali da ordinare">
       <h3 className="font-semibold">Materiali da ordinare · {vociScelte.size}</h3>
-      <p className="text-xs text-muted-foreground">Le cose da comprare. Togli la spunta a quello che non serve ordinare.</p>
+      <p className="text-xs text-muted-foreground">Seleziona i materiali da ordinare.</p>
       <ul className="mt-2 space-y-1">{proposte.map(rigaVoce)}</ul>
       {altre.length > 0 && <details className="mt-2 text-sm">
-        <summary className="cursor-pointer py-1 text-muted-foreground">Altre voci, di solito solo lavoro · {altre.length}</summary>
+        <summary className="cursor-pointer py-1 text-muted-foreground">Altre voci · {altre.length}</summary>
         <ul className="mt-1 space-y-1">{altre.map(rigaVoce)}</ul>
       </details>}
     </section> : <section aria-label="Materiali da ordinare">
@@ -53,9 +53,8 @@ export function ModuleConversionSummary({ riepilogo, vociScelte, onCambiaVoci }:
       <h3 className="font-semibold">Rate · {riepilogo.rate?.length ?? 0}</h3>
       {riepilogo.rate?.length ? <ul className="mt-2 space-y-1">{riepilogo.rate.map((r, i) => <li key={i} className="flex justify-between gap-3 rounded-md border px-2 py-1.5">
         <span>{r.label}</span><span className="tabular-nums">{formatCurrency(r.amount)}</span>
-      </li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">Il preventivo non ha un piano di pagamento completo: la commessa prende le rate di partenza dell'azienda, se le ha scelte.</p>}
+      </li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">Si usano le rate predefinite dell’azienda, se impostate.</p>}
     </section>
     {riepilogo.esclusi > 0 && <p className="text-xs text-muted-foreground">{riepilogo.esclusi} voci con quantità nulla o negativa, o opzionali, escluse dalla pianificazione. Il contratto resta invariato.</p>}
-    <p className="text-xs text-muted-foreground">Sconti e prezzo a corpo restano nel valore del contratto. I costi effettivi si registrano in seguito.</p>
   </div>;
 }

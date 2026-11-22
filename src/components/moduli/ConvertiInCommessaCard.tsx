@@ -42,9 +42,11 @@ interface Props {
   /** Per «Firmato su carta»: il codice del preventivo e chi lo firma di solito. */
   codice?: string | null;
   clientName?: string | null;
+  /** Il fotovoltaico invia la richiesta sul progetto, senza una riga quote. */
+  firmaInAttesa?: boolean;
 }
 
-export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito, capitoli = 0, fasiPianificate = 0, codice, clientName }: Props) {
+export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito, capitoli = 0, fasiPianificate = 0, codice, clientName, firmaInAttesa = false }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -54,6 +56,9 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
     queryKey: chiaveContrattoModulo(modulo, progettoId),
     queryFn: () => leggiContrattoModulo(modulo, progettoId),
     enabled: !!progettoId,
+    staleTime: 0,
+    refetchOnWindowFocus: "always",
+    refetchInterval: ({ state }) => (firmaInAttesa || state.data?.quote_status === "inviata") && !state.data?.firmato ? 15_000 : false,
   });
   const ordineAperto = ordineId ?? contratto?.ordine_id ?? null;
   const motivo = bloccoMotivo ?? bloccoDelContratto(contratto);
@@ -120,10 +125,10 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 max-md:truncate max-md:text-[13px]">Commessa già aperta</p>
             <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 max-md:hidden">
-              Questo preventivo è diventato una commessa: i lavori si seguono da lì.
+              Il preventivo è collegato alla commessa.
             </p>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5 tap-compact max-md:h-8 max-md:shrink-0" onClick={() => navigate(`/azienda/ordini/${ordineAperto}`)}>
+          <Button variant="outline" size="sm" className="min-h-11 gap-1.5 shrink-0" onClick={() => navigate(`/azienda/ordini/${ordineAperto}`)}>
             <span className="max-md:hidden">Apri la commessa</span>
             <span className="md:hidden">Apri</span>
             <ArrowRight className="h-3.5 w-3.5" />
@@ -138,32 +143,33 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
     <>{contratto?.firmato && (
       <ContrattoFirmatoCard quote={{ firma_modo: contratto.modo, signed_at: contratto.signed_at, signed_by_name: contratto.signed_by_name, contratto_firmato: contratto.contratto_firmato }} />
     )}
-    <Card className={cn("border-orange-200 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/20", motivo && !offriCarta && "max-md:hidden")}>
+    <Card className="border-orange-200 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/20">
       <CardContent className="flex flex-wrap items-center gap-3 p-4 max-md:gap-2 max-md:px-3 max-md:py-2">
         <HardHat className="h-5 w-5 shrink-0 text-orange-600 max-md:hidden" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-orange-900 dark:text-orange-200 max-md:truncate max-md:text-[13px]">
-            {contratto && !contratto.firmato ? "Il cliente ha firmato?" : "Il preventivo è firmato: crea la commessa"}
+            {!contratto ? "Verifica della firma…" : contratto.firmato
+              ? motivo ? "Commessa da verificare" : "Crea la commessa" : (firmaInAttesa || contratto.quote_status === "inviata") ? "In attesa della firma" : "Firma necessaria"}
           </p>
-          <p className="text-xs text-orange-800/80 dark:text-orange-300/80 max-md:hidden">
-            {motivo ?? "Controlla lavorazioni, materiali e rate prima di creare la commessa. Il contratto mantiene il suo importo."}
+          <p className={cn("text-xs text-orange-800/80 dark:text-orange-300/80", !bloccoMotivo && !contratto?.famiglia && "max-md:hidden")}>
+            {motivo ?? "Verifica lavorazioni, materiali e rate."}
           </p>
-          {fasiPianificate > 0 && <p className="mt-1 text-xs">Mantiene le {fasiPianificate} fasi pianificate nel preventivo, con le loro sottofasi.</p>}
+          {contratto?.firmato && fasiPianificate > 0 && <p className="mt-1 text-xs">Mantiene le {fasiPianificate} fasi pianificate nel preventivo, con le loro sottofasi.</p>}
           {offriFasi && !bloccoMotivo && (
-            <label className="mt-1.5 flex items-center gap-2 text-xs text-orange-900 dark:text-orange-200">
+            <label className={cn("mt-1.5 flex min-h-11 items-center gap-2 text-xs text-orange-900 dark:text-orange-200", !contratto?.firmato && "max-lg:hidden")}>
               <Checkbox checked={fasiCapitoli} onCheckedChange={(v) => setFasiCapitoli(v === true)} aria-label="Una fase per ogni capitolo" />
-              Raggruppa le lavorazioni nei {capitoli} capitoli del computo
+              Una fase per capitolo ({capitoli})
             </label>
           )}
         </div>
         {offriCarta && (
-          <Button size="sm" variant="outline" className="gap-1.5 tap-compact max-md:h-8 max-md:shrink-0 max-md:text-xs" onClick={() => setCartaAperta(true)}>
+          <Button size="sm" variant="outline" className="min-h-11 shrink-0 gap-1.5 max-md:text-xs" onClick={() => setCartaAperta(true)}>
             <FileSignature className="h-3.5 w-3.5 max-md:hidden" />Firmato su carta
           </Button>
         )}
         <Button
           size="sm"
-          className="gap-1.5 bg-orange-500 text-white hover:bg-orange-600 tap-compact max-md:h-8 max-md:shrink-0 max-md:text-xs"
+          className={cn("min-h-11 shrink-0 gap-1.5 bg-orange-500 text-white hover:bg-orange-600 max-md:text-xs", (!contratto || motivo) && "max-lg:hidden")}
           disabled={inCorso || !!motivo || !contratto}
           onClick={() => { void mostraRiepilogo(); }}
           title={motivo ?? undefined}
@@ -175,15 +181,15 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
       </CardContent>
     </Card>
     <Dialog open={dialog} onOpenChange={(v) => { if (!inCorso) setDialog(v); }}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent struttura="scorrevole" className="sm:max-w-2xl">
         <DialogHeader><DialogTitle>Dal preventivo alla commessa</DialogTitle>
           <DialogDescription>Verifica cosa verrà trasferito nel cantiere.</DialogDescription></DialogHeader>
         {riepilogo && <ModuleConversionSummary riepilogo={riepilogo} vociScelte={vociScelte} onCambiaVoci={setVociScelte} />}
         {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
-        <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 border-t bg-background px-6 py-3">
-          <Button variant="outline" disabled={inCorso} onClick={() => setDialog(false)}>Torna al preventivo</Button>
-          {errore ? <Button disabled={inCorso} onClick={() => { void mostraRiepilogo(); }}>Aggiorna riepilogo</Button>
-            : <Button disabled={inCorso || !riepilogo} onClick={() => { void converti(); }}>{inCorso ? "Creazione…" : "Conferma e crea commessa"}</Button>}
+        <DialogFooter>
+          <Button variant="outline" className="min-h-11" disabled={inCorso} onClick={() => setDialog(false)}>Torna al preventivo</Button>
+          {errore ? <Button className="min-h-11" disabled={inCorso} onClick={() => { void mostraRiepilogo(); }}>Aggiorna riepilogo</Button>
+            : <Button className="min-h-11 whitespace-normal" disabled={inCorso || !riepilogo} onClick={() => { void converti(); }}>{inCorso ? "Creazione…" : "Conferma e crea commessa"}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

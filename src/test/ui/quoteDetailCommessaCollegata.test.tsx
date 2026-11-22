@@ -104,7 +104,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
   it("senza commessa si offrono le due strade, e righe non copiate si dicono (non «successo»)", async () => {
     finto.invoke.mockResolvedValue({ data: { success: true, order_id: "o1", avviso: "Righe non copiate: boom" }, error: null });
     pagina();
-    const converti = await screen.findByRole("button", { name: /Converti in Cantiere/ });
+    const converti = await screen.findByRole("button", { name: "Crea commessa" });
     expect(screen.getByRole("button", { name: /Crea commessa \(rivedi\)/ })).toBeTruthy();
     await waitFor(() => expect(converti).toBeEnabled()); // finito il controllo «c'è già una commessa?»
     fireEvent.click(converti);
@@ -118,7 +118,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     finto.commessa = { id: "o1", order_code: "OC-2026-0007" };
     pagina();
     await screen.findByRole("button", { name: /Vai alla commessa/ });
-    expect(screen.queryByRole("button", { name: /Converti in Cantiere/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Crea commessa" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Crea commessa \(rivedi\)/ })).toBeNull();
   });
 
@@ -131,7 +131,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     finto.commessa = { id: "o9", order_code: "OC-2026-0009" };
     pagina(client); // stessa cache dell'app, ancora «fresca» (5 minuti)
     await screen.findByRole("button", { name: /Vai alla commessa/ });
-    expect(screen.queryByRole("button", { name: /Converti in Cantiere/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Crea commessa" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Crea commessa \(rivedi\)/ })).toBeNull();
   });
 
@@ -145,7 +145,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     pagina(client);
     const rivedi = await screen.findByRole("button", { name: /Crea commessa \(rivedi\)/ });
     expect(rivedi).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Converti in Cantiere/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Crea commessa" })).toBeDisabled();
     finto.commessa = { id: "o9", order_code: "OC-2026-0009" };
     rilascia();
     await screen.findByRole("button", { name: /Vai alla commessa/ });
@@ -156,7 +156,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     pagina();
     const rivedi = await screen.findByRole("button", { name: /Crea commessa \(rivedi\)/ });
     await waitFor(() => expect(rivedi).toBeEnabled());
-    expect(screen.getByRole("button", { name: /Converti in Cantiere/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Crea commessa" })).toBeEnabled();
   });
 
   it("dopo «Converti in Cantiere» la pagina dice anche alla commessa collegata di rileggersi", async () => {
@@ -164,7 +164,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     const client = clientComeApp();
     const spia = vi.spyOn(client, "invalidateQueries");
     pagina(client);
-    const converti = await screen.findByRole("button", { name: /Converti in Cantiere/ });
+    const converti = await screen.findByRole("button", { name: "Crea commessa" });
     await waitFor(() => expect(converti).toBeEnabled());
     fireEvent.click(converti);
     await confermaCommessa();
@@ -176,7 +176,7 @@ describe("dettaglio preventivo accettato: una commessa sola", () => {
     finto.quote = { ...finto.quote, status: "bozza" };
     pagina();
     await screen.findByText("PRV-2026-0001");
-    expect(screen.queryByRole("button", { name: /Converti in Cantiere/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Crea commessa" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Crea commessa \(rivedi\)/ })).toBeNull();
   });
 });

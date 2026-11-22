@@ -426,7 +426,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // IMP09: Bundle dialog
   const [bundleOpen, setBundleOpen] = useState(false);
   // Anteprima del PDF VERO (edge generate-quote-pdf), non del mock statico.
-  const [anteprimaPdf, setAnteprimaPdf] = useState<{ blob: Blob; path?: string } | null>(null);
+  const [anteprimaPdf, setAnteprimaPdf] = useState<{ blob: Blob; path?: string; quoteId: string } | null>(null);
   const [anteprimaLoading, setAnteprimaLoading] = useState(false);
   // Dopo l'anteprima di un preventivo NUOVO si passa in modifica: un secondo
   // salvataggio dalla rotta /nuovo creerebbe un doppione.
@@ -2325,7 +2325,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           );
           if (ePdf) throw ePdf;
           const blob = await fetchQuotePdf(pdf?.signed_url);
-          setAnteprimaPdf({ blob, path: pdf?.pdf_path });
+          setAnteprimaPdf({ blob, path: pdf?.pdf_path, quoteId });
           // Anche il PDF aggiorna il preventivo (percorso e data del file).
           await rileggiVersione(quoteId);
           if (!isEdit) setPendingEditNavId(quoteId);
@@ -4214,9 +4214,18 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             <>
               <AnteprimaPdfVero genera={async () => anteprimaPdf.blob} chiave="preventivo-salvato" attivo
                 className="h-auto min-h-0 flex-1 xl:h-auto xl:min-h-0" />
-              <Button type="button" className="min-h-11 shrink-0 self-end" onClick={() => downloadQuotePdf(anteprimaPdf.blob, anteprimaPdf.path)}>
-                Scarica PDF
-              </Button>
+              <DialogFooter className="shrink-0">
+                <Button type="button" variant="outline" className="min-h-11" onClick={() => downloadQuotePdf(anteprimaPdf.blob, anteprimaPdf.path)}>
+                  Scarica PDF
+                </Button>
+                {canEditPreventivi && (!existingQuote || ["bozza", "inviata"].includes(existingQuote.status)) && (
+                  <Button type="button" className="min-h-11" onClick={() => navigate(
+                    `/azienda/marketing/preventivi/${anteprimaPdf.quoteId}`, { state: { apriInvioFirma: true } },
+                  )}>
+                    Invia per firma
+                  </Button>
+                )}
+              </DialogFooter>
             </>
           )}
         </DialogContent>
