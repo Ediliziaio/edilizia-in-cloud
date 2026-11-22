@@ -25,7 +25,7 @@ import { usePipelineTransition } from "@/hooks/usePipelineTransition";
 // ============================================================================
 
 import { useState, useMemo } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -75,9 +75,11 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
-import { RiepilogoInviiWhatsApp, RigaDocumentoInIngresso, VocaleDocumento } from "@/components/ddt/DocumentiInIngresso";
+import { RevisioneDocumento, RiepilogoInviiWhatsApp, RigaDocumentoInIngresso, StatoDocumentoInIngresso, VocaleDocumento } from "@/components/ddt/DocumentiInIngresso";
 import { AvvisoPossibileDuplicatoDDT } from "@/components/ddt/AvvisoPossibileDuplicatoDDT";
 import { useDocumentiInIngresso } from "@/hooks/useDocumentiInIngresso";
+import { OriginaliConfronto } from "@/components/fatturazione/OriginaliConfronto";
+import { originaliBolla } from "@/lib/fatturazione/originaliConfronto";
 import { STATO_DOCUMENTO } from "@/hooks/useDocumentiDDT";
 import type { DocumentoPersistente } from "@/lib/ddt/documentiPersistenti";
 import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
@@ -133,7 +135,7 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "da_registrare", label: "Da registrare" },
   { key: "atteso", label: "Attesi" },
   { key: "parziale", label: "Parziali" },
-  { key: "ricevuto", label: "Ricevuti" },
+  { key: "ricevuto", label: "Ricevuti da verificare" },
   { key: "verificato", label: "Verificati" },
   { key: "non_conforme", label: "Non conformi" },
 ];
@@ -250,32 +252,69 @@ export default function DDTRicezioneList() {
 }
 
 function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boolean }) {
+  const navigate = useNavigate();
   const ingresso = useDocumentiInIngresso(canCreate, id);
-  const documento = canCreate ? ingresso.query.data?.find(j => j.id === id) : undefined;
+  const documento = ingresso.query.data?.find(j => j.id === id);
   const duplicato = ingresso.duplicati.get(id);
+  const [vista, setVista] = useState<"modifica" | "originale" | null>(null);
   const stato = documento?.status;
-  const inLettura = stato === "queued" || stato === "processing";
+  const puoLeggere = canCreate && (stato === "da_leggere" || stato === "error");
+  const puoCompilare = canCreate && (stato === "review" || puoLeggere);
+  const mostraEditor = puoCompilare && (vista === "modifica" || (vista === null && stato === "review"));
+  if (documento?.status === "registered" && documento.ddt_id) {
+    return <Navigate to={`/azienda/ddt/${documento.ddt_id}`} replace />;
+  }
+
   return (
-    <section aria-labelledby="bolla-collegata" className="max-w-2xl space-y-3 rounded-xl border bg-card p-4 sm:p-5">
-      <Button asChild variant="ghost" size="sm" className="-ml-2 gap-1.5">
-        <Link to="/azienda/ordini?tab=ddt"><ArrowLeft className="size-4" aria-hidden="true" /> Tutti i DDT</Link>
-      </Button>
-      <h2 id="bolla-collegata" className="text-lg font-semibold">Bolla in ingresso</h2>
-      {ingresso.query.isLoading ? (
-        <p role="status" className="text-sm text-muted-foreground">Caricamento della bolla…</p>
-      ) : documento && stato ? (
+    <section aria-labelledby="bolla-collegata" className="space-y-4 pb-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-3 sm:p-4">
+        <div className="flex min-w-0 items-start gap-2">
+          <Button asChild variant="ghost" size="icon" className="shrink-0">
+            <Link aria-label="Tutti i DDT" to="/azienda/ordini?tab=ddt"><ArrowLeft className="size-4" aria-hidden="true" /></Link>
+          </Button>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 id="bolla-collegata" className="text-lg font-bold sm:text-xl">DDT in ingresso</h1>
+              {stato && <StatoDocumentoInIngresso stato={stato} />}
+            </div>
+            {documento && <p className="text-xs text-muted-foreground">
+              {documento.source === "whatsapp" ? "WhatsApp" : documento.source === "campo" ? "App cantiere" : "Caricamento ufficio"}
+              {" · "}{new Date(documento.created_at).toLocaleDateString("it-IT")}
+            </p>}
+          </div>
+        </div>
+        {documento && <div className="flex flex-wrap gap-2">
+          {puoLeggere && !mostraEditor && (
+            <Button variant="outline" size="sm" disabled={ingresso.riprovando === id} onClick={() => {
+              setVista(null);
+              void ingresso.riprova(documento);
+            }}>{stato === "error" ? "Rileggi con l’AI" : "Leggi con l’AI"}</Button>
+          )}
+          {puoCompilare && (
+            <Button size="sm" variant={mostraEditor ? "outline" : "default"}
+              onClick={() => setVista(mostraEditor ? "originale" : "modifica")}>
+              {mostraEditor ? "Solo originale" : stato === "review" ? "Controlla e registra" : "Compila a mano"}
+            </Button>
+          )}
+        </div>}
+      </header>
+      {ingresso.query.isLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento della bolla…</p>}
+      {ingresso.query.isError && <div className="flex items-center gap-2">
+        <p role="alert" className="text-sm text-destructive">Caricamento della bolla non riuscito.</p>
+        <Button size="sm" variant="outline" onClick={() => void ingresso.query.refetch()}>Riprova</Button>
+      </div>}
+      {!ingresso.query.isLoading && !ingresso.query.isError && !documento && (
+        <p role="status" className="text-sm text-muted-foreground">Bolla non disponibile per questa utenza.</p>
+      )}
+      {documento && (
         <>
-          <p className="break-words text-sm font-medium">{documento.files[0]?.name ?? "Documento"}</p>
-          <p className="text-sm text-muted-foreground" role="status">{STATO_DOCUMENTO[stato]}</p>
           {duplicato && <AvvisoPossibileDuplicatoDDT duplicato={duplicato} />}
           {documento.whatsapp_voice_message_id && (
             <VocaleDocumento companyId={documento.company_id} messageId={documento.whatsapp_voice_message_id} />
           )}
           {documento.last_error && <p className="text-sm text-destructive">{documento.last_error}</p>}
-          {stato === "registered" && documento.ddt_id ? (
-            <Button asChild><Link to={`/azienda/ddt/${documento.ddt_id}`}>Apri il DDT registrato</Link></Button>
-          ) : stato === "split" && documento.split_ids?.length ? (
-            <div className="space-y-2">
+          {stato === "split" && !!documento.split_ids?.length && (
+            <div className="space-y-2 rounded-lg border bg-card p-4">
               <p className="text-sm font-medium">Bolle ricavate dal PDF</p>
               <ul className="flex flex-wrap gap-2">
                 {documento.split_ids.filter(idBollaValido).map((figlio, i) => (
@@ -287,26 +326,18 @@ function DocumentoDDTCollegato({ id, canCreate }: { id: string; canCreate: boole
                 ))}
               </ul>
             </div>
-          ) : !inLettura && stato !== "registered" && stato !== "split" ? (
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => ingresso.apri(documento)}>
-                {stato === "review" ? "Controlla e registra" : "Compila a mano"}
-              </Button>
-              {(stato === "error" || stato === "da_leggere") && (
-                <Button variant="outline" disabled={ingresso.riprovando === id} onClick={() => void ingresso.riprova(documento)}>
-                  {stato === "error" ? "Rileggi" : "Leggi con l’AI"}
-                </Button>
-              )}
-            </div>
-          ) : null}
-          {ingresso.dialog}
+          )}
+          {mostraEditor ? (
+            <RevisioneDocumento documento={documento} incorporata onClose={() => setVista("originale")}
+              onRegistrata={ddtId => navigate(`/azienda/ddt/${ddtId}`, { replace: true })} />
+          ) : (
+            <section aria-label="Bolla originale" className="rounded-xl border bg-card p-3 sm:p-4">
+              <h2 className="mb-2 text-sm font-semibold">Bolla originale</h2>
+              <OriginaliConfronto companyId={documento.company_id} files={originaliBolla(documento.company_id, {}, [documento])} />
+            </section>
+          )}
         </>
-      ) : (
-        <p role="status" className="text-sm text-muted-foreground">
-          {ingresso.query.isError ? "Caricamento della bolla non riuscito." : "Bolla non disponibile per questa utenza."}
-        </p>
       )}
-      {ingresso.query.isError && <Button variant="outline" onClick={() => void ingresso.query.refetch()}>Riprova</Button>}
     </section>
   );
 }
@@ -508,7 +539,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
           : stage(d) === "ricevuto")),
   );
   const pendingBase = ingresso.documenti.filter((j) => {
-    if (archive.scope === "history" || filterSupplier !== "all" || focus)
+    if (archive.scope === "history" || filterSupplier !== "all" || focus === "pendenti")
       return false;
     if (filterOrder === "none" && j.order_id) return false;
     if (
@@ -526,7 +557,10 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         .includes(q)
     );
   });
-  const pending = ["tutti", "da_registrare"].includes(tab) ? pendingBase : [];
+  const pendingDaVerificare = pendingBase.filter(j => ["review", "da_leggere", "error"].includes(j.status));
+  const pending = tab === "ricevuto" || focus === "verifica"
+    ? pendingDaVerificare
+    : ["tutti", "da_registrare"].includes(tab) ? pendingBase : [];
   type ListRow =
     | { tipo: "ddt"; ddt: DDTRicezioneWithJoins }
     | { tipo: "documento"; documento: DocumentoPersistente };
@@ -754,7 +788,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
       id: "ricevuto",
       label: "Da verificare",
       hint: "Merce ricevuta, controllo da eseguire",
-      accent: "border-t-blue-500",
+      accent: "border-t-rose-500",
     },
     {
       id: "verificato",
@@ -907,8 +941,15 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
         </div>
       </div>
 
-      <OperationalSummary label="Riepilogo DDT" title="Ricezioni e controlli" icon={Truck} error={isError} note="DDT registrati nei filtri di ricerca, commessa, fornitore e periodo; i documenti ancora da registrare restano nell’elenco dedicato.">
-        {([{ key: "atteso", label: "Attesi" }, { key: "parziale", label: "Ricezioni parziali" }, { key: "ricevuto", label: "Da verificare" }, { key: "non_conforme", label: "Non conformi" }] as const).map(item => <OperationalSummaryMetric key={item.key} label={item.label} value={baseFiltered.filter(d => stage(d) === item.key).length} isLoading={isLoading} tone={item.key === "non_conforme" && baseFiltered.some(d => stage(d) === item.key) ? "amber" : undefined} onClick={() => setTab(tab === item.key ? "tutti" : item.key)} active={tab === item.key} />)}
+      <OperationalSummary label="Riepilogo DDT" title="Ricezioni e controlli" icon={Truck} error={isError}>
+        {([{ key: "atteso", label: "Attesi" }, { key: "parziale", label: "Ricezioni parziali" }, { key: "ricevuto", label: "Da verificare" }, { key: "non_conforme", label: "Non conformi" }] as const).map(item => {
+          const registrati = baseFiltered.filter(ddt => stage(ddt) === item.key).length;
+          const totale = registrati + (item.key === "ricevuto" ? pendingDaVerificare.length : 0);
+          return <OperationalSummaryMetric key={item.key} label={item.label} value={totale} isLoading={isLoading}
+            className={item.key === "ricevuto" && totale > 0 ? "border-rose-300/50 [&>span:last-child]:text-rose-300" : undefined}
+            tone={item.key === "non_conforme" && totale > 0 ? "amber" : undefined}
+            onClick={() => setTab(tab === item.key ? "tutti" : item.key)} active={tab === item.key} />;
+        })}
       </OperationalSummary>
 
       <section aria-label="Filtri DDT" className="rounded-xl border bg-white p-2.5 shadow-sm">
@@ -1119,7 +1160,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                     key={j.id}
                     documento={j}
                     duplicato={ingresso.duplicati.get(j.id)}
-                    apri={ingresso.apri}
+                    apri={j => navigate(`/azienda/ordini?tab=ddt&ddt_documento=${j.id}`)}
                     riprova={ingresso.riprova}
                     riprovando={ingresso.riprovando}
                   />
@@ -1208,7 +1249,7 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
                       key={row.documento.id}
                       documento={row.documento}
                       duplicato={ingresso.duplicati.get(row.documento.id)}
-                      apri={ingresso.apri}
+                      apri={j => navigate(`/azienda/ordini?tab=ddt&ddt_documento=${j.id}`)}
                       riprova={ingresso.riprova}
                       riprovando={ingresso.riprovando}
                       colonnaSelezione={selection.enabled}
@@ -1397,7 +1438,6 @@ function ElencoDDT({ canCreate }: { canCreate: boolean }) {
               : "Carica altri documenti da registrare"}
         </Button>
       )}
-      {ingresso.dialog}
 
       {/* ─── New DDT Wizard ─────────────────────────────────── */}
       {movement.dialog}

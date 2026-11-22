@@ -17,6 +17,8 @@ import { Loader2, RefreshCw, ExternalLink, Eye, AlertCircle, Download, ZoomIn, Z
 import { Button } from "@/components/ui/button";
 import { useGenerazioneProtetta } from "./livePreview/useGenerazioneProtetta";
 import { ComandiDocumento } from "./ConfrontoDocumentiLayout";
+import { ZoomDocumento } from "./ZoomDocumento";
+import { scalaDocumento, type AdattamentoDocumento } from "./zoomDocumentoLayout";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { edileEditorDestinations, resolveEdileSectionPage, type SectionDestinationDocument } from "@/components/preventivi/pdf/sectionDestinations";
@@ -144,7 +146,9 @@ export function PdfBlobLivePreviewPanel({
   const [renderNonce, setRenderNonce] = useState(0);
   const affiancato = useDocumentoAffiancato();
   const [zoom, setZoom] = useState(1);
+  const [adatta, setAdatta] = useState<AdattamentoDocumento>("pagina");
   const [viewportWidth, setViewportWidth] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [sectionStatus, setSectionStatus] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -165,10 +169,11 @@ export function PdfBlobLivePreviewPanel({
       const width = container.clientWidth;
       if (width === 0) pendingPositionRef.current = lastVisiblePositionRef.current;
       setViewportWidth(width);
+      if (affiancato) setViewportHeight(container.clientHeight);
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [affiancato]);
 
   // Il visore PDF nativo dentro l'iframe non è consistente tra browser e,
   // nella pagina impostazioni, può restare bianco pur avendo ricevuto il blob.
@@ -252,17 +257,22 @@ export function PdfBlobLivePreviewPanel({
 
     (async () => {
       const containerWidth = container.clientWidth;
-      if (containerWidth <= 24) return;
+      if (containerWidth <= 24 || (affiancato && viewportHeight <= 24)) return;
       const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - (affiancato ? 16 : 24)) / A4_WIDTH_PT));
       const scale = fitScale * zoom;
       const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) => pdfDocument.getPage(i + 1)));
       if (cancelled || pdfDocRef.current !== pdfDocument) return;
+      const viewports = pages.map(page => page.getViewport({
+        scale: affiancato
+          ? scalaDocumento(page.getViewport({ scale: 1 }), { width: containerWidth, height: viewportHeight }, adatta) * zoom
+          : scale,
+      }));
       // Size EVERY page before scrolling: sequential canvas growth previously
       // displaced later pages while a selected destination was being reached.
       for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
         const canvas = container.querySelector<HTMLCanvasElement>(`canvas[data-page="${pageNumber}"]`);
         if (!canvas) continue;
-        const viewport = pages[pageNumber - 1].getViewport({ scale });
+        const viewport = viewports[pageNumber - 1];
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         canvas.style.width = `${viewport.width}px`;
@@ -277,7 +287,7 @@ export function PdfBlobLivePreviewPanel({
         const canvas = container.querySelector<HTMLCanvasElement>(`canvas[data-page="${pageNumber}"]`);
         if (!canvas) continue;
         const page = pages[pageNumber - 1];
-        const viewport = page.getViewport({ scale });
+        const viewport = viewports[pageNumber - 1];
         // Render into a private canvas: rapid zoom/regeneration must never run
         // two PDF.js paint tasks on the same visible canvas.
         const buffer = document.createElement("canvas");
@@ -300,7 +310,7 @@ export function PdfBlobLivePreviewPanel({
     });
 
     return () => { cancelled = true; renderTask?.cancel?.(); invalidateNavigation(); };
-  }, [renderNonce, pageCount, zoom, viewportWidth, invalidateNavigation, affiancato]);
+  }, [renderNonce, pageCount, zoom, viewportWidth, viewportHeight, adatta, invalidateNavigation, affiancato]);
 
   useEffect(() => {
     const token = ++navigationTokenRef.current;
@@ -363,7 +373,7 @@ export function PdfBlobLivePreviewPanel({
   return (
     <div className={affiancato ? "flex h-full min-h-0 flex-col overflow-hidden" : "flex flex-col h-full rounded-lg border bg-card overflow-hidden"}>
       <ComandiDocumento ordine={20}>
-      <div className={affiancato ? "flex h-8 min-w-0 shrink-0 items-center justify-between gap-2 rounded border bg-blue-50/50 px-2" : "flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30 shrink-0"}>
+      <div className={affiancato ? "flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-1 rounded-md border bg-muted/40 px-2 py-1" : "flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30 shrink-0"}>
         <div className="flex min-w-0 items-center gap-1.5">
           <Eye className={"h-3.5 w-3.5 shrink-0 " + accentClass} />
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
@@ -377,6 +387,10 @@ export function PdfBlobLivePreviewPanel({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {affiancato ? (
+            <ZoomDocumento nome="PDF" zoom={zoom} onZoom={setZoom} adatta={adatta}
+              onAdatta={valore => { setAdatta(valore); setZoom(1); }} />
+          ) : (
           <div className="flex items-center gap-0.5 mr-1 rounded-md border bg-white px-0.5">
             <Button size="icon" variant="ghost" onClick={() => setZoom((value) => Math.max(ZOOM_MIN, +(value - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} title="Riduci" className="h-6 w-6">
               <ZoomOut className="h-3.5 w-3.5" />
@@ -391,6 +405,7 @@ export function PdfBlobLivePreviewPanel({
               <Maximize2 className="h-3.5 w-3.5" />
             </Button>
           </div>
+          )}
           <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title="Aggiorna ora" className="h-7 w-7">
             <RefreshCw className={"h-3.5 w-3.5 " + (loading ? "animate-spin" : "")} />
           </Button>
@@ -437,7 +452,7 @@ export function PdfBlobLivePreviewPanel({
           </div>
         )}
         {url && !pdfError && pageCount > 0 && (
-          <div className={affiancato ? "flex flex-col items-center gap-3" : "flex flex-col items-center gap-3 px-3 py-3"}>
+          <div className={affiancato ? "flex min-w-full w-max flex-col items-center gap-3" : "flex flex-col items-center gap-3 px-3 py-3"}>
             {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
               <div key={pageNumber} className="mx-auto rounded-sm bg-white shadow-md">
                 <canvas data-page={pageNumber} className="block h-auto" aria-label={`Pagina ${pageNumber} di ${pageCount}`} />

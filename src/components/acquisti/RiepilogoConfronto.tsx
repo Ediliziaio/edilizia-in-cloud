@@ -16,7 +16,7 @@ export function RiepilogoConfronto({ indicatori }: { indicatori: IndicatoreConfr
     </button>)}
   </div>;
 }
-export const CLASSE_DIALOG_CONFRONTO = "flex h-[94dvh] max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[1600px] flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100vw-2rem)]";
+export const CLASSE_DIALOG_CONFRONTO = "top-1/2 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[1600px] flex-col gap-0 overflow-hidden rounded-lg p-0 sm:h-[94dvh] sm:max-h-[94dvh] sm:w-[calc(100vw-2rem)]";
 export function PannelliConfrontoMobile({valore,onChange,sinistra,destra}:{valore:string;onChange:(v:string)=>void;sinistra:string;destra:string}) {
  return <div role="group" aria-label="Pannello da visualizzare" className="flex shrink-0 gap-1 border-b bg-slate-50 px-4 py-2 lg:hidden">{[['sinistra',sinistra],['destra',destra]].map(([v,label])=><button key={v} type="button" aria-pressed={valore===v} onClick={()=>onChange(v)} className={`flex-1 rounded-md px-3 py-2 text-xs font-medium ${valore===v?'bg-white text-blue-800 shadow-sm':'text-slate-500'}`}>{label}</button>)}</div>;
 }

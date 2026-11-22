@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   readonly: false,
@@ -98,7 +99,7 @@ beforeEach(() => {
   m.rpc.mockReset();
 });
 afterEach(cleanup);
-function mostra() {
+function mostra(daScheda?: Pick<ComponentProps<typeof ControlloOrdiniDDTCard>, "apertoDallaScheda" | "onApertoChange">) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -106,6 +107,7 @@ function mostra() {
     <MemoryRouter>
       <QueryClientProvider client={client}>
         <ControlloOrdiniDDTCard
+          {...daScheda}
           ddt={
             {
               id: "ddt",
@@ -119,6 +121,15 @@ function mostra() {
     </MemoryRouter>,
   );
 }
+it("apre il confronto richiesto dalla testata della scheda", () => {
+  const onApertoChange = vi.fn();
+  mostra({ apertoDallaScheda: true, onApertoChange });
+  const dialogo = screen.getByRole("dialog", { name: "Confronto DDT e ordini" });
+  expect(within(dialogo).getByText("Tapparella alluminio")).toBeInTheDocument();
+  fireEvent.click(within(dialogo).getByRole("button", { name: "Chiudi confronto", exact: true }));
+  expect(onApertoChange).toHaveBeenCalledWith(false);
+  expect(m.rpc).not.toHaveBeenCalled();
+});
 it("mostra la tapparella mancante anche se non appare nel DDT e apre il confronto con l’originale", () => {
   mostra();
   const riga = screen.getByText("Tapparella alluminio").closest("tr")!;

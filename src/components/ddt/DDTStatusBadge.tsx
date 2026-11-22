@@ -42,11 +42,11 @@ export const DDT_STATO_META: Record<DDTStato, StatoMeta> = {
     dotColor: "bg-amber-500",
   },
   ricevuto: {
-    label: "Ricevuto",
+    label: "Da verificare",
     icon: PackageCheck,
     className:
-      "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
-    dotColor: "bg-emerald-500",
+      "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-900",
+    dotColor: "bg-rose-500",
   },
   verificato: {
     label: "Verificato",

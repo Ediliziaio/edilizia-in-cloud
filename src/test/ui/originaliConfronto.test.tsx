@@ -1,10 +1,19 @@
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-const fake = vi.hoisted(() => ({ firma: vi.fn() }));
+const fake = vi.hoisted(() => ({ firma: vi.fn(), allegati: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    from: (tabella: string) => ({
+      select: () => ({
+        eq: (_: string, azienda: string) => ({
+          eq: (_: string, email: string) => ({
+            order: () => fake.allegati(tabella, azienda, email),
+          }),
+        }),
+      }),
+    }),
     storage: {
       from: (bucket: string) => ({
         createSignedUrl: (path: string, seconds: number) =>
@@ -24,6 +33,8 @@ import {
 } from "@/lib/fatturazione/originaliConfronto";
 import { OriginaliConfronto } from "@/components/fatturazione/OriginaliConfronto";
 import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
+import { OriginaliOfferteDialog } from "@/components/rdo/OriginaliOfferteDialog";
+import type { RfqSupplier } from "@/hooks/useSupplierRfqs";
 function monta(files: Parameters<typeof OriginaliConfronto>[0]["files"]) {
   return render(
     <QueryClientProvider
@@ -37,6 +48,7 @@ function monta(files: Parameters<typeof OriginaliConfronto>[0]["files"]) {
 }
 beforeEach(() => {
   fake.firma.mockReset();
+  fake.allegati.mockReset();
   fake.firma.mockImplementation(async (_b: string, p: string) => ({
     data: { signedUrl: `https://files.example.test/${p}` },
     error: null,
@@ -59,11 +71,11 @@ describe("originali PDF e foto del confronto", () => {
     await screen.findByAltText("Originale foto.png");
     expect(screen.getAllByRole("link", { name: "Apri originale" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Ingrandisci foto" }));
-    expect(screen.getByRole("button", { name: "Adatta foto" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Adatta alla pagina" })).toHaveAttribute("aria-pressed", "false");
     view.rerender(<Confronto originale={false} />);
     expect(screen.getByText("Righe della bolla")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Apri originale" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Adatta foto" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adatta alla pagina" })).not.toBeInTheDocument();
     view.rerender(<Confronto originale />);
     await screen.findByAltText("Originale foto.png");
     expect(screen.getAllByRole("link", { name: "Apri originale" })).toHaveLength(1);
@@ -93,11 +105,12 @@ describe("originali PDF e foto del confronto", () => {
       (await screen.findByAltText("Originale foto.png")).getAttribute("src"),
     ).toContain("azienda/foto.png");
     fireEvent.click(screen.getByRole("button", { name: "Ingrandisci foto" }));
-    expect(screen.getByRole("button", { name: "Adatta foto" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Adatta foto" }));
-    expect(
-      screen.getByRole("button", { name: "Ingrandisci foto" }),
-    ).toBeTruthy();
+    expect(screen.getByLabelText("Zoom relativo alla vista")).toHaveTextContent("125%");
+    fireEvent.click(screen.getByRole("button", { name: "Adatta alla larghezza" }));
+    expect(screen.getByLabelText("Zoom relativo alla vista")).toHaveTextContent("100%");
+    expect(screen.getByRole("button", { name: "Adatta alla larghezza" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Adatta alla pagina" }));
+    expect(screen.getByRole("button", { name: "Adatta alla pagina" })).toHaveAttribute("aria-pressed", "true");
   });
   it("mantiene HEIC originale e usa l’anteprima convertita", async () => {
     const files = originaliBolla("azienda", {}, [
@@ -190,4 +203,38 @@ describe("originali PDF e foto del confronto", () => {
       ]),
     ).toHaveLength(0);
   });
+});
+
+it("affianca il preventivo archiviato e quello dell’email abbinata a un altro fornitore", async () => {
+  const offerta = (id: string, allegato_url: string | null, email_inbox_id: string | null): RfqSupplier => ({
+    id, rfq_id: "rdo", supplier_id: id, status: "risposta", inviata_at: null, inviata_via: null,
+    risposta_at: null, totale_offerto: null, giorni_consegna: null, validita_offerta: null,
+    condizioni_pagamento: null, note: null, allegato_url, email_inbox_id, aggancio_da: null,
+    aggancio_confidenza: null, aggancio_da_confermare: false, suppliers: { name: id, email: null },
+  });
+  fake.allegati.mockResolvedValue({
+    data: [
+      { filename: "preventivo-email.pdf", mime_type: "application/pdf", storage_path: "azienda/mail/offerta.pdf" },
+      { filename: "testo.txt", mime_type: "text/plain", storage_path: "azienda/mail/testo.txt" },
+    ],
+    error: null,
+  });
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <OriginaliOfferteDialog companyId="azienda" numero="RDO-01" iniziale="Alfa" onClose={vi.fn()}
+        offerte={[offerta("Alfa", "order-attachments/azienda/rdo/alfa.pdf", null), offerta("Beta", null, "mail")]} />
+    </QueryClientProvider>,
+  );
+
+  const sinistra = within(screen.getByRole("region", { name: "Offerta 1" }));
+  const destra = within(screen.getByRole("region", { name: "Offerta 2" }));
+  expect(await sinistra.findByTitle("Originale alfa.pdf")).toBeInTheDocument();
+  expect(await destra.findByTitle("Originale preventivo-email.pdf")).toBeInTheDocument();
+  expect(fake.allegati).toHaveBeenCalledWith("email_attachments", "azienda", "mail");
+  expect(fake.firma).toHaveBeenCalledWith("order-attachments", "azienda/rdo/alfa.pdf", 3600);
+  expect(fake.firma).toHaveBeenCalledWith("email-attachments", "azienda/mail/offerta.pdf", 3600);
+  expect(fake.firma).not.toHaveBeenCalledWith("email-attachments", "azienda/mail/testo.txt", 3600);
+  changeFormControl(sinistra.getByLabelText("Offerta 1"), { target: { value: "Beta" } });
+  expect(await sinistra.findByTitle("Originale preventivo-email.pdf")).toBeInTheDocument();
+  expect(await destra.findByTitle("Originale alfa.pdf")).toBeInTheDocument();
 });

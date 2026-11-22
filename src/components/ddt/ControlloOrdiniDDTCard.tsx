@@ -53,8 +53,14 @@ const etichette = {
 };
 const avvisoConsegne = "Se mancano articoli, sono danneggiati o non corrispondono, conferma solo la quantità accettata e segnala il problema nella verifica DDT. Un reso riapre il residuo dell’ordine.";
 
-export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
-  const [aperto, setAperto] = useState(false);
+export function ControlloOrdiniDDTCard({ ddt, apertoDallaScheda, onApertoChange }: {
+  ddt: DDTRicezione;
+  apertoDallaScheda?: boolean;
+  onApertoChange?: (aperto: boolean) => void;
+}) {
+  const [apertoLocale, setApertoLocale] = useState(false);
+  const aperto = apertoDallaScheda ?? apertoLocale;
+  const setAperto = onApertoChange ?? setApertoLocale;
   const [pannelloMobile,setPannelloMobile]=useState("sinistra");
   const [ordineAttivo,setOrdineAttivo]=useState("tutti");
   const [vistaOrdine,setVistaOrdine]=useState("righe");
@@ -541,7 +547,7 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
 
           </div>
           <div className="flex justify-end gap-2 border-t px-5 py-3">
-            <Button variant="outline" onClick={() => setAperto(false)}>
+            <Button variant="outline" aria-label="Chiudi confronto" onClick={() => setAperto(false)}>
               Chiudi
             </Button>
             {modificabile && (

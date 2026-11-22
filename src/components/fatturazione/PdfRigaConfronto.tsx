@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ComandiDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
+import { ZoomDocumento } from "@/components/shared/ZoomDocumento";
+import { scalaDocumento, useDimensioniDocumento, type AdattamentoDocumento } from "@/components/shared/zoomDocumentoLayout";
 import { trovaRighePdf, type RigaPdfTrovata } from "@/lib/fatturazione/rigaPdf";
 import type {
   PDFDocumentProxy,
@@ -29,6 +31,10 @@ export function PdfRigaConfronto(props: PropsPdfOriginale) {
 function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsPdfOriginale) {
   const affiancato = useDocumentoAffiancato();
   const scrollArea = useRef<HTMLDivElement>(null);
+  const spazio = useDimensioniDocumento(scrollArea);
+  const [zoom, setZoom] = useState(1);
+  const [adatta, setAdatta] = useState<AdattamentoDocumento>("pagina");
+  const [dimensioniPagina, setDimensioniPagina] = useState<{ width: number; height: number } | null>(null);
   const doc = useRef<PDFDocumentProxy | null>(null),
     canvas = useRef<HTMLCanvasElement | null>(null);
   const [pronto, setPronto] = useState(false),
@@ -126,12 +132,15 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
       try {
         const pagina = await doc.current!.getPage(visualizzata);
         if (annullato || !canvas.current) return;
-        const view = pagina.getViewport({ scale: 1.5 }),
+        const dimensioni = pagina.getViewport({ scale: 1 });
+        const densita = Math.min(2, Math.sqrt(8_000_000 / (dimensioni.width * dimensioni.height)));
+        const view = pagina.getViewport({ scale: densita }),
           el = canvas.current,
           ctx = el.getContext("2d");
         if (!ctx) throw new Error("Canvas non disponibile");
         el.width = view.width;
         el.height = view.height;
+        setDimensioniPagina({ width: view.width, height: view.height });
         render = pagina.render({
           canvas: el,
           canvasContext: ctx,
@@ -178,11 +187,14 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
       if (viewport && riga) viewport.scrollTop += riga.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 16;
     });
     return () => cancelAnimationFrame(frame);
-  }, [box]);
+  }, [box, zoom, adatta, spazio.width, spazio.height]);
+  const larghezza = dimensioniPagina && spazio.width > 0 && spazio.height > 0
+    ? dimensioniPagina.width * scalaDocumento(dimensioniPagina, spazio, adatta) * zoom
+    : undefined;
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
       <ComandiDocumento ordine={20}><div className="space-y-2">
-      <div className={affiancato ? "flex h-8 min-w-0 items-center gap-1 rounded border bg-blue-50/50 px-2 text-xs" : "flex flex-wrap items-center gap-2 rounded border bg-blue-50/50 p-2 text-xs"}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border bg-muted/40 px-2 py-1 text-xs">
         {ricerca ? (
           <>
             <Search className="h-3.5 w-3.5" />
@@ -253,6 +265,8 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
             </Button>
           </>
         )}
+        {pronto && !errore && <ZoomDocumento nome="PDF" zoom={zoom} onZoom={setZoom} adatta={adatta}
+          onAdatta={valore => { setAdatta(valore); setZoom(1); }} />}
       </div>
       {errore && (
         <p role="alert" className="text-xs text-amber-800">
@@ -271,12 +285,14 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
         </p>
       )}
       </div></ComandiDocumento>
+      <div ref={scrollArea} data-confronto-superficie={affiancato || undefined}
+        className="min-h-0 min-w-0 flex-1 overflow-auto rounded-md border bg-muted/50">
       {pronto && !errore ? (
-        <div ref={scrollArea} data-confronto-superficie className="min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2">
-          <div className="relative mx-auto w-full max-w-4xl">
+        <div className="flex w-max min-w-full justify-center p-2">
+          <div className="relative shrink-0 shadow-sm" style={{ width: larghezza ?? 1 }}>
             <canvas
               ref={canvas}
-              className="block h-auto w-full bg-white"
+              className="block h-auto w-full max-w-none bg-white"
               aria-label={`Pagina ${visualizzata} di ${nome}`}
             />
             {box && (
@@ -304,6 +320,7 @@ function PdfOriginaleCanvas({ url, nome, ricerca = "",paginaIniziale=1 }: PropsP
           </p>
         )
       )}
+      </div>
     </div>
   );
 }

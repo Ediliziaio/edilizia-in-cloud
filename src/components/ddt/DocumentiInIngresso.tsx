@@ -36,13 +36,19 @@ import { AvvisoPossibileDuplicatoDDT } from "./AvvisoPossibileDuplicatoDDT";
 export function RevisioneDocumento({
   documento,
   onClose,
+  incorporata = false,
+  onRegistrata,
 }: {
   documento: DocumentoPersistente;
   onClose: () => void;
+  incorporata?: boolean;
+  onRegistrata?: (id: string) => void;
 }) {
+  const [divisioneAperta, setDivisioneAperta] = useState(false);
   const caricamento = useQuery<{
     bolla: BollaLetta;
     dividere: boolean;
+    multipagina: boolean;
     originale: File;
     pdf?: PdfDaDividere;
   }>({
@@ -51,10 +57,12 @@ export function RevisioneDocumento({
       documento.company_id,
       documento.id,
       documento.updated_at,
+      incorporata,
     ],
     queryFn: async () => {
       const aggiornato = await leggiPersistente(documento.id);
       const f = aggiornato.files[0];
+      if (!f) throw new Error("Per questa bolla non risulta un originale.");
       const [{ data, error }, esitoDoppio] = await Promise.all([
         supabase.storage.from(f.bucket ?? "ddt-documenti").download(f.path),
         aggiornato.status === "review" ? documentiDb.rpc("ddt_ingresso_duplicati", {
@@ -76,8 +84,9 @@ export function RevisioneDocumento({
         aggiornato.result ?? {},
         [],
       );
-      const pagine =
-        f.mime === "application/pdf" ? await contaPagine(originale) : 1;
+      const pagine = f.mime === "application/pdf" ? await contaPagine(originale) : 1;
+      const multipagina = (pagine ?? 1) > 1;
+      const dividere = !incorporata && multipagina;
       return {
         // «Compila a mano» (lettura fallita, o solo foto mai letta): la finestra
         // con l'originale si apre da sola, con le righe vuote.
@@ -89,9 +98,10 @@ export function RevisioneDocumento({
             ? { compilaAMano: true }
             : {}),
         },
-        dividere: (pagine ?? 1) > 1,
+        dividere,
+        multipagina,
         originale,
-        pdf: (pagine ?? 1) > 1 ? await leggiPerDividere(originale) : undefined,
+        pdf: dividere ? await leggiPerDividere(originale) : undefined,
       };
     },
     staleTime: Infinity,
@@ -104,7 +114,7 @@ export function RevisioneDocumento({
           Riprova
         </Button>
         <Button variant="ghost" onClick={onClose}>
-          Chiudi
+          {incorporata ? "Torna al documento" : "Chiudi"}
         </Button>
       </div>
     );
@@ -116,9 +126,18 @@ export function RevisioneDocumento({
       </p>
     );
   return (
+    <>
+    {incorporata && caricamento.data.multipagina && (
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" size="sm" onClick={() => setDivisioneAperta(true)}>Dividi PDF in più bolle</Button>
+      </div>
+    )}
+    {divisioneAperta && <RevisioneDocumento documento={documento} onClose={() => setDivisioneAperta(false)} />}
     <BolleInBloccoDialog
       key={documento.id}
       open
+      incorporata={incorporata}
+      onRegistrata={onRegistrata}
       onOpenChange={(v) => {
         if (!v) onClose();
       }}
@@ -134,6 +153,21 @@ export function RevisioneDocumento({
       destinazione={destinazioneDocumento(documento)}
       warehouseId={documento.warehouse_id ?? null}
     />
+    </>
+  );
+}
+
+export function StatoDocumentoInIngresso({ stato }: { stato: DocumentoPersistente["status"] }) {
+  const inLettura = stato === "queued" || stato === "processing";
+  const daVerificare = ["review", "error", "da_leggere"].includes(stato);
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${
+      daVerificare ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
+        : "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300"
+    }`}>
+      {inLettura && <Loader2 className="size-3 animate-spin" aria-hidden="true" />}
+      {daVerificare ? "Da verificare" : STATO_DOCUMENTO[stato]}
+    </span>
   );
 }
 
@@ -220,22 +254,28 @@ export function RigaDocumentoInIngresso({
   );
   // Solo la foto (impostazione «Bolle dal telefono»): l'ufficio sceglie se spendere l'AI.
   const daLeggere = j.status === "da_leggere";
+  const nome = j.files[0]?.name;
+  const nomeTecnico = !nome || /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}(?:\.[a-z\d]+)?$/i.test(nome);
   return (
     <tr
-      className="border-b bg-amber-50/30 hover:bg-amber-50/60"
+      className="cursor-pointer border-b bg-rose-50/20 hover:bg-muted/40"
       data-documento-id={j.id}
+      onClick={event => {
+        if (event.target instanceof Element && !event.target.closest("a,button,input,summary,audio")) apri(j);
+      }}
     >
       {colonnaSelezione && <td title="Il documento deve essere registrato prima della gestione del DDT">—</td>}
       <td className="p-3">
         <div className="flex items-start gap-2">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 max-w-64">
-            <p
-              className="truncate text-sm font-medium"
+            <Link
+              to={`/azienda/ordini?tab=ddt&ddt_documento=${j.id}`}
+              className="block truncate text-sm font-medium text-primary hover:underline"
               title={j.files.map((f) => f.name).join(", ")}
             >
-              {j.files[0]?.name ?? "Documento"}
-            </p>
+              {nomeTecnico ? "DDT in ingresso" : nome}
+            </Link>
             <p className="mt-1 text-xs text-muted-foreground">
               {j.source === "campo"
                 ? "App cantiere"
@@ -247,21 +287,11 @@ export function RigaDocumentoInIngresso({
             {j.whatsapp_voice_message_id && (
               <VocaleDocumento companyId={j.company_id} messageId={j.whatsapp_voice_message_id} />
             )}
-            {j.last_error && (
-              <p className="mt-1 whitespace-normal text-xs text-rose-700">
-                {j.last_error}
-              </p>
-            )}
           </div>
         </div>
       </td>
       <td className="p-3">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${j.status === "error" ? "bg-rose-100 text-rose-800" : inLettura ? "bg-blue-50 text-blue-800" : daLeggere ? "bg-slate-100 text-slate-800" : "bg-amber-100 text-amber-900"}`}
-        >
-          {inLettura && <Loader2 className="h-3 w-3 animate-spin" />}
-          {STATO_DOCUMENTO[j.status]}
-        </span>
+        <StatoDocumentoInIngresso stato={j.status} />
       </td>
       <td className="p-3 text-xs text-muted-foreground">
         {new Date(j.created_at).toLocaleDateString("it-IT")}

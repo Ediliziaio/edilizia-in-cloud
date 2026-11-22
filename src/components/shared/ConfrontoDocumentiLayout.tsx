@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { ComandiDocumentoContext } from "./contestoConfrontoDocumenti";
 
 /** Le fasce dei due documenti condividono le stesse righe della griglia. */
-export function ConfrontoDocumentiLayout({ children }: { children: ReactNode }) {
-  return <div data-confronto-allineato className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-2 lg:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] lg:overflow-hidden">{children}</div>;
+export function ConfrontoDocumentiLayout({ children, singolo = false }: { children: ReactNode; singolo?: boolean }) {
+  return <div data-confronto-allineato className={`min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] lg:overflow-hidden ${singolo ? "lg:grid-cols-1" : "lg:grid-cols-2"}`}>{children}</div>;
 }
 
 export function PannelloDocumento({ nome, lato, attivo, testata, viste, children, note, rigaSelezionata }: {

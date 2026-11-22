@@ -17,7 +17,7 @@ import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
 import { OrdinaComunqueDialog } from "@/components/orders/OrdinaComunqueDialog";
 import { ControlloDocumentoCard } from "@/components/orders/ControlloDocumentoCard";
 import { type MisuraAperta } from "@/lib/acquisti/misureSuDocumenti";
-import { useState, lazy, Suspense } from "react";
+import { useRef, useState, lazy, Suspense } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
@@ -36,7 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
   AlertTriangle, ScanLine, ClipboardList, CalendarClock,
-  PackageCheck, Pencil, FileDown, Mail, Eye, MoreHorizontal,
+  PackageCheck, Pencil, FileDown, Mail, Eye, MoreHorizontal, ArrowLeftRight,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -94,6 +94,7 @@ export default function PurchaseOrderDetail() {
 }
 
 function ContenutoPurchaseOrderDetail() {
+  const sezioneDdt = useRef<HTMLElement>(null);
   const { odaId: odaIdIndirizzo } = useParams();
   const odaId = useIdDocumento(odaIdIndirizzo);
   const navigate = useNavigaDocumento();
@@ -148,6 +149,8 @@ function ContenutoPurchaseOrderDetail() {
   // Incidenza acquisti/vendita = dato di margine; costi e fatture = dato di
   // costo. Chi lavora solo sugli ordini (magazzino) non deve vederli.
   const permissions = usePermissions();
+  const puoRegistrareDDT = !permissions.solaLettura
+    && (permissions.isAdmin || permissions.canEditOrders || permissions.canEditWarehouse || permissions.canManagePurchasing);
   const confirm = useConfirm();
 
   const { data: richiestaOrigine } = useQuery({
@@ -435,6 +438,20 @@ function ContenutoPurchaseOrderDetail() {
         icon={<ClipboardList className="h-5 w-5" />}
         actions={
           <>
+            {ddtList.length > 0 && (
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                if (ddtList.length === 1) navigate(`/azienda/ddt/${ddtList[0].id}?confronto=ordini`);
+                else sezioneDdt.current?.scrollIntoView({ block: "start" });
+              }}>
+                <ArrowLeftRight className="size-4" aria-hidden="true" />
+                {ddtList.length === 1 ? "Confronta DDT" : `DDT collegati (${ddtList.length})`}
+              </Button>
+            )}
+            {ddtList.length === 0 && puoRegistrareDDT && order.status !== "annullato" && (
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDdtDialogOpen(true)}>
+                <FileCheck className="size-4" aria-hidden="true" /> Registra DDT
+              </Button>
+            )}
             {canEdit && order.status !== "bozza" && (
               <Button variant="outline" size="sm" disabled={righeInSalvataggio} onClick={() => setEditingOrderId(isEditable ? null : order.id)}>
                 <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -496,16 +513,19 @@ function ContenutoPurchaseOrderDetail() {
         </Suspense>
       )}
 
-      {!senzaPrezzi && <section aria-label="Azioni rapide ordine" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-sm font-bold text-slate-900">Documenti e invio</h2>
+      {!senzaPrezzi && <section aria-label="Azioni rapide ordine" className="rounded-xl border bg-card p-3 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Documenti e invio</h2>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" size="sm" disabled={documentBusy || !effectiveCompany} onClick={() => setPreviewOpen(true)}>
+              <Eye className="mr-1.5 size-4" aria-hidden="true" /> Anteprima PDF
+            </Button>
             <Button variant="outline" size="sm" disabled={downloadingPdf || documentBusy || !effectiveCompany} onClick={downloadPdf}>
               {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
               {downloadingPdf ? "Preparazione PDF…" : "Scarica PDF"}
             </Button>
             <Button size="sm" variant={order.status === "bozza" ? "default" : "outline"} disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />{order.status === "bozza" && origine === "email" ? "Invia ordine al fornitore" : "Email con PDF"}</Button>
-            {attendeConferma && <Button size="sm" variant="outline" onClick={() => setVerifyDialogOpen(true)}>
+            {(attendeConferma || !!order.attachment_url) && <Button size="sm" variant="outline" onClick={() => setVerifyDialogOpen(true)}>
               <ShieldCheck className="mr-1 h-4 w-4" /> Confronta conferma
             </Button>}
             <DropdownMenu>
@@ -513,7 +533,6 @@ function ContenutoPurchaseOrderDetail() {
                 <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altri documenti"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled={documentBusy || !effectiveCompany} onSelect={() => setPreviewOpen(true)}><Eye className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Anteprima PDF</span></DropdownMenuItem>
                 <DropdownMenuItem disabled={documentBusy} onSelect={() => openSend("testo")}><Mail className="h-3.5 w-3.5" aria-hidden="true" /><span className="ml-2">Email con testo</span></DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -524,7 +543,7 @@ function ContenutoPurchaseOrderDetail() {
 
       <AttivitaAcquistoCard attivita={attivitaOda({status:order.status,prezziPendenti:totaliRighe.daConfermare,righe:items.length,email:documentoInvio.destinatario.email,consegna:order.expected_delivery_date,conferma:!!order.attachment_url})}/>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-6">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Left: Editor */}
         <div className="min-w-0 space-y-4">
           {/* Items table */}
@@ -722,22 +741,22 @@ function ContenutoPurchaseOrderDetail() {
       </div>
 
       <section id="ddt-ricezione-oda" aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2">
-          {/* M4 — DDT Ricezione card */}
+          <section ref={sezioneDdt} aria-label="DDT collegati all’ordine" className="scroll-mt-4">
           <QuoteCard
             title={
               <span className="flex items-center gap-2">
-                DDT Ricezione
+                DDT collegati
                 {ddtList.length > 0 && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{ddtList.length}</span>
                 )}
               </span>
             }
             icon={<FileCheck className="h-4 w-4" />}
-            action={
+            action={puoRegistrareDDT && order.status !== "annullato" && (
               <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => setDdtDialogOpen(true)}>
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registra
               </Button>
-            }
+            )}
           >
             <div>
               {ddtList.length > 0 && (
@@ -756,8 +775,8 @@ function ContenutoPurchaseOrderDetail() {
                           </Badge>
                         ) : null}
                         {counts.ricevuto ? (
-                          <Badge className="bg-green-100 text-green-800 text-[10px]">
-                            {counts.ricevuto} ricevut{counts.ricevuto === 1 ? "o" : "i"}
+                          <Badge className="bg-rose-100 text-rose-800 text-[10px]">
+                            {counts.ricevuto} da verificare
                           </Badge>
                         ) : null}
                         {counts.parziale ? (
@@ -796,9 +815,9 @@ function ContenutoPurchaseOrderDetail() {
                       (Array.isArray(ddt.attachments) ? ddt.attachments.length : 0) +
                       (ddt.ddt_file_url ? 1 : 0);
                     return (
+                      <div key={ddt.id} className="flex items-center gap-1 rounded-md border bg-muted/25">
                       <button
                         type="button"
-                        key={ddt.id}
                         onClick={() => navigate(`/azienda/ddt/${ddt.id}`)}
                         className="w-full flex items-start justify-between p-2 rounded-md bg-slate-50 hover:bg-slate-100 text-xs gap-2 text-left transition-colors group border border-transparent hover:border-orange-200"
                       >
@@ -833,12 +852,19 @@ function ContenutoPurchaseOrderDetail() {
                         </div>
                         <DDTStatusBadge stato={ddt.stato} size="sm" className="shrink-0" />
                       </button>
+                      <Button type="button" variant="ghost" size="icon" className="mr-1 size-8 shrink-0 text-primary"
+                        aria-label={`Confronta DDT ${ddt.numero_ddt}`} title="Confronta con l’ordine"
+                        onClick={() => navigate(`/azienda/ddt/${ddt.id}?confronto=ordini`)}>
+                        <ArrowLeftRight className="size-4" aria-hidden="true" />
+                      </Button>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </div>
           </QuoteCard>
+          </section>
 
           {/* La prova dell'ordine quando non e' partito da qui: conferma del
               sito, modulo firmato, scontrino del banco. */}

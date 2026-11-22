@@ -102,9 +102,14 @@ vi.mock("@/components/ddt/NewDDTDialog", () => ({
   NewDDTDialog: ({ open }: { open: boolean }) =>
     open ? <div role="dialog">Nuovo DDT</div> : null,
 }));
+vi.mock("@/components/ddt/DocumentiInIngresso", async (orig) => ({
+  ...(await orig<typeof import("@/components/ddt/DocumentiInIngresso")>()),
+  RevisioneDocumento: ({ documento, incorporata }: { documento: DocumentoPersistente; incorporata: boolean }) =>
+    incorporata && <section aria-label="Verifica la bolla">{documento.files[0]?.name}</section>,
+}));
 function Url() {
   const location = useLocation();
-  return <output data-testid="url">{location.search}</output>;
+  return <><output data-testid="url">{location.search}</output><output data-testid="pathname">{location.pathname}</output></>;
 }
 const clients: QueryClient[] = [];
 function open(node: React.ReactNode, url: string, advanced = true) {
@@ -497,10 +502,13 @@ describe("Elenco DDT operativo", () => {
       { ...bolla, id: "10000000-0000-4000-8000-000000000012", files: [{ name: "Altra bolla.pdf", mime: "application/pdf", path: "co/u/altra", size: 100 }] },
     ];
     open(<DDTRicezioneList />, `/azienda/ordini?tab=ddt&ddt_documento=${id}`, false);
-    expect(screen.getByText("Bolla originale.pdf")).toBeInTheDocument();
-    expect(screen.queryByText("Altra bolla.pdf")).not.toBeInTheDocument();
-    if (status === "review") expect(screen.getByRole("button", { name: "Controlla e registra" })).toBeEnabled();
-    else expect(screen.getByRole("link", { name: "Apri il DDT registrato" })).toHaveAttribute("href", "/azienda/ddt/ddt-registrato");
+    if (status === "review") {
+      const verifica = screen.getByRole("region", { name: "Verifica la bolla" });
+      expect(within(verifica).getByText("Bolla originale.pdf")).toBeInTheDocument();
+      expect(within(verifica).queryByText("Altra bolla.pdf")).not.toBeInTheDocument();
+      expect(screen.getByText("Da verificare")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    } else expect(screen.getByTestId("pathname")).toHaveTextContent("/azienda/ddt/ddt-registrato");
   });
 
   it("parte dall’elenco, mostra la selezione e lo Stato dopo il numero e apre le azioni dalla riga", async () => {
@@ -555,12 +563,13 @@ describe("Elenco DDT operativo", () => {
     state.ddt = [ddt("gia", "ricevuto")];
     open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt");
     const table = screen.getByRole("table", { name: "Elenco DDT" });
-    expect(within(table).getByText("Nuova-bolla.pdf")).toBeInTheDocument();
+    const inArrivo = within(table).getByRole("row", { name: /Nuova-bolla.pdf/ });
+    expect(within(inArrivo).getByRole("link", { name: "Nuova-bolla.pdf" })).toHaveAttribute("href", expect.stringContaining("ddt_documento="));
     expect(
-      within(table).getByText("Da controllare in ufficio"),
+      within(inArrivo).getByText("Da verificare"),
     ).toBeInTheDocument();
     expect(
-      within(table).getByRole("button", { name: "Controlla e registra" }),
+      within(inArrivo).getByRole("button", { name: "Controlla e registra" }),
     ).toBeEnabled();
     expect(
       screen.queryByText("File-gia-registrato.pdf"),

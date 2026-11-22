@@ -129,6 +129,8 @@ interface BolleProps {
   destinazione?: "magazzino" | "cantiere";
   warehouseId?: string | null;
   iniziali?: BollaLetta[];
+  incorporata?: boolean;
+  onRegistrata?: (id: string) => void;
   fileIniziale?: File;
   pdfIniziale?: PdfDaDividere;
   documentoOrigineId?: string;
@@ -143,6 +145,8 @@ function BolleAperte({
   destinazione = "magazzino",
   warehouseId,
   iniziali,
+  incorporata = false,
+  onRegistrata,
   fileIniziale,
   pdfIniziale,
   documentoOrigineId,
@@ -166,6 +170,7 @@ function BolleAperte({
     [],
   );
   const [salvando, setSalvando] = useState(false);
+  const salvataggioAttivo = useRef(false);
   const [daDividere, setDaDividere] = useState<
     { id: string; pdf: PdfDaDividere }[]
   >(() => pdfIniziale ? [{id:crypto.randomUUID(),pdf:pdfIniziale}] : []);
@@ -177,7 +182,7 @@ function BolleAperte({
   const [finestraPer, setFinestraPer] = useState<string | null>(null);
   const giaAperte = useRef(new Set<string>());
   const puoMagazzino = !permissions.solaLettura && Boolean(permissions.canEditWarehouse);
-  const [caricaMagazzino, setCaricaMagazzino] = useState(true);
+  const [caricaMagazzino, setCaricaMagazzino] = useState(!incorporata);
 
   const {
     data: rubrica = [],
@@ -427,12 +432,14 @@ function BolleAperte({
       (b) =>
         b.stato === "letta" && b.esito !== "salvata" && b.destinazione === "magazzino",
     );
-  const bollaInFinestra = bolle.find((b) => b.id === finestraPer) ?? null;
+  const bollaInFinestra = incorporata ? bolle[0] : bolle.find(b => b.id === finestraPer);
+  const fileEditor = bollaInFinestra?.file;
+  const originaliEditor = useMemo(() => fileEditor ? [fileEditor] : [], [fileEditor]);
 
   // La finestra si apre da sola sulla prima bolla da compilare a mano o senza righe;
   // chiusa quella, sulla successiva. Una volta per bolla: chi la chiude ha deciso.
   useEffect(() => {
-    if (finestraPer || salvando) return;
+    if (incorporata || finestraPer || salvando) return;
     const prossima = elenco.find(
       (b) =>
         b.stato === "letta" &&
@@ -444,9 +451,11 @@ function BolleAperte({
     if (!prossima) return;
     giaAperte.current.add(prossima.id);
     setFinestraPer(prossima.id);
-  }, [elenco, finestraPer, salvando]);
+  }, [elenco, finestraPer, salvando, incorporata]);
 
   const conferma = async (lista: BollaLetta[] = daSalvare) => {
+    if (salvataggioAttivo.current) return;
+    salvataggioAttivo.current = true;
     setSalvando(true);
     daAbbinare.current = 0;
     await inParallelo(lista, QUANTE_INSIEME, async (b) => {
@@ -541,6 +550,7 @@ function BolleAperte({
         });
       }
     });
+    salvataggioAttivo.current = false;
     setSalvando(false);
     void queryClient.invalidateQueries({
       queryKey: queryKeys.ddtRicezione.all,
@@ -564,10 +574,126 @@ function BolleAperte({
             }
           : undefined,
       );
-      onOpenChange(false);
+      const id = bolle[0]?.ddtCreatoId;
+      if (incorporata && id) onRegistrata?.(id);
+      else onOpenChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finite, salvando]);
+
+  const dialogFornitore = bollaNuovoFornitore && companyId && (
+    <NuovoFornitoreDaBolla
+      key={bollaNuovoFornitore.id}
+      bolla={bollaNuovoFornitore}
+      companyId={companyId}
+      fornitori={rubrica}
+      onChiudi={() => setNuovoFornitore(null)}
+      onCreato={(fornitore) => {
+        const aggiornati = [
+          ...rubrica.filter((f) => f.id !== fornitore.id),
+          fornitore,
+        ];
+        queryClient.setQueryData(
+          ["ddt-fornitori-abbinamento", companyId],
+          aggiornati,
+        );
+        setBolle((attuali) =>
+          riabbinaFornitori(
+            attuali.map((b) =>
+              b.id === bollaNuovoFornitore.id
+                ? { ...b, supplierId: fornitore.id, abbinatoPer: null }
+                : b,
+            ),
+            aggiornati,
+          ),
+        );
+        setNuovoFornitore(null);
+      }}
+    />
+  );
+  const editorBolla = bollaInFinestra && (
+    <FinestraBollaFotoRighe
+      open
+      onOpenChange={(v) => {
+        if (!v) setFinestraPer(null);
+      }}
+      incorporata={incorporata}
+      titolo={incorporata ? "Verifica la bolla" : undefined}
+      files={originaliEditor}
+      companyId={companyId}
+      testata={bollaInFinestra}
+      onTestataChange={(patch) =>
+        cambia(bollaInFinestra.id, {
+          ...patch,
+          ...(patch.supplierId !== undefined ? { abbinatoPer: null } : {}),
+        })
+      }
+      righe={bollaInFinestra.righe}
+      onRigheChange={(righe) => cambia(bollaInFinestra.id, { righe })}
+      fornitoreLetto={bollaInFinestra.supplierId ? null : bollaInFinestra.fornitoreLetto}
+      mostraDestinazione
+      stato={incorporata && bollaInFinestra.motivoEsito ? <p role="alert" className="text-sm text-destructive">{bollaInFinestra.motivoEsito}</p> : undefined}
+      disabled={salvando || !!bollaInFinestra.ddtCreatoId}
+      avvisi={[
+        ...(doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
+          ? ["Stesso numero, data e fornitore già presenti"]
+          : []),
+        ...(conflittoFornitore(bollaInFinestra, rubrica)
+          ? ["P.IVA del fornitore diversa da quella letta"]
+          : []),
+      ]}
+      carico={{
+        visibile: puoMagazzino && bollaInFinestra.destinazione === "magazzino"
+          && (!incorporata || !richiedeCaricoManuale(bollaInFinestra.grezzo)),
+        valore: caricaMagazzino,
+        onChange: setCaricaMagazzino,
+      }}
+      conferma={{
+        etichetta: "Registra la bolla",
+        inCorso: salvando,
+        bloccata:
+          inLettura
+            ? "aspetta la fine delle letture"
+            : doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
+              ? "Conferma che si tratta di una versione distinta"
+              : incorporata ? problemiBloccanti(bollaInFinestra).join(" · ") || null : null,
+        onConferma: () => {
+          const b = bollaInFinestra;
+          if (!incorporata) setFinestraPer(null);
+          void conferma([b]);
+        },
+      }}
+    >
+      {incorporata && (
+        <>
+          {!bollaInFinestra.supplierId && bollaInFinestra.fornitoreLetto && puoCreareFornitore && (
+            <Button type="button" size="sm" variant="outline" disabled={salvando}
+              onClick={() => setNuovoFornitore(bollaInFinestra.id)}>Crea fornitore dai dati letti</Button>
+          )}
+          {bollaInFinestra.destinazione === "magazzino" && puoMagazzino && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Magazzino di arrivo</p>
+              <WarehouseSelect value={bollaInFinestra.warehouseId ?? warehouseId} disabled={salvando}
+                placeholder="Magazzino predefinito" onChange={id => cambia(bollaInFinestra.id, { warehouseId: id })} />
+            </div>
+          )}
+          {companyId && (
+            <CollegamentiBolla bolla={bollaInFinestra} companyId={companyId} disabled={salvando}
+              onChange={patch => cambia(bollaInFinestra.id, patch)} />
+          )}
+          {doppi.get(bollaInFinestra.id) && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={bollaInFinestra.caricaComunque} disabled={salvando}
+                onCheckedChange={v => cambia(bollaInFinestra.id, { caricaComunque: v === true })} />
+              Registra come versione distinta
+            </label>
+          )}
+        </>
+      )}
+    </FinestraBollaFotoRighe>
+  );
+
+  if (incorporata) return <>{editorBolla}{dialogFornitore}</>;
 
   return (
     <Dialog
@@ -1231,86 +1357,8 @@ function BolleAperte({
             </ul>
           )}
         </div>
-        {bollaNuovoFornitore && companyId && (
-          <NuovoFornitoreDaBolla
-            key={bollaNuovoFornitore.id}
-            bolla={bollaNuovoFornitore}
-            companyId={companyId}
-            fornitori={rubrica}
-            onChiudi={() => setNuovoFornitore(null)}
-            onCreato={(fornitore) => {
-              const aggiornati = [
-                ...rubrica.filter((f) => f.id !== fornitore.id),
-                fornitore,
-              ];
-              queryClient.setQueryData(
-                ["ddt-fornitori-abbinamento", companyId],
-                aggiornati,
-              );
-              setBolle((attuali) =>
-                riabbinaFornitori(
-                  attuali.map((b) =>
-                    b.id === bollaNuovoFornitore.id
-                      ? { ...b, supplierId: fornitore.id, abbinatoPer: null }
-                      : b,
-                  ),
-                  aggiornati,
-                ),
-              );
-              setNuovoFornitore(null);
-            }}
-          />
-        )}
-        {bollaInFinestra && (
-          <FinestraBollaFotoRighe
-            open
-            onOpenChange={(v) => {
-              if (!v) setFinestraPer(null);
-            }}
-            files={[bollaInFinestra.file]}
-            companyId={companyId}
-            testata={bollaInFinestra}
-            onTestataChange={(patch) =>
-              cambia(bollaInFinestra.id, {
-                ...patch,
-                ...(patch.supplierId !== undefined ? { abbinatoPer: null } : {}),
-              })
-            }
-            righe={bollaInFinestra.righe}
-            onRigheChange={(righe) => cambia(bollaInFinestra.id, { righe })}
-            fornitoreLetto={bollaInFinestra.supplierId ? null : bollaInFinestra.fornitoreLetto}
-            mostraDestinazione
-            disabled={salvando || !!bollaInFinestra.ddtCreatoId}
-            avvisi={[
-              ...(doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
-                ? ["stesso numero, data e fornitore già presenti: decidi nella lista"]
-                : []),
-              ...(conflittoFornitore(bollaInFinestra, rubrica)
-                ? ["P.IVA del fornitore diversa da quella letta"]
-                : []),
-            ]}
-            carico={{
-              visibile: puoMagazzino && bollaInFinestra.destinazione === "magazzino",
-              valore: caricaMagazzino,
-              onChange: setCaricaMagazzino,
-            }}
-            conferma={{
-              etichetta: "Registra la bolla",
-              inCorso: salvando,
-              bloccata:
-                inLettura
-                  ? "aspetta la fine delle letture"
-                  : doppi.get(bollaInFinestra.id) && !bollaInFinestra.caricaComunque
-                    ? "doppione: spunta «Carica comunque» nella lista"
-                    : null,
-              onConferma: () => {
-                const b = bollaInFinestra;
-                setFinestraPer(null);
-                void conferma([b]);
-              },
-            }}
-          />
-        )}
+        {dialogFornitore}
+        {editorBolla}
         <DialogFooter className="items-center border-t bg-background px-6 py-4">
           {caricoVisibile && (
             <SpuntaCaricoMagazzino

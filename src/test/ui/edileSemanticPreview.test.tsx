@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 import { Blob as NodeBlob } from "node:buffer";
 import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 
@@ -48,6 +49,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("shared semantic PDF preview, including Facciate direct consumer", () => {
+  it("mostra per intero anche il PDF dell’ordine generato nel confronto", async () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400);
+    render(
+      <ConfrontoDocumentiLayout>
+        <PannelloDocumento nome="Ordine" lato="destra" attivo testata="Ordine" viste="PDF nostro">
+          <PdfBlobLivePreviewPanel {...props} />
+        </PannelloDocumento>
+      </ConfrontoDocumentiLayout>,
+    );
+    await waitFor(() => expect(canvas(1).height).toBe(384));
+    fireEvent.click(screen.getByRole("button", { name: "Ingrandisci PDF" }));
+    await waitFor(() => expect(canvas(1).height).toBe(480));
+    fireEvent.click(screen.getByRole("button", { name: "Adatta alla pagina" }));
+    await waitFor(() => expect(canvas(1).height).toBe(384));
+  });
   it("porta la voce alla sua posizione nella pagina senza rigenerare il PDF alla selezione", async () => {
     state.doc = makeDocument({ "computo.voce.a": 2, "computo.voce.b": 5 });
     const resolve = state.doc.getDestination;

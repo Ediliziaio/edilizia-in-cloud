@@ -124,7 +124,7 @@ it("Documenti da registrare: un documento «da leggere» ha «Leggi con l'AI» e
       </tbody>
     </table>,
   );
-  expect(screen.getByText("Solo foto, da leggere")).toBeInTheDocument();
+  expect(screen.getByText("Da verificare")).toBeInTheDocument();
   expect(screen.getByText("In magazzino")).toBeInTheDocument();
   expect(screen.queryByText("Analisi in corso…")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Leggi con l'AI" }));
@@ -133,15 +133,17 @@ it("Documenti da registrare: un documento «da leggere» ha «Leggi con l'AI» e
   expect(apri).toHaveBeenCalledWith(j);
 });
 
-it("«Compila a mano» su un documento da leggere apre la finestra con le righe vuote e la destinazione scelta", async () => {
+it("«Compila a mano» porta nella scheda originale, righe vuote e destinazione scelta", async () => {
   const j = documento();
   m.leggi.mockResolvedValue(j);
-  conClient(<RevisioneDocumento documento={j} onClose={vi.fn()} />);
+  conClient(<RevisioneDocumento documento={j} incorporata onClose={vi.fn()} />);
   await screen.findByRole("dialog");
   const props = m.dialogo.mock.calls.at(-1)![0] as {
     iniziali: Array<{ compilaAMano?: boolean; righe: unknown[]; documentoJobId: string; destinazione: string }>;
     destinazione: string;
+    incorporata: boolean;
   };
+  expect(props.incorporata).toBe(true);
   expect(props.destinazione).toBe("magazzino");
   expect(props.iniziali[0]).toMatchObject({ compilaAMano: true, righe: [], documentoJobId: "j", destinazione: "magazzino" });
 });

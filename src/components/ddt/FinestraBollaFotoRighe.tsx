@@ -378,6 +378,7 @@ function useSchermoLargo(): boolean {
 
 export interface FinestraBollaProps {
   open: boolean;
+  incorporata?: boolean;
   onOpenChange: (v: boolean) => void;
   files: ReadonlyArray<File>;
   testata: TestataBolla;
@@ -410,7 +411,7 @@ export interface FinestraBollaProps {
 
 export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
   const {
-    open, onOpenChange, files, testata, onTestataChange, righe, onRigheChange, companyId,
+    open, incorporata = false, onOpenChange, files, testata, onTestataChange, righe, onRigheChange, companyId,
     fornitoreLetto, ordineAcquisto, commessaFissa, mostraDestinazione, carico, conferma,
     etichettaChiudi = "Chiudi", disabled = false, avvisi = [], stato, testataExtra, children,
     titolo = "Controlla la bolla",
@@ -419,30 +420,18 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
   const largo = useSchermoLargo();
   const problemi = useMemo(() => problemiBolla({ ...testata, righe }), [testata, righe]);
   const bloccata = conferma?.bloccata ?? (problemi.length ? problemi.join(" · ") : null);
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!conferma?.inCorso) onOpenChange(v); }}>
-      <DialogContent
-        className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[94dvh] sm:max-h-[94dvh] sm:w-[96vw] sm:max-w-[1500px] sm:rounded-lg"
-      >
-        <DialogHeader className="shrink-0 border-b px-4 py-2.5 pr-12">
-          <DialogTitle className="text-base">{titolo}</DialogTitle>
-          <DialogDescription className="text-xs">
-            {conOriginale
-              ? largo
-                ? "A sinistra l'originale, a destra quello che si registra: correggi o scrivi i dati guardando la foto."
-                : "Sopra l'originale (toccalo per ingrandirlo), sotto quello che si registra."
-              : "Nessun originale caricato: scrivi i dati della bolla."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className={cn("min-h-0 flex-1 overflow-y-auto", conOriginale && "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden")}>
+  const contenuto = (
+    <>
+        <div className={cn("min-h-0 flex-1", !incorporata && "overflow-y-auto",
+          conOriginale && "lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+          conOriginale && !incorporata && "lg:overflow-hidden")}>
           {conOriginale && (
-            <div className="h-56 border-b lg:h-full lg:border-b-0 lg:border-r">
+            <div className={cn("border-b lg:border-b-0 lg:border-r", incorporata ? "h-72 lg:sticky lg:top-4 lg:h-[min(65dvh,42rem)]" : "h-56 lg:h-full")}>
               <VisoreBolla files={files} compatto={!largo} />
             </div>
           )}
 
-          <div className={cn("space-y-3 p-3 sm:p-4 lg:overflow-y-auto", !conOriginale && "mx-auto max-w-3xl")}>
+          <div className={cn("min-w-0 space-y-3 p-3 sm:p-4", !incorporata && "lg:overflow-y-auto", !conOriginale && "mx-auto max-w-3xl")}>
             {stato}
             <fieldset disabled={disabled} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <legend className="sr-only">Testata della bolla</legend>
@@ -536,9 +525,9 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
             <SpuntaCaricoMagazzino checked={carico.valore} onChange={carico.onChange} disabled={disabled || conferma?.inCorso} />
           )}
           <div className="ml-auto flex gap-2">
-            <Button type="button" variant="outline" disabled={conferma?.inCorso} onClick={() => onOpenChange(false)}>
+            {!incorporata && <Button type="button" variant="outline" disabled={conferma?.inCorso} onClick={() => onOpenChange(false)}>
               {etichettaChiudi}
-            </Button>
+            </Button>}
             {conferma && (
               <Button
                 type="button"
@@ -552,6 +541,30 @@ export function FinestraBollaFotoRighe(props: FinestraBollaProps) {
             )}
           </div>
         </div>
+    </>
+  );
+  if (incorporata) {
+    return <section aria-label={titolo} className="flex min-w-0 flex-col rounded-xl border bg-card">
+      <h2 className="border-b px-4 py-3 text-sm font-semibold">{titolo}</h2>
+      {contenuto}
+    </section>;
+  }
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!conferma?.inCorso) onOpenChange(v); }}>
+      <DialogContent
+        className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[94dvh] sm:max-h-[94dvh] sm:w-[96vw] sm:max-w-[1500px] sm:rounded-lg"
+      >
+        <DialogHeader className="shrink-0 border-b px-4 py-2.5 pr-12">
+          <DialogTitle className="text-base">{titolo}</DialogTitle>
+          <DialogDescription className="text-xs">
+            {conOriginale
+              ? largo
+                ? "Correggi o scrivi i dati a destra guardando l’originale."
+                : "Tocca l’originale per ingrandirlo e correggi i dati qui sotto."
+              : "Scrivi i dati della bolla."}
+          </DialogDescription>
+        </DialogHeader>
+        {contenuto}
       </DialogContent>
     </Dialog>
   );

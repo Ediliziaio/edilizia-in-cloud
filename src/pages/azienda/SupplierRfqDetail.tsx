@@ -4,6 +4,7 @@ import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAntepri
 import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
 import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
 import { RdoCondizioniOfferta } from "@/components/acquisti/RdoCondizioniOfferta";
+import { OriginaliOfferteDialog } from "@/components/rdo/OriginaliOfferteDialog";
 import { attivitaRdo, oggiLocale } from "@/lib/acquisti/attivita";
 import { confrontoOfferta, coperturaOfferta, TRASPORTO_LABELS } from "@/lib/acquisti/confronto";
 import { RdoDettagliCard } from "@/components/rdo/RdoDettagliCard";
@@ -108,6 +109,7 @@ export default function SupplierRfqDetail() {
   const [sendMode,setSendMode]=useState<"testo"|"pdf">("testo");
   const [downloadingFor,setDownloadingFor]=useState<string|null>(null);
   const [previewFor,setPreviewFor]=useState<RfqSupplier|null>(null);
+  const [originaleDa, setOriginaleDa] = useState<string | null>(null);
   const [editingOffers,setEditingOffers]=useState<string[]>([]);
   const [nuovoFornitore, setNuovoFornitore] = useState("");
   // Un fornitore aperto alla volta; con un solo fornitore è aperto da subito.
@@ -203,6 +205,8 @@ export default function SupplierRfqDetail() {
   const fornitoreApertoId =
     fornitoreAperto === undefined ? (fornitori.length === 1 ? fornitori[0].id : null) : fornitoreAperto;
   const confrontoVisibile = !senzaPrezzi && fornitori.length > 0 && items.length > 0;
+  const offerteRicevute = fornitori.filter(f => f.status === "risposta" || f.allegato_url || f.email_inbox_id);
+  const primaOffertaConFile = offerteRicevute.find(f => f.allegato_url) ?? offerteRicevute.find(f => f.email_inbox_id);
 
   const composeContext = (f: RfqSupplier): ComposeContext => {
     const dati = {
@@ -401,10 +405,18 @@ export default function SupplierRfqDetail() {
           {confrontoVisibile && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Scale className="h-4 w-4 text-primary" />
-                  Confronto offerte
-                </CardTitle>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Scale className="h-4 w-4 text-primary" />
+                    Confronto offerte
+                  </CardTitle>
+                  {primaOffertaConFile && (
+                    <Button type="button" size="sm" variant="outline" className="gap-1.5"
+                      onClick={() => setOriginaleDa(primaOffertaConFile.id)}>
+                      <Eye className="size-4" aria-hidden="true" /> Originali delle offerte
+                    </Button>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Prezzi IVA esclusa. In verde il prezzo più basso; il totale più basso vale solo fra offerte complete, valide e col trasporto chiaro.
                 </p>
@@ -839,29 +851,11 @@ export default function SupplierRfqDetail() {
                         />
                       </label>
                     )}
-                    {/* Offerta originale (PDF letto dall'AI o allegato email):
-                        il confronto si controlla sul documento, non a memoria. */}
-                    {f.allegato_url && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700"
-                        title="Apri l'offerta originale"
-                        onClick={async () => {
-                          const raw = f.allegato_url!;
-                          if (/^https?:\/\//.test(raw)) { window.open(raw, "_blank"); return; }
-                          const slash = raw.indexOf("/");
-                          const { data, error } = await supabase.storage
-                            .from(raw.slice(0, slash))
-                            .createSignedUrl(raw.slice(slash + 1), 600);
-                          if (error || !data?.signedUrl) {
-                            toast.error("Non riesco ad aprire l'allegato dell'offerta");
-                            return;
-                          }
-                          window.open(data.signedUrl, "_blank");
-                        }}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
+                    {!senzaPrezzi && (f.allegato_url || f.email_inbox_id) && (
+                      <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                        aria-label={`Vedi originale di ${f.suppliers?.name ?? "fornitore"}`}
+                        onClick={() => setOriginaleDa(f.id)}>
+                        <Eye className="size-3.5" aria-hidden="true" /> Vedi originale
                       </Button>
                     )}
                     {modificabile && (
@@ -930,6 +924,11 @@ export default function SupplierRfqDetail() {
             if (rfq.status === "bozza") updateRfq.mutate({ status: "inviata" });
           }}
         />
+      )}
+
+      {originaleDa && !senzaPrezzi && offerteRicevute.length > 0 && (
+        <OriginaliOfferteDialog key={rfq.id} companyId={rfq.company_id} numero={rfq.rfq_number}
+          offerte={offerteRicevute} iniziale={originaleDa} onClose={() => setOriginaleDa(null)} />
       )}
 
       {/* Lettura AI del preventivo fornitore */}

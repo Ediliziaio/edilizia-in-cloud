@@ -11,7 +11,6 @@ import {
   type PossibileDuplicatoDDT,
   type RiepilogoInvioWhatsApp,
 } from "@/lib/ddt/documentiPersistenti";
-import { RevisioneDocumento } from "@/components/ddt/DocumentiInIngresso";
 
 export function useDocumentiInIngresso(enabled = true, documentoId?: string, invioId?: string) {
   const { effectiveCompany, user } = useAuth();
@@ -20,7 +19,6 @@ export function useDocumentiInIngresso(enabled = true, documentoId?: string, inv
   });
   const query = useDocumentiDDT(false, undefined, !!documentoId, enabled, documentoId, invioId);
   const qc = useQueryClient();
-  const [aperto, setAperto] = useState<DocumentoPersistente | null>(null);
   const [riprovando, setRiprovando] = useState<string | null>(null);
   const documenti = enabled
     ? (query.data ?? []).filter(
@@ -76,18 +74,5 @@ export function useDocumentiInIngresso(enabled = true, documentoId?: string, inv
     ripresaLocale,
     riprovando,
     riprova,
-    apri: (j: DocumentoPersistente) => {
-      if (enabled) setAperto(j);
-    },
-    dialog:
-      enabled && aperto ? (
-        <RevisioneDocumento
-          documento={aperto}
-          onClose={() => {
-            setAperto(null);
-            void query.refetch();
-          }}
-        />
-      ) : null,
   };
 }

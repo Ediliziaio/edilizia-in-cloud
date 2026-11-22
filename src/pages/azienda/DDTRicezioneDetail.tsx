@@ -31,7 +31,7 @@ import { useFileDDT } from "@/hooks/useFileDDT";
 
 import { useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento, useParametriDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,10 +39,15 @@ import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
 import { DocumentiBollaCard } from "@/components/ddt/DocumentiBollaCard";
 import { ConsegneDDTCard } from "@/components/ddt/ConsegneDDTCard";
 import { ControlloOrdiniDDTCard } from "@/components/ddt/ControlloOrdiniDDTCard";
+import { OriginaliConfronto } from "@/components/fatturazione/OriginaliConfronto";
+import { useOriginaliConfronto } from "@/hooks/useConfrontoFattura";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CLASSE_DIALOG_CONFRONTO } from "@/components/acquisti/RiepilogoConfronto";
 import { ArrivoPosizioniPanel } from "@/components/ddt/ArrivoPosizioniPanel";
 import { CollegamentiDDTCard, TimelineBolla } from "@/components/ddt/CollegamentiDDTCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +64,7 @@ import {
   ArrowLeft, FileCheck, Loader2, Truck, FileText,
   Package, Plus, CheckCircle2, Trash2, Edit3, Save, X, ExternalLink,
   Camera, User, Phone, Clock, MapPin, AlertTriangle, ShieldCheck,
-  FilePlus2, Hash, Calendar, PenLine, ListTree,
+  FilePlus2, Hash, Calendar, PenLine, ListTree, ArrowLeftRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -102,9 +107,17 @@ function ContenutoDDTRicezioneDetail() {
   const ddtId = useIdDocumento(ddtIdIndirizzo);
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
+  const parametri = useParametriDocumento();
+  const [confrontoAperto, setConfrontoAperto] = useState(() => parametri.get("confronto") === "ordini");
+  const [originaleAperto, setOriginaleAperto] = useState(false);
+  const confermaVerifica = useConfirm();
   const aspettoGenerale = useAspettoOperativo();
   const { ddt, isLoading, isError: erroreDDT, refetch: rileggiDDT, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
   const fileDocumento = useFileDDT(ddt);
+  const originaliDocumento = useOriginaliConfronto(ddt?.company_id ?? "", originaleAperto && ddt ? {
+    id: ddt.id, tipo: "ddt", numero: ddt.numero_ddt, data: ddt.data_ricezione,
+    fornitore: "", collegato: true, righe: [], bolle: [], avviso: null, dati: { ...ddt },
+  } : undefined);
   const consegneDocumento = useConsegneDDT(ddt?.company_id ?? "",ddtId ?? "");
   const destinazioneMista = new Set((consegneDocumento.data ?? []).filter(c=>c.tipo!=="servizio").map(c=>c.destinazione)).size>1;
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
@@ -295,10 +308,13 @@ function ContenutoDDTRicezioneDetail() {
   const onSignatureClick = () => signatureRef.current?.click();
 
   // ── Quick action: segna verificato ────────────────────────
-  const markVerified = () => {
-    if (!ddt) return;
-    if (ddt.stato === "verificato") return;
-    if (!confirm("Confermi che questo DDT è stato verificato e la merce è conforme?")) return;
+  const markVerified = async () => {
+    if (!ddt || ddt.stato === "verificato" || updateDDT.isPending) return;
+    if (!(await confermaVerifica({
+      title: "Segnare il DDT come verificato?",
+      description: "Conferma che hai controllato la bolla e che la merce è conforme.",
+      confirmLabel: "Segna verificato",
+    }))) return;
     updateDDT.mutate({
       id: ddt.id,
       updates: { stato: "verificato" },
@@ -560,16 +576,13 @@ function ContenutoDDTRicezioneDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* L'originale del fornitore a portata di mano: le schede che lo
-              mostrano stanno in fondo alla colonna della merce. */}
-          {fileDocumento.data && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={fileDocumento.data} target="_blank" rel="noreferrer" className="gap-1.5">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Bolla originale</span>
-              </a>
-            </Button>
-          )}
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOriginaleAperto(true)}>
+            <FileText className="size-4" aria-hidden="true" /> Originale
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5 border-primary/25 text-primary"
+            onClick={() => setConfrontoAperto(true)}>
+            <ArrowLeftRight className="size-4" aria-hidden="true" /> Confronta con ordini
+          </Button>
           {canVerify && (
             <Button
               size="sm"
@@ -810,7 +823,24 @@ function ContenutoDDTRicezioneDetail() {
           {/* Le posizioni su misura dell'ordine: la bolla propone, chi riceve conferma. */}
           {ddt?.purchase_order_id && <ArrivoPosizioniPanel odaId={ddt.purchase_order_id} ddtId={ddtId} nascondiSeVuoto />}
 
-          <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt} />
+          <ControlloOrdiniDDTCard key={`controllo:${ddt.id}`} ddt={ddt}
+            apertoDallaScheda={confrontoAperto} onApertoChange={setConfrontoAperto} />
+          <Dialog open={originaleAperto} onOpenChange={setOriginaleAperto}>
+            <DialogContent className={`${CLASSE_DIALOG_CONFRONTO} max-w-5xl`}>
+              <DialogHeader className="border-b px-4 py-3 pr-12">
+                <DialogTitle>Bolla originale</DialogTitle>
+                <DialogDescription>DDT {ddt.numero_ddt}</DialogDescription>
+              </DialogHeader>
+              <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+                {originaliDocumento.isLoading ? <p role="status" className="text-sm">Caricamento originale…</p>
+                  : originaliDocumento.isError ? <p role="alert" className="text-sm text-destructive">
+                    Originale non disponibile.{" "}
+                    <button type="button" className="underline" onClick={() => void originaliDocumento.refetch()}>Riprova</button>
+                  </p>
+                  : <OriginaliConfronto companyId={ddt.company_id} files={originaliDocumento.data ?? []} adatta />}
+              </div>
+            </DialogContent>
+          </Dialog>
           {/* 12/11/2026 — Bolla per il magazzino registrata senza magazzino (l'azienda
               non ne aveva, o dal telefono non è stato scelto): il carico resta in
               sospeso finché non se ne sceglie uno. */}
