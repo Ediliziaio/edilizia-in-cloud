@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { FvRiconciliazioneBolletta } from "./FvRiconciliazioneBolletta";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { useLettureBollettaFv } from "@/hooks/useLettureBollettaFv";
+import { integraLettureBollettaFv, erroreLetturaBollettaFv, type LetturaBollettaFv } from "@/lib/fotovoltaico/lettureBolletta";
 import {
   type AnalisiConsumiFv,
   analisiConsumiIniziale,
@@ -80,8 +81,13 @@ type Props = {
   onApplica: (a: { consumo: number; costoEvitabile: number | null }) => void;
   onIndirizzo: (indirizzo: string) => void;
 };
-export function FvBolletteConsumi(
+export function FvBolletteConsumi(props: Props) {
+  const companyId = useEffectiveCompanyId();
+  return <FvBolletteConsumiDettaglio key={`${companyId ?? ''}:${props.progettoId ?? ''}`} {...props} companyId={companyId} />;
+}
+function FvBolletteConsumiDettaglio(
   {
+    companyId,
     progettoId,
     consumoManuale,
     costoManuale,
@@ -91,10 +97,9 @@ export function FvBolletteConsumi(
     onChange,
     onApplica,
     onIndirizzo,
-  }: Props,
+  }: Props & { companyId: ReturnType<typeof useEffectiveCompanyId> },
 ) {
-  const companyId = useEffectiveCompanyId(),
-    a = value ?? analisiConsumiIniziale(azienda),
+  const a = value ?? analisiConsumiIniziale(azienda),
     [caricando, setCaricando] = useState(false),
     [manuale, setManuale] = useState(false),
     [verificaAperta, setVerificaAperta] = useState(false),
@@ -112,6 +117,13 @@ export function FvBolletteConsumi(
   useEffect(() => {
     corrente.current = a;
   }, [a]);
+  const letture = useLettureBollettaFv(companyId, progettoId, modificabile, (jobs) => {
+    const next = integraLettureBollettaFv(corrente.current, jobs);
+    if (next !== corrente.current && attivo.current) {
+      corrente.current = next;
+      onChange(next);
+    }
+  });
   useEffect(() => {
     attivo.current = true;
     return () => {
@@ -323,7 +335,7 @@ export function FvBolletteConsumi(
         let lettura;
         try {
           lettura = await supabase.functions.invoke("fv-leggi-bolletta", {
-            body: { progetto_id: progettoId, path, nome: f.name.slice(0, 200) },
+            body: { progetto_id: progettoId, path, nome: f.name.slice(0, 200), asincrona: true },
             signal: controller.signal,
           });
         } finally {
@@ -331,11 +343,12 @@ export function FvBolletteConsumi(
         }
         if (lettura.error) {
           throw Error(
-            await edgeErrorMessage(
-              lettura.error,
-              "Lettura non riuscita: puoi continuare con l’inserimento manuale.",
-            ),
+            await erroreLetturaBollettaFv(lettura.error),
           );
+        }
+        if (lettura.data?.lettura?.id) {
+          letture.ricarica();
+          continue;
         }
         const validata = leggiAnalisiConsumi({
           ...analisiConsumiIniziale(azienda),
@@ -374,7 +387,22 @@ export function FvBolletteConsumi(
       }
     } finally {
       if (attivo.current) setCaricando(false);
+      letture.ricarica();
       if (input.current) input.current.value = "";
+    }
+  };
+  const riprendi = async (job: LetturaBollettaFv) => {
+    setCaricando(true); setErrore("");
+    try {
+      const { error } = await supabase.functions.invoke("fv-leggi-bolletta", {
+        body: { progetto_id: progettoId, path: job.path, nome: job.nome, asincrona: true, riprova: true },
+      });
+      if (error) throw Error(await erroreLetturaBollettaFv(error));
+    } catch (e) {
+      if (attivo.current) setErrore(e instanceof Error ? e.message : "Lettura non avviata. Riprova tra poco.");
+    } finally {
+      if (attivo.current) setCaricando(false);
+      letture.ricarica();
     }
   };
   return (
@@ -398,7 +426,7 @@ export function FvBolletteConsumi(
           disabled={!modificabile || caricando || !progettoId}
           onClick={() => input.current?.click()}
         >
-          {caricando ? "Lettura bollette in corso…" : "Carica bolletta"}
+          {caricando ? "Caricamento in corso…" : "Carica bolletta"}
         </Button>
         <input
           ref={input}
@@ -423,10 +451,18 @@ export function FvBolletteConsumi(
       </div>
       {caricando && (
         <p role="status" className="mt-3 text-sm">
-          Leggo i documenti uno alla volta. I valori saranno da verificare prima
-          dell’importazione.
+          Carico i documenti. La lettura continua anche se chiudi questa schermata.
         </p>
       )}
+      {letture.errore && <div role="status" className="mt-3 text-sm text-amber-800">{letture.errore} <Button variant="outline" onClick={letture.ricarica}>Ricarica stato</Button></div>}
+      {letture.jobs.filter(job => job.stato !== "completata" || (leggiAnalisiConsumi({ ...analisiConsumiIniziale(), documenti: job.documenti })?.documenti.some(d => d.pagine_non_lette.length > 0) ?? false)).map(job => {
+        const inCorso = job.stato === "in_corso" && Date.parse(job.scade_il) > letture.ora;
+        const confermata = a.documenti.some(d => d.path === job.path && d.confermato);
+        return <div key={job.id} role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm">
+          <div><strong>{job.nome}</strong><p>{inCorso ? "Lettura in corso. Puoi uscire: ritroverai i dati quando riapri il progetto." : job.errore ?? (job.stato === "completata" ? "Alcune pagine non sono state lette. Puoi rileggere le pagine mancanti prima di confermare." : "La lettura si è interrotta. Il file è già caricato: riprendi senza caricarlo di nuovo.")}</p></div>
+          {!inCorso && !confermata && <Button type="button" variant="outline" disabled={!modificabile || caricando} onClick={() => void riprendi(job)}>Riprendi lettura</Button>}
+        </div>;
+      })}
       {errore && (
         <p role="alert" className="mt-3 text-sm text-red-700">{errore}</p>
       )}

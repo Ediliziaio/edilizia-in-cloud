@@ -267,7 +267,7 @@ async function primeRighe(file: File): Promise<string> {
   if (file.type === "application/pdf" || nome.endsWith(".pdf")) {
     const pdfjs = await import("pdfjs-dist");
     pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-    const { pdfTextByLines } = await import("../../../supabase/functions/_shared/pdfExtraction");
+    const { pdfTextByLines } = await import("../../../supabase/functions/_shared/pdfLettura");
     const caricamento = pdfjs.getDocument({ data: await file.arrayBuffer() });
     try {
       const pdf = await caricamento.promise;

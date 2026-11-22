@@ -408,6 +408,7 @@ Deno.serve(async (req: Request) => {
       confronto_deposito_25anni: { tasso: tassoDeposito, montante: round2(deposito_montante), delta_vs_fv: round2(fv_montante - deposito_montante) },
       incentivi,
       co2_evitata_25_anni_kg: co2_evitata,
+      inflazione_energia_pct: inflazione,
       // metadata
       costi: {
         costo_totale_netto: round2(costo_totale_netto),
@@ -845,7 +846,7 @@ const NUMERI_DEL_CALCOLO = [
   "produzione_annua_kwh", "autoconsumo_pct", "costo_kwh_attuale", "prezzo_rid_eur_kwh",
   "energia_autoconsumata_kwh", "energia_immessa_rete_kwh", "risparmio_bolletta_eur", "ricavi_rid_eur",
   "detrazione_anno_eur", "payback_anni", "npv_25_anni", "irr_pct", "risparmio_totale_25_anni",
-  "capienza_irpef_recuperabile_pct",
+  "capienza_irpef_recuperabile_pct", "inflazione_energia_pct",
 ] as const;
 /** I risultati strutturati del calcolo attivo (cassa, scenari, confronti, incentivi). */
 const VOCI_DEL_CALCOLO = [
@@ -873,6 +874,8 @@ function risultatoSalvato(
     return Number.isFinite(n) ? n : null;
   };
   const out: Record<string, unknown> = { ...oggi };
+  // Per gli emessi non attribuire retroattivamente i parametri correnti.
+  out.inflazione_energia_pct = numero(calcolo?.inflazione_energia_pct);
 
   // I numeri principali scritti sul progetto all'ultimo calcolo (dove mancano resta quello di oggi).
   for (const k of NUMERI_DEL_PROGETTO) {

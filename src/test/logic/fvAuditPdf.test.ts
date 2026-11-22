@@ -49,6 +49,18 @@ it("il prezzo contrattuale conserva i centesimi in fornitura, investimento e acc
   expect((html.match(/4\.439,60/g) ?? []).length).toBeGreaterThanOrEqual(3);
 });
 
+it("presenta il beneficio fiscale come ipotesi soggetta a requisiti e lo omette quando non è calcolato", () => {
+  const conBeneficio = testoDi(renderFvPdfHtml(dati()));
+  expect(conBeneficio).toContain("Beneficio fiscale ipotizzato");
+  expect(conBeneficio).toContain("capienza fiscale da verificare");
+  const senzaBeneficio = testoDi(renderFvPdfHtml(dati(d => {
+    d.costi.detrazione_eur = 0;
+    d.costi.costo_netto_dopo_detrazione = d.costi.prezzo_vendita_iva_inclusa;
+  })));
+  expect(senzaBeneficio).not.toContain("Beneficio fiscale ipotizzato");
+  expect(senzaBeneficio).not.toContain("Costo netto al pieno utilizzo");
+});
+
 it("un nuovo impianto include le sezioni energetiche richieste con i dati della bolletta", () => {
   const d = dati(d => {
     d.progetto.consumo_annuo_bolletta_kwh = 2787;

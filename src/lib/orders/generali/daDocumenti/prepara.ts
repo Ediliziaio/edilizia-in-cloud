@@ -12,7 +12,7 @@
  * Poi `generale_lettura_crea` registra la lettura con le pagine e la stima.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { hasLargePdfImage, pdfTextByLines, type PdfTextItem } from "../../../../../supabase/functions/_shared/pdfExtraction";
+import { hasLargePdfImage, pdfTextByLines, type PdfTextItem } from "../../../../../supabase/functions/_shared/pdfLettura";
 import { leggiFileComputo, PdfDaLeggereConAi } from "@/lib/computo/leggiFileComputo";
 import { mascheraDatiPersonali, riconosciPagina } from "./pagine";
 import type { Strutturati, Strutturato } from "./strutturati";
