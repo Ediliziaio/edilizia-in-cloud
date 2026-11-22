@@ -6,6 +6,8 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import type { AppRole } from "@/types/auth";
 
 const TecnicoLayout = lazy(() => import("@/components/layouts/TecnicoLayout"));
+const CampoSchedaCantiere = lazy(() => import("@/pages/campo/CampoSchedaCantiere"));
+const ElencoCantieriTecnici = lazy(() => import("@/pages/campo/CampoSchedaCantiere").then(m => ({ default: m.ElencoCantieriTecnici })));
 const TecnicoHome = lazy(() => import("@/pages/tecnico/TecnicoHome"));
 const TecnicoIntervento = lazy(() => import("@/pages/tecnico/TecnicoIntervento"));
 const TecnicoRapportino = lazy(() => import("@/pages/tecnico/TecnicoRapportino"));
@@ -29,6 +31,8 @@ export default function TecnicoRoutesContainer() {
         }
       >
         <Route index element={<TecnicoHome />} />
+        <Route path="cantieri" element={<ElencoCantieriTecnici area="tecnico" />} />
+        <Route path="cantieri/:orderId" element={<CampoSchedaCantiere area="tecnico" />} />
         <Route path="interventi" element={<TecnicoInterventi />} />
         <Route path="intervento/:id" element={<TecnicoIntervento />} />
         <Route path="intervento/:id/rapportino" element={<TecnicoRapportino />} />

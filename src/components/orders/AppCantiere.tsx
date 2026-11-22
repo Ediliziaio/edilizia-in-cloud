@@ -10,6 +10,7 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { AccessiTecniciCantiere } from "@/components/orders/AccessiTecniciCantiere";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,6 +52,7 @@ export function AppCantiere({
   nomiSquadre,
   compact = false,
   gestione = false,
+  gestisciAccessiTecnici = false,
   organizzazione,
 }: {
   orderId: string;
@@ -58,6 +60,7 @@ export function AppCantiere({
   nomiSquadre: Map<string, string>;
   compact?: boolean;
   gestione?: boolean;
+  gestisciAccessiTecnici?: boolean;
   /** Same access read, a compact overview instead of an always-visible editor. */
   organizzazione?: { aperta: boolean; riepilogo: string; onGestione: () => void; onTurni?: () => void };
 }) {
@@ -170,6 +173,8 @@ export function AppCantiere({
           ))}
         </ul>
       )}
+
+      {gestisciAccessiTecnici && <AccessiTecniciCantiere key={orderId} orderId={orderId} capo={capo?.user_id} />}
 
       <AlertDialog open={!!daTogliere} onOpenChange={(o) => { if (!o && !togli.isPending) setDaTogliere(null); }}>
         <AlertDialogContent>

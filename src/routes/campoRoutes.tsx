@@ -14,6 +14,8 @@ import CampoLavoroDetail from "@/pages/campo/CampoLavoroDetail";
 import { CAMPO_ROLES } from "@/types/auth";
 
 const CampoLayout         = lazy(() => import("@/components/layouts/CampoLayout"));
+const CampoSchedaCantiere = lazy(() => import("@/pages/campo/CampoSchedaCantiere"));
+const ElencoCantieriTecnici = lazy(() => import("@/pages/campo/CampoSchedaCantiere").then(m => ({ default: m.ElencoCantieriTecnici })));
 const CampoHome           = lazy(() => import("@/pages/campo/CampoHome"));
 const CampoFotoCantiere   = lazy(() => import("@/pages/campo/CampoFotoCantiere"));
 const CampoCalendario     = lazy(() => import("@/pages/campo/CampoCalendario"));
@@ -59,6 +61,8 @@ export default function CampoRoutesContainer() {
         }
       >
         <Route index element={<CampoHome />} />
+        <Route path="cantieri" element={<ElencoCantieriTecnici area="campo" />} />
+        <Route path="cantieri/:orderId" element={<CampoSchedaCantiere area="campo" />} />
         <Route path="calendario" element={<CampoCalendario />} />
         <Route path="lavoro/:orderId/*">
           <Route index element={<CampoLavoroDetail />} />

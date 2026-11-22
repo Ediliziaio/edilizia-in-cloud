@@ -78,6 +78,8 @@ export function useScegliCapocantiere(orderId: string) {
     onSuccess: (_d, userId) => {
       toast.success(userId ? "Capocantiere scelto" : "Nessun capocantiere su questa commessa");
       refreshWorkQueries(qc, orderId);
+      void qc.invalidateQueries({ queryKey: ["campo-cantieri-tecnici"] });
+      void qc.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId] });
     },
     onError: (e: unknown) => {
       const msg = typeof e === "object" && e && "message" in e ? String((e as { message: string }).message) : "";
@@ -105,6 +107,8 @@ export function useTogliAccessoAMano(orderId: string) {
       };
       toast.success(messaggi[fonte] ?? "Accesso manuale rimosso.");
       refreshWorkQueries(qc, orderId);
+      void qc.invalidateQueries({ queryKey: ["campo-cantieri-tecnici"] });
+      void qc.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId] });
     },
     onError: (e: unknown) => toast.error((e as { message?: string } | null)?.message || "Non sono riuscito a toglierlo. Riprova tra qualche secondo."),
   });

@@ -291,6 +291,7 @@ export function CaricaDocumentiDialog({
     avviato.current = false;
     setInCorso(false);
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-documents-summary", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });
     queryClient.invalidateQueries({ queryKey: ["customer-order-attachments", orderId] });

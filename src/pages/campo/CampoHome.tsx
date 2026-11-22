@@ -21,6 +21,7 @@ import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
+import { CantieriTecniciLink } from "@/components/campo/CantieriTecniciLink";
 import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
@@ -127,7 +128,9 @@ export default function CampoHome() {
               <p className="capitalize text-xs text-muted-foreground md:text-sm">
                 {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
               </p>
-              {isOperaio && isCapocantiere && <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">Capocantiere</span>}
+              {isOperaio && isCapocantiere && (
+                <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">Capocantiere</span>
+              )}
             </div>
             <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">{saluto}, {profile?.first_name ?? ""}</h1>
           </div>
@@ -152,6 +155,7 @@ export default function CampoHome() {
       {(isOperaio || isSubappaltatore) && <CampoOggi memoria={azienda && user?.id ? `${azienda}:${user.id}` : undefined}
         puoPrelevare={isOperaio && !magazzino.isError && magazzino.data?.livello === "prelievi"} />}
 
+      {isOperaio && <CantieriTecniciLink area="campo" />}
       {isOperaio && <CampoCrewAgenda />}
 
       {/* Da fare: prima le cose che aspettano te */}

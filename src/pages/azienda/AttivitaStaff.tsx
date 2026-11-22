@@ -33,6 +33,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { CantieriTecniciLink } from "@/components/campo/CantieriTecniciLink";
 import { queryKeys } from "@/lib/queryKeys";
 import { CollegaAttivitaPicker, etichettaCollegamento, type CollegamentoAttivita } from "@/components/tasks/CollegaAttivitaPicker";
 import { collegamentiAttivita } from "@/lib/attivita/collegamenti";
@@ -1329,6 +1330,7 @@ function TabAttivita() {
 
       {/* Dal cantiere: rapportini, timbrature dimenticate e bolle da approvare, solo per chi può
           approvarli. Senza niente in attesa non occupa posto. */}
+      <CantieriTecniciLink area="tecnico" />
       <DaApprovareCantieri />
 
       {/* Documenti letti dalle email che aspettano una conferma: una riga, e solo se ce ne sono. */}

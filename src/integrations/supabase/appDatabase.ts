@@ -1,6 +1,7 @@
 import type { FishAssistanceCase } from "../../../shared/fish/assistance";
 import type { Database } from "./types";
 import type { AttivitaAi } from "../../../shared/aiAttivita";
+import type { CantiereTecnico, PersonaAccessoTecnico, SchedaCantiere, SezioneSchedaCantiere } from "@/lib/campo/schedaCantiere";
 /** Additive contract until the next full generated schema refresh. */
 type Staff = Database["public"]["Tables"]["staff_permissions"];
 type BankPermissions = { can_view_bank_balances: boolean; can_reconcile_bank_transactions: boolean };
@@ -16,6 +17,10 @@ type Quote = Database["public"]["Tables"]["quotes"];
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
+      campo_cantieri_tecnici: { Args: { p_azienda: string }; Returns: CantiereTecnico[] };
+      campo_scheda_cantiere: { Args: { p_azienda: string; p_ordine: string; p_sezione: SezioneSchedaCantiere }; Returns: SchedaCantiere };
+      commessa_accessi_tecnici: { Args: { p_ordine: string }; Returns: PersonaAccessoTecnico[] };
+      commessa_accesso_tecnico: { Args: { p_ordine: string; p_persona: string; p_consentito: boolean }; Returns: undefined };
       prima_nota_riepilogo_filtrato: {
         Args: {
           p_company_id: string;

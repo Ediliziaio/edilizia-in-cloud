@@ -1145,7 +1145,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
         )}
         {showTeam && <section hidden={(paginaLavorazioni || telefono || modoFasi === "tabella") && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className={cn("space-y-3 scroll-mt-24", paginaLavorazioni && "rounded-xl border bg-muted/25 p-2.5 sm:p-3")}>
           {!isLoading && !isError && <>
-          <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione organizzazione={{
+          <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione
+            gestisciAccessiTecnici={canEditOrders && !solaLettura} organizzazione={{
             aperta: organizzazioneAperta,
             riepilogo: squadreQuery.isError ? "squadre non disponibili" : squadreQuery.isLoading ? "caricamento squadre…" : `${squadreGenerali.length ? `Squadra commessa: ${squadreGenerali.slice(0, 2).map(s => `${s.nome}${!s.attiva || s.finita ? " (storico)" : ""}`).join(", ")}${squadreGenerali.length > 2 ? ` +${squadreGenerali.length - 2}` : ""}` : "nessuna squadra generale"}${unassigned.length ? ` · ${unassigned.length} persone / ditte generali` : ""}`,
             onGestione: () => setOrganizzazioneOrdine(organizzazioneAperta ? null : orderId),

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { CantieriTecniciLink } from "@/components/campo/CantieriTecniciLink";
 import { format, isToday, isTomorrow, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { MapPin, Clock, ChevronRight, Wrench, CheckCircle2, AlertCircle, Route } from "lucide-react";
@@ -128,6 +129,8 @@ export default function TecnicoHome() {
         <p className="text-slate-400 text-sm capitalize">{nomeGiorno}</p>
         <h1 className="text-white text-2xl font-bold mt-0.5">{dataFormattata}</h1>
       </div>
+
+      <CantieriTecniciLink area="tecnico" />
 
       {/* Lavori di oggi */}
       <section>

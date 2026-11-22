@@ -74,6 +74,7 @@ export function RevisioneDocumentoDialog({ open, onOpenChange, doc }: {
         ? "Revisione approvata: quella di prima con lo stesso codice è ora superata"
         : "Revisione salvata");
       qc.invalidateQueries({ queryKey: ["order-attachments", doc.order_id] });
+      qc.invalidateQueries({ queryKey: ["campo-scheda-cantiere", doc.order_id] });
       if (proponiDopoApprovazione(tipo === NESSUNO ? null : tipo, stato === NESSUNO ? null : stato, doc.stato_revisione ?? null)) {
         setApprovata(true);
         return;

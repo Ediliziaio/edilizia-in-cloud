@@ -10,7 +10,7 @@ import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
 import { readInvokeError } from "@/lib/readInvokeError";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../../../supabase/functions/_shared/campoDocumentGuard";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
@@ -39,6 +39,8 @@ import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
 import { cn } from "@/lib/utils";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { useCantieriTecnici } from "@/hooks/campo/useSchedaCantiere";
+import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { loadCampoAssignments } from "@/lib/campo/assignments";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
@@ -273,6 +275,8 @@ export default function CampoLavoroDetail() {
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
+  const schedeTecniche = useCantieriTecnici(isOperaio);
+  const vedeSchedaTecnica = isOperaio && !!orderId && !schedeTecniche.isError && !!schedeTecniche.data?.some(c => c.id === orderId);
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const t = searchParams.get("tab");
@@ -547,9 +551,14 @@ export default function CampoLavoroDetail() {
     },
   });
   const faseMia = useMemo(() => new Map(mieFasi.map((f) => [f.id, f])), [mieFasi]);
+  const fasiAssegnate = fasiCommessa.filter(f => {
+    const mia = faseMia.get(f.id);
+    return mia?.tu || !!mia?.squadra;
+  });
   const quanteMie = mieFasi.filter((f) => f.tu || f.squadra).length;
   // La fase su cui si lavora ADESSO: la prima in corso, se no la prima non finita.
-  const faseAttuale = fasiCommessa.find((f) => f.status === "in_corso") ?? fasiCommessa.find((f) => f.status !== "completata");
+  const fasiDiRiferimento = !vedeSchedaTecnica && fasiAssegnate.length ? fasiAssegnate : fasiCommessa;
+  const faseAttuale = fasiDiRiferimento.find(f => f.status === "in_corso") ?? fasiDiRiferimento.find(f => f.status !== "completata");
   const faseAttualePct = faseAttuale ? (faseAttuale.status === "completata" ? 100 : faseAttuale.percentuale) : 0;
 
   const { data: ruoloRapporti, isLoading: ruoloRapportiLoading, isError: ruoloRapportiError, refetch: ricaricaRuoloRapporti } = useQuery({
@@ -887,6 +896,10 @@ export default function CampoLavoroDetail() {
             <p className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
             <p className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
           </div>
+          {vedeSchedaTecnica && <Link to={percorsoCantiereTecnico("campo", orderId)}
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold text-primary">
+            <BookOpenCheck className="size-4" aria-hidden="true" /> Piano e documenti
+          </Link>}
         </div>
 
         {/* Avanzamento compatto: una riga sottile invece della card grande */}
@@ -1007,10 +1020,10 @@ export default function CampoLavoroDetail() {
                     <div className="mt-1.5"><SottofasiContate sottofasi={sottofasiDi.get(faseAttuale.id) ?? []} /></div>
                   </div>
                 )}
-                <details className="group">
-                  <summary className="min-h-9 cursor-pointer text-xs font-semibold text-primary">Vedi tutte le fasi</summary>
+                {!vedeSchedaTecnica && fasiAssegnate.length > 0 && <details className="group">
+                  <summary className="min-h-9 cursor-pointer text-xs font-semibold text-primary">Fasi assegnate</summary>
                 <div className="mt-3 space-y-3">
-                  {fasiCommessa.map((fase) => {
+                  {fasiAssegnate.map((fase) => {
                     const done = fase.status === "completata";
                     const pct = done ? 100 : fase.percentuale;
                     const mia = faseMia.get(fase.id);
@@ -1059,7 +1072,7 @@ export default function CampoLavoroDetail() {
                     );
                   })}
                 </div>
-                </details>
+                </details>}
                 <p className="mt-3 text-xs text-muted-foreground">
                   Aggiorna le fasi dal rapportino di fine giornata.
                 </p>

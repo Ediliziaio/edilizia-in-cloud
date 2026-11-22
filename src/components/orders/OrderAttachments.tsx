@@ -222,6 +222,7 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
   const tutti = inCantiere ? documentiCantiere : documentiGenerali;
 
   const invalida = () => {
+    queryClient.invalidateQueries({ queryKey: ["campo-scheda-cantiere", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-attachments", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order-documents-summary", orderId] });
     queryClient.invalidateQueries({ queryKey: ["order_attachments", orderId] });
@@ -461,6 +462,9 @@ function OrderAttachmentsPanel({ orderId, orderCode, editable = true, actions, d
             <HardHat className="h-4 w-4" aria-hidden="true" /> Documenti di cantiere <span className="tabular-nums text-muted-foreground">{documentiCantiere.length}</span>
           </Button>
         </div>
+        {inCantiere && editable && <p className="text-xs text-muted-foreground">
+          I documenti operativi approvati compaiono nell’app per il capocantiere e le persone abilitate alla scheda.
+        </p>}
         {inCantiere && editable && permissions.isAdmin && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-primary/5 px-4 py-3">
           <div><p className="text-sm font-medium">QR documenti di cantiere</p><p className="text-xs text-muted-foreground">Scegli i documenti consultabili sul posto e stampa il QR della commessa.</p></div>
           <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => setQrAperto(true)}><QrCode className="h-4 w-4" /> Gestisci QR</Button>
