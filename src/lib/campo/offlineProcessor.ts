@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaChecklistSicurezza";
+// Caricati con la coda, così il primo tentativo al ritorno della rete ha già i gestori.
+import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
+import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
 import {
   SyncDeferredError,
   SyncPermanentError,
@@ -29,12 +32,10 @@ export async function processCampoOffline(item: SyncItem) {
     }
   }
   if (item.type === "prelievo") {
-    const { inviaPrelievoInCoda } = await import("./prelievoInCoda");
-    return inviaPrelievoInCoda(item.payload as import("./prelievoInCoda").PrelievoInCoda, await syncOperationId(item));
+    return inviaPrelievoInCoda(item.payload as PrelievoInCoda, await syncOperationId(item));
   }
   if (item.type === "rapportino") {
-    const { inviaRapportoInCoda } = await import("./rapportoInCoda");
-    return inviaRapportoInCoda(item.payload as import("./rapportoInCoda").RapportoInCoda, await syncOperationId(item));
+    return inviaRapportoInCoda(item.payload as RapportoInCoda, await syncOperationId(item));
   }
   if (item.type === "documento_ddt") {
     const { inviaDocumentoPersistente } = await import(

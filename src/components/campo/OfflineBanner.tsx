@@ -13,6 +13,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { syncQueue } from "@/lib/campo/sync-queue";
+import { aggiornaPrelieviCampo } from "@/lib/campo/prelievoInCoda";
+import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
+import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
+import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import type { JSX } from "react";
 
 export default function OfflineBanner(): JSX.Element | null {
@@ -26,25 +30,20 @@ export default function OfflineBanner(): JSX.Element | null {
   useEffect(() => syncQueue.on("processed", (esito) => {
     if (!esito || esito.companyId !== companyId || esito.userId !== user?.id) return;
     if (esito.tipo === "prelievo") {
-      void import("@/lib/campo/prelievoInCoda").then(({ aggiornaPrelieviCampo }) => aggiornaPrelieviCampo(queryClient, esito));
+      aggiornaPrelieviCampo(queryClient, esito);
       if (esito.errore) toast.error("Controlla il prelievo", { description: esito.errore });
       else if (esito.stato === "rifiutato") toast.info("Prelievo rifiutato");
       else toast.success(esito.stato === "richiesto" ? "Richiesta al magazzino inviata" : "Prelievo registrato");
       return;
     }
-    void import("@/lib/orders/refreshCommessaCampoQueries").then(({ refreshCommessaCampoQueries }) =>
-      refreshCommessaCampoQueries(queryClient, esito.orderId, esito.companyId));
+    void refreshCommessaCampoQueries(queryClient, esito.orderId, esito.companyId);
     void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
     void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
     void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
-    if (esito.chiudeGiornata) void import("@/lib/campo/refreshTimeQueries").then(({ refreshCampoTimeQueries }) =>
-      refreshCampoTimeQueries(queryClient));
+    if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
     if (esito.avvisoMezzi) toast.warning("Rapportino inviato. Comunica all’ufficio dove hai lasciato mezzi e attrezzi.");
     toast.success(esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato");
-    if (esito.id && esito.pdf) {
-      const id = esito.id;
-      void import("@/lib/campo/rapportinoPdf").then(({ notifyRapportinoPdf }) => notifyRapportinoPdf(id, esito.orderId, queryClient));
-    }
+    if (esito.id && esito.pdf) void notifyRapportinoPdf(esito.id, esito.orderId, queryClient);
   }), [companyId, queryClient, user?.id]);
 
   // Conta bozze salvate
