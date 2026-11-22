@@ -11,7 +11,7 @@
  * esplicita: inserirle qui farebbe ricalcolare il documento già deciso.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { getModuleQuote, upsertModuleQuote } from "@/lib/moduli/quoteBridge";
+import { getModuleQuote, upsertModuleQuote, type ModuleQuoteInput } from "@/lib/moduli/quoteBridge";
 import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import { calcolaVoce, ePercentuale, numeroEditor, type BozzaComputo } from "./editorNativo";
@@ -28,6 +28,8 @@ export type DatiCommessaComputo = {
   /** Chi vede i costi: il costo stimato diventa il prezzo d'acquisto della riga. */
   conCosti: boolean;
   generaPdf: () => Promise<Blob>;
+  /** Recapiti e tipo scelti nel dialogo d'invio. */
+  recapitiFirma?: Pick<ModuleQuoteInput, "clientEmail" | "clientPhone" | "clientTipo" | "clientCompany" | "clientVat">;
 };
 
 /**
@@ -149,6 +151,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     clientEmail: d.bozza.clienteEmail || null, clientPhone: d.bozza.clienteTelefono || null,
     subtotal: d.subtotal, vatAmount: d.vatAmount, total: d.total, validityDays: d.validityDays, pdfBlob: await d.generaPdf(),
     numeroDocumento: personalizzazioneDocumento(d.companyId).numeroAutomaticoComputo ? d.bozza.numero : null,
+    ...d.recapitiFirma,
   });
   const { count, error: erroreConta } = await supabase.from("quote_items").select("id", { count: "exact", head: true }).eq("quote_id", riga.id);
   if (erroreConta) throw new Error("Non riesco a leggere le righe del preventivo: riprova.");
@@ -173,8 +176,10 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase(), piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
     if (cf) patch.client_fiscal_code = cf;
     // Il tipo del cliente arriva alla commessa: un ente pubblico non diventa un «Privato» (17/11/2026).
-    if (d.bozza.clienteTipo) patch.client_tipo = d.bozza.clienteTipo;
-    if (d.bozza.clienteTipo === "azienda" || d.bozza.clienteTipo === "pa") {
+    const tipoCliente = d.bozza.clienteTipo === "pa" && d.recapitiFirma?.clientTipo === "azienda"
+      ? "pa" : d.recapitiFirma?.clientTipo ?? d.bozza.clienteTipo;
+    if (tipoCliente) patch.client_tipo = tipoCliente;
+    if (!d.recapitiFirma && (tipoCliente === "azienda" || tipoCliente === "pa")) {
       if (piva) patch.client_vat_number = piva;
       if (d.bozza.committente.trim()) patch.client_company = d.bozza.committente.trim();
     }

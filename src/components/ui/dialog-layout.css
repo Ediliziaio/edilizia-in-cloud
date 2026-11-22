@@ -56,7 +56,7 @@
 .commessa-inline-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; gap: 12px; border-top: 1px solid hsl(var(--border)); background: hsl(var(--background)); padding-top: 16px; }
 .commessa-inline-actions button { min-height: 42px; }
 .commessa-modal-layout :is([data-ui="dialog-footer"], [data-ui="dialog-header"]) { min-width: 0; }
-.commessa-modal-layout [data-ui="dialog-footer"] button { min-height: 42px; white-space: normal; height: auto; }
+.commessa-modal-layout [data-ui="dialog-footer"] button { min-height: 44px; white-space: normal; height: auto; }
 .commessa-modal-layout:where(.p-0) > [data-ui="dialog-footer"] { padding: 16px 20px; }
 .commessa-modal-body .truncate { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .commessa-modal-body textarea { min-height: 80px; max-height: 240px; field-sizing: content; }

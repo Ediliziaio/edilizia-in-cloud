@@ -8,7 +8,7 @@
  * comunque.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const SERVE = "Per mandarlo al cliente serve il permesso di modificare i preventivi.";
@@ -36,13 +36,15 @@ vi.mock("@/lib/moduli/quoteBridge", () => ({
 }));
 
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { sendModuleQuoteSignature, upsertModuleQuote, type ModuleQuoteInput } from "@/lib/moduli/quoteBridge";
 
-const disegna = () =>
+const disegna = (preparaPreventivo?: (input: ModuleQuoteInput) => Promise<{ id: string }>) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <InviaFirmaCard
         companyId="azienda-1"
-        moduleKey="bagni"
+        moduleKey={preparaPreventivo ? "computo" : "bagni"}
+        preparaPreventivo={preparaPreventivo}
         progettoId="progetto-1"
         titolo="Bagno"
         clientName="Cliente di prova"
@@ -61,6 +63,7 @@ beforeEach(() => {
   stato.mobile = false;
   stato.quote = { id: "q1", sent_at: "2026-09-20T10:00:00Z", signature_token: "tok-1", signed_at: null, viewed_at: null };
   toast.error.mockClear();
+  vi.mocked(sendModuleQuoteSignature).mockClear();
 });
 afterEach(cleanup);
 
@@ -96,4 +99,21 @@ describe("InviaFirmaCard: mandare al cliente richiede di poter modificare", () =
     expect(screen.queryByText("Invia ora")).toBeNull();
     expect(screen.queryByRole("button", { name: /Link firma/ })).toBeNull();
   });
+});
+
+it("il computo prepara il preventivo completo prima di inviarlo per firma", async () => {
+  stato.permessi = { canEditPreventivi: true, isLoading: false };
+  stato.quote = null;
+  const prepara = vi.fn(async () => ({ id: "quote-computo" }));
+  vi.mocked(sendModuleQuoteSignature).mockResolvedValue({ invitoCointestatarioInviato: null });
+  disegna(prepara);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Invia per firma" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Invia per firma" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Invia ora" }));
+  await waitFor(() => expect(sendModuleQuoteSignature).toHaveBeenCalledWith(
+    "quote-computo", "cliente@esempio.it", "Cliente di prova", undefined, undefined, null, null,
+  ));
+  expect(prepara).toHaveBeenCalledWith(expect.objectContaining({ moduleKey: "computo", pdfBlob: expect.any(Blob) }));
+  expect(prepara.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(sendModuleQuoteSignature).mock.invocationCallOrder[0]);
+  expect(upsertModuleQuote).not.toHaveBeenCalled();
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -59,9 +59,10 @@ export function SendSignatureDialog({
   const [sent, setSent] = useState(false);
   const [resultLink, setResultLink] = useState<string | null>(null);
 
-  // Reset form when dialog opens
+  const eraAperto = useRef(false);
+  // Un refetch dopo l'invio può aggiornare l'anagrafica: il link resta visibile.
   useEffect(() => {
-    if (open) {
+    if (open && !eraAperto.current) {
       setEmail(clientEmail || "");
       setName(clientName || "");
       setPhone(clientPhone || "");
@@ -70,6 +71,7 @@ export function SendSignatureDialog({
       setSent(false);
       setResultLink(null);
     }
+    eraAperto.current = open;
   }, [open, clientEmail, clientName, clientPhone, defaultDays]);
 
   const handleSend = async () => {
@@ -113,99 +115,58 @@ export function SendSignatureDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent struttura="scorrevole" className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invia per Firma Elettronica</DialogTitle>
+          <DialogTitle>Invia per firma</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
             Invia l'offerta {quoteNumber} al cliente: riceve un'email con il link per leggerla e firmarla.
           </DialogDescription>
         </DialogHeader>
 
         {!sent ? (
-          <>
-            {/* Telefono: nome e validità sulla stessa riga, il messaggio in fondo. */}
-            <div className="space-y-4 py-2 max-sm:grid max-sm:grid-cols-3 max-sm:gap-3 max-sm:space-y-0 max-sm:py-0">
-              <div className="space-y-2 max-sm:order-1 max-sm:col-span-3">
-                <Label htmlFor="sig-email">Email destinatario *</Label>
-                <Input
-                  id="sig-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="cliente@email.com"
-                />
-              </div>
-
-              <div className="space-y-2 max-sm:order-1 max-sm:col-span-3">
-                <Label htmlFor="sig-phone">Cellulare (opzionale)</Label>
-                <Input
-                  id="sig-phone"
-                  type="tel"
-                  inputMode="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="333 123 4567"
-                />
-                <p className="text-[11px] text-muted-foreground">Il codice arriva anche via SMS, se l'azienda ha credito SMS. Altrimenti solo via email.</p>
-              </div>
-
-              <div className="space-y-2 max-sm:order-2 max-sm:col-span-2">
-                <Label htmlFor="sig-name">Nome destinatario</Label>
-                <Input
-                  id="sig-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Mario Rossi"
-                />
-              </div>
-
-              <div className="space-y-2 max-sm:order-4 max-sm:col-span-3">
-                <Label htmlFor="sig-message"><span className="max-sm:hidden">Messaggio personalizzato (opzionale)</span><span className="sm:hidden">Messaggio</span></Label>
-                <Textarea
-                  id="sig-message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Gentile cliente, le invio la nostra migliore offerta..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2 max-sm:order-3">
-                <Label htmlFor="sig-days"><span className="max-sm:hidden">Validità (giorni)</span><span className="sm:hidden">Validità gg</span></Label>
-                <Input
-                  id="sig-days"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={days}
-                  onChange={(e) => setDays(parseInt(e.target.value) || defaultDays)}
-                  className="max-w-[120px]"
-                />
-              </div>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="sig-email">Email destinatario *</Label>
+              <Input id="sig-email" type="email" autoComplete="email" className="min-h-11"
+                value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
-
-            <DialogFooter>
-              {/* Telefono no: c'è la X. */}
-              <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">
-                Annulla
-              </Button>
-              <Button onClick={handleSend} disabled={isSending || !email.trim()}>
-                {isSending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                {isSending ? "Invio in corso..." : "Invia per la firma"}
-              </Button>
-            </DialogFooter>
-          </>
+            <div className="space-y-1.5">
+              <Label htmlFor="sig-name">Nome destinatario</Label>
+              <Input id="sig-name" autoComplete="name" className="min-h-11"
+                value={name} onChange={(e) => setName(e.target.value)} placeholder="Mario Rossi" />
+            </div>
+            <details className="rounded-lg border px-3">
+              <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+                Opzioni di invio · {days} giorni{phone.trim() ? " · SMS" : ""}
+              </summary>
+              <div className="space-y-3 pb-3">
+                <div className="grid gap-3 sm:grid-cols-[1fr_7rem]">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sig-phone">Cellulare (opzionale)</Label>
+                    <Input id="sig-phone" type="tel" inputMode="tel" autoComplete="tel" className="min-h-11"
+                      value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="333 123 4567" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sig-days">Validità (giorni)</Label>
+                    <Input id="sig-days" type="number" min={1} max={365} className="min-h-11"
+                      value={days} onChange={(e) => setDays(parseInt(e.target.value) || defaultDays)} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Il codice può arrivare anche via SMS se l'azienda ha credito.</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sig-message">Messaggio (opzionale)</Label>
+                  <Textarea id="sig-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} />
+                </div>
+              </div>
+            </details>
+          </div>
         ) : (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center gap-3 text-center">
               <CheckCircle className="h-12 w-12 text-primary" />
-              <p className="font-medium">Offerta inviata con successo!</p>
+              <p className="font-medium">Richiesta di firma inviata</p>
               <p className="text-sm text-muted-foreground">
-                Il cliente riceve un'email con il link: quando apre l'offerta e decide di firmare, gli arriva il codice.
+                Il cliente può aprire il link e richiedere il codice.
               </p>
             </div>
 
@@ -213,12 +174,12 @@ export function SendSignatureDialog({
               <div className="space-y-2">
                 <Label>Link di firma</Label>
                 <div className="flex gap-2">
-                  <Input value={resultLink} readOnly className="text-xs" />
-                  <Button variant="outline" size="icon" onClick={handleCopy}>
+                  <Input aria-label="Link di firma" value={resultLink} readOnly className="min-h-11 text-xs" />
+                  <Button variant="outline" size="icon" className="size-11 shrink-0" aria-label="Copia link di firma" onClick={handleCopy}>
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" asChild>
-                    <a href={resultLink} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="icon" className="size-11 shrink-0" asChild>
+                    <a href={resultLink} target="_blank" rel="noopener noreferrer" aria-label="Apri link di firma">
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   </Button>
@@ -232,9 +193,9 @@ export function SendSignatureDialog({
                 variant="outline"
                 className="w-full gap-2 border-green-200 text-green-700 hover:bg-green-50"
                 onClick={() => {
-                  const phone = (clientPhone || "").replace(/\D/g, "");
-                  const url = phone
-                    ? `https://wa.me/${phone}?text=${generateWhatsAppText()}`
+                  const numero = phone.replace(/\D/g, "");
+                  const url = numero
+                    ? `https://wa.me/${numero}?text=${generateWhatsAppText()}`
                     : `https://wa.me/?text=${generateWhatsAppText()}`;
                   window.open(url, "_blank");
                 }}
@@ -245,11 +206,19 @@ export function SendSignatureDialog({
                 Invia via WhatsApp
               </Button>
             )}
-            <DialogFooter>
-              <Button onClick={() => onOpenChange(false)}>Chiudi</Button>
-            </DialogFooter>
           </div>
         )}
+        <DialogFooter>
+          {sent ? <Button className="min-h-11" onClick={() => onOpenChange(false)}>Chiudi</Button> : (
+            <>
+              <Button variant="outline" className="min-h-11 max-sm:hidden" onClick={() => onOpenChange(false)}>Annulla</Button>
+              <Button className="min-h-11" onClick={handleSend} disabled={isSending || !email.trim()}>
+                {isSending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                {isSending ? "Invio in corso…" : "Invia per la firma"}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

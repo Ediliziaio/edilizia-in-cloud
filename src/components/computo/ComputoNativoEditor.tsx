@@ -17,6 +17,7 @@ import ComputoEconomia from "./ComputoEconomia";
 import ComputoDocumento from "./ComputoDocumento";
 import ComputoRevisioni from "./ComputoRevisioni";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import type { ModuleQuoteInput } from "@/lib/moduli/quoteBridge";
 const FirmatoSuCartaDialog = lazy(() => import("@/components/marketing/preventivi/FirmatoSuCarta").then(m => ({ default: m.FirmatoSuCartaDialog })));
 import { calcolaDetrazione } from "@/lib/computo/detrazioneComputo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
@@ -273,16 +274,29 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
   }, [bozza, bozzaPdf, senzaPrezzi, storageKey, intestazione]);
   /** Dal preventivo alla commessa: righe e rate sul preventivo, poi la commessa nuova precompilata (`commessaDaComputo`). */
   const [daFirmare, setDaFirmare] = useState<{ id: string; company_id: string; client_name: string | null; quote_number: string | null } | null>(null);
-  const creaCommessa = async () => {
-    if (!firmaOnline?.userId || !firmaOnline.onApriCommessa) return;
-    // Le rate del preventivo diventano le scadenze della commessa: un piano che non quadra non ci può andare.
-    if (pianoErrore) { toast.error("Il piano dei pagamenti non quadra", { description: `${pianoErrore} Sistemalo nel passo Economia prima di creare la commessa.` }); return; }
+  const preparaPreventivoComputo = async (invio?: ModuleQuoteInput) => {
+    const companyId = invio?.companyId ?? firmaOnline?.companyId;
+    const userId = invio?.userId ?? firmaOnline?.userId;
+    const draftId = invio?.progettoId ?? firmaOnline?.draftId;
+    if (!companyId || !userId || !draftId) throw new Error("Dati del preventivo non disponibili.");
+    if (pianoErrore) throw new Error(`Sistema il piano dei pagamenti nel passo Economia. ${pianoErrore}`);
     const { preparaCommessaDaComputo } = await import("@/lib/computo/commessaDaComputo");
     const aliquota = bozza.ivaModalita === "applicata" ? numeroEditor(bozza.ivaAliquota) : bozza.ivaModalita === "non-applicabile" ? 0 : null;
-    const quoteId = await preparaCommessaDaComputo({ companyId: firmaOnline.companyId, userId: firmaOnline.userId, draftId: firmaOnline.draftId, bozza: bozzaPdf,
+    return preparaCommessaDaComputo({
+      companyId, userId, draftId, bozza: bozzaPdf,
       subtotal: fiscaleDocumento.imponibile ?? 0, vatAmount: fiscaleDocumento.iva ?? 0, total: fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0, aliquotaIva: aliquota,
       rate: rateCommessa, validityDays: modello?.giorniValidita ?? 30,
-      conCosti: vediMargini, generaPdf: generaPdfDefinitivo });
+      conCosti: vediMargini,
+      generaPdf: invio ? async () => invio.pdfBlob : generaPdfDefinitivo,
+      recapitiFirma: invio ? {
+        clientEmail: invio.clientEmail, clientPhone: invio.clientPhone, clientTipo: invio.clientTipo,
+        clientCompany: invio.clientCompany, clientVat: invio.clientVat,
+      } : undefined,
+    });
+  };
+  const creaCommessa = async () => {
+    if (!firmaOnline?.userId || !firmaOnline.onApriCommessa) return;
+    const quoteId = await preparaPreventivoComputo();
     // La commessa nasce dal preventivo firmato (il firmato è il contratto): se non lo è ancora,
     // prima la firma su carta, poi la commessa. Senza, il modulo della commessa rifiutava il salvataggio (17/11/2026).
     const { supabase } = await import("@/integrations/supabase/client");
@@ -627,7 +641,8 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
           validityDays={modello?.giorniValidita} pdfDisponibile={!!bozza.voci.length}
           disabled={!bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore || !bozza.titolo.trim()}
           disabledReason="Completa il preventivo (voci, IVA, sconto e rate) prima di mandarlo in firma."
-          generaPdfBlob={generaPdfDefinitivo} />}
+          generaPdfBlob={generaPdfDefinitivo}
+          preparaPreventivo={async (input) => ({ id: await preparaPreventivoComputo(input) })} />}
         creaCommessa={firmaOnline?.userId && firmaOnline.onApriCommessa ? creaCommessa : undefined} />}
       {daFirmare && <Suspense fallback={null}><FirmatoSuCartaDialog open onOpenChange={(o) => { if (!o) setDaFirmare(null); }} quote={daFirmare}
         onFirmato={() => { const id = daFirmare.id; setDaFirmare(null); firmaOnline?.onApriCommessa?.(id); }} /></Suspense>}

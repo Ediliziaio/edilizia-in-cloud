@@ -42,6 +42,14 @@ describe("Pagina firma: prove UI senza invii esterni", () => {
     expect(mock.invoke).toHaveBeenCalledWith("fea-completa-firma", { body: expect.objectContaining({ token, sessione_firma: "a".repeat(64) }) });
     expect(await screen.findByRole("link", { name: "Scarica copia firmata" })).toHaveAttribute("href", "https://example.test/firmato.pdf");
   });
+  it("compila tutte le cifre con il codice suggerito dal telefono", async () => {
+    disegna();
+    fireEvent.click(await screen.findByLabelText(/Ho letto il documento/));
+    fireEvent.click(screen.getByRole("button", { name: "Accetto e ricevo il codice" }));
+    fireEvent.change(await screen.findByLabelText("Cifra 1 di 6"), { target: { value: "123456" } });
+    expect(await screen.findByText("Documento firmato!")).toBeInTheDocument();
+    expect(mock.invoke).toHaveBeenCalledWith("fea-verifica-otp", { body: { token, otp: "123456" } });
+  });
   it("una sola spunta vale per clausole, recesso e privacy: il server le riceve tutte", async () => {
     mock.sessione = { tipo_firmatario: "b2c", informativa_privacy: "Informativa di prova", clausole_1341: [{ id: "c1", testo: "Art. 5 – Pagamenti: a trenta giorni" }, { id: "c2", testo: "Art. 7 – Penali: testo" }] };
     disegna();

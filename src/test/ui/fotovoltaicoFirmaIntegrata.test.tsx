@@ -32,10 +32,10 @@ describe("La scheda FV usa davvero il percorso di firma dell'app", () => {
     expect(screen.getByLabelText("Email destinatario *")).toHaveValue("mario@example.test");
     expect(screen.getByLabelText("Nome destinatario")).toHaveValue("Mario Rossi");
     expect(screen.getByLabelText("Cellulare (opzionale)")).toHaveValue("3331234567");
-    fireEvent.change(screen.getByLabelText(/Messaggio personalizzato/), { target: { value: "Messaggio QA" } });
+    fireEvent.change(screen.getByLabelText(/Messaggio \(opzionale\)/), { target: { value: "Messaggio QA" } });
     fireEvent.click(screen.getByRole("button", { name: "Invia per la firma" }));
     await waitFor(() => expect(state.invoke).toHaveBeenCalledWith("fea-richiedi-firma", { body: expect.objectContaining({ tipo_documento: "fv", documento_id: id, signer_email: "mario@example.test", signer_name: "Mario Rossi", signer_phone: "3331234567", expires_giorni: 15, note: "Messaggio QA" }) }));
-    expect(await screen.findByText("Offerta inviata con successo!")).toBeInTheDocument();
+    expect(await screen.findByText("Richiesta di firma inviata")).toBeInTheDocument();
   });
   it("senza permesso non offre l'invio", () => {
     state.edit = false; page();
@@ -52,6 +52,6 @@ describe("La scheda FV usa davvero il percorso di firma dell'app", () => {
     state.invoke.mockResolvedValue({ data: null, error: { message: "non-2xx", context: { json: async () => ({ error: "Il PDF completo non è disponibile" }) } } });
     page(); fireEvent.click(screen.getByRole("button", { name: "Richiedi firma" })); fireEvent.click(screen.getByRole("button", { name: "Invia per la firma" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("Il PDF completo non è disponibile")));
-    expect(screen.queryByText("Offerta inviata con successo!")).toBeNull();
+    expect(screen.queryByText("Richiesta di firma inviata")).toBeNull();
   });
 });

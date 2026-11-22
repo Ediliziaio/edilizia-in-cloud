@@ -10,8 +10,8 @@
  * scendono nella barra in basso del passo — indietro, PDF (da guardare o da
  * mandare con WhatsApp, Mail…) e «Invia per firma».
  */
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,17 +29,18 @@ import { condividiLink } from "@/lib/mobile/condividiFile";
 import { cn } from "@/lib/utils";
 import { emailSembraAziendale, partitaIvaValida } from "@/lib/fea/tipoFirmatario";
 import { conClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
+import { chiaveContrattoModulo, type ModuloCommessa } from "@/lib/moduli/convertiInCommessa";
 import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
 import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import {
   getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink, resolveModuleSignatureLink,
   firmatariDelPreventivo,
-  type ModuleQuoteRow,
+  type ModuleQuoteInput, type ModuleQuoteRow,
 } from "@/lib/moduli/quoteBridge";
 
 interface Props {
   companyId: string;
-  moduleKey: string;
+  moduleKey: ModuloCommessa | "computo";
   /** Il numero già scritto sul documento: il preventivo prende quello, se è libero. */
   numeroDocumento?: string | null;
   progettoId: string;
@@ -53,6 +54,8 @@ interface Props {
   validityDays?: number;
   /** Impagina il documento. Solo per la firma si includono sempre le condizioni. */
   generaPdfBlob: (destinazione: "copia" | "firma") => Promise<Blob>;
+  /** I preventivi a computo devono salvare anche le righe e le rate prima della firma. */
+  preparaPreventivo?: (input: ModuleQuoteInput) => Promise<{ id: string }>;
   /** Es. computo vuoto: blocca l'invio con motivo (niente PDF vuoto al cliente). */
   disabled?: boolean;
   disabledReason?: string;
@@ -68,6 +71,8 @@ const SERVE_IL_PERMESSO = "Per mandarlo al cliente serve il permesso di modifica
 
 export function InviaFirmaCard(props: Props) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const campi = useId();
   const isMobile = useIsMobile();
   // Mandare il preventivo al cliente richiede di poterlo modificare (26/09/2026): la
   // copia di firma si scrive coi Preventivi e send-quote-signature lo pretende.
@@ -91,6 +96,8 @@ export function InviaFirmaCard(props: Props) {
   const { data: quote = null, isLoading: loading, refetch } = useQuery<ModuleQuoteRow | null>({
     queryKey: ["module-quote", props.companyId, props.moduleKey, props.progettoId],
     enabled: !!props.companyId && !!props.progettoId,
+    refetchInterval: ({ state }) => state.data?.sent_at && !esitoOffertaModulo(state.data) ? 15_000 : false,
+    refetchOnWindowFocus: "always",
     queryFn: () => getModuleQuote(props.companyId, props.moduleKey, props.progettoId),
   });
   // Chi deve firmare l'ultimo invio e chi l'ha già fatto (due, se cointestato).
@@ -99,7 +106,13 @@ export function InviaFirmaCard(props: Props) {
     enabled: !!quote?.id && !!quote?.sent_at,
     queryFn: () => firmatariDelPreventivo(quote!.id),
   });
-  const refresh = async () => { await refetch(); await refetchFirmatari(); };
+  const refresh = async () => {
+    await refetch();
+    if (props.moduleKey !== "computo") {
+      void queryClient.invalidateQueries({ queryKey: chiaveContrattoModulo(props.moduleKey, props.progettoId) });
+    }
+    await refetchFirmatari();
+  };
   // Offerta già decisa dal cliente (firmata, rifiutata) o chiusa: non si rimanda per la firma.
   const esito = esitoOffertaModulo(quote);
 
@@ -115,7 +128,7 @@ export function InviaFirmaCard(props: Props) {
     try {
       // Le clausole da approvare a parte si leggono dal PDF stesso: il cliente approva quelle del suo contratto.
       const { risultato: pdfBlob, clausole } = await conClausoleDelDocumento(() => props.generaPdfBlob("firma"));
-      const row = await upsertModuleQuote({
+      const row = await (props.preparaPreventivo ?? upsertModuleQuote)({
         companyId: props.companyId,
         userId: user.id,
         moduleKey: props.moduleKey,
@@ -230,7 +243,7 @@ export function InviaFirmaCard(props: Props) {
 
   const dialogInvio = (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent struttura="scorrevole" className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Invia per firma</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
@@ -239,10 +252,12 @@ export function InviaFirmaCard(props: Props) {
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Email del cliente</Label>
+            <Label htmlFor={`${campi}-email`}>Email del cliente</Label>
             <Input
+              id={`${campi}-email`}
               type="email"
-              className="h-9 mt-1"
+              autoComplete="email"
+              className="mt-1 min-h-11"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="cliente@esempio.it"
@@ -252,7 +267,7 @@ export function InviaFirmaCard(props: Props) {
             <Label className="text-xs">Chi firma</Label>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Chi firma">
               {(["privato", "azienda"] as const).map((v) => (
-                <Button key={v} type="button" role="radio" aria-checked={chiFirma === v} size="sm"
+                <Button key={v} type="button" role="radio" aria-checked={chiFirma === v} size="sm" className="min-h-11"
                   variant={chiFirma === v ? "default" : "outline"} onClick={() => setChiFirma(v)}>
                   {v === "privato" ? "Privato" : "Azienda (con P.IVA)"}
                 </Button>
@@ -271,45 +286,39 @@ export function InviaFirmaCard(props: Props) {
               </div>
             )}
           </div>
-          <div>
-            <Label className="text-xs">Cellulare (opzionale)</Label>
-            <Input
-              type="tel"
-              inputMode="tel"
-              className="h-9 mt-1"
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              placeholder="333 123 4567"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">Il codice arriva anche via SMS, se l'azienda ha credito SMS.</p>
-          </div>
           {co && (
             <div className="space-y-2 rounded-lg border p-3">
               <p className="text-xs font-medium">Firma anche {co.nome} (cointestatario)</p>
               <div>
-                <Label className="text-xs">Email del cointestatario</Label>
-                <Input type="email" className="h-9 mt-1" value={coEmail} onChange={(e) => setCoEmail(e.target.value)} placeholder="cointestatario@esempio.it" />
+                <Label htmlFor={`${campi}-co-email`}>Email del cointestatario</Label>
+                <Input id={`${campi}-co-email`} type="email" className="mt-1 min-h-11" value={coEmail} onChange={(e) => setCoEmail(e.target.value)} placeholder="cointestatario@esempio.it" />
               </div>
               <div>
-                <Label className="text-xs">Cellulare del cointestatario (opzionale)</Label>
-                <Input type="tel" inputMode="tel" className="h-9 mt-1" value={coTelefono} onChange={(e) => setCoTelefono(e.target.value)} placeholder="333 123 4567" />
+                <Label htmlFor={`${campi}-co-telefono`}>Cellulare del cointestatario (opzionale)</Label>
+                <Input id={`${campi}-co-telefono`} type="tel" inputMode="tel" className="mt-1 min-h-11" value={coTelefono} onChange={(e) => setCoTelefono(e.target.value)} placeholder="333 123 4567" />
               </div>
               <p className="text-[11px] text-muted-foreground">Ognuno riceve il suo link: il preventivo è accettato quando firmano tutti e due.</p>
             </div>
           )}
-          <div>
-            <Label className="text-xs">Messaggio (opzionale)</Label>
-            <Input
-              className="h-9 mt-1"
-              value={messaggio}
-              onChange={(e) => setMessaggio(e.target.value)}
-              placeholder="Come da accordi, ecco il preventivo…"
-            />
-          </div>
+          <details className="rounded-lg border px-3">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Opzioni di invio{telefono.trim() ? " · SMS" : ""}</summary>
+            <div className="space-y-3 pb-3">
+              <div>
+                <Label htmlFor={`${campi}-telefono`}>Cellulare (opzionale)</Label>
+                <Input id={`${campi}-telefono`} type="tel" inputMode="tel" autoComplete="tel" className="mt-1 min-h-11"
+                  value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="333 123 4567" />
+                <p className="mt-1 text-xs text-muted-foreground">Il codice può arrivare anche via SMS se l'azienda ha credito.</p>
+              </div>
+              <div>
+                <Label htmlFor={`${campi}-messaggio`}>Messaggio (opzionale)</Label>
+                <Input id={`${campi}-messaggio`} className="mt-1 min-h-11" value={messaggio} onChange={(e) => setMessaggio(e.target.value)} />
+              </div>
+            </div>
+          </details>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={working} className="max-sm:hidden">Annulla</Button>
-          <Button onClick={() => void handleInvia()} disabled={working} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={() => void handleInvia()} disabled={working} className="min-h-11 bg-emerald-600 hover:bg-emerald-700">
             {working ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
             Invia ora
           </Button>

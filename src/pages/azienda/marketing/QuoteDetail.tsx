@@ -5,7 +5,7 @@ import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssoci
 import { separaVoci } from "../../../../supabase/functions/_shared/destinazioneVocePreventivo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,6 +57,7 @@ import {
 export default function QuoteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { state } = useLocation();
   const { effectiveCompany } = useAuth();
   // Creare o aprire la commessa è la parte Cantieri: chi lavora solo in
   // Marketing & Vendita (il venditore, di serie) non vede questi pulsanti,
@@ -70,7 +71,7 @@ export default function QuoteDetail() {
   const puoInviare = permessi.canEditPreventivi;
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
-  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(() => state?.apriInvioFirma === true);
   const [firmaCartaOpen, setFirmaCartaOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [conversionOpen, setConversionOpen] = useState(false);
@@ -202,6 +203,8 @@ export default function QuoteDetail() {
   const { data: quote, isLoading } = useQuery({
     queryKey: queryKeys.quotes.detail(id),
     enabled: !!id && !!companyId,
+    refetchOnWindowFocus: "always",
+    refetchInterval: ({ state }) => state.data?.status === "inviata" ? 15_000 : false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
@@ -373,8 +376,8 @@ export default function QuoteDetail() {
                   <FileDown className="mr-2 h-4 w-4" />Genera PDF
                 </DropdownMenuItem>
                 {puoModificareBozza && puoInviare && (
-                  <DropdownMenuItem className="lg:hidden" onSelect={() => setSendDialogOpen(true)}>
-                    <Send className="mr-2 size-4" />Invia per firma
+                  <DropdownMenuItem className="lg:hidden" onSelect={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}>
+                    <Pencil className="mr-2 size-4" />Modifica
                   </DropdownMenuItem>
                 )}
                 {puoFirmareSuCarta(quote.status, quote.source) && puoInviare && (
@@ -450,7 +453,7 @@ export default function QuoteDetail() {
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
-                className="h-9 px-3 max-lg:min-h-11"
+                className={cn("h-9 px-3 max-lg:min-h-11", puoInviare && "max-lg:hidden")}
                 aria-label="Modifica"
               >
                 <Pencil className="h-4 w-4 sm:mr-2" />
@@ -462,7 +465,7 @@ export default function QuoteDetail() {
               <button
                 type="button"
                 onClick={() => setSendDialogOpen(true)}
-                className={cn("inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9 max-lg:min-h-11", puoModificareBozza && "max-lg:hidden")}
+                className={cn("inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9 max-lg:min-h-11")}
               >
                 <Send className="h-4 w-4" />
                 {quote.status === "inviata" ? "Reinvia" : "Invia per firma"}
@@ -481,11 +484,10 @@ export default function QuoteDetail() {
             )}
 
             <Dialog open={conversionOpen} onOpenChange={open => { if (!converting) setConversionOpen(open); }}>
-              <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
-                <DialogHeader><DialogTitle>Crea la commessa</DialogTitle><DialogDescription>Controlla cosa diventerà lavoro da eseguire e cosa materiale da approvvigionare.</DialogDescription></DialogHeader>
+              <DialogContent struttura="scorrevole" className="sm:max-w-2xl">
+                <DialogHeader><DialogTitle>Crea la commessa</DialogTitle><DialogDescription>Verifica lavorazioni e materiali.</DialogDescription></DialogHeader>
                 {itemsError ? <p role="alert">Non riesco a verificare le voci. Riapri il preventivo prima di continuare.</p> : loadingItems ? <p>Verifica delle voci…</p> : <QuoteConversionSummary items={items} total={Number(quote.total ?? 0)} />}
-                <p className="text-xs text-muted-foreground">La distinzione usa il tipo dichiarato su ogni voce, senza interpretare la descrizione. Controlla in particolare le vecchie righe libere e le voci di fornitura e posa.</p>
-                <DialogFooter><Button variant="outline" disabled={converting} onClick={() => setConversionOpen(false)}>Annulla</Button><Button disabled={converting || loadingItems || itemsError || separaVoci(items).daVerificare.length > 0} onClick={handleConvertToCantiere}>{converting ? "Creazione…" : "Conferma e crea commessa"}</Button></DialogFooter>
+                <DialogFooter><Button className="min-h-11" variant="outline" disabled={converting} onClick={() => setConversionOpen(false)}>Annulla</Button><Button className="min-h-11 whitespace-normal" disabled={converting || loadingItems || itemsError || separaVoci(items).daVerificare.length > 0} onClick={handleConvertToCantiere}>{converting ? "Creazione…" : "Conferma e crea commessa"}</Button></DialogFooter>
               </DialogContent>
             </Dialog>
             {/* Una commessa sola per preventivo: «Crea commessa (rivedi)» non cambia lo stato e non controlla, quindi
@@ -495,19 +497,19 @@ export default function QuoteDetail() {
                 type="button"
                 onClick={() => setConversionOpen(true)}
                 disabled={converting || controlloCommessa}
-                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
+                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 min-h-11"
               >
                 {converting
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <HardHat className="h-4 w-4" />}
-                {converting ? "Conversione..." : "Converti in Cantiere"}
+                {converting ? "Creazione…" : "Crea commessa"}
               </button>
             )}
 
             {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && !controlloCommessa && (
               // Lotto 1.5: lo stesso preventivo, letto da Silvio, apre il popup già al lavoro.
               <PulsanteCreaConSilvio etichetta="Trasforma in commessa con Silvio" variant="outline"
-                className="h-9 border-orange-300 text-orange-800 hover:bg-orange-50"
+                className="h-9 border-orange-300 text-orange-800 hover:bg-orange-50 max-lg:hidden"
                 iniziale={{ tipo: "preventivo", id: quote.id, etichetta: `preventivo ${quote.quote_number}` }} />
             )}
 
@@ -806,7 +808,7 @@ export default function QuoteDetail() {
 
       {/* Send Signature Dialog */}
       <SendSignatureDialog
-        open={sendDialogOpen}
+        open={sendDialogOpen && puoInviare && (quote.status === "bozza" || quote.status === "inviata")}
         onOpenChange={setSendDialogOpen}
         clientEmail={quote.client_email}
         clientName={quote.client_name}

@@ -87,7 +87,9 @@ export default function FotovoltaicoDettaglio() {
   // marketing può gestire i propri preventivi pur SENZA vedere i margini (isAdmin).
   const canManagePreventivo = permissions.canEditPreventivi;
 
-  const { data: progetto, isLoading } = useProgetto(id);
+  const [firmaRichiestaId, setFirmaRichiestaId] = useState<string | null>(null);
+  const firmaInAttesa = firmaRichiestaId === id;
+  const { data: progetto, isLoading } = useProgetto(id, firmaInAttesa);
   const queryClient = useQueryClient();
   const { data: componenti = [] } = useComponentiProgetto(id);
   const { data: manodopera = [] } = useManodoperaProgetto(id);
@@ -134,6 +136,7 @@ export default function FotovoltaicoDettaglio() {
       scadenza_giorni: params.expiresDays,
       note: params.customMessage,
     });
+    setFirmaRichiestaId(progetto.id);
     return { signature_link: res.firma_link };
   };
 
@@ -301,9 +304,11 @@ export default function FotovoltaicoDettaglio() {
                         <Download className="mr-2 size-4" />Scarica PDF
                       </DropdownMenuItem>
                     )}
-                    {puoRichiedereFirma && (
-                      <DropdownMenuItem onSelect={() => setFirmaOpen(true)}>
-                        <FileSignature className="mr-2 size-4" />Richiedi firma
+                    {puoRichiedereFirma && progettoApribile && (
+                      <DropdownMenuItem asChild>
+                        <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
+                          <Pencil className="mr-2 size-4" />Apri progetto
+                        </Link>
                       </DropdownMenuItem>
                     )}
                     {puoAnnullare && (
@@ -331,7 +336,7 @@ export default function FotovoltaicoDettaglio() {
               {progettoApribile && (
                 <Button
                   asChild
-                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-lg:min-h-11"
+                  className={cn("bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-lg:min-h-11", puoRichiedereFirma && "max-lg:hidden")}
                 >
                   <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
                     <Pencil className="h-4 w-4 mr-1.5" /> {progetto.stato === "emesso" ? "Apri progetto" : "Modifica"}
@@ -351,13 +356,13 @@ export default function FotovoltaicoDettaglio() {
               {puoRichiedereFirma && (
                 <Button
                   onClick={() => setFirmaOpen(true)}
-                  className="bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200 max-lg:hidden"
+                  className="min-h-11 bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200"
                 >
                   <FileSignature className="h-4 w-4 mr-1.5" /> Richiedi firma
                 </Button>
               )}
               <SendSignatureDialog
-                open={firmaOpen}
+                open={firmaOpen && puoRichiedereFirma}
                 onOpenChange={setFirmaOpen}
                 clientEmail={progetto.cliente_email ?? null}
                 clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || null}
@@ -372,6 +377,7 @@ export default function FotovoltaicoDettaglio() {
           <ConvertiInCommessaCard
             modulo="fv"
             progettoId={progetto.id}
+            firmaInAttesa={firmaInAttesa}
             ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
             bloccoMotivo={
               !canManagePreventivo

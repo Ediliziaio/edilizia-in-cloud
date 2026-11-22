@@ -59,11 +59,13 @@ export function useProgetti() {
   });
 }
 
-export function useProgetto(id: string | undefined) {
+export function useProgetto(id: string | undefined, seguiFirma = false) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: QK.progetto(companyId, id ?? ""),
     enabled: Boolean(id && companyId),
+    refetchOnWindowFocus: seguiFirma ? "always" : undefined,
+    refetchInterval: ({ state }) => seguiFirma && state.data?.stato === "emesso" ? 15_000 : false,
     queryFn: async (): Promise<FvProgetto | null> => {
       if (!id) return null;
       const { data, error } = await supabase
