@@ -35,7 +35,7 @@ import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffe
 import {
   getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink, resolveModuleSignatureLink,
   firmatariDelPreventivo,
-  type ModuleQuoteRow,
+  type ModuleQuoteInput, type ModuleQuoteRow,
 } from "@/lib/moduli/quoteBridge";
 
 interface Props {
@@ -54,6 +54,8 @@ interface Props {
   validityDays?: number;
   /** Impagina il documento. Solo per la firma si includono sempre le condizioni. */
   generaPdfBlob: (destinazione: "copia" | "firma") => Promise<Blob>;
+  /** I preventivi a computo devono salvare anche le righe e le rate prima della firma. */
+  preparaPreventivo?: (input: ModuleQuoteInput) => Promise<{ id: string }>;
   /** Es. computo vuoto: blocca l'invio con motivo (niente PDF vuoto al cliente). */
   disabled?: boolean;
   disabledReason?: string;
@@ -126,7 +128,7 @@ export function InviaFirmaCard(props: Props) {
     try {
       // Le clausole da approvare a parte si leggono dal PDF stesso: il cliente approva quelle del suo contratto.
       const { risultato: pdfBlob, clausole } = await conClausoleDelDocumento(() => props.generaPdfBlob("firma"));
-      const row = await upsertModuleQuote({
+      const row = await (props.preparaPreventivo ?? upsertModuleQuote)({
         companyId: props.companyId,
         userId: user.id,
         moduleKey: props.moduleKey,
