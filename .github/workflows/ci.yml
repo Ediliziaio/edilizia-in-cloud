@@ -400,11 +400,13 @@ jobs:
           node scripts/test-permessi-dettagliati.mjs
           node scripts/test-sola-lettura-dati.mjs
 
-      - name: Run definitive conflict and database memory regressions
+      - name: Run conflict, WhatsApp scheduling and database memory regressions
         if: matrix.group == 'access'
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/conflittiSenzaRetrySql.test.ts
+          src/test/logic/ritardoCronoprogramma.test.ts
+          src/test/logic/whatsappAssistenteDemo.test.ts
           src/test/logic/ricicloPostgrestListener.test.ts
           src/test/ui/rdoCampoVoce.test.tsx
           src/test/logic/sentinellaMemoria.test.ts

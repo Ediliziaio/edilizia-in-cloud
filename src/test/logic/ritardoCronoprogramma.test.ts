@@ -53,7 +53,10 @@ describe("Ritardo da WhatsApp", () => {
     });
   });
 
-  it("aggiorna le date in una transazione e rifiuta replay, permessi mancanti e righe estranee", async () => {
+  it.each([
+    { scenario: "installazione nuova", correggiVersioneStorica: false },
+    { scenario: "installazione con la prima versione della funzione", correggiVersioneStorica: true },
+  ])("conferma le date in una transazione e rifiuta replay, permessi mancanti e righe estranee ($scenario)", async ({ correggiVersioneStorica }) => {
     const db = new PGlite();
     try {
       await db.exec(`
@@ -78,7 +81,9 @@ describe("Ritardo da WhatsApp", () => {
         grant all on all tables in schema public to service_role;
       `);
       const primaVersione = readFileSync("supabase/migrations/20290504125000_cronoprogramma_ritardo_whatsapp.sql", "utf8");
-      await db.exec(primaVersione.replace("errcode='PT409'", "errcode='40001'"));
+      const versioneInstallata = correggiVersioneStorica ? primaVersione.replace("errcode='PT409'", "errcode='40001'") : primaVersione;
+      if (correggiVersioneStorica) expect(versioneInstallata).toContain("errcode='40001'");
+      await db.exec(versioneInstallata);
       await db.exec(readFileSync("supabase/migrations/20290504131000_cronoprogramma_ritardo_conflitto.sql", "utf8"));
       const uuid = (n: number) => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
       const [azienda, utente, commessa, posa, finiture, sigilli, estranea] = [11, 21, 31, 41, 42, 43, 44].map(uuid);
