@@ -1192,7 +1192,7 @@ export default function MarketingCalendar() {
   [activeTab, filteredAppointments, giornoMappa, calendars, user?.id]);
 
   return (
-    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden pb-20 md:pb-0">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden max-sm:space-y-3">
       <ApiHealthBanner filter={["googlemaps"]} />
 
       {googleConnectedNotSynced && (
@@ -1226,17 +1226,7 @@ export default function MarketingCalendar() {
         <div className="flex items-center gap-3 max-sm:min-w-0">
           <div className="max-sm:min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">Calendario<span className="hidden xl:inline"> appuntamenti</span></h1>
-            <p className="text-sm text-muted-foreground max-sm:text-xs sm:hidden">
-              {headerStats.visible} visibili · <span className="font-medium text-foreground">{headerStats.todayCount}</span> oggi
-              {activeFilterCount > 0 && (
-                <>
-                  {" "}·{" "}
-                  <span className="text-primary font-medium">
-                    {activeFilterCount} filtro{activeFilterCount > 1 ? "i" : ""} attiv{activeFilterCount > 1 ? "i" : "o"}
-                  </span>
-                </>
-              )}
-            </p>
+            <p className="text-xs text-muted-foreground sm:hidden">{headerStats.todayCount} oggi</p>
           </div>
         </div>
         <div className="flex items-center gap-2 max-sm:shrink-0">
@@ -1267,7 +1257,8 @@ export default function MarketingCalendar() {
             disabled={hasCalendars && permissions.solaLettura}
             title={hasCalendars && permissions.solaLettura ? "Sei in sola lettura" : undefined}
             // Senza calendari il bottone porta alla configurazione, che dal telefono non si fa.
-            className={cn("h-9", !hasCalendars && "max-md:hidden")}
+            aria-label={hasCalendars ? "Nuovo appuntamento" : "Configura calendario"}
+            className={cn("h-9 max-sm:h-11", !hasCalendars && "max-md:hidden")}
           >
             {hasCalendars ? (
               <>
@@ -1290,7 +1281,7 @@ export default function MarketingCalendar() {
           l'utente sta filtrando, NON dell'intera azienda. */}
       {/* Telefono: oggi e settimana; «da assegnare» e «conflitti» solo quando ce ne sono.
           Nome a 11px e cifra a 16px, come gli altri riquadri numero del telefono. */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className={cn("grid grid-cols-2 gap-2 md:grid-cols-5", !headerStats.unassigned && !headerStats.conflicts && "max-sm:hidden")}>
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Visibili</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.visible}</p>
@@ -1298,13 +1289,13 @@ export default function MarketingCalendar() {
         <button
           type="button"
           onClick={goToday}
-          className="rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
+          className="rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50 max-sm:hidden"
           title="Vai a oggi"
         >
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Oggi</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.todayCount}</p>
         </button>
-        <div className="rounded-lg border bg-card px-3 py-2">
+        <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Settimana</p>
           <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.weekCount}</p>
         </div>
@@ -1374,7 +1365,7 @@ export default function MarketingCalendar() {
 
       {/* Tab bar con icona */}
       <div className="border-b">
-        <nav className="-mb-px flex items-center gap-1 overflow-x-auto" role="tablist">
+        <nav className="-mb-px flex min-h-0 items-center gap-1 max-sm:justify-between" role="tablist" aria-label="Viste appuntamenti">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -1385,7 +1376,7 @@ export default function MarketingCalendar() {
                 setActiveTab(t.key);
               }}
               className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap max-sm:min-h-11 max-sm:px-2",
                 activeTab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1457,21 +1448,21 @@ export default function MarketingCalendar() {
         <div className="grid h-[calc(100vh-240px)] min-h-[560px] grid-cols-1 gap-3 overflow-hidden md:h-[calc(100vh-220px)] xl:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="flex min-w-0 flex-col gap-3 overflow-hidden">
             {/* Navigation bar — redesign responsive */}
-            <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-0.5">
+            <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-0.5 max-sm:flex-wrap max-sm:overflow-visible">
               <Button
                 variant={isCurrentDateToday ? "default" : "outline"}
                 size="sm"
-                className="h-9 px-3"
+                className="h-9 px-3 max-sm:h-11"
                 onClick={goToday}
                 aria-label="Vai a oggi"
               >
                 Oggi
               </Button>
-              <div className="flex items-center border rounded-md h-9">
+              <div className="flex h-9 items-center rounded-md border max-sm:h-11">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-full w-9 rounded-r-none"
+                  className="h-full w-9 rounded-r-none max-sm:w-11"
                   onClick={goPrev}
                   aria-label="Periodo precedente"
                 >
@@ -1481,7 +1472,7 @@ export default function MarketingCalendar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-full w-9 rounded-l-none"
+                  className="h-full w-9 rounded-l-none max-sm:w-11"
                   onClick={goNext}
                   aria-label="Periodo successivo"
                 >
@@ -1492,7 +1483,7 @@ export default function MarketingCalendar() {
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex items-center gap-1.5 text-sm font-medium hover:text-primary transition-colors cursor-pointer truncate max-w-[160px] md:max-w-none h-9 px-2 rounded-md hover:bg-muted/50"
+                    className="flex h-9 min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors hover:bg-muted/50 hover:text-primary max-sm:order-first max-sm:h-11 max-sm:max-w-none max-sm:basis-full max-sm:border md:max-w-none"
                     aria-label="Apri selezione data"
                   >
                     <CalendarIcon className="h-3.5 w-3.5 opacity-60 shrink-0" />
@@ -1518,11 +1509,11 @@ export default function MarketingCalendar() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 xl:hidden gap-1.5"
+                    className="h-9 gap-1.5 max-sm:h-11 xl:hidden"
                     aria-label="Apri filtri"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
-                    <span className="max-sm:hidden">Filtri</span>
+                    <span>Filtri</span>
                     {activeFilterCount > 0 && (
                       <Badge
                         variant="secondary"
@@ -1533,14 +1524,14 @@ export default function MarketingCalendar() {
                     )}
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-[300px] sm:w-[320px] p-0 overflow-hidden">
+                <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:w-[320px]">
                   <SheetHeader className="p-4 border-b">
                     <SheetTitle className="flex items-center gap-2 text-base">
                       <SlidersHorizontal className="h-4 w-4 text-primary" />
                       Filtri
                     </SheetTitle>
                   </SheetHeader>
-                  <div className="overflow-y-auto h-[calc(100%-60px)]">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                     <MarketingCalendarFilters
                       calendars={calendars.map(calendar => ({ ...calendar, default_meeting_provider: calendar.default_meeting_provider === "google_meet" ? "google_meet" as const : "none" as const }))}
                       users={users}

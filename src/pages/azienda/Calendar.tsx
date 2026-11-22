@@ -113,8 +113,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  BottoneFiltri,
+  CercaConFiltri,
+  GruppoFiltri,
   PannelloFiltri,
+  SceltaFiltro,
 } from "@/components/mobile/FiltriMobile";
 import {
   DEFAULT_CALENDAR_EVENT_COLORS,
@@ -1685,9 +1687,36 @@ function CalendarInner() {
   const cantieriDelGiorno = useMemo(() => mostraMappa && !storicoMappa
     ? cantieriMappa(scheduledOrders, giornoMappa, false, personeMappa) : [], [mostraMappa, storicoMappa, scheduledOrders, giornoMappa, personeMappa]);
 
+  const aggiornaCalendario = async () => {
+    if (!companyId || !user?.id) return;
+    setRefreshingCalendar(true);
+    try {
+      await queryClient.invalidateQueries({
+        predicate: ({ queryKey }) =>
+          (queryKey[0] === "calendar-orders" &&
+            queryKey[2] === companyId) ||
+          (queryKey[0] === "appointments" &&
+            queryKey[1] === "work-planning-v3" &&
+            queryKey[2] === companyId &&
+            queryKey[3] === user.id) ||
+          ([
+            "company-profiles",
+            "order-statuses",
+            "employees-filter",
+            "external-teams-filter",
+            "cal-interventi",
+            "cal-manutenzioni",
+          ].includes(String(queryKey[0])) &&
+            queryKey[1] === companyId),
+      });
+    } finally {
+      setRefreshingCalendar(false);
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      <header className="flex items-start justify-between gap-3">
+    <div className="space-y-4 max-md:space-y-3">
+      <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight max-sm:text-xl">
             {view === "gantt"
@@ -1710,55 +1739,24 @@ function CalendarInner() {
           <Button
             variant="outline"
             size="icon"
-            className="h-9 w-9"
+            className="hidden size-9 md:inline-flex"
             aria-label="Aggiorna dati del calendario"
             disabled={refreshingCalendar || permissions.isLoading}
-            onClick={async () => {
-              if (!companyId || !user?.id) return;
-              setRefreshingCalendar(true);
-              try {
-                await queryClient.invalidateQueries({
-                  predicate: ({ queryKey }) =>
-                    (queryKey[0] === "calendar-orders" &&
-                      queryKey[2] === companyId) ||
-                    (queryKey[0] === "appointments" &&
-                      queryKey[1] === "work-planning-v3" &&
-                      queryKey[2] === companyId &&
-                      queryKey[3] === user.id) ||
-                    ([
-                      "company-profiles",
-                      "order-statuses",
-                      "employees-filter",
-                      "external-teams-filter",
-                      "cal-interventi",
-                      "cal-manutenzioni",
-                    ].includes(String(queryKey[0])) &&
-                      queryKey[1] === companyId),
-                });
-              } finally {
-                setRefreshingCalendar(false);
-              }
-            }}
+            onClick={aggiornaCalendario}
           >
             <RefreshCw
               className={cn("h-4 w-4", refreshingCalendar && "animate-spin")}
             />
           </Button>
-          <BottoneFiltri
-            className="sm:hidden"
-            attivi={activeFilterCount}
-            onClick={() => setFiltriMobileAperti(true)}
-          />
-
           <Button
             variant="outline"
             size="sm"
             onClick={goToToday}
-            className="gap-1.5 tap-compact max-sm:h-9 max-sm:w-9 max-sm:p-0"
+            className="hidden gap-1.5 md:inline-flex"
             aria-label="Oggi"
           >
             <CalendarDays className="h-4 w-4" />
-            <span className="hidden sm:inline">Oggi</span>
+            Oggi
           </Button>
 
           {/* In sola lettura il calendario si consulta: la policy su appointments rifiuta le scritture. */}
@@ -1771,10 +1769,12 @@ function CalendarInner() {
             }}
             disabled={permissions.solaLettura}
             title={permissions.solaLettura ? "Sei in sola lettura" : undefined}
-            className={cn("gap-1.5 max-sm:hidden", planningView && "hidden")}
+            aria-label="Nuovo appuntamento"
+            className={cn("gap-1.5 max-md:h-11", planningView && "hidden")}
           >
             <Plus className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Appuntamento</span>
+            <span className="md:hidden">Nuovo</span>
+            <span className="hidden md:inline">Appuntamento</span>
           </Button>
 
           {/* Bollini «Sync» solo da 1536: altrove rubavano posto alle azioni. */}
@@ -1975,6 +1975,7 @@ function CalendarInner() {
         </div>
       )}
 
+      {(canViewTeam || permissions.canViewOrders) && <div className="flex items-center justify-between gap-1 md:contents">
       {canViewTeam && (
         <div
           className="flex items-center gap-1 text-xs"
@@ -1989,6 +1990,7 @@ function CalendarInner() {
             <button
               key={value}
               type="button"
+              aria-label={label}
               aria-pressed={calendarData.scope === value}
               onClick={() => {
                 resetFilters();
@@ -1997,20 +1999,22 @@ function CalendarInner() {
                 setRequestedScope(value);
               }}
               className={cn(
-                "rounded-full px-3 py-1.5 transition-colors",
+                "rounded-lg px-3 py-1.5 transition-colors max-md:min-h-11 max-md:px-2.5 max-md:text-sm",
                 calendarData.scope === value
                   ? "bg-primary/10 font-semibold text-primary"
                   : "text-muted-foreground hover:bg-muted",
               )}
             >
-              {label}
+              <span className="md:hidden">{value === "personal" ? "Il mio" : "Team"}</span>
+              <span className="hidden md:inline">{label}</span>
             </button>
           ))}
         </div>
       )}
-      {permissions.canViewOrders && <div role="group" aria-label="Vista operativa" className="flex flex-wrap gap-1">
-        <Button size="sm" variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => impostaVistaMappa(null)}><CalendarDays className="size-4" /> Calendario</Button>
-        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => impostaVistaMappa("giorno")}><MapIcon className="size-4" /> Mappa</Button>
+      {permissions.canViewOrders && <div role="group" aria-label="Vista operativa" className="flex shrink-0 flex-wrap gap-1">
+        <Button size="sm" className={cn("max-md:h-11", !mostraMappa && "max-md:hidden")} variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => impostaVistaMappa(null)}><CalendarDays className="size-4" /> Calendario</Button>
+        <Button size="sm" className={cn("max-md:h-11", mostraMappa && "max-md:hidden")} variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => impostaVistaMappa("giorno")}><MapIcon className="size-4" /> Mappa</Button>
+      </div>}
       </div>}
       {mostraMappa ? <>
         <div role="group" aria-label="Periodo della mappa" className="flex flex-wrap gap-1">
@@ -2044,38 +2048,24 @@ function CalendarInner() {
         onViewChange={setView}
         isMobile={isMobile}
         canViewTeam={canViewTeam}
+        onToday={goToToday}
+      />
+      <CercaConFiltri
+        className="md:hidden"
+        valore={search}
+        onCambia={setSearch}
+        segnaposto="Cerca nel calendario"
+        filtriAttivi={activeFilterCount + Number(!planningView && sourceMode !== "work")}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       <div
-        className="flex flex-wrap items-center gap-2 border-b pb-3"
+        className="hidden flex-wrap items-center gap-2 border-b pb-3 md:flex"
         aria-label="Comandi del calendario"
       >
         {planningView ? (
           <span className="px-1 text-xs font-medium text-muted-foreground">
             Lavorazioni e risorse delle commesse
           </span>
-        ) : isMobile ? (
-          <Select
-            value={sourceMode}
-            onValueChange={(value) => {
-              if (value !== "custom")
-                selectSourceMode(value as "work" | "appointments" | "all");
-            }}
-          >
-            <SelectTrigger
-              className="h-9 w-[120px] shrink-0 max-md:hidden"
-              aria-label="Contenuti del calendario"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="work">Cantieri</SelectItem>
-              <SelectItem value="appointments">Appuntamenti</SelectItem>
-              <SelectItem value="all">Tutto</SelectItem>
-              {sourceMode === "custom" && (
-                <SelectItem value="custom">Personalizzato</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
         ) : (
           <div
             className="flex shrink-0 gap-1 rounded-lg bg-muted/60 p-1"
@@ -2154,7 +2144,7 @@ function CalendarInner() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 relative max-sm:hidden"
+              className="gap-1.5 relative"
             >
               <SlidersHorizontal className="h-4 w-4" />
               <span className="hidden sm:inline">Filtri</span>
@@ -2221,7 +2211,7 @@ function CalendarInner() {
         aria-label="Riepilogo del periodo"
       >
         <p
-          className="hidden sm:block"
+          className="hidden md:block"
           title={`Dal ${format(new Date(`${visiblePeriod.from}T12:00:00`), "d MMM yyyy", { locale: it })} al ${format(new Date(`${visiblePeriod.to}T12:00:00`), "d MMM yyyy", { locale: it })}`}
         >
           {isStatsLoading ? (
@@ -2253,7 +2243,7 @@ function CalendarInner() {
             <button
               type="button"
               onClick={() => setUnplannedOpen(true)}
-              className="inline-flex items-center gap-1.5 text-amber-700 hover:underline"
+              className="inline-flex items-center gap-1.5 text-amber-700 hover:underline max-md:min-h-11"
             >
               <CalendarIcon className="h-3.5 w-3.5" />
               {viewStats.unplanned} da pianificare
@@ -2263,7 +2253,7 @@ function CalendarInner() {
             <button
               type="button"
               onClick={() => setConflictsOpen(true)}
-              className="inline-flex items-center gap-1.5 text-amber-700 hover:underline"
+              className="inline-flex items-center gap-1.5 text-amber-700 hover:underline max-md:min-h-11"
               title="Persone o squadre su più lavori nello stesso giorno con orari che si accavallano (o senza orari), oppure assegnate fuori dalla squadra della commessa. Clicca per l'elenco."
             >
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -2429,91 +2419,60 @@ function CalendarInner() {
       <PannelloFiltri
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
-        attivi={activeFilterCount}
-        onAzzera={resetFilters}
+        attivi={activeFilterCount + Number(!planningView && sourceMode !== "work") + Number(Boolean(search))}
+        onAzzera={() => {
+          resetFilters();
+          if (!planningView) selectSourceMode("work");
+        }}
       >
-        <div className="grid grid-cols-2 gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Stato" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              {statuses.map((status) => (
-                <SelectItem key={status.id} value={status.id}>
-                  {status.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={customerFilter} onValueChange={setCustomerFilter}>
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i clienti</SelectItem>
-              {uniqueCustomers.map((customer) => (
-                <SelectItem key={customer.id} value={customer.id}>
-                  {customer.last_name} {customer.first_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Operaio" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli operai</SelectItem>
-              {workEmployees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id}>
-                  {emp.last_name} {emp.first_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={externalTeamFilter}
-            onValueChange={setExternalTeamFilter}
-          >
-            <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Squadra" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutte le squadre</SelectItem>
-              {externalTeams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
-            <SelectTrigger className="col-span-2 h-9 text-xs">
-              <SelectValue placeholder="Responsabile appuntamenti" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                Appuntamenti: tutti gli utenti visibili
-              </SelectItem>
-              {assignableWorkUsers.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.last_name} {u.first_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <GruppoFiltri>
+          {!planningView && (
+            <SceltaFiltro
+              titolo="Contenuti"
+              valore={sourceMode}
+              scelte={[
+                { value: "work", label: "Cantieri" },
+                { value: "appointments", label: "Appuntamenti" },
+                { value: "all", label: "Tutto" },
+                ...(sourceMode === "custom" ? [{ value: "custom" as const, label: "Personalizzati" }] : []),
+              ]}
+              onScegli={(mode) => { if (mode !== "custom") selectSourceMode(mode); }}
+            />
+          )}
+          <SceltaFiltro titolo="Stato" valore={statusFilter} onScegli={setStatusFilter} scelte={[
+            { value: "all", label: "Tutti" },
+            ...statuses.map(({ id, name }) => ({ value: id, label: name })),
+          ]} />
+          <SceltaFiltro titolo="Cliente" valore={customerFilter} onScegli={setCustomerFilter} scelte={[
+            { value: "all", label: "Tutti" },
+            ...uniqueCustomers.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || "Cliente" })),
+          ]} />
+          <SceltaFiltro titolo="Operaio" valore={employeeFilter} onScegli={setEmployeeFilter} scelte={[
+            { value: "all", label: "Tutti" },
+            ...workEmployees.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || "Operaio" })),
+          ]} />
+          <SceltaFiltro titolo="Squadra" valore={externalTeamFilter} onScegli={setExternalTeamFilter} scelte={[
+            { value: "all", label: "Tutte" },
+            ...externalTeams.map(({ id, name }) => ({ value: id, label: name })),
+          ]} />
+          <SceltaFiltro titolo="Responsabile" valore={assignedToFilter} onScegli={setAssignedToFilter} scelte={[
+            { value: "all", label: "Tutti" },
+            ...assignableWorkUsers.map(({ id, first_name, last_name }) => ({ value: id, label: [last_name, first_name].filter(Boolean).join(" ") || "Responsabile" })),
+          ]} />
+        </GruppoFiltri>
         <Button
           variant="outline"
           size="sm"
-          className="w-full gap-1.5"
+          className="min-h-11 w-full gap-1.5"
           onClick={() => {
             setFiltriMobileAperti(false);
             setMobileLayerOpen(true);
           }}
         >
           <Eye className="h-4 w-4" /> Livelli e colori
+        </Button>
+        <Button variant="ghost" className="min-h-11 w-full gap-1.5" onClick={aggiornaCalendario} disabled={refreshingCalendar || permissions.isLoading}>
+          <RefreshCw className={cn("size-4", refreshingCalendar && "animate-spin")} /> Aggiorna calendario
         </Button>
       </PannelloFiltri>
 
@@ -2953,6 +2912,7 @@ function CalendarInner() {
           if (!open) setEditingAppointment(null);
         }}
         appointment={editingAppointment}
+        defaultDate={isMobile ? giornoMappa : undefined}
         hideMarketingFields
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
