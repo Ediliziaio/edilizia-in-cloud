@@ -1,7 +1,8 @@
 import type { StockCampo } from "@/hooks/campo/useCampoPrelievo";
+import { quantitaPrelievo } from "./magazzino";
 
 type ArticoloBozza = Pick<StockCampo, "id" | "name" | "warehouse_id" | "magazzino" | "unita_misura" | "disponibile">
-  & Partial<Pick<StockCampo, "ubicazione">>;
+  & Partial<Pick<StockCampo, "ubicazione" | "internal_code">>;
 
 export interface BozzaPrelievo {
   id: string;
@@ -12,13 +13,21 @@ export interface BozzaPrelievo {
   inVerifica: boolean;
 }
 
+export interface PrelievoLocale {
+  chiave: string;
+  cantiere: string;
+  bozza: BozzaPrelievo;
+}
+
 export const BOZZA_PRELIEVO_VUOTA: BozzaPrelievo = {
   id: "", righe: [], orderId: "", nomeCantiere: "", note: "", inVerifica: false,
 };
 const PREFISSO = "campo-prelievo:";
 
-export function chiaveBozzaPrelievo(companyId: string, userId: string, cantiereIniziale?: string) {
-  return PREFISSO + JSON.stringify([companyId, userId, cantiereIniziale ?? ""]);
+export function chiaveBozzaPrelievo(companyId: string, userId: string, cantiereIniziale = "", indice = 0) {
+  const parti = [companyId, userId, cantiereIniziale];
+  if (indice) parti.push(String(indice));
+  return PREFISSO + JSON.stringify(parti);
 }
 
 const testoONull = (value: unknown) => typeof value === "string" || value === null;
@@ -32,7 +41,8 @@ function decodificaBozza(contenuto: string): BozzaPrelievo | null {
         && typeof riga.articolo.id === "string" && typeof riga.articolo.name === "string"
         && Number.isFinite(riga.articolo.disponibile) && testoONull(riga.articolo.warehouse_id)
         && testoONull(riga.articolo.magazzino) && testoONull(riga.articolo.unita_misura)
-        && (riga.articolo.ubicazione === undefined || testoONull(riga.articolo.ubicazione)))) {
+        && (riga.articolo.ubicazione === undefined || testoONull(riga.articolo.ubicazione))
+        && (riga.articolo.internal_code === undefined || testoONull(riga.articolo.internal_code)))) {
       const idPrecedente = typeof bozza.richiestaId === "string" ? bozza.richiestaId : "";
       const inVerifica = bozza.inVerifica === true || !!idPrecedente;
       const id = typeof bozza.id === "string" && bozza.id ? bozza.id : idPrecedente;
@@ -79,7 +89,7 @@ export function salvaBozzaPrelievo(chiave: string, precedente: BozzaPrelievo, bo
   }
 }
 
-export function bozzeCantieriPrelievo(companyId: string, userId: string) {
+export function bozzeCantieriPrelievo(companyId: string, userId: string): PrelievoLocale[] {
   const prefisso = PREFISSO + JSON.stringify([companyId, userId]).slice(0, -1) + ",";
   const chiavi = new Set<string>();
   try {
@@ -90,14 +100,41 @@ export function bozzeCantieriPrelievo(companyId: string, userId: string) {
       }
     }
   } catch { /* Il magazzino si apre anche se il deposito locale è indisponibile. */ }
-  const bozze = [];
+  const bozze: PrelievoLocale[] = [];
   for (const chiave of chiavi) {
     try {
       const [, , cantiere] = JSON.parse(chiave.slice(PREFISSO.length)) as unknown[];
-      if (typeof cantiere !== "string" || !cantiere) continue;
+      if (typeof cantiere !== "string") continue;
       const bozza = leggiBozzaPrelievo(chiave);
-      if (bozza.righe.length) bozze.push({ cantiere, bozza });
+      if (bozza.righe.length) bozze.push({ chiave, cantiere: bozza.orderId || cantiere, bozza });
     } catch { /* Chiave di una bozza illeggibile. */ }
   }
   return bozze;
+}
+
+export function bozzaPerCantiere(bozze: PrelievoLocale[], companyId: string, userId: string, cantiere: string): PrelievoLocale {
+  const presenti = bozze.filter((prelievo) => prelievo.cantiere === cantiere);
+  const esistente = presenti.find(({ bozza }) => !bozza.inVerifica) ?? presenti[0];
+  if (esistente) return esistente;
+
+  // Le bozze precedenti potevano cambiare destinazione conservando la chiave iniziale.
+  let indice = 0;
+  let chiave = chiaveBozzaPrelievo(companyId, userId, cantiere);
+  while (bozze.some((prelievo) => prelievo.chiave === chiave)) {
+    chiave = chiaveBozzaPrelievo(companyId, userId, cantiere, ++indice);
+  }
+  return { chiave, cantiere, bozza: BOZZA_PRELIEVO_VUOTA };
+}
+
+export function quantitaNelleBozze(bozze: PrelievoLocale[]) {
+  const totali = new Map<string, number>();
+  for (const { bozza } of bozze) {
+    // Se l'invio è incerto, la scorta potrebbe essere già stata scalata.
+    if (bozza.inVerifica) continue;
+    for (const { articolo, quantita } of bozza.righe) {
+      const valore = quantitaPrelievo(quantita);
+      if (valore > 0) totali.set(articolo.id, (totali.get(articolo.id) ?? 0) + valore);
+    }
+  }
+  return totali;
 }
