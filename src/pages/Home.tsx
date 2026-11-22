@@ -19,6 +19,7 @@ const AISystemShowcaseSection = lazy(() => import("@/components/landing/AISystem
 const PainPointsSection = lazy(() => import("@/components/landing/PainPointsSection"));
 const HomeVideoGallery = lazy(() => import("@/components/marketing/HomeVideoGallery"));
 const SolutionSection = lazy(() => import("@/components/landing/SolutionSection"));
+const FunzioniViveSection = lazy(() => import("@/components/landing/FunzioniViveSection"));
 const ModulesSection = lazy(() => import("@/components/landing/ModulesSection"));
 const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
 const GuaranteeSection = lazy(() => import("@/components/landing/GuaranteeSection"));
@@ -195,6 +196,9 @@ export default function Home() {
         </div>
         <div className="cv-auto-tall">
           <SolutionSection />
+        </div>
+        <div className="cv-auto-tall">
+          <FunzioniViveSection />
         </div>
         <div className="cv-auto-tall">
           <AISystemShowcaseSection />
