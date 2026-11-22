@@ -257,9 +257,19 @@ e inoltri telefonici.
 
 Dal contatto CRM, apri **Collegati → Chiamate** su mobile oppure **Chiamate**
 nella colonna laterale su desktop. Il dettaglio di una chiamata Fish con
-richiamo confermato rimanda alla stessa attività in **Silvio → Attività →
-Richiami**. Da lì si può aprire la trascrizione e, con i permessi sulle
-attività, aggiornare responsabile, stato e note del richiamo.
+richiamo confermato si apre in **Centralino → Richiami**. Da lì si può leggere
+la trascrizione e, con i permessi sulle attività, aggiornare responsabile,
+stato e note. La coda mostra prima i richiami da gestire, a partire da quelli
+in scadenza. **Tutti** comprende anche i richiami conclusi. Premendo **Richiama**
+il softphone usa il recapito concordato nella richiesta. Dopo la telefonata,
+**Segna esito** aggiunge un risultato datato e una nota facoltativa all’attività.
+**Contattato** chiude il richiamo. Gli altri esiti lo lasciano da gestire.
+
+In **Centralino → Telefono** trovi il tastierino, la disponibilità al
+passaggio e i collaudi locali. **Chiamate** mostra lo storico con ricerca
+e filtri.
+
+Da **Agenti AI → Chiamate**, il Centralino si apre con lo storico filtrato per agente. I collegamenti precedenti alle chiamate o ai richiami reindirizzano alla vista corrispondente.
 
 Il flusso lead usa una sola attività per chiamata in uscita. I tentativi
 ripetuti recuperano l’attività originale. Il richiamo legge la conversazione

@@ -34,10 +34,12 @@ export function FishNumberConnectionRequest({
   companyId,
   agentId,
   onSubmitted,
+  localPreview = false,
 }: {
   companyId: string;
   agentId: string;
   onSubmitted?: () => void;
+  localPreview?: boolean;
 }) {
   const cache = useQueryClient();
   const { isAdmin } = usePermissions();
@@ -132,8 +134,9 @@ export function FishNumberConnectionRequest({
         <div className="shrink-0 rounded-md bg-sky-50 p-1.5 text-sky-700 dark:bg-sky-950 dark:text-sky-200">
           <Phone aria-hidden="true" className="size-4" />
         </div>
-        <h2 className="text-base font-semibold">Il numero della tua azienda</h2>
+        <h2 className="text-base font-semibold">Collega il numero aziendale</h2>
       </div>
+      {localPreview && <p className="text-sm text-muted-foreground">Prova la richiesta con il numero dimostrativo <strong>+39 000 000 0002</strong>.</p>}
       {request && request.status !== "cancelled" ? (
         <div className="space-y-2.5 rounded-lg border bg-background p-3">
           <div
@@ -151,9 +154,9 @@ export function FishNumberConnectionRequest({
                 className="size-4 text-orange-700 dark:text-orange-300"
               />
             )}
-            {needsLineCheck
-              ? "Collegamento da verificare"
-              : connectionStatusLabel[request.status] || request.status}
+            {localPreview
+              ? "Richiesta di prova registrata"
+              : needsLineCheck ? "Collegamento da verificare" : connectionStatusLabel[request.status] || request.status}
           </div>
           <p className="text-sm">
             {request.number_mode === "existing"
@@ -161,7 +164,9 @@ export function FishNumberConnectionRequest({
               : "Hai richiesto una nuova linea aziendale."}
           </p>
           <p className="text-xs leading-5 text-muted-foreground">
-            {needsLineCheck
+            {localPreview
+              ? "Richiesta dimostrativa salvata nel gestionale locale."
+              : needsLineCheck
               ? "Serve una verifica aggiornata del numero richiesto per questo assistente."
               : request.status === "awaiting_company"
                 ? "La piattaforma ha bisogno delle informazioni indicate qui sotto per proseguire."
@@ -371,12 +376,12 @@ export function FishNumberConnectionRequest({
                   Invio richiesta…
                 </>
               ) : (
-                "Richiedi il collegamento"
+                localPreview ? "Salva richiesta di prova" : "Richiedi il collegamento"
               )}
             </Button>
             <p className="flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
               <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
-              La richiesta avvia la verifica della linea.
+              {localPreview ? "Richiesta di prova" : usesExistingNumber ? "Verifichiamo la linea con il tuo operatore." : "La richiesta avvia la verifica di una nuova linea."}
             </p>
           </div>
         </form>

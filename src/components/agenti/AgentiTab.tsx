@@ -20,6 +20,7 @@ import {
 import type { TipoAgente } from "@/types/unifiedAgent.types";
 import { useNavigate } from "react-router-dom";
 import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
+import { centralinoHistoryHref } from "@/lib/centralinoNavigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog,
@@ -73,78 +74,43 @@ export function AgentiTab() {
     navigate(`${basePath}/${agente.id}`);
   };
 
-  const handleNavigateConversations = (id: string) => {
-    navigate(`${basePath}/${id}?tab=conversazioni`);
+  const handleNavigateConversations = (agente: { id: string; tipo: TipoAgente }) => {
+    const calls = agente.tipo === "vocale" || agente.tipo === "campagna";
+    navigate(basePath.startsWith("/azienda/") && calls
+      ? centralinoHistoryHref(agente.id)
+      : `${basePath}/${agente.id}?tab=conversazioni`);
   };
 
   return (
     // Da 768 niente px-6/py-6: il margine lo dà il layout (prima si sommava).
     <div className="max-md:py-3">
-      {/* Toolbar — una riga: ricerca a sinistra, tipo, stato, «Nuovo agente».
-          Da 768 senza riquadro (era una card con ombra dentro la pagina); tra
-          768 e 1280 il tipo è un menu: con le sei pillole la riga andava a capo.
-          Telefono: resta la ricerca. */}
-      <div className="mb-4 flex flex-wrap items-center gap-3 max-md:mb-3">
-        <div className="relative max-md:w-full">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={cerca}
-            onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca agente..."
-            className="pl-8 w-48 h-8 text-sm max-md:h-9 max-md:w-full"
-          />
+      <div className="mb-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+        <div className="relative col-span-2 sm:w-56">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input aria-label="Cerca per nome agente" value={cerca} onChange={event => setCerca(event.target.value)}
+            placeholder="Cerca agente…" className="pl-9" />
         </div>
-
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="hidden h-8 w-36 text-sm md:flex xl:hidden" aria-label="Tipo">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="min-w-0 sm:w-36" aria-label="Tipo agente"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {TIPO_CHIPS.map((chip) => (
-              <SelectItem key={chip.value} value={chip.value}>
-                {chip.value === "tutti" ? "Tutti i tipi" : chip.label}
-              </SelectItem>
+            {TIPO_CHIPS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>{value === "tutti" ? "Tutti i tipi" : label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-
-        <div className="hidden items-center gap-1.5 flex-wrap xl:flex">
-          {TIPO_CHIPS.map((chip) => {
-            const Icon = chip.icon;
-            return (
-              <button
-                key={chip.value}
-                onClick={() => setFiltroTipo(chip.value)}
-                aria-pressed={filtroTipo === chip.value}
-                className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                  filtroTipo === chip.value
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "border border-slate-300 bg-white text-slate-600 shadow-sm hover:border-primary/60 hover:text-slate-900"
-                }`}
-              >
-                <Icon className="h-3 w-3" /> {chip.label}
-              </button>
-            );
-          })}
-        </div>
-
         <Select value={filtroStato} onValueChange={setFiltroStato}>
-          <SelectTrigger className="w-36 h-8 text-sm max-md:hidden">
-            <SelectValue placeholder="Stato" />
-          </SelectTrigger>
+          <SelectTrigger className="min-w-0 sm:w-36" aria-label="Stato agente"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutti">Tutti gli stati</SelectItem>
             <SelectItem value="attivo">Attivi</SelectItem>
             <SelectItem value="pausa">In pausa</SelectItem>
             <SelectItem value="bozza">Bozza</SelectItem>
+            <SelectItem value="archiviato">Archiviati</SelectItem>
           </SelectContent>
         </Select>
-
-        <div className="flex-1 max-md:hidden" />
-
-        <Button size="sm" onClick={() => handleCrea()} className="max-md:hidden">
-          <Plus className="h-4 w-4 mr-1.5" /> Nuovo agente
-        </Button>
+        {!isMobile && <Button onClick={() => handleCrea()} className="eic-motion-button ml-auto">
+          <Plus className="mr-1.5 h-4 w-4" /> Nuovo agente
+        </Button>}
       </div>
 
       {/* Grid */}
@@ -190,9 +156,6 @@ export function AgentiTab() {
               <p className="text-sm text-muted-foreground mt-1 text-center max-w-sm">
                 Crea il tuo primo agente AI per gestire conversazioni, qualificare lead e fissare appuntamenti.
               </p>
-              <Button className="mt-4" onClick={() => handleCrea(filtroTipo !== "tutti" ? (filtroTipo as TipoAgente) : undefined)}>
-                <Plus className="h-4 w-4 mr-1.5" /> Crea agente
-              </Button>
             </>
           )}
 
@@ -220,7 +183,7 @@ export function AgentiTab() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-md:gap-2">
+        <div className="eic-stagger grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {agenti.map((agente) => (
             <AgentCardUnified
               key={agente.id}
@@ -231,17 +194,10 @@ export function AgentiTab() {
               onDelete={(id) => setDeleteId(id)}
               onToggleStatus={(id, stato) => updateStatus.mutate({ id, stato })}
               onDuplicate={(id) => duplicateAgent.mutate(id)}
-              onNavigateConversations={handleNavigateConversations}
+              onNavigateConversations={() => handleNavigateConversations(agente)}
               isToggling={updateStatus.isPending}
             />
           ))}
-          <button
-            onClick={() => handleCrea()}
-            className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white text-slate-500 transition-all hover:border-primary/60 hover:bg-primary/5 hover:text-primary max-md:hidden"
-          >
-            <Plus className="h-6 w-6" />
-            <span className="text-sm font-medium">Nuovo agente</span>
-          </button>
         </div>
       )}
 

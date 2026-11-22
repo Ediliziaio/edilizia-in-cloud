@@ -1,19 +1,29 @@
 import { SilvioAssistanceActivities } from "@/components/silvio/SilvioAssistanceActivities";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSearchParams } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
+import { Link, useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import { useCentralinoCalls } from "@/hooks/useCentralinoCalls";
-import { Link } from "react-router-dom";
+import { useUnifiedAgents } from "@/hooks/useUnifiedAgents";
+import { usePermissions } from "@/hooks/usePermissions";
+import { callRecordId, centralinoHistoryFilters } from "@/lib/centralinoNavigation";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, Delete, Loader2, Settings2 } from "lucide-react";
+import { Phone, Delete, Loader2, Settings2, PhoneOutgoing, List, Headset, Grid3X3 } from "lucide-react";
 import { CentralinoCallHistory } from "@/components/telephony/CentralinoCallHistory";
 import { DisponibilitaOperatore } from "@/components/telephony/DisponibilitaOperatore";
+import { RichiamiCentralino } from "@/components/telephony/RichiamiCentralino";
 import "@/components/ui/fish-agent-pipeline.css";
 
 const PAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
+const SEZIONI = [
+  { id: "chiamate", label: "Chiamate", icon: List },
+  { id: "richiami", label: "Richiami", icon: PhoneOutgoing },
+  { id: "telefono", label: "Telefono", icon: Grid3X3 },
+  { id: "attivita", label: "Assistenza", icon: Headset },
+];
 
 function fmtDur(s: number) {
   if (!s) return "—";
@@ -22,151 +32,132 @@ function fmtDur(s: number) {
 }
 
 export default function Centralino() {
-  const [searchParams,setSearchParams]=useSearchParams();
-  const activeTab=searchParams.get("tab")==="attivita"?"attivita":"chiamate";
-  const softphone = useSoftphoneOptional();
-  const [number, setNumber] = useState("");
+  const [params, setParams] = useSearchParams();
+  const { isAdmin, canViewOrders, canViewMarketingAiAgent } = usePermissions();
+  const canViewCalls = isAdmin || canViewMarketingAiAgent;
+  const canViewCallbacks = isAdmin || canViewOrders;
+  const sections = SEZIONI.filter(({ id }) => id === "richiami" ? canViewCallbacks : canViewCalls);
+  const requestedTab = params.get("tab");
+  const activeTab = sections.find(({ id }) => id === requestedTab)?.id ?? sections[0]?.id ?? "chiamate";
+  const callbackId = callRecordId(params.get("richiamo"));
 
-  const { data: logs = [] } = useCentralinoCalls();
-
-  const stats = useMemo(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    let totalSec = 0, todayCount = 0, completed = 0;
-    for (const l of logs) {
-      totalSec += l.seconds || 0;
-      if (["completed","completata"].includes(l.status)) completed++;
-      if (new Date(l.date) >= today) todayCount++;
-    }
-    return { total: logs.length, todayCount, completed, totalSec };
-  }, [logs]);
-
-  const callBusy = softphone?.status && softphone.status !== "idle";
-  const canCall = !!softphone && !!number.trim() && !callBusy;
-
-  const press = (d: string) => setNumber((n) => (n + d).slice(0, 20));
-  const backspace = () => setNumber((n) => n.slice(0, -1));
-  const call = () => {
-    const n = number.trim();
-    if (!n) return;
-    softphone?.startCall(n);
-  };
+  function changeTab(value: string) {
+    setParams(previous => {
+      const next = new URLSearchParams(previous);
+      if (value === "chiamate") next.delete("tab");
+      else next.set("tab", value);
+      next.delete("richiamo");
+      return next;
+    });
+  }
 
   return (
-    // Telefono: il centralino si usa (disponibilità, tastierino, storico);
-    // numeri e agenti si impostano da computer o tablet.
-    // Da 768 a tutta larghezza come le altre pagine: a 1440 la colonna da
-    // 1024px centrata lasciava due fasce vuote e il titolo fuori allineamento.
-    <div className="mx-auto max-w-5xl space-y-6 md:max-w-none max-md:space-y-3">
-      {/* Header — titolo e «Numeri & agenti» sulla stessa riga: la frase sotto
-          il titolo (e l'icona) a 1024 mandava il bottone a capo, a sinistra. */}
-      <div className="eic-motion-enter flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold max-md:text-lg">Centralino</h1><p className="mt-1 text-sm text-muted-foreground">Persone e agenti AI, con lo stesso storico e le anagrafiche del gestionale.</p>
+    <div className="eic-workspace space-y-4">
+      <header className="eic-workspace-header eic-motion-enter flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
+        <div className="flex items-center gap-2.5">
+          <span className="eic-workspace-icon"><Phone aria-hidden="true" className="size-5" /></span>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Centralino</h1>
         </div>
-        <Button asChild variant="outline" size="sm" className="gap-1.5 max-md:hidden">
-          <Link to="/azienda/agenti-ai?tab=telefonia">
-            <Settings2 className="h-4 w-4" /> Numeri e collegamenti
-          </Link>
-        </Button>
-      </div>
+        {canViewCalls && (
+          <Button asChild variant="outline" size="sm" className="gap-1.5 max-md:hidden">
+            <Link to="/azienda/agenti-ai?tab=telefonia"><Settings2 className="h-4 w-4" /> Numeri e collegamenti</Link>
+          </Button>
+        )}
+      </header>
+      <Tabs value={activeTab} onValueChange={changeTab}>
+        <div className="min-w-0 overflow-x-auto px-1 py-1">
+          <WorkspaceTabs items={sections} selected={activeTab} label="Sezioni del centralino" className="w-full sm:w-auto" />
+        </div>
+        {canViewCalls && <TabsContent value="chiamate" className="mt-4"><CentralinoChiamate /></TabsContent>}
+        {canViewCallbacks && <TabsContent value="richiami" className="mt-4"><RichiamiCentralino callbackId={callbackId} /></TabsContent>}
+        {canViewCalls && <TabsContent value="telefono" className="mt-4"><CentralinoTelefono /></TabsContent>}
+        {canViewCalls && <TabsContent value="attivita" className="mt-4"><SilvioAssistanceActivities /></TabsContent>}
+      </Tabs>
+    </div>
+  );
+}
 
-      {!softphone && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="py-3 text-sm text-amber-900">
-            La centralina non è attiva in questo contesto. Apri il Centralino dall'area azienda.
+function CentralinoChiamate() {
+  const [params] = useSearchParams();
+  const { data: agents = [] } = useUnifiedAgents();
+  const { data: logs } = useCentralinoCalls(centralinoHistoryFilters(params));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const stats = logs && [
+    { label: "Recenti", value: logs.length },
+    { label: "Oggi", value: logs.filter(log => new Date(log.date) >= today).length },
+    { label: "Completate", value: logs.filter(log => ["completed", "completata"].includes(log.status)).length },
+    { label: "Durata", value: fmtDur(logs.reduce((seconds, log) => seconds + (log.seconds || 0), 0)) },
+  ];
+
+  return (
+    <div className="max-w-6xl space-y-3">
+      {stats && (
+        <dl aria-label="Riepilogo delle chiamate recenti" className="eic-workspace-header grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-4">
+          {stats.map(({ label, value }) => (
+            <div key={label} className="flex flex-wrap items-baseline gap-x-2">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="order-first text-lg font-semibold tabular-nums text-sky-950 dark:text-sky-100">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <Card><CardContent className="min-w-0 p-4 sm:p-5">
+        <CentralinoCallHistory agentOptions={agents.filter(agent => agent.tipo === "vocale" || agent.tipo === "campagna")} />
+      </CardContent></Card>
+    </div>
+  );
+}
+
+function CentralinoTelefono() {
+  const softphone = useSoftphoneOptional();
+  const [number, setNumber] = useState("");
+  const callBusy = !!softphone && softphone.status !== "idle";
+  const canCall = !!softphone && !!number.trim() && !callBusy;
+
+  return (
+    <div className="max-w-5xl space-y-4">
+      {!softphone && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Telefono dal browser non disponibile in questa sessione.</p>}
+      <div className="grid items-start gap-4 md:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Tastierino</CardTitle></CardHeader>
+          <CardContent>
+            <form className="space-y-3" onSubmit={event => {
+              event.preventDefault();
+              if (canCall) softphone?.startCall(number.trim());
+            }}>
+              <div className="flex items-center gap-2">
+                <Input type="tel" aria-label="Numero da chiamare" value={number} placeholder="+39…" inputMode="tel"
+                  onChange={event => setNumber(event.target.value.replace(/[^\d+*#]/g, "").slice(0, 20))}
+                  className="text-center font-mono text-lg tracking-wide" />
+                <Button type="button" variant="ghost" size="icon" onClick={() => setNumber(current => current.slice(0, -1))}
+                  disabled={!number} aria-label="Cancella ultima cifra"><Delete className="h-5 w-5" /></Button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {PAD.map(digit => (
+                  <Button key={digit} type="button" variant="outline" className="h-11 text-lg"
+                    onClick={() => setNumber(current => (current + digit).slice(0, 20))}>{digit}</Button>
+                ))}
+              </div>
+              <Button type="submit" className="h-11 w-full gap-2" disabled={!canCall}>
+                {callBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                {callBusy ? "Chiamata in corso" : "Chiama"}
+              </Button>
+            </form>
           </CardContent>
         </Card>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4"><div className="flex-1"><p className="text-sm font-semibold">Il centralino lavora insieme a Silvio</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Segui cliente, ticket e appuntamento dal centro attività.</p></div><Button asChild size="sm" variant="outline"><Link to="/azienda/silvio-ai/attivita">Centro attività di Silvio</Link></Button><Button asChild size="sm"><Link to="/azienda/agenti-ai?crea=assistenza">Configura l’assistenza</Link></Button></div>
+        <DisponibilitaOperatore />
+      </div>
       {import.meta.env.DEV && (
-        <div className="eic-motion-panel flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-          <div><p className="text-sm font-semibold">Collaudi locali</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Prova lead, assistenza e instradamento con dati fittizi.</p></div>
-          <div className="flex flex-wrap gap-2">
+        <details className="rounded-lg border bg-card p-3 text-sm">
+          <summary className="cursor-pointer font-medium">Collaudi locali</summary>
+          <div className="mt-3 flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm"><Link to="/azienda/centralino/collaudo-lead">Prova lead e CRM</Link></Button>
             <Button asChild variant="outline" size="sm"><Link to="/azienda/centralino/collaudo-locale">Prova assistenza</Link></Button>
-            <Button asChild size="sm"><Link to="/azienda/centralino/collaudo-telefonia">Prova telefonia</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/azienda/centralino/collaudo-telefonia">Prova telefonia</Link></Button>
           </div>
-        </div>
+        </details>
       )}
-      <Tabs value={activeTab} onValueChange={value=>setSearchParams(previous=>{const next=new URLSearchParams(previous);next.set("tab",value);return next;},{replace:true})}><TabsList><TabsTrigger value="chiamate">Chiamate</TabsTrigger><TabsTrigger value="attivita">Attività di assistenza</TabsTrigger></TabsList><TabsContent value="attivita" className="mt-5"><SilvioAssistanceActivities/></TabsContent><TabsContent value="chiamate" className="mt-5 space-y-6">
-      {/* Statistiche */}
-      {/* Telefono: i quattro numeri su una riga sola, con «Durata» al posto di
-          «Tempo totale» che nella casella stretta verrebbe tagliato. */}
-      <div className="grid grid-cols-4 gap-3 max-md:gap-1.5">
-        {[
-          { label: "Chiamate recenti", value: String(stats.total) },
-          { label: "Oggi", value: String(stats.todayCount) },
-          { label: "Completate", value: String(stats.completed) },
-          { label: "Tempo totale", breve: "Durata", value: fmtDur(stats.totalSec) },
-        ].map((s) => (
-          <Card key={s.label} className="eic-motion-panel">
-            <CardContent className="py-3 max-md:px-2 max-md:py-1.5">
-              <p className="text-2xl font-bold tabular-nums max-md:text-base">{s.value}</p>
-              <p className="text-xs text-muted-foreground max-md:truncate max-md:text-[11px]">
-                {s.breve ? (
-                  <>
-                    <span className="max-md:hidden">{s.label}</span>
-                    <span className="md:hidden">{s.breve}</span>
-                  </>
-                ) : (
-                  s.label
-                )}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-[320px_1fr] max-md:grid-cols-1 max-md:gap-3">
-        <div className="space-y-6 max-md:space-y-3">
-        {/* Disponibilità: decide se l'assistente può passare una chiamata a una persona */}
-        <DisponibilitaOperatore />
-
-        {/* Dialer */}
-        <Card>
-          <CardHeader className="pb-2 max-md:p-3 max-md:pb-1">
-            <CardTitle className="text-base max-md:text-sm">Tastierino</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 max-md:space-y-2.5 max-md:p-3 max-md:pt-0">
-            <div className="flex items-center gap-2">
-              <Input
-                value={number}
-                onChange={(e) => setNumber(e.target.value.replace(/[^\d+*#]/g, "").slice(0, 20))}
-                placeholder="+39…"
-                className="text-center text-lg font-mono tracking-wide"
-                inputMode="tel"
-                onKeyDown={(e) => { if (e.key === "Enter" && canCall) call(); }}
-              />
-              <Button variant="ghost" size="icon" onClick={backspace} disabled={!number} aria-label="Cancella">
-                <Delete className="h-5 w-5" />
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {PAD.map((d) => (
-                <Button
-                  key={d}
-                  variant="outline"
-                  className="h-12 text-lg font-medium max-md:h-11"
-                  onClick={() => press(d)}
-                >
-                  {d}
-                </Button>
-              ))}
-            </div>
-
-            <Button className="h-12 w-full gap-2 text-base" onClick={call} disabled={!canCall}>
-              {callBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Phone className="h-5 w-5" />}
-              {callBusy ? "Chiamata in corso" : "Chiama"}
-            </Button>
-          </CardContent>
-        </Card>
-        </div>
-
-        <Card className="min-w-0"><CardContent className="p-5 max-md:p-3"><CentralinoCallHistory /></CardContent></Card>
-      </div>
-      </TabsContent></Tabs>
     </div>
   );
 }

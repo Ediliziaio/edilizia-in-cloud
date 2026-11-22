@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SilvioAssistanceActivitiesView } from "@/components/silvio/SilvioAssistanceActivitiesView";
 import { LocalFishVoicePanel } from "@/components/agenti/LocalFishVoicePanel";
+import { callRecordId } from "@/lib/centralinoNavigation";
 import {
   createLocalAssistanceClient,
   type LocalLabBootstrap,
@@ -93,6 +94,7 @@ function assistanceSteps(snapshot: LocalLabSnapshot | null): PipelineStep[] {
   ];
 }
 export default function LocalAssistanceLabPage() {
+  const agentId = callRecordId(new URLSearchParams(window.location.search).get("agente"));
   const [client] = useState(createLocalAssistanceClient);
   const [bootstrap, setBootstrap] = useState<LocalLabBootstrap | null>(null);
   const [snapshot, setSnapshot] = useState<LocalLabSnapshot | null>(null);
@@ -287,7 +289,9 @@ export default function LocalAssistanceLabPage() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <a href="/azienda/centralino">Torna al centralino</a>
+          <a href={agentId ? `/azienda/agenti-ai/${agentId}?tab=simulazioni` : "/azienda/centralino?tab=telefono"}>
+            {agentId ? "Torna alle prove dell’agente" : "Torna al centralino"}
+          </a>
         </Button>
       </div>
       <AgentPipeline

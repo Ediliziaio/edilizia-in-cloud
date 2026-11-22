@@ -157,6 +157,7 @@
   background: currentColor;
   animation: eic-voice-beat 0.95s ease-in-out infinite;
 }
+button .eic-voice-bars { color: inherit; }
 .eic-voice-bars i:nth-child(2) {
   animation-delay: -0.4s;
 }
@@ -351,4 +352,102 @@
   .eic-motion-button:not(:disabled):active {
     transform: none;
   }
+}
+
+/* Superfici e stati condivisi dalle pagine Agenti AI e Centralino. */
+.eic-workspace-header {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background:
+    radial-gradient(ellipse at 0% 0%, rgb(43 122 222 / 0.12), transparent 54%),
+    radial-gradient(ellipse at 100% 100%, rgb(234 123 36 / 0.08), transparent 48%),
+    hsl(var(--card));
+}
+
+.eic-workspace-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border: 1px solid #bcd8f5;
+  border-radius: 0.75rem;
+  background: linear-gradient(145deg, #f3f9ff, #dcecff);
+  color: #144e91;
+}
+
+.dark .eic-workspace-icon {
+  border-color: #294f78;
+  background: linear-gradient(145deg, #17385c, #122845);
+  color: #b6daff;
+}
+
+.eic-workspace-tabs {
+  gap: 0.125rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--muted) / 0.6);
+}
+
+.eic-workspace-tab[data-state="active"] {
+  background: transparent;
+  color: #163e72;
+  box-shadow: none;
+}
+
+.dark .eic-workspace-tab[data-state="active"] { color: #bfddff; }
+
+.eic-workspace-tab-marker {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid #c4daf4;
+  border-radius: 0.55rem;
+  background: linear-gradient(135deg, #fff, #eaf3ff);
+  box-shadow: 0 1px 3px rgb(20 58 102 / 0.10);
+}
+
+.dark .eic-workspace-tab-marker {
+  border-color: #315a84;
+  background: linear-gradient(134deg, #1a3a60, #152f4e);
+}
+
+.eic-workspace-card {
+  border-color: hsl(var(--border));
+  box-shadow: 0 2px 8px rgb(26 59 100 / 0.05);
+}
+
+.eic-workspace-card:focus-within { border-color: hsl(var(--primary) / 0.43); }
+
+.eic-workspace-card[data-tone="orange"] .eic-workspace-icon {
+  border-color: #f2d2b2;
+  background: #fff3e6;
+  color: #9a4315;
+}
+
+.dark .eic-workspace-card[data-tone="orange"] .eic-workspace-icon {
+  border-color: #6f442d;
+  background: #41291c;
+  color: #fbc397;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eic-workspace-card { transition: border-color 180ms ease-out, box-shadow 180ms ease-out; }
+  .eic-stagger > :nth-child(-n + 6) { animation: eic-rise 270ms cubic-bezier(0.2, 0.75, 0.25, 1) backwards; }
+  .eic-stagger > :nth-child(2) { animation-delay: 35ms; }
+  .eic-stagger > :nth-child(3) { animation-delay: 70ms; }
+  .eic-stagger > :nth-child(4) { animation-delay: 105ms; }
+  .eic-stagger > :nth-child(5) { animation-delay: 140ms; }
+  .eic-stagger > :nth-child(6) { animation-delay: 175ms; }
+}
+
+@media (any-hover: hover) {
+  .eic-workspace-card:hover { box-shadow: 0 5px 17px rgb(26 59 100 / 0.11); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eic-workspace [role="tabpanel"],
+  .eic-workspace-dialog { animation: none !important; }
+  .eic-workspace-tab { transition: none; }
 }

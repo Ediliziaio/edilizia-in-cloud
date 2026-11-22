@@ -1,12 +1,14 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Bot, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { centralinoCallbackHref } from "@/lib/centralinoNavigation";
 import { SilvioHub } from "@/components/silvio/SilvioHub";
 export default function SilvioActivityPage() {
   const [params] = useSearchParams();
-  const requested = params.get("richiamo") || "";
-  const callbackId = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(requested) ? requested : undefined;
-  const tab = callbackId || params.get("vista") === "richiami" ? "richiami" : "assistenza";
+  const callbackId = params.get("richiamo");
+  if (callbackId || params.get("vista") === "richiami" || params.get("tab") === "richiami") {
+    return <Navigate to={centralinoCallbackHref(callbackId || undefined)} replace />;
+  }
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-3 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -36,7 +38,7 @@ export default function SilvioActivityPage() {
           </Button>
         </div>
       </div>
-      <SilvioHub defaultTab={tab} callbackId={callbackId} />
+      <SilvioHub defaultTab="assistenza" />
     </div>
   );
 }

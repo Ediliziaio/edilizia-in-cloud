@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { centralinoHistoryHref } from "@/lib/centralinoNavigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -277,6 +278,10 @@ export default function AgentDetailPage() {
   }
 
   const isVoice = agent.tipo === "vocale" || agent.tipo === "campagna";
+  const historyHref = isVoice && basePath.startsWith("/azienda/") ? centralinoHistoryHref(agent.id) : undefined;
+  if (historyHref && (requestedTab === "conversazioni" || requestedTab === "chiamate")) {
+    return <Navigate to={historyHref} replace />;
+  }
   const completionRate = safeNumber(agent.chiamate_totali) > 0
     ? `${Math.round((safeNumber(agent.chiamate_completate) / safeNumber(agent.chiamate_totali)) * 100)}%`
     : "–";
@@ -288,7 +293,30 @@ export default function AgentDetailPage() {
   const canSaveConfig = configIssues.length === 0;
 
   if (isVoice && agent.tools_config?.voice_provider === "fish_audio" && companyId) {
-    return <FishAgentWorkspace key={`${companyId}:${agent.id}`} agent={agent} companyId={companyId} initialTab={requestedTab === "telefonia" ? "telefonia" : requestedTab === "conversazioni" ? "chiamate" : "configurazione"} onBack={() => navigate(basePath)} />;
+    const fromTelephony = params.get("origine") === "telefonia";
+    const changeWorkspaceTab = (tab: string) => setParams(previous => {
+      const next = new URLSearchParams(previous);
+      if (tab === "configurazione") next.delete("tab");
+      else next.set("tab", tab);
+      next.delete("prova");
+      next.delete("scenario");
+      return next;
+    });
+    const closePreview = (mode: "ascolta" | "voce") => {
+      if (params.get("prova") !== mode) return;
+      setParams(previous => {
+        const next = new URLSearchParams(previous);
+        next.delete("prova");
+        next.delete("scenario");
+        return next;
+      }, { replace: true });
+    };
+    return (
+      <FishAgentWorkspace key={`${companyId}:${agent.id}`} agent={agent} companyId={companyId} historyHref={historyHref}
+        requestedTab={requestedTab} onTabChange={changeWorkspaceTab} onClosePreview={closePreview}
+        backLabel={fromTelephony ? "Torna a Telefonia" : "Torna agli agenti"}
+        onBack={() => navigate(fromTelephony ? `${basePath}?tab=telefonia` : basePath)} />
+    );
   }
 
   return (
@@ -347,6 +375,7 @@ export default function AgentDetailPage() {
               { key: "conversazioni", label: isVoice ? "Chiamate" : "Conversazioni", icon: isVoice ? Phone : MessageSquare },
               { key: "statistiche", label: "Statistiche", icon: TrendingUp },
             ].map((tab) => {
+              if (historyHref && tab.key === "conversazioni") return null;
               const Icon = tab.icon;
               return (
                 <TabsTrigger
@@ -362,6 +391,11 @@ export default function AgentDetailPage() {
               );
             })}
           </TabsList>
+          {historyHref && (
+            <Button asChild variant="ghost" size="sm" className="ml-1">
+              <Link to={historyHref}><Phone className="mr-1.5 h-4 w-4" /> Chiamate nel Centralino</Link>
+            </Button>
+          )}
         </div>
 
         {/* Panoramica */}
@@ -599,9 +633,9 @@ export default function AgentDetailPage() {
         </TabsContent>
 
         {/* Conversazioni */}
-        <TabsContent value="conversazioni" className="mt-0 p-6 max-md:px-0 max-md:py-3">
+        {!historyHref && <TabsContent value="conversazioni" className="mt-0 p-6 max-md:px-0 max-md:py-3">
           <ConversazioniTab agentIdFilter={agentId} />
-        </TabsContent>
+        </TabsContent>}
 
         {/* Statistiche */}
         <TabsContent value="statistiche" className="mt-0 p-6">

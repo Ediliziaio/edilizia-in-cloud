@@ -162,7 +162,7 @@ export function TelephonyTab() {
               <li key={agent.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span className="text-sm">{agent.nome}</span>
                 <Button asChild size="sm" variant="outline">
-                  <Link to={agentsPath + "/" + agent.id + "?tab=telefonia"} aria-label={`Collegamento numero per ${agent.nome}`}>
+                  <Link to={agentsPath + "/" + agent.id + "?tab=telefonia&origine=telefonia"} aria-label={`Collegamento numero per ${agent.nome}`}>
                     Collegamento numero
                   </Link>
                 </Button>
