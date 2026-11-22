@@ -39,6 +39,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      fv_bollette_letture: {
+        Row: {
+          id: string; company_id: string; progetto_id: string; path: string; nome: string; versione: number;
+          created_by: string; stato: string; token: string; scade_il: string; documenti: Json | null;
+          errore: string | null; http_status: number | null; created_at: string; updated_at: string;
+        }
+        Insert: {
+          id?: string; company_id: string; progetto_id: string; path: string; nome: string; versione?: number;
+          created_by: string; stato: string; token: string; scade_il: string; documenti?: Json | null;
+          errore?: string | null; http_status?: number | null; created_at?: string; updated_at?: string;
+        }
+        Update: {
+          id?: string; company_id?: string; progetto_id?: string; path?: string; nome?: string; versione?: number;
+          created_by?: string; stato?: string; token?: string; scade_il?: string; documenti?: Json | null;
+          errore?: string | null; http_status?: number | null; created_at?: string; updated_at?: string;
+        }
+        Relationships: []
+      }
       _audit_pre_migration_snapshots: {
         Row: {
           id: string

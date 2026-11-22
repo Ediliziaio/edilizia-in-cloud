@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   download: vi.fn(),
 }));
+vi.mock('@/hooks/useLettureBollettaFv', () => ({ useLettureBollettaFv: () => ({ jobs: [] as never[], errore: '', ora: 0, ricarica: () => {} }) }));
 vi.mock(
   "@/integrations/supabase/client",
   () => ({

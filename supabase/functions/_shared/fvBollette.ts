@@ -72,6 +72,7 @@ export type ProfiloOrarioFv = {
 export type AnalisiConsumiFv = {
   versione: 1;
   documenti: DocumentoBollettaFv[];
+  lettureAcquisite?: Record<string, string>;
   podSelezionato: string;
   proiezioneConfermata: boolean;
   correzioni: {
@@ -327,6 +328,11 @@ export function leggiAnalisiConsumi(raw: unknown): AnalisiConsumiFv | null {
     raw.documenti.length > 60
   ) return null;
   const out = analisiConsumiIniziale();
+  if (record(raw.lettureAcquisite)) {
+    out.lettureAcquisite = Object.fromEntries(Object.entries(raw.lettureAcquisite).filter(([id, data]) =>
+      /^[0-9a-f-]{36}$/.test(id) && typeof data === "string" && data.length <= 64 && Number.isFinite(Date.parse(data))
+    ).slice(0, 60)) as Record<string, string>;
+  }
   try {
     out.documenti = raw.documenti.map((d) => {
       if (

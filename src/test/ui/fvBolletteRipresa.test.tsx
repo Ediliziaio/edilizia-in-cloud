@@ -1,0 +1,40 @@
+import {useState} from 'react';
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+const mocks=vi.hoisted(()=>({read:vi.fn(),invoke:vi.fn(),upload:vi.fn(),applica:vi.fn()}));
+vi.mock('@/integrations/supabase/client',()=>({supabase:{functions:{invoke:mocks.invoke},storage:{from:()=>({upload:mocks.upload,download:vi.fn()})}}}));
+vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=> '10000000-0000-4000-a000-000000000001'}));
+vi.mock('@/lib/fotovoltaico/lettureBolletta',async(importOriginal)=>({...(await importOriginal<typeof import('@/lib/fotovoltaico/lettureBolletta')>()),leggiLettureBollettaFv:mocks.read}));
+import {FvBolletteConsumi} from '@/components/fotovoltaico/FvBolletteConsumi';
+import {analisiConsumiIniziale,datiBollettaVuoti,leggiAnalisiConsumi,type AnalisiConsumiFv} from '../../../supabase/functions/_shared/fvBollette';
+const company='10000000-0000-4000-a000-000000000001',project='20000000-0000-4000-a000-000000000001',hash='a'.repeat(64),pod='IT001E12345678';
+const path=`${company}/${project}/${hash}.pdf`;
+const dati={...datiBollettaVuoti(),pod,consumo_annuo_kwh:6000,consumo_periodo_kwh:6000,spesa_annua:1800,quote_fisse:360,periodo_dal:'2025-01-01',periodo_al:'2025-12-31'};
+const documenti=[{id:hash+':0',hash,nome:'Facsimile.pdf',path,mime:'application/pdf',dati,estratti:structuredClone(dati),confermato:false,pagine_totali:3,pagine_non_lette:[] as number[],metodo:'ai'}];
+const row={id:'30000000-0000-4000-a000-000000000001',path,nome:'Facsimile.pdf',stato:'in_corso',documenti:null as unknown,errore:null as string|null,scade_il:'2099-01-01T00:00:00Z',updated_at:'2026-11-22T11:00:00Z'};
+let saved:AnalisiConsumiFv;
+function Progetto(){const [value,setValue]=useState(()=>leggiAnalisiConsumi(JSON.parse(JSON.stringify(saved)))!);return <FvBolletteConsumi progettoId={project} value={value} azienda={false} modificabile onChange={next=>{saved=JSON.parse(JSON.stringify(next));setValue(next);}} onApplica={mocks.applica} onIndirizzo={()=>{}}/>;}
+beforeEach(()=>{vi.clearAllMocks();saved=analisiConsumiIniziale();mocks.invoke.mockResolvedValue({data:{lettura:{id:row.id,stato:'in_corso'}},error:null});});
+afterEach(()=>cleanup());
+it('chiude durante la lettura, recupera consumi e spesa alla riapertura e li conserva dopo conferma e altro salvataggio',async()=>{
+ mocks.read.mockResolvedValue([row]);const first=render(<Progetto/>);
+ await screen.findByText(/ritroverai i dati quando riapri/);first.unmount();
+ mocks.read.mockResolvedValue([{...row,stato:'completata',documenti}]);
+ const second=render(<Progetto/>);
+ const summary=await screen.findByLabelText('Riepilogo automatico della bolletta');
+ expect(summary).toHaveTextContent(/6\.?000/);expect(summary).toHaveTextContent(/1\.?800/);
+ expect(saved.documenti[0].dati).toMatchObject({consumo_annuo_kwh:6000,spesa_annua:1800});
+ fireEvent.click(screen.getByRole('button',{name:'Conferma e usa questi dati'}));
+ expect(mocks.applica).toHaveBeenCalledWith({consumo:6000,costoEvitabile:.24});
+ expect(saved.documenti[0].confermato).toBe(true);second.unmount();
+ render(<Progetto/>);await screen.findByLabelText('Riepilogo automatico della bolletta');
+ await waitFor(()=>expect(mocks.read).toHaveBeenCalledTimes(3));
+ expect(saved.documenti).toHaveLength(1);expect(saved.documenti[0].dati.spesa_annua).toBe(1800);
+ expect(mocks.invoke).not.toHaveBeenCalled();expect(mocks.upload).not.toHaveBeenCalled();
+});
+it('riprende un errore di lettura usando il file già caricato, senza richiederlo nuovamente',async()=>{
+ mocks.read.mockResolvedValue([{...row,stato:'fallita',errore:'Lettura interrotta: riprova tra poco.'}]);render(<Progetto/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Riprendi lettura'}));
+ await waitFor(()=>expect(mocks.invoke).toHaveBeenCalledWith('fv-leggi-bolletta',{body:{progetto_id:project,path,nome:'Facsimile.pdf',asincrona:true,riprova:true}}));
+ expect(mocks.upload).not.toHaveBeenCalled();
+});

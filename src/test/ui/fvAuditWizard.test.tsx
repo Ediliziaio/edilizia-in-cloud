@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { INITIAL } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 import { creaDisegnoTetto } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
+vi.mock('@/hooks/useLettureBollettaFv', () => ({ useLettureBollettaFv: () => ({ jobs: [] as never[], errore: '', ora: 0, ricarica: () => {} }) }));
 
 const { stato, NESSUNO, aggiorna, invoca, vista, atomicSave, legacyRows } = vi.hoisted(() => ({
   stato: {
@@ -176,6 +177,22 @@ afterEach(() => cleanup());
 
 const arrivaAllaFase6 = async () => { await screen.findByText(/Anteprima finanziaria per il cliente/); };
 
+describe("Fase 6: ipotesi e benefici leggibili", () => {
+  it("usa la variazione restituita dal calcolo, senza garantire gli incentivi", async () => {
+    stato.scenario = scenarioDelServer({ inflazione_energia_pct: .025, capienza_irpef_ok: false });
+    apriAllaFase(6); monta(); await arrivaAllaFase6();
+    expect(screen.getByText(/variazione ipotizzata 2,5%\/anno, come nel calcolo/)).toBeInTheDocument();
+    expect(screen.getByText('Incentivi considerati nello scenario')).toBeInTheDocument();
+    expect(screen.getByText(/requisiti, condizioni e capienza fiscale da verificare/i)).toBeInTheDocument();
+    expect(screen.queryByText('Incentivi che ti spettano')).not.toBeInTheDocument();
+  });
+  it("non stampa una proiezione con tassi inventati per uno scenario storico", async () => {
+    apriAllaFase(6); monta(); await arrivaAllaFase6();
+    expect(screen.queryByText(/Spesa stimata in 25 anni senza impianto/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Saldo cumulato stimato a 25 anni/)).toBeInTheDocument();
+  });
+});
+
 describe('Demo 2: conversational FV transfer and atomic native save',()=>{
   const prepare=()=>{
     stato.company='d2000000-0000-4000-a000-000000000002';
@@ -248,7 +265,7 @@ describe("Fase 6: il guadagno in 25 anni", () => {
     expect(hero.textContent).not.toContain("37.500");
     // lo stesso numero sul grafico della cassa e nella frase «Investi … e guadagnerai …»
     expect(screen.getByText(/a fine vita/).textContent).toContain("25.400");
-    expect(screen.getByText(/guadagnerai/).textContent).toContain("25.400");
+    expect(screen.getByText(/Saldo cumulato stimato a 25 anni/).textContent).toContain("25.400");
     // il totale dei risparmi resta, col suo nome, tra i numeri chiave
     expect(screen.getByText("Risparmio 25 anni").parentElement?.textContent).toContain("37.500");
   });

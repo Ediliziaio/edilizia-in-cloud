@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { pdfTextByLines, pdfCoverage, readPdfPages, splitPdfTextAtRows, hasLargePdfImage, type PdfPageLike } from "../../../supabase/functions/_shared/pdfExtraction";
+import { pdfTextByLines, pdfCoverage, readPdfPages, splitPdfTextAtRows, hasLargePdfImage, type PdfPageLike } from "../../../supabase/functions/_shared/pdfLettura";
 
 const item = (str: string, x = 0, y = 100) => ({ str, transform: [1, 0, 0, 1, x, y] });
 const native = (text: string): PdfPageLike => ({ getTextContent: async () => ({ items: [item(text)] }), getOperatorList: async () => ({ fnArray: [1] }) });

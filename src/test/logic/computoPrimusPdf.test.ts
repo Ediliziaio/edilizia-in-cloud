@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { eComputoPrimus, leggiComputoPrimus, type PdfPaginaPosizionata } from "@/lib/computo/primusPdf";
-import { readPdfPages } from "../../../supabase/functions/_shared/pdfExtraction";
+import { readPdfPages } from "../../../supabase/functions/_shared/pdfLettura";
 import { controllaTotali, estraiFormule, numeroComputo, valutaFormula, computoComeEstrazione } from "@/lib/computo/computoStrutturato";
 
 /** Il fixture è il testo del PDF vero (39 pagine, PriMus) come lo legge pdfjs: x, destra, y, testo. */

@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { bloccoAiPerUtente, erroreAiPerUtente } from "../../../supabase/functions/_shared/erroriAi";
 import { SENZA_AI, messaggioErroreLettura } from "../../../supabase/functions/_shared/computoErroreLettura";
-import { readPdfPages, type PdfPageLike } from "../../../supabase/functions/_shared/pdfExtraction";
+import { readPdfPages, type PdfPageLike } from "../../../supabase/functions/_shared/pdfLettura";
 import { classificaErroreBot } from "../../../supabase/functions/whatsapp-ai-processor/erroreBot";
 import { STR } from "../../../supabase/functions/whatsapp-ai-processor/prompts/strings";
 import { classificaBloccoPagamento } from "@/lib/creditoEsaurito";

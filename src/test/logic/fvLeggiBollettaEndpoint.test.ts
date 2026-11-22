@@ -5,6 +5,7 @@ import {
   type DipendenzeBollettaFv,
 } from "../../../supabase/functions/fv-leggi-bolletta/handler";
 import { datiBollettaVuoti } from "../../../supabase/functions/_shared/fvBollette";
+import { creaHandlerBollettaFvAsincrona } from "../../../supabase/functions/fv-leggi-bolletta/asincrona";
 const company = "10000000-0000-4000-a000-000000000001",
   project = "20000000-0000-4000-a000-000000000001",
   pod = "IT001E12345678";
@@ -75,8 +76,19 @@ const invoke = (body: Record<string, unknown> = {}) =>
       }),
     }),
   );
+const claimJob = vi.fn(), finishJob = vi.fn();
+let pendingJobs: Promise<void>[] = [];
+const invokeAsync = (body: Record<string, unknown> = {}) => creaHandlerBollettaFvAsincrona(deps, {
+  prendi: claimJob, concludi: finishJob, prosegui: (p) => { pendingJobs.push(p); },
+})(new Request("https://test.invalid/fv-leggi-bolletta", {
+  method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer sintetico" },
+  body: JSON.stringify({ asincrona: true, progetto_id: project, path, nome: "Test.pdf", ...body }),
+}));
 beforeEach(async () => {
   vi.clearAllMocks();
+  pendingJobs = [];
+  claimJob.mockReset().mockResolvedValue({ id: "job1", avviata: true, stato: "in_corso" });
+  finishJob.mockReset().mockResolvedValue(true);
   permesso = true;
   stato = "bozza";
   visibile = true;
@@ -110,7 +122,71 @@ beforeEach(async () => {
     rawResponse: { choices: [{ finish_reason: "stop" }] },
   });
 });
+describe("Lettura recuperabile delle bollette", () => {
+  it("risponde prima dell'AI e conserva l'esito per la riapertura del progetto", async () => {
+    let resolveAi!: (value: unknown) => void;
+    ai.mockImplementation(() => new Promise((resolve) => { resolveAi = resolve; }));
+    const response = await invokeAsync();
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ lettura: { id: "job1", stato: "in_corso", errore: null } });
+    expect(finishJob).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(ai).toHaveBeenCalledOnce());
+    resolveAi({ content: JSON.stringify({ forniture: [{ ...datiBollettaVuoti(), pod, consumo_annuo_kwh: 6000, spesa_annua: 1800 }] }), rawResponse: { choices: [{ finish_reason: "stop" }] } });
+    await Promise.all(pendingJobs);
+    expect(finishJob).toHaveBeenCalledWith({}, "job1", expect.any(String), 200, expect.objectContaining({ documenti: expect.arrayContaining([expect.objectContaining({ dati: expect.objectContaining({ consumo_annuo_kwh: 6000, spesa_annua: 1800 }) })]) }));
+  });
+  it("autorizza progetto e permessi prima della presa e di ogni costo", async () => {
+    visibile = false; expect((await invokeAsync()).status).toBe(403);
+    expect(claimJob).not.toHaveBeenCalled(); expect(ai).not.toHaveBeenCalled();
+    visibile = true; permesso = false; expect((await invokeAsync()).status).toBe(403);
+    expect(claimJob).not.toHaveBeenCalled();
+  });
+  it("non avvia un secondo worker e restituisce un esito già pronto senza rileggerlo", async () => {
+    claimJob.mockResolvedValue({ id: "job1", avviata: false, stato: "in_corso" });
+    expect((await invokeAsync()).status).toBe(202); expect(pendingJobs).toHaveLength(0);
+    claimJob.mockResolvedValue({ id: "job1", avviata: false, stato: "completata", documenti: [{ id: "risultato" }] });
+    expect(await (await invokeAsync()).json()).toMatchObject({ documenti: [{ id: "risultato" }] });
+    expect(ai).not.toHaveBeenCalled();
+  });
+  it("conserva il blocco credito come errore recuperabile, senza dati inventati", async () => {
+    ai.mockRejectedValue(Error("credito")); expect((await invokeAsync()).status).toBe(202);
+    await Promise.all(pendingJobs);
+    expect(finishJob).toHaveBeenCalledWith({}, "job1", expect.any(String), 402, { error: "Crediti AI esauriti. Puoi inserire i consumi manualmente." });
+  });
+  it("se non può prendere il lavoro non scarica e non chiama il provider", async () => {
+    claimJob.mockRejectedValue(Error("database")); expect((await invokeAsync()).status).toBe(503);
+    expect(download).not.toHaveBeenCalled(); expect(ai).not.toHaveBeenCalled();
+  });
+});
 describe("Endpoint bollette: identità, OCR e conti AI", () => {
+  it("una lettura OCR più completa non riusa la struttura parziale dello stesso PDF", async () => {
+    const cache = new Map<string, string>();
+    let providerCalls = 0;
+    ai.mockImplementation(async (options) => {
+      let content = cache.get(options.cacheKey);
+      const cached = content != null;
+      if (!content) {
+        providerCalls++;
+        content = JSON.stringify({ forniture: [{ ...datiBollettaVuoti(), pod, consumo_annuo_kwh: 6000,
+          spesa_annua: options.messages[1].content.includes("Seconda lettura completa") ? 1800 : null }] });
+        cache.set(options.cacheKey, content);
+      }
+      return { content, rawResponse: cached ? { cached: true } : { choices: [{ finish_reason: "stop" }] } };
+    });
+    testo = "Prima lettura parziale"; nonLette = [3];
+    const first = await (await invoke()).json();
+    expect(first.documenti[0].dati.spesa_annua).toBeNull();
+    expect(first.documenti[0].pagine_non_lette).toEqual([3]);
+    testo = "Seconda lettura completa"; nonLette = [];
+    const second = await (await invoke()).json();
+    expect(second.documenti[0].dati.spesa_annua).toBe(1800);
+    expect(second.documenti[0].pagine_non_lette).toEqual([]);
+    expect(ai.mock.calls[1][0].idempotencyKey).not.toBe(ai.mock.calls[0][0].idempotencyKey);
+    const third = await (await invoke()).json();
+    expect(third.documenti[0].dati.spesa_annua).toBe(1800);
+    expect(ai.mock.calls[2][0].cacheKey).toBe(ai.mock.calls[1][0].cacheKey);
+    expect(providerCalls).toBe(2);
+  });
   it("blocca un progetto non visibile prima di scaricare o chiamare l'AI", async () => {
     visibile = false;
     expect((await invoke()).status).toBe(403);

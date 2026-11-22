@@ -555,6 +555,15 @@ describe("fv-calcolo-finanziario — cosa scrive sul progetto", () => {
       margine_eur: 536.36, margine_pct: 0.1475, payback_anni: 7.5, npv_25_anni: 1234.5, finanziamento_rata_eur: 99, ...extra,
     });
 
+    it("le proiezioni mostrano il tasso salvato e non quello corrente; se assente resta ignoto", async () => {
+      prepara(emesso(), { fv_calcolo_finanziario: [calcoloSalvato({ inflazione_energia_pct: 0 })] });
+      expect((await calcola()).inflazione_energia_pct).toBe(0);
+      prepara(emesso(), { fv_calcolo_finanziario: [calcoloSalvato({ inflazione_energia_pct: .017 })] });
+      expect((await calcola()).inflazione_energia_pct).toBe(.017);
+      prepara(emesso(), { fv_calcolo_finanziario: [calcoloSalvato()] });
+      expect((await calcola()).inflazione_energia_pct).toBeNull();
+    });
+
     it("prezzo, sconto e margine sono quelli del progetto; produzione, risparmio, payback, cassa e incentivi quelli del calcolo attivo", async () => {
       for (const stato of ["emesso", "firmato", "annullato"]) {
         prepara(emesso({ stato }), { fv_calcolo_finanziario: [calcoloSalvato()] });
