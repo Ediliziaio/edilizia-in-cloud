@@ -75,7 +75,7 @@ import { RiportaDaIncassareDialog, siRiportaDaIncassare } from "@/components/fat
 import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fatturazione/HubEsterno";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CercaConFiltri, PannelloFiltri, PilloleFiltro, SelettoreSezione } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, DettaglioFiltri, GruppoFiltri, PannelloFiltri, SceltaFiltro, SelettoreSezione } from "@/components/mobile/FiltriMobile";
 const PER_PAGE = 25;
 
 // Mobile: Fatture, Incassi e Fiscalità; le altre schede restano al desktop.
@@ -823,7 +823,7 @@ function DocumentiFiscaliListInner() {
         className={soloVistaCompatta}
         valore={searchRaw}
         onCambia={(v) => { setSearchRaw(v); setPage(0); clearSelection(); }}
-        segnaposto="Cliente, numero, importo, data o note…"
+        segnaposto="Cerca documenti"
         filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
@@ -863,7 +863,7 @@ function DocumentiFiscaliListInner() {
           </Button>
         )}
       </div>
-      {elencoEmesse && <FiltriEmesseAttivi valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
+      {nFiltriEmesse > 0 && <div className={soloTabella}><FiltriEmesseAttivi valore={filtriEmesse} cambia={cambiaFiltriEmesse} /></div>}
 
       {soloBozzeFatture ? (
         <p className="text-xs text-muted-foreground">Le bozze modificate più di recente sono in cima. Apri una bozza per continuare a compilarla.</p>
@@ -1400,28 +1400,20 @@ function DocumentiFiscaliListInner() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + nFiltriEmesse}
-        onAzzera={() => { handleTabChange("fattura"); clearFilters(); }}
+        onAzzera={() => handleTabChange("fattura")}
         risultati={total}
       >
-        <PilloleFiltro
-          titolo="Documenti"
-          valore={activeTab}
-          onScegli={handleTabChange}
-          scelte={TIPO_TABS.map((tab) => ({
-            value: tab.id,
-            label: tab.label,
-            n: (counts?.[tab.countKey as keyof typeof counts] as number | undefined) ?? 0,
-          })).filter((c) => c.n > 0 || c.value === activeTab || c.value === "fattura")}
-        />
-        {!isTrash && (
-          <PilloleFiltro
-            titolo="Stato"
-            valore={statoFilter}
-            onScegli={(v) => { setStatoFilter(v); setPage(0); clearSelection(); }}
-            scelte={statiFiltro}
-          />
-        )}
-        {elencoEmesse && <div className="flex flex-wrap gap-2"><FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} /></div>}
+        <GruppoFiltri>
+          <SceltaFiltro titolo="Documento" valore={activeTab} onScegli={handleTabChange}
+            scelte={TIPO_TABS.map(({ id, label }) => ({ value: id, label }))} />
+          {!isTrash && (
+            <SceltaFiltro titolo="Stato" valore={statoFilter} scelte={statiFiltro}
+              onScegli={v => { setStatoFilter(v); setPage(0); clearSelection(); }} />
+          )}
+          {elencoEmesse && <DettaglioFiltri titolo="Altri filtri" riepilogo={nFiltriEmesse ? String(nFiltriEmesse) : undefined}>
+            <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} compatto />
+          </DettaglioFiltri>}
+        </GruppoFiltri>
       </PannelloFiltri>
 
       {/* ── Delete Confirmation Dialog ───────────────── */}

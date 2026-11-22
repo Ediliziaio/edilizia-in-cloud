@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GRUPPI_METODO } from "@/lib/finance/metodoScadenza";
-import { PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { SceltaFiltro } from "@/components/mobile/FiltriMobile";
 
 export interface ValoriFiltriScadenzario {
   periodo: string;
@@ -30,7 +30,7 @@ const STATI = [["da_pagare", "Da saldare"], ["parziale", "Parziale"], ["pagata",
 const attivo = (v: string) => !!v && v !== "all";
 
 export function FiltroStatoScadenzeCompatto({ stato, cambia }: { stato: string; cambia: (stato: string) => void }) {
-  return <PilloleFiltro titolo="Stato" valore={stato || "all"}
+  return <SceltaFiltro titolo="Stato" valore={stato || "all"}
     onScegli={valore => cambia(valore === "all" ? "" : valore)}
     scelte={[{ value: "all", label: "Tutti" }, ...STATI.map(([value, label]) => ({ value, label }))]} />;
 }

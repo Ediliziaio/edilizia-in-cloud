@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, Search, Download, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Loader2, Search, Download, Ellipsis, ChevronDown, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -33,7 +33,7 @@ import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOf
 import { GRUPPI_METODO, etichettaMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, KpiMobili, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
@@ -115,7 +115,8 @@ export default function Scadenzario() {
 
   // Mobile: linguette, periodo e tipo in un pannello dal basso.
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const nFiltriMobile = [tab !== "aperte", ...[datePreset, filterTipo, filterStatus, filterMetodo].map(v => !!v && v !== "all")].filter(Boolean).length;
+  const nAltriFiltri = [filterTipo, filterStatus, filterMetodo].filter(v => v && v !== "all").length;
+  const nFiltriMobile = nAltriFiltri + Number(tab !== "aperte") + Number(!!datePreset || yearFilter !== String(currentYear));
 
   const clearFilters = useCallback(() => {
     setDatePreset("");
@@ -332,10 +333,26 @@ export default function Scadenzario() {
     };
   }, [tab, totalCount, summary]);
 
+  const anni = Array.from({ length: 6 }, (_, i) => String(currentYear - i));
+  const periodiAnno = [
+    ...anni.map(anno => ({ value: `anno:${anno}`, label: `Tutto il ${anno}` })),
+    { value: "anno:all", label: "Tutti gli anni" },
+  ];
+  const visteCompatte = [
+    { value: "aperte", label: "Aperte" },
+    { value: "tutte", label: "Tutte" },
+    { value: "da_incassare", label: "Da incassare" },
+    { value: "da_pagare", label: "Da pagare" },
+    { value: "scadute", label: "Scadute" },
+    { value: "pagate", label: "Pagate" },
+    ...viste,
+    ...((summary?.senza_data_count || tab === "senza_data") ? [{ value: "senza_data", label: "Senza data" }] : []),
+  ];
+  const nSenzaData = summary?.senza_data_count ?? 0;
+  const exportDisabilitato = exporting || isLoading || isError || ricercaInAttesa || dateInvertite;
+
   return (
     <div className="space-y-4 max-sm:space-y-3">
-      {/* Header — mobile: titolo 18px, anno e «Nuova» piccoli sulla stessa riga
-          (prima il bottone usciva dallo schermo: pagina larga 488px). */}
       <div className="flex items-center justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold max-sm:text-lg">Scadenzario</h1>
@@ -344,26 +361,58 @@ export default function Scadenzario() {
           {/* «Per settimana» guarda avanti e tutto lo scaduto: l'anno lì non conta. */}
           {tab !== "settimane" && tab !== "senza_data" && (
             <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-[140px] font-semibold max-lg:h-11 max-sm:w-[84px] max-sm:text-sm" aria-label="Anno"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="hidden h-9 w-[140px] font-semibold lg:flex" aria-label="Anno"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti gli anni</SelectItem>
-                {Array.from({ length: 6 }, (_, i) => String(currentYear - i)).map((y) => (
+                {anni.map((y) => (
                   <SelectItem key={y} value={y}>{y}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-lg:h-11 max-sm:px-3 max-sm:text-sm">
+          {vistaElenco && <div className="lg:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="icon" className="size-11" aria-label="Altre azioni dello scadenzario">
+                  <Ellipsis aria-hidden="true" className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={exportDisabilitato} onSelect={() => void handleExport()}>
+                  <Download aria-hidden="true" className="mr-2 size-4" />
+                  Esporta CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>}
+          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-lg:min-h-11 max-sm:px-3 max-sm:text-sm">
             <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Nuova Scadenza</span><span className="sm:hidden">Nuova</span>
           </Button>
         </div>
       </div>
 
-      {(summary?.senza_data_count ?? 0) > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
-        <span>{summary!.senza_data_count} importi aperti senza data. Completa la data nella commessa o nel costo.</span>
-        <Button size="sm" variant="outline" onClick={() => { clearFilters(); setTab("senza_data"); }}>Mostra senza data</Button>
-        {tab === "senza_data" && <Button size="sm" variant="ghost" onClick={() => setTab("aperte")}>Torna alle aperte</Button>}
-      </div>}
+      {nSenzaData > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border text-sm lg:p-3">
+          <span className="max-lg:hidden">{nSenzaData} importi aperti senza data. Completa la data nella commessa o nel costo.</span>
+          {tab === "senza_data" ? (
+            <Button size="sm" variant="ghost" className="max-lg:min-h-11 max-lg:w-full max-lg:justify-start"
+              onClick={() => { setTab("aperte"); setPage(1); }}>
+              <ChevronLeft aria-hidden="true" className="mr-1.5 size-4 lg:hidden" />
+              Torna alle aperte
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="max-lg:min-h-11 max-lg:w-full max-lg:justify-between max-lg:border-0"
+              onClick={() => { clearFilters(); setTab("senza_data"); }}>
+              <span className="hidden lg:inline">Mostra senza data</span>
+              <span className="flex items-center gap-2 lg:hidden">
+                <CalendarClock aria-hidden="true" className="size-4 text-muted-foreground" />
+                {nSenzaData} senza data
+              </span>
+              <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground lg:hidden" />
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
       {/* «Per settimana» ha i suoi numeri, dalla stessa fonte dell'elenco: questi leggono solo la tabella delle
@@ -415,7 +464,7 @@ export default function Scadenzario() {
       {/* Mobile: ricerca e bottone dei filtri (linguette, periodo e tipo nel pannello). */}
       <CercaConFiltri
         className="lg:hidden"
-        segnaposto="Cerca cliente, fornitore o descrizione"
+        segnaposto="Cerca scadenze"
         valore={search}
         onCambia={(v) => { setSearch(v); setPage(1); }}
         filtriAttivi={nFiltriMobile}
@@ -451,7 +500,7 @@ export default function Scadenzario() {
             <FiltriScadenzario valore={valoriFiltri} anno={yearFilter} periodi={DATE_PRESETS}
               aperto={showFilters} onAperto={setShowFilters} cambia={cambiaFiltri} azzera={clearFilters} />
             <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={handleExport}
-              disabled={exporting || isLoading || isError || ricercaInAttesa || dateInvertite} title="Esporta CSV" aria-label="Esporta CSV">
+              disabled={exportDisabilitato} title="Esporta CSV" aria-label="Esporta CSV">
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             </Button>
           </>}
@@ -538,66 +587,46 @@ export default function Scadenzario() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
-        onAzzera={() => { setTab("aperte"); clearFilters(); }}
+        onAzzera={() => { setTab("aperte"); setYearFilter(String(currentYear)); clearFilters(); }}
         risultati={isLoading || ricercaInAttesa || dateInvertite || !vistaElenco ? undefined : totalCount}
       >
-        <PilloleFiltro
-          titolo="Mostra"
-          valore={tab}
-          onScegli={(v) => { setTab(v); setPage(1); }}
-          scelte={[
-            ...viste,
-            ...(tab === "senza_data" ? [{ value: "senza_data", label: "Senza data" }] : []),
-            { value: "aperte", label: "Aperte", n: counts.aperte },
-            { value: "tutte", label: "Tutte", n: counts.tutte },
-            { value: "da_incassare", label: "Da incassare", n: counts.da_incassare },
-            { value: "da_pagare", label: "Da pagare", n: counts.da_pagare },
-            { value: "scadute", label: "Scadute", n: counts.scadute },
-            { value: "pagate", label: "Pagate", n: counts.pagate },
-          ]}
-        />
-        {vistaElenco && <>
-        <PilloleFiltro
-          titolo="Periodo"
-          valore={datePreset || "all"}
-          onScegli={(v) => { setDatePreset(v === "all" ? "" : v); setPage(1); }}
-          scelte={[
-            { value: "all", label: yearFilter === "all" ? "Tutti gli anni" : `Tutto il ${yearFilter}` },
-            ...DATE_PRESETS,
-          ]}
-        />
-        {datePreset === "custom" && <div className="grid gap-2 min-[380px]:grid-cols-2">
-          <label className="min-w-0 space-y-1 text-sm">
-            <span>Da</span>
-            <Input type="date" className="h-11" value={customFrom} onChange={e => cambiaFiltri({ dal: e.target.value })} />
-          </label>
-          <label className="min-w-0 space-y-1 text-sm">
-            <span>A</span>
-            <Input type="date" className="h-11" value={customTo} min={customFrom || undefined} onChange={e => cambiaFiltri({ al: e.target.value })} />
-          </label>
-        </div>}
-        <PilloleFiltro titolo="Modalità di pagamento" valore={filterMetodo || "all"}
-          onScegli={v => { setFilterMetodo(v === "all" ? "" : v); setPage(1); }}
-          scelte={[{ value: "all", label: "Tutte" }, ...GRUPPI_METODO]} />
-        <PilloleFiltro
-          titolo="Tipo"
-          valore={filterTipo || "all"}
-          onScegli={(v) => { setFilterTipo(v === "all" ? "" : v); setPage(1); }}
-          scelte={[
-            { value: "all", label: "Tutti" },
-            { value: "incasso_cliente", label: "Incasso cliente" },
-            { value: "pagamento_fornitore", label: "Fornitore" },
-            { value: "costo_aziendale", label: "Costo aziendale" },
-            { value: "scadenza_fiscale", label: "Fiscale" },
-            { value: "altro", label: "Altro" },
-          ]}
-        />
-        <FiltroStatoScadenzeCompatto stato={filterStatus} cambia={stato => cambiaFiltri({ stato })} />
-        <Button variant="outline" className="min-h-11" onClick={handleExport} disabled={exporting || isLoading || isError || ricercaInAttesa || dateInvertite}>
-          {exporting ? <Loader2 aria-hidden="true" className="mr-2 size-4 animate-spin" /> : <Download aria-hidden="true" className="mr-2 size-4" />}
-          Esporta scadenze CSV
-        </Button>
-        </>}
+        <GruppoFiltri>
+          <SceltaFiltro titolo="Vista" valore={tab} scelte={visteCompatte}
+            onScegli={v => { setTab(v); setPage(1); }} />
+          {((vistaElenco && tab !== "senza_data") || tab === "rate") && (
+            <SceltaFiltro titolo="Periodo" valore={tab === "rate" ? `anno:${yearFilter}` : datePreset || `anno:${yearFilter}`}
+              scelte={tab === "rate" ? periodiAnno : [...periodiAnno, ...DATE_PRESETS]}
+              onScegli={v => {
+                if (v.startsWith("anno:")) {
+                  setYearFilter(v.slice(5));
+                  if (tab !== "rate") setDatePreset("");
+                } else {
+                  setDatePreset(v);
+                }
+                setPage(1);
+              }} />
+          )}
+          {vistaElenco && tab !== "senza_data" && datePreset === "custom" && (
+            <DateFiltro dal={customFrom} al={customTo}
+              cambiaDal={dal => cambiaFiltri({ dal })} cambiaAl={al => cambiaFiltri({ al })} />
+          )}
+          {vistaElenco && <DettaglioFiltri titolo="Altri filtri" riepilogo={nAltriFiltri ? String(nAltriFiltri) : undefined}>
+            <SceltaFiltro titolo="Pagamento" valore={filterMetodo || "all"}
+              onScegli={v => cambiaFiltri({ metodo: v === "all" ? "" : v })}
+              scelte={[{ value: "all", label: "Tutti" }, ...GRUPPI_METODO]} />
+            <SceltaFiltro titolo="Tipo" valore={filterTipo || "all"}
+              onScegli={v => cambiaFiltri({ tipo: v === "all" ? "" : v })}
+              scelte={[
+                { value: "all", label: "Tutti" },
+                { value: "incasso_cliente", label: "Incasso cliente" },
+                { value: "pagamento_fornitore", label: "Fornitore" },
+                { value: "costo_aziendale", label: "Costo aziendale" },
+                { value: "scadenza_fiscale", label: "Fiscale" },
+                { value: "altro", label: "Altro" },
+              ]} />
+            <FiltroStatoScadenzeCompatto stato={filterStatus} cambia={stato => cambiaFiltri({ stato })} />
+          </DettaglioFiltri>}
+        </GruppoFiltri>
       </PannelloFiltri>
 
       {/* Dialogs */}

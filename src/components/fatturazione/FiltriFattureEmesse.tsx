@@ -1,4 +1,7 @@
+import { useId } from "react";
 import { Filter, X } from "lucide-react";
+import { SceltaFiltro } from "@/components/mobile/FiltriMobile";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,23 +14,48 @@ export type FiltriEmesse = typeof FILTRI_EMESSE_VUOTI;
 const SDI = [ ["all", "Tutti gli stati SDI"], ["da_inviare", "Da inviare SDI"], ["invio_in_corso", "Invio SDI in corso"], ["in_elaborazione", "In elaborazione SDI"], ["inviata", "Inviata SDI"], ["accettata", "Accettata SDI"], ["scartata", "Scartata SDI"], ["rifiutata_ente", "Rifiutata dall’ente"], ["manuale", "Invio manuale"], ["esterna", "Gestita esternamente"] ];
 const INCASSO = [["all", "Tutti gli incassi"], ["da_incassare", "Da incassare"], ["parziale", "Parz. incassata"], ["incassata", "Incassata"], ["scaduta", "Scaduta da incassare"], ["non_previsto", "Incasso non previsto"]];
 
-export function FiltriFattureEmesse({ valore, cambia }: { valore: FiltriEmesse; cambia: (patch: Partial<FiltriEmesse>) => void }) {
+type PropsFiltriEmesse = { valore: FiltriEmesse; cambia: (patch: Partial<FiltriEmesse>) => void };
+
+const FILTRI_PRINCIPALI = [["sdi", SDI, "SdI"], ["incasso", INCASSO, "Incasso"]] as const;
+
+function CampiAltriFiltri({ valore, cambia, compatto }: PropsFiltriEmesse & { compatto: boolean }) {
+  const id = useId();
+  return (
+    <div className={cn("space-y-3", compatto && "p-3")}>
+      <div className="space-y-1"><Label htmlFor={id + "-cliente"}>Cliente</Label><Input id={id + "-cliente"} placeholder="Nome o ragione sociale" value={valore.cliente} onChange={e => cambia({ cliente: e.target.value })} /></div>
+      <div className="space-y-1"><Label htmlFor={id + "-commessa"}>Commessa o lavoro</Label><Input id={id + "-commessa"} placeholder="Codice o descrizione" value={valore.commessa} onChange={e => cambia({ commessa: e.target.value })} /></div>
+      <div className={cn("grid gap-2", compatto ? "min-[380px]:grid-cols-2" : "grid-cols-2")}>
+        <div className="min-w-0 space-y-1"><Label htmlFor={id + "-dal"}>Emessa dal</Label><Input id={id + "-dal"} type="date" value={valore.dal} max={valore.al || undefined} onChange={e => cambia({ dal: e.target.value })} /></div>
+        <div className="min-w-0 space-y-1"><Label htmlFor={id + "-al"}>Emessa fino al</Label><Input id={id + "-al"} type="date" value={valore.al} min={valore.dal || undefined} onChange={e => cambia({ al: e.target.value })} /></div>
+      </div>
+      {([["conNote", "Solo con note"], ["conAllegati", "Solo con allegati"]] as const).map(([campo, testo]) => (
+        <label key={campo} className={cn("flex items-center gap-2 text-sm", compatto && "min-h-11")}>
+          <Checkbox checked={valore[campo]} onCheckedChange={v => cambia({ [campo]: v === true })} />{testo}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+export function FiltriFattureEmesse({ valore, cambia, compatto = false }: PropsFiltriEmesse & { compatto?: boolean }) {
+  if (compatto) return <>
+    {FILTRI_PRINCIPALI.map(([campo, opzioni, titolo]) => (
+      <SceltaFiltro key={campo} titolo={titolo} valore={valore[campo]} onScegli={v => cambia({ [campo]: v })}
+        scelte={opzioni.map(([value, label]) => ({ value, label }))} />
+    ))}
+    <CampiAltriFiltri valore={valore} cambia={cambia} compatto />
+  </>;
+
   const altri = [valore.cliente, valore.commessa, valore.dal, valore.al, valore.conNote, valore.conAllegati].filter(Boolean).length;
   return <>
-    {([ ["sdi", SDI, "Filtra per SDI"], ["incasso", INCASSO, "Filtra per incasso"] ] as const).map(([campo, opzioni, label]) => <Select key={campo} value={valore[campo]} onValueChange={v => cambia({ [campo]: v })}>
-      <SelectTrigger aria-label={label} className="h-9 w-[190px] text-xs"><SelectValue /></SelectTrigger>
+    {FILTRI_PRINCIPALI.map(([campo, opzioni, titolo]) => <Select key={campo} value={valore[campo]} onValueChange={v => cambia({ [campo]: v })}>
+      <SelectTrigger aria-label={`Filtra per ${campo === "sdi" ? "SDI" : titolo.toLowerCase()}`} className="h-9 w-[190px] text-xs"><SelectValue /></SelectTrigger>
       <SelectContent>{opzioni.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
     </Select>)}
     <Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="gap-1.5"><Filter className="h-3.5 w-3.5" />Altri filtri{altri > 0 && ` (${altri})`}</Button></PopoverTrigger>
       <PopoverContent className="w-96 max-w-[90vw] space-y-3" align="start">
         <p className="text-sm font-semibold">Filtra le fatture emesse</p>
-        <div className="space-y-1"><Label htmlFor="emesse-cliente">Cliente</Label><Input id="emesse-cliente" placeholder="Nome o ragione sociale" value={valore.cliente} onChange={e => cambia({ cliente: e.target.value })} /></div>
-        <div className="space-y-1"><Label htmlFor="emesse-commessa">Commessa o lavoro</Label><Input id="emesse-commessa" placeholder="Codice o descrizione" value={valore.commessa} onChange={e => cambia({ commessa: e.target.value })} /></div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1"><Label htmlFor="emesse-dal">Emessa dal</Label><Input id="emesse-dal" type="date" value={valore.dal} max={valore.al || undefined} onChange={e => cambia({ dal: e.target.value })} /></div>
-          <div className="space-y-1"><Label htmlFor="emesse-al">Emessa fino al</Label><Input id="emesse-al" type="date" value={valore.al} min={valore.dal || undefined} onChange={e => cambia({ al: e.target.value })} /></div>
-        </div>
-        {([ ["conNote", "Solo con note"], ["conAllegati", "Solo con allegati"] ] as const).map(([campo, testo]) => <label key={campo} className="flex items-center gap-2 text-sm"><Checkbox checked={valore[campo]} onCheckedChange={v => cambia({ [campo]: v === true })} />{testo}</label>)}
+        <CampiAltriFiltri valore={valore} cambia={cambia} compatto={false} />
       </PopoverContent>
     </Popover>
   </>;

@@ -6,6 +6,74 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+export function SceltaFiltro<T extends string>({ titolo, valore, scelte, onScegli }: {
+  titolo: string;
+  valore: T;
+  scelte: ReadonlyArray<{ value: T; label: string }>;
+  onScegli: (v: T) => void;
+}) {
+  const scelta = scelte.find(opzione => opzione.value === valore);
+  return (
+    <label className="relative flex min-h-12 items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/40 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring">
+      <span className="min-w-0 text-sm font-medium">{titolo}</span>
+      <span aria-hidden="true" className="flex min-w-0 max-w-[58%] items-center gap-2 text-right text-sm text-muted-foreground">
+        <span className="truncate">{scelta?.label ?? "Seleziona"}</span>
+        <ChevronDown className="size-4 shrink-0" />
+      </span>
+      <select
+        aria-label={titolo}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        value={valore}
+        onChange={e => {
+          const opzione = scelte.find(item => item.value === e.target.value);
+          if (opzione) onScegli(opzione.value);
+        }}
+      >
+        {scelte.map(opzione => <option key={opzione.value} value={opzione.value}>{opzione.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
+export function GruppoFiltri({ children }: { children: ReactNode }) {
+  return <div className="divide-y overflow-hidden rounded-xl border bg-card">{children}</div>;
+}
+
+export function DettaglioFiltri({ titolo, riepilogo, children }: { titolo: string; riepilogo?: string; children: ReactNode }) {
+  return (
+    <details className="group">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">{titolo}</span>
+        <span className="flex min-w-0 max-w-[58%] items-center gap-2 text-right font-normal text-muted-foreground">
+          {riepilogo && <span className="truncate">{riepilogo}</span>}
+          <ChevronDown aria-hidden="true" className="size-4 shrink-0 group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="divide-y border-t">{children}</div>
+    </details>
+  );
+}
+
+export function DateFiltro({ dal, al, cambiaDal, cambiaAl }: {
+  dal: string;
+  al: string;
+  cambiaDal: (data: string) => void;
+  cambiaAl: (data: string) => void;
+}) {
+  return (
+    <div className="grid gap-2 p-3 min-[380px]:grid-cols-2">
+      <label className="min-w-0 space-y-1 text-sm">
+        <span>Da</span>
+        <Input type="date" className="h-11" value={dal} onChange={e => cambiaDal(e.target.value)} />
+      </label>
+      <label className="min-w-0 space-y-1 text-sm">
+        <span>A</span>
+        <Input type="date" className="h-11" value={al} min={dal || undefined} onChange={e => cambiaAl(e.target.value)} />
+      </label>
+    </div>
+  );
+}
+
 /**
  * Pezzi comuni delle liste su telefono (Finanza, Persone, Formazione, Drive):
  * ricerca con accanto il bottone dei filtri, pannello dei filtri dal basso,
@@ -115,14 +183,14 @@ export function PannelloFiltri({
 }) {
   return (
     <Sheet open={aperto} onOpenChange={onAperto}>
-      <SheetContent side="bottom" aria-describedby={undefined} className="mx-auto flex max-h-[90dvh] max-w-xl flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pt-4 [&>button:last-child]:right-2 [&>button:last-child]:top-1 [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center">
+      <SheetContent side="bottom" overlayClassName="bg-slate-950/45" aria-describedby={undefined} className="mx-auto flex max-h-[90dvh] max-w-md flex-col gap-0 overflow-hidden rounded-t-3xl p-0 pt-4 [&>button:last-child]:right-2 [&>button:last-child]:top-1 [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center">
         <SheetHeader className="shrink-0 px-4 pb-2 pr-14 text-left">
           <SheetTitle className="text-base">{titolo}</SheetTitle>
         </SheetHeader>
         <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-4 py-3 [&_input]:min-w-0 [&_input]:text-base [&_select]:text-base [&_[role=combobox]]:text-base">{children}</div>
         <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {attivi > 0 && (
-            <Button variant="outline" className="min-h-11" onClick={onAzzera}>
+            <Button variant="ghost" className="min-h-11 text-muted-foreground" onClick={onAzzera}>
               Azzera
             </Button>
           )}
