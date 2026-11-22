@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 // il fuoco e l'autofocus tornava sulla prima cifra; su iPhone la tastiera si
 // chiudeva a ogni cifra.
 
+let codiceInviatoDaUnAltraScheda = false;
 const invoke = vi.fn(async (nome: string) => {
   if (nome === "fea-documento-pubblico") {
     return {
@@ -25,10 +26,13 @@ const invoke = vi.fn(async (nome: string) => {
         b2c_clausole: null,
         signer_email_mascherata: "m***@esempio.it",
         // OTP già valido (partito con l'offerta): la pagina va dritta ai 6 campi.
-        otp_valido_fino: new Date(Date.now() + 5 * 60_000).toISOString(),
+        otp_valido_fino: codiceInviatoDaUnAltraScheda ? null : new Date(Date.now() + 5 * 60_000).toISOString(),
       },
       error: null,
     };
+  }
+  if (nome === "fea-genera-otp" && codiceInviatoDaUnAltraScheda) {
+    return { data: { success: true, gia_inviato: true, otp_valido_fino: new Date(Date.now() + 560_000).toISOString() }, error: null };
   }
   return { data: null, error: null };
 });
@@ -38,7 +42,10 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import FirmaDocumento from "@/pages/public/FirmaDocumento";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  codiceInviatoDaUnAltraScheda = false;
+});
 
 describe("firma del cliente: i campi OTP tengono il fuoco", () => {
   it("dopo una cifra il fuoco passa alla seconda e resta lì anche quando scatta il timer", async () => {
@@ -66,5 +73,20 @@ describe("firma del cliente: i campi OTP tengono il fuoco", () => {
     expect(screen.getByLabelText("Cifra 1 di 6")).toBe(prima);
     expect(prima).toHaveValue("4");
     expect(document.activeElement).toBe(screen.getByLabelText("Cifra 2 di 6"));
+  });
+
+  it("mostra il tempo effettivo se il server riusa il codice inviato da un’altra scheda", async () => {
+    codiceInviatoDaUnAltraScheda = true;
+    render(
+      <MemoryRouter initialEntries={["/firma-fea/abc"]}>
+        <Routes>
+          <Route path="/firma-fea/:token" element={<FirmaDocumento />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByLabelText(/Ho letto il documento/));
+    fireEvent.click(screen.getByRole("button", { name: "Accetto e ricevo il codice" }));
+    await screen.findByLabelText("Cifra 1 di 6");
+    expect(screen.getByText("Codice valido: 09:20")).toBeInTheDocument();
   });
 });
