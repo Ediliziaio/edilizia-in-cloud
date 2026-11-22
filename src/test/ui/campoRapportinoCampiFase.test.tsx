@@ -1,3 +1,5 @@
+import "fake-indexeddb/auto";
+import type { RapportoInCoda } from "@/lib/campo/rapportoInCoda";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoRapportino from "@/pages/campo/CampoRapportino";
@@ -23,6 +25,14 @@ const state = vi.hoisted(() => ({
   subappaltatore: false,
   mezzi: vi.fn(),
 }));
+vi.mock("@/lib/campo/sync-queue", async (importOriginal) => {
+  const originale = await importOriginal<typeof import("@/lib/campo/sync-queue")>();
+  return { ...originale, syncQueue: { ...originale.syncQueue, enqueue: async (voce: { payload: RapportoInCoda; operationId: string }) => {
+    const { inviaRapportoInCoda } = await import("@/lib/campo/rapportoInCoda");
+    await inviaRapportoInCoda(voce.payload, voce.operationId);
+    return voce.operationId;
+  } } };
+});
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isSubappaltatore: state.subappaltatore }) }));
@@ -61,9 +71,11 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc: async (nome: string, args: unknown) => { if (nome === "campo_mezzi_fine_giornata") state.mezzi(args); return { data: null as null, error: null as null }; },
   from: (table: string) => {
     const result = { data: table === "campo_rapportini" ? { id: "report" } : {}, error: null as Error | null };
+    let ricevuta = false;
+    const lettura = async () => ricevuta ? { ...result, data: state.gia } : result;
     const query = { insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); return query; },
       update: (value: unknown) => { if (table === "campo_rapportini") state.update(value); return query; }, in: () => query,
-      select: () => query, eq: () => query, single: async () => result, maybeSingle: async () => result,
+      select: (colonne?: string) => { ricevuta = colonne?.startsWith("invio_operazione_id") ?? false; return query; }, eq: () => query, is: () => query, single: async () => result, maybeSingle: lettura,
       then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
     return query;
   }, functions: { invoke: async () => ({ data: { pdf_url: "https://local.invalid/rapportino.pdf" }, error: null as null }) },

@@ -28,10 +28,11 @@ import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezz
 import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
 import { ARRIVO_VUOTO, campoArrivo, leggiArrivo, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import type { Json } from "@/integrations/supabase/types";
+import { createStore, del, get, update } from "idb-keyval";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
-import { scriviTimbratura, senzaRete } from "@/lib/campo/timbra";
+import { rigaTimbratura } from "@/lib/campo/timbra";
 import { campoDayWindow } from "@/lib/campo/timeSummary";
 import { riferimentoFile } from "@/lib/storage/fileRiservati";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,7 +44,9 @@ import { CampiModulo } from "@/components/campo/CampiModulo";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoreInTesto, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
-import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
+import { inviaRapportoInCoda, riferimentoAllegatoRapportino, type AllegatoRapportino, type RapportoInCoda } from "@/lib/campo/rapportoInCoda";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
 import { buildRapportinoMaterials, restoreRapportinoMaterials, rapportinoStockSelectionKey, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
 import { loadRapportinoArticles } from "@/lib/campo/loadRapportinoArticles";
 import { loadRapportinoDeliveredStock } from "@/lib/campo/loadRapportinoDeliveredStock";
@@ -51,7 +54,7 @@ import { costruisciFasiLavorate, faseDiAppartenenza } from "@/lib/campo/rapporti
 import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext";
 import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cn } from "@/lib/utils";
-import { MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, postiLiberi, preparaFoto, type FotoPronta } from "@/lib/campo/preparaFoto";
+import { MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, postiLiberi, preparaFoto } from "@/lib/campo/preparaFoto";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
@@ -70,6 +73,8 @@ import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
 
 const TOTAL_STEPS = 2;
+const fotoBozze = createStore("campo-rapportino-allegati", "bozze");
+type FotoLocali = Record<string, AllegatoRapportino>;
 
 // Fase della commessa su cui l'operaio può dichiarare l'avanzamento
 interface FaseCommessa {
@@ -94,22 +99,25 @@ function BloccoRiepilogo({ titolo, dettaglio, children }: { titolo: string; dett
 
 export default function CampoRapportino({ tipo = "daily" }: { tipo?: "daily" | "client" }) {
   const { orderId } = useParams<{ orderId: string }>();
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const [params] = useSearchParams();
   // Freeze the chosen day: leaving the form open overnight must not re-date it.
   const [openedDay] = useState(() => campoWorkDay());
   const workDay = params.get("data") ?? openedDay;
-  return <CampoRapportinoEditor key={`${profile?.company_id}:${user?.id}:${orderId}:${workDay}:${tipo}`} workDay={workDay} tipo={tipo} />;
+  return <CampoRapportinoEditor key={`${companyId}:${user?.id}:${orderId}:${workDay}:${tipo}`} companyId={companyId} workDay={workDay} tipo={tipo} />;
 }
 
-function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "daily" | "client" }) {
+function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string | null; workDay: string; tipo: "daily" | "client" }) {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { isSubappaltatore } = useIsCampo();
   const queryClient = useQueryClient();
-  const { lat, lng, accuracy, requestPosition } = useGPS(profile?.company_id ?? null);
-  const companyId = profile?.company_id ?? null;
+  const { lat, lng, accuracy, requestPosition } = useGPS(companyId);
+  const chiaveBozza = ["rapportino", companyId, user?.id, orderId, workDay, tipo].join(":");
+  const codaRapportini = useCodaCampo(companyId, user?.id, "rapportino");
+  const inCoda = tipo === "daily" ? codaRapportini.find(voce => voce.payload.order_id === orderId && voce.payload.giorno === workDay) : undefined;
   const [params, setParams] = useSearchParams();
   const today = useCampoWorkDay();
   const yesterday = shiftWorkDay(today, -1);
@@ -142,9 +150,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [mezziSel, setMezziSel] = useState<Record<string, RigaMezzoGiornata>>({});
   const [arrivo, setArrivo] = useState(ARRIVO_VUOTO);
   const [materialeLibero, setMaterialeLibero] = useState("");
-  const [fotoLocali, setFotoLocali] = useState<Record<string, Blob>>({});
+  const [fotoLocali, setFotoLocali] = useState<FotoLocali>({});
+  const anteprimeLocali = useMemo(() => Object.fromEntries(Object.entries(fotoLocali).map(([url, foto]) => [
+    url, new Blob([foto.bytes], { type: foto.contentType }),
+  ])), [fotoLocali]);
+  const [fotoPronte, setFotoPronte] = useState(false);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
-  const [fotoDaRiprovare, setFotoDaRiprovare] = useState<FotoPronta[]>([]);
   // Foto → fase, solo se l'operaio l'ha scelta (con più fasi). Con una fase sola si collega da sé al salvataggio.
   const [fotoFase, setFotoFase] = useState<Record<string, string>>({});
   const [uploadingFoto, setUploadingFoto] = useState(false);
@@ -163,7 +174,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [erroriCampi, setErroriCampi] = useState(false);
   const cambiaCampo = (chiave: string, valore: unknown) => setCampiValori(prev => ({ ...prev, [chiave]: valore }));
   const [voceAperta, setVoceAperta] = useState(() => params.get("input") === "voce" && tipo === "daily");
-  const bozza = useFormDraft(`rapportino:${companyId}:${user?.id}:${orderId}:${workDay}:${tipo}`, {
+  const bozza = useFormDraft(chiaveBozza, {
     descrizione: "", meteo: "", oreLavorate: "" as CampoHoursDraft, oreStraordinario: 0,
     percentuale: 0, fasiDichiarate: {} as Record<string, number>, materialiSel: {} as Record<string, RapportinoMaterialDraft>,
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
@@ -173,6 +184,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
   const bozzaAttivata = useRef(false);
+  const bozzaAccodata = useRef(false);
+  const idCollaudo = useRef<string | null>(null);
   const aggiornaBozza = bozza.updateDraft;
 
 
@@ -181,9 +194,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // volta sola). Evitiamo comunque di ciclare includendo requestPosition nelle deps.
 
   useEffect(() => {
-    if (profile?.company_id) requestPosition();
+    if (companyId) requestPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.company_id]);
+  }, [companyId]);
 
   // ── Fasi della commessa (order_work_phases) ─────────────────────────
   // Select minima: l'operaio dichiara solo su quali fasi ha lavorato e il
@@ -257,7 +270,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // su quali fasi ha lavorato — serve ad attribuire il costo); il
   // CAPOCANTIERE, che segue lo stato avanzamento, dichiara le percentuali.
   const { data: ruoloCampo, isLoading: ruoloLoading, isError: ruoloError, refetch: ricaricaRuolo } = useQuery({
-    queryKey: ["campo-ruolo", orderId, user?.id],
+    queryKey: ["campo-ruolo", orderId, user?.id, companyId],
     enabled: !!orderId && !!user?.id && !!companyId,
     staleTime: 300_000,
     queryFn: async (): Promise<{ isCapocantiere: boolean; esisteCapo: boolean; isCaposquadra: boolean }> => {
@@ -325,7 +338,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, presenzeModificate, firmaClienteNome, campiValori, arrivo }),
     [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, presenzeModificate, firmaClienteNome, campiValori, arrivo]);
   useEffect(() => {
-    if (!ripresaDecisa || !companyId || !user?.id) return;
+    if (!ripresaDecisa || !companyId || !user?.id || bozzaAccodata.current) return;
     if (bozzaAttivata.current || avanzamentoModificato.current || bozzaCorrente.arrivo.mezzoId || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.presenzeModificate).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
       bozzaAttivata.current = true;
       aggiornaBozza(bozzaCorrente);
@@ -371,7 +384,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // The existing DB unique key is author + site + workday. Never promise a
   // second report or overwrite an approved one; corrections go to the office.
   type RapportinoEsistente = {
-    id: string; created_at: string; stato: string | null; motivo_rifiuto: string | null;
+    id: string; created_at: string; updated_at?: string | null; stato: string | null; motivo_rifiuto: string | null;
     descrizione_lavori: string | null; ore_lavorate: number | null; ore_straordinario: number | null;
     foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number; foto?: string[] }[] | null;
     presenze: RapportinoPresenza[] | null;
@@ -612,7 +625,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const idsFasiDichiarate = Object.keys(fasiDichiarate);
   // Quello che non appartiene a nessuna fase (con più fasi e nessuna scelta, o senza fasi).
   const materialiGenerali = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === null);
-  const fotoAlCompleto = postiLiberi(fotoUrls.length + fotoDaRiprovare.length) === 0;
+  const fotoAlCompleto = postiLiberi(fotoUrls.length) === 0;
   const fotoGenerali = fotoUrls.filter(u => faseDiAppartenenza(fotoFase[u], idsFasiDichiarate) === null).length;
 
   // ── Articoli/materiali della commessa (order_items) ─────────────────
@@ -692,80 +705,93 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   });
   const fotoDelGiornoPrese = useRef(false);
   useEffect(() => {
-    if (fotoDelGiornoPrese.current || !fotoDelGiorno || !ripresaDecisa || daRifare || !parti.foto || soloOreAllOperaio || rapportinoGiaOggi || uploadingFoto) return;
+    if (fotoDelGiornoPrese.current || !fotoDelGiorno || !ripresaDecisa || !fotoPronte || daRifare || !parti.foto || soloOreAllOperaio || rapportinoGiaOggi || uploadingFoto) return;
     fotoDelGiornoPrese.current = true;
     if (fotoDelGiorno.length === 0) return;
-    setFotoUrls((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u)).slice(0, postiLiberi(prima.length + fotoDaRiprovare.length))]);
-  }, [fotoDelGiorno, ripresaDecisa, daRifare, parti.foto, soloOreAllOperaio, rapportinoGiaOggi, uploadingFoto, fotoDaRiprovare.length]);
+    setFotoUrls((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u)).slice(0, postiLiberi(prima.length))]);
+  }, [fotoDelGiorno, ripresaDecisa, daRifare, parti.foto, soloOreAllOperaio, rapportinoGiaOggi, uploadingFoto, fotoPronte]);
 
-  // ── Upload foto ──────────────────────────────────────────────────────
-  const caricaFoto = async (prepara: () => Promise<FotoPronta[]>, riprova = false) => {
-    if (bloccoFoto.current || !online) return;
+  useEffect(() => {
+    if (!companyId || !user?.id || !orderId) return;
+    let attivo = true;
+    void Promise.resolve().then(() => get<FotoLocali>(chiaveBozza, fotoBozze))
+      .then(foto => { if (attivo && foto) setFotoLocali(foto); })
+      .catch(() => { /* Un allegato locale mancante resta verificabile prima dell'invio. */ })
+      .finally(() => { if (attivo) setFotoPronte(true); });
+    return () => { attivo = false; };
+  }, [chiaveBozza, companyId, orderId, user?.id]);
+
+  useEffect(() => {
+    if ((!ripresaDecisa && !daRifare) || !Object.keys(fotoLocali).length) return;
+    setFotoUrls(prima => [...new Set([...prima, ...Object.keys(fotoLocali)])]);
+  }, [fotoLocali, ripresaDecisa, daRifare]);
+
+  // Le foto restano nella bozza del telefono, poi viaggiano nello stesso invio del testo.
+  const handleFotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const files = Array.from(input.files ?? []);
+    if (!files.length || fotoAlCompleto || bloccoFoto.current || !fotoPronte || !companyId || !orderId) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
-    if (!companyId || !orderId) {
-      toast.error("Sessione non pronta, riprova");
-      return;
-    }
     bloccoFoto.current = true;
     setUploadingFoto(true);
-    const caricate: Record<string, Blob> = {};
-    const mancanti: FotoPronta[] = [];
     try {
-      const pronte = await prepara();
-      controllaGiorno();
-      const storage = supabase.storage.from("campo-rapportini");
-      for (const [i, foto] of pronte.entries()) {
-        setFotoProgresso(`Carico le foto ${i + 1} di ${pronte.length}…`);
-        try {
-          controllaGiorno();
-          const path = `${companyId}/${orderId}/${foto.nomeFile}`;
-          const { data: up, error } = await storage.upload(path, foto.blob, { contentType: foto.contentType, upsert: false });
-          if (error) {
-            if (!riprova || (String((error as { statusCode?: string }).statusCode) !== "409" && !/already exists|duplicate/i.test(error.message))) throw error;
-            const { data: copia, error: erroreLettura } = await storage.download(path);
-            if (erroreLettura || !copia || copia.size !== foto.blob.size) throw error;
-            const [originale, caricata] = await Promise.all([foto.blob.arrayBuffer(), copia.arrayBuffer()]);
-            const bytes = new Uint8Array(caricata);
-            if (!new Uint8Array(originale).every((valore, indice) => valore === bytes[indice])) throw error;
-          } else if (!up?.path) throw new Error("Upload senza path");
-          const { data: urlData } = storage.getPublicUrl(up?.path ?? path);
-          caricate[urlData.publicUrl] = foto.blob;
-        } catch {
-          mancanti.push(foto);
-        }
+      const esito = await preparaFoto(files, {
+        giaPresenti: fotoUrls.length,
+        onProgresso: (i, n) => setFotoProgresso("Preparo le foto " + i + " di " + n + "…"),
+      });
+      avvisiPreparazione(esito).forEach(avviso => toast.error(avviso));
+      if (esito.pronte.length === 0) return;
+      const nuove: FotoLocali = {};
+      let illeggibili = 0;
+      for (const foto of esito.pronte) {
+        const percorso = companyId + "/" + orderId + "/bozza/" + foto.nomeFile;
+        // Safari può rifiutare i Blob di un file locale in IndexedDB. Copia i byte
+        // prima di liberare il file del selettore e usa i Blob solo per le anteprime.
+        const bytes = await foto.blob.arrayBuffer().catch((): null => null);
+        if (!bytes?.byteLength) { illeggibili++; continue; }
+        nuove[riferimentoAllegatoRapportino(percorso)] = { percorso, bytes, contentType: foto.contentType };
       }
-      if (Object.keys(caricate).length) {
-        setFotoLocali((prima) => ({ ...prima, ...caricate }));
-        setFotoUrls((prima) => [...prima, ...Object.keys(caricate)]);
-      }
-      setFotoDaRiprovare((prima) => riprova ? mancanti : [...prima, ...mancanti]);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Impossibile caricare le foto — riprova");
+      if (illeggibili) toast.error(illeggibili === 1 ? "Una foto non si è aperta. Selezionala di nuovo." : `${illeggibili} foto non si sono aperte. Selezionale di nuovo.`);
+      if (!Object.keys(nuove).length) return;
+      let salvate: FotoLocali = {};
+      await update<FotoLocali>(chiaveBozza, prima => {
+        salvate = { ...prima, ...nuove };
+        return salvate;
+      }, fotoBozze);
+      setFotoLocali(salvate);
+      setFotoUrls(prima => [...new Set([...prima, ...Object.keys(salvate)])]);
+    } catch {
+      toast.error("Non riesco a salvare le foto sul telefono. Riprova.");
     } finally {
+      input.value = "";
       bloccoFoto.current = false;
       setUploadingFoto(false);
       setFotoProgresso(null);
     }
   };
 
-  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    if (!files.length || fotoAlCompleto) return;
-    void caricaFoto(async () => {
-      const esito = await preparaFoto(files, {
-        giaPresenti: fotoUrls.length + fotoDaRiprovare.length,
-        onProgresso: (i, n) => setFotoProgresso(`Preparo le foto ${i} di ${n}…`),
-      });
-      avvisiPreparazione(esito).forEach((avviso) => toast.error(avviso));
-      return esito.pronte;
-    });
-  };
-
-  const togliFoto = (url: string) => {
-    setFotoUrls((prima) => prima.filter((foto) => foto !== url));
-    setFotoLocali(({ [url]: _foto, ...resto }) => resto);
-    setFotoFase(({ [url]: _fase, ...resto }) => resto);
+  const togliFoto = async (url: string) => {
+    if (bloccoFoto.current) return;
+    bloccoFoto.current = true;
+    setUploadingFoto(true);
+    try {
+      if (fotoLocali[url]) {
+        let salvate: FotoLocali = {};
+        await update<FotoLocali>(chiaveBozza, prima => {
+          salvate = { ...prima };
+          delete salvate[url];
+          return salvate;
+        }, fotoBozze);
+        setFotoLocali(salvate);
+      }
+      setFotoUrls(prima => prima.filter(foto => foto !== url));
+      setFotoFase(({ [url]: _, ...resto }) => resto);
+    } catch {
+      toast.error("Non riesco a rimuovere la foto. Riprova.");
+    } finally {
+      bloccoFoto.current = false;
+      setUploadingFoto(false);
+    }
   };
 
   // ── Salvataggio ──────────────────────────────────────────────────────
@@ -783,233 +809,127 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   }
 
   const { mutate: salva, isPending: saving } = useMutation({
+    // Anche senza rete questa mutazione deve scrivere subito su IndexedDB.
+    networkMode: "always",
     mutationFn: async () => {
-      // Il rapportino senza rete non parte: la bozza resta sul telefono e la giornata resta aperta.
-      if (senzaRete()) throw new Error("Sei senza rete: il rapportino resta qui sul telefono. Mandalo appena torna il campo.");
-      if (bloccoFoto.current || fotoDaRiprovare.length) throw new Error("Completa il caricamento delle foto prima di inviare.");
+      if (lavoro_completato && !online) throw new Error("Torna online per inviare il collaudo firmato.");
+      if (inCoda) throw new Error("Il rapportino è già in coda.");
+      if (bloccoFoto.current) throw new Error("Attendi che le foto siano pronte.");
       if (verificaInCorso || verificaFallita || !ruoloCampo) throw new Error("Attendi la verifica del cantiere e dei rapporti già inviati, oppure riprova.");
       if (clienteNonConsentito) throw new Error("Il collaudo col cliente lo fa il capocantiere. Puoi inviare il tuo rapportino.");
       if (!lavoro_completato && flusso.soloTimbratura && !daRifare) throw new Error("Il giornaliero lo invia il responsabile: tu registra entrata e uscita. Puoi aggiungere foto dal cantiere.");
       if (lavoro_completato && !descrizione.trim()) throw new Error("Descrivi i lavori che il cliente deve confermare prima di raccogliere la firma.");
       if (lavoro_completato && (!firmaCliente || !firmaClienteNome.trim())) throw new Error("Per il collaudo servono nome e cognome del cliente e la sua firma.");
-      if (campiMancanti.length > 0) throw new Error(`Compila: ${campiMancanti.join(", ")}`);
+      if (campiMancanti.length > 0) throw new Error("Compila: " + campiMancanti.join(", "));
       controllaGiorno();
       if (bloccatoDaEsistente) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
-      if (!companyId || !orderId || !user?.id) {
-        throw new Error("Sessione non pronta, ricarica la pagina");
-      }
+      if (!companyId || !orderId || !user?.id) throw new Error("Sessione non pronta, ricarica la pagina");
+
+      const operationId = lavoro_completato ? (idCollaudo.current ??= crypto.randomUUID()) : crypto.randomUUID();
+      const quando = new Date().toISOString();
       const arrivoDaSalvare = !lavoro_completato && (parti.mezzi || daRifare) ? campoArrivo(arrivo) : [];
-
-      const hasAssignment = await hasRapportinoAssignment(orderId, user.id, companyId);
-      if (!hasAssignment) {
-        throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
-      }
-      // Un'azienda può aver spento una parte dopo: un rapportino respinto tiene quello che aveva, uno nuovo non la scrive.
       const materialiPayload = confermaCliente || !parti.materiali ? [] : buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
-      // Se le mie ore le registra il capo, qui non se ne scrivono: sommate due
-      // volte falserebbero il costo della commessa.
       const orePayload = oreDaInviare();
+      const locali = fotoPronte ? fotoLocali
+        : await Promise.resolve().then(() => get<FotoLocali>(chiaveBozza, fotoBozze)).catch((): undefined => undefined) ?? {};
+      const fotoAllegate = parti.foto || daRifare ? [...new Set([...fotoUrls, ...Object.keys(locali)])] : [];
+      const allegati: AllegatoRapportino[] = [];
+      const fotoPrecedenti = new Set(rapportinoGiaOggi?.foto_urls ?? []);
+      for (const url of fotoAllegate) {
+        const locale = locali[url];
+        if (locale) allegati.push(locale);
+        else if (url.startsWith(riferimentoAllegatoRapportino(companyId + "/" + orderId + "/bozza/")) && !fotoPrecedenti.has(url)) {
+          throw new Error("Una foto della bozza manca sul telefono. Rimuovila o aggiungila di nuovo.");
+        }
+      }
+      const aggiungiFirma = (dataUrl: string | null, autore: "operaio" | "cliente") => {
+        if (!dataUrl) return;
+        const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(",") + 1)), carattere => carattere.charCodeAt(0)).buffer;
+        const percorso = companyId + "/" + orderId + "/firme/" + operationId + "_" + autore + ".png";
+        allegati.push({ percorso, bytes, contentType: "image/png" });
+        return riferimentoAllegatoRapportino(percorso);
+      };
+      const firmaOperaioUrl = aggiungiFirma(firmaOperaio, "operaio");
+      const firmaClienteUrl = lavoro_completato ? aggiungiFirma(firmaCliente, "cliente") : undefined;
 
-      // Fasi dichiarate dall'operaio: [{phase_id, percentuale, nome, foto?, sottofasi_fatte?}]. Per le fasi con sottofasi
-      // la voce la costruisce `fasiLavorateDelRapportino`; qui si aggiungono nome e foto. Le foto di ogni fase stanno anche
-      // in foto_urls (che resta l'elenco di tutte); i materiali portano la loro fase in materiali_usati[].fase_id.
       const fasiLavorate = confermaCliente || !parti.fasi ? [] : costruisciFasiLavorate({
         dichiarate: fasiDichiarate,
         nomi: {
-          // Con l'elenco delle fasi non arrivato, la voce tiene il nome che aveva.
           ...Object.fromEntries(fasiPerCampi.map(f => [f.id, f.nome])),
           ...Object.fromEntries(fasiCommessa.map(f => [f.id, f.name])),
         },
-        fotoUrls,
+        fotoUrls: fotoAllegate,
         fotoFase,
         base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate),
       });
-
-      // Il bottone dice «Invia e chiudi la giornata»: prima l'uscita, così un invio fallito lascia
-      // la bozza e al nuovo tentativo la giornata è già chiusa, senza una seconda uscita.
-      if (chiudeGiornata) {
-        await scriviTimbratura({
-          companyId,
-          userId: user.id,
-          tipo: "uscita",
-          orderId,
-          quando: new Date().toISOString(),
-          lat: lat || null,
-          lng: lng || null,
-          accuracy: accuracy ? Math.round(accuracy) : null,
-        });
-        await refreshCampoTimeQueries(queryClient);
-      }
-
-      // ── Firme: dataURL → PNG → bucket campo-rapportini ──
-      // La firma dell'operaio/capocantiere vale su OGNI rapportino (finisce
-      // nel PDF generato all'invio); quella del cliente solo sul fine lavori.
-      let firmaClienteUrl: string | null = null;
-      let firmaOperaioUrl: string | null = null;
-      const firmaUploadId = crypto.randomUUID();
-      const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
-        controllaGiorno();
-        const blob = await (await fetch(dataUrl)).blob();
-        const path = `${companyId}/${orderId}/firme/${firmaUploadId}_${suffix}.png`;
-        const { data: up, error: upErr } = await supabase.storage
-          .from("campo-rapportini")
-          .upload(path, blob, { contentType: "image/png", upsert: false });
-        if (upErr) throw upErr;
-        if (!up?.path) throw new Error("Upload firma senza path");
-        const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
-        return urlData.publicUrl;
-      };
-      if (firmaOperaio) {
-        // Opzionale: se fallisce non blocca l'invio del rapportino
-        firmaOperaioUrl = await uploadFirma(firmaOperaio, "operaio").catch((err): null => {
-          console.warn("[CampoRapportino] upload firma operaio fallito:", err);
-          return null;
-        });
-      }
-      if (lavoro_completato && firmaCliente) {
-        // La firma del cliente è obbligatoria sul fine lavori: se fallisce, blocca l'invio
-        firmaClienteUrl = await uploadFirma(firmaCliente, "cliente");
-      }
-
-      // Inserisci rapportino — oppure, se l'ufficio lo aveva respinto, aggiorna lo stesso e rimandalo
-      controllaGiorno(); // Recheck after permission lookup / slow uploads.
       const puoScriverePresenze = !confermaCliente && registraSquadra;
       const presenzeDaInviare = puoScriverePresenze ? presenzeRapportino(squadra, presenzeSel) : [];
       const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
       const campiExtra = [...componiValori(campiModulo, campiValori, campiPrecedenti, fasiPerCampi), ...arrivoDaSalvare];
-      const campi = {
-        ...(campiExtra.length > 0 || campiPrecedenti.length > 0 || leggiArrivo(rapportinoGiaOggi?.campi_extra).mezzoId ? { campi_extra: campiExtra as unknown as Json } : {}),
-        ore_lavorate: orePayload,
-        ore_straordinario: !confermaCliente && !oreNonMie && straordinarioDaInviare > 0 ? straordinarioDaInviare : 0,
-        descrizione_lavori: descrizione || null,
-        foto_urls: parti.foto || daRifare ? fotoUrls : [],
-        lavoro_completato,
-        percentuale_avanzamento: confermaCliente || !(parti.avanzamento || daRifare) ? 0 : percentuale,
-        gps_lat: lat || null,
-        gps_lng: lng || null,
-        gps_accuracy: accuracy || null,
-        meteo: meteo || null,
-        stato: "inviato",
-      };
-      // Firma dell'autore su qualunque rapportino; firma cliente solo fine lavori
-      const firme = {
-        ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
-        ...(lavoro_completato && firmaClienteUrl
-          ? {
-              firma_cliente_url: firmaClienteUrl,
-              firma_cliente_nome: firmaClienteNome.trim(),
-              firma_cliente_at: new Date().toISOString(),
-            }
-          : {}),
-      };
-      let inserted: { id: string };
-      if (daRifare && rapportinoGiaOggi) {
-        const presenzeCorrette = puoScriverePresenze
-          ? correggiPresenzeRapportino(rapportinoGiaOggi.presenze, squadra, presenzeSel, presenzeModificate)
-          : undefined;
-        const { data: aggiornato, error: updError } = await supabase
-          .from("campo_rapportini")
-          .update({
-            ...campi,
-            motivo_rifiuto: null,
-            pdf_url: null,
-            approvato: false,
-            // Sul rimando si riscrive tutto quello che l'operaio vede nel modulo
-            ...(parti.fasi ? { fasi_lavorate: fasiLavorate } : {}),
-            ...(presenzeCorrette ? { presenze: presenzeCorrette } : {}),
-            ...(parti.materiali ? { materiali_usati: materialiPayload } : {}),
-            ...firme,
-          })
-          .eq("id", rapportinoGiaOggi.id)
-          .eq("user_id", user.id)
-          .in("stato", ["rifiutato", "bozza"])
-          .select("id")
-          .maybeSingle();
-        if (updError) throw updError;
-        if (!aggiornato) throw new Error("Il rapportino è cambiato nel frattempo: ricarica la pagina e riprova.");
-        inserted = aggiornato;
-      } else {
-        const { data: nuovo, error } = await supabase
-          .from("campo_rapportini")
-          .insert({
-            company_id: companyId,
-            order_id: orderId,
-            user_id: user.id,
-            role_type: isSubappaltatore ? "subcontractor" : "employee",
-            data_lavoro: workDay,
-            ...campi,
-            // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
-            ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
-            // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
-            // I subappaltatori sono presenza registrata, non costo orario.
-            ...(presenzeDaInviare.length > 0 ? { presenze: presenzeDaInviare } : {}),
-            // Materiali confermati oggi (facoltativi): stesso formato del vocale
-            ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
-            ...firme,
-          })
-          .select("id")
-          .single();
-
-        if (error?.code === "23505") throw new Error("Rapportino già presente per questa giornata. Apri lo storico del cantiere; non è stato creato un doppione.");
-        if (error) throw error;
-        inserted = nuovo;
-      }
-
-      // Le fasi dichiarate NON si applicano qui: l'avanzamento si muove
-      // all'APPROVAZIONE del rapportino (OrdineRapportiniCampo). Prima si
-      // applicava all'invio e l'approvazione era decorativa: un rapportino
-      // rifiutato lasciava la fase gonfiata per sempre.
-
-      // Il segnale di aggiornamento della commessa è scritto dal trigger nella
-      // stessa transazione del rapportino. Il client non scrive più order_events:
-      // quella scrittura separata non era autorizzata ai ruoli operativi.
-
-      // Anche senza fasi, l'avanzamento dichiarato resta una proposta fino all'approvazione.
-
-      // Separate PDF feedback: a failure must never suggest resubmitting the report.
-      if (inserted?.id) {
-        void notifyRapportinoPdf(inserted.id, orderId, queryClient);
-      }
-
-      // Mezzi e attrezzi di oggi: dove restano stasera e i km. Il rapportino è
-      // già salvato: se questo non riesce, lo si dice senza farlo rimandare.
+      const correzione = daRifare && rapportinoGiaOggi
+        ? { id: rapportinoGiaOggi.id, versione: rapportinoGiaOggi.updated_at ?? null } : undefined;
+      const presenzeCorrette = daRifare && puoScriverePresenze
+        ? correggiPresenzeRapportino(rapportinoGiaOggi?.presenze, squadra, presenzeSel, presenzeModificate) : undefined;
       const righeMezzi = !parti.mezzi || confermaCliente || workDay < shiftWorkDay(campoWorkDay(), -1) ? [] : righeDaSalvare(mezziSel);
-      if (righeMezzi.length > 0) {
-        const { error: mezziError } = await supabase.rpc("campo_mezzi_fine_giornata", {
-          p_order_id: orderId,
-          p_giorno: workDay,
-          p_righe: righeMezzi as unknown as Json,
-          p_rapportino_id: inserted?.id ?? null,
-        });
-        if (mezziError) {
-          console.warn("[CampoRapportino] mezzi di fine giornata non salvati:", mezziError);
-          toast.warning("Rapportino inviato, ma mezzi e attrezzi non sono stati segnati", {
-            description: "Avvisa l'ufficio di dove hai lasciato gli attrezzi.",
-          });
-        }
-      }
-
-      // L'avviso all'ufficio lo manda il database quando il rapportino diventa «inviato»
-      // (trigger campo_rapportino_avvisa_ufficio): arriva anche se il telefono perde la rete.
-      return { giornataChiusa: chiudeGiornata };
+      const payload: RapportoInCoda = {
+        company_id: companyId,
+        user_id: user.id,
+        order_id: orderId,
+        giorno: workDay,
+        roleType: isSubappaltatore ? "subcontractor" : "employee",
+        correzione,
+        campi: {
+          ...(campiExtra.length > 0 || campiPrecedenti.length > 0 || leggiArrivo(rapportinoGiaOggi?.campi_extra).mezzoId ? { campi_extra: campiExtra as unknown as Json } : {}),
+          ore_lavorate: orePayload,
+          ore_straordinario: !confermaCliente && !oreNonMie && straordinarioDaInviare > 0 ? straordinarioDaInviare : 0,
+          descrizione_lavori: descrizione || null,
+          foto_urls: fotoAllegate,
+          lavoro_completato,
+          percentuale_avanzamento: confermaCliente || !(parti.avanzamento || daRifare) ? 0 : percentuale,
+          gps_lat: lat || null,
+          gps_lng: lng || null,
+          gps_accuracy: accuracy || null,
+          meteo: meteo || null,
+          ...(parti.fasi && (daRifare || fasiLavorate.length > 0) ? { fasi_lavorate: fasiLavorate } : {}),
+          ...(presenzeCorrette ? { presenze: presenzeCorrette } : !daRifare && presenzeDaInviare.length ? { presenze: presenzeDaInviare } : {}),
+          ...(parti.materiali && (daRifare || materialiPayload.length > 0) ? { materiali_usati: materialiPayload } : {}),
+          ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
+          ...(firmaClienteUrl ? { firma_cliente_url: firmaClienteUrl, firma_cliente_nome: firmaClienteNome.trim(), firma_cliente_at: quando } : {}),
+        },
+        allegati,
+        uscita: chiudeGiornata ? rigaTimbratura({
+          companyId, userId: user.id, tipo: "uscita", orderId, quando,
+          lat: lat || null, lng: lng || null, accuracy: accuracy ? Math.round(accuracy) : null,
+        }) : undefined,
+        mezzi: righeMezzi as unknown as Json[],
+      };
+      if (lavoro_completato) return { esito: await inviaRapportoInCoda(payload, operationId) };
+      await syncQueue.enqueue<RapportoInCoda>({
+        type: "rapportino", dedupKey: chiaveBozza, operationId, payload,
+      });
+      return { esito: undefined };
     },
-    onSuccess: ({ giornataChiusa }) => {
+    onSuccess: ({ esito }) => {
+      bozzaAccodata.current = true;
       bozzaAttivata.current = false;
       bozza.clearDraft();
+      void Promise.resolve().then(() => del(chiaveBozza, fotoBozze)).catch(() => {});
       navigator.vibrate?.([10, 50, 10]);
-      toast.success(daRifare ? "Rapportino rimandato!" : giornataChiusa ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato!");
-      void refreshCommessaCampoQueries(queryClient, orderId, companyId);
-      // Card "rapportini da compilare" in home + indicatore "già fatto oggi" nel dettaglio
-      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
-      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
-      queryClient.invalidateQueries({ queryKey: ["mezzi"] });
-      navigate(`/campo/lavoro/${orderId}?tab=${lavoro_completato ? "collaudo" : "rapportini"}`);
+      if (!esito) {
+        if (!online) toast.success("Rapportino in coda. Parte quando torna la rete.");
+      } else {
+        toast.success("Collaudo inviato");
+        if (esito.id && esito.pdf && orderId) void notifyRapportinoPdf(esito.id, orderId, queryClient);
+        void refreshCommessaCampoQueries(queryClient, orderId, companyId);
+        if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
+        void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+        void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
+        void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
+      }
+      navigate("/campo/lavoro/" + orderId + "?tab=" + (lavoro_completato ? "collaudo" : "rapportini"));
     },
-    onError: (err: unknown) => {
-      // Il messaggio vero (es. "lavoro non assegnato") deve arrivare
-      // all'operaio: il toast generico faceva riprovare all'infinito.
-      const msg = err instanceof Error && err.message ? err.message : "Errore nel salvataggio. Riprova.";
-      toast.error(msg);
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error && error.message ? error.message : "Errore nel salvataggio. Riprova.");
     },
   });
 
@@ -1037,7 +957,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       cambiaPassaggio(step + 1);
       return;
     }
-    if (!online || bloccoFoto.current || fotoDaRiprovare.length) return;
+    if ((lavoro_completato && !online) || bloccoFoto.current || inCoda) return;
     try {
       oreDaInviare();
     } catch {
@@ -1052,7 +972,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
     avanzamentoModificato.current || descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
-    fotoUrls.length > 0 || fotoDaRiprovare.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
+    fotoUrls.length > 0 || !!arrivo.mezzoId || Object.keys(campiValori).length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
     Object.keys(presenzeSel).length > 0 || Object.keys(presenzeModificate).length > 0 ||
     Object.keys(materialiSel).length > 0 || Object.keys(mezziSel).length > 0 ||
@@ -1064,9 +984,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     if (step === 1) {
       const confermaUscita = bozza.saveError
         ? "La bozza non è stata salvata sul telefono. Uscendo potresti perdere i dati: continuare?"
-        : fotoDaRiprovare.length
-          ? "Vuoi uscire dal rapportino? Le foto in attesa di caricamento si perdono quando chiudi il modulo."
-          : "Vuoi uscire dal rapportino? La bozza resta sul telefono, ma non è inviata. Le firme vanno raccolte di nuovo.";
+        : "Vuoi uscire dal rapportino? La bozza e le foto restano sul telefono. Le firme vanno raccolte di nuovo.";
       if (datiInseriti && !window.confirm(confermaUscita)) {
         return;
       }
@@ -1380,7 +1298,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       {fotoUrls.map((url, i) => (
                         <div key={url}>
-                          <AnteprimaFotoCampo foto={fotoLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-square h-auto" />
+                          <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-square h-auto" />
                           <UniformSelect aria-label={`Fase della foto ${i + 1}`}
                             value={fasiSelezionate.some(f => f.id === fotoFase[url]) ? fotoFase[url] : ""}
                             onChange={e => { const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
@@ -1598,7 +1516,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
   const titoloRapportino = lavoro_completato ? "Collaudo col cliente" : registraSquadra ? "Rapportino di squadra" : soloOreAllOperaio ? "Rapportino ore" : "Rapportino giornaliero";
   const titoloPasso = step === 1 ? (parti.foto ? "Lavoro e foto" : "Dati della giornata") : step === 2 ? "Controlla i dati" : "Firma del cliente";
-  const bloccaFoto = !online || uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente;
+  const bloccaFoto = !fotoPronte || uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente;
   const presenzeIndicate = registraSquadra ? Object.keys(presenzeSel).length : 0;
   const riepilogoRapido = [
     presenzeIndicate ? `${presenzeIndicate} ${presenzeIndicate === 1 ? "presenza" : "presenze"}`
@@ -1607,6 +1525,30 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   ].filter(Boolean).join(" · ");
   const dettagliDaAggiungere = new Intl.ListFormat("it", { type: "conjunction" })
     .format(["la descrizione", ...(parti.foto ? ["le foto"] : []), ...(parti.materiali ? ["i materiali"] : [])]);
+
+  if (inCoda) {
+    const foto = inCoda.payload.campi.foto_urls?.length ?? 0;
+    return (
+      <section className="mx-auto max-w-2xl space-y-2 rounded-xl border bg-background p-4">
+        <h1 className="text-lg font-bold">{inCoda.status === "failed" ? "Rapportino da verificare" : "Rapportino in coda"}</h1>
+        <RapportinoSiteContext orderId={orderId} companyId={companyId} />
+        <p role="status" className="text-sm text-muted-foreground">
+          {dayLabel}{foto > 0 && " · " + foto + " foto"}
+        </p>
+        <p className="text-sm">{inCoda.status === "failed" ? inCoda.lastError
+          : online ? "Il telefono sta inviando il rapportino e le foto." : "Il rapportino e le foto partono quando torna la rete."}</p>
+        <div className="flex flex-wrap gap-3">
+          {inCoda.status === "failed" && (
+            <button type="button" disabled={!online} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
+              onClick={() => void syncQueue.retryFailed(voce => voce.id === inCoda.id)
+                .then(syncQueue.processQueue).catch(() => toast.error("Non riesco a riprovare l’invio."))}>Riprova invio</button>
+          )}
+          <button type="button" className="min-h-11 font-semibold text-primary underline"
+            onClick={() => navigate("/campo/lavoro/" + orderId + "?tab=rapportini")}>Torna al cantiere</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div ref={inizioRapportino} className={cn("mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background md:pb-0",
@@ -1643,7 +1585,14 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
           <p role="status"><strong>Bozza sul telefono.</strong> Puoi riprendere il rapportino di questa giornata.</p>
           <div className="flex flex-wrap gap-x-3">
             <button type="button" className="min-h-11 rounded-xl bg-primary px-3 font-semibold text-primary-foreground" onClick={riprendiBozza}>Riprendi la bozza</button>
-            <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => { bozza.clearDraft(); setRipresaDecisa(true); }}>Parti da un modulo vuoto</button>
+            <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => {
+              void Promise.resolve().then(() => del(chiaveBozza, fotoBozze)).then(() => {
+                setFotoLocali({});
+                setFotoUrls([]);
+                bozza.clearDraft();
+                setRipresaDecisa(true);
+              }).catch(() => toast.error("Non riesco a svuotare la bozza sul telefono."));
+            }}>Parti da un modulo vuoto</button>
           </div>
         </div>}
         {bozza.saveError && <p role="alert" className="text-sm text-destructive">{bozza.saveError}</p>}
@@ -1678,9 +1627,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               </label>
               <UniformSelect id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto || vocaleVisibile}
                 onChange={e => {
-                  const avviso = fotoDaRiprovare.length
-                    ? "Cambiare giornata chiude il modulo. Le foto in attesa di caricamento si perdono. Continuare?"
-                    : "Cambiare giornata apre un altro modulo. La bozza resta sul telefono, salvo errori di salvataggio; le firme vanno raccolte di nuovo. Continuare?";
+                  const avviso = "Cambiare giornata apre un altro modulo. La bozza e le foto restano sul telefono. Le firme vanno raccolte di nuovo. Continuare?";
                   if (datiInseriti && !window.confirm(avviso)) return;
                   const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
                 }} className="h-11 w-[47%] min-w-0 rounded-lg border bg-background px-2 text-base md:text-sm">
@@ -1821,31 +1768,19 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />{fotoProgresso ?? "Caricamento in corso…"}
                 </p>
-              ) : !online ? (
-                <p className="text-xs text-muted-foreground">Torna online per allegare le foto.</p>
-              ) : fotoAlCompleto && !fotoDaRiprovare.length ? (
+              ) : fotoAlCompleto ? (
                 <p className="text-xs text-muted-foreground">Limite raggiunto. Rimuovi una foto per aggiungerne un’altra.</p>
               ) : null}
-              {fotoDaRiprovare.length > 0 && !uploadingFoto && (
-                <div className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-sm">
-                  <p role="alert">{fotoDaRiprovare.length === 1 ? "Una foto è ancora da caricare." : `${fotoDaRiprovare.length} foto sono ancora da caricare.`} Tieni aperto il modulo.</p>
-                  <div className="flex flex-wrap items-center gap-x-3">
-                    <button type="button" disabled={!online || !dayAllowed || bloccatoDaEsistente} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
-                      onClick={() => void caricaFoto(async () => fotoDaRiprovare, true)}>Riprova caricamento</button>
-                    <button type="button" className="min-h-11 text-muted-foreground underline" onClick={() => setFotoDaRiprovare([])}>Rimuovi le foto in attesa</button>
-                  </div>
-                </div>
-              )}
               {fotoUrls.length > 0 && (
                 <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {fotoUrls.map((url, i) => (
                     <li key={url} className="min-w-0">
-                      <AnteprimaFotoCampo foto={fotoLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-[4/3] h-auto" />
+                      <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-[4/3] h-auto" />
                       <button
                         type="button"
                         aria-label={`Togli la foto ${i + 1}`}
                         disabled={uploadingFoto}
-                        onClick={() => togliFoto(url)}
+                        onClick={() => void togliFoto(url)}
                         className="flex min-h-11 w-full items-center justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
                       >
                         <Trash2 className="size-3.5 shrink-0" aria-hidden="true" /> Rimuovi
@@ -2083,15 +2018,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
           <button
             type="button"
             onClick={goNext}
-            disabled={saving || uploadingFoto || fotoDaRiprovare.length > 0 || vocaleVisibile || verificaInCorso || verificaFallita || clienteNonConsentito || (!lavoro_completato && flusso.soloTimbratura && !daRifare) || !dayAllowed || bloccatoDaEsistente || (!ripresaDecisa && !daRifare) || (lavoro_completato && !descrizione.trim()) || (isUltimoStep && (firmeMancanti || !online))}
+            disabled={saving || uploadingFoto || vocaleVisibile || verificaInCorso || verificaFallita || clienteNonConsentito || (!lavoro_completato && flusso.soloTimbratura && !daRifare) || !dayAllowed || bloccatoDaEsistente || (!ripresaDecisa && !daRifare) || (lavoro_completato && !descrizione.trim()) || (isUltimoStep && (firmeMancanti || (lavoro_completato && !online)))}
             className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-2 py-2.5 text-center text-sm font-bold text-primary-foreground disabled:opacity-60 motion-safe:transition-transform motion-safe:active:scale-[0.98] sm:text-base"
           >
             {saving ? (
               <><Loader2 className="size-5 motion-safe:animate-spin" aria-hidden="true" /> Invio in corso…</>
-            ) : fotoDaRiprovare.length ? (
-              "Completa le foto"
             ) : isUltimoStep && !online ? (
-              <><WifiOff className="size-4 shrink-0" aria-hidden="true" /> Torna online per inviare</>
+              <><WifiOff className="size-4 shrink-0" aria-hidden="true" /> {lavoro_completato ? "Torna online per il collaudo" : "Metti il rapportino in coda"}</>
             ) : !isUltimoStep ? (
               <>
                 Avanti

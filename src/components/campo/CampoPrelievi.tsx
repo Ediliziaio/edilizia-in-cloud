@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMieiPrelievi, useRichiediDdt } from "@/hooks/campo/useCampoPrelievo";
-import { formatoQuantitaMagazzino, nomeCantierePrelievo } from "@/lib/campo/magazzino";
+import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
+import { formatoQuantitaMagazzino, nomeCantierePrelievo, quantitaPrelievo } from "@/lib/campo/magazzino";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const dataPrelievo = new Intl.DateTimeFormat("it-IT", {
   day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
@@ -15,6 +18,40 @@ const stati = {
   rifiutato: { label: "Rifiutato", className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
   richiesto: { label: "In attesa", className: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" },
 } as const;
+
+export function PrelieviInCoda({ companyId, userId }: { companyId: string; userId: string | undefined }) {
+  const coda = useCodaCampo(companyId, userId, "prelievo");
+  const online = useOnlineStatus();
+  if (!coda.length) return null;
+
+  return (
+    <ul aria-label="Prelievi in coda" className="mb-2 divide-y rounded-xl border bg-card text-sm">
+      {coda.map(voce => {
+        const { bozza } = voce.payload.locale;
+        return <li key={voce.id} className="space-y-1 p-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <span className="min-w-0 break-words font-semibold">{bozza.nomeCantiere || "Cantiere assegnato"}</span>
+            <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-xs font-semibold leading-5 text-amber-900">
+              {voce.status === "failed" ? "Da verificare" : voce.status === "syncing" ? "Invio…" : "In coda"}
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {bozza.righe.map(({ articolo, quantita }) => <li key={articolo.id} className="flex items-start justify-between gap-2">
+              <span className="min-w-0 break-words">{articolo.name}</span>
+              <span className="shrink-0 font-medium">{formatoQuantitaMagazzino.format(quantitaPrelievo(quantita))} {articolo.unita_misura}</span>
+            </li>)}
+          </ul>
+          {voce.status === "failed" && <>
+            <p className="break-words text-xs text-destructive">{voce.lastError}</p>
+            <Button type="button" variant="outline" size="sm" className="min-h-11" disabled={!online}
+              onClick={() => void syncQueue.retryFailed(i => i.id === voce.id)
+                .then(syncQueue.processQueue).catch(() => toast.error("Non riesco a riprovare l’invio."))}>Riprova prelievo</Button>
+          </>}
+        </li>;
+      })}
+    </ul>
+  );
+}
 
 export function CampoPrelievi({ companyId, puoPrelevare }: { companyId: string; puoPrelevare: boolean }) {
   const cronologia = useMieiPrelievi(companyId);

@@ -1,3 +1,6 @@
+import { clear, createStore } from "idb-keyval";
+import "fake-indexeddb/auto";
+import type { RapportoInCoda } from "@/lib/campo/rapportoInCoda";
 import { formOptions, nativeFormControl } from "@/test/helpers/changeFormControl";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -19,6 +22,14 @@ const state = vi.hoisted(() => ({
   existing: null as Record<string, unknown> | null,
   uploads: 0,
 }));
+vi.mock("@/lib/campo/sync-queue", async (importOriginal) => {
+  const originale = await importOriginal<typeof import("@/lib/campo/sync-queue")>();
+  return { ...originale, syncQueue: { ...originale.syncQueue, enqueue: async (voce: { payload: RapportoInCoda; operationId: string }) => {
+    const { inviaRapportoInCoda } = await import("@/lib/campo/rapportoInCoda");
+    await inviaRapportoInCoda(voce.payload, voce.operationId);
+    return voce.operationId;
+  } } };
+});
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isSubappaltatore: false }) }));
@@ -50,11 +61,13 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {
     const result = { data: table === "campo_rapportini" ? { id: "report" } : {}, error: null as Error | null };
+    let ricevuta = false;
+    const lettura = async () => ricevuta ? { ...result, data: state.existing } : result;
     const query = {
       insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); return query; },
       update: (value: unknown) => { if (table === "campo_rapportini") state.update(value); return query; },
-      select: () => query, eq: () => query, in: () => query, order: () => query, limit: () => query,
-      single: async () => result, maybeSingle: async () => result,
+      select: (colonne?: string) => { ricevuta = colonne?.startsWith("invio_operazione_id") ?? false; return query; }, eq: () => query, is: () => query, in: () => query, order: () => query, limit: () => query,
+      single: async () => result, maybeSingle: lettura,
       then: Promise.resolve(result).then.bind(Promise.resolve(result)),
     };
     return query;
@@ -70,7 +83,8 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 const FOTO_A = "https://local.invalid/a.jpg";
 const FOTO_B = "https://local.invalid/b.jpg";
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clear(createStore("campo-rapportino-allegati", "bozze"));
   localStorage.clear();
   vi.clearAllMocks();
   state.role = { isCapocantiere: true, esisteCapo: true };
@@ -93,6 +107,7 @@ async function compila({ fasi, foto = 0 }: { fasi: string[]; foto?: number }) {
   if (foto) {
     const file = (n: number) => new File(["x"], `f${n}.jpg`, { type: "image/jpeg" });
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await waitFor(() => expect(input).toBeEnabled());
     changeFormControl(input, { target: { files: Array.from({ length: foto }, (_, i) => file(i)) } });
     await waitFor(() => expect(screen.getAllByRole("button", { name: /^Ingrandisci foto \d+$/ })).toHaveLength(foto));
   }

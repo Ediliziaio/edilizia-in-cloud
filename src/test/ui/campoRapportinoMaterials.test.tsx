@@ -1,3 +1,5 @@
+import "fake-indexeddb/auto";
+import type { RapportoInCoda } from "@/lib/campo/rapportoInCoda";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +19,14 @@ const state = vi.hoisted(() => ({
   reportDate: null as string | null, existing: null as { id: string; created_at: string } | null,
   dayArgs: vi.fn(), setParams: vi.fn(),
 }));
+vi.mock("@/lib/campo/sync-queue", async (importOriginal) => {
+  const originale = await importOriginal<typeof import("@/lib/campo/sync-queue")>();
+  return { ...originale, syncQueue: { ...originale.syncQueue, enqueue: async (voce: { payload: RapportoInCoda; operationId: string }) => {
+    const { inviaRapportoInCoda } = await import("@/lib/campo/rapportoInCoda");
+    await inviaRapportoInCoda(voce.payload, voce.operationId);
+    return voce.operationId;
+  } } };
+});
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: state.orderId }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(state.reportDate ? { data: state.reportDate } : {}), state.setParams] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
 vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isSubappaltatore: false }) }));
@@ -49,8 +59,10 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {
     const result = { data: table === "campo_rapportini" ? { id: "report" } : {}, error: null as Error | null };
+    let ricevuta = false;
+    const lettura = async () => ricevuta ? { ...result, data: state.existing } : result;
     const query = { insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); if (table === "campo_timbrature") state.timbrature(value); return query; },
-      select: () => query, eq: () => query, single: async () => result, maybeSingle: async () => result,
+      select: (colonne?: string) => { ricevuta = colonne?.startsWith("invio_operazione_id") ?? false; return query; }, eq: () => query, is: () => query, single: async () => result, maybeSingle: lettura,
       then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
     return query;
   }, functions: { invoke: async () => ({ data: { pdf_url: "https://local.invalid/rapportino-v2-test.pdf" }, error: null as null }) },
@@ -210,7 +222,9 @@ describe("Rapportino mobile, interazione con API simulate", () => {
     expect(state.insert).not.toHaveBeenCalled(); expect(screen.getByLabelText("Quantità Malta")).toHaveValue(0);
   });
   it("non invia per un lavoro non assegnato", async () => {
-    state.allowed = false; openMaterials(); fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
+    state.allowed = false; openMaterials();
+    changeFormControl(screen.getByLabelText("Unità Malta"), { target: { value: "kg" } });
+    fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("non assegnato"))); expect(state.insert).not.toHaveBeenCalled();
   });
   it("rimuove solo il materiale scelto senza salvare", () => {

@@ -57,10 +57,10 @@ export function useOfflineSync(options?: {
   sync: () => Promise<void>;
   retry: () => Promise<void>;
 } {
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
   const userId = user?.id;
   const companyId =
-    options?.companyId === undefined ? profile?.company_id : options.companyId;
+    options?.companyId === undefined ? effectiveCompany?.id ?? profile?.company_id : options.companyId;
   const scopeKey = `${userId ?? ""}:${companyId ?? ""}`;
   const activeScope = useRef(scopeKey);
   useLayoutEffect(() => {
@@ -145,10 +145,15 @@ export function useOfflineSync(options?: {
     const unsubChange = syncQueue.on("change", () => {
       void refreshCount();
     });
+    const unsubEnqueued = syncQueue.on("enqueued", () => { void run(); });
 
+    let riprovaConnessione: ReturnType<typeof setTimeout> | undefined;
     const unsubNet = onNetworkChange((online) => {
+      clearTimeout(riprovaConnessione);
       if (online) {
         void run();
+        // La rete può tornare mentre il tentativo precedente è ancora in backoff.
+        riprovaConnessione = setTimeout(() => { void run(); }, 8_000);
       }
     });
 
@@ -156,6 +161,12 @@ export function useOfflineSync(options?: {
     if (isOnline()) {
       void run();
     }
+    const riprendi = () => {
+      if (document.visibilityState === "visible") void run();
+    };
+    document.addEventListener("visibilitychange", riprendi);
+    window.addEventListener("pageshow", riprendi);
+    window.addEventListener("focus", riprendi);
 
     // Retry periodico ogni 30s se coda non vuota
     // Un timer per tutta l'app, non uno per ogni schermata che usa il hook.
@@ -175,7 +186,12 @@ export function useOfflineSync(options?: {
 
     return () => {
       unsubChange();
+      unsubEnqueued();
       unsubNet();
+      clearTimeout(riprovaConnessione);
+      document.removeEventListener("visibilitychange", riprendi);
+      window.removeEventListener("pageshow", riprendi);
+      window.removeEventListener("focus", riprendi);
       active = false;
       pollUsers -= 1;
       if (!pollUsers && pollTimer) {

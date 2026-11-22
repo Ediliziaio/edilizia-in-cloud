@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { salvaChecklistSicurezza, type ChecklistDaSalvare } from "./salvaChecklistSicurezza";
+// Caricati con la coda, così il primo tentativo al ritorno della rete ha già i gestori.
+import { inviaPrelievoInCoda, type PrelievoInCoda } from "./prelievoInCoda";
+import { inviaRapportoInCoda, type RapportoInCoda } from "./rapportoInCoda";
 import {
   SyncDeferredError,
   SyncPermanentError,
@@ -9,12 +12,12 @@ import {
 } from "./sync-queue";
 
 /** Non aggira RLS: nessuna RPC security-definer generica e nessun target libero. */
-export async function processCampoOffline(item: SyncItem): Promise<void> {
+export async function processCampoOffline(item: SyncItem) {
   const payload = item.payload as Record<string, unknown>;
   const row = (item.type === "foto" ? payload.riga : payload) as
     | Record<string, unknown>
     | undefined;
-  const { owner } = syncItemScope(item);
+  const { owner, companyId } = syncItemScope(item);
   const { data, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !data.session)
     throw new SyncDeferredError("Accedi per sincronizzare");
@@ -22,6 +25,18 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
     throw new SyncDeferredError(
       "Questa operazione appartiene a un altro utente o richiede verifica dell’autore",
     );
+  if (item.type === "prelievo" || item.type === "rapportino") {
+    const { data: azienda, error } = await supabase.rpc("get_my_company_id");
+    if (error || !azienda || azienda !== companyId) {
+      throw new SyncDeferredError("L’invio riprende quando è disponibile l’azienda della registrazione.");
+    }
+  }
+  if (item.type === "prelievo") {
+    return inviaPrelievoInCoda(item.payload as PrelievoInCoda, await syncOperationId(item));
+  }
+  if (item.type === "rapportino") {
+    return inviaRapportoInCoda(item.payload as RapportoInCoda, await syncOperationId(item));
+  }
   if (item.type === "documento_ddt") {
     const { inviaDocumentoPersistente } = await import(
       "../ddt/documentiPersistenti"

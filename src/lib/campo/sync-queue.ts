@@ -8,11 +8,14 @@
  *   syncQueue.on("change", () => updateBadge());
  *   await syncQueue.processQueue();
  */
+import { isOnline } from "./network-status";
 
 export type SyncItemType =
   | "documento_ddt"
   | "checklist"
   | "rapportino_vocale"
+  | "rapportino"
+  | "prelievo"
   | "timbratura"
   | "foto"
   | "generic";
@@ -43,6 +46,7 @@ const SYNC_LEASE_MS = 5 * 60_000;
 
 export class SyncPermanentError extends Error {}
 export class SyncDeferredError extends Error {}
+export class SyncTransientError extends Error {}
 export function syncItemScope(item: SyncItem) {
   const p = item.payload && typeof item.payload === "object" ? item.payload as Record<string, unknown> : {};
   const row = (item.type === "foto" ? p.riga : p) as Record<string, unknown> | undefined;
@@ -50,9 +54,9 @@ export function syncItemScope(item: SyncItem) {
   const owner = row?.user_id ?? row?.operaio_id ?? row?.uploaded_by ?? (legacyAudio ? (p.path as string).split("/")[0] : undefined);
   return { owner, companyId: row?.company_id, legacyAudio };
 }
-export function canProcessSyncItem(item: SyncItem, now = Date.now()): boolean {
+export function canProcessSyncItem(item: SyncItem, now = Date.now(), lockEsclusivo = false): boolean {
   if (item.status === "done" || item.retryCount >= MAX_RETRY) return false;
-  if (item.status === "syncing" && now - item.updatedAt < SYNC_LEASE_MS) return false;
+  if (item.status === "syncing") return lockEsclusivo || now - item.updatedAt >= SYNC_LEASE_MS;
   return item.retryCount === 0 || now - item.updatedAt >= BACKOFF_BASE_MS * 2 ** (item.retryCount - 1);
 }
 
@@ -65,24 +69,54 @@ export async function syncOperationId(item: SyncItem): Promise<string> {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20)}`;
 }
 
-type QueueEvent = "change" | "processed" | "failed";
-type Listener = () => void;
+export type CampoSyncResult = {
+  tipo: "prelievo" | "rapportino";
+  companyId: string;
+  userId: string;
+  orderId: string;
+  id?: string;
+  stato?: string;
+  errore?: string;
+  pdf?: boolean;
+  avvisoMezzi?: boolean;
+  chiudeGiornata?: boolean;
+};
+type QueueEvent = "change" | "enqueued" | "processed" | "failed";
+type Listener = (result?: CampoSyncResult) => void;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 const listeners: Record<QueueEvent, Set<Listener>> = {
   change: new Set(),
+  enqueued: new Set(),
   processed: new Set(),
   failed: new Set(),
 };
 
-function emit(event: QueueEvent): void {
+let channel: BroadcastChannel | null | undefined;
+
+function notify(event: QueueEvent, result?: CampoSyncResult): void {
   listeners[event].forEach((l) => {
     try {
-      l();
+      l(result);
     } catch (e) {
       console.error("[sync-queue] listener error", e);
     }
   });
+}
+
+function openChannel() {
+  if (channel !== undefined) return channel;
+  channel = typeof window !== "undefined" && typeof window.BroadcastChannel !== "undefined"
+    ? new window.BroadcastChannel(DB_NAME) : null;
+  channel?.addEventListener("message", ({ data }) => {
+    if (data?.event === "change" || data?.event === "enqueued") notify(data.event);
+  });
+  return channel;
+}
+
+function emit(event: QueueEvent, result?: CampoSyncResult): void {
+  notify(event, result);
+  if (event === "change" || event === "enqueued") openChannel()?.postMessage({ event });
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -94,7 +128,13 @@ function openDB(): Promise<IDBDatabase> {
     }
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error);
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      const riapri = () => { if (dbPromise === opening) dbPromise = null; };
+      db.onclose = riapri;
+      db.onversionchange = () => { db.close(); riapri(); };
+      resolve(db);
+    };
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -115,17 +155,17 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
-type VoceDaAccodare<T> = Pick<SyncItem<T>, "type" | "payload" | "target" | "operationId">;
+type VoceDaAccodare<T> = Pick<SyncItem<T>, "type" | "payload" | "target" | "operationId"> & { dedupKey?: string };
 
 async function enqueueBatch<T>(items: ReadonlyArray<VoceDaAccodare<T>>): Promise<string[]> {
   if (!items.length) return [];
   const db = await openDB();
   const now = Date.now();
-  const fullItems = items.map((item): SyncItem<T> => {
-    const id = generateId();
+  const fullItems = items.map(({ dedupKey, ...item }, indice): SyncItem<T> => {
+    const id = dedupKey ? `coda:${item.type}:${dedupKey}` : generateId();
     return {
-      ...item, id, operationId: item.operationId ?? id,
-      createdAt: now, updatedAt: now, retryCount: 0, status: "pending",
+      ...item, id, operationId: item.operationId ?? (dedupKey ? generateId() : id),
+      createdAt: now + indice, updatedAt: now, retryCount: 0, status: "pending",
     };
   });
   await new Promise<void>((resolve, reject) => {
@@ -134,13 +174,22 @@ async function enqueueBatch<T>(items: ReadonlyArray<VoceDaAccodare<T>>): Promise
     tx.onabort = () => reject(tx.error ?? new Error("Salvataggio sul telefono interrotto"));
     const store = tx.objectStore(STORE_NAME);
     try {
-      for (const item of fullItems) store.add(item);
+      for (const [indice, item] of fullItems.entries()) {
+        if (!items[indice].dedupKey) store.add(item);
+        else {
+          const esistente = store.get(item.id);
+          esistente.onsuccess = () => {
+            if (!esistente.result) store.add(item);
+          };
+        }
+      }
     } catch (error) {
       tx.abort();
       reject(error);
     }
   });
   emit("change");
+  emit("enqueued");
   return fullItems.map(item => item.id);
 }
 
@@ -149,11 +198,12 @@ async function enqueue<T>(item: VoceDaAccodare<T>): Promise<string> {
   return id;
 }
 
-async function getAll(): Promise<SyncItem[]> {
+async function getAll(tipo?: SyncItemType): Promise<SyncItem[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).getAll();
+    const store = tx.objectStore(STORE_NAME);
+    const req = tipo ? store.index("type").getAll(tipo) : store.getAll();
     req.onsuccess = () => resolve(req.result as SyncItem[]);
     req.onerror = () => reject(req.error);
   });
@@ -212,7 +262,7 @@ async function retryFailed(eligible: (item: SyncItem) => boolean = () => true): 
  * Processore registrato dall'app — riceve un SyncItem e tenta l'upload verso Supabase.
  * Deve throware su errore per attivare il retry.
  */
-export type SyncProcessor = (item: SyncItem) => Promise<void>;
+export type SyncProcessor = (item: SyncItem) => Promise<void | CampoSyncResult>;
 
 let processor: SyncProcessor | null = null;
 
@@ -222,47 +272,86 @@ function registerProcessor(fn: SyncProcessor): void {
 
 let isProcessing = false;
 
-async function processQueueUnlocked(): Promise<void> {
+async function claim(item: SyncItem, operationId: string, lockEsclusivo: boolean): Promise<SyncItem | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(item.id);
+    let presa: SyncItem | undefined;
+    req.onsuccess = () => {
+      const attuale = req.result as SyncItem | undefined;
+      if (!attuale || !canProcessSyncItem(attuale, Date.now(), lockEsclusivo)) return;
+      presa = { ...attuale, status: "syncing", operationId: attuale.operationId ?? operationId, updatedAt: Date.now() };
+      store.put(presa);
+    };
+    tx.onabort = () => reject(tx.error);
+    tx.oncomplete = () => resolve(presa);
+  });
+}
+
+async function terminaTentativo(item: SyncItem, inizio: number): Promise<boolean> {
+  const db = await openDB();
+  const aggiornata = await new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(item.id);
+    let applicata = false;
+    req.onsuccess = () => {
+      const attuale = req.result as SyncItem | undefined;
+      if (!attuale || attuale.status !== "syncing" || attuale.updatedAt !== inizio) return;
+      if (item.status === "done") store.delete(item.id);
+      else store.put({ ...item, updatedAt: Date.now() });
+      applicata = true;
+    };
+    tx.oncomplete = () => resolve(applicata);
+    tx.onabort = () => reject(tx.error);
+  });
+  if (aggiornata) emit("change");
+  return aggiornata;
+}
+
+async function processQueueUnlocked(lockEsclusivo = false): Promise<void> {
   if (isProcessing) return;
   if (!processor) {
     console.warn("[sync-queue] nessun processor registrato");
     return;
   }
-  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+  if (!isOnline()) return;
 
   isProcessing = true;
   try {
-    const items = (await getPending()).sort((a, b) => a.createdAt - b.createdAt);
-    for (const item of items) {
-      // Backoff esponenziale: se retryCount alto, salta se non è ancora tempo
-      if (item.retryCount > 0) {
-        const delay = BACKOFF_BASE_MS * Math.pow(2, item.retryCount - 1);
-        const elapsed = Date.now() - item.updatedAt;
-        if (elapsed < delay) continue;
-      }
-      item.status = "syncing";
-      item.operationId = await syncOperationId(item);
-      await updateItem(item);
+    const items = (await getAll()).filter(i => canProcessSyncItem(i, Date.now(), lockEsclusivo))
+      .sort((a, b) => a.createdAt - b.createdAt);
+    for (const candidate of items) {
+      if (!isOnline()) break;
+      const item = await claim(candidate, await syncOperationId(candidate), lockEsclusivo);
+      if (!item) continue;
+      emit("change");
+      const inizio = item.updatedAt;
       try {
-        await processor!(item);
+        const result = await processor!(item);
         item.status = "done";
         item.lastError = undefined;
-        await updateItem(item);
-        emit("processed");
-        // Rimuovi subito quelli done (cleanup)
-        await remove(item.id);
+        if (await terminaTentativo(item, inizio)) emit("processed", result || undefined);
       } catch (error) {
         if (error instanceof SyncDeferredError) {
           item.status = "pending";
-          await updateItem(item);
+          await terminaTentativo(item, inizio);
           continue;
         }
-        item.retryCount += 1;
+        const message = error instanceof Error ? error.message : String(error);
+        const inCampo = item.type === "prelievo" || item.type === "rapportino";
+        const reteInterrotta = inCampo && !(
+          error instanceof SyncPermanentError
+        ) && (!isOnline() || /failed to fetch|load failed|network|timeout|timed out|tempo scaduto/i.test(message));
+        item.retryCount = error instanceof SyncTransientError || reteInterrotta
+          ? Math.min(item.retryCount + 1, MAX_RETRY - 1)
+          : item.retryCount + 1;
         if (error instanceof SyncPermanentError) item.retryCount = MAX_RETRY;
-        item.lastError = error instanceof Error ? error.message : String(error);
+        item.lastError = message;
         item.status = item.retryCount >= MAX_RETRY ? "failed" : "pending";
-        await updateItem(item);
-        emit("failed");
+        if (await terminaTentativo(item, inizio)) emit("failed");
       }
     }
   } finally {
@@ -272,13 +361,19 @@ async function processQueueUnlocked(): Promise<void> {
 
 async function processQueue(): Promise<void> {
   if (typeof navigator !== "undefined" && navigator.locks) {
-    await navigator.locks.request("campo-sync-queue", { ifAvailable: true }, async lock => {
-      if (lock) await processQueueUnlocked();
-    });
+    try {
+      await navigator.locks.request("campo-sync-queue", { ifAvailable: true }, async lock => {
+        if (lock) await processQueueUnlocked(true);
+      });
+    } catch (error) {
+      if (!(error instanceof DOMException) || !["SecurityError", "NotSupportedError"].includes(error.name)) throw error;
+      await processQueueUnlocked();
+    }
   } else await processQueueUnlocked();
 }
 
 function on(event: QueueEvent, listener: Listener): () => void {
+  openChannel();
   listeners[event].add(listener);
   return () => listeners[event].delete(listener);
 }

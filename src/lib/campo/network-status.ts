@@ -2,6 +2,8 @@
  * Utility per monitorare lo stato della connessione di rete.
  * Fornisce sia API imperative sia un event emitter per listener.
  */
+import { isNative } from "@/lib/mobile/platform";
+import { isOnline as reteNativaAttiva, onNetworkChange as ascoltaReteNativa } from "@/lib/mobile/native-network";
 
 type NetworkListener = (online: boolean) => void;
 
@@ -22,13 +24,18 @@ let initialized = false;
 function ensureInitialized(): void {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
+  if (isNative) {
+    ascoltaReteNativa(evento => notify(evento.connected));
+    return;
+  }
   window.addEventListener("online", () => notify(true));
   window.addEventListener("offline", () => notify(false));
 }
 
 export function isOnline(): boolean {
+  if (isNative) return reteNativaAttiva();
   if (typeof navigator === "undefined") return true;
-  return navigator.onLine;
+  return navigator.onLine !== false;
 }
 
 export function onNetworkChange(listener: NetworkListener): () => void {

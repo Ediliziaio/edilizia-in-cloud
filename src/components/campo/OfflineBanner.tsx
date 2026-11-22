@@ -10,17 +10,45 @@ import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { syncQueue } from "@/lib/campo/sync-queue";
+import { aggiornaPrelieviCampo } from "@/lib/campo/prelievoInCoda";
+import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
+import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
+import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import type { JSX } from "react";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? profile?.company_id;
+  const queryClient = useQueryClient();
   const { queueCount, isSyncing, failedCount, lastError, retry } = useOfflineSync();
   const [draftCount, setDraftCount] = useState(0);
 
+  useEffect(() => syncQueue.on("processed", (esito) => {
+    if (!esito || esito.companyId !== companyId || esito.userId !== user?.id) return;
+    if (esito.tipo === "prelievo") {
+      aggiornaPrelieviCampo(queryClient, esito);
+      if (esito.errore) toast.error("Controlla il prelievo", { description: esito.errore });
+      else if (esito.stato === "rifiutato") toast.info("Prelievo rifiutato");
+      else toast.success(esito.stato === "richiesto" ? "Richiesta al magazzino inviata" : "Prelievo registrato");
+      return;
+    }
+    void refreshCommessaCampoQueries(queryClient, esito.orderId, esito.companyId);
+    void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+    void queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
+    void queryClient.invalidateQueries({ queryKey: ["mezzi"] });
+    if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
+    if (esito.avvisoMezzi) toast.warning("Rapportino inviato. Comunica all’ufficio dove hai lasciato mezzi e attrezzi.");
+    toast.success(esito.chiudeGiornata ? "Rapportino inviato, giornata chiusa" : "Rapportino inviato");
+    if (esito.id && esito.pdf) void notifyRapportinoPdf(esito.id, esito.orderId, queryClient);
+  }), [companyId, queryClient, user?.id]);
+
   // Conta bozze salvate
   useEffect(() => {
-    const count = () => listDraftKeys().filter(k => k.startsWith(`rapportino:${profile?.company_id}:${user?.id}:`) || k.startsWith(`merce:${profile?.company_id}:${user?.id}:`)).length;
+    const count = () => listDraftKeys().filter(k => k.startsWith(`rapportino:${companyId}:${user?.id}:`) || k.startsWith(`merce:${companyId}:${user?.id}:`)).length;
     let active = true;
     void Promise.resolve().then(() => { if (active) setDraftCount(count()); });
     // Aggiorna ogni 5s
@@ -28,7 +56,7 @@ export default function OfflineBanner(): JSX.Element | null {
       setDraftCount(count());
     }, 5000);
     return () => { active = false; clearInterval(interval); };
-  }, [profile?.company_id, user?.id]);
+  }, [companyId, user?.id]);
 
 
   // Offline: banner giallo
@@ -41,7 +69,7 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <WifiOff className="w-4 h-4 shrink-0" />
         <span className="flex-1 leading-tight">
-          Sei offline. Le bozze restano sul telefono; non sono inviate. Solo le operazioni in coda verranno sincronizzate.
+          {queueCount > 0 ? "La coda parte quando torna la rete." : "Sei offline. Puoi mettere gli invii in coda."}
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {draftCount > 0 && (
