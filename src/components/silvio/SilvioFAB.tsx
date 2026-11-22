@@ -22,6 +22,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
+import { rottaDelGuscio } from "@/components/preventivatore/rotte";
 import { cn } from "@/lib/utils";
 import { badgePriorita, domandeRapide, prioritaDalBriefing } from "@/lib/silvio/domandeRapide";
 import {
@@ -405,7 +406,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
   // Chat Team ed Email sono a tutta pagina: in basso a destra c'è il campo
   // di scrittura, e il tondo copriva il tasto di invio. Lì si nasconde solo il
   // bottone: il componente resta montato perché ascolta «silvio:open-chat».
-  const senzaTondo = mode === "azienda" && /^\/azienda\/(chat|email|scadenzario|prima-nota)\/?$/.test(location.pathname);
+  const senzaTondo = mode === "azienda" && (rottaDelGuscio(location.pathname) || /^\/azienda\/(chat|email|scadenzario|prima-nota)\/?$/.test(location.pathname) || /^\/azienda\/marketing\/preventivi\/(nuovo|[^/]+\/modifica)\/?$/.test(location.pathname));
 
   const fabButton = (
 	          <motion.button

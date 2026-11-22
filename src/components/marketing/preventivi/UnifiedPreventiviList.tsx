@@ -163,7 +163,7 @@ function formatDateSafe(s: string | null | undefined): string {
 
 export function UnifiedPreventiviList() {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(1024);
   // Telefono: stato, tipo e ordine in un pannello dal basso (erano una barra
   // con cestino e contatore, una riga di chip e una riga di schede di stato).
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
@@ -1088,7 +1088,7 @@ export function UnifiedPreventiviList() {
     <div className="space-y-4 sm:space-y-6">
       {/* ─── KPI Hero 4 cards — solo desktop: su mobile i conteggi sono già nei tab
           di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
-      <div className="hidden md:grid md:grid-cols-4 gap-2 sm:gap-3">
+      <div className="hidden lg:grid lg:grid-cols-4 gap-2 sm:gap-3">
         <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" attivo={statoTab === "bozza"} onClick={() => setStatoTab(statoTab === "bozza" ? "all" : "bozza")} icon={<FileText className="h-4 w-4" />} tone="slate" />
         <KpiCard label="In corso" value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={[kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline", conteggiVista.in_scadenza > 0 ? `${conteggiVista.in_scadenza} in scadenza` : null].filter(Boolean).join(" · ")} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
         <KpiCard label="Vinte" value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% delle chiuse` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
@@ -1136,7 +1136,7 @@ export function UnifiedPreventiviList() {
 
       {/* ─── Telefono: ricerca e bottone dei filtri ─── */}
       <CercaConFiltri
-        className="md:hidden [&_input]:h-11 [&_input]:text-base [&_button]:h-11 [&_button]:w-11"
+        className="lg:hidden [&_input]:h-11 [&_input]:text-base [&_button]:h-11 [&_button]:w-11"
         valore={search}
         onCambia={setSearch}
         segnaposto="Cerca numero, cliente, commerciale"
@@ -1144,7 +1144,7 @@ export function UnifiedPreventiviList() {
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
       {hasAnyFilter && (
-        <div className="flex min-h-8 items-center justify-between gap-2 text-xs text-muted-foreground md:hidden">
+        <div className="flex min-h-8 items-center justify-between gap-2 text-xs text-muted-foreground lg:hidden">
           <span role="status">{filtered.length} {filtered.length === 1 ? "risultato" : "risultati"}</span>
           <Button type="button" variant="ghost" size="sm" className="tap-compact h-8 px-2 text-xs" onClick={reset}>Azzera filtri</Button>
         </div>
@@ -1200,7 +1200,7 @@ export function UnifiedPreventiviList() {
       </PannelloFiltri>
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
-      <Card className="max-md:hidden">
+      <Card className="max-lg:hidden">
         <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[140px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1254,7 +1254,7 @@ export function UnifiedPreventiviList() {
 
       {/* ─── Chip filtri attivi (telefono: il numero sta sul bottone) ─── */}
       {advancedFiltersCount > 0 && (
-        <div className="flex flex-wrap gap-1.5 max-md:hidden">
+        <div className="flex flex-wrap gap-1.5 max-lg:hidden">
           {filters.tipi.length > 0 && (
             <FilterChip label={`Tipi: ${filters.tipi.map((t) => TIPO_LABEL[t].label).join(", ")}`} onClear={() => setFilters({ ...filters, tipi: [] })} />
           )}
@@ -1276,7 +1276,7 @@ export function UnifiedPreventiviList() {
       )}
 
       {/* ─── Sub-tab stati (telefono: nel pannello dei filtri) ─── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-px max-md:hidden">
+      <div className="flex items-center gap-1 overflow-x-auto pb-px max-lg:hidden">
         <StatoTab label="Tutti" count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
         <StatoTab label="Bozze" count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
         <StatoTab label="In corso" count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
@@ -1288,7 +1288,7 @@ export function UnifiedPreventiviList() {
       </div>
 
       {/* ─── Viste rapide e tipi: un clic invece di aprire il pannello filtri ─── */}
-      <div className="flex flex-wrap items-center gap-1.5 max-md:hidden" aria-label="Viste rapide">
+      <div className="flex flex-wrap items-center gap-1.5 max-lg:hidden" aria-label="Viste rapide">
         <VistaChip
           attiva={vista === "da_seguire"}
           onClick={() => setVista(vista === "da_seguire" ? "tutte" : "da_seguire")}
@@ -1358,16 +1358,16 @@ export function UnifiedPreventiviList() {
               <Skeleton className="h-10" />
             </div>
           ) : allRows.length === 0 ? (
-            <div className="p-10 text-center max-md:p-5">
-              <Inbox className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-md:hidden" />
+            <div className="p-10 text-center max-lg:p-5">
+              <Inbox className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-lg:hidden" />
               <p className="text-sm font-medium">Nessun preventivo ancora</p>
-              <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
+              <p className="text-xs text-muted-foreground mt-1 max-lg:hidden">
                 Crea il primo preventivo dal bottone in alto.
               </p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-10 text-center max-md:p-5">
-              <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-md:hidden" />
+            <div className="p-10 text-center max-lg:p-5">
+              <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-lg:hidden" />
               <p className="text-sm font-medium">Nessun risultato con i filtri attuali</p>
               <div className="flex gap-2 justify-center mt-3">
                 <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)} className="text-xs gap-1">
@@ -1390,7 +1390,7 @@ export function UnifiedPreventiviList() {
       <PreventiviCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={companyId} />
               {/* A 1024 la tabella era larga 876px e scorreva di lato: fino a 1280
                   senza «Commerciale» e con celle più strette. */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto">
                 <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
                   <TableHeader>
                     <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
@@ -1521,7 +1521,7 @@ export function UnifiedPreventiviList() {
               {/* Telefono: una riga per preventivo (cliente; numero, tipo e data;
                   importo e stato a destra). Erano schede da tre righe con due
                   etichette colorate e l'icona del commerciale: quattro a schermo. */}
-              <div className="md:hidden divide-y divide-border">
+              <div className="lg:hidden divide-y divide-border">
                 {pageRows.map((r) => {
                   const tipoCfg = TIPO_LABEL[r.tipo];
                   const statoCfg = STATO_UNIF_LABEL[r.stato_unif];
@@ -1567,13 +1567,13 @@ export function UnifiedPreventiviList() {
                     {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} di {filtered.length}
                   </span>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0"
+                    <Button variant="outline" size="sm" className="h-11 w-11 p-0"
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1} aria-label="Pagina precedente">
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-xs px-2 tabular-nums">Pag {currentPage} / {totalPages}</span>
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0"
+                    <Button variant="outline" size="sm" className="h-11 w-11 p-0"
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages} aria-label="Pagina successiva">
                       <ChevronRight className="h-4 w-4" />

@@ -782,7 +782,7 @@ export default function SerramentiWizard() {
   return (
     // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
     // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
-    <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
+    <div className={cn("preventivo-touch -m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>

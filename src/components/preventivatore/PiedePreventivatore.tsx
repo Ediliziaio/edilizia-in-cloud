@@ -63,7 +63,7 @@ export function PiedePreventivatore({ stato, children, telefono, className }: Pi
   return (
     <div
       className={cn(
-        "sticky z-30 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] backdrop-blur sm:px-6 md:pr-24",
+        "sticky z-30 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] backdrop-blur sm:px-6",
         "max-md:gap-2 max-md:rounded-2xl max-md:border max-md:px-2.5 max-md:py-2 max-md:shadow-[0_-8px_20px_rgba(15,23,42,0.08)]",
         STICKY_BASSO,
         className,
@@ -71,7 +71,7 @@ export function PiedePreventivatore({ stato, children, telefono, className }: Pi
     >
       {stato && <div className="min-w-0 flex-1 max-md:hidden">{stato}</div>}
       {telefono && <div className="min-w-0 md:hidden">{telefono}</div>}
-      <div className="flex items-center gap-2 max-md:min-w-0 max-md:flex-1 max-md:justify-end">{children}</div>
+      <div className="flex shrink-0 items-center gap-2 max-md:min-w-0 max-md:flex-1 max-md:justify-end">{children}</div>
     </div>
   );
 }

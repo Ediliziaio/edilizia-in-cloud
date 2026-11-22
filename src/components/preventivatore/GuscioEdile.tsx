@@ -113,7 +113,7 @@ export function GuscioEdile({
 
   return (
     // Al passo PDF da telefono la barra di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
-    <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", piede.nascostoSuTelefono && RISERVA_BARRA_INVIO_TELEFONO)}>
+    <div className={cn("preventivo-touch -m-3 min-h-full bg-slate-50 md:-m-6", piede.nascostoSuTelefono && RISERVA_BARRA_INVIO_TELEFONO)}>
       {sopra}
 
       {/* Testata: codice, stato, cliente, salvataggio. Non è fissa: la barra delle fasi sotto sì. */}
@@ -233,7 +233,7 @@ export function GuscioEdile({
           variant="outline"
           onClick={piede.onIndietro}
           disabled={piede.indietroDisabilitato}
-          className="min-h-11 md:min-h-0 max-md:w-11 max-md:shrink-0 max-md:px-0"
+          className="min-h-11 max-md:w-11 max-md:shrink-0 max-md:px-0"
         >
           {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
           <ArrowLeft className="mr-1 h-4 w-4 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
@@ -241,7 +241,7 @@ export function GuscioEdile({
         <Button
           onClick={piede.onAvanti}
           disabled={piede.avantiDisabilitato}
-          className="min-h-11 flex-1 gap-1 bg-orange-500 hover:bg-orange-600 sm:flex-none md:min-h-0"
+          className="min-h-11 flex-1 gap-1 bg-orange-500 hover:bg-orange-600 sm:flex-none"
         >
           {piede.inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : piede.ultimoPasso ? <Save className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
           {piede.etichettaAvanti}

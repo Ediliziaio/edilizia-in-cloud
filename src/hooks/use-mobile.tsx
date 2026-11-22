@@ -1,42 +1,23 @@
-import * as React from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const MOBILE_BREAKPOINT = 768;
+const serverSnapshot = () => false;
 
 /**
- * Rileva se il viewport è mobile (< 768px).
- * Inizializza SINCRONAMENTE con il valore reale per evitare flash/crash
- * su Safari WebKit (iPhone reale) dove il primo render con `undefined`
- * causava race condition con createPortal.
+ * Di serie telefono (<768 px); gli elenchi possono includere i tablet.
+ * La misura è disponibile già al primo render, senza un passaggio false→true
+ * che su Safari interferiva con l'apertura dei pannelli.
  */
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean>(() => {
-    // Inizializzazione sincrona — evita il flash false→true su iPhone
-    if (typeof window !== "undefined") {
-      return window.innerWidth < MOBILE_BREAKPOINT;
+export function useIsMobile(breakpoint = MOBILE_BREAKPOINT) {
+  const subscribe = useCallback((onChange: () => void) => {
+    const media = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    if (media.addEventListener) {
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
     }
-    return false;
-  });
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    };
-    // Compatibilità Safari < 14: addListener come fallback
-    if (mql.addEventListener) {
-      mql.addEventListener("change", onChange);
-    } else if (mql.addListener) {
-      mql.addListener(onChange);
-    }
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    return () => {
-      if (mql.removeEventListener) {
-        mql.removeEventListener("change", onChange);
-      } else if (mql.removeListener) {
-        mql.removeListener(onChange);
-      }
-    };
-  }, []);
-
-  return isMobile;
+    media.addListener(onChange);
+    return () => media.removeListener(onChange);
+  }, [breakpoint]);
+  const getSnapshot = useCallback(() => window.innerWidth < breakpoint, [breakpoint]);
+  return useSyncExternalStore(subscribe, getSnapshot, serverSnapshot);
 }

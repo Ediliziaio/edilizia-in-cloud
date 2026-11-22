@@ -17,7 +17,7 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
   const cleanup = useRef<(() => void) | null>(null);
   const [viewport, setViewport] = useState({ width: 794, height: 600 });
   const [zoom, setZoom] = useState<number | null>(null);
-  const [fit, setFit] = useState<"width" | "page">("page");
+  const [fit, setFit] = useState<"width" | "page">(() => window.innerWidth < 768 ? "width" : "page");
   const [pagine, setPagine] = useState<string[]>([]);
   const [pagina, setPagina] = useState(0);
   const paginaCorrente = useRef(0);
@@ -67,30 +67,31 @@ export function FvAnteprimaDocumento({ html, numero, onClose, onPrint, loading }
   const documento = useMemo(() => html?.replace(/<\/head>/i,
     '<style>@media screen{html,body{margin:0!important;padding:0!important;background:#f1f5f9!important}.pdf-action-bar{display:none!important}.page{margin:0 auto 16px!important;box-shadow:none!important}}</style></head>'), [html]);
   return <Dialog open={html !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className="flex max-w-[1100px] max-h-[92dvh] flex-col gap-0 overflow-hidden p-0">
+    <DialogContent className="preventivo-touch flex max-w-[1100px] max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 max-sm:inset-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none">
       <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
         <DialogTitle className="text-base">Preventivo {numero}</DialogTitle>
         <p className="text-xs text-slate-500">Documento emesso, con le schede tecniche allegate.</p>
       </DialogHeader>
       {mappe.caricando && <p role="status" className="border-b bg-slate-50 px-4 py-2 text-sm">Caricamento della vista Google del tetto prima della stampa…</p>}
       {mappe.errore && <div role="alert" className="border-b bg-amber-50 px-4 py-2 text-sm">{mappe.errore} <button type="button" className="underline" onClick={preparaMappe}>Riprova mappa</button></div>}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-white px-3 py-2" role="toolbar" aria-label="Comandi anteprima preventivo">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-white px-3 py-2 [&_button]:min-h-11 [&_button]:min-w-11" role="toolbar" aria-label="Comandi anteprima preventivo">
+        <div className="flex w-full items-center justify-between gap-1 sm:w-auto">
         <Button variant="outline" size="icon" aria-label="Riduci anteprima" onClick={() => setZoom(Math.max(.2, scale - .1))}><ZoomOut size={16}/></Button>
-        <Button variant="outline" onClick={() => { setZoom(null); setFit("width"); }}>Adatta larghezza</Button>
-        <Button variant="outline" onClick={() => { setZoom(null); setFit("page"); }}>Pagina intera</Button>
+        <Button variant="outline" className="px-2" onClick={() => { setZoom(null); setFit("width"); }}>Larghezza</Button>
+        <Button variant="outline" className="px-2" aria-label="Pagina intera" onClick={() => { setZoom(null); setFit("page"); }}><span className="sm:hidden">Pagina</span><span className="max-sm:hidden">Pagina intera</span></Button>
         <span className="min-w-10 text-center text-xs tabular-nums" role="status">{Math.round(scale * 100)}%</span>
         <Button variant="outline" size="icon" aria-label="Ingrandisci anteprima" onClick={() => setZoom(Math.min(2, scale + .1))}><ZoomIn size={16}/></Button>
-        <div className="flex items-center gap-1">
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1 max-sm:basis-full">
           <Button variant="outline" size="icon" aria-label="Pagina precedente del preventivo" disabled={pagina <= 0} onClick={() => vai(pagina - 1)}><ChevronLeft size={16}/></Button>
-          <select aria-label="Pagina del preventivo" className="h-10 max-w-52 rounded-md border bg-white px-2 text-xs" value={pagina} disabled={!pagine.length} onChange={e => vai(Number(e.target.value))}>
+          <select aria-label="Pagina del preventivo" className="h-11 min-w-0 flex-1 rounded-md border bg-white px-2 text-sm" value={pagina} disabled={!pagine.length} onChange={e => vai(Number(e.target.value))}>
             {pagine.length ? pagine.map((titolo, i) => <option key={i} value={i}>{i + 1} / {pagine.length} · {titolo}</option>) : <option>Caricamento…</option>}
           </select>
           <Button variant="outline" size="icon" aria-label="Pagina successiva del preventivo" disabled={pagina >= pagine.length - 1} onClick={() => vai(pagina + 1)}><ChevronRight size={16}/></Button>
         </div>
-        <div className="flex-1"/>
-        <Button onClick={onPrint} disabled={loading || mappe.caricando || !!mappe.errore}><Printer size={16} className="mr-2"/>Stampa / Salva PDF</Button>
+        <Button className="max-sm:w-full" onClick={onPrint} disabled={loading || mappe.caricando || !!mappe.errore}><Printer size={16} className="mr-2"/>Stampa / Salva PDF</Button>
       </div>
-      <div ref={setHost} className="h-[70dvh] min-h-0 flex-1 overflow-auto bg-slate-100 p-3">
+      <div ref={setHost} className="h-[70dvh] min-h-0 flex-1 overflow-auto overscroll-contain bg-slate-100 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="relative mx-auto" style={{ width: 794 * scale, height: Math.max(1, viewport.height - 24) }}>
           <iframe ref={frame} onLoad={caricato} title="Anteprima del preventivo emesso" sandbox="allow-same-origin allow-modals" srcDoc={documento}
             style={{ position: "absolute", border: 0, width: 794, height: Math.max(1, viewport.height - 24) / scale, transform: "scale(" + scale + ")", transformOrigin: "top left" }}/>

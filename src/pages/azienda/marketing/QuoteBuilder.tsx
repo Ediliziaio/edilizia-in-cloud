@@ -2468,7 +2468,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   }
 
   return (
-    <div className="space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
+    <div className="preventivo-touch space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
       {localEditor && <p role="note" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Stessa bozza della chat, solo su questo browser. Le modifiche tornano a Silvio AI. Le voci incomplete restano opzionali, fuori dal totale. Nessun salvataggio nel gestionale o PDF remoto.</p>}
       {/* Recupero bozza locale, anche per un preventivo in modifica. */}
       {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.</div>}
