@@ -77,68 +77,87 @@ export function MappaGoogleFv(props: Props) {
       ? new ResizeObserver(dimensioni)
       : null;
     if (host.current) observer?.observe(host.current);
-    void caricaGoogleMapsFv().then((api) => {
-      if (!attivo || !host.current) return;
-      const p = correnti.current;
-      const map = new api.Map(host.current, {
-        center: p.centro,
-        zoom: p.zoom,
-        mapTypeId: "satellite",
-        tilt: 0,
-        heading: 0,
-        disableDefaultUI: true,
-        clickableIcons: false,
-        keyboardShortcuts: false,
-        disableDoubleClickZoom: true,
-        gestureHandling: p.navigabile ? "greedy" : "none",
-        draggable: p.navigabile,
-        scrollwheel: p.navigabile,
-        isFractionalZoomEnabled: false,
-        minZoom: 17,
-        maxZoom: 21,
-      });
-      mappa.current = map;
-      libreria.current = api;
-      attesaImmagini = setTimeout(() => {
-        if (attivo && !authFallita) {
+    let avviata = false;
+    const avvia = () => {
+      if (!attivo || avviata) return;
+      avviata = true;
+      void caricaGoogleMapsFv().then((api) => {
+        if (!attivo || !host.current) return;
+        const p = correnti.current;
+        const map = new api.Map(host.current, {
+          center: p.centro,
+          zoom: p.zoom,
+          mapTypeId: "satellite",
+          tilt: 0,
+          heading: 0,
+          disableDefaultUI: true,
+          clickableIcons: false,
+          keyboardShortcuts: false,
+          disableDoubleClickZoom: true,
+          gestureHandling: p.navigabile ? "greedy" : "none",
+          draggable: p.navigabile,
+          scrollwheel: p.navigabile,
+          isFractionalZoomEnabled: false,
+          minZoom: 17,
+          maxZoom: 21,
+        });
+        mappa.current = map;
+        libreria.current = api;
+        attesaImmagini = setTimeout(() => {
+          if (attivo && !authFallita) {
+            correnti.current.onStato({
+              caricando: false,
+              pronto: false,
+              errore:
+                "Le immagini del tetto non sono arrivate. Controlla la connessione e riprova.",
+            });
+          }
+        }, 20000);
+        listeners.push(map.addListener("bounds_changed", () => {
+          const c = map.getCenter()?.toJSON(), z = map.getZoom();
+          if (attivo && c && z != null) correnti.current.onVista?.(c, z);
+        }));
+        listeners.push(map.addListener("tilesloaded", () => {
+          clearTimeout(attesaImmagini);
+          if (attivo && !authFallita) {
+            correnti.current.onStato({
+              caricando: false,
+              pronto: true,
+              errore: "",
+            });
+          }
+        }));
+        applicaVista(map, api, p);
+        dimensioni();
+      }).catch((errore: unknown) => {
+        if (attivo) {
           correnti.current.onStato({
             caricando: false,
             pronto: false,
-            errore:
-              "Le immagini del tetto non sono arrivate. Controlla la connessione e riprova.",
+            errore: errore instanceof Error
+              ? errore.message
+              : "Mappa Google non disponibile. Riprova.",
           });
         }
-      }, 20000);
-      listeners.push(map.addListener("bounds_changed", () => {
-        const c = map.getCenter()?.toJSON(), z = map.getZoom();
-        if (attivo && c && z != null) correnti.current.onVista?.(c, z);
-      }));
-      listeners.push(map.addListener("tilesloaded", () => {
-        clearTimeout(attesaImmagini);
-        if (attivo && !authFallita) {
-          correnti.current.onStato({
-            caricando: false,
-            pronto: true,
-            errore: "",
-          });
+      });
+    };
+    // Su telefono la mappa può trovarsi sotto la piega: il tempo per ricevere
+    // le immagini decorre quando l'utente la raggiunge, non mentre è nascosta.
+    const visibilita = typeof IntersectionObserver === "function"
+      ? new IntersectionObserver((entries, observer) => {
+        if (!attivo) return;
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer.disconnect();
+          avvia();
         }
-      }));
-      applicaVista(map, api, p);
-      dimensioni();
-    }).catch((errore: unknown) => {
-      if (attivo) {
-        correnti.current.onStato({
-          caricando: false,
-          pronto: false,
-          errore: errore instanceof Error
-            ? errore.message
-            : "Mappa Google non disponibile. Riprova.",
-        });
-      }
-    });
+      })
+      : null;
+    if (host.current && visibilita) visibilita.observe(host.current);
+    else avvia();
     return () => {
       attivo = false;
       clearTimeout(attesaImmagini);
+      visibilita?.disconnect();
       observer?.disconnect();
       scollegaAuth();
       listeners.forEach((l) => l.remove());

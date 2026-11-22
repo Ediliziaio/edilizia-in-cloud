@@ -9,7 +9,7 @@
  * Si rifà dopo ogni salvataggio del progetto (`versione`), non a ogni tasto: ogni giro chiede a Google le viste
  * satellitari. Un giro alla volta, e fermo quando la colonna non si vede.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,6 +73,10 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
     void giro();
   }, [attivo, chiave, giro]);
 
+  // Nell'iframe si usano i comandi dell'app: la barra del documento autonomo
+  // sarebbe minuscola su telefono e non può stampare dentro questo sandbox.
+  const documento = useMemo(() => html?.replace(/<\/head>/i,
+    '<style>@media screen{.pdf-action-bar{display:none!important}}</style></head>'), [html]);
   const scala = fit.scala;
   return (
     <div className="flex h-[68dvh] min-h-[260px] flex-col rounded-md border border-slate-200 bg-slate-100 xl:h-[calc(100dvh-11rem)] xl:min-h-[420px]">
@@ -108,7 +112,7 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
           <div style={{ width: LARGHEZZA_A4_PX * scala, height: "100%", overflow: "hidden" }}>
             <div style={{ width: LARGHEZZA_A4_PX, height: `${100 / scala}%`, transform: `scale(${scala})`, transformOrigin: "top left" }}>
               <iframe
-                srcDoc={html}
+                srcDoc={documento}
                 onLoad={e => mappe.carica(e.currentTarget.contentDocument)}
                 sandbox="allow-same-origin"
                 title="Il documento vero del preventivo fotovoltaico"

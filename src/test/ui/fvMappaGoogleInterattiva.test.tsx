@@ -182,6 +182,44 @@ describe("mappa nativa del tetto", () => {
     expect(map.unbindAll).toHaveBeenCalledOnce();
     expect(mocks.auth).toHaveBeenCalledOnce();
   });
+  it("attende la mappa visibile prima di caricare Google e avviare il timeout", async () => {
+    vi.useFakeTimers();
+    let mostra!: () => void;
+    const scollega = vi.fn();
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) {
+        mostra = () => callback([{ isIntersecting: true } as IntersectionObserverEntry], { disconnect: scollega } as unknown as IntersectionObserver);
+      }
+      observe() {}
+      disconnect = scollega;
+    });
+    const p = props();
+    render(<MappaGoogleFv {...p} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(mocks.carica).not.toHaveBeenCalled();
+    expect(p.onStato).toHaveBeenLastCalledWith({ caricando: true, pronto: false, errore: "" });
+    await act(async () => { mostra(); await vi.advanceTimersByTimeAsync(1); });
+    expect(mocks.carica).toHaveBeenCalledOnce();
+    act(() => (mocks.istanze[0].callbacks as Record<string, () => void>).tilesloaded());
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(p.onStato).toHaveBeenLastCalledWith({ caricando: false, pronto: true, errore: "" });
+  });
+  it("non avvia Google se si lascia la fase prima di vedere la mappa", async () => {
+    let mostra!: () => void;
+    const scollega = vi.fn();
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) {
+        mostra = () => callback([{ isIntersecting: true } as IntersectionObserverEntry], { disconnect: scollega } as unknown as IntersectionObserver);
+      }
+      observe() {}
+      disconnect = scollega;
+    });
+    const r = render(<MappaGoogleFv {...props()} />);
+    r.unmount();
+    await act(async () => { mostra(); await Promise.resolve(); });
+    expect(scollega).toHaveBeenCalledOnce();
+    expect(mocks.carica).not.toHaveBeenCalled();
+  });
   it("non lascia caricamento infinito quando le immagini non arrivano", async () => {
     vi.useFakeTimers();
     const p = props();
