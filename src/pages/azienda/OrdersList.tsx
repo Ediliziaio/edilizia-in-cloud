@@ -16,7 +16,7 @@ import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABEL
 import { leggiEconomiaCommesse, COLONNE_MARGINI_COMMESSE } from "@/lib/economiaCommesse";
 import "./OrdersList/orders-list.css";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { SelettoreSezione } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, PannelloFiltri, SelettoreSezione } from "@/components/mobile/FiltriMobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
 import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, usaGenerali, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
 import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreHorizontal, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -67,7 +67,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { usePipelineLocali } from "@/lib/orders/pipelineLocali";
 import { mostraPipelinePrincipale, pipelineOperativa } from "@/lib/orders/pipelinePrincipale";
 import { PipelineCommesseBoard } from "@/components/orders/PipelineCommesseBoard";
-import { OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
+import { FiltriCommesseCompatti, OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { commessaDaRiga } from "@/lib/orders/importaCommesse";
@@ -153,6 +153,8 @@ function OrdersListInner() {
   // un link condiviso ?view=pipeline (o il localStorage del desktop) lasciava il
   // telefono inchiodato sulla pipeline senza via d'uscita → forziamo la tabella.
   const isMobile = useIsMobile();
+  const vistaCompatta = useIsMobile(1024);
+  const telefonoStretto = useIsMobile(640);
   const [tabellaSuTablet, setTabellaSuTablet] = useState(false);
   // Da telefono una generale si legge soltanto (piano §3.4): la scelta non si offre.
   const modelliCreabili = isMobile ? [] : modelliGenerali;
@@ -217,6 +219,9 @@ function OrdersListInner() {
   const [importOpen, setImportOpen] = useState(false);
   const [customerSheetsOpen, setCustomerSheetsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [filtriCompattiAperti, setFiltriCompattiAperti] = useState(false);
+  const [riepilogoCompattoAperto, setRiepilogoCompattoAperto] = useState(false);
+  const riepilogoVisibile = !vistaCompatta || riepilogoCompattoAperto;
   // Visibile al primo accesso; conserva la scelta esplicita di nasconderlo.
   const [analisiAperta, setAnalisiAperta] = useState(() => {
     try { return localStorage.getItem("orders-analisi-aperta") !== "0"; } catch { return true; }
@@ -517,7 +522,7 @@ function OrdersListInner() {
   const comparisonEnabled = compareChart && !!comparisonPeriod;
   const {data: previousChartOrders = [], isPending: comparisonPending, isError: comparisonError, refetch: retryComparison} = useQuery({
     queryKey: ["orders-monthly-sales-chart", "comparison-v1", effectiveCompany?.id, comparisonPeriod?.previousFrom.toISOString(), comparisonPeriod?.previousTo.toISOString()],
-    enabled: !!effectiveCompany?.id && elencoInizializzato && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts && comparisonEnabled,
+    enabled: !!effectiveCompany?.id && elencoInizializzato && riepilogoVisibile && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts && comparisonEnabled,
     queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       if (!effectiveCompany?.id || !comparisonPeriod) return [];
       const query = supabase.from("orders").select(`
@@ -938,10 +943,13 @@ function OrdersListInner() {
     warehouseDateRange.from || warehouseDateRange.to ||
     expectedDateRange.from || expectedDateRange.to;
 
-  const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
-    paymentFilter !== "all" || generaliFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
-    salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
-    controlFocus !== "all" || (isYearCorrente && scopeGroup !== "all") || hideCompleted || countActiveFilters(sidebarFilters) > 0);
+  const nAltriFiltri = [
+    hasDateFilters, paymentFilter !== "all", generaliFilter !== "all", monthFilter !== "all",
+    customerFilter !== "all", supplierFilter !== "all", salespersonFilter !== "all", laborFilter !== "all",
+    amountMin || amountMax, controlFocus !== "all", isYearCorrente && scopeGroup !== "all", hideCompleted,
+  ].filter(Boolean).length + countActiveFilters(sidebarFilters);
+  const nFiltriCompatti = nAltriFiltri + Number(statusFilter !== "all") + Number(yearFilter !== "corrente");
+  const hasAnyFilter = !!searchQuery || nFiltriCompatti > 0;
 
   // 2026-05-27 (perfezione iter 11): dropdown clienti server-side.
   // PRIMA: uniqueCustomers derivato da `orders` (= 20 righe pagina corrente).
@@ -1594,28 +1602,17 @@ function OrdersListInner() {
         onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo}
         gruppi={{ appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita") }} />}
       {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
-      {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
-          alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
-          Commessa» andava a capo e la testata occupava due righe). Si va a capo
-          solo quando lo spazio non basta: conta la larghezza della pagina, non
-          dello schermo, perché la barra laterale aperta se ne prende un pezzo. */}
-      {/* Mobile: senza riquadro né icona, titolo e «Nuovo» su una riga. I
-          filtri stanno accanto alla ricerca; il menu ⋮ offriva solo
-          «Importa», che da telefono non serve. */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
-        <div className="flex items-center gap-2.5 min-w-[8rem] flex-1">
-          <div className="hidden h-8 w-8 sm:flex sm:h-9 sm:w-9 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-lg:gap-2 max-lg:rounded-none max-lg:border-0 max-lg:bg-none max-lg:p-0 max-lg:shadow-none">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className="hidden h-9 w-9 lg:flex rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
             <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
-            <p className="hidden sm:block text-xs text-slate-500 truncate">
-              Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
-            </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
-          {canDeleteOrders && <Button variant="outline" size="sm" className="max-md:hidden" onClick={()=>setTrashOpen(true)}>Cestino</Button>}
+        <div className="flex shrink-0 items-center gap-1.5 lg:flex-wrap lg:justify-end">
+          {canDeleteOrders && <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setTrashOpen(true)}>Cestino</Button>}
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
               filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
@@ -1624,7 +1621,7 @@ function OrdersListInner() {
             size="sm"
             onClick={() => setSidebarOpen(true)}
             aria-label="Apri filtri avanzati"
-            className="h-8 px-2.5 text-xs max-sm:hidden"
+            className="h-8 px-2.5 text-xs max-lg:hidden"
           >
             <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Filtri</span>
@@ -1639,7 +1636,7 @@ function OrdersListInner() {
             type="single"
             value={viewMode}
             onValueChange={(value) => value && setViewMode(value as "table" | "pipeline")}
-            className="hidden md:flex border rounded-md"
+            className="hidden rounded-md border lg:flex"
           >
             <ToggleGroupItem value="table" aria-label="Vista tabella" className="h-8 px-2.5">
               <LayoutList className="h-3.5 w-3.5" />
@@ -1648,41 +1645,55 @@ function OrdersListInner() {
               <Columns3 className="h-3.5 w-3.5" />
             </ToggleGroupItem>
           </ToggleGroup>
-          {/* Esportazioni: nascoste su mobile (download file poco pratici da telefono/app). */}
-          {!isMobile && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Altre azioni">
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            {/* Esporta sta qui dentro: era un bottone a sé, e «schede clienti»
-                c'era in tutti e due i menu. */}
-            <DropdownMenuContent align="end" className="w-60">
-              {!isCommercialistaMode && (
-                <>
-                  <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                    <Upload className="h-4 w-4 mr-2" /> Importa commesse
-                  </DropdownMenuItem>
+          {(!isMobile || !telefonoStretto || canDeleteOrders) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="size-11 lg:size-8" aria-label="Altre azioni commesse">
+                  <MoreHorizontal aria-hidden="true" className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60 max-lg:[&_[role=menuitem]]:min-h-11">
+                {!isMobile && <>
+                  {!isCommercialistaMode && (
+                    <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                      <Upload className="mr-2 size-4" /> Importa commesse
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuLabel className="text-[11px]">Esporta le commesse filtrate</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportOrdersCSV}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportOrdersXLSX}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportOrdersPDF}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
-                <UsersIcon className="h-4 w-4 mr-2" /> PDF schede clienti
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <DropdownMenuLabel>Esporta commesse filtrate</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={exportOrdersCSV}>
+                    <FileText className="mr-2 size-4" /> CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={exportOrdersXLSX}>
+                    <FileSpreadsheet className="mr-2 size-4" /> Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={exportOrdersPDF}>
+                    <FileText className="mr-2 size-4" /> PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={openCustomerSheetsDialog}>
+                    <UsersIcon className="mr-2 size-4" /> PDF schede clienti
+                  </DropdownMenuItem>
+                </>}
+                {vistaCompatta && <>
+                  {!isMobile && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setViewMode(viewMode === "table" ? "pipeline" : "table")}>
+                        <Columns3 className="mr-2 size-4" /> {viewMode === "table" ? "Vista pipeline" : "Vista elenco"}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {viewMode === "table" && (
+                    <DropdownMenuItem className="hidden sm:flex" onSelect={() => setTabellaSuTablet(v => !v)}>
+                      <Columns className="mr-2 size-4" /> {tabellaSuTablet ? "Mostra elenco compatto" : "Mostra colonne"}
+                    </DropdownMenuItem>
+                  )}
+                  {canDeleteOrders && (
+                    <DropdownMenuItem onSelect={() => setTrashOpen(true)}>Cestino</DropdownMenuItem>
+                  )}
+                </>}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {isCommercialistaMode ? (
             <Button variant="outline" size="sm" disabled className="h-8 px-2.5 text-xs border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-100">
@@ -1697,32 +1708,32 @@ function OrdersListInner() {
               disabled
               title={!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}
               aria-label={`Nuova Commessa — ${!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}`}
-              className="h-8 px-3 text-xs font-semibold"
+              className="h-8 px-3 text-xs font-semibold max-lg:min-h-11"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">Nuova Commessa</span>
-              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden lg:inline">Nuova Commessa</span>
+              <span className="lg:hidden">Nuova</span>
             </Button>
           ) : conBivio ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
               size="sm"
-              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
+              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
-              <span className="hidden sm:inline">Nuova Commessa</span>
-              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden lg:inline">Nuova Commessa</span>
+              <span className="lg:hidden">Nuova</span>
             </Button>
           ) : (
             <Button
               asChild
               size="sm"
-              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
+              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-lg:min-h-11"
             >
               <Link to="/azienda/ordini/nuovo">
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden sm:inline">Nuova Commessa</span>
-                <span className="sm:hidden">Nuovo</span>
+                <span className="hidden lg:inline">Nuova Commessa</span>
+                <span className="lg:hidden">Nuova</span>
               </Link>
             </Button>
           )}
@@ -1740,8 +1751,38 @@ function OrdersListInner() {
         />
       )}
 
-      <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
-        <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
+      <CercaConFiltri
+        className="lg:hidden" valore={searchQuery} onCambia={setSearchQuery}
+        segnaposto="Cerca commesse" filtriAttivi={nFiltriCompatti}
+        onApriFiltri={() => setFiltriCompattiAperti(true)}
+      />
+      <PannelloFiltri aperto={filtriCompattiAperti} onAperto={setFiltriCompattiAperti}
+        attivi={nFiltriCompatti + Number(!!searchQuery)} onAzzera={clearAllFilters}
+        risultati={conteggioFiltri ?? undefined}>
+        <FiltriCommesseCompatti
+          statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} statuses={statuses}
+          yearFilter={yearFilter} onYearFilterChange={handleYearChange} availableYears={availableYears}
+          paymentFilter={paymentFilter} onPaymentFilterChange={setPaymentFilter}
+          monthFilter={monthFilter} onMonthFilterChange={handleMonthChange}
+          generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
+          onGeneraliFilterChange={setGeneraliFilter}
+          hideCompleted={hideCompleted && statusFilter === "all"}
+          onHideCompletedChange={value => { setHideCompleted(value); if (value) setStatusFilter("all"); }}
+          altriAttivi={nAltriFiltri}
+          onAvanzati={() => { setFiltriCompattiAperti(false); setSidebarOpen(true); }}
+        />
+      </PannelloFiltri>
+
+      <div className="lg:hidden">
+        <Button type="button" variant="ghost" className="min-h-11 w-full justify-between rounded-lg border px-3 text-sm"
+          aria-expanded={riepilogoCompattoAperto} aria-controls="riepilogo-commesse"
+          onClick={() => setRiepilogoCompattoAperto(v => !v)}>
+          Riepilogo
+          <ChevronDown aria-hidden="true" className={`size-4 text-muted-foreground ${riepilogoCompattoAperto ? "rotate-180" : ""}`} />
+        </Button>
+      </div>
+      <section id="riepilogo-commesse" hidden={!riepilogoVisibile} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {riepilogoVisibile && <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
           <div className="flex flex-col bg-eic-navy-deep px-3 py-2 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3 max-md:hidden">
               <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3">
@@ -1807,8 +1848,7 @@ function OrdersListInner() {
               onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} /></Suspense>}
           </aside>
           )}
-        </div>
-
+        </div>}
       </section>
 
       <OrdersFilterSidebar
@@ -1836,8 +1876,8 @@ function OrdersListInner() {
         onExpectedDateRangeChange={setExpectedDateRange}
       />
 
-      <div className="order-3 space-y-2 sm:order-none">
-          {barraBacheca ? null : filtriCommesse}
+      <div className="space-y-2">
+          {!barraBacheca && <div className="max-lg:hidden">{filtriCommesse}</div>}
 
           {viewMode === "pipeline" && pipelineRefreshError && !archivioTabella.errore && (
             <div role="alert" className="text-sm text-amber-800">
@@ -1932,7 +1972,7 @@ function OrdersListInner() {
             </Card>
           ) : viewMode === "pipeline" && archivioTabella.errore ? (<div role="alert">{archivioTabella.errore} <Button variant="outline" onClick={() => void archivioTabella.riprova()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
             <PipelineCommesseBoard azienda={effectiveCompany?.id ?? ""} key={effectiveCompany?.id}
-              filtri={<><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />Filtri{hasAnyFilter ? " attivi" : ""}</Button></PopoverTrigger>
+              filtri={vistaCompatta ? undefined : <><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />Filtri{hasAnyFilter ? " attivi" : ""}</Button></PopoverTrigger>
                 <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">Filtri commesse</h3>{filtriCommesse}</PopoverContent></Popover></>}
               orders={allOrdersForPipeline}
               statuses={statuses}
@@ -1941,11 +1981,6 @@ function OrdersListInner() {
             />
           ) : (
             <div className="space-y-4 max-sm:space-y-0">
-              <div className="hidden justify-end sm:flex lg:hidden">
-                <Button type="button" variant="outline" className="h-11" onClick={() => setTabellaSuTablet(v => !v)}>
-                  {tabellaSuTablet ? "Mostra elenco compatto" : "Mostra colonne"}
-                </Button>
-              </div>
               <OrdersTable
                 tabellaSuTablet={tabellaSuTablet}
                 mostraImporti={orderPerms.canViewOrderAmounts}

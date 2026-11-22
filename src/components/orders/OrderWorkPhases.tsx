@@ -81,7 +81,7 @@ import { useCalendarioCantiere, type CalendarioCantiere } from "@/hooks/useCalen
 import { avanzamentoFase, fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, GruppoFiltri, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 
 import {
   useOrderWorkPhases,
@@ -433,7 +433,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   }, [scheduleHealth]);
 
   const isMobile = useIsMobile();
-  const telefono = isMobile && view === "lavorazioni";
+  const telefono = useIsMobile(1024) && view === "lavorazioni";
   // Dal computer le fasi si gestiscono da una tabella sola, col popup di ogni fase (05/11/2026).
   // La stessa tabella anche da telefono (08/11/2026): un modello solo delle fasi.
   const modoFasi: "schede" | "tabella" = modo === "schede" ? "schede" : "tabella";
@@ -1275,13 +1275,13 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 risultati={visiblePhases.length}
                 titolo="Lavorazioni"
               >
-                <PilloleFiltro<WorkFilter>
-                  titolo="Mostra"
-                  valore={filter}
-                  onScegli={setFilter}
-                  scelte={([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const)
-                    .map(([value, label]) => ({ value, label, n: phases.filter((p) => matchesFilter(p, value)).length }))}
-                />
+                <GruppoFiltri>
+                  <SceltaFiltro<WorkFilter>
+                    titolo="Stato" valore={filter} onScegli={setFilter}
+                    scelte={([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const)
+                      .map(([value, label]) => ({ value, label }))}
+                  />
+                </GruppoFiltri>
               </PannelloFiltri>
             )}
             {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? "Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna." : "Nessuna lavorazione corrisponde ai filtri."}</p>}

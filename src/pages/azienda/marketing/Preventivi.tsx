@@ -29,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SelettoreSezione } from "@/components/mobile/FiltriMobile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -48,6 +49,8 @@ import {
   Inbox,
   Plus,
   Library,
+  MoreHorizontal,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -55,6 +58,7 @@ import {
   QuotePageHeader,
   type HubTab,
 } from "@/components/marketing/preventivi/ui/builderUI";
+import { PreventiviCestinoDialog } from "@/components/marketing/preventivi/PreventiviCestinoDialog";
 import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
@@ -105,6 +109,7 @@ export default function Preventivi() {
     });
   const [searchParams, setSearchParams] = useSearchParams();
   const [showNewQuote, setShowNewQuote] = useState(false);
+  const [cestinoOpen, setCestinoOpen] = useState(false);
   const [showAiQuote, setShowAiQuote] = useState(false);
   const localAiEnabled = consentiPreventivoConversazionale(companyId) && permissions.canEditPreventivi;
   const puoCreare = permissions.canEditPreventivi || permissions.canEditMarketingOpportunities;
@@ -203,6 +208,7 @@ export default function Preventivi() {
   // ─── Tab navigation config ───────────────────────────────────────────────
   // I moduli sono accessibili anche da telefono; l'analisi resta desktop.
   const isMobile = useIsMobile();
+  const vistaCompatta = useIsMobile(1024);
   const hubTabs: HubTab[] = [
     { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
     ...(canSeeApprovazioni
@@ -231,23 +237,27 @@ export default function Preventivi() {
   ];
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 max-sm:space-y-3 max-sm:pb-0">
-      {/* Telefono: con la sola lista la barra delle schede non serve. */}
-      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} className={hubTabs.length < 2 ? "max-md:hidden" : undefined} />
+    <div className="space-y-4 max-lg:space-y-3">
+      {hubTabs.length > 1 && (
+        <SelettoreSezione nome="Sezioni preventivi" valore={activeTab} onScegli={handleTabChange}
+          sezioni={hubTabs.map(({ key, label }) => ({ id: key, label: key === "approvazioni" && pendingApprovalsCount > 0 ? `${label} (${pendingApprovalsCount})` : label }))}
+          className="lg:hidden" />
+      )}
+      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} className="max-lg:hidden" />
 
       {activeTab === "lista" && (
         <>
-          <div className="flex items-center justify-between gap-2 md:hidden">
-            <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {(puoCreare || permissions.canViewSettingsPricing) && (
+          {vistaCompatta ? (
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
+              <div className="flex shrink-0 items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-11 gap-1.5 px-2.5" aria-label="Azioni preventivi">
-                      {puoCreare ? <><FileUp className="h-4 w-4" />Importa</> : <><Library className="h-4 w-4" />Modelli</>}
+                    <Button variant="outline" size="icon" className="size-11" aria-label="Azioni preventivi">
+                      <MoreHorizontal aria-hidden="true" className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64 [&_[role=menuitem]]:min-h-11">
+                  <DropdownMenuContent align="end" className="w-60 [&_[role=menuitem]]:min-h-11">
                     {localAiEnabled && (
                       <DropdownMenuItem onSelect={() => setShowAiQuote(true)}>
                         <Sparkles className="mr-2 h-4 w-4 text-orange-600" />Preventivo AI
@@ -255,96 +265,98 @@ export default function Preventivi() {
                     )}
                     {puoCreare && <>
                       <DropdownMenuItem onSelect={() => setShowComputoModal(true)}><FileUp className="mr-2 h-4 w-4" />Computo metrico</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setShowSmartImportModal(true)}><FileUp className="mr-2 h-4 w-4" />Documento</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setShowSmartImportModal(true)}><FileUp className="mr-2 h-4 w-4" />Importa documento</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setShowFotoModal(true)}><Sparkles className="mr-2 h-4 w-4" />Foto, schizzi o audio</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setShowSmartInbox(true)}><Inbox className="mr-2 h-4 w-4" />Importazioni recenti</DropdownMenuItem>
+                      <DropdownMenuSeparator />
                     </>}
-                    {permissions.canViewSettingsPricing && <>
-                      {puoCreare && <DropdownMenuSeparator />}
+                    {permissions.canViewSettingsPricing && (
                       <DropdownMenuItem onSelect={() => navigate("/azienda/impostazioni/template-preventivi")}>
                         <Library className="mr-2 h-4 w-4" />Modelli dei preventivi
                       </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onSelect={() => setCestinoOpen(true)}>
+                      <Trash2 className="mr-2 h-4 w-4" />Cestino
+                    </DropdownMenuItem>
+                    {listiniModuli.length > 0 && <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                      {renderListiniItems()}
                     </>}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
-              {puoCreare && (
-                <Button size="sm" className="h-11 px-3" onClick={() => setShowNewQuote(true)}>
-                  <Plus className="mr-1 h-4 w-4" />Nuovo
-                </Button>
-              )}
+                {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
+                  trigger={<Button size="sm" className="min-h-11 px-3"><Plus className="mr-1 h-4 w-4" />Nuovo</Button>} />}
+                {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} />}
+              </div>
             </div>
-          </div>
-          {/* Sotto i 1280 px (col menu laterale aperto) le azioni secondarie restano icone (col nome al passaggio del
-              mouse): con le scritte il titolo si riduceva a «Preve…». */}
-          {/* Senza sottotitolo: a 1024 si tagliava a metà («dal prim…») e diceva
-              cosa sono i preventivi a chi è nella pagina dei preventivi. */}
-          <QuotePageHeader
-            className="max-md:hidden"
-            title="Preventivi"
-            icon={<FileSignature className="h-5 w-5" />}
-            actions={
-              <>
-                {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" aria-label="Preventivo AI" title="Preventivo AI"><Sparkles className="h-4 w-4 xl:mr-2" /><span className="hidden xl:inline">Preventivo AI</span></Button>} />}
-                {/* "Crea da..." — entry points AI (smart import, computo, foto/audio). */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Crea preventivo da fonte" title="Crea da documento, computo, foto o audio">
-                      <Sparkles className="h-4 w-4 xl:mr-2" />
-                      <span className="hidden xl:inline">Crea da...</span>
-                      <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem
-                      onClick={() => setShowSmartImportModal(true)}
-                      className="font-semibold"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                      Documento intelligente
-                      <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowSmartInbox(true)}>
-                      <Inbox className="h-4 w-4 mr-2" />
-                      Inbox documenti AI
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
-                      <FileUp className="h-4 w-4 mr-2" />
-                      Computo metrico
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
-                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                      Foto, schizzi o audio (AI)
-                      <span className="ml-auto text-[10px] text-orange-600">Smart</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {listiniModuli.length > 0 && !isMobile && (
-                  <DropdownMenu>
+          ) : (
+            <QuotePageHeader
+              title="Preventivi"
+              icon={<FileSignature className="h-5 w-5" />}
+              actions={
+                <>
+                  {localAiEnabled && <NewQuoteDialog ai open={showAiQuote} onOpenChange={setShowAiQuote} params={searchParams} trigger={<Button variant="outline" size="sm" aria-label="Preventivo AI" title="Preventivo AI"><Sparkles className="h-4 w-4 xl:mr-2" /><span className="hidden xl:inline">Preventivo AI</span></Button>} />}
+                  {puoCreare && <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni" title="Listini lavorazioni">
-                        <Library className="h-4 w-4 xl:mr-2" />
-                        <span className="hidden xl:inline">Listini</span>
+                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Crea preventivo da fonte" title="Crea da documento, computo, foto o audio">
+                        <Sparkles className="h-4 w-4 xl:mr-2" />
+                        <span className="hidden xl:inline">Crea da...</span>
                         <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64">
-                      <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onClick={() => setShowSmartImportModal(true)}
+                        className="font-semibold"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                        Documento intelligente
+                        <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowSmartInbox(true)}>
+                        <Inbox className="h-4 w-4 mr-2" />
+                        Inbox documenti AI
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {renderListiniItems()}
+                      <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
+                        <FileUp className="h-4 w-4 mr-2" />
+                        Computo metrico
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
+                        <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                        Foto, schizzi o audio (AI)
+                        <span className="ml-auto text-[10px] text-orange-600">Smart</span>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
-                  trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />Nuovo preventivo</Button>} />}
-              </>
-            }
-          />
+                  </DropdownMenu>}
+
+                  {listiniModuli.length > 0 && !isMobile && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni" title="Listini lavorazioni">
+                          <Library className="h-4 w-4 xl:mr-2" />
+                          <span className="hidden xl:inline">Listini</span>
+                          <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {renderListiniItems()}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  {puoCreare && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
+                    trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />Nuovo preventivo</Button>} />}
+                </>
+              }
+            />
+          )}
 
           {/* I computi salvati sono righe dell'elenco (tipo «Computo»), tra le bozze: non più un riquadro in cima. */}
-          <UnifiedPreventiviList />
+          <UnifiedPreventiviList onApriCestino={() => setCestinoOpen(true)} />
+          {cestinoOpen && <PreventiviCestinoDialog open onOpenChange={setCestinoOpen} companyId={companyId ?? null} />}
         </>
       )}
 

@@ -9,7 +9,7 @@
  *   · kit da 10.000 € + 22%                → 12.200 €
  *   · totale già calcolato, 11.000 €       → 11.000 €
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -93,6 +93,19 @@ describe("elenco unificato: il totale del Fotovoltaico", () => {
     // totale già calcolato: com'era
     expect(riga("FV-2026-0003")).toMatch(/11\.000,00/);
   });
+});
+
+it("sul telefono filtra le bozze dal pannello e lascia l’ordinamento fra gli altri filtri", async () => {
+  finti.mobile = true;
+  apriElenco();
+  await screen.findByText("FV-2026-0003");
+  fireEvent.click(screen.getAllByRole("button", { name: "Filtri" })[0]);
+  const filtri = within(screen.getByRole("dialog", { name: "Filtri" }));
+  expect(filtri.getByText("Altri filtri").closest("details")).not.toHaveAttribute("open");
+  fireEvent.change(filtri.getByRole("combobox", { name: "Stato" }), { target: { value: "bozza" } });
+  fireEvent.click(filtri.getByRole("button", { name: "Mostra 2" }));
+  expect(screen.getByText("FV-2026-0001")).toBeVisible();
+  expect(screen.queryByText("FV-2026-0003")).not.toBeInTheDocument();
 });
 
 describe("caricamento dei grafici", () => {

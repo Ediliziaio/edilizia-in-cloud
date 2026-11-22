@@ -72,8 +72,7 @@ import {
   appartieneAllaVista, contaPerStato, eBozzaVuota, eDaSeguire, eInScadenza, etichettaEta, etichettaScadenza, giorniAllaScadenza, giorniDa,
   GIORNI_DA_SEGUIRE, GIORNI_IN_SCADENZA, vistaDaTesto, type VistaElenco,
 } from "@/lib/preventivi/elencoPreventivi";
-import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
-import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, DettaglioFiltri, GruppoFiltri, PannelloFiltri, RigaMobile, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
 import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
@@ -161,7 +160,7 @@ function formatDateSafe(s: string | null | undefined): string {
   return format(d, "d MMM yyyy", { locale: it });
 }
 
-export function UnifiedPreventiviList() {
+export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () => void } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile(1024);
   // Telefono: stato, tipo e ordine in un pannello dal basso (erano una barra
@@ -234,7 +233,6 @@ export function UnifiedPreventiviList() {
   };
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
-  const [cestinoOpen, setCestinoOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
 
@@ -1139,64 +1137,52 @@ export function UnifiedPreventiviList() {
         className="lg:hidden [&_input]:h-11 [&_input]:text-base [&_button]:h-11 [&_button]:w-11"
         valore={search}
         onCambia={setSearch}
-        segnaposto="Cerca numero, cliente, commerciale"
+        segnaposto="Cerca preventivi"
         filtriAttivi={filtriMobileAttivi}
         onApriFiltri={() => setFiltriMobileAperti(true)}
       />
-      {hasAnyFilter && (
-        <div className="flex min-h-8 items-center justify-between gap-2 text-xs text-muted-foreground lg:hidden">
-          <span role="status">{filtered.length} {filtered.length === 1 ? "risultato" : "risultati"}</span>
-          <Button type="button" variant="ghost" size="sm" className="tap-compact h-8 px-2 text-xs" onClick={reset}>Azzera filtri</Button>
-        </div>
-      )}
       <PannelloFiltri
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
-        attivi={filtriMobileAttivi}
-        onAzzera={() => { setStatoTab("all"); setVista("tutte"); setFilters(DEFAULT_FILTERS); }}
-        risultati={filtered.length}
+        attivi={filtriMobileAttivi + Number(!!search)}
+        onAzzera={reset}
+        risultati={isLoading ? undefined : filtered.length}
       >
-        <PilloleFiltro
-          titolo="Stato"
-          valore={statoTab}
-          onScegli={(v: UnifiedStato | "all") => setStatoTab(v)}
-          scelte={[
-            { value: "all" as UnifiedStato | "all", label: "Tutti", n: tabCounts.all },
-            { value: "bozza", label: "Bozze", n: tabCounts.bozza },
-            { value: "in_corso", label: "In corso", n: tabCounts.in_corso },
-            { value: "vinto", label: "Vinte", n: tabCounts.vinto },
-            { value: "perso", label: "Perse", n: tabCounts.perso },
-            ...(tabCounts.altro > 0 ? [{ value: "altro" as UnifiedStato | "all", label: "Altre", n: tabCounts.altro }] : []),
-          ]}
-        />
-        <PilloleFiltro
-          titolo="Da fare"
-          valore={vista}
-          onScegli={(v) => setVista(vistaDaTesto(v))}
-          scelte={[
+        <GruppoFiltri>
+          <SceltaFiltro<UnifiedStato | "all"> titolo="Stato" valore={statoTab} onScegli={setStatoTab} scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "bozza", label: "Bozze" },
+            { value: "in_corso", label: "In corso" },
+            { value: "vinto", label: "Vinti" },
+            { value: "perso", label: "Persi" },
+            ...(tabCounts.altro > 0 || statoTab === "altro" ? [{ value: "altro" as const, label: "Altri" }] : []),
+          ]} />
+          <SceltaFiltro<VistaElenco> titolo="Da fare" valore={vista} onScegli={setVista} scelte={[
             { value: "tutte", label: "Tutti" },
-            { value: "da_seguire", label: `Da seguire (>${GIORNI_DA_SEGUIRE}gg)`, n: conteggiVista.da_seguire },
-            { value: "in_scadenza", label: "In scadenza", n: conteggiVista.in_scadenza },
-            { value: "bozze_vuote", label: "Bozze vuote", n: conteggiVista.bozze_vuote },
-          ]}
-        />
-        {tipiPresenti.length > 1 && (
-          <PilloleFiltro
-            titolo="Tipo"
-            valore={filters.tipi.length === 1 ? filters.tipi[0] : "tutti"}
-            onScegli={(v) => setFilters({ ...filters, tipi: v === "tutti" ? [] : [v as PreventivoTipo] })}
-            scelte={[
-              { value: "tutti", label: "Tutti" },
-              ...tipiPresenti.map((t) => ({ value: t as string, label: TIPO_LABEL[t].label })),
-            ]}
-          />
-        )}
-        <PilloleFiltro
-          titolo="Ordine"
-          valore={filters.sort}
-          onScegli={(v) => setFilters({ ...filters, sort: v })}
-          scelte={(Object.keys(SORT_LABEL) as UnifiedFilters["sort"][]).map((k) => ({ value: k, label: SORT_LABEL[k] }))}
-        />
+            { value: "da_seguire", label: "Da seguire" },
+            { value: "in_scadenza", label: "In scadenza" },
+            { value: "bozze_vuote", label: "Bozze vuote" },
+          ]} />
+          <DettaglioFiltri titolo="Altri filtri" riepilogo={advancedFiltersCount ? String(advancedFiltersCount) : undefined}>
+            {(tipiPresenti.length > 1 || filters.tipi.length > 0) && (
+              <SceltaFiltro titolo="Tipo" valore={filters.tipi.length > 1 ? "multipli" : filters.tipi[0] ?? "tutti"}
+                onScegli={v => {
+                  if (v !== "multipli") setFilters(f => ({ ...f, tipi: v === "tutti" ? [] : [v] }));
+                }}
+                scelte={[
+                  { value: "tutti", label: "Tutti" },
+                  ...(filters.tipi.length > 1 ? [{ value: "multipli" as const, label: `${filters.tipi.length} selezionati` }] : []),
+                  ...Array.from(new Set([...tipiPresenti, ...filters.tipi])).map(t => ({ value: t, label: TIPO_LABEL[t].label })),
+                ]} />
+            )}
+            <SceltaFiltro titolo="Ordine" valore={filters.sort} onScegli={v => setFilters(f => ({ ...f, sort: v }))}
+              scelte={(Object.keys(SORT_LABEL) as UnifiedFilters["sort"][]).map(value => ({ value, label: SORT_LABEL[value] }))} />
+            <button type="button" className="min-h-12 w-full px-3 text-left text-sm font-medium text-primary hover:bg-muted/40"
+              onClick={() => { setFiltriMobileAperti(false); setFiltersOpen(true); }}>
+              Filtri avanzati
+            </button>
+          </DettaglioFiltri>
+        </GruppoFiltri>
       </PannelloFiltri>
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
@@ -1233,10 +1219,10 @@ export function UnifiedPreventiviList() {
             <span className="hidden sm:inline">Excel</span>
           </Button>
           )}
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={() => setCestinoOpen(true)} aria-label="Cestino">
+          {onApriCestino && <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5 sm:px-3" onClick={onApriCestino} aria-label="Cestino">
             <Trash2 className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Cestino</span>
-          </Button>
+          </Button>}
           {hasAnyFilter && (
             <Button variant="ghost" size="sm" onClick={reset} className="h-9 text-xs gap-1 px-2.5" aria-label="Azzera filtri">
               <X className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Azzera</span>
@@ -1370,7 +1356,7 @@ export function UnifiedPreventiviList() {
               <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-lg:hidden" />
               <p className="text-sm font-medium">Nessun risultato con i filtri attuali</p>
               <div className="flex gap-2 justify-center mt-3">
-                <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)} className="text-xs gap-1">
+                <Button variant="outline" size="sm" onClick={() => isMobile ? setFiltriMobileAperti(true) : setFiltersOpen(true)} className="text-xs gap-1">
                   <SlidersHorizontal className="h-3.5 w-3.5" /> Modifica filtri
                 </Button>
                 <Button variant="ghost" size="sm" onClick={reset} className="text-xs gap-1">
@@ -1387,7 +1373,6 @@ export function UnifiedPreventiviList() {
                 onDone={() => { sel.clear(); void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith('unified-prev') }); }}
                 puoModificare={canEditPreventivi}
               />
-      <PreventiviCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={companyId} />
               {/* A 1024 la tabella era larga 876px e scorreva di lato: fino a 1280
                   senza «Commerciale» e con celle più strette. */}
               <div className="hidden lg:block overflow-x-auto">
@@ -1546,16 +1531,26 @@ export function UnifiedPreventiviList() {
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
-                      sottotitolo={[r.numero === tipoCfg.label ? null : tipoCfg.label, senzaCliente ? null : r.numero,
-                        eInScadenza(r, adessoElenco) ? etichettaScadenza(r, adessoElenco) : formatDateSafe(r.data), r.titolo].filter(Boolean).join(" · ")}
+                      sottotitolo={[senzaCliente ? null : r.numero,
+                        eInScadenza(r, adessoElenco) ? etichettaScadenza(r, adessoElenco) : null,
+                        r.titolo && r.titolo !== r.cliente ? r.titolo : tipoCfg.label].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     /></div>
-                    {r.tipo === "ristrutturazione" && canEditPreventivi && <Button
-                      variant="ghost" size="icon" className="mr-2 h-11 w-11 shrink-0"
-                      aria-label={`Duplica preventivo ${r.numero}`} onClick={() => void duplica(r)}>
-                      <Copy className="h-4 w-4" />
-                    </Button>}
+                    {r.tipo === "ristrutturazione" && canEditPreventivi && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={`Azioni per ${r.numero}`}>
+                            <MoreHorizontal aria-hidden="true" className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="min-h-11" onSelect={() => void duplica(r)}>
+                            <Copy className="mr-2 size-4" /> Duplica preventivo
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                     </div>
                   );
                 })}
