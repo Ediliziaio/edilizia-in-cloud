@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 const stato=vi.hoisted(()=>({company:"c1"}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:stato.company}})}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:async()=>({data:[],error:null})};return q;}}}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:async()=>({data:[] as never[],error:null as null})};return q;}}}));
 it("etichetta i campi e apre una nuova bozza pulita dopo chiusura o cambio azienda",()=>{
   const client=new QueryClient(),confirm=vi.fn();
   const vista=(open:boolean)=><QueryClientProvider client={client}><NewScadenzaDialog open={open} onOpenChange={()=>{}} onConfirm={confirm} isPending={false}/></QueryClientProvider>;

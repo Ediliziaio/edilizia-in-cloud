@@ -6,13 +6,13 @@ import Inbox from "@/pages/admin/marketing/AdminWhatsappLocaleInbox";
 
 const db=vi.hoisted(()=>({read:false,richieste:[] as unknown[],aggiornamenti:[] as string[]}));
 vi.mock("@/hooks/usePushNotifications",()=>({usePushNotifications:()=>({supported:false,isSubscribed:false,isLoading:false})}));
-vi.mock("@/components/admin/whatsapp-locale/IdentitaThread",()=>({default:()=>null}));
-vi.mock("@/components/admin/whatsapp-locale/PannelloChat",()=>({default:()=>null}));
-vi.mock("@/components/admin/whatsapp-locale/RisposteRapide",()=>({default:()=>null}));
+vi.mock("@/components/admin/whatsapp-locale/IdentitaThread",()=>({default:():null=>null}));
+vi.mock("@/components/admin/whatsapp-locale/PannelloChat",()=>({default:():null=>null}));
+vi.mock("@/components/admin/whatsapp-locale/RisposteRapide",()=>({default:():null=>null}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{
   rpc:async (_name:string,p:{p_solo_non_letti?:boolean})=>{
     db.richieste.push(p);
-    return {data:db.read&&p.p_solo_non_letti?[]:[{wa_chat_id:"prova@c.us",contact_name:"Conversazione sintetica",contact_phone:"000",ultimo_at:"2026-11-22T10:00:00Z",ultimo_testo:"Messaggio locale",non_letti:db.read?0:1,totale:1,stato:"aperta"}],error:null};
+    return {data:db.read&&p.p_solo_non_letti?[]:[{wa_chat_id:"prova@c.us",contact_name:"Conversazione sintetica",contact_phone:"000",ultimo_at:"2026-11-22T10:00:00Z",ultimo_testo:"Messaggio locale",non_letti:db.read?0:1,totale:1,stato:"aperta"}],error:null as null};
   },
   from:(table:string)=>{
     let update=false;const filters=new Map<string,unknown>();
@@ -45,9 +45,9 @@ describe("selezione inbox senza riferimenti modificati durante il render",()=>{
   it("un collegamento diretto carica subito anche le chat chiuse e conserva la scelta sui filtri",async()=>{
     apri("/admin/marketing/whatsapp-locale?chat=prova%40c.us");
     await screen.findByRole("button",{name:/Conversazione sintetica/});
-    expect(db.richieste[0]).toMatchObject({p_stato:"tutte"});
+    expect(db.richieste[0] as Record<string,unknown>).toMatchObject({p_stato:"tutte"});
     fireEvent.click(screen.getByRole("button",{name:"Chiuse",exact:true}));
-    await waitFor(()=>expect(db.richieste.at(-1)).toMatchObject({p_stato:"chiusa"}));
+    await waitFor(()=>expect(db.richieste.at(-1) as Record<string,unknown>).toMatchObject({p_stato:"chiusa"}));
     expect(screen.getByRole("link",{name:"000"})).toHaveAttribute("href","tel:000");
   });
 });
