@@ -179,7 +179,7 @@ function HeroOfferta() {
 
 function DueDomande() {
   return (
-    <section className="bg-white px-5 pb-4 pt-20 sm:px-6 md:pt-28">
+    <section className="bg-white px-5 pb-4 pt-14 sm:px-6 md:pt-28">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Prima di tutto, due domande</p>
         <h2 className="mt-4 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-5xl">
@@ -202,7 +202,7 @@ function DueDomande() {
 
 function SilvioInCantiere() {
   return (
-    <section className="bg-[#f7f9fc] px-5 py-20 sm:px-6 md:py-28">
+    <section className="bg-[#f7f9fc] px-5 py-14 sm:px-6 md:py-28">
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-16">
         <div className="relative">
           <img
@@ -266,7 +266,7 @@ const STRUMENTI_SOSTITUITI: Array<{ voce: string; stima: string }> = [
 
 function CostoSostituito() {
   return (
-    <section className="bg-white px-5 py-20 sm:px-6 md:py-28">
+    <section className="bg-white px-5 py-14 sm:px-6 md:py-28">
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
         <div>
           <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Il conto che nessuno fa</p>
@@ -333,7 +333,7 @@ function Promo() {
     },
   ];
   return (
-    <section id="offerta" className="relative overflow-hidden px-5 py-20 sm:px-6 md:py-28" style={{ background: NERO }}>
+    <section id="offerta" className="relative overflow-hidden px-5 py-14 sm:px-6 md:py-28" style={{ background: NERO }}>
       <div className="absolute left-1/2 top-0 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-eic-orange/[0.12] blur-[120px]" />
       <div className="relative mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
@@ -347,7 +347,7 @@ function Promo() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:mt-12 md:gap-6 md:grid-cols-3">
           {punti.map(({ valore, etichetta, testo }) => (
             <div key={valore} className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 text-center">
               <p className="text-5xl font-extrabold tabular-nums text-eic-orange">{valore}</p>
@@ -390,7 +390,7 @@ const GARANZIE: Array<{ Icon: typeof Timer; titolo: string; testo: string; condi
 
 function Garanzie() {
   return (
-    <section className="bg-[#f7f9fc] px-5 py-20 sm:px-6 md:py-28">
+    <section className="bg-[#f7f9fc] px-5 py-14 sm:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Le garanzie</p>
@@ -401,7 +401,7 @@ function Garanzie() {
             Chi ha già provato un gestionale e l&apos;ha lasciato a metà sa perché servono.
           </p>
         </div>
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:mt-12 md:gap-5 md:grid-cols-3">
           {GARANZIE.map(({ Icon, titolo, testo, condizione }) => (
             <div key={titolo} className="flex flex-col rounded-3xl border border-gray-100 bg-white p-7 shadow-sm">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-eic-orange/10">
@@ -454,7 +454,7 @@ function ComeSiParte() {
     },
   ];
   return (
-    <section className="bg-white px-5 py-20 sm:px-6 md:py-28">
+    <section className="bg-white px-5 py-14 sm:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Come si parte</p>
@@ -462,7 +462,7 @@ function ComeSiParte() {
             Tre passi. Il lavoro pesante lo facciamo noi.
           </h2>
         </div>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:mt-12 md:gap-6 md:grid-cols-3">
           {passi.map(({ n, titolo, testo, Icon }) => (
             <div key={n} className="relative rounded-3xl border border-gray-100 bg-[#f7f9fc] p-7">
               <span className="absolute right-6 top-5 text-6xl font-extrabold text-eic-orange/15">{n}</span>
@@ -483,7 +483,7 @@ function ComeSiParte() {
 
 function Prenota({ onPrenotato }: { onPrenotato: (p: PrenotazioneFatta) => void }) {
   return (
-    <section id="prenota" className="scroll-mt-20 bg-[#f7f9fc] px-5 py-20 sm:px-6 md:py-28">
+    <section id="prenota" className="scroll-mt-20 bg-[#f7f9fc] px-5 py-14 sm:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Prenota adesso</p>
@@ -530,7 +530,7 @@ function Prenota({ onPrenotato }: { onPrenotato: (p: PrenotazioneFatta) => void 
 
 function Domande() {
   return (
-    <section className="bg-white px-5 py-20 sm:px-6 md:py-28">
+    <section className="bg-white px-5 py-14 sm:px-6 md:py-28">
       <div className="mx-auto max-w-3xl">
         <h2 className="text-center text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-4xl">
           Le domande che ci fanno tutti
@@ -555,7 +555,7 @@ function Domande() {
 
 function Chiusura() {
   return (
-    <section className="relative overflow-hidden px-5 py-20 text-center sm:px-6 md:py-28" style={{ background: NERO }}>
+    <section className="relative overflow-hidden px-5 py-14 text-center sm:px-6 md:py-28" style={{ background: NERO }}>
       <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-eic-orange/[0.14] blur-[120px]" />
       <HeroRete />
       <div className="relative mx-auto max-w-3xl">

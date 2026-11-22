@@ -80,7 +80,7 @@ export default function FinalCtaSection() {
           <span className="text-eic-orange">VERI della tua azienda?</span>
         </h2>
         <p
-          className={`text-gray-600 text-lg md:text-xl mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
+          className={`text-gray-600 text-base sm:text-lg md:text-xl mb-6 sm:mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -91,7 +91,7 @@ export default function FinalCtaSection() {
             Un timer "scadenza trial" uguale per tutti è trasparentemente finto
             e mina la fiducia proprio nel punto di massima intenzione. */}
         <div
-          className={`inline-flex items-center gap-3 mb-10 px-5 py-3 rounded-xl bg-eic-orange/10 border border-eic-orange/25 transition-all duration-700 delay-200 ${
+          className={`inline-flex items-center gap-3 mb-6 sm:mb-10 px-4 sm:px-5 py-3 rounded-xl bg-eic-orange/10 border border-eic-orange/25 transition-all duration-700 delay-200 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
@@ -103,12 +103,12 @@ export default function FinalCtaSection() {
 
         {/* Central box */}
         <div
-          className={`border border-eic-orange/40 rounded-2xl md:rounded-3xl p-6 md:p-12 bg-orange-50/60 shadow-sm max-w-3xl mx-auto transition-all duration-700 delay-300 ${
+          className={`border border-eic-orange/40 rounded-2xl md:rounded-3xl p-5 md:p-12 bg-orange-50/60 shadow-sm max-w-3xl mx-auto transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           }`}
         >
           {/* Icon */}
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-3 sm:mb-6">
             <img
               src="/images/silvio/silvio-ciao.png"
               alt="Silvio, la regia AI di Edilizia in Cloud, che saluta"
@@ -116,17 +116,17 @@ export default function FinalCtaSection() {
               height={160}
               loading="lazy"
               decoding="async"
-              className="animate-float h-32 w-32 object-contain md:h-40 md:w-40"
+              className="animate-float h-24 w-24 object-contain sm:h-32 sm:w-32 md:h-40 md:w-40"
             />
           </div>
 
-          <p className="text-gray-600 text-base mb-8 font-medium">
+          <p className="text-gray-600 text-sm sm:text-base mb-5 sm:mb-8 font-medium">
             Demo gratuita di 30 minuti + prova di 31 giorni senza carta. Avvio assistito. Nessun impegno.
           </p>
 
           {/* Buttons: primario = modal, secondario = telefono (per il titolare
               edile la chiamata è il canale a minor attrito — niente form). */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-6 sm:mb-10">
             <button
               type="button"
               onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
@@ -145,7 +145,7 @@ export default function FinalCtaSection() {
           </div>
 
           {/* Micro-promises */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 text-gray-600 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-5 text-gray-600 text-xs sm:text-sm">
             <span className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-eic-orange" />
               Dati al sicuro
@@ -165,7 +165,7 @@ export default function FinalCtaSection() {
 
         {/* PS notes */}
         <div
-          className={`mt-14 space-y-5 text-left max-w-xl mx-auto transition-all duration-700 delay-500 ${
+          className={`mt-8 sm:mt-14 space-y-4 sm:space-y-5 text-left max-w-xl mx-auto transition-all duration-700 delay-500 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >

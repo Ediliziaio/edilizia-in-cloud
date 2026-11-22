@@ -516,7 +516,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 2. PIANI ────────────────────────────────────────────────────────── */}
-      <section id="piani" className="scroll-mt-20 py-16 px-4 bg-[#f7f9fc]">
+      <section id="piani" className="scroll-mt-20 py-12 sm:py-16 px-4 bg-[#f7f9fc]">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 max-w-3xl">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Scegli il piano</p>
@@ -727,7 +727,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 3. INCLUSO IN TUTTI I PIANI ─────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-white">
+      <section className="py-12 sm:py-16 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Incluso ovunque</p>
@@ -735,7 +735,7 @@ export default function Prezzi() {
               Cosa è incluso in <span className="text-eic-orange">tutti i piani</span>
             </h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="scorri-mobile scorri-pad-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[
               { icon: <Shield className="w-6 h-6 text-eic-orange" />, title: "Dati al sicuro", desc: "Cifratura, backup giornalieri automatici, conforme GDPR" },
               { icon: <Zap className="w-6 h-6 text-eic-orange" />, title: "Setup incluso", desc: "Configurazione assistita, con tempi concordati dopo la verifica dei dati" },
@@ -759,7 +759,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 4. CALCOLATORE ROI ───────────────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-[#f7f9fc]">
+      <section className="py-12 sm:py-16 px-4 bg-[#f7f9fc]">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Calcolatore</p>
@@ -863,7 +863,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 5. TABELLA COMPARATIVA ──────────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-white">
+      <section className="py-12 sm:py-16 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Dettagli</p>
@@ -947,7 +947,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 6. FAQ ──────────────────────────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-white border-t border-gray-100">
+      <section className="py-12 sm:py-16 px-4 bg-white border-t border-gray-100">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Hai dubbi?</p>
@@ -984,7 +984,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 7. TESTIMONIANZE ────────────────────────────────────────────────── */}
-      <section className="py-16 px-4" style={{ background: "#111111" }}>
+      <section className="py-12 sm:py-16 px-4" style={{ background: "#111111" }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-xs font-bold uppercase tracking-widest text-eic-orange mb-2">Risultati reali</p>
@@ -992,7 +992,7 @@ export default function Prezzi() {
               Chi ha già scelto di investire
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="scorri-mobile scorri-pad-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <TestimonialCard
               quote="Pagavamo un ERP costoso che non capiva il cantiere. Con Edilizia in Cloud spendiamo una frazione e finalmente sappiamo quanto guadagniamo su ogni commessa."
               name="Giuseppe Conti"

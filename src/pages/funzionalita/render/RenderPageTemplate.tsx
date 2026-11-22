@@ -885,7 +885,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* SPEED STATS */}
-        <section aria-labelledby="speed-title" className="bg-[#fff7ed] px-6 py-16">
+        <section aria-labelledby="speed-title" className="bg-[#fff7ed] px-6 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -964,7 +964,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <p className="mt-4 text-lg leading-8 text-slate-600">{config.familySubheadline}</p>
             </div>
 
-            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {config.familyItems.map((m) => (
                 <div
                   key={m.title}
@@ -1030,7 +1030,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <p className="mt-4 text-lg leading-8 text-slate-600">{config.painSubheadline}</p>
             </div>
 
-            <div className="mt-10 grid gap-5 md:grid-cols-3">
+            <div className="scorri-mobile mt-10 grid gap-5 md:grid-cols-3">
               {config.painPoints.map((item) => (
                 <div
                   key={item.title}
@@ -1060,7 +1060,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <p className="mt-4 text-lg leading-8 text-slate-600">{config.baSubheadline}</p>
             </div>
 
-            <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <div className="scorri-mobile mt-10 grid gap-5 md:grid-cols-2">
               {config.baAreas.map((area) => (
                 <div
                   key={area.title}
@@ -1105,7 +1105,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 className="absolute left-0 right-0 top-6 hidden h-0.5 bg-gradient-to-r from-orange-200 via-orange-400 to-orange-200 md:block"
                 aria-hidden="true"
               />
-              <div className="grid gap-8 md:grid-cols-3">
+              <div className="scorri-mobile grid gap-8 md:grid-cols-3">
                 {config.mechanismSteps.map((step, index) => (
                   <div key={step.title} id={`step-${index + 1}`} className="relative">
                     <div className="relative z-10 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-eic-orange text-white shadow-lg shadow-orange-200">
@@ -1149,7 +1149,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 </h2>
                 <p className="mt-5 text-lg leading-8 text-slate-300">{config.commercialBody}</p>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="scorri-mobile grid gap-4 sm:grid-cols-2">
                 {config.commercialLevers.map((item) => (
                   <div
                     key={item.title}
@@ -1181,7 +1181,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
 
             <div className="mt-12 grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
               <DashboardMock />
-              <div className="space-y-5">
+              <div className="scorri-mobile space-y-5">
                 {config.integrationPillars.map((p) => (
                   <div
                     key={p.title}
@@ -1272,7 +1272,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 </h2>
                 <p className="mt-5 text-lg leading-8 text-slate-600">{config.salesBody}</p>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="scorri-mobile grid gap-4 sm:grid-cols-2">
                 {config.salesImpact.map((item) => (
                   <div
                     key={item.title}
@@ -1331,7 +1331,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   {config.scenarioH2}
                 </h2>
               </div>
-              <div className="grid gap-4">
+              <div className="scorri-mobile grid gap-4">
                 {config.scenarios.map((item) => (
                   <div
                     key={item.title}
@@ -1374,7 +1374,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* INTERNAL LINKS */}
-        <section aria-labelledby="approfondisci-title" className="bg-[#f8fafc] px-6 py-16">
+        <section aria-labelledby="approfondisci-title" className="bg-[#f8fafc] px-6 py-12 sm:py-16">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -1391,7 +1391,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
 
             <nav
               aria-label="Pagine correlate"
-              className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+              className="scorri-mobile mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
             >
               {config.internalLinks.map((link) => {
                 if (link.to === "/demo") {

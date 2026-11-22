@@ -155,7 +155,7 @@ export default function AISystemShowcaseSection() {
   const sectionRef = useGsapSection();
 
   return (
-    <section ref={sectionRef} className="relative overflow-hidden bg-[#f8fafc] py-14 pb-28 md:py-28">
+    <section ref={sectionRef} className="relative overflow-hidden bg-[#f8fafc] py-12 pb-16 md:py-28">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-eic-orange to-transparent" />
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div data-ai-reveal className="mx-auto max-w-3xl text-center">
@@ -163,7 +163,7 @@ export default function AISystemShowcaseSection() {
             <Sparkles className="h-3.5 w-3.5" />
             Il sistema operativo AI dell'impresa edile
           </div>
-          <h2 className="mt-4 text-[1.9rem] font-black leading-[1.08] tracking-normal md:tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
+          <h2 className="mt-4 text-[1.7rem] font-black leading-[1.1] tracking-normal md:tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
             Non solo moduli. Una regia centrale che legge l'azienda e fa partire il lavoro.
           </h2>
           <p className="mt-5 hidden text-lg leading-8 text-gray-600 lg:block">
@@ -187,6 +187,8 @@ export default function AISystemShowcaseSection() {
           </div>
 
           <div className="space-y-3 md:space-y-4" data-ai-reveal>
+            {/* Su telefono le quattro schede stanno in una fila da scorrere. */}
+            <div className="scorri-mobile scorri-pad-4 space-y-3 md:space-y-4">
             {[
               { icon: Euro, title: "Margini e cassa", text: "Controlla incassi, prepara solleciti, segnala commesse sotto target e ti mostra quali costi stanno mangiando margine." },
               { icon: ClipboardList, title: "Cantieri e campo", text: "Genera rapportini, aggiorna il diario lavori, legge foto e note dal campo e ricorda alle squadre le attività aperte." },
@@ -205,6 +207,7 @@ export default function AISystemShowcaseSection() {
                 </div>
               </div>
             ))}
+            </div>
             <button
               type="button"
               onClick={openContactModal}
@@ -222,7 +225,7 @@ export default function AISystemShowcaseSection() {
           <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark md:text-sm md:tracking-[0.2em]">AI che produce lavoro</p>
-              <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
+              <h2 className="mt-3 text-[1.65rem] font-black leading-[1.1] sm:text-[2rem] sm:leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
                 Dal computo metrico al preventivo, dal cantiere al rapportino.
               </h2>
               <p className="mt-4 text-sm leading-7 text-gray-600 md:text-base md:leading-8">
@@ -253,11 +256,11 @@ export default function AISystemShowcaseSection() {
         <div data-ai-reveal className="mt-12 md:mt-16">
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark md:text-sm md:tracking-[0.2em]">Per problemi reali, non per menu software</p>
-            <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
+            <h2 className="mt-3 text-[1.65rem] font-black leading-[1.1] sm:text-[2rem] sm:leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
               L'imprenditore non cerca moduli. Cerca risposte.
             </h2>
           </div>
-          <div className="mt-8 grid gap-3 md:mt-10 md:grid-cols-2 md:gap-5 lg:grid-cols-4">
+          <div className="scorri-mobile scorri-pad-4 mt-8 grid gap-3 md:mt-10 md:grid-cols-2 md:gap-5 lg:grid-cols-4">
             {painFlows.map((flow) => (
               <div key={flow.problem} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-xl md:p-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-eic-orange/10 text-eic-orange-dark md:h-12 md:w-12">

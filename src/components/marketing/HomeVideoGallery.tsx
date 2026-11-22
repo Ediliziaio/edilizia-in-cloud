@@ -57,7 +57,7 @@ export default function HomeVideoGallery() {
           </div>
           <p>Organizzazione, margini e cassa: tre punti da cui partire, in circa due minuti ciascuno.</p>
         </div>
-        <div className="home-video-gallery__grid">
+        <div className="home-video-gallery__grid scorri-mobile scorri-pad-5">
           {videos.map((video) => {
             const active = activeId === video.id;
             return (

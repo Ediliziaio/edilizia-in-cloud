@@ -65,6 +65,8 @@ const ALL_MODULES: Module[] = [
 const CATEGORIES = ["Tutti", "Cantieri", "Finanziario", "Marketing", "HR", "AI"];
 
 const INITIAL_VISIBLE = 9;
+// Su telefono ne mostriamo meno: il resto si apre con «Mostra tutti».
+const INITIAL_VISIBLE_MOBILE = 5;
 
 const OPERATIVE_AREAS = [
   {
@@ -160,13 +162,14 @@ export default function ModulesSection() {
 
   const displayed = showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE);
   const hasMore = filtered.length > INITIAL_VISIBLE && !showAll;
+  const hasMoreMobile = filtered.length > INITIAL_VISIBLE_MOBILE && !showAll;
 
   return (
     <section id="moduli" className="py-14 sm:py-24 md:py-32 bg-white">
       <div ref={sectionRef} className="max-w-6xl mx-auto px-6">
         {/* Header */}
         <div
-          className={`text-center mb-12 transition-all duration-700 ${
+          className={`text-center mb-8 sm:mb-12 transition-all duration-700 ${
             sectionVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -175,13 +178,13 @@ export default function ModulesSection() {
             <br />
             <span className="text-eic-orange">Silvio tiene insieme cantieri, cassa, vendite, persone e documenti.</span>
           </h2>
-          <p className="text-gray-500 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-500 text-base sm:text-lg max-w-2xl mx-auto">
             Non devi imparare 26 strumenti diversi. Parti dall'area che ti fa perdere piu' margine oggi e il resto resta collegato alla stessa azienda.
           </p>
         </div>
 
         <div
-          className={`mb-10 grid gap-3 transition-all delay-100 duration-700 sm:grid-cols-2 lg:grid-cols-5 ${
+          className={`scorri-mobile mb-6 grid gap-3 transition-all sm:mb-10 delay-100 duration-700 sm:grid-cols-2 lg:grid-cols-5 ${
             sectionVisible ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
           }`}
         >
@@ -212,7 +215,7 @@ export default function ModulesSection() {
             sectionVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-10 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-6 sm:mb-10 scrollbar-none" style={{ scrollbarWidth: "none" }}>
             {CATEGORIES.map((cat) => {
               const isActive = activeTab === cat;
               const color = cat === "Tutti" ? "#F97415" : CATEGORY_COLORS[cat];
@@ -251,7 +254,7 @@ export default function ModulesSection() {
         </div>
 
         {/* Grid */}
-        <div className="grid gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+        <div className={`grid gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 ${showAll ? "" : "max-sm:[&>*:nth-child(n+6)]:hidden"}`}>
           {displayed.map((mod, i) => (
             <ModuleCard
               key={`${mod.category}-${mod.name}`}
@@ -263,13 +266,15 @@ export default function ModulesSection() {
         </div>
 
         {/* Show more button */}
-        {hasMore && (
-          <div className="text-center mt-10">
+        {(hasMore || hasMoreMobile) && (
+          <div className={`text-center mt-8 sm:mt-10 ${hasMore ? "" : "sm:hidden"}`}>
             <button
               onClick={() => setShowAll(true)}
               className="px-8 py-3 rounded-full border-2 border-[#B45309] text-[#B45309] font-semibold hover:bg-[#B45309] hover:text-white transition-all duration-200"
             >
-              Mostra tutti i moduli ({filtered.length - INITIAL_VISIBLE} altri)
+              Mostra tutti i moduli{" "}
+              <span className="sm:hidden">({filtered.length - INITIAL_VISIBLE_MOBILE} altri)</span>
+              <span className="hidden sm:inline">({filtered.length - INITIAL_VISIBLE} altri)</span>
             </button>
           </div>
         )}

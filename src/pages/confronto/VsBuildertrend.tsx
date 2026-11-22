@@ -326,9 +326,9 @@ export default function VsBuildertrend() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#111111]">
-                  <th className="text-left px-6 py-4 text-white/70 font-semibold w-2/5">Cosa serve</th>
-                  <th className="text-center px-6 py-4 text-eic-orange font-bold">Edilizia in Cloud</th>
-                  <th className="text-center px-6 py-4 text-white/70 font-semibold">Buildertrend</th>
+                  <th className="text-left px-3 py-3 sm:px-6 sm:py-4 text-white/70 font-semibold w-2/5">Cosa serve</th>
+                  <th className="text-center px-3 py-3 sm:px-6 sm:py-4 text-eic-orange font-bold">Edilizia in Cloud</th>
+                  <th className="text-center px-3 py-3 sm:px-6 sm:py-4 text-white/70 font-semibold">Buildertrend</th>
                 </tr>
               </thead>
               <tbody>
@@ -337,11 +337,11 @@ export default function VsBuildertrend() {
                     key={row.feature}
                     className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-[#f8f9fa]"}`}
                   >
-                    <td className="px-6 py-4 font-medium text-[#111111]">{row.feature}</td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium text-[#111111]">{row.feature}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-center">
                       <Cell type={row.eic.type} text={row.eic.text} highlight />
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-center">
                       <Cell type={row.competitor.type} text={row.competitor.text} />
                     </td>
                   </tr>
@@ -361,7 +361,7 @@ export default function VsBuildertrend() {
           <p className="text-center text-gray-500 mb-10 max-w-xl mx-auto">
             Un confronto serve se dice anche questo. Tutto quello che segue è dichiarato da Buildertrend.
           </p>
-          <div className="space-y-4">
+          <div className="scorri-mobile scorri-pad-4 space-y-4">
             {[
               {
                 t: "Dimensione",
@@ -479,7 +479,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── MIGRATION BOX ── */}
-      <section className="bg-[#f8f9fa] py-16 px-4">
+      <section className="bg-[#f8f9fa] py-12 sm:py-16 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="bg-eic-orange/10 border border-eic-orange/30 rounded-2xl p-8 text-center">
             <div className="text-3xl mb-4">📦</div>
@@ -516,7 +516,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── FONTI E DICHIARAZIONE DI PARTE ── */}
-      <section className="bg-white py-16 px-4">
+      <section className="bg-white py-12 sm:py-16 px-4">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
             Come abbiamo scritto questo confronto
@@ -567,7 +567,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── RELATED ── */}
-      <section className="bg-white py-16 px-4">
+      <section className="bg-white py-12 sm:py-16 px-4">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-xl font-extrabold text-center text-[#111111] mb-8">Le funzioni citate in questa pagina</h2>
           <div className="flex flex-wrap gap-4 justify-center">
@@ -585,7 +585,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── OLTRE AL SOFTWARE ── */}
-      <section className="bg-white py-16 px-4">
+      <section className="bg-white py-12 sm:py-16 px-4">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
             Il software è metà del lavoro
@@ -594,7 +594,7 @@ export default function VsBuildertrend() {
             Nessun gestionale, italiano o americano, raddrizza un'impresa che non sa leggere i propri numeri, non ha un
             metodo di vendita e aspetta che il telefono suoni. Il software organizza: i margini li fanno le competenze.
           </p>
-          <div className="space-y-4">
+          <div className="scorri-mobile scorri-pad-4 space-y-4">
             {[
               {
                 t: "Consulenti dedicati, formazione e webinar",
@@ -728,7 +728,7 @@ export default function VsBuildertrend() {
         <section className="py-14 px-6 bg-white border-t border-gray-100">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="scorri-mobile grid sm:grid-cols-3 gap-4">
               {vsRelatedPosts.map((p) => (
                 <Link key={p.slug} to={`/blog/${p.slug}/`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-eic-orange/40 p-4 transition-all hover:shadow-sm">
                   <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
