@@ -1,5 +1,4 @@
 import "fake-indexeddb/auto";
-import { Blob } from "node:buffer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SyncTransientError, syncQueue } from "@/lib/campo/sync-queue";
 
@@ -22,17 +21,17 @@ it("conserva le foto del rapportino e un solo invio per bozza confermata", async
   const bytes = [10, 20, 30];
   const [primoId, secondoId] = await Promise.all([
     syncQueue.enqueue({ type: "rapportino", dedupKey: "azienda:operatore:commessa:giorno", operationId: "primo",
-      payload: { foto: new Blob([new Uint8Array(bytes)], { type: "image/jpeg" }) } }),
+      payload: { foto: new Uint8Array(bytes).buffer } }),
     syncQueue.enqueue({ type: "rapportino", dedupKey: "azienda:operatore:commessa:giorno", operationId: "secondo",
-      payload: { foto: new Blob(["diversa"]) } }),
+      payload: { foto: new Uint8Array([9]).buffer } }),
   ]);
   expect(primoId).toEqual(secondoId);
   await syncQueue.processQueue();
   expect(invia).not.toHaveBeenCalled();
   const [salvato] = await syncQueue.getAll("rapportino");
   expect(salvato.operationId).toBe("primo");
-  const { foto } = salvato.payload as { foto: Blob };
-  expect([...new Uint8Array(await foto.arrayBuffer())]).toEqual(bytes);
+  const { foto } = salvato.payload as { foto: ArrayBuffer };
+  expect([...new Uint8Array(foto)]).toEqual(bytes);
   vi.stubGlobal("navigator", { onLine: true });
   await Promise.all([syncQueue.processQueue(), syncQueue.processQueue()]);
   expect(invia).toHaveBeenCalledOnce();

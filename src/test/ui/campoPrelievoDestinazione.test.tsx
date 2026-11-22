@@ -35,7 +35,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       const esito = await state.mutate({
         orderId: args.p_cantiere, warehouseId: args.p_magazzino, righe: args.p_righe, note: args.p_note, requestId: args.p_richiesta_id,
       });
-      return { data: { id: args.p_richiesta_id, ...esito }, error: null };
+      return { data: { id: args.p_richiesta_id, ...esito }, error: null as null };
     } catch (errore) {
       return { data: null, error: errore };
     }

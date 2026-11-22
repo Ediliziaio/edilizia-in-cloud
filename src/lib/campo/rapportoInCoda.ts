@@ -10,7 +10,7 @@ const BUCKET = "campo-rapportini";
 
 export interface AllegatoRapportino {
   percorso: string;
-  blob: Blob;
+  bytes: ArrayBuffer;
   contentType: string;
 }
 
@@ -46,22 +46,22 @@ export function riferimentoAllegatoRapportino(percorso: string) {
 }
 
 async function caricaAllegato(allegato: AllegatoRapportino, prefisso: string) {
-  const { percorso, blob, contentType } = allegato;
+  const { percorso, bytes, contentType } = allegato;
   if (typeof percorso !== "string" || !percorso.startsWith(prefisso)
     || !/^(?:firme\/|bozza\/)?[a-f0-9-]+(?:_(?:operaio|cliente))?\.[a-z0-9]+$/i.test(percorso.slice(prefisso.length))
-    || !(blob instanceof Blob) || !blob.size || !contentType.startsWith("image/")) {
+    || !(bytes instanceof ArrayBuffer) || !bytes.byteLength || !contentType.startsWith("image/")) {
     throw new SyncPermanentError("Una foto o firma del rapportino non è leggibile sul telefono.");
   }
   const storage = supabase.storage.from(BUCKET);
-  const { error } = await withClientTimeout(storage.upload(percorso, blob, { contentType, upsert: false }), "Caricamento foto");
+  const { error } = await withClientTimeout(storage.upload(percorso, bytes, { contentType, upsert: false }), "Caricamento foto");
   if (!error) return;
   if (String((error as { statusCode?: string }).statusCode) !== "409" && !/already exists|duplicate/i.test(error.message)) throw erroreInvioCampo(error);
   const { data, error: downloadError } = await withClientTimeout(storage.download(percorso), "Verifica foto");
   if (downloadError) throw erroreInvioCampo(downloadError);
   if (!data) throw new Error("Non riesco a verificare la foto già caricata.");
-  const [originale, salvata] = await Promise.all([blob.arrayBuffer(), data.arrayBuffer()]);
+  const salvata = await data.arrayBuffer();
   const copia = new Uint8Array(salvata);
-  if (originale.byteLength !== salvata.byteLength || !new Uint8Array(originale).every((valore, indice) => valore === copia[indice])) {
+  if (bytes.byteLength !== salvata.byteLength || !new Uint8Array(bytes).every((valore, indice) => valore === copia[indice])) {
     throw new SyncPermanentError("Una foto già presente è diversa da quella salvata sul telefono.");
   }
 }

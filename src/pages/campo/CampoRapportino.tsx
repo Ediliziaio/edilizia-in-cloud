@@ -151,6 +151,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [arrivo, setArrivo] = useState(ARRIVO_VUOTO);
   const [materialeLibero, setMaterialeLibero] = useState("");
   const [fotoLocali, setFotoLocali] = useState<FotoLocali>({});
+  const anteprimeLocali = useMemo(() => Object.fromEntries(Object.entries(fotoLocali).map(([url, foto]) => [
+    url, new Blob([foto.bytes], { type: foto.contentType }),
+  ])), [fotoLocali]);
   const [fotoPronte, setFotoPronte] = useState(false);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
   // Foto → fase, solo se l'operaio l'ha scelta (con più fasi). Con una fase sola si collega da sé al salvataggio.
@@ -725,8 +728,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
   // Le foto restano nella bozza del telefono, poi viaggiano nello stesso invio del testo.
   const handleFotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+    const input = event.currentTarget;
+    const files = Array.from(input.files ?? []);
     if (!files.length || fotoAlCompleto || bloccoFoto.current || !fotoPronte || !companyId || !orderId) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
     bloccoFoto.current = true;
@@ -739,10 +742,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       avvisiPreparazione(esito).forEach(avviso => toast.error(avviso));
       if (esito.pronte.length === 0) return;
       const nuove: FotoLocali = {};
+      let illeggibili = 0;
       for (const foto of esito.pronte) {
         const percorso = companyId + "/" + orderId + "/bozza/" + foto.nomeFile;
-        nuove[riferimentoAllegatoRapportino(percorso)] = { percorso, blob: foto.blob, contentType: foto.contentType };
+        // Safari può rifiutare i Blob di un file locale in IndexedDB. Copia i byte
+        // prima di liberare il file del selettore e usa i Blob solo per le anteprime.
+        const bytes = await foto.blob.arrayBuffer().catch((): null => null);
+        if (!bytes?.byteLength) { illeggibili++; continue; }
+        nuove[riferimentoAllegatoRapportino(percorso)] = { percorso, bytes, contentType: foto.contentType };
       }
+      if (illeggibili) toast.error(illeggibili === 1 ? "Una foto non si è aperta. Selezionala di nuovo." : `${illeggibili} foto non si sono aperte. Selezionale di nuovo.`);
+      if (!Object.keys(nuove).length) return;
       let salvate: FotoLocali = {};
       await update<FotoLocali>(chiaveBozza, prima => {
         salvate = { ...prima, ...nuove };
@@ -753,6 +763,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     } catch {
       toast.error("Non riesco a salvare le foto sul telefono. Riprova.");
     } finally {
+      input.value = "";
       bloccoFoto.current = false;
       setUploadingFoto(false);
       setFotoProgresso(null);
@@ -820,7 +831,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       const materialiPayload = confermaCliente || !parti.materiali ? [] : buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
       const orePayload = oreDaInviare();
       const locali = fotoPronte ? fotoLocali
-        : await Promise.resolve().then(() => get<FotoLocali>(chiaveBozza, fotoBozze)).catch(() => undefined) ?? {};
+        : await Promise.resolve().then(() => get<FotoLocali>(chiaveBozza, fotoBozze)).catch((): undefined => undefined) ?? {};
       const fotoAllegate = parti.foto || daRifare ? [...new Set([...fotoUrls, ...Object.keys(locali)])] : [];
       const allegati: AllegatoRapportino[] = [];
       const fotoPrecedenti = new Set(rapportinoGiaOggi?.foto_urls ?? []);
@@ -831,15 +842,15 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
           throw new Error("Una foto della bozza manca sul telefono. Rimuovila o aggiungila di nuovo.");
         }
       }
-      const aggiungiFirma = async (dataUrl: string | null, autore: "operaio" | "cliente") => {
+      const aggiungiFirma = (dataUrl: string | null, autore: "operaio" | "cliente") => {
         if (!dataUrl) return;
-        const blob = await (await fetch(dataUrl)).blob();
+        const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(",") + 1)), carattere => carattere.charCodeAt(0)).buffer;
         const percorso = companyId + "/" + orderId + "/firme/" + operationId + "_" + autore + ".png";
-        allegati.push({ percorso, blob, contentType: "image/png" });
+        allegati.push({ percorso, bytes, contentType: "image/png" });
         return riferimentoAllegatoRapportino(percorso);
       };
-      const firmaOperaioUrl = await aggiungiFirma(firmaOperaio, "operaio");
-      const firmaClienteUrl = lavoro_completato ? await aggiungiFirma(firmaCliente, "cliente") : undefined;
+      const firmaOperaioUrl = aggiungiFirma(firmaOperaio, "operaio");
+      const firmaClienteUrl = lavoro_completato ? aggiungiFirma(firmaCliente, "cliente") : undefined;
 
       const fasiLavorate = confermaCliente || !parti.fasi ? [] : costruisciFasiLavorate({
         dichiarate: fasiDichiarate,
@@ -1287,7 +1298,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       {fotoUrls.map((url, i) => (
                         <div key={url}>
-                          <AnteprimaFotoCampo foto={fotoLocali[url]?.blob ?? url} etichetta={`foto ${i + 1}`} className="aspect-square h-auto" />
+                          <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-square h-auto" />
                           <UniformSelect aria-label={`Fase della foto ${i + 1}`}
                             value={fasiSelezionate.some(f => f.id === fotoFase[url]) ? fotoFase[url] : ""}
                             onChange={e => { const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
@@ -1764,7 +1775,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {fotoUrls.map((url, i) => (
                     <li key={url} className="min-w-0">
-                      <AnteprimaFotoCampo foto={fotoLocali[url]?.blob ?? url} etichetta={`foto ${i + 1}`} className="aspect-[4/3] h-auto" />
+                      <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-[4/3] h-auto" />
                       <button
                         type="button"
                         aria-label={`Togli la foto ${i + 1}`}
