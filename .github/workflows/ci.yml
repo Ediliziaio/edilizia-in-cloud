@@ -346,9 +346,9 @@ jobs:
         if: matrix.group == 'core'
         run: node --test scripts/tests/ultimoDeployRiuscito.test.mjs
 
-      - name: Typecheck webhook edge functions
+      - name: Typecheck webhook and photovoltaic edge functions with frozen dependencies
         if: matrix.group == 'core'
-        run: npx --yes deno@2.9.6 check supabase/functions/bank-distyra/index.ts supabase/functions/dispatch-global-webhooks/index.ts supabase/functions/send-webhook/index.ts supabase/functions/silvio-chat/index.ts supabase/functions/silvio-execute-action/index.ts
+        run: bun run check:edge-runtime
 
       - name: Verify global webhook events, permissions and delivery queue
         if: matrix.group == 'core'

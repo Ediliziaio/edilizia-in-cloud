@@ -3,7 +3,17 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    // I test delle regole pure non caricano il motore Deno nel runtime Node.
+    // Il lettore reale è verificato da test:pdf-runtime con lock e versione server.
+    name: "edge-npm-runtime-external",
+    enforce: "pre",
+    resolveId(id) {
+      if (id === "npm:pdfjs-dist@4.0.379/legacy/build/pdf.mjs" || id === "npm:pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs") {
+        return { id, external: true };
+      }
+    },
+  }],
   test: {
     environment: "jsdom",
     globals: true,

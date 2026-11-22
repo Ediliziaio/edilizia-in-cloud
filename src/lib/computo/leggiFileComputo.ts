@@ -1,4 +1,4 @@
-import { pdfPositionedItems, type PdfTextItem } from "../../../supabase/functions/_shared/pdfExtraction";
+import { pdfPositionedItems, type PdfTextItem } from "../../../supabase/functions/_shared/pdfLettura";
 import { eComputoPrimus, leggiComputoPrimus, type PdfPaginaPosizionata } from "./primusPdf";
 import { leggiComputoXpwe, MESSAGGIO_DCF } from "./xpwe";
 import { eFoglioDaConvertire, eFoglioXlsx, leggiComputoExcel, MESSAGGIO_XLS } from "./computoExcel";

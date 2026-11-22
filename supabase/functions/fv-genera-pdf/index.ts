@@ -576,32 +576,17 @@ Deno.serve(async (req: Request) => {
     // (50% prima casa, 36% le altre, plafond dal catalogo incentivi). Il PDF la
     // ricalcolava per conto suo e la stampava anche ad aziende, condomini e CER.
     const detrazionePerc = prog.prima_casa === true ? 50 : 36;
-    const privato = ["privato_prima", "privato_seconda", "privato_isee"].includes(String(prog.archetipo ?? ""));
+    // Senza un calcolo salvato non attribuire un beneficio fiscale ipotetico.
     const detrazioneTotale = calc?.detrazione_anno_eur != null
       ? Number(calc.detrazione_anno_eur) * 10
-      : privato
-        ? (Math.min(96000, Number(prog.prezzo_vendita_iva_inclusa) || 0) * detrazionePerc) / 100
-        : 0;
+      : 0;
     const costoNetto = (Number(prog.prezzo_vendita_iva_inclusa) || 0) - detrazioneTotale;
 
-    // Cassa cumulata: se non disponibile, generiamo proiezione semplice
+    // La curva deve provenire dal calcolo salvato: non ricostruirla con tassi
+    // fissi, senza manutenzione e con detrazioni presunte per un documento vecchio.
     let cassaAnni: Array<{ anno: number; cumulato: number }> = [];
     if (Array.isArray(calc?.cassa_anno_per_anno) && (calc!.cassa_anno_per_anno as Array<unknown>).length > 0) {
       cassaAnni = calc!.cassa_anno_per_anno as Array<{ anno: number; cumulato: number }>;
-    } else if (Number(prog.risparmio_anno1) > 0) {
-      // Fallback: proiezione semplice dal risparmio salvato. Senza risparmio la
-      // cassa resta vuota e la pagina dei 25 anni non esce (prima si partiva da
-      // un risparmio inventato di 1.500 €/anno).
-      const investimento = Number(prog.prezzo_vendita_iva_inclusa) || 0;
-      const risparmioAnno = Number(prog.risparmio_anno1);
-      const detrazioneAnno = detrazioneTotale / 10;
-      let cum = -investimento;
-      cassaAnni.push({ anno: 0, cumulato: cum });
-      for (let i = 1; i <= 25; i++) {
-        const dettaglio = i <= 10 ? detrazioneAnno : 0;
-        cum += risparmioAnno * Math.pow(1.03, i - 1) * Math.pow(0.995, i - 1) + dettaglio;
-        cassaAnni.push({ anno: i, cumulato: Math.round(cum) });
-      }
     }
 
     const risparmio25 = Number(prog.npv_25_anni) || cassaAnni[cassaAnni.length - 1]?.cumulato || 0;

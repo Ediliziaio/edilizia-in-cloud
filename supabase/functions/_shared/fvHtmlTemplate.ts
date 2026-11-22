@@ -1337,8 +1337,9 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
       ${d.foto_di_serie?.impianto ? fasciaImmagineFv(d.foto_di_serie.impianto,"center",false,true) : ""}
       ${d.costi.detrazione_eur > 0 ? `<div class="callout callout-success">
         <span class="callout-icon">✓</span>
-        <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur, 2)} in 10 anni.</strong>
-        Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione, 2)}</strong></div>
+        <div><strong>Beneficio fiscale ipotizzato ${d.costi.detrazione_perc}% — ${fmtEur(d.costi.detrazione_eur, 2)} in 10 anni.</strong>
+        Costo netto al pieno utilizzo del beneficio: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione, 2)}</strong>.
+        Requisiti, condizioni e capienza fiscale da verificare sul caso concreto.</div>
       </div>` : ""}
       ${(() => {
         const mp = d.modalita_pagamento;

@@ -127,25 +127,20 @@ export type DipendenzeBollettaFv = {
   erroreAiPerUtente: (e: unknown) => { status: number; body: unknown } | null;
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
-  return async (req: Request) => {
-    const { getCorsHeaders, errorResponse, jsonResponse } = deps.headers;
-    const cors = getCorsHeaders(req);
-    if (req.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: cors });
-    }
-    if (req.method !== "POST") {
-      return errorResponse("Metodo non consentito", 405, cors);
-    }
-    try {
-      const { userId, supabaseAdmin } = await deps.requireAuth(req, cors),
-        p = await req.json();
+export async function preparaLetturaBollettaFv(
+  req: Request, input: unknown, deps: DipendenzeBollettaFv, cors: Record<string, string>,
+) {
+  const { errorResponse } = deps.headers;
+  if (!input || typeof input !== "object") throw errorResponse("Indica progetto e documento da leggere.", 400, cors);
+  const p = input as { progetto_id: string; path: string; nome: string };
+  const { userId, supabaseAdmin } = await deps.requireAuth(req, cors);
+
       if (
         typeof p.progetto_id !== "string" || !UUID.test(p.progetto_id) ||
         typeof p.path !== "string" || typeof p.nome !== "string" ||
         p.nome.length > 200
       ) {
-        return errorResponse(
+        throw errorResponse(
           "Indica progetto e documento da leggere.",
           400,
           cors,
@@ -158,7 +153,7 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
       ).select("id,company_id,stato,deleted_at").eq("id", p.progetto_id)
         .maybeSingle();
       if (progettoErrore || !progetto || progetto.deleted_at) {
-        return errorResponse(
+        throw errorResponse(
           "Preventivo non disponibile per questo operatore.",
           403,
           cors,
@@ -171,7 +166,7 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
         cors,
       );
       if (!["bozza", "configurato"].includes(progetto.stato)) {
-        return errorResponse(
+        throw errorResponse(
           "Crea una copia del preventivo emesso prima di aggiungere bollette.",
           409,
           cors,
@@ -184,7 +179,7 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
           p.path.slice(prefix.length),
         )
       ) {
-        return errorResponse(
+        throw errorResponse(
           "Il documento deve appartenere a questo preventivo.",
           403,
           cors,
@@ -195,12 +190,28 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
         { nome: p.path, modifica: true },
       );
       if (permessoErrore || puoLeggere !== true) {
-        return errorResponse(
+        throw errorResponse(
           "Serve il permesso di modifica preventivi per leggere una nuova bolletta.",
           403,
           cors,
         );
       }
+
+  return { userId, supabaseAdmin, progetto, utente, prefix, p };
+}
+export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
+  return async (req: Request) => {
+    const { getCorsHeaders, errorResponse, jsonResponse } = deps.headers;
+    const cors = getCorsHeaders(req);
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
+    if (req.method !== "POST") {
+      return errorResponse("Metodo non consentito", 405, cors);
+    }
+    try {
+      const { userId, supabaseAdmin, progetto, utente, prefix, p } =
+        await preparaLetturaBollettaFv(req, await req.json(), deps, cors);
       // Verifica anche il permesso di lettura Storage prima del download con il servizio.
       const { data: file, error: downloadErrore } = await utente.storage.from(
         "fv-bollette",
@@ -254,6 +265,14 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
         messages: AiRouterMessage[],
         json = false,
       ) => {
+        // Il PDF è identico anche quando un secondo OCR riesce a leggere altre
+        // pagine. Cache e idempotenza della struttura seguono il testo effettivo
+        // e il prompt. L'OCR per pagina resta riutilizzabile separatamente.
+        const fase = json
+          ? `${stage}:${Array.from(new Uint8Array(await crypto.subtle.digest(
+            "SHA-256", new TextEncoder().encode(JSON.stringify(messages)),
+          )), (b) => b.toString(16).padStart(2, "0")).join("")}`
+          : stage;
         const risultato = await deps.aiRouterComplete({
           supabase: supabaseAdmin,
           taskKey: "pdf_vision_extract",
@@ -262,10 +281,10 @@ export function creaHandlerBollettaFv(deps: DipendenzeBollettaFv) {
           personaKey: "silvio",
           guardProviderRequest: true,
           idempotencyKey:
-            `fv-bolletta:v1:${progetto.company_id}:${progetto.id}:${hash}:${stage}`,
+            `fv-bolletta:v1:${progetto.company_id}:${progetto.id}:${hash}:${fase}`,
           cacheTtlDays: 30,
           cacheSoloSeFinita: true,
-          cacheKey: `fv-bolletta:v1:${progetto.company_id}:${hash}:${stage}`,
+          cacheKey: `fv-bolletta:v1:${progetto.company_id}:${hash}:${fase}`,
           messages,
           params: { temperature: 0, max_tokens: 7000, timeoutMs: 45000 },
           estimatedCostEur: .10,

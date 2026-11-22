@@ -1,5 +1,6 @@
 import { analisiNelPdfFv, conAnalisiNelPdfFv } from "@/lib/fotovoltaico/analisiNelPdf";
 import { finanziamentoSelezionatoFv } from "@/lib/fotovoltaico/finanziamentoSelezionato";
+import { proiezioneSpesaFv } from "@/lib/fotovoltaico/proiezioneSpesa";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {FvEconomiaAzienda} from "@/components/fotovoltaico/economiaAzienda/FvEconomiaAzienda";
 import {creaSnapshotEconomia,riferimentoClienteEconomia,snapshotEconomiaValido} from "../../../../supabase/functions/_shared/fvEconomiaAzienda";
@@ -5837,7 +5838,8 @@ function Step6FinanziarioPrivato({
 
       {/* Incentivi applicati */}
       {incentivi.length > 0 && (
-        <FvCard title="Incentivi che ti spettano" className="mt-4">
+        <FvCard title="Incentivi considerati nello scenario" className="mt-4">
+          <p className="mb-3 text-sm text-slate-600">Importi stimati: requisiti, condizioni e capienza fiscale da verificare sul caso concreto.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {incentivi.map((inc) => (
               <div
@@ -5846,7 +5848,7 @@ function Step6FinanziarioPrivato({
               >
                 <div className="font-semibold text-sm text-slate-900">{inc.nome}</div>
                 <div className="text-xl font-bold mt-1 text-orange-600 tabular-nums">
-                  {inc.importo_eur != null ? formatEur(inc.importo_eur) : "Disponibile"}
+                  {inc.importo_eur != null ? formatEur(inc.importo_eur) : "Da verificare"}
                 </div>
               </div>
             ))}
@@ -6005,31 +6007,25 @@ function Step6FinanziarioPrivato({
           />
           <div className="relative text-base sm:text-lg font-bold leading-relaxed">
             {(() => {
-              // Proiezione bollette 25 anni dai dati REALI del cliente: spesa annua
-              // attuale con rincaro composto prudente del 3%/anno (fattore ≈ 36,5).
-              // Prima era un "~250.000 €" FISSO — cioè 833 €/mese per chiunque:
-              // numero indifendibile davanti al cliente.
               const spesaLetta = data.analisi_consumi ? riepilogoBollette(data.analisi_consumi).spesaAnnua : null;
               const spesaAnnuaAttuale = spesaLetta ??
                 (data.consumo_annuo_kwh ?? 0) * (data.costo_kwh_attuale ?? 0);
-              const bollette25Anni = Math.round(
-                spesaAnnuaAttuale * ((Math.pow(1.03, 25) - 1) / 0.03),
-              );
-              return bollette25Anni > 0 ? (
+              const variazione = scenario.inflazione_energia_pct;
+              const bollette25Anni = proiezioneSpesaFv(spesaAnnuaAttuale, variazione);
+              return bollette25Anni != null ? (
                 <>
-                  In 25 anni pagherai{" "}
+                  Spesa stimata in 25 anni senza impianto:{" "}
                   <strong className="text-orange-400">~{formatEur(bollette25Anni)}</strong> di{" "}
-                  {spesaLetta != null ? "bollette" : "acquisti di energia, escluse le quote fisse"} (ipotesi di rincaro del 3%/anno)
+                  {spesaLetta != null ? "bollette" : "acquisti di energia, escluse le quote fisse"} (variazione ipotizzata {new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 2 }).format(variazione as number)}/anno, come nel calcolo)
                   <br />
                 </>
               ) : null;
             })()}
-            {"Investi "}<strong className="text-orange-400">{formatEur(investimento)}</strong> oggi e{" "}
-            <strong className="text-emerald-400">guadagnerai {formatEur(guadagnoNetto25Anni)}</strong>.
+            {"Investimento "}<strong className="text-orange-400">{formatEur(investimento)}</strong>.{" "}
+            <strong className="text-emerald-400">Saldo cumulato stimato a 25 anni: {formatEur(guadagnoNetto25Anni)}</strong>.
           </div>
           <div className="relative text-sm opacity-85 mt-3">
-            Non è un investimento: è una scelta tra{" "}
-            <strong>essere ostaggio del mercato</strong> o <strong>essere indipendente</strong>.
+            Stima legata a produzione, consumi, tariffe, manutenzione e benefici fiscali effettivamente utilizzabili.
           </div>
         </div>
       </div>
