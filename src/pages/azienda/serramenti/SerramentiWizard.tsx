@@ -81,7 +81,7 @@ import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPrev
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import {
   AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, EsigenzeCliente, IndirizzoDeiLavori, PannelloAnteprima,
-  PiedePreventivatore, RISERVA_BARRA_INVIO_TELEFONO, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
+  BORDI_GUSCIO, PiedePreventivatore, RISERVA_BARRA_INVIO_TELEFONO, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
 } from "@/components/preventivatore";
 import { useIndirizzoLavori } from "@/lib/preventivatore/useIndirizzoLavori";
 import { avvisaSalvataggioFallito, type OpzioniAvviso } from "@/lib/preventivatore/salvataggioFallito";
@@ -782,7 +782,7 @@ export default function SerramentiWizard() {
   return (
     // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
     // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
-    <div className={cn("preventivo-touch -m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
+    <div className={cn("preventivo-touch flex min-h-full flex-col bg-slate-50", BORDI_GUSCIO, currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
@@ -1150,25 +1150,33 @@ export default function SerramentiWizard() {
           variant="outline"
           onClick={handleBack}
           disabled={currentStepIndex === 0}
-          className="min-h-11 md:min-h-0 max-md:w-11 max-md:shrink-0 max-md:px-0"
+          className="min-h-11 max-lg:w-11 max-lg:shrink-0 max-lg:px-0"
         >
           {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
-          <ArrowLeft className="h-4 w-4 mr-1 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
+          <ArrowLeft className="h-4 w-4 mr-1 max-lg:mr-0" /> <span className="max-lg:sr-only">Indietro</span>
         </Button>
+        {!isNew && currentStepIndex < SR_WIZARD_STEPS.length - 1 && (
+          <Button variant="outline" className="min-h-11 max-sm:px-2.5" onClick={() => { void saveProgetto(); }}
+            disabled={statoSalvataggio === "salvando" || creating}>
+            Salva
+          </Button>
+        )}
         <Button
           onClick={handleSaveAndContinue}
           disabled={updateMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
-          className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
+          aria-label={isNew ? "Crea e continua" : currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}
+          className="min-h-11 gap-1 bg-orange-500 hover:bg-orange-600 max-sm:px-2.5"
         >
           {(updateMut.isPending || creating) ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : currentStepIndex === SR_WIZARD_STEPS.length - 1 ? (
             <Save className="h-4 w-4" />
           ) : (
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4 max-[380px]:hidden" />
           )}
-          {isNew ? "Crea e continua" :
-            currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}
+          <span className="max-lg:hidden">{isNew ? "Crea e continua" :
+            currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}</span>
+          <span className="lg:hidden">{currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Avanti"}</span>
         </Button>
       </PiedePreventivatore>
 

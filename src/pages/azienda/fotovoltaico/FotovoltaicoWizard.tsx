@@ -190,7 +190,7 @@ import { INITIAL, PAGAMENTO_PRESETS } from "./FotovoltaicoWizard/constants";
 import { Button } from "@/components/ui/button";
 import {
   AnteprimaMobile, AnteprimaVeloce, BottoneTotale, CorpoPreventivatore, PannelloAnteprima,
-  STICKY_ALTO, STICKY_BASSO, useAnteprimaNascosta,
+  BORDI_GUSCIO, STICKY_ALTO, useAnteprimaNascosta,
 } from "@/components/preventivatore";
 import { formattaEuro, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
 import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "@/components/preventivatore/useModalitaAnteprima";
@@ -1971,7 +1971,7 @@ function FotovoltaicoWizard() {
   return (
     // A filo coi bordi del contenitore che scorre (<main> ha 12/24 px di spazio): barra e
     // piede fissi restano a filo, senza la fessura in cui passavano i campi.
-    <div className="preventivo-touch -m-3 min-h-full bg-slate-50 flex flex-col md:-m-6">
+    <div className={`preventivo-touch flex min-h-full flex-col bg-slate-50 ${BORDI_GUSCIO}`}>
       {(step <= 4 || energySurveyOrigin(data.qualita_dati_tetto)) && <EnergyQuoteImport companyId={effectiveCompanyId} module="fotovoltaico" disabled={readOnlyMode} originId={energySurveyOrigin(data.qualita_dati_tetto)} imported={!!energySurveyOrigin(data.qualita_dati_tetto)} listino={{pannelli,inverter,accumuli}} onApply={(detail,rows,prices,selection)=>{const next=applyEnergyFvImport(data,detail,effectiveCompanyId||"",{pannelli,inverter,accumuli},selection,rows,prices);setData(next);}}/>}
       <FvPageHeader
         numero={numero ?? null}
@@ -2357,29 +2357,17 @@ function FotovoltaicoWizard() {
         </FvTabPane>
       </CorpoPreventivatore>
 
-      {/* Mostra il motivo del blocco se Avanti è disabilitato */}
-      {!stepValido && stepValidation.motivo && step < TOTAL_STEPS && !readOnlyMode && (
-        <div className="bg-blue-50 border-t border-blue-200 px-4 sm:px-8 py-2 text-xs text-blue-900 flex items-center gap-2">
-          <span aria-hidden>ℹ</span>
-          <span>
-            <strong>Per proseguire:</strong> {stepValidation.motivo}
-          </span>
-        </div>
-      )}
-
       <FvFooter
         autoSaveState={autoSaveState}
-        numero={numero ?? null}
         lastSaveText={lastSaveText}
+        avviso={!stepValido && step < TOTAL_STEPS && !readOnlyMode ? stepValidation.motivo : undefined}
         onPrev={goPrev}
         onSaveDraft={progettoId && !readOnlyMode ? handleSaveDraft : undefined}
         onNext={step < TOTAL_STEPS && !readOnlyMode ? goNext : undefined}
         prevDisabled={step === 1}
         nextDisabled={!stepValido || analizzandoTetto || calcolandoFinanziario}
         nextLabel={step === 7 ? "Vai a generazione" : "Avanti"}
-        showNext={step < TOTAL_STEPS && !readOnlyMode}
         saving={salvando}
-        className={STICKY_BASSO}
         telefono={<BottoneTotale valore={totaleTesto ?? "—"} onClick={() => setAnteprimaMobileAperta(true)} />}
       />
 
@@ -3021,7 +3009,7 @@ export function Step4Tetto({
           </details>
         </FvCard>
       )}
-      {!senzaMappa && <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Il simulatore 2D e 3D si apre nella fase Impianto. Puoi preparare il tetto prima di scegliere il pannello. Qui calcoli la stima solare; nel simulatore disegni le falde, importi il rilievo e disponi i moduli.</p>}
+      {!senzaMappa && <p className="mb-3 text-xs text-slate-600">Nella fase Impianto puoi disporre i pannelli e vedere il tetto in 2D e 3D.</p>}
       {!senzaMappa && <details className="mb-4 rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">Origine dei dati e opzioni della stima solare</summary><FvCard title="Sorgente dati" className="mt-3">
         {/* Telefono: le tre sorgenti in una fila di tasselli piccoli, senza descrizioni. */}
         <div className="grid grid-cols-3 gap-3 max-sm:gap-2">

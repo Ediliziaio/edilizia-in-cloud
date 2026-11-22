@@ -52,6 +52,7 @@ export function StatoDelSalvataggio({ stato, testo }: StatoProps) {
 interface PiedeProps {
   /** A sinistra, da computer: di solito `<StatoDelSalvataggio />`. */
   stato?: ReactNode;
+  avviso?: ReactNode;
   /** A destra: Indietro, Salva, Avanti. */
   children: ReactNode;
   /** Da telefono, a sinistra delle azioni (per esempio il totale che apre l'anteprima). */
@@ -59,19 +60,23 @@ interface PiedeProps {
   className?: string;
 }
 
-export function PiedePreventivatore({ stato, children, telefono, className }: PiedeProps) {
+export function PiedePreventivatore({ stato, avviso, children, telefono, className }: PiedeProps) {
   return (
     <div
+      data-ui="piede-preventivatore"
       className={cn(
-        "sticky z-30 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] backdrop-blur sm:px-6",
-        "max-md:gap-2 max-md:rounded-2xl max-md:border max-md:px-2.5 max-md:py-2 max-md:shadow-[0_-8px_20px_rgba(15,23,42,0.08)]",
+        "sticky z-30 mt-auto shrink-0 border-t border-slate-200 bg-white/95 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur",
+        "max-md:mx-2 max-md:rounded-xl max-md:border",
         STICKY_BASSO,
         className,
       )}
     >
-      {stato && <div className="min-w-0 flex-1 max-md:hidden">{stato}</div>}
-      {telefono && <div className="min-w-0 md:hidden">{telefono}</div>}
-      <div className="flex shrink-0 items-center gap-2 max-md:min-w-0 max-md:flex-1 max-md:justify-end">{children}</div>
+      {avviso && <p role="status" className="border-b bg-blue-50 px-3 py-1.5 text-xs text-blue-900">{avviso}</p>}
+      <div className="flex min-w-0 items-center gap-2 px-3 py-2 sm:px-4 lg:gap-3 lg:px-6">
+        {stato && <div className="min-w-0 flex-1 max-lg:hidden">{stato}</div>}
+        {telefono && <div className="min-w-0 shrink-0 lg:hidden">{telefono}</div>}
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">{children}</div>
+      </div>
     </div>
   );
 }

@@ -82,6 +82,16 @@ describe("mappa nativa del tetto", () => {
     onStato: vi.fn(),
     onDimensioni: vi.fn(),
   });
+  it("lascia scorrere la pagina sui dispositivi touch e disattiva la mappa mentre si disegna", async () => {
+    const p = props();
+    const vista = render(<MappaGoogleFv {...p} navigabile gestoCooperativo />);
+    await waitFor(() => expect(mocks.istanze).toHaveLength(1));
+    const map = mocks.istanze[0] as unknown as { options: Record<string, unknown>; setOptions: ReturnType<typeof vi.fn> };
+    expect(map.options.gestureHandling).toBe("cooperative");
+    vista.rerender(<MappaGoogleFv {...p} gestoCooperativo />);
+    expect(map.setOptions).toHaveBeenLastCalledWith(expect.objectContaining({ gestureHandling: "none", draggable: false }));
+  });
+
   it("se Google non risponde sul massimo mantiene foto e disegno a zoom 20", async () => {
     const api=await mocks.carica();
     api.MaxZoomService=class {getMaxZoomAtLatLng(_c:unknown,cb:(r:{status:string})=>void){cb({status:"ERROR"});}};

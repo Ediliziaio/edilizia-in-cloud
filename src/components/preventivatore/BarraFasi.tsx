@@ -66,7 +66,7 @@ export function BarraFasi({
         <nav
           ref={rigaRef}
           aria-label={ariaLabel}
-          className="fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-xl:gap-1 max-xl:py-1 max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden"
+          className={cn("fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-xl:gap-1 max-xl:py-1 max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden", passi.length > 1 && "max-lg:hidden")}
         >
           {passi.map((p, i) => {
             const attivo = p.key === corrente;
@@ -123,18 +123,18 @@ export function BarraFasi({
           })}
         </nav>
         <SelettoreFase corrente={corrente} onSelect={onSelect} passi={passi.map(p => ({
-          key: p.key, label: p.label, bloccato: bloccati?.has(p.key),
+          key: p.key, label: p.label, breve: p.breve, bloccato: bloccati?.has(p.key),
           completato: completati?.has(p.key), avviso: conAvviso?.has(p.key),
         }))} />
         {(totale || destra) && (
-          <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-slate-200 pl-4 max-md:hidden">
+          <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-slate-200 pl-4 max-lg:hidden">
             {totale && <TotaleBarra totale={totale} />}
             {destra}
           </div>
         )}
       </div>
       {/* Telefono: la fase la dicono già le pillole e il totale sta nella barra in basso. */}
-      <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 sm:px-6 max-md:hidden lg:max-xl:px-3">
+      <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 sm:px-6 max-lg:hidden lg:max-xl:px-3">
         <span>
           <strong className="text-slate-900">Passo {indice + 1} di {passi.length}</strong> · {passi[indice]?.label}
         </span>
