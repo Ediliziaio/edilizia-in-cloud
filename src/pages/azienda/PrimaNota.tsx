@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
-import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { CercaConFiltri, DateFiltro, DettaglioFiltri, GruppoFiltri, KpiMobili, PannelloFiltri, SceltaFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import { ModificaCollegamentiMovimento } from "@/components/prima-nota/ModificaCollegamentiMovimento";
@@ -102,9 +102,16 @@ function PrimaNotaInner() {
   ];
   const periodoScelto = periodiRapidi.find((p) => p.da === fromDate && p.a === toDate)?.value ?? "altro";
   const nFiltriMobile = [direction !== "", autoView !== "tutte", periodoScelto !== "mese", contoFiltro !== "tutti"].filter(Boolean).length;
+  const contiFiltro = [
+    { value: "tutti", label: "Tutti i conti" },
+    { value: "cassa", label: "Cassa" },
+    ...(contiPrimaNota.data ?? []).map(c => ({ value: c.valore, label: c.etichetta })),
+  ];
+  const nAltriFiltri = Number(direction !== "") + Number(autoView !== "tutte");
+  const periodoLabel = periodiRapidi.find(p => p.value === periodoScelto)?.label ?? "Personalizzato";
   const filtroConto = <Select value={contoFiltro} onValueChange={v => { setContoFiltro(v); setPage(1); }}>
     <SelectTrigger className="h-9 w-full sm:w-56" aria-label="Filtra per conto"><SelectValue /></SelectTrigger>
-    <SelectContent><SelectItem value="tutti">Tutti i conti</SelectItem><SelectItem value="cassa">Cassa</SelectItem>{contiPrimaNota.data?.map(c => <SelectItem key={c.valore} value={c.valore}>{c.etichetta}</SelectItem>)}</SelectContent>
+    <SelectContent>{contiFiltro.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
   </Select>;
 
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
@@ -418,7 +425,7 @@ function PrimaNotaInner() {
       {/* Mobile: ricerca e bottone dei filtri. */}
       <CercaConFiltri
         className="lg:hidden"
-        segnaposto="Cerca nella prima nota"
+        segnaposto="Cerca movimenti"
         valore={search}
         onCambia={(v) => { setSearch(v); setPage(1); }}
         filtriAttivi={nFiltriMobile}
@@ -426,7 +433,7 @@ function PrimaNotaInner() {
       />
 
       {cercaSuTutteLeDate && (
-        <p className="text-xs text-muted-foreground">Stai cercando su tutte le date: il periodo scelto non vale finché c'è testo nella ricerca.</p>
+        <p className="text-xs text-muted-foreground">La ricerca include tutte le date.</p>
       )}
 
       {/* Filters */}
@@ -698,40 +705,43 @@ function PrimaNotaInner() {
         onAzzera={() => { setDirection(""); setAutoView("tutte"); setContoFiltro("tutti"); setFromDate(meseCorrente.da); setToDate(meseCorrente.a); setPage(1); }}
         risultati={isLoading ? undefined : totalCount}
       >
-        {filtroConto}
-        <PilloleFiltro
-          titolo="Periodo"
-          valore={periodoScelto}
-          onScegli={(v) => {
-            const p = periodiRapidi.find((x) => x.value === v);
-            if (p) { setFromDate(p.da); setToDate(p.a); setPage(1); }
-          }}
-          scelte={periodiRapidi.map((p) => ({ value: p.value, label: p.label }))}
-        />
-        <div className="grid gap-2 min-[380px]:grid-cols-2">
-          <Input type="date" aria-label="Dal" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-11 text-base" />
-          <Input type="date" aria-label="Al" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-11 text-base" />
-        </div>
-        <PilloleFiltro
-          titolo="Movimenti"
-          valore={direction || "all"}
-          onScegli={(v) => { setDirection(v === "all" ? "" : (v as "entrata" | "uscita")); setPage(1); }}
-          scelte={[
-            { value: "all", label: "Tutti" },
-            { value: "entrata", label: "Entrate" },
-            { value: "uscita", label: "Uscite" },
-          ]}
-        />
-        <PilloleFiltro
-          titolo="Registrazioni"
-          valore={autoView}
-          onScegli={(v) => { setAutoView(v); setPage(1); }}
-          scelte={[
-            { value: "tutte" as const, label: "Tutte" },
-            { value: "auto" as const, label: "Automatiche" },
-            { value: "manuali" as const, label: "Manuali" },
-          ]}
-        />
+        <GruppoFiltri>
+          <SceltaFiltro titolo="Conto" valore={contoFiltro} scelte={contiFiltro}
+            onScegli={v => { setContoFiltro(v); setPage(1); }} />
+          <DettaglioFiltri titolo="Periodo" riepilogo={periodoLabel}>
+            <SceltaFiltro titolo="Intervallo" valore={periodoScelto}
+              scelte={[
+                ...periodiRapidi,
+                ...(periodoScelto === "altro" ? [{ value: "altro", label: "Personalizzato" }] : []),
+              ]}
+              onScegli={v => {
+                const periodo = periodiRapidi.find(p => p.value === v);
+                if (periodo) {
+                  setFromDate(periodo.da);
+                  setToDate(periodo.a);
+                  setPage(1);
+                }
+              }} />
+            <DateFiltro dal={fromDate} al={toDate}
+              cambiaDal={v => { setFromDate(v); setPage(1); }} cambiaAl={v => { setToDate(v); setPage(1); }} />
+          </DettaglioFiltri>
+          <DettaglioFiltri titolo="Altri filtri" riepilogo={nAltriFiltri ? String(nAltriFiltri) : undefined}>
+            <SceltaFiltro titolo="Movimenti" valore={direction || "all"}
+              onScegli={v => { setDirection(v === "all" ? "" : v); setPage(1); }}
+              scelte={[
+                { value: "all", label: "Tutti" },
+                { value: "entrata", label: "Entrate" },
+                { value: "uscita", label: "Uscite" },
+              ] as const} />
+            <SceltaFiltro titolo="Registrazioni" valore={autoView}
+              onScegli={v => { setAutoView(v); setPage(1); }}
+              scelte={[
+                { value: "tutte", label: "Tutte" },
+                { value: "auto", label: "Automatiche" },
+                { value: "manuali", label: "Manuali" },
+              ] as const} />
+          </DettaglioFiltri>
+        </GruppoFiltri>
       </PannelloFiltri>
 
       {/* Dialog */}

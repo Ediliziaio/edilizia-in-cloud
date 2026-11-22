@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,6 +69,30 @@ beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRow
 afterEach(cleanup);
 
 describe("Scadenzario: viste aperte e recupero errori", () => {
+  it("apre un pannello compatto e mostra date e filtri avanzati su richiesta", async () => {
+    setup();
+    await screen.findByText("Incasso aperto");
+    fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
+    const pannello = within(screen.getByRole("dialog", { name: "Filtri" }));
+    expect(pannello.getByRole("combobox", { name: "Vista" })).toHaveValue("aperte");
+    expect(pannello.queryByLabelText("Da")).toBeNull();
+
+    const periodo = pannello.getByRole("combobox", { name: "Periodo" });
+    fireEvent.change(periodo, { target: { value: "custom" } });
+    expect(pannello.getByLabelText("Da")).toBeVisible();
+    expect(pannello.getByLabelText("A", { exact: true })).toBeVisible();
+    fireEvent.change(periodo, { target: { value: "anno:all" } });
+    expect(pannello.queryByLabelText("Da")).toBeNull();
+
+    const altriFiltri = pannello.getByText("Altri filtri");
+    expect(altriFiltri.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(altriFiltri);
+    expect(altriFiltri.closest("details")).toHaveAttribute("open");
+    expect(pannello.getByRole("combobox", { name: "Pagamento" })).toBeVisible();
+    fireEvent.click(pannello.getByRole("button", { name: "Azzera" }));
+    expect(periodo).toHaveValue(`anno:${new Date().getFullYear()}`);
+    expect(state.writes).not.toHaveBeenCalled();
+  });
   it("include commesse e note nelle colonne e nelle righe del CSV", async () => {
     state.exportCompleto = true;
     setup();await screen.findByText("Incasso aperto");
@@ -160,7 +184,7 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
 it("rende visibili gli importi senza data anche con l'anno corrente e li esporta", async () => {
   state.senzaData = true; setup();
   await screen.findByText("Commessa senza data");
-  fireEvent.click(screen.getByRole("button", { name: "Mostra senza data" }));
+  fireEvent.click(screen.getByRole("button", { name: /mostra senza data|1 senza data/i }));
   await waitFor(() => expect(screen.queryByText("Incasso aperto")).toBeNull());
   expect(await screen.findByText("Commessa senza data")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
