@@ -194,7 +194,9 @@ export function leggiComputoXpwe(input: ArrayBuffer | Uint8Array | string): Comp
     }
     const qDichiarata = numeroXpwe(testoDi(vc, "Quantita"));
     const qMisure = misure.some(m => m.quantita !== null) ? arrotonda(misure.reduce((s, m) => s + (m.quantita ?? 0), 0), 2) : null;
-    const quantita = qDichiarata !== null ? arrotonda(qDichiarata, 2) : qMisure;
+    // La quantità dichiarata può avere più di due decimali. Arrotondare qui
+    // cambierebbe l'importo di una voce esportata con quantità diretta.
+    const quantita = qDichiarata ?? qMisure;
     const prezzoUnitario = prezzo ? numeroXpwe(testoDi(prezzo, "Prezzo1")) : null;
     const um = prezzo ? testoDi(prezzo, "UnMisura") : "";
     const importo = quantita !== null && prezzoUnitario !== null ? arrotonda(quantita * prezzoUnitario / (um === "%" ? 100 : 1)) : null;

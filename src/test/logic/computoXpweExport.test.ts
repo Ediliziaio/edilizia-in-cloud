@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bozzaVuota, misuraVuota, voceVuota, calcolaVoce } from "@/lib/computo/editorNativo";
+import { bozzaDaComputoStrutturato } from "@/lib/computo/importaComputo";
 import { scriviComputoXpwe } from "@/lib/computo/scriviXpwe";
 import { leggiComputoXpwe } from "@/lib/computo/xpwe";
 
@@ -22,5 +23,15 @@ describe("esportazione XPWE per PriMus", () => {
     expect(letto.voci[2].quantita).toBe(-10);
     expect(letto.voci[0].descrizione ?? letto.voci[0]).toBeTruthy();
     expect(calcolaVoce(bozza.voci[0]).importo).toBeCloseTo(3110.4, 2);
+  });
+
+  it("mantiene i decimali della quantità diretta e l’importo dopo la reimportazione", () => {
+    const voce = { ...voceVuota(), descrizione: "Posa pavimento campione", unita: "m²", quantita: "2,375", prezzo: "125,70" };
+    const xml = scriviComputoXpwe({ ...bozza, voci: [voce] });
+    const letto = leggiComputoXpwe(xml);
+    const importato = bozzaDaComputoStrutturato(letto);
+    expect(letto.voci[0].quantita).toBe(2.375);
+    expect(importato.voci[0].quantita).toBe("2,375");
+    expect(importato.totaleRicalcolato).toBe(298.54);
   });
 });
