@@ -1971,7 +1971,7 @@ function FotovoltaicoWizard() {
   return (
     // A filo coi bordi del contenitore che scorre (<main> ha 12/24 px di spazio): barra e
     // piede fissi restano a filo, senza la fessura in cui passavano i campi.
-    <div className="-m-3 min-h-full bg-slate-50 flex flex-col md:-m-6">
+    <div className="preventivo-touch -m-3 min-h-full bg-slate-50 flex flex-col md:-m-6">
       {(step <= 4 || energySurveyOrigin(data.qualita_dati_tetto)) && <EnergyQuoteImport companyId={effectiveCompanyId} module="fotovoltaico" disabled={readOnlyMode} originId={energySurveyOrigin(data.qualita_dati_tetto)} imported={!!energySurveyOrigin(data.qualita_dati_tetto)} listino={{pannelli,inverter,accumuli}} onApply={(detail,rows,prices,selection)=>{const next=applyEnergyFvImport(data,detail,effectiveCompanyId||"",{pannelli,inverter,accumuli},selection,rows,prices);setData(next);}}/>}
       <FvPageHeader
         numero={numero ?? null}
@@ -2385,8 +2385,13 @@ function FotovoltaicoWizard() {
 
       {/* Sotto i 1280 px non c'è la colonna: l'anteprima sale dal basso. */}
       <AnteprimaMobile aperta={anteprimaMobileAperta} onApertaChange={setAnteprimaMobileAperta}>
-        <PannelloAnteprima vista={vistaAnteprima} onVista={setVistaAnteprima} puoVedereImpresa={puoVedereImpresa}>
-          <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+        <PannelloAnteprima modalita={conDocumentoVero ? "pdf" : "veloce"} onModalita={impostaModalitaAnteprima}
+          pdfDisponibile={!!progettoId} vista={vistaAnteprima} onVista={setVistaAnteprima} puoVedereImpresa={puoVedereImpresa}>
+          {conDocumentoVero ? <PdfVeroFotovoltaico progettoId={progettoId!}
+            versione={String(lastSaveAt?.getTime() ?? 0)}
+            extra={{ layout_pannelli: data.layout_tetto ?? null, azimut: data.azimut_tetto ?? null, inclinazione_tetto: data.inclinazione_tetto ?? null }}
+            attivo={anteprimaMobileAperta} />
+            : <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />}
         </PannelloAnteprima>
       </AnteprimaMobile>
     </div>

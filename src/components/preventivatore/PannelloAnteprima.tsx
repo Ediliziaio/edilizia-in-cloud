@@ -46,7 +46,7 @@ function Interruttore<T extends string>({
           type="button"
           aria-pressed={valore === o.v}
           onClick={() => onChange?.(o.v)}
-          className={cn("tap-compact rounded px-2.5 py-1", valore === o.v ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}
+          className={cn("min-h-11 rounded px-3 py-2 xl:min-h-0 xl:px-2.5 xl:py-1", valore === o.v ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}
         >
           {o.label}
         </button>

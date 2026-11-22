@@ -150,7 +150,7 @@ export function AnteprimaPdfVero({ genera, chiave, attivo, className }: Props) {
   }, [rev, larghezza, stato]);
 
   return (
-    <div className={cn("flex h-[calc(100dvh-11rem)] min-h-[420px] flex-col rounded-md border border-slate-200 bg-slate-100", className)}>
+    <div className={cn("flex h-[68dvh] min-h-[260px] xl:h-[calc(100dvh-11rem)] xl:min-h-[420px] flex-col rounded-md border border-slate-200 bg-slate-100", className)}>
       <div className="flex items-center justify-between border-b bg-white px-3 py-1.5 text-[11px] text-slate-600">
         <span className="flex items-center gap-1.5" role="status">
           {inCorso && <Loader2 className="h-3 w-3 animate-spin" />}

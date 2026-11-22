@@ -1,0 +1,36 @@
+import { Check, ChevronDown, Lock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+
+/** Accesso diretto alle fasi anche quando la striscia scorre su telefono e tablet. */
+export function SelettoreFase({ passi, corrente, onSelect }: {
+  passi: Array<{ key: string; label: string; bloccato?: boolean; completato?: boolean; avviso?: boolean }>;
+  corrente: string;
+  onSelect: (key: string) => void;
+}) {
+  if (passi.length < 2) return null;
+  const indice = Math.max(0, passi.findIndex(p => p.key === corrente));
+  return <div className="ml-1 flex shrink-0 items-center border-l border-slate-200 pl-1 xl:hidden">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={`Scegli passo del preventivo, ${indice + 1} di ${passi.length}`}
+          className="inline-flex min-h-11 min-w-14 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold tabular-nums text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          {indice + 1}/{passi.length}<ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-[min(70dvh,var(--radix-dropdown-menu-content-available-height))] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain">
+        {passi.map((passo, i) => <DropdownMenuItem key={passo.key} disabled={passo.bloccato}
+          aria-current={passo.key === corrente ? "step" : undefined}
+          aria-label={`${i + 1}. ${passo.label}${passo.bloccato ? ", bloccato" : passo.avviso ? ", da completare" : passo.completato ? ", completato" : ""}`}
+          onSelect={() => onSelect(passo.key)}
+          className={cn("min-h-11 gap-2", passo.key === corrente && "bg-orange-50 font-semibold text-orange-800")}>
+          <span className="w-5 shrink-0 text-center text-xs tabular-nums">{i + 1}</span>
+          <span className="min-w-0 flex-1 whitespace-normal">{passo.label}</span>
+          {passo.bloccato ? <Lock className="h-4 w-4" aria-label="Bloccato" />
+            : passo.avviso ? <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" role="img" aria-label="Da completare" />
+            : passo.completato && <Check className="h-4 w-4 text-emerald-700" aria-label="Completato" />}
+        </DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </div>;
+}

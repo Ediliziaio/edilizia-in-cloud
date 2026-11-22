@@ -3,7 +3,7 @@
  * `solo_anteprima`, rifatta dopo ogni salvataggio del progetto e non a ogni tasto (ogni giro chiede a Google
  * le viste satellitari).
  */
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -27,6 +27,17 @@ describe("Il documento vero del fotovoltaico", () => {
     expect(invoke).toHaveBeenCalledWith("fv-genera-pdf", { body: { progetto_id: "p1", tipo: "vendita", solo_anteprima: true, azimut: "S" } });
     expect(screen.getByRole("status")).toHaveTextContent("12 pagine");
     expect(screen.getByTitle("Il documento vero del preventivo fotovoltaico")).toHaveAttribute("srcdoc", "<html><body>Preventivo FV</body></html>");
+  });
+
+  it("ingrandisce e adatta il documento senza rigenerarlo o risalvarlo", async () => {
+    render(<PdfVeroFotovoltaico progettoId="p1" versione="1" attivo />);
+    await aspetta();
+    fireEvent.click(screen.getByRole("button", { name: "Ingrandisci documento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Riduci documento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Adatta documento alla larghezza" }));
+    await aspetta();
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(screen.getByTitle("Il documento vero del preventivo fotovoltaico")).toBeInTheDocument();
   });
 
   it("si rifà dopo un salvataggio, non a ogni rendering", async () => {

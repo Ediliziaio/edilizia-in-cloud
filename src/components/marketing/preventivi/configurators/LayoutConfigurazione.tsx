@@ -20,14 +20,14 @@ export function LayoutConfigurazione({
   azioni: ReactNode;
 }) {
   return (
-    <div className="grid gap-6 md:h-full md:grid-cols-[minmax(0,1fr)_320px] md:grid-rows-[minmax(0,1fr)]">
-      <div className="min-w-0 space-y-4 md:overflow-y-auto md:px-2 md:pb-1">{scelte}</div>
+    <div className="grid gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="min-w-0 space-y-4 lg:overflow-y-auto lg:px-2 lg:pb-1">{scelte}</div>
       <aside
         aria-label="Riepilogo del prodotto"
-        className="space-y-3 md:flex md:max-h-full md:flex-col md:self-start md:overflow-y-auto md:rounded-xl md:border md:bg-muted/20 md:p-3"
+        className="space-y-3 lg:flex lg:max-h-full lg:flex-col lg:self-start lg:overflow-y-auto lg:rounded-xl lg:border lg:bg-muted/20 lg:p-3"
       >
         {riepilogo && (
-          <div className="space-y-3 md:min-h-0 md:flex-initial md:overflow-y-auto">
+          <div className="space-y-3 lg:min-h-0 lg:flex-initial lg:overflow-y-auto">
             {riepilogo}
           </div>
         )}
@@ -56,7 +56,7 @@ export function AzioniProdotto({
 }) {
   if (!inserimentoContinuo) {
     return (
-      <Button variant="brand" className="w-full" disabled={disabled} onClick={() => onConferma()}>
+      <Button variant="brand" className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-left leading-snug" disabled={disabled} onClick={() => onConferma()}>
         <Check className="mr-1 h-4 w-4" />
         {confirmLabel}
       </Button>
@@ -64,12 +64,12 @@ export function AzioniProdotto({
   }
   return (
     <div className="space-y-2">
-      <Button variant="brand" className="w-full" disabled={disabled} onClick={() => onConferma("altro")}>
+      <Button variant="brand" className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-left leading-snug" disabled={disabled} onClick={() => onConferma("altro")}>
         <Check className="mr-1 h-4 w-4" />
         Aggiungi e scegli un altro
       </Button>
       {puoDuplicare && (
-        <Button variant="outline" className="w-full" disabled={disabled} onClick={() => onConferma("duplica")}>
+        <Button variant="outline" className="h-auto min-h-11 w-full whitespace-normal px-3 py-2.5 text-left leading-snug" disabled={disabled} onClick={() => onConferma("duplica")}>
           <Copy className="mr-1 h-4 w-4" />
           Aggiungi e duplica con altre misure
         </Button>

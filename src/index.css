@@ -1086,3 +1086,15 @@ html .react-flow .react-flow__edges svg {
   .scorri-pad-4 { --scorri-pad: 1rem; }
   .scorri-pad-5 { --scorri-pad: 1.25rem; }
 }
+
+/* Campi dei preventivi su telefono e tablet: leggibili senza lo zoom automatico
+   di Safari; la regola resta confinata agli editor, senza ingrandire tabelle o sito. */
+@media (max-width: 1023px) {
+  .preventivo-touch :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select, [role="combobox"]) {
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+    scroll-margin-block: 5rem;
+  }
+  .preventivo-touch textarea { min-height: 88px; }
+}

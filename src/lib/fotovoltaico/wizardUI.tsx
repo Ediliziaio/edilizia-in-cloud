@@ -14,6 +14,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Check, Loader2, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SelettoreFase } from "@/components/preventivatore/SelettoreFase";
 import { TotaleBarra } from "@/components/preventivatore/TotaleBarra";
 
 // ─── TAB BAR ORIZZONTALE STICKY ───────────────────────────────────────────────
@@ -63,7 +64,7 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
   return (
     <div className={cn("sticky top-0 z-30 bg-white border-b border-slate-200 shadow-[0_1px_0_rgba(15,23,42,0.05)]", className)}>
       <div className="flex items-stretch">
-      <div ref={rigaRef} className="min-w-0 flex-1 px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-md:gap-1 max-md:px-2 max-md:py-1.5 lg:max-[1439px]:px-3">
+      <div ref={rigaRef} role="navigation" aria-label="Fasi del preventivo fotovoltaico" className="min-w-0 flex-1 px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-xl:gap-1 max-xl:px-2 max-xl:py-1.5 max-xl:[scrollbar-width:none] lg:max-[1439px]:px-3">
         {tabs.map((t) => {
           const isActive = t.num === current;
           const isCompleted = completed.has(t.num);
@@ -87,12 +88,12 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
                 !isActive && !isCompleted && "text-slate-500",
                 !isClickable && "opacity-45 cursor-not-allowed hover:bg-transparent",
                 // Telefono: pillola col nome corto — fatte in verde, l'attiva piena, le altre spente.
-                "tap-compact max-md:gap-0 max-md:rounded-full max-md:border max-md:px-2.5 max-md:py-1 max-md:text-[11px]",
+                "max-xl:min-h-11 max-xl:gap-0 max-xl:rounded-lg max-xl:border max-xl:px-3 max-xl:py-2 max-xl:text-xs",
                 // Da 1024 a 1439 px (colonna dell'anteprima inclusa) le otto fasi devono stare in riga: meno aria.
                 "lg:max-[1439px]:gap-2 lg:max-[1439px]:px-2.5",
-                isActive && "max-md:border-orange-500 max-md:bg-orange-500 max-md:text-white",
-                isCompleted && !isActive && "max-md:border-emerald-200 max-md:bg-emerald-50 max-md:text-emerald-800",
-                !isActive && !isCompleted && "max-md:border-slate-200",
+                isActive && "max-xl:border-orange-500 max-xl:bg-orange-500 max-xl:text-white",
+                isCompleted && !isActive && "max-xl:border-emerald-200 max-xl:bg-emerald-50 max-xl:text-emerald-800",
+                !isActive && !isCompleted && "max-xl:border-slate-200",
               )}
               aria-current={isActive ? "step" : undefined}
               aria-label={t.label}
@@ -100,7 +101,7 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
             >
               <span
                 className={cn(
-                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-md:hidden",
+                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-xl:hidden",
                   !isActive && !isCompleted && "bg-slate-100 border-slate-300 text-slate-500",
                   isActive && "border-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)] bg-gradient-to-br from-orange-500 to-eic-amber",
                   isCompleted && "bg-emerald-600 border-emerald-600 text-white",
@@ -110,7 +111,7 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
               </span>
               <span className="flex flex-col items-start leading-tight text-left">
                 {t.small && (
-                  <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider max-md:hidden">
+                  <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider max-xl:hidden">
                     {t.small}
                   </span>
                 )}
@@ -122,6 +123,10 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect,
           );
         })}
       </div>
+      <SelettoreFase corrente={String(current)} onSelect={key => onSelect(Number(key))} passi={tabs.map(t => ({
+        key: String(t.num), label: t.label, completato: completed.has(t.num),
+        bloccato: !(completed.has(t.num) || t.num <= current || allowJumpForward || t.num === current + 1),
+      }))} />
       {totale && (
         <div className="ml-2 flex shrink-0 items-center border-l border-slate-200 pl-4 pr-4 sm:pr-8 max-md:hidden lg:max-[1439px]:pr-3">
           <TotaleBarra totale={totale} />
@@ -434,9 +439,9 @@ export function FvFooter({
   telefono,
 }: FvFooterProps) {
   return (
-    <div className={cn("sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 md:pr-24 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2", className)}>
+    <div className={cn("sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2", className)}>
       {/* Telefono: lo stato del salvataggio c'è già in testata; restano i tre bottoni. */}
-      <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap max-md:hidden">
+      <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-1 overflow-hidden whitespace-nowrap max-md:hidden">
         {autoSaveState === "saving" && (
           <span className="flex items-center gap-1.5 text-blue-600 font-medium">
             <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio in corso…
@@ -458,11 +463,11 @@ export function FvFooter({
             <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
           </span>
         )}
-        {lastSaveText && <span>· {lastSaveText}</span>}
-        {numero && <span>· <code className="font-mono text-[11px]">{numero}</code></span>}
+        {lastSaveText && <span className="hidden xl:inline">· {lastSaveText}</span>}
+        {numero && <span className="truncate">· <code className="font-mono text-[11px]">{numero}</code></span>}
       </div>
       {telefono && <div className="min-w-0 md:hidden">{telefono}</div>}
-      <div className="flex gap-2 items-center max-md:min-w-0 max-md:flex-1">
+      <div className="flex shrink-0 gap-2 items-center max-md:min-w-0 max-md:flex-1">
         {showPrev && onPrev && (
           <button
             type="button"
@@ -472,7 +477,7 @@ export function FvFooter({
             className={cn(
               "px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700",
               "transition-all hover:bg-slate-50 hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0",
-              "max-md:px-3.5",
+              "min-h-11 min-w-11 max-md:px-3.5",
             )}
           >
             ←<span className="max-md:hidden"> Indietro</span>
@@ -486,7 +491,7 @@ export function FvFooter({
             className={cn(
               "px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700",
               "transition-all hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed",
-              "max-md:px-3",
+              "min-h-11 min-w-11 max-md:px-3",
             )}
           >
             {/* Telefono: solo l'icona, «Avanti» prende la riga. */}
@@ -504,7 +509,7 @@ export function FvFooter({
               "bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
               "hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)]",
               "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none",
-              "max-md:flex-1",
+              "min-h-11 whitespace-nowrap max-md:flex-1 max-md:px-3 max-[380px]:px-2",
             )}
           >
             {saving ? (
@@ -513,7 +518,7 @@ export function FvFooter({
                 Salvataggio…
               </span>
             ) : (
-              <>{nextLabel} →</>
+              <><span className="max-sm:hidden">{nextLabel}</span><span className="sm:hidden">{nextLabel === "Vai a generazione" ? "Genera" : nextLabel}</span> →</>
             )}
           </button>
         )}

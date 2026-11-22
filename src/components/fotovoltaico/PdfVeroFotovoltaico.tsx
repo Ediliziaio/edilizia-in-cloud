@@ -10,7 +10,7 @@
  * satellitari. Un giro alla volta, e fermo quando la colonna non si vede.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { LARGHEZZA_A4_PX, useFitScale } from "@/components/shared/livePreview/useFitScale";
@@ -75,7 +75,7 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
 
   const scala = fit.scala;
   return (
-    <div className="flex h-[calc(100dvh-11rem)] min-h-[420px] flex-col rounded-md border border-slate-200 bg-slate-100">
+    <div className="flex h-[68dvh] min-h-[260px] flex-col rounded-md border border-slate-200 bg-slate-100 xl:h-[calc(100dvh-11rem)] xl:min-h-[420px]">
       <div className="flex items-center justify-between border-b bg-white px-3 py-1.5 text-[11px] text-slate-600">
         <span className="flex items-center gap-1.5" role="status">
           {inCorso && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -85,12 +85,17 @@ export function PdfVeroFotovoltaico({ progettoId, versione, extra, attivo }: Pro
               ? `${pagine ? `${pagine} pagine · ` : ""}aggiornato alle ${aggiornatoAlle}, all'ultimo salvataggio`
               : "Documento del preventivo"}
         </span>
-        <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5" onClick={() => void giro()} aria-label="Aggiorna il documento ora">
+        <Button type="button" variant="ghost" size="sm" className="h-11 w-11 shrink-0 px-1.5 xl:h-6 xl:w-auto" onClick={() => void giro()} aria-label="Aggiorna il documento ora">
           <RefreshCw className="h-3 w-3" />
         </Button>
       </div>
+      <div role="group" aria-label="Zoom del documento" className="flex shrink-0 items-center justify-center gap-2 border-b bg-white p-1">
+        <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label="Riduci documento" onClick={fit.riduci} disabled={!fit.puoRidurre}><ZoomOut className="h-4 w-4" /></Button>
+        <Button type="button" variant="ghost" className="h-11" onClick={fit.adatta} aria-label="Adatta documento alla larghezza">Adatta · {fit.percentuale}%</Button>
+        <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label="Ingrandisci documento" onClick={fit.aumenta} disabled={!fit.puoAumentare}><ZoomIn className="h-4 w-4" /></Button>
+      </div>
       {mappe.errore && <p role="alert" className="border-b bg-amber-50 px-3 py-2 text-xs">{mappe.errore}</p>}
-      <div ref={fit.ref} className="flex-1 overflow-auto">
+      <div ref={fit.ref} className="min-h-0 flex-1 overflow-auto overscroll-contain">
         {errore && !html ? (
           <div className="m-3 space-y-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
             <p className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Il documento non si è generato: {errore}</p>

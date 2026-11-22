@@ -11,8 +11,8 @@
  *   contenitore che scorre (vedi `CompanyLayout`).
  */
 import { useEffect, useRef, type ReactNode } from "react";
-import { Check, ChevronDown, Lock } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Check } from "lucide-react";
+import { SelettoreFase } from "./SelettoreFase";
 import { cn } from "@/lib/utils";
 import { minutiRimasti } from "@/lib/preventivatore/fasi";
 import { TotaleBarra } from "./TotaleBarra";
@@ -66,7 +66,7 @@ export function BarraFasi({
         <nav
           ref={rigaRef}
           aria-label={ariaLabel}
-          className="fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-md:gap-1 max-md:py-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+          className="fv-tab-scroll flex min-h-0 min-w-0 flex-1 gap-0 overflow-x-auto max-xl:gap-1 max-xl:py-1 max-xl:[scrollbar-width:none] max-xl:[&::-webkit-scrollbar]:hidden"
         >
           {passi.map((p, i) => {
             const attivo = p.key === corrente;
@@ -91,15 +91,15 @@ export function BarraFasi({
                   !attivo && !fatto && "text-slate-500",
                   !cliccabile && "cursor-not-allowed opacity-45 hover:bg-transparent",
                   // Telefono: pillola col nome corto — fatte in verde, l'attiva piena, le altre spente.
-                  "tap-compact max-md:min-h-8 max-md:gap-0 max-md:rounded-full max-md:border max-md:px-2.5 max-md:py-1 max-md:text-xs",
-                  attivo && "max-md:border-orange-500 max-md:bg-orange-500 max-md:text-white",
-                  fatto && !attivo && "max-md:border-emerald-200 max-md:bg-emerald-50 max-md:text-emerald-800",
-                  !attivo && !fatto && "max-md:border-slate-200",
+                  "max-xl:min-h-11 max-xl:gap-0 max-xl:rounded-lg max-xl:border max-xl:px-3 max-xl:py-2 max-xl:text-xs",
+                  attivo && "max-xl:border-orange-500 max-xl:bg-orange-500 max-xl:text-white",
+                  fatto && !attivo && "max-xl:border-emerald-200 max-xl:bg-emerald-50 max-xl:text-emerald-800",
+                  !attivo && !fatto && "max-xl:border-slate-200",
                 )}
               >
                 <span
                   className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold max-md:hidden",
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold max-xl:hidden",
                     !attivo && !fatto && "border-slate-300 bg-slate-100 text-slate-500",
                     attivo && "border-orange-500 bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)]",
                     fatto && !attivo && "border-emerald-600 bg-emerald-600 text-white",
@@ -122,42 +122,10 @@ export function BarraFasi({
             );
           })}
         </nav>
-        {passi.length > 1 && (
-          <div className="ml-1.5 flex shrink-0 items-center border-l border-slate-200 pl-1.5 md:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={`Scegli passo del preventivo, ${indice + 1} di ${passi.length}`}
-                  className="tap-compact inline-flex h-9 items-center gap-1 rounded-md px-1.5 text-xs font-semibold tabular-nums text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  {indice + 1}/{passi.length}<ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-1rem)]">
-                {passi.map((passo, i) => {
-                  const bloccato = bloccati?.has(passo.key);
-                  const attivo = passo.key === corrente;
-                  return (
-                    <DropdownMenuItem
-                      key={passo.key}
-                      disabled={bloccato}
-                      aria-current={attivo ? "step" : undefined}
-                      onSelect={() => onSelect(passo.key)}
-                      className={cn("min-h-11 gap-2", attivo && "bg-orange-50 font-semibold text-orange-800")}
-                    >
-                      <span className="w-5 shrink-0 text-center text-xs tabular-nums">{i + 1}</span>
-                      <span className="min-w-0 flex-1 whitespace-normal">{passo.label}</span>
-                      {bloccato && <Lock className="h-3.5 w-3.5" aria-label="Bloccato" />}
-                      {!bloccato && !attivo && completati?.has(passo.key) && <Check className="h-4 w-4 text-emerald-700" aria-label="Completato" />}
-                      {!bloccato && !attivo && conAvviso?.has(passo.key) && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" role="img" aria-label="Da completare" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+        <SelettoreFase corrente={corrente} onSelect={onSelect} passi={passi.map(p => ({
+          key: p.key, label: p.label, bloccato: bloccati?.has(p.key),
+          completato: completati?.has(p.key), avviso: conAvviso?.has(p.key),
+        }))} />
         {(totale || destra) && (
           <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-slate-200 pl-4 max-md:hidden">
             {totale && <TotaleBarra totale={totale} />}
