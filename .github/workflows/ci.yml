@@ -232,6 +232,31 @@ jobs:
           src/test/ui/cassaInCloud.test.tsx
           src/test/ui/cassaInCloudContabilita.test.tsx
 
+  lint-regressions:
+    name: No new lint errors
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        id: bun
+        continue-on-error: true
+        with:
+          bun-version: '1.4.4'
+      - name: Install Bun from npm if GitHub download fails
+        if: steps.bun.outcome == 'failure'
+        run: npm install --global bun@1.4.4
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify lint threshold and preview ownership guards
+        run: node --test scripts/tests/eslintRatchet.test.mjs scripts/tests/prerenderPreview.test.mjs
+      - name: Verify inbox selection and financial dialog recovery
+        run: bun run test:stabilizzazione-ui
+      - name: Reject new errors by file and rule
+        run: bun run lint:ci
+
   frontend-build:
     name: Frontend production build
     # Official image matches the lockfile and already contains browser libraries.

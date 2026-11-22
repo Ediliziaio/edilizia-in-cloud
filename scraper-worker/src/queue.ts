@@ -39,7 +39,7 @@ async function processJob(sb: SupabaseClient, job: any): Promise<void> {
     await sb.from("lead_scraper_jobs").update({ processed }).eq("id", job.id);
   };
 
-  let scraped: Business[] = [];
+  let scraped: Business[];
   if (engine === "gmaps") {
     scraped = await scrapeGmaps({ keyword, city, max: target, withEmails: p.withEmails !== false }) as any;
     await updateProgress(scraped.length);

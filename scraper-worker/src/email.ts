@@ -1,7 +1,7 @@
 // Estrazione email dal sito di un'azienda (best-effort, gratis).
 import { nextDispatcher } from "./proxy.js";
 
-const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const EMAIL_JUNK = /(sentry|wixpress|example\.com|\.png|\.jpe?g|\.gif|\.webp|godaddy|cloudflare|yourdomain|@2x|@sentry)/i;
 
 async function fetchText(url: string, timeoutMs = 6000): Promise<string | null> {

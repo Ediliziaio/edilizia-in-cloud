@@ -7,7 +7,7 @@
     "centralino:local": "node --env-file-if-exists=.env.fish.local scripts/fish-centralino-local.mjs",
     "test:fish": "vitest run src/test/logic/fishVoiceHeaders.test.ts src/test/logic/fishActionConsent.test.ts src/test/logic/fishItalianSpeech.test.ts src/test/logic/fishDemoHandoff.test.ts src/test/ui/fishHandoffSimulation.test.tsx src/test/logic/fishCaseMemory.test.ts src/test/ui/fishCaseMemory.test.tsx src/test/logic/fishAudio.test.ts src/test/logic/fishCentralino.test.ts src/test/logic/fishSimulation.test.ts src/test/logic/centralinoCalls.test.ts src/test/logic/fishCalendarTools.test.ts src/test/logic/fishConnectionRequests.test.ts src/test/logic/fishAgentProxy.test.ts src/test/logic/fishCustomerTools.test.ts src/test/ui/fishAgentPanel.test.tsx src/test/ui/fishAgentWorkspace.test.tsx src/test/ui/centralinoCallHistory.test.tsx src/test/ui/fishOnboarding.test.tsx src/test/ui/fishCreation.test.tsx src/test/ui/fishCrmTrial.test.tsx src/test/ui/fishLiveTranscript.test.tsx src/test/ui/ticketAIConversation.test.tsx src/test/logic/fishTranscript.test.ts && node --test scripts/fish-centralino/lead-optout-db.test.mjs scripts/fish-centralino/local-server.test.mjs scripts/fish-centralino/db-integration.test.mjs scripts/fish-centralino/crm-trial-db.test.mjs scripts/fish-centralino/routing-db.test.mjs",
     "dev": "vite",
-    "build": "npm run security:warehouse && npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
+    "build": "npm run security:warehouse && npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs && npm run prerender:verify",
     "build:fast": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "build:preventivi": "node scripts/preventivi-render/build.mjs && node scripts/bgn-render/build.mjs",
     "build:dev": "npm run build:images && npm run build:preventivi && vite build --mode development",
@@ -20,7 +20,7 @@
     "prerender": "node scripts/prerender.mjs",
     "prerender:verify": "node scripts/prerender-verify.mjs",
     "playwright:ensure": "npx --yes playwright install chromium-headless-shell || npx --yes playwright install chromium",
-    "build:seo": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
+    "build:seo": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs && npm run prerender:verify",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -55,7 +55,9 @@
     "security:warehouse": "node scripts/security/warehouse-release-check.mjs",
     "build:images": "node scripts/generate-blog-cover-variants.mjs",
     "check:edge-runtime": "cd scripts/fixtures/edge-runtime && npx --yes deno@2.9.6 check --frozen --lock=deno.lock ../../../supabase/functions/bank-distyra/index.ts ../../../supabase/functions/dispatch-global-webhooks/index.ts ../../../supabase/functions/send-webhook/index.ts ../../../supabase/functions/silvio-chat/index.ts ../../../supabase/functions/silvio-execute-action/index.ts ../../../supabase/functions/fv-leggi-bolletta/index.ts ../../../supabase/functions/fv-calcolo-finanziario/index.ts ../../../supabase/functions/fv-genera-pdf/index.ts",
-    "test:pdf-runtime": "cd scripts/fixtures/edge-runtime && npx --yes deno@2.9.6 run --frozen --lock=deno.lock --allow-env=NODE_ENV smoke-pdf.ts"
+    "test:pdf-runtime": "cd scripts/fixtures/edge-runtime && npx --yes deno@2.9.6 run --frozen --lock=deno.lock --allow-env=NODE_ENV smoke-pdf.ts",
+    "lint:ci": "node scripts/eslint-ratchet.mjs",
+    "test:stabilizzazione-ui": "vitest run src/test/ui/openwaInboxSelezione.test.tsx src/test/ui/nuovaScadenzaAccessibile.test.tsx src/test/ui/fattureModificheConcorrenti.test.tsx src/test/ui/silvioFabPannello.test.tsx src/test/logic/prerenderIndexShell.test.ts --maxWorkers=2"
   },
   "dependencies": {
     "@capacitor/android": "8.5.1",

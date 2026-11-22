@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,12 @@ function orderCustName(o: OrderOption | null | undefined): string {
   return `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
 }
 
-export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPending }: Props) {
+export default function NewScadenzaDialog(props: Props) {
+  const { effectiveCompany } = useAuth();
+  return <ModuloScadenza key={`${effectiveCompany?.id ?? ""}:${props.open}`} {...props} />;
+}
+
+function ModuloScadenza({ open, onOpenChange, onConfirm, isPending }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -98,26 +103,6 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
     },
   });
 
-  const reset = () => {
-    setTipo("incasso_cliente");
-    setDescription("");
-    setAmount("");
-    setDueDate("");
-    setMethod("bonifico");
-    setNotes("");
-    setAlertDays("7");
-    setSupplierId("");
-    setOrderId("");
-  };
-
-  // Reset all'APERTURA: con dialog controllato Radix non invoca onOpenChange quando il
-  // parent setta open=true → il vecchio handleOpen non scattava e i valori della
-  // scadenza precedente restavano nel form.
-  useEffect(() => {
-    if (open) reset();
-     
-  }, [open]);
-
   const isValid = description.trim() && Number(amount) > 0 && dueDate;
   const showSupplier = tipo === "pagamento_fornitore";
   const showOrder = tipo === "incasso_cliente";
@@ -134,9 +119,9 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
         {/* Mobile: via metodo, preavviso e note (restano i valori predefiniti). */}
         <div className="space-y-4 max-sm:space-y-3">
           <div className="space-y-2">
-            <Label>Tipo</Label>
+            <Label htmlFor="nuova-scadenza-tipo">Tipo</Label>
             <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="nuova-scadenza-tipo"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="incasso_cliente">Incasso cliente</SelectItem>
                 <SelectItem value="pagamento_fornitore">Pagamento fornitore</SelectItem>
@@ -150,10 +135,10 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
           {/* Supplier combobox */}
           {showSupplier && (
             <div className="space-y-2">
-              <Label>Fornitore</Label>
+              <Label htmlFor="nuova-scadenza-fornitore">Fornitore</Label>
               <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  <Button id="nuova-scadenza-fornitore" variant="outline" role="combobox" className="w-full justify-between font-normal">
                     {selectedSupplier?.name || "Seleziona fornitore..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -181,10 +166,10 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
           {/* Order combobox */}
           {showOrder && (
             <div className="space-y-2">
-              <Label>Collega a ordine<span className="max-sm:hidden"> (opzionale)</span></Label>
+              <Label htmlFor="nuova-scadenza-ordine">Collega a ordine<span className="max-sm:hidden"> (opzionale)</span></Label>
               <Popover open={orderOpen} onOpenChange={setOrderOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  <Button id="nuova-scadenza-ordine" variant="outline" role="combobox" className="w-full justify-between font-normal">
                     {selectedOrder ? `${selectedOrder.order_code || "—"}${orderCustName(selectedOrder) ? " - " + orderCustName(selectedOrder) : ""}` : "Seleziona ordine..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -211,26 +196,26 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
           )}
 
           <div className="space-y-2">
-            <Label>Descrizione</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Fattura n. 123 - Cliente XYZ" />
+            <Label htmlFor="nuova-scadenza-descrizione">Descrizione</Label>
+            <Input id="nuova-scadenza-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Fattura n. 123 - Cliente XYZ" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Importo (€)</Label>
-              <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Label htmlFor="nuova-scadenza-importo">Importo (€)</Label>
+              <Input id="nuova-scadenza-importo" type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Scadenza</Label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <Label htmlFor="nuova-scadenza-data">Scadenza</Label>
+              <Input id="nuova-scadenza-data" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 max-sm:hidden">
             <div className="space-y-2">
-              <Label>Metodo pagamento</Label>
+              <Label htmlFor="nuova-scadenza-metodo">Metodo pagamento</Label>
               <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="nuova-scadenza-metodo"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bonifico">Bonifico</SelectItem>
                   <SelectItem value="contanti">Contanti</SelectItem>
@@ -242,14 +227,14 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Alert (giorni prima)</Label>
-              <Input type="number" min="0" max="90" value={alertDays} onChange={(e) => setAlertDays(e.target.value)} />
+              <Label htmlFor="nuova-scadenza-preavviso">Alert (giorni prima)</Label>
+              <Input id="nuova-scadenza-preavviso" type="number" min="0" max="90" value={alertDays} onChange={(e) => setAlertDays(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-2 max-sm:hidden">
-            <Label>Note (opzionale)</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+            <Label htmlFor="nuova-scadenza-note">Note (opzionale)</Label>
+            <Textarea id="nuova-scadenza-note" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
 

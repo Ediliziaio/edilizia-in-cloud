@@ -124,7 +124,6 @@ export function generaPianta(seme: number, nStanze: number, larghezza: number, p
   const caso = rng(seme);
   const programma = PROGRAMMI[nStanze];
   let rett: Rett[] = [];
-  let ordineStanze: Array<[string, number]> = programma;
   let miglioreScarto = Infinity;
   let migliori: { rett: Rett[]; ordine: Array<[string, number]> } | null = null;
   for (let prova = 0; prova < 400; prova++) {
@@ -146,7 +145,7 @@ export function generaPianta(seme: number, nStanze: number, larghezza: number, p
     if (scarto === 0) break;
   }
   rett = migliori!.rett;
-  ordineStanze = migliori!.ordine;
+  const ordineStanze = migliori!.ordine;
   const ingombro = { x0: 0, y0: 0, x1: larghezza, y1: profondita };
   const dest = ordineStanze.map((x) => x[0]);
   const ordine = rett.map((_, i) => i).sort((a, b) => area(rett[b]) - area(rett[a]));

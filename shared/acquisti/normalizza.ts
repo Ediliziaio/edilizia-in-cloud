@@ -198,7 +198,7 @@ export function dataIso(v: string | null | undefined): string | null {
   if (!s) return null;
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[t\s].*)?$/);
   if (m) return isoSeEsiste(+m[1], +m[2], +m[3]);
-  m = s.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2}|\d{4})$/);
+  m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
   if (m) return isoSeEsiste(anno4(+m[3]), +m[2], +m[1]);
   m = s.match(/^(\d{1,2})\s+([a-z]+)\.?\s+(\d{2}|\d{4})$/);
   if (m && MESI[m[2]]) return isoSeEsiste(anno4(+m[3]), MESI[m[2]], +m[1]);
@@ -390,13 +390,13 @@ export function numeroDocumento(v: string | null | undefined): NumeroDocumento |
   let anno: number | null = null;
   // Anno in coda: 123/2026, 123-26, 123/26 — solo se separato, e un anno credibile
   // (fra 2000 e 2040: «123-45» non è il 2045, è un altro pezzo di numero).
-  m = s.match(/^(.*\d.*?)\s*[/\-]\s*(20\d{2}|\d{2})$/);
+  m = s.match(/^(.*\d.*?)\s*[/-]\s*(20\d{2}|\d{2})$/);
   if (m && /[A-Z0-9]/.test(m[1]) && anno4(+m[2]) >= 2000 && anno4(+m[2]) <= 2040) {
     anno = anno4(+m[2]);
     s = m[1];
   } else {
     // Anno in testa: 2026/123, 2026-000123.
-    m = s.match(/^(20\d{2})\s*[/\-]\s*(.*\d.*)$/);
+    m = s.match(/^(20\d{2})\s*[/-]\s*(.*\d.*)$/);
     if (m && +m[1] <= 2040) {
       anno = +m[1];
       s = m[2];
@@ -404,7 +404,7 @@ export function numeroDocumento(v: string | null | undefined): NumeroDocumento |
   }
   // Serie in coda: 123/B.
   if (!serie) {
-    m = s.match(/^(\d[\d./\-\s]*)\s*[/\-]\s*([A-Z]{1,4})$/);
+    m = s.match(/^(\d[\d./\-\s]*)\s*[/-]\s*([A-Z]{1,4})$/);
     if (m) {
       serie = m[2];
       s = m[1];

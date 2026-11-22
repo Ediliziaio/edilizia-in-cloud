@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import { PagaRataDialog } from "@/components/scadenzario/PagaRataDialog";
@@ -45,6 +45,13 @@ beforeEach(() => {
   db.success.mockClear();
   db.error.mockClear();
   db.rataPagata.mockClear();
+});
+
+afterEach(async () => {
+  cleanup();
+  // Radix ripristina il focus in un timer dopo l'unmount. Completarlo prima
+  // della distruzione di JSDOM evita eventi appartenenti alla finestra seguente.
+  await new Promise(resolve => setTimeout(resolve, 0));
 });
 
 describe("Modifiche concorrenti su note e rate", () => {

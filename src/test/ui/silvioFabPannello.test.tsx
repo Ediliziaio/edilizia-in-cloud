@@ -36,6 +36,12 @@ describe("Regia Silvio", () => {
     stato.briefing = null;
   });
 
+  it.each(["/azienda/scadenzario", "/azienda/prima-nota"])("%s non sovrappone il pulsante flottante alle azioni delle righe", percorso => {
+    const qc = new QueryClient();
+    render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[percorso]}><SilvioFAB /></MemoryRouter></QueryClientProvider>);
+    expect(screen.getByRole("button", { name: "Apri assistente Silvio" })).toHaveClass("md:hidden");
+  });
+
   it("senza briefing: niente badge e niente sezione priorità", async () => {
     apri();
     await screen.findByText("Regia Silvio");
