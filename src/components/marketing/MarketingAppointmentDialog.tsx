@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { appointmentEditPatch } from "@/lib/marketing/appointmentEdit";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleComp } from "@/components/ui/alert-dialog";
@@ -94,6 +94,8 @@ export interface MarketingAppointmentData {
   meeting_created_at?: string | null;
 }
 
+const ViciniAppuntamento = lazy(() => import("@/components/calendar/mappa/ViciniAppuntamento"));
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -104,6 +106,7 @@ interface Props {
   defaultDate?: string;
   defaultTime?: string;
   defaultContactId?: string;
+  viciniDaCalendario?: boolean;
   /**
    * Titolo precompilato per le nuove prenotazioni (ignorato in modifica).
    * Usato dal flusso Outreach "Prenota demo" per proporre es.
@@ -121,7 +124,7 @@ const formatEuro = (value: number | null | undefined) =>
 
 export default function MarketingAppointmentDialog({
   open,
-  onOpenChange,
+  onOpenChange: cambiaApertura,
   appointment,
   onSaved,
   calendars,
@@ -129,6 +132,7 @@ export default function MarketingAppointmentDialog({
   defaultDate,
   defaultTime,
   defaultContactId,
+  viciniDaCalendario = false,
   defaultTitle,
   contestoScheda,
 }: Props) {
@@ -140,7 +144,13 @@ export default function MarketingAppointmentDialog({
   const routePrefix = useMarketingRoutePrefix();
   // In sola lettura niente prenotazioni né modifiche: la policy su appointments
   // le rifiuterebbe, meglio dirlo sul bottone.
-  const { solaLettura, onlyAssigned, canViewMarketingContacts, canViewMarketingOpportunities } = usePermissions();
+  const { solaLettura, onlyAssigned, canViewMarketingContacts, canViewMarketingOpportunities,
+    canViewMarketingAppointments, canViewOrders, canViewCalendar, canViewPersone, canViewAllTeamCalendar, onlyAssignedWork } = usePermissions();
+  const [viciniAperti, setViciniAperti] = useState(false);
+  const onOpenChange = (visibile: boolean) => {
+    if (!visibile) setViciniAperti(false);
+    cambiaApertura(visibile);
+  };
   const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
   const queryClient = useQueryClient();
 
@@ -243,7 +253,7 @@ export default function MarketingAppointmentDialog({
       const st = defaultTime || "09:00";
       setStartTime(st);
       setEndTime(addMinutesToTime(st, 30));
-      setAppointmentDate(defaultDate ? new Date(defaultDate) : new Date());
+      setAppointmentDate(defaultDate ? new Date(defaultDate + "T12:00:00") : new Date());
       setCalendarId(defaultCalendarId);
       setAssignedTo("");
       setContactId(defaultContactId || "");
@@ -998,6 +1008,16 @@ export default function MarketingAppointmentDialog({
                 {/* Location section */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <AddressAutocomplete value={addressData} onChange={setAddressData} />
+                  {viciniDaCalendario && canViewMarketingAppointments && companyId && meetingProvider === "none" && (
+                    viciniAperti ? <Suspense fallback={<p role="status" className="text-xs">Caricamento disponibilità…</p>}>
+                      <ViciniAppuntamento key={`${appointmentDate?.toDateString()}:${startTime}:${endTime}:${addressData.formatted_address}:${addressData.address_line}`}
+                        company={companyId} giorno={format(appointmentDate ?? new Date(), "yyyy-MM-dd")} inizio={startTime} fine={endTime}
+                        indirizzo={addressData.formatted_address || [addressData.address_line, addressData.address_postal_code, addressData.address_city, addressData.address_province].filter(Boolean).join(", ")}
+                        punto={!addressData.place_id && addressData.lat != null && addressData.lng != null ? { lat: addressData.lat, lng: addressData.lng } : null}
+                        escludi={appointment?.id} lavori={canViewOrders && canViewCalendar && canViewPersone && canViewAllTeamCalendar && !onlyAssignedWork}
+                        onChiudi={() => setViciniAperti(false)} />
+                    </Suspense> : <Button type="button" variant="outline" size="sm" onClick={() => setViciniAperti(true)}>Chi è più vicino?</Button>
+                  )}
                   {addressData.lat != null && addressData.lng != null && (
                     <>
                       <AddressMapPreview

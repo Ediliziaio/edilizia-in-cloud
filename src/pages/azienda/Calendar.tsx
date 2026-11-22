@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/calendar/planning";
 import {
   endOfMonth,
+  parseISO,
+  subDays,
   endOfWeek,
   format,
   startOfMonth,
@@ -55,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import {
   CalendarDays,
+  Map as MapIcon,
   Calendar as CalendarIcon,
   RotateCcw,
   AlertTriangle,
@@ -129,6 +132,10 @@ import {
   normalizeCalendarView,
 } from "@/lib/calendar/viewModes";
 
+import { cantieriMappa } from "@/components/calendar/mappa/dati";
+import { dataCalendarioOggi, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
+const MappaOperativa = lazy(() => import("@/components/calendar/mappa/MappaOperativa"));
+
 type CalendarEmployee = {
   id: string;
   first_name: string | null;
@@ -179,7 +186,9 @@ function CalendarInner() {
   );
   const planningView = isCalendarPlanningView(view);
   const [refreshingCalendar, setRefreshingCalendar] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(dataCalendarioOggi);
+  const [mostraMappa, setMostraMappa] = useState(false);
+  const statoMappa = useMappaCalendario(companyId, user?.id);
   const [ganttZoom, setGanttZoom] = useState<GanttZoom>("quarter");
   const [search, setSearch] = useState("");
   const prefKey = `work-calendar-v2:${effectiveCompany?.id}:${user?.id}`;
@@ -429,8 +438,8 @@ function CalendarInner() {
         )
       : visiblePeriod.to;
   const calendarData = useWorkCalendarData(
-    calendarRangeStart,
-    calendarRangeEnd,
+    mostraMappa ? format(subDays(currentDate, 1), "yyyy-MM-dd") : calendarRangeStart,
+    mostraMappa ? format(currentDate, "yyyy-MM-dd") : calendarRangeEnd,
     requestedScope,
   );
   const { data: ordersRaw = [], isLoading, isError } = calendarData.orders;
@@ -1356,6 +1365,11 @@ function CalendarInner() {
           order.work_phases?.some((p) => p.start_date),
       )
       .filter((order) => {
+        if (!mostraMappa) {
+          const { cantiere, stato, risorsa } = statoMappa.state;
+          if ((cantiere && order.id !== cantiere) || (stato && order.status?.name !== stato) ||
+              (risorsa && !order.resource_bookings?.some(r => risorsa === `${r.resourceType === "team" ? "squadra" : "operaio"}:${r.resourceId}`))) return false;
+        }
         if (
           statusFilter !== "all" &&
           order.current_status_id !== statusFilter
@@ -1442,6 +1456,7 @@ function CalendarInner() {
         };
       });
   }, [
+    mostraMappa, statoMappa.state,
     orders,
     search,
     statusFilter,
@@ -1956,6 +1971,7 @@ function CalendarInner() {
               aria-pressed={calendarData.scope === value}
               onClick={() => {
                 resetFilters();
+                statoMappa.onState({ id: null, risorsa: "", stato: "", cantiere: "" });
                 setVisibleEmployeeIds(null);
                 setVisibleTeamIds(null);
                 setRequestedScope(value);
@@ -1972,6 +1988,23 @@ function CalendarInner() {
           ))}
         </div>
       )}
+      {permissions.canViewOrders && <div role="group" aria-label="Vista operativa" className="flex flex-wrap gap-1">
+        <Button size="sm" variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => setMostraMappa(false)}><CalendarDays className="size-4" /> Calendario</Button>
+        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => setMostraMappa(true)}><MapIcon className="size-4" /> Mappa</Button>
+      </div>}
+      {mostraMappa && permissions.canViewOrders ? (
+        <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
+          <MappaOperativa key={`${companyId}:${user?.id}:${calendarData.scope}`} {...statoMappa} ambito="lavori"
+            giorno={format(currentDate, "yyyy-MM-dd")} onGiorno={d => setCurrentDate(parseISO(d))}
+            voci={cantieriMappa(scheduledOrders, format(currentDate, "yyyy-MM-dd"), false, calendarData.scope === "team" && permissions.canViewPersone)}
+            personale={calendarData.scope !== "team"}
+            loading={isLoading} erroreDati={isError}
+            registroMezzi={permissions.canViewMezzi} onRiprova={() => void calendarData.orders.refetch()}
+            modifica={permissions.canEditOrders && !permissions.solaLettura}
+            vendite={permissions.canViewMarketingAppointments} lavori={canViewTeam && permissions.canViewPersone}
+            consumo={permissions.isAdmin} />
+        </Suspense>
+      ) : <>
       <CalendarViewNavigation
         view={view}
         onViewChange={setView}
@@ -2876,6 +2909,8 @@ function CalendarInner() {
           </Sheet>
         )}
       </div>
+
+      </>}
 
       <AppointmentDialog
         open={appointmentDialogOpen}

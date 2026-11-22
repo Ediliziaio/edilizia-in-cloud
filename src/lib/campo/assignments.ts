@@ -12,6 +12,11 @@ export interface CampoAssignedOrder {
   percentuale_avanzamento: number | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  work_lat?: number | null;
+  work_lng?: number | null;
+  work_address?: string | null;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
 }
 export type CampoAssignmentSource = "direct" | "employee" | "contract" | "subcontractor_team";
 export interface CampoResolvedAssignment {
@@ -27,7 +32,7 @@ interface AssignmentRow {
   is_capocantiere?: boolean | null;
   order: CampoAssignedOrder | null;
 }
-const ORDER_SELECT = "id, deleted_at, company_id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date";
+const ORDER_SELECT = "id, deleted_at, company_id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date, work_start_time, work_end_time, work_address, work_lat, work_lng";
 const ASSIGNMENT_SELECT = `id, order_id, order:orders!inner(${ORDER_SELECT})`;
 
 /** Sources are additive. RLS remains the authority for reads/writes: these

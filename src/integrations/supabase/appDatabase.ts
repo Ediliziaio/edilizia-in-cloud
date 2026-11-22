@@ -14,6 +14,26 @@ type Quote = Database["public"]["Tables"]["quotes"];
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
+      mappa_assegnati: {
+        Args: { p_company: string; p_giorno: string; p_ordini: string[] };
+        Returns: { order_id: string; user_id: string; nome: string | null; squadra_id: string | null; employee_id: string | null; mezzo_id: string | null; mezzo: string | null }[];
+      };
+      mappa_presenze: {
+        Args: { p_company: string; p_giorno: string; p_ordini: string[]; p_personale: boolean };
+        Returns: { order_id: string; user_id: string; nome: string | null; tipo: string; ora: string; fonte: string }[];
+      };
+      mappa_km_effettivi: {
+        Args: { p_company: string; p_giorno: string; p_personale: boolean };
+        Returns: { id: string; mezzo: string; metri: number; fonte: string; partenza: string; arrivo: string; aggiornato: string }[];
+      };
+      mappa_salva_posizione: {
+        Args: { p_company: string; p_tipo: string; p_record: string; p_lat: number; p_lng: number; p_fonte: string; p_indirizzo: string };
+        Returns: undefined;
+      };
+      mappa_consumo_mese: {
+        Args: { p_company: string };
+        Returns: { provider: string; voce: string; unita: number }[];
+      };
       prima_nota_riepilogo_filtrato: {
         Args: {
           p_company_id: string;
@@ -33,6 +53,12 @@ export type AppDatabase = Omit<Database, "public"> & {
       };
     };
     Tables: Omit<Database["public"]["Tables"], "staff_permissions" | "order_attachments" | "media_library_folders" | "quotes"> & {
+      mappa_posizioni: {
+        Row: { company_id: string; tipo: string; record_id: string; lat: number; lng: number; fonte: string; aggiornato_da: string; aggiornato_il: string };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       quotes: Omit<Quote, "Row" | "Insert" | "Update"> & {
         Row: Quote["Row"] & { ai_richiesta_id: string | null; ai_richiesta_salvata_il: string | null };
         Insert: Quote["Insert"] & { ai_richiesta_id?: string | null };

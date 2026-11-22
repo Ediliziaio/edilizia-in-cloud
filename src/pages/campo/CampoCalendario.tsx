@@ -3,7 +3,7 @@
  * Mostra cantieri + appuntamenti/sopralluoghi programmati per data.
  * Calcola distanze dalla sede e tra impegni consecutivi.
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import type { NavigateFunction } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -28,7 +28,12 @@ import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { campoCrewAgendaEnabled } from "@/hooks/campo/useCampoCrewAgenda";
 import { cn } from "@/lib/utils";
 import { haversineMeters } from "@/lib/tsp";
-import { forwardGeocode } from "@/lib/geocoding";
+import { useCompanyBase } from "@/hooks/useCompanyBase";
+import { dataCalendarioOggi, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
+import { coordinate, dataAdiacente, minuti } from "../../../shared/mappa-operativa/calcoli";
+import type { Attivita, VoceMappa } from "@/components/calendar/mappa/dati";
+
+const MappaOperativa = lazy(() => import("@/components/calendar/mappa/MappaOperativa"));
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
@@ -44,6 +49,11 @@ interface OrderSummary {
   percentuale_avanzamento: number;
   work_start_date: string | null;
   work_end_date: string | null;
+  work_lat?: number | null;
+  work_lng?: number | null;
+  work_address?: string | null;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
 }
 
 interface Cantiere {
@@ -162,30 +172,16 @@ function isOverdueOrder(order: OrderSummary | null | undefined): boolean {
 
 export default function CampoCalendario() {
   const navigate = useNavigate();
-  const { user, profile, company, effectiveCompany } = useAuth();
-  // Sede REALE dell'azienda (prima era hardcodato il Duomo di Milano per
-  // qualsiasi tenant): geocodifichiamo l'indirizzo operativo; se non c'è,
-  // le righe "Dalla sede" semplicemente non compaiono.
-  const activeCompany = (effectiveCompany ?? company) as (typeof company & {
-    operational_address?: string | null; operational_city?: string | null;
-    legal_address?: string | null; legal_city?: string | null;
-  }) | null;
-  // Via + città: "Via Ada Negri 28" da sola geocodifica nel comune sbagliato.
-  const sedeAddr =
-    (activeCompany?.operational_address
-      ? [activeCompany.operational_address, activeCompany.operational_city].filter(Boolean).join(", ")
-      : null) ||
-    (activeCompany?.legal_address
-      ? [activeCompany.legal_address, activeCompany.legal_city].filter(Boolean).join(", ")
-      : null) ||
-    null;
-  const [sedeCoords, setSedeCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const { user, profile } = useAuth();
+  const sedeCoords = useCompanyBase();
+  const [mostraMappa, setMostraMappa] = useState(false);
+  const statoMappa = useMappaCalendario(profile?.company_id, user?.id);
 
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [selectedAppuntamento, setSelectedAppuntamento] = useState<Appuntamento | null>(null);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState(dataCalendarioOggi);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -218,7 +214,7 @@ export default function CampoCalendario() {
 
   // I MIEI giorni su ogni cantiere: le date del mio accesso, che seguono le
   // fasi e la squadra. Dove non ci sono, valgono le date della commessa.
-  const { data: mieDate } = useQuery({
+  const { data: mieDate, isLoading: caricamentoDate } = useQuery({
     queryKey: ["campo-mie-date", user?.id],
     enabled: !!user?.id,
     staleTime: 60_000,
@@ -278,61 +274,22 @@ export default function CampoCalendario() {
   const selectedAppointments = dayItems.filter((item) => item.type === "appuntamento").length;
   const selectedSites = dayItems.filter((item) => item.type === "cantiere").length;
 
-  const nextCommitment = useMemo(() => {
-    const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+  const dataOggi = format(dataCalendarioOggi(), "yyyy-MM-dd");
+  const nextCommitment = (() => {
+    const days = Array.from({ length: 14 }, (_, i) => addDays(parseISO(dataOggi), i));
     for (const day of days) {
       const first = itemsForDay(day)[0];
       if (first) return { day, item: first };
     }
     return null;
-  }, [itemsForDay]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!sedeAddr) { setSedeCoords(null); return; }
-    (async () => {
-      const coords = await forwardGeocode(sedeAddr);
-      if (!cancelled) setSedeCoords(coords);
-    })();
-    return () => { cancelled = true; };
-  }, [sedeAddr]);
-
-  // Geocoding cantieri — risolvi indirizzo → coordinate
-  const [geocodedCoords, setGeocodedCoords] = useState<Record<string, { lat: number; lng: number } | null>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    const toGeocode = allCantieri.filter((c) => {
-      const addr = c.order?.indirizzo_lavori;
-      return addr && !(addr in geocodedCoords);
-    });
-    if (toGeocode.length === 0) return;
-
-    (async () => {
-      const results: Record<string, { lat: number; lng: number } | null> = {};
-      for (const c of toGeocode) {
-        if (cancelled) break;
-        const addr = c.order?.indirizzo_lavori;
-        if (!addr) continue;
-        const coords = await forwardGeocode(addr);
-        results[addr] = coords;
-      }
-      if (!cancelled) {
-        setGeocodedCoords(prev => ({ ...prev, ...results }));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [allCantieri]); // eslint-disable-line react-hooks/exhaustive-deps
+  })();
 
   // Calcola distanze dalla sede e tra items consecutivi
   const distanze = useMemo(() => {
     const result: { fromSede?: number; between: number[] }[] = [];
     const geoItems = dayItems.map((item) => {
       if (item.type === "appuntamento") return { lat: item.lat, lng: item.lng };
-      // Cantieri: usa coordinate geocodate dall'indirizzo
-      const addr = (item as Cantiere).order?.indirizzo_lavori;
-      if (addr && geocodedCoords[addr]) return geocodedCoords[addr];
-      return null;
+      return coordinate(item.order.work_lat, item.order.work_lng);
     });
 
     for (let i = 0; i < dayItems.length; i++) {
@@ -355,7 +312,7 @@ export default function CampoCalendario() {
       result.push(entry);
     }
     return result;
-  }, [dayItems, geocodedCoords, sedeCoords]);
+  }, [dayItems, sedeCoords]);
 
   // Mese calendario
   const monthStart = startOfMonth(currentMonth);
@@ -394,6 +351,40 @@ export default function CampoCalendario() {
         </div>
       </div>
 
+      <div role="group" aria-label="Vista operativa" className="flex gap-1">
+        <Button size="sm" variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => setMostraMappa(false)}><CalendarDays className="size-4" /> Calendario</Button>
+        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => setMostraMappa(true)}><MapPinned className="size-4" /> Mappa</Button>
+      </div>
+      {mostraMappa ? <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
+        <MappaOperativa key={`${profile?.company_id}:${user?.id}:campo`} {...statoMappa} ambito="campo" personale
+          giorno={format(selectedDay, "yyyy-MM-dd")} onGiorno={d => {
+            const data = parseISO(d);
+            setSelectedDay(data); setWeekStart(startOfWeek(data, { weekStartsOn: 1 })); setCurrentMonth(data);
+          }}
+          loading={isLoading || caricamentoDate} erroreDati={cantieriError} onRiprova={() => void reloadCantieri()}
+          voci={allCantieri.flatMap((item): VoceMappa[] => {
+            const o = item.order;
+            const giorn = format(selectedDay, "yyyy-MM-dd");
+            const precedente = dataAdiacente(giorn, -1);
+            const mie = mieDate?.get(o.id);
+            const dataInizio = mie?.dal ?? o.work_start_date;
+            const dataFine = mie?.al ?? o.work_end_date ?? dataInizio;
+            const pianificato = (d: string) => !!dataInizio && !!dataFine && d >= dataInizio && d <= dataFine;
+            const inizio = minuti(o.work_start_time);
+            const a = minuti(o.work_end_time);
+            const fine = a != null && inizio != null && a < inizio ? a + 1440 : a;
+            const attivita: Attivita[] = [];
+            if (pianificato(precedente) && fine != null && fine > 1440) {
+              attivita.push({ id: o.id + ":continua", nome: "Lavori della commessa", inizio: 0, fine: fine - 1440, risorse: [] });
+            }
+            if (pianificato(giorn)) attivita.push({ id: o.id, nome: "Lavori della commessa", inizio, fine, risorse: [] });
+            if (!attivita.length) return [];
+            return [{ tipo: "cantiere", id: o.id, titolo: itemTitle(item), inizio: attivita[0].inizio, fine: attivita.at(-1)!.fine,
+              stato: o.status || "Pianificato", indirizzo: o.indirizzo_lavori?.trim() || o.work_address?.trim() || "",
+              punto: coordinate(o.work_lat, o.work_lng), link: campoLavoroUrl(o), attivita,
+            }];
+          })} />
+      </Suspense> : <>
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[430px_minmax(0,1fr)]">
         <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start">
           <div className="rounded-2xl border bg-background p-3 shadow-sm md:p-4">
@@ -748,6 +739,7 @@ export default function CampoCalendario() {
           })()}
         </SheetContent>
       </Sheet>
+      </>}
     </div>
   );
 }
