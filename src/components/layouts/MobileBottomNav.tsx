@@ -147,27 +147,22 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
   const { role, effectiveCompany } = useAuth();
   const isMobile = useIsMobile();
   const [appGridOpen, setAppGridOpen] = useState(false);
-  // Hide-on-scroll stile Instagram: la pillola scivola via scrollando GIÙ e
-  // riappare scrollando SU (o vicino al top). Listener in CAPTURE: lo scroll
-  // avviene su <main id="main-content"> (overflow-y-auto), non su window.
+  // Comprimi la barra durante lo scorrimento della pagina. Liste interne,
+  // tabelle orizzontali e finestre non devono spostare la navigazione.
   const [navHidden, setNavHidden] = useState(false);
   useEffect(() => {
-    let lastY = 0;
-    let lastEl: EventTarget | null = null;
-    const onScroll = (e: Event) => {
-      const t = e.target;
-      const el = t instanceof Element ? t : document.scrollingElement;
-      if (!el || el.scrollHeight - el.clientHeight < 80) return; // scroller irrilevanti
-      const y = el.scrollTop;
-      if (t !== lastEl) { lastEl = t; lastY = y; return; }
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    let lastY = main.scrollTop;
+    const onScroll = () => {
+      const y = main.scrollTop;
       const dy = y - lastY;
       if (Math.abs(dy) < 8) return; // dead-zone anti-jitter
-      if (y < 48) setNavHidden(false);
-      else setNavHidden(dy > 0);
+      setNavHidden(y >= 48 && dy > 0);
       lastY = y;
     };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => document.removeEventListener("scroll", onScroll, { capture: true });
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => main.removeEventListener("scroll", onScroll);
   }, []);
   const commercialistaParams = new URLSearchParams(location.search);
   const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
@@ -333,7 +328,8 @@ export function MobileBottomNav({ badgePronti = true }: { badgePronti?: boolean 
         // leggero scorrimento verso il basso, icone incluse), restando visibile
         // e cliccabile; torna piena scrollando su o vicino al top.
         "pointer-events-auto relative isolate flex h-16 origin-bottom items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,transform] duration-300 ease-out",
-        navHidden && !appGridOpen && "scale-[0.8] opacity-60 translate-y-1.5",
+        navHidden && !appGridOpen && "scale-[0.9] opacity-80 translate-y-1 focus-within:scale-100 focus-within:opacity-100 focus-within:translate-y-0",
+        "motion-reduce:transition-none",
       )}>
         <div
           aria-hidden="true"

@@ -35,6 +35,21 @@ const disegna = () => render(
 const tabella = () => screen.getByRole("table");
 
 describe("commesse generali nella lista", () => {
+  it("nella lista compatta apre il gruppo separatamente dal link e rispetta la visibilità degli importi", () => {
+    render(<MemoryRouter><OrdersTable
+      orders={[riga("g", "C-014", 0), riga("a", "ODL-1", 1000), riga("b", "ODL-2", 500)]}
+      onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} mappaGenerali={mappaGenerali} mostraImporti={false}
+    /></MemoryRouter>);
+    const generale = screen.getByRole("link", { name: /Lavoro C-014/ });
+    const espandi = within(generale.parentElement!).getByRole("button", { name: "Apri le 2 commesse dentro" });
+    expect(generale).not.toContainElement(espandi);
+    expect(generale).not.toHaveTextContent(/1\.500,00/);
+    fireEvent.click(espandi);
+    const figlia = screen.getByRole("link", { name: /Lavoro ODL-1/ });
+    expect(figlia).toHaveAttribute("href", "/azienda/ordini/a");
+    expect(figlia).not.toHaveTextContent(/1\.000,00/);
+  });
+
   it("mostra insieme commesse della pipeline principale e di quelle personalizzate", () => {
     render(<MemoryRouter><OrdersTable
       orders={[riga("a", "A1", 100), riga("b", "B1", 200)]}

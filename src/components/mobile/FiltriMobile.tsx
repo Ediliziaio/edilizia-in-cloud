@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,33 @@ import { cn } from "@/lib/utils";
 /**
  * Pezzi comuni delle liste su telefono (Finanza, Persone, Formazione, Drive):
  * ricerca con accanto il bottone dei filtri, pannello dei filtri dal basso,
- * riquadri numero (nome + cifra) e riga da ~52px. Sul desktop non compaiono:
- * ogni pagina li monta solo sotto i 640px (`sm:hidden`) o con useIsMobile().
+ * riquadri numero (nome + cifra) e righe compatte.
  */
+
+export function SelettoreSezione<T extends string>({ nome, valore, sezioni, onScegli, className }: {
+  nome: string;
+  valore: T;
+  sezioni: ReadonlyArray<{ id: T; label: string }>;
+  onScegli: (id: T) => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("relative min-w-0", className)}>
+      <select
+        aria-label={nome}
+        value={valore}
+        onChange={(e) => {
+          const sezione = sezioni.find(({ id }) => id === e.target.value);
+          if (sezione) onScegli(sezione.id);
+        }}
+        className="h-11 w-full min-w-0 appearance-none truncate rounded-lg border bg-background pl-3 pr-9 text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {sezioni.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+      </select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  );
+}
 
 /** Ricerca a tutta riga con il bottone-icona dei filtri (e il numero di quelli attivi). */
 export function CercaConFiltri({
@@ -35,10 +59,11 @@ export function CercaConFiltri({
       <div className="relative min-w-0 flex-1">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          aria-label={segnaposto}
           placeholder={segnaposto}
           value={valore}
           onChange={(e) => onCambia(e.target.value)}
-          className="h-9 bg-background pl-9 text-sm"
+          className="h-11 bg-background pl-9 text-base md:text-base"
         />
       </div>
       {onApriFiltri && (
@@ -55,7 +80,7 @@ export function BottoneFiltri({ attivi, onClick, className }: { attivi: number; 
       type="button"
       variant="outline"
       size="icon"
-      className={cn("tap-compact relative h-9 w-9 shrink-0 bg-background", className)}
+      className={cn("relative size-11 shrink-0 bg-background", className)}
       onClick={onClick}
       aria-label="Filtri"
     >
@@ -90,18 +115,18 @@ export function PannelloFiltri({
 }) {
   return (
     <Sheet open={aperto} onOpenChange={onAperto}>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6">
-        <SheetHeader className="text-left">
+      <SheetContent side="bottom" aria-describedby={undefined} className="mx-auto flex max-h-[90dvh] max-w-xl flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pt-4 [&>button:last-child]:right-2 [&>button:last-child]:top-1 [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center">
+        <SheetHeader className="shrink-0 px-4 pb-2 pr-14 text-left">
           <SheetTitle className="text-base">{titolo}</SheetTitle>
         </SheetHeader>
-        <div className="mt-3 space-y-4">{children}</div>
-        <div className="mt-5 flex gap-2">
+        <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-4 py-3 [&_input]:min-w-0 [&_input]:text-base [&_select]:text-base [&_[role=combobox]]:text-base">{children}</div>
+        <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {attivi > 0 && (
-            <Button variant="outline" className="h-10" onClick={onAzzera}>
+            <Button variant="outline" className="min-h-11" onClick={onAzzera}>
               Azzera
             </Button>
           )}
-          <Button className="h-10 flex-1" onClick={() => onAperto(false)}>
+          <Button className="min-h-11 flex-1" onClick={() => onAperto(false)}>
             {risultati === undefined ? "Fatto" : `Mostra ${risultati}`}
           </Button>
         </div>
@@ -135,7 +160,7 @@ export function PilloleFiltro<T extends string>({
               onClick={() => onScegli(c.value)}
               aria-pressed={attiva}
               className={cn(
-                "tap-compact h-8 rounded-full border px-3 text-xs font-medium transition-colors",
+                "min-h-11 rounded-full border px-3 text-sm font-medium transition-colors",
                 attiva ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-background text-slate-700",
               )}
             >

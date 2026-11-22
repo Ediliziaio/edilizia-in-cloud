@@ -64,7 +64,8 @@ function origineMovimento(e: PrimaNotaEntry) {
 
 function PrimaNotaInner() {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const vistaCompatta = useIsMobile(1024);
+  const [tabella, setTabella] = useState(false);
   const { effectiveCompany } = useAuth();
   const contiPrimaNota = useContiPrimaNota(effectiveCompany?.id);
   const [contoFiltro, setContoFiltro] = useState("tutti");
@@ -118,7 +119,7 @@ function PrimaNotaInner() {
     bankAccountId: contoFiltro.startsWith("banca:") ? contoFiltro.slice(6) : undefined,
     liquiditaId: contoFiltro.startsWith("conto:") ? contoFiltro.slice(6) : undefined,
     accountLabel: contoFiltro === "cassa" ? "cassa" : undefined,
-  }, page, pageSize, { includeMonthlyChart: !isMobile });
+  }, page, pageSize, { includeMonthlyChart: !vistaCompatta });
   const selezione = useSelezioneRighe(entries, JSON.stringify([effectiveCompany?.id, page, pageSize, fromDate, toDate, direction, search, autoView, contoFiltro]));
   const eliminabili = selezione.selezionate.filter((e) => !perchePrimaNotaNonEliminabile(e));
   const escluse = selezione.selezionate.flatMap((e) => {
@@ -314,14 +315,11 @@ function PrimaNotaInner() {
             </div>
           </div>
         <div className="flex gap-2 flex-wrap">
-          {/* Mobile: solo «Nuova»; CSV, XBRL e importa automatico al desktop,
-              in un menu «⋯» accanto a «Nuova registrazione»: erano tre
-              bottoni in fila prima dell'azione principale. */}
           {/* Contabilità → Da verificare: un pulsante con il numero, l'elenco in una finestra (16/11/2026). */}
           <span className="max-sm:hidden"><DaVerificareCard companyId={effectiveCompany?.id} variante="pillola" /></span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+              <Button variant="outline" size="icon" className="max-lg:size-11" aria-label="Altre azioni" title="Altre azioni">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -349,7 +347,7 @@ function PrimaNotaInner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm max-sm:h-8 max-sm:px-3 max-sm:text-xs"><Plus className="mr-1 h-4 w-4" />Nuova registrazione</Button></DropdownMenuTrigger>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm max-lg:h-11 max-sm:px-3 max-sm:text-sm"><Plus className="mr-1 h-4 w-4" />Nuova registrazione</Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
               <DropdownMenuItem onSelect={() => setNewOpen(true)}>Movimento di cassa o banca</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => navigate(`/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura&anno=${fromDate.slice(0, 4)}`)}>Scrittura Dare/Avere · stipendi e altri costi</DropdownMenuItem>
@@ -376,7 +374,7 @@ function PrimaNotaInner() {
       )}
       {/* I numeri del periodo filtrato, nella stessa veste delle fatture e dello Scadenzario
           (16/11/2026): riquadri chiari con l'entrata a cascata, al posto della testata blu. */}
-      <div className="grid grid-cols-2 gap-2 max-sm:hidden lg:grid-cols-4">
+      <div className="hidden grid-cols-4 gap-2 lg:grid">
         <NumeroVeloce indice={0} etichetta="Entrate" valore={saldo?.entrate || 0} testo={testoSaldo} tono="buono" nota="nel periodo filtrato" />
         <NumeroVeloce indice={1} etichetta="Uscite" valore={saldo?.uscite || 0} testo={testoSaldo} tono={(saldo?.uscite || 0) > 0 ? "cattivo" : "neutro"} nota="nel periodo filtrato" />
         <NumeroVeloce
@@ -393,7 +391,7 @@ function PrimaNotaInner() {
       {/* Entrate e uscite degli ultimi 6 mesi (16/11/2026): stessa veste dei grafici del
           Controllo di Gestione e delle fatture (fondo a puntini, barre sfumate, tooltip a
           scheda, totali sopra). Vetrina → non su mobile (bastano i numeri sopra). */}
-      {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
+      {!vistaCompatta && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
         <ErrorBoundary fallback={<p role="alert" className="text-sm text-muted-foreground">Grafico non disponibile.</p>}>
           <Suspense fallback={null}>
             <GraficoEntrateUscite dati={chartData} />
@@ -404,7 +402,7 @@ function PrimaNotaInner() {
       {/* Mobile: entrate e uscite del periodo, nome e cifra (al posto del
           riquadro blu con tre numeri, icone e spiegazioni). */}
       <KpiMobili
-        className="sm:hidden"
+        className="lg:hidden"
         voci={[
           { label: "Entrate", valore: testoSaldo ?? eurTondo(saldo?.entrate || 0), tono: "text-green-700" },
           { label: "Uscite", valore: testoSaldo ?? eurTondo(saldo?.uscite || 0), tono: "text-destructive" },
@@ -419,7 +417,8 @@ function PrimaNotaInner() {
 
       {/* Mobile: ricerca e bottone dei filtri. */}
       <CercaConFiltri
-        className="sm:hidden"
+        className="lg:hidden"
+        segnaposto="Cerca nella prima nota"
         valore={search}
         onCambia={(v) => { setSearch(v); setPage(1); }}
         filtriAttivi={nFiltriMobile}
@@ -434,7 +433,7 @@ function PrimaNotaInner() {
       {/* Una riga di filtri senza riquadro attorno; la ricerca non scende sotto
           i 220px (a 1024 si riduceva a «C…») e, se non c'è posto, gli altri
           filtri vanno a capo. */}
-      <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-3 max-sm:hidden">
+      <div className="hidden flex-wrap items-center gap-3 lg:flex">
         {filtroConto}
         {/* Search — full width on mobile, flexible on desktop */}
         <div className="relative flex-1 min-w-[220px]">
@@ -496,7 +495,14 @@ function PrimaNotaInner() {
         {eliminabili.length === 0 && <p className="text-sm text-muted-foreground">Le registrazioni selezionate hanno collegamenti da gestire nella schermata di origine.</p>}
         <StornaPagamentiCosto righe={selezione.selezionate} />
       </div>}
-      {/* Table */}
+      {vistaCompatta && entriesWithBalance.length > 0 && (
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => setTabella(v => !v)}>
+            {tabella ? "Vista compatta" : "Vista tabella"}
+          </Button>
+        </div>
+      )}
+      {/* Movimenti */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -515,6 +521,31 @@ function PrimaNotaInner() {
             <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Prova a modificare i filtri o aggiungi la prima registrazione</p>
           </div>
         </div>
+      ) : vistaCompatta && !tabella ? (
+        <ul aria-label="Movimenti di prima nota" className="divide-y overflow-hidden rounded-lg border bg-card">
+          {entriesWithBalance.map(e => (
+            <li key={e.id} className="flex items-center data-[selected=true]:bg-primary/5" data-selected={selezione.ids.has(e.id)}>
+              {permessi.isAdmin && (
+                <label className="grid size-11 shrink-0 place-items-center">
+                  <Checkbox aria-label={`Seleziona ${e.description}`} checked={selezione.ids.has(e.id)}
+                    disabled={removeMany.isPending} onCheckedChange={() => selezione.alterna(e.id)} />
+                </label>
+              )}
+              <button type="button" aria-label={e.description} aria-haspopup="dialog" onClick={() => setDettaglioId(e.id)}
+                className="flex min-h-14 min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 active:bg-muted">
+                <span className="min-w-0 flex-1">
+                  <span className="block break-words text-sm font-semibold leading-tight">{e.description}</span>
+                  <span className="mt-1 block truncate text-xs text-muted-foreground">
+                    {format(new Date(e.entry_date), "dd/MM/yyyy")} · {e.account_label || CATEGORY_LABELS[e.category] || e.category}
+                  </span>
+                </span>
+                <span className={`max-w-[42%] shrink-0 break-words text-right text-sm font-semibold tabular-nums ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
+                  {e.direction === "entrata" ? "+" : "−"}{formatCurrency(e.amount)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="rounded-lg border overflow-hidden">
           <BarraScorrimentoOrizzontale contenitore={scrollContainer} className="mx-3 my-2" />
@@ -636,7 +667,7 @@ function PrimaNotaInner() {
       {/* Pagination — mobile: solo precedente/successiva. Il contenitore c'è
           solo quando la paginazione compare (niente margine vuoto sul desktop). */}
       {!isLoading && totalCount > 25 && (
-        <div className="max-sm:hidden">
+        <div className="max-lg:hidden">
           <TablePagination
             currentPage={page}
             totalPages={totalPages}
@@ -648,12 +679,12 @@ function PrimaNotaInner() {
         </div>
       )}
       {!isLoading && totalPages > 1 && (
-        <div className="flex items-center justify-between sm:hidden">
-          <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
+        <div className="flex items-center justify-between lg:hidden">
+          <Button variant="outline" size="icon" className="size-11" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-xs tabular-nums text-muted-foreground">{page} di {totalPages}</span>
-          <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
+          <Button variant="outline" size="icon" className="size-11" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -677,9 +708,9 @@ function PrimaNotaInner() {
           }}
           scelte={periodiRapidi.map((p) => ({ value: p.value, label: p.label }))}
         />
-        <div className="grid grid-cols-2 gap-2">
-          <Input type="date" aria-label="Dal" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 text-xs" />
-          <Input type="date" aria-label="Al" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 text-xs" />
+        <div className="grid gap-2 min-[380px]:grid-cols-2">
+          <Input type="date" aria-label="Dal" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-11 text-base" />
+          <Input type="date" aria-label="Al" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-11 text-base" />
         </div>
         <PilloleFiltro
           titolo="Movimenti"
@@ -742,7 +773,9 @@ function PrimaNotaInner() {
             </div>
             {perchePrimaNotaNonModificabile(dettaglio) && <p className="text-xs text-muted-foreground">Per correggere importo e data, apri la registrazione di origine.</p>}
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 max-lg:[&>button]:min-h-11">
+            {vistaCompatta && !tabella && <NotaRiga nota={dettaglio.notes} titolo={dettaglio.description}
+              onSalva={(nota) => updateNotes(dettaglio.id, nota)} />}
             {permessi.isAdmin && !perchePrimaNotaNonEliminabile(dettaglio) && <Button variant="destructive" disabled={remove.isPending || removeMany.isPending} onClick={() => void eliminaSingola(dettaglio)}>Elimina registrazione</Button>}
             {permessi.isAdmin && <StornaPagamentiCosto righe={[dettaglio]} onFatto={() => setDettaglioId(null)} />}
             {perchePrimaNotaNonModificabile(dettaglio) && <Button variant="outline" onClick={() => apriOrigine(dettaglio)}>Apri origine</Button>}

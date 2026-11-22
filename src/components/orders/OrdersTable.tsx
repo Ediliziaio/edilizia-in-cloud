@@ -54,6 +54,8 @@ export interface OrderCosts {
 }
 
 interface OrdersTableProps {
+  tabellaSuTablet?: boolean;
+  mostraImporti?: boolean;
   riferimentiPipeline?: Map<string,string>;
   pipelineFallback?: string;
   canDelete?: boolean;
@@ -111,6 +113,8 @@ function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number 
 }
 
 export const OrdersTable = React.memo(function OrdersTable({
+  tabellaSuTablet = false,
+  mostraImporti = true,
   canDelete = true,
   riferimentiPipeline, pipelineFallback = "Principale",
   orders,
@@ -274,8 +278,7 @@ export const OrdersTable = React.memo(function OrdersTable({
 
   return (
     <Card>
-      {/* Mobile card list — shown only on xs */}
-      <div className="sm:hidden divide-y">
+      <div className={tabellaSuTablet ? "divide-y sm:hidden" : "divide-y lg:hidden"}>
         {righe.map((riga) => {
           const order = riga.order;
           const { generale, totalIvato, collected, due, unitaInVendita: libera, listinoInVendita } = numeriRiga(riga);
@@ -285,31 +288,34 @@ export const OrdersTable = React.memo(function OrdersTable({
             // Due colonne: a sinistra codice e stato, descrizione, cliente; a
             // destra il totale e quanto manda incassare. Prima tre righe con
             // 16px di margine: una commessa prendeva 130px, ora ~64.
-            <Link
+            <div
               key={order.id}
-              to={`/azienda/ordini/${order.id}`}
-              className={`flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors ${riga.livello === 1 ? "bg-muted/30 pl-7" : ""}`}
+              className={`flex items-center ${riga.livello === 1 ? "bg-muted/30 pl-4" : ""}`}
             >
               {riga.figlie.length > 0 && (
                 <button
                   type="button"
-                  className="-ml-1 flex h-8 w-6 shrink-0 items-center justify-center rounded text-muted-foreground"
+                  className="ml-1 flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted"
                   aria-expanded={aperta}
                   aria-label={aperta ? "Chiudi le commesse dentro" : `Apri le ${riga.figlie.length} commesse dentro`}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); apriChiudi(order.id); }}
+                  onClick={() => apriChiudi(order.id)}
                 >
                   {aperta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </button>
               )}
+              <Link
+                to={`/azienda/ordini/${order.id}`}
+                className="flex min-h-[52px] min-w-0 flex-1 items-center gap-2 px-3 py-2.5 transition-colors hover:bg-muted/50 active:bg-muted"
+              >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
                   <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{order.order_code || "—"}</span>
                   {previousReasons[order.id]?.length > 0 && <span className="text-[10px] text-amber-800">Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
                   {order.order_type === "appaltatore_lavoro" && (
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
                   {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
-                  {visibleColumns.has("pipeline") && <span className="text-xs text-muted-foreground">Pipeline · {riferimentiPipeline?.get(order.id) ?? pipelineFallback}</span>}
+                  {visibleColumns.has("pipeline") && <span className="max-w-full truncate text-xs text-muted-foreground">Pipeline · {riferimentiPipeline?.get(order.id) ?? pipelineFallback}</span>}
                   {stato && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: stato.color }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
@@ -324,7 +330,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   </p>
                 )}
               </div>
-              <div className="shrink-0 text-right tabular-nums">
+              {mostraImporti && <div className="max-w-[45%] shrink-0 break-words text-right tabular-nums">
                 {libera ? (
                   <p className="text-sm leading-tight text-muted-foreground">{formatCurrency(totalIvato)} <span className="text-[11px]">listino</span></p>
                 ) : (
@@ -336,14 +342,14 @@ export const OrdersTable = React.memo(function OrdersTable({
                 ) : collected > 0 ? (
                   <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">✓ Saldato</p>
                 ) : null}
-              </div>
-            </Link>
+              </div>}
+              </Link>
+            </div>
           );
         })}
       </div>
 
-      {/* Desktop table — hidden on mobile */}
-      <div className="hidden sm:block">
+      <div className={tabellaSuTablet ? "hidden sm:block" : "hidden lg:block"}>
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
         <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-primary/10 border-b rounded-t-lg flex-wrap">

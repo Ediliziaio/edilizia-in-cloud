@@ -1666,7 +1666,7 @@ export function CompanyLayout() {
     ? "p-3 md:p-0 pb-28 md:pb-0"
     : isSilvioSchermoIntero
       ? "p-0 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0"
-      : "p-3 md:p-6 pb-28 md:pb-6";
+      : "p-3 md:p-4 xl:p-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-4 xl:pb-6";
 
   const handleOpenChat = () => {
     markAsRead();
@@ -1678,9 +1678,8 @@ export function CompanyLayout() {
   
   return (
     <>
-    {/* Sotto i 1024px (tablet in verticale) la barra fissa da 240px lasciava
-        alle pagine 480px su 768: diventa un pannello che si apre dal ☰. */}
-    <SidebarProvider pannelloSotto={1024}>
+    {/* Sui tablet anche in orizzontale il menu si apre sopra il contenuto. */}
+    <SidebarProvider pannelloSotto={1280}>
       <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
         <CompanySidebar badgePronti={deferredRealtimeReady} />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
@@ -1711,7 +1710,7 @@ export function CompanyLayout() {
           <AnnouncementBanner />
           {/* Apple Guideline 3.1.1 — SubscriptionBanner contiene CTA upgrade Stripe, nascosto su iOS native */}
           {!isIOSNativePlatform && <SubscriptionBanner />}
-          <header data-app-header className="h-14 border-b flex items-center px-2 md:px-3 gap-1.5 md:gap-4 bg-background">
+          <header data-app-header className="flex h-14 shrink-0 items-center gap-1.5 border-b bg-background px-2 md:gap-2 md:px-3 xl:gap-4">
             {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
             {isSubPage && (
               <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
@@ -1729,19 +1728,19 @@ export function CompanyLayout() {
 
             {/* Desktop: breadcrumb */}
             {area && (
-              <nav className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
-                {AreaIcon && <AreaIcon className="h-3.5 w-3.5" />}
-                <span className="text-xs font-medium">{area}</span>
+              <nav aria-label="Percorso della pagina" className="hidden min-w-0 items-center gap-1.5 text-sm text-muted-foreground md:flex">
+                {AreaIcon && <AreaIcon aria-hidden="true" className="size-3.5 shrink-0" />}
+                <span className="min-w-0 truncate text-xs font-medium">{area}</span>
                 {page && (
                   <>
-                    <ChevronRight className="h-3 w-3" />
-                    <span className="text-xs font-medium text-foreground">{page}</span>
+                    <ChevronRight aria-hidden="true" className="size-3 shrink-0" />
+                    <span className="min-w-0 truncate text-xs font-medium text-foreground" aria-current="page">{page}</span>
                   </>
                 )}
               </nav>
             )}
 
-            <div className="hidden md:block flex-1" />
+            <div className="hidden min-w-0 flex-1 md:block" />
             {/* ViewAsDropdown — visibile SOLO durante impersonazione super_admin */}
             <ViewAsDropdown />
             {/* Timbra: entrata/uscita/pausa da ovunque, con le ore di oggi e i
