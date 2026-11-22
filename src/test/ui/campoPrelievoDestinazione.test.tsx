@@ -29,6 +29,7 @@ vi.mock("@/hooks/useOnlineStatus", () => ({ useOnlineStatus: () => state.online 
 const cantieriAssegnati = [...state.cantieri];
 const chiave = chiaveBozzaPrelievo("azienda", "operaio", "C065");
 beforeEach(() => {
+  Element.prototype.scrollIntoView ??= vi.fn();
   state.cantieri = [...cantieriAssegnati];
   state.disponibile = 10;
   state.online = true;
@@ -100,6 +101,8 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     fireEvent.change(campo, { target: { value: "2,25" } });
     fireEvent.click(screen.getByRole("button", { name: /^Preleva ·/ }));
     const dialogo = await screen.findByRole("dialog");
+    expect(within(dialogo).queryByRole("textbox", { name: "Note facoltative" })).not.toBeInTheDocument();
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Aggiungi nota" }));
     fireEvent.change(within(dialogo).getByLabelText("Note facoltative"), { target: { value: "Per il montaggio" } });
     cleanup();
     sessionStorage.clear();
@@ -200,7 +203,8 @@ describe("Destinazione del prelievo dall’app operaio", () => {
     inventario("C065");
     expect(screen.getByText("Corsia A · Scaffale 4")).toBeInTheDocument();
     expect(screen.queryByText("Nastro isolante")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tutti" }));
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Disponibilità dei materiali" }), { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: "Tutti" }));
     expect(screen.getByText("Nastro isolante")).toBeInTheDocument();
     expect(screen.getByText("Esaurito")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aggiungi Nastro isolante al prelievo" })).not.toBeInTheDocument();

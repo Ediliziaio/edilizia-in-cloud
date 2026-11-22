@@ -46,9 +46,11 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
 
   return (
     <section className="mx-auto w-full max-w-2xl">
-      <h1 className="px-4 pb-2 pt-3 text-xl font-bold">{vedeInventario ? "Magazzino" : "Scorte del furgone"}</h1>
+      <h1 className="px-1 pb-1 pt-0.5 text-lg font-bold sm:px-4 sm:pb-2 sm:pt-3 sm:text-xl">
+        {vedeInventario ? "Magazzino" : "Scorte del furgone"}
+      </h1>
       {vedeInventario && (
-        <nav aria-label="Sezioni magazzino" className="sticky top-0 z-10 grid grid-cols-3 gap-1.5 border-b bg-background px-4 py-2">
+        <nav aria-label="Sezioni magazzino" className="sticky top-0 z-10 grid grid-cols-3 gap-1.5 border-b bg-background px-1 py-1 sm:px-4 sm:py-2">
           {schedeVisibili.map((s) => (
             <button
               key={s.id}
@@ -63,7 +65,7 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
         </nav>
       )}
 
-      <div className="px-4 py-4">
+      <div className="py-2 sm:px-4 sm:py-4">
         {config.isError && (
           <div role="alert" className="mb-4 flex items-center gap-2 rounded-xl border p-3 text-sm">
             <p className="flex-1">Non riesco a verificare l’accesso al magazzino.</p>
@@ -71,7 +73,7 @@ function Magazzino({ config, cantiereIniziale, apriBozza }: {
           </div>
         )}
         {vedeInventario && (
-          <div hidden={scheda !== "inventario"} className="space-y-4">
+          <div hidden={scheda !== "inventario"} className="space-y-3 sm:space-y-4">
             {puoPrelevare && !cantiereIniziale && <BozzeDaRiprendere companyId={config.companyId} userId={config.userId} />}
             <CampoInventario
               key={config.data!.livello}
