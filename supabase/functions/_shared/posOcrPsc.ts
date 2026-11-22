@@ -14,6 +14,11 @@ type Lettura = Pick<RiepilogoOcrPsc, "id" | "stato"> & {
 };
 const PER_GIRO = 8;
 class ServizioOcrTemporaneamenteIndisponibile extends Error {}
+class ConfigurazioneOcrNonValida extends Error {
+  constructor() {
+    super("Il servizio OCR privato non è configurato correttamente. Contatta l’assistenza e riprendi la lettura dopo la correzione.");
+  }
+}
 
 async function trovaLettura(db: Db, fonte: RiferimentoPsc): Promise<Lettura | null> {
   const { data, error } = await db.from("pos_ocr_letture").select("id,stato,pagine_totali")
@@ -84,16 +89,23 @@ export async function trascriviPaginaPos(db: Db, fonte: Pick<RiferimentoPsc, "co
   autore: string, pagina: number, bytes: Uint8Array, tipo: "psc" | "rumore", ciclo = 0) {
   const config = Deno.env.get("POS_OCR_SERVIZIO_URL");
   if (config) {
-    const url = new URL(config);
+    const url = URL.canParse(config) ? new URL(config) : null;
     const token = Deno.env.get("POS_OCR_SERVIZIO_TOKEN");
-    if (!token || url.protocol !== "https:") throw new Error("Servizio OCR privato non configurato");
-    const risposta = await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(25_000),
+    if (!token || url?.protocol !== "https:") throw new ConfigurazioneOcrNonValida();
+    const risposta = await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30_000),
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/pdf" }, body: new Uint8Array(bytes) })
       .catch(() => { throw new ServizioOcrTemporaneamenteIndisponibile(); });
-    if (risposta.status === 429 || risposta.status >= 500) throw new ServizioOcrTemporaneamenteIndisponibile();
-    if (!risposta.ok) throw new Error("Servizio OCR privato non disponibile");
-    const json = await risposta.json();
-    return { text: typeof json.testo === "string" ? json.testo : "", finishReason: json.completa === true ? "stop" : undefined };
+    if (!risposta.ok) {
+      await risposta.body?.cancel().catch(() => {});
+      if ([400, 413, 415, 422].includes(risposta.status)) return { text: "" };
+      if ([401, 403, 404].includes(risposta.status)) throw new ConfigurazioneOcrNonValida();
+      throw new ServizioOcrTemporaneamenteIndisponibile();
+    }
+    const json = await risposta.json().catch(() => null);
+    if (typeof json?.testo !== "string" || typeof json.completa !== "boolean") {
+      throw new ServizioOcrTemporaneamenteIndisponibile();
+    }
+    return { text: json.testo, finishReason: json.completa ? "stop" : undefined };
   }
   const chiave = `${tipo}-ocr:v1:${fonte.company_id}:${fonte.sha256}:p${pagina}:r${ciclo}`;
   const risultato = await aiRouterComplete({
@@ -146,11 +158,24 @@ export async function giroOcrPsc(db: Db, id: string | null, permesso: (utente: s
       throw new Error("Il PSC vigente è cambiato. Avvia la lettura della revisione corrente.");
     }
     const [bytes, daLeggere] = await Promise.all([verificaOriginalePsc(db, fonte), prossimePagine(db, l)]);
+    let erroreConfigurazione: ConfigurazioneOcrNonValida | undefined;
     const risultato = await extractPdfWithCoverage(bytes.buffer, {
       pagineSelezionate: daLeggere, maxChars: 192_000, maxOcrPages: PER_GIRO, deadlineMs: 35_000,
-      interrompiSuErrore: e => e instanceof ServizioOcrTemporaneamenteIndisponibile,
+      interrompiSuErrore: e => {
+        if (e instanceof ConfigurazioneOcrNonValida) {
+          erroreConfigurazione = e;
+          return true;
+        }
+        const codice = erroreAiPerUtente(e)?.body.code;
+        return e instanceof ServizioOcrTemporaneamenteIndisponibile || codice === "lettura_non_riuscita" || codice === "esito_incerto";
+      },
       ocrPage: (p, singola) => trascriviPaginaPos(db, fonte, l.richiesto_da!, p, singola, "psc", l.ciclo_riprova),
     });
+    if (!risultato.pages.length) {
+      if (erroreConfigurazione) await salva(l.pagine_totali, [], erroreConfigurazione.message);
+      // Senza avanzamento, il cron riprende quando scade il lease.
+      return;
+    }
     esito = await salva(risultato.coverage.pages_total, risultato.pages.map(p => {
       const incompleta = p.text.length > 24000 || p.method === "unreadable" || (p.method === "ocr" && /\[illeggibile\]/i.test(p.text));
       return { pagina: p.page, metodo: incompleta ? "unreadable" : p.method, testo: incompleta ? "" : p.text };

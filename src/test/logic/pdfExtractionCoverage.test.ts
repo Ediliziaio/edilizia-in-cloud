@@ -24,6 +24,18 @@ describe("page-level PDF coverage", () => {
     const result = await readPdfPages(document([scan("Header ".repeat(60))]), { imageOps: [99], maxChars: 2000, ocrPage: async () => ({ text: "tabella", finishReason: "stop" }) });
     expect(result.coverage.pages_ocr).toEqual([1]);
   });
+  it("passes visible text with a corrupt native encoding to OCR", async () => {
+    const codiciDiControllo = "Riepilogo " + String.fromCharCode(16, 19, 26) + " preventivo";
+    const pdf = document([native("Prima pagina"), native(codiciDiControllo), native("Ultima pagina")]);
+    const ocrPage = vi.fn(async () => ({ text: "Riepilogo sottocategorie\t213.081,31", finishReason: "stop" }));
+    const result = await readPdfPages(pdf, { imageOps: [], maxChars: 1000, ocrPage });
+    expect(ocrPage).toHaveBeenCalledExactlyOnceWith(2);
+    expect(result.coverage).toMatchObject({ complete: true, pages_native: [1, 3], pages_ocr: [2] });
+    expect(result.pages[1].text).toBe("Riepilogo sottocategorie\t213.081,31");
+    const senzaOcr = await readPdfPages(pdf, { imageOps: [], maxChars: 1000 });
+    expect(senzaOcr.coverage).toMatchObject({ complete: false, pages_unreadable: [2] });
+    expect(senzaOcr.pages[1].text).toBe("");
+  });
   it("distinguishes a small logo from a large scanned table", () => {
     const config = { imageOps: [9], transformOp: 3, saveOp: 1, restoreOp: 2 };
     const ops = (size: number) => ({ fnArray: [1, 3, 9, 2], argsArray: [[], [size, 0, 0, size, 0, 0], [], []] });
