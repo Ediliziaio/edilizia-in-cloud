@@ -20,7 +20,7 @@ const RISCHIO_CLS: Record<string, string> = {
 };
 const AUT_CLS: Record<string, string> = {
   autonoma: "border-blue-200 bg-blue-50 text-blue-700",
-  conferma: "border-violet-200 bg-violet-50 text-violet-700",
+  conferma: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200",
   vietata: "border-slate-200 bg-slate-100 text-slate-500",
 };
 const MODULO_LABEL: Record<string, string> = {

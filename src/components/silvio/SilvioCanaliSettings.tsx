@@ -86,8 +86,8 @@ export function SilvioCanaliSettings() {
       ) : whatsapp ? (
         /* ── Verifica in corso ── */
         <div className="space-y-3">
-          <div className="rounded-md border border-violet-200 bg-violet-50/50 p-3 space-y-2.5">
-            <p className="text-xs text-violet-900">
+          <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3 space-y-2.5 dark:border-blue-800 dark:bg-blue-950/30">
+            <p className="text-xs text-blue-900 dark:text-blue-100">
               Per confermare che il numero <b>{whatsapp.identificativo}</b> è tuo,{" "}
               <b>invia questo codice dal tuo WhatsApp</b>
               {numeroAziendale ? (
@@ -98,7 +98,7 @@ export function SilvioCanaliSettings() {
             </p>
             {codice ? (
               <div className="flex flex-wrap items-center gap-2">
-                <code className="rounded border bg-white px-2 py-1 text-base font-bold tracking-widest text-violet-700">
+                <code className="rounded border bg-background px-2 py-1 text-base font-bold tracking-widest text-blue-700 dark:text-blue-300">
                   {codice}
                 </code>
                 <Button

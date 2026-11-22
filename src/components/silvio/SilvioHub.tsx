@@ -167,9 +167,9 @@ export function SilvioHub({ defaultTab="approvare", callbackId }: {defaultTab?:s
   };
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2 rounded-lg border border-violet-100 bg-violet-50/50 p-3">
-        <Bot className="mt-0.5 h-5 w-5 shrink-0 text-violet-600" />
-        <p className="text-xs text-violet-900">
+      <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/30">
+        <Bot className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+        <p className="text-xs text-blue-900 dark:text-blue-100">
           Silvio è il tuo assistente operativo: prepara bozze, propone azioni e segue le procedure —
           <b> da solo sul sicuro, con la tua conferma sul sensibile</b>. Qui governi cosa fa e vedi tutto ciò che ha fatto.
         </p>

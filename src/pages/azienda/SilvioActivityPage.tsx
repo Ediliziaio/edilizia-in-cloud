@@ -11,7 +11,7 @@ export default function SilvioActivityPage() {
     <div className="mx-auto max-w-6xl space-y-6 p-3 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="rounded-xl bg-violet-50 p-3 text-violet-700">
+          <span className="rounded-xl bg-blue-50 p-3 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
             <Bot className="h-5 w-5" />
           </span>
           <div>

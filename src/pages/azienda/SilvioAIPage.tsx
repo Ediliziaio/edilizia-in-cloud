@@ -1159,7 +1159,7 @@ export default function SilvioAIPage() {
         >
           <Search className="h-5 w-5" />
         </button>
-        <Link to="/azienda/silvio-ai/attivita" className="flex h-9 items-center rounded-lg px-2 text-xs font-medium text-violet-700 hover:bg-violet-50" aria-label="Centro attività di Silvio">Attività</Link>
+        <Link to="/azienda/silvio-ai/attivita" className="flex h-9 items-center rounded-lg px-2 text-xs font-medium text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/50" aria-label="Centro attività di Silvio">Attività</Link>
         <button
           onClick={() => setProgrammateOpen(true)}
           title="Attività programmate"
