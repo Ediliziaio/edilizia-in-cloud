@@ -34,6 +34,8 @@ import { jsonDalModello } from "./jsonDalModello.ts";
 import { calcolaTentativoEstrazione } from "./tentativi.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
+import { allegatoDentroAzienda } from "./percorso.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -71,12 +73,13 @@ Schema di output:
 }
 Date in formato ISO YYYY-MM-DD (converti dall'italiano gg/mm/aaaa: "13/07/2026" → "2026-07-13", MAI invertire giorno e mese). Importi SEMPRE come numero JSON con punto decimale, senza separatore migliaia né simbolo €: nel documento italiano il punto separa le migliaia e la virgola i decimali («N.NNN,NN» → NNNN.NN); i numeri di queste istruzioni non sono dati, ogni importo viene dal documento. Non restituire mai importi negativi salvo note di credito. Per i DDT lascia null i campi fiscali non presenti. Per DDT/bolle (e fatture con dettaglio) popola "righe" come array di oggetti { "descrizione": string, "codice": string|null, "qta": number, "prezzo": number|null }. Includi in dati_incerti i nomi dei campi con conf < 0.75.`;
 
-Deno.serve(async (req) => {
+serveConMetricheRapida("email-ai-estrai-allegato", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+  let lavoro: { emailId: string; token: string } | null = null;
 
   try {
     // ── Auth: Bearer utente (UI) OPPURE x-cron-secret (dispatcher fatture). ──
@@ -102,7 +105,7 @@ Deno.serve(async (req) => {
     if (!emailId || attIdx < 0) return json({ error: "email_id e attachment_index richiesti" }, 400, cors);
 
     const { data: email } = await dataClient
-      .from("email_inbox").select("id, company_id, attachments").eq("id", emailId).maybeSingle();
+      .from("email_inbox").select("id, company_id, user_id, attachments").eq("id", emailId).maybeSingle();
     if (!email) return json({ error: "email_non_accessibile" }, 404, cors);
 
     // Gli allegati inbox vivono come JSONB su email_inbox: { filename, mime, size, storage_path }
@@ -118,6 +121,10 @@ Deno.serve(async (req) => {
       storage_path: (raw.storage_path ?? null) as string | null,
     };
     if (!att.storage_path) return json({ error: "attachment_no_file", reason: "Allegato PDF non ancora scaricato nello storage." }, 422, cors);
+    if (!allegatoDentroAzienda(att.storage_path, att.company_id, email.user_id ?? null)) {
+      await segnaTentativo(supabase, att.inbox_id, "vision_error", "Percorso allegato non appartenente all’email");
+      return json({ error: "L’allegato non appartiene a questa email. Caricalo nuovamente.", code: "attachment_scope" }, 403, cors);
+    }
 
     const filename = (att.filename || "").toLowerCase();
     const mime = (att.mime_type || "").toLowerCase();
@@ -141,12 +148,40 @@ Deno.serve(async (req) => {
     if (!pagamento.allowed) {
       const motivo = pagamento.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE;
       await segnaTentativo(supabase, att.inbox_id, "credito", `carta: ${motivo}`);
+      if (isCron) return json({ skipped: "in_attesa", reason: motivo }, 200, cors);
       return json({ error: motivo, code: "payment_method_required" }, 402, cors);
     }
 
+    // Tutti i chiamanti passano dalla stessa presa in carico atomica. La lettura
+    // RLS dell'email sopra precede SEMPRE questa RPC riservata al service role.
+    const tokenLavoro = crypto.randomUUID();
+    const { data: presa, error: claimError } = await supabase.rpc("email_ai_prendi_lavoro", {
+      p_email: att.inbox_id, p_indice: attIdx, p_token: tokenLavoro,
+      p_rileggi: !isCron && body.rileggi === true,
+    });
+    if (claimError) return json({ error: "Non riesco a prendere in carico il documento. Riprova più tardi." }, 503, cors);
+    if (!presa?.presa) {
+      if (presa?.motivo === "gia_pronto") {
+        const { data: draft, error } = await dataClient.from("email_documento_estratto")
+          .select("*").eq("id", presa.bozza_id).eq("email_id", att.inbox_id).maybeSingle();
+        if (error || !draft) return json({ error: "La bozza non è accessibile. Aggiorna la pagina." }, 409, cors);
+        return json({ ok: true, draft, riutilizzato: true }, 200, cors);
+      }
+      if (presa?.motivo === "in_corso") return json({ skipped: "in_corso", reason: "La lettura è già in corso. La bozza comparirà al termine." }, 202, cors);
+      const reason = presa?.messaggio || "Estrazione automatica in attesa. I documenti restano in coda.";
+      // Un blocco previsto del cron è uno stato di attesa, non un guasto HTTP.
+      if (isCron) return json({ skipped: "in_attesa", reason }, 200, cors);
+      if (presa?.motivo === "credito_azienda") return json({ error: reason, code: "insufficient_credits" }, 402, cors);
+      return json({ error: reason }, 503, cors);
+    }
+    lavoro = { emailId: att.inbox_id, token: tokenLavoro };
+
     // ── Download PDF dallo storage ──────────────────────────────────────────
     const { data: file, error: dlErr } = await supabase.storage.from(ATTACH_BUCKET).download(att.storage_path);
-    if (dlErr || !file) return json({ error: "download_failed", detail: dlErr?.message }, 502, cors);
+    if (dlErr || !file) {
+      await segnaTentativo(supabase, att.inbox_id, "vision_error", "Allegato non scaricabile", tokenLavoro);
+      return json({ error: "Non riesco a scaricare l’allegato. Riprova più tardi.", code: "download_failed" }, 502, cors);
+    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.byteLength > MAX_PDF_BYTES) return json({ skipped: "too_large" }, 200, cors);
     const base64 = bytesToBase64(bytes);
@@ -184,7 +219,8 @@ Deno.serve(async (req) => {
     } catch (e) {
       if (e instanceof CreditoAiInsufficiente) {
         // Credito dell'AZIENDA finito: come per la carta, si ritenta più tardi.
-        await segnaTentativo(supabase, att.inbox_id, "credito", `credito AI azienda: ${e.messaggio}`);
+        await segnaTentativo(supabase, att.inbox_id, "credito", `credito AI azienda: ${e.messaggio}`, tokenLavoro);
+        if (isCron) return json({ skipped: "in_attesa", reason: e.messaggio }, 200, cors);
         return json({ error: "insufficient_credits", message: e.messaggio }, 402, cors);
       }
       const detail = e instanceof Error ? e.message : String(e);
@@ -197,7 +233,7 @@ Deno.serve(async (req) => {
       // funzioni e con l'email. Questo era l'unico punto che avvisava, e solo
       // nella campanella: il 02/10/2026 il conto è finito e nessuno l'ha saputo.
       const credito = /\b402\b|requires at least|insufficient|credit|balance/i.test(detail);
-      await segnaTentativo(supabase, att.inbox_id, credito ? "credito" : "vision_error", detail);
+      await segnaTentativo(supabase, att.inbox_id, credito ? "credito" : "vision_error", detail, tokenLavoro);
       if (credito) {
         return json({ skipped: "credito_ai_insufficiente", reason: "Credito OpenRouter insufficiente: riprovo fra un'ora." }, 200, cors);
       }
@@ -209,13 +245,13 @@ Deno.serve(async (req) => {
       // Risposta interrotta a metà: riprovare lo stesso documento con lo stesso
       // tetto dà lo stesso esito. Si registra il motivo, non il dump.
       await segnaTentativo(supabase, att.inbox_id, "troncato",
-        `Risposta troncata (finish_reason=${troncatoDalTetto ? "length" : "graffe non bilanciate"}, ${visText.length} caratteri)`);
+        `Risposta troncata (finish_reason=${troncatoDalTetto ? "length" : "graffe non bilanciate"}, ${visText.length} caratteri)`, tokenLavoro);
       return json({ error: "troncato", reason: "La risposta del modello si è interrotta: documento troppo esteso per l'estrazione automatica." }, 502, cors);
     }
     try {
       extracted = jsonGrezzo ? JSON.parse(jsonGrezzo) : {};
     } catch {
-      await segnaTentativo(supabase, att.inbox_id, "parse_failed", visText.slice(0, 200));
+      await segnaTentativo(supabase, att.inbox_id, "parse_failed", "Risposta AI non leggibile", tokenLavoro);
       return json({ error: "parse_failed", raw: visText.slice(0, 300) }, 502, cors);
     }
 
@@ -277,16 +313,11 @@ Deno.serve(async (req) => {
       noteParts.push("IBAN diverso da quello noto del fornitore — verifica con una telefonata prima di pagare.");
     }
 
-    // ── Salva bozza (sostituisce eventuale bozza viva per lo stesso allegato) ─
-    await supabase.from("email_documento_estratto")
-      .delete().eq("email_id", att.inbox_id).eq("pdf_storage_path", att.storage_path).in("stato", ["da_confermare", "duplicato"]);
-
-    const { data: draft, error: insErr } = await supabase
-      .from("email_documento_estratto")
-      .insert({
-        company_id: att.company_id,
-        email_id: att.inbox_id,
-        attachment_id: null,
+    // Fencing e sostituzione bozza nella stessa transazione: un worker scaduto
+    // non può cancellare il risultato del successore né un documento confermato.
+    const { data: draft, error: insErr } = await supabase.rpc("email_ai_salva_bozza", {
+      p_email: att.inbox_id, p_token: tokenLavoro,
+      p_dati: {
         tipo: extracted.tipo || "altro",
         confidenza_tipo: typeof extracted.confidenza_tipo === "number" ? extracted.confidenza_tipo : null,
         campi,
@@ -298,19 +329,26 @@ Deno.serve(async (req) => {
         dedup_fattura_id: dedupId,
         iban_estratto: ibanEstratto,
         iban_alert: ibanAlert,
-        pdf_storage_bucket: ATTACH_BUCKET,
-        pdf_storage_path: att.storage_path,
         created_by: createdBy,
-      })
-      .select("*")
-      .single();
-    if (insErr) return json({ error: "save_failed", detail: insErr.message }, 500, cors);
-    await supabase.from("email_estrazione_tentativi").delete().eq("email_id", att.inbox_id).then(() => null, () => null);
+      },
+    });
+    if (insErr) {
+      if (insErr.code !== "40001") await segnaTentativo(supabase, att.inbox_id, "vision_error", "Salvataggio bozza non riuscito", tokenLavoro);
+      return json({ error: "La bozza non è stata salvata. Aggiorna la pagina e riprova.", code: insErr.code === "40001" ? "lavoro_scaduto" : "save_failed" }, insErr.code === "40001" ? 409 : 500, cors);
+    }
 
     return json({ ok: true, draft, model: SONNET_MODEL }, 200, cors);
   } catch (e) {
     console.error("[email-ai-estrai-allegato] error", e);
-    return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, cors);
+    if (lavoro) await segnaTentativo(supabase, lavoro.emailId, "vision_error", "Lettura non completata", lavoro.token);
+    return json({ error: "Non riesco a completare la lettura. Il documento resta disponibile: riprova più tardi." }, 500, cors);
+  } finally {
+    if (lavoro) {
+      try {
+        const { error } = await supabase.rpc("email_ai_rilascia_lavoro", { p_email: lavoro.emailId, p_token: lavoro.token });
+        if (error) console.warn("[email-ai-estrai-allegato] rilascio rinviato alla scadenza", error.code);
+      } catch { console.warn("[email-ai-estrai-allegato] rilascio rinviato alla scadenza"); }
+    }
   }
 });
 
@@ -319,8 +357,13 @@ Deno.serve(async (req) => {
  * blocco di pagamento fra un'ora. Gli errori tecnici hanno un'attesa crescente
  * fino a un giorno. Il dispatcher si ferma dopo sei errori tecnici consecutivi.
  */
-async function segnaTentativo(db: any, emailId: string, esito: Parameters<typeof calcolaTentativoEstrazione>[1], errore: string): Promise<void> {
+async function segnaTentativo(db: any, emailId: string, esito: Parameters<typeof calcolaTentativoEstrazione>[1], errore: string, token?: string): Promise<void> {
   try {
+    if (token) {
+      const { error } = await db.rpc("email_ai_registra_fallimento", { p_email: emailId, p_token: token, p_esito: esito, p_errore: errore.slice(0,300) });
+      if (error) throw new Error(error.message);
+      return;
+    }
     const { data: prima, error: erroreLettura } = await db.from("email_estrazione_tentativi")
       .select("tentativi, ultimo_esito").eq("email_id", emailId).maybeSingle();
     if (erroreLettura) throw new Error(erroreLettura.message);

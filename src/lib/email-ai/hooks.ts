@@ -441,7 +441,7 @@ const dbLibero = supabase as unknown as { from: (t: string) => QueryLibera };
 export function useEstraiAllegato() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { email_id: string; attachment_index: number }): Promise<{ ok?: boolean; draft?: DocumentoEstratto; skipped?: string; reason?: string }> => {
+    mutationFn: async (input: { email_id: string; attachment_index: number; rileggi?: boolean }): Promise<{ ok?: boolean; draft?: DocumentoEstratto; skipped?: string; reason?: string }> => {
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
       if (!token) throw new Error("Non autenticato");
@@ -461,7 +461,7 @@ export function useEstraiAllegato() {
     },
     onSuccess: (data, vars) => {
       if (data.skipped) {
-        toast.info("Estrazione non necessaria", { description: data.reason || data.skipped });
+        toast.info(data.skipped === "in_corso" ? "Lettura già in corso" : "Estrazione non necessaria", { description: data.reason || data.skipped });
       } else {
         toast.success("Bozza pronta", { description: "Dati estratti dal documento. Controlla i campi evidenziati." });
         void qc.invalidateQueries({ queryKey: ["email-documenti-estratti", vars.email_id] });
@@ -476,6 +476,8 @@ export function useDocumentiEstrattiPerEmail(emailId: string | null | undefined)
   return useQuery({
     queryKey: ["email-documenti-estratti", emailId],
     enabled: !!emailId,
+    // Riconcilia anche letture avviate da un'altra sessione o dal cron rapido.
+    refetchInterval: 30_000,
     queryFn: async (): Promise<DocumentoEstratto[]> => {
       const { data, error } = await sbAny
         .from("email_documento_estratto")

@@ -9,6 +9,7 @@ import { DocumentiDaConfermareLista } from "@/components/email-ai/DocumentiDaCon
 import { useAuth } from "@/contexts/AuthContext";
 import { conteggioCompatto } from "@/lib/email-ai/documentiDaConfermare";
 import { useDocumentiDaConfermareCount } from "@/lib/email-ai/hooks";
+import { StatoCodaAllegati } from "@/components/email-ai/StatoCodaAllegati";
 
 export default function DocumentiDaConfermarePage() {
   const { effectiveCompany } = useAuth();
@@ -24,6 +25,7 @@ export default function DocumentiDaConfermarePage() {
           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">{conteggioCompatto(numero.data)}</span>
         )}
       </div>
+      <StatoCodaAllegati />
       <DocumentiDaConfermareLista />
     </div>
   );
