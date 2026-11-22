@@ -23,6 +23,9 @@ export default defineConfig(({ command, mode }) => ({
   server: {
     host: "::",
     port: process.env.PORT ? parseInt(process.env.PORT) : 8080,
+    proxy: {
+      "/__local-assistance": { target: "http://127.0.0.1:8798", changeOrigin: true },
+    },
     hmr: {
       overlay: false,
     },

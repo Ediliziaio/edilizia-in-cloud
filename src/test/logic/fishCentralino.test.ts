@@ -81,6 +81,41 @@ describe("Fish CRM tools", () => {
     await handler(make({ motivo: "Assistenza", nome: "Cliente Demo", recapito: "+39 0000000003",conferma_cliente:"Sì, confermo." }));
     expect(d.executeTool).toHaveBeenCalledWith("company-A", "+390000000002", "s", "richiesta_richiamo", { motivo: "Assistenza", nome: "Cliente Demo", recapito: "+390000000003" });
   });
+  it("routes confirmed outbound lead callbacks through the trusted, retriable call context", async () => {
+    const number = "+390000000002";
+    const contact = { id: "lead-a", first_name: "Laura", last_name: "Bianchi", country: "IT", phone: number };
+    const db = database((table) => ({ data: {
+      ai_fish_agents: binding,
+      ai_agents_v2: { ...agent, tools_config: { ...agent.tools_config, fish: { flow_id: "lead_qualification" } } },
+      ai_fish_calls: { contact_id: contact.id, to_number: number },
+      marketing_contacts: contact,
+    }[table] }));
+    const d = deps(db, vi.fn(async () => reply({
+      agent_id: "fish-A", status: "active", source: "phone", direction: "outbound",
+      dialed_number: number,
+      items: [
+        { type: "message", role: "assistant", content: "Posso registrare il richiamo per il preventivo a questo recapito?" },
+        { type: "message", role: "user", content: "Sì, confermo." },
+      ],
+    })));
+    const token = await fishDerivedToken(secret, "fish-A");
+    const handler = createFishToolHandler(d);
+    for (const motivo of ["Un preventivo", "Preventivo per finestre"]) {
+      const request = new Request("https://local", {
+        method: "POST", headers: { "X-Eic-Fish-Token": token },
+        body: JSON.stringify({
+          agent_id: "fish-A", session_id: "outbound-session", tool: "richiesta_richiamo",
+          parameters: { motivo, recapito: number, contact_id: "foreign" },
+        }),
+      });
+      expect((await handler(request)).status).toBe(200);
+      expect(d.executeTool).toHaveBeenLastCalledWith(
+        "company-A", number, "outbound-session", "richiesta_richiamo", { motivo, recapito: number },
+        { callback: { agentId: "local-A", contact } },
+      );
+    }
+    expect(db.queries.some(q => q.table === "ai_fish_tool_results")).toBe(false);
+  });
   it("uses caller and tenant from the verified server-side session, never tool arguments", async () => {
     const db = database(table => ({ data: table === "ai_fish_agents" ? binding : agent }));
     const d = deps(db, vi.fn(async () => reply({ agent_id: "fish-A", source: "phone", status: "active", caller_number: "+390000000002" })));
@@ -120,6 +155,19 @@ describe("Fish CRM tools", () => {
 });
 
 describe("Fish management and outbound", () => {
+  it("checks support readiness in the authorized company without an agent or provider call", async () => {
+    const db=database(()=>({data:[],error:{code:"42P01"}}));const d=deps(db);
+    const response=await createFishManagementHandler(d)(new Request("https://local",{method:"POST",body:JSON.stringify({action:"assistance_capabilities",company_id:"company-B"})}));
+    expect(await response.json()).toEqual({version:1,ready:false});expect(d.send).not.toHaveBeenCalled();
+    expect(db.queries[0]).toMatchObject({table:"ai_fish_assistance",steps:expect.arrayContaining([["eq","company_id","company-A"]])});
+  });
+  it("does not provision a full support flow before its database link is installed", async () => {
+    const support={...agent,tools_config:{...agent.tools_config,fish:{flow_id:"support_appointment",calendar_id:"calendar-a"}}};
+    const db=database(table=>table==="ai_fish_assistance"?{data:null,error:{code:"42P01"}}:{data:table==="ai_fish_agents"?binding:support});const d=deps(db);
+    const response=await createFishManagementHandler(d)(new Request("https://local",{method:"POST",body:JSON.stringify({action:"configure",agent_id:agent.id})}));
+    expect(response.status).not.toBe(200);expect(d.send).not.toHaveBeenCalled();
+  });
+
   it("uses the authenticated company for call association, before any Fish provisioning", async () => {
     const db = database(() => ({ data: null }));const d=deps(db);
     const result=await createFishManagementHandler(d)(new Request("https://local",{method:"POST",body:JSON.stringify({action:"associate_call",company_id:"company-B",kind:"human",call_id:"call-a",customer_id:"customer-a"})}));
@@ -156,6 +204,26 @@ describe("Fish management and outbound", () => {
     expect(calls.filter(call => call.path === "/v1/agent/tools").every(call => call.payload.tool_type === "client" && !call.payload.url && !call.payload.headers)).toBe(true);
     expect(calls.at(-1).payload).toMatchObject({ agent_id: "preview-A", end_user_id: "user", record_audio: false });
     expect(result.mock_tools.passa_a_operatore).toMatchObject({ trovato: false });
+    const lead = {
+      ...agent,
+      primo_messaggio: "Buongiorno, sono l’assistente virtuale di Edilizia Demo.",
+      tools_config: {
+        ...agent.tools_config,
+        fish: { flow_id: "lead_qualification" },
+        edilizia_tools: Object.fromEntries(["get_availability", "create_appointment", "passa_a_operatore", "assign_to_user", "aggiorna_opportunita"].map(id => [id, { enabled: true }])),
+      },
+    };
+    const leadBinding = {
+      ...binding,
+      tool_ids: Object.fromEntries(enabledFishTools(lead).map(name => [name, `tool-${name}`])),
+      config_fingerprint: await fishConfigurationFingerprint(lead, binding),
+    };
+    await createFishWebPreview(d, lead, leadBinding, "user", "lead_handoff");
+    expect(calls.at(-1).payload.dynamic_variables).toMatchObject({
+      eic_preview_greeting: lead.primo_messaggio,
+      eic_lead_name: "Laura Bianchi",
+    });
+
     expect(d.executeTool).not.toHaveBeenCalled();
     await expect(createFishWebPreview(d, agent, { ...b, config_fingerprint: "old" }, "user", "no_operator")).rejects.toThrow("sincronizza");
   });

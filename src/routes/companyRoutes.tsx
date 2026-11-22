@@ -368,6 +368,10 @@ const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechni
 const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
 const RenderTechnicalModuleGalleryDetail = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGalleryDetail"));
 const ChatHub = lazy(() => import("@/pages/azienda/ChatHub"));
+const LocalLeadTrialPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/LocalLeadTrialPage")) : null;
+const LocalAssistanceLabPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/LocalAssistanceLabPage")) : null;
+const LocalPhoneTrialPage = import.meta.env.DEV ? lazy(() => import("@/pages/azienda/LocalPhoneTrialPage")) : null;
+const SilvioActivityPage = lazy(() => import("@/pages/azienda/SilvioActivityPage"));
 const SilvioAIPage = lazy(() => import("@/pages/azienda/SilvioAIPage"));
 const ContenutiMultimediali = lazy(() => import("@/pages/azienda/ContenutiMultimediali"));
 // MP-AIE-03: pagina dedicata azioni proposte AI
@@ -745,6 +749,7 @@ export default function CompanyRoutesContainer() {
             legge Silvio lo decidono i permessi dei suoi strumenti. */}
         <Route path="chat" element={<ChatHub />} />
         <Route path="silvio-ai" element={<SilvioAIPage />} />
+        <Route path="silvio-ai/attivita" element={<SilvioActivityPage />} />
         {/* EiC Drive: la stessa regola del menu e della pagina (canAccessMediaLibrary,
             che mette in OR i permessi delle aree che hanno file). Prima la rotta
             chiedeva il marketing: 20 persone vedevano la voce e trovavano «Accesso negato». */}
@@ -888,6 +893,9 @@ export default function CompanyRoutesContainer() {
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) — gated: ai_agents */}
         <Route path="agenti-ai" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>)} />
+        {LocalLeadTrialPage && <Route path="centralino/collaudo-lead" element={withCompanyPermission("canViewMarketingAiAgent", <LocalLeadTrialPage />)} />}
+        {LocalAssistanceLabPage && <Route path="centralino/collaudo-locale" element={<LocalAssistanceLabPage />} />}
+        {LocalPhoneTrialPage && <Route path="centralino/collaudo-telefonia" element={<LocalPhoneTrialPage />} />}
         <Route path="centralino" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><Centralino /></FeatureRoute>)} />
         <Route path="agenti-ai/:agentId" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentDetailPage /></FeatureRoute>)} />
 

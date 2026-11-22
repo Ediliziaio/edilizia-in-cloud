@@ -1,3 +1,4 @@
+import { FISH_ASSISTANCE_POLICY, FISH_ASSISTANCE_TOOLS, isFishAssistance } from "../../../shared/fish/assistance.ts";
 import { fishLeadBusinessPrompt } from "./fishLeadBusiness.ts";
 /** Fish schemas verified against the vendor OpenAPI. Carrier settings stay in the carrier. */
 import { FISH_CONVERSATION_POLICY_VERSION, FISH_NATURAL_TIMING, FISH_NATURAL_CONFIRMATION, FISH_CASE_MEMORY_POLICY, FISH_FLUENT_DIALOGUE, FISH_LEAD_POLICY, FISH_ITALIAN_PRONUNCIATION } from "./fishConversationPolicy.ts";
@@ -93,6 +94,10 @@ export function fishToolPayload(name: string, remoteAgent: string, baseUrl: stri
 }
 export function fishAgentConfig(agent: any, binding: any, baseUrl: string, secret: string, toolIds: string[]) {
   validateFishRouting(agent);
+  if(isFishAssistance(agent)){
+    if(!agent.tools_config?.fish?.calendar_id)throw new Error("Scegli il calendario per l’assistenza.");
+    if(FISH_ASSISTANCE_TOOLS.some(id=>agent.tools_config?.edilizia_tools?.[id]?.enabled!==true))throw new Error("Il flusso completo richiede riconoscimento, memoria, ticket, agenda e richiamo. Riapplica il flusso Assistenza completa.");
+  }
   const cfg = agent.tools_config ?? {};
   const timezone = cfg.fish?.timezone || "Europe/Rome";
   try { new Intl.DateTimeFormat("it", { timeZone: timezone }).format(); }
@@ -108,7 +113,7 @@ export function fishAgentConfig(agent: any, binding: any, baseUrl: string, secre
     warm_briefing_instructions: "Presenta brevemente in italiano chiamante e motivo. Usa il contesto restituito da passa_a_operatore: distingui identità verificata e dati riferiti, cita solo il ticket concordato e il prossimo passo. Non leggere JSON o inventare una pratica. Poi chiedi se il collega può accettare.",
     on_failure: { action: "return_to_agent", message: "Il collega non ha risposto. Possiamo continuare qui oppure concordare un richiamo." } })) : [];
   const configuredPrompt=String(agent.system_prompt || '');
-  const policies=[cfg.fish?.flow_id==='lead_qualification'?FISH_LEAD_POLICY:FISH_NATURAL_CONFIRMATION,cfg.fish?.flow_id==='lead_qualification'?'':FISH_CASE_MEMORY_POLICY,FISH_FLUENT_DIALOGUE,FISH_ITALIAN_PRONUNCIATION];
+  const policies=[isFishAssistance(agent)?FISH_ASSISTANCE_POLICY:"",cfg.fish?.flow_id==='lead_qualification'?FISH_LEAD_POLICY:FISH_NATURAL_CONFIRMATION,cfg.fish?.flow_id==='lead_qualification'?'':FISH_CASE_MEMORY_POLICY,FISH_FLUENT_DIALOGUE,FISH_ITALIAN_PRONUNCIATION];
   const compactPrompt=[configuredPrompt,...policies.filter(policy=>policy && !configuredPrompt.includes(policy))].join('\n\n');
   return {
     prompt: {

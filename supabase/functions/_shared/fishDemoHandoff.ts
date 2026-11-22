@@ -2,6 +2,7 @@
 export type FishDemoOperator={id:string;name:string;available:boolean};
 export type FishDemoOutcome='accepted'|'no_answer'|'cancelled';
 export const FISH_DEMO_OPERATORS:FishDemoOperator[]=[{id:'demo-luca',name:'Luca',available:false},{id:'demo-anna',name:'Anna',available:true},{id:'demo-paolo',name:'Paolo',available:true}];
+export const FISH_DEMO_HANDOFF_MS = 12_000;
 export const FISH_DEMO_HANDOFF_SCENARIOS=['handoff_demo','handoff_no_answer','lead_handoff'];
 export function firstFishDemoOperator(operators=FISH_DEMO_OPERATORS){return operators.find(operator=>operator.available) || null;}
 export function fishDemoHandoffResult(operator:FishDemoOperator|null,outcome:FishDemoOutcome){

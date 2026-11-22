@@ -29,6 +29,7 @@ export interface CustomerToolResult {
 export interface CustomerToolCtx {
   /** Provider session id, used to join a human handoff to its conversation. */
   conversationId?: string;
+  fishAgentId?: string;
   /** Numero del chiamante così come arrivato (per note/ticket). */
   rawPhone: string;
   /** Ultimi 9 caratteri normalizzati per il match, o null se ignoto. */
@@ -372,8 +373,11 @@ export async function richiestaRichiamo(
   companyId: string,
   ctx: CustomerToolCtx,
   params: { motivo?: string; nome?: string; urgenza?: string; recapito?: string },
+  verifiedContact?: { id: string; first_name: string | null; last_name: string | null } | null,
 ): Promise<CustomerToolResult> {
-  const contact = await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone);
+  const contact = verifiedContact === undefined
+    ? await trovaContattoPerTelefono(admin, companyId, ctx.suffix, ctx.rawPhone)
+    : verifiedContact;
   let nomeCliente = String(params.nome ?? "").trim();
   if (contact && !nomeCliente) nomeCliente = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
   const motivo = String(params.motivo ?? "").trim();
@@ -383,7 +387,7 @@ export async function richiestaRichiamo(
   const urgente = /urgent|subito|oggi|emergenz/i.test(String(params.urgenza ?? "") + " " + motivo);
 
   const domani = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const { error: kErr } = await admin.from("tasks").insert({
+  const entry = {
     company_id: companyId,
     created_by: await profiloPerConto(admin, companyId, ctx.fallbackCreatedBy),
     title: `Richiamare ${nomeCliente || recapito || "cliente"} (assistente AI)`,
@@ -396,16 +400,30 @@ export async function richiestaRichiamo(
     priority: urgente ? "alta" : "normale", // convenzione italiana dei task (vedi TaskDialog)
     status: "da_fare",
     contact_id: contact?.id ?? null,
-  });
+  };
+  const { data, error: kErr } = ctx.fishAgentId && ctx.conversationId
+    ? await admin.rpc("fish_save_callback", {
+        p_company: companyId,
+        p_agent: ctx.fishAgentId,
+        p_session: ctx.conversationId,
+        p_contact: entry.contact_id,
+        p_creator: entry.created_by,
+        p_title: entry.title,
+        p_notes: entry.notes,
+        p_due: entry.due_date,
+        p_priority: entry.priority,
+      })
+    : await admin.from("tasks").insert(entry).select("id").single();
+  const taskId = typeof data === "string" ? data : data?.id;
 
-  if (kErr) {
-    console.error("[CUSTOMER-TOOLS] richiesta_richiamo:", kErr.message);
-    return { risposta: "Ho preso nota: la faccio richiamare dall'ufficio il prima possibile." };
+  if (kErr || !taskId) {
+    console.error("[CUSTOMER-TOOLS] richiesta_richiamo:", kErr?.message || "Riferimento mancante");
+    return { creato: false, outcome_unknown: true, risposta: "Non ho potuto confermare il salvataggio del richiamo. Serve una verifica dell’ufficio prima di ripetere la richiesta." };
   }
   return {
-    risposta: urgente
-      ? `Ho segnato la richiesta come urgente: l'ufficio la richiamerà oggi stesso ${params.recapito ? "al recapito concordato" : "a questo numero"}.`
-      : `Perfetto, ho lasciato il messaggio all'ufficio: la richiameranno entro domani ${params.recapito ? "al recapito concordato" : "a questo numero"}.`,
+    creato: true,
+    task_id: taskId,
+    risposta: "Ho registrato la richiesta di richiamo per l’ufficio, con il recapito concordato.",
   };
 }
 

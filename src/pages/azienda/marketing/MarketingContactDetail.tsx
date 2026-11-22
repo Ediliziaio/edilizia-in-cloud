@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { CustomFieldValueEditor } from "@/components/shared/CustomFieldValueEditor";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -61,6 +61,7 @@ import { PlanimetrieAssociate } from "@/components/planimetrie/PlanimetrieAssoci
 import { ContactTrackingPanel } from "@/components/marketing/contacts/ContactTrackingPanel";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { ContactAIConversations } from "@/modules/ai-agents/components/ContactAIConversations";
+import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { ContactDndTab } from "@/components/marketing/ContactDndTab";
 import { ContactActionsTab } from "@/components/marketing/ContactActionsTab";
 import { ContactMergeDialog } from "@/components/marketing/ContactMergeDialog";
@@ -143,6 +144,7 @@ function etichettaFonte(fonte: string): string {
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const routePrefix = useMarketingRoutePrefix();
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
@@ -154,7 +156,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // Telefono e tablet: il pannello Note si apriva da solo a ogni scheda e
   // copriva la pagina (sul computer è la colonna di destra, lì aperto ha senso).
   const [rightTab, setRightTab] = useState<RightTab | null>(() =>
-    typeof window !== "undefined" && window.innerWidth < 1024 ? null : "notes",
+    searchParams.get("pannello") === "chiamate" ? "calls"
+      : typeof window !== "undefined" && window.innerWidth < 1024 ? null : "notes",
   );
   // Mobile: una sezione per volta (Attività, Dati, Collegati) invece di
   // timeline, anagrafica e pannelli impilati in una pagina lunghissima.
@@ -1121,6 +1124,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             { key: "appointments", n: kpis?.apptsCount },
             { key: "notes" },
             { key: "activities" },
+            { key: "calls" },
             { key: "documents" },
             { key: "invoices" },
           ] as { key: RightTab; n?: number }[]).map(({ key, n }) => {
@@ -1857,6 +1861,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* AI Conversations panel */}
               {rightTab === "ai_conversations" && id && (
                 <ContactAIConversations contactId={id} />
+              )}
+              {rightTab === "calls" && id && (
+                <ContactCallHistory contactId={id} customerId={contact.customer_profile_id} showActions={false} />
               )}
 
               {/* SMS Log panel */}

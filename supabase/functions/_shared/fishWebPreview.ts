@@ -3,7 +3,7 @@ import { enabledFishTools, fishAgentConfig, fishConfigurationFingerprint, fishTo
 import { buildFishSimulation } from "./fishSimulation.ts";
 
 /** Separate private web agent: client-side fixtures only, never CRM webhooks or phone transfers. */
-export async function createFishWebPreview(deps: any, agent: any, binding: any, userId: string, scenario = "appointment") {
+export async function createFishWebPreview(deps: any, agent: any, binding: any, userId: string, scenario = "appointment", context?: {today: string}) {
   const fingerprint = await fishConfigurationFingerprint(agent, binding);
   if (binding.config_fingerprint !== fingerprint) throw new Error("Salva e sincronizza la bozza prima della prova a voce.");
   const fixture = buildFishSimulation(agent, binding, scenario);
@@ -48,9 +48,12 @@ export async function createFishWebPreview(deps: any, agent: any, binding: any, 
     await deps.fish.agentRequest(`/v1/agent/agents/${encodeURIComponent(remoteId)}/publish`, "POST", { version_title: "Prova web privata · nessun dato reale", config });
     await save({ preview_tool_ids: toolIds, preview_fingerprint: version });
   }
+  const greeting = agent.primo_messaggio?.trim()
+    || fishExtraScenario(scenario)?.greeting
+    || "Buongiorno, sono l’assistente virtuale. Come posso aiutarla?";
   const session = await deps.fish.agentRequest("/v1/agent/sessions", "POST", {
     agent_id: remoteId, name: "Prova vocale da Edilizia in Cloud", end_user_id: userId, record_audio: false, tool_events: true,
-    dynamic_variables: { eic_session_authorized: "simulation",eic_recipient_phone:"+390000000002",eic_demo_today:"10 novembre 2026, Europe/Rome",eic_lead_name:scenario.startsWith("lead_")?"Laura Bianchi":"",eic_preview_greeting:fishExtraScenario(scenario)?.greeting || agent.primo_messaggio || "Buongiorno, sono l’assistente virtuale. Come posso aiutarla?" }, metadata: { eic_preview: true, company_id: binding.company_id, local_agent_id: agent.id },
+    dynamic_variables: { eic_session_authorized: "simulation",eic_recipient_phone:"+390000000002",eic_demo_today:context?.today || "10 novembre 2026, Europe/Rome",eic_lead_name:scenario.startsWith("lead_")?"Laura Bianchi":"",eic_preview_greeting:greeting }, metadata: { eic_preview: true, company_id: binding.company_id, local_agent_id: agent.id },
   });
   return { session_token: session, mock_tools: Object.fromEntries(fixture.simulation.tool_mocks.tools.map((item: any) => [item.tool.name, item.result])), simulation: true };
 }

@@ -1,18 +1,17 @@
+import { SilvioAssistanceActivities } from "@/components/silvio/SilvioAssistanceActivities";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSearchParams } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { useCentralinoCalls } from "@/hooks/useCentralinoCalls";
 import { Link } from "react-router-dom";
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History, User, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Phone, Delete, Loader2, Settings2 } from "lucide-react";
 import { CentralinoCallHistory } from "@/components/telephony/CentralinoCallHistory";
 import { DisponibilitaOperatore } from "@/components/telephony/DisponibilitaOperatore";
+import "@/components/ui/fish-agent-pipeline.css";
 
 const PAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
@@ -21,14 +20,10 @@ function fmtDur(s: number) {
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-  } catch { return iso; }
-}
 
 export default function Centralino() {
-  const companyId = useEffectiveCompanyId();
+  const [searchParams,setSearchParams]=useSearchParams();
+  const activeTab=searchParams.get("tab")==="attivita"?"attivita":"chiamate";
   const softphone = useSoftphoneOptional();
   const [number, setNumber] = useState("");
 
@@ -64,13 +59,13 @@ export default function Centralino() {
     <div className="mx-auto max-w-5xl space-y-6 md:max-w-none max-md:space-y-3">
       {/* Header — titolo e «Numeri & agenti» sulla stessa riga: la frase sotto
           il titolo (e l'icona) a 1024 mandava il bottone a capo, a sinistra. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="eic-motion-enter flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold max-md:text-lg">Centralino</h1><p className="mt-1 text-sm text-muted-foreground">Persone e agenti AI, con lo stesso storico e le anagrafiche del gestionale.</p>
         </div>
         <Button asChild variant="outline" size="sm" className="gap-1.5 max-md:hidden">
           <Link to="/azienda/agenti-ai?tab=telefonia">
-            <Settings2 className="h-4 w-4" /> Numeri & agenti
+            <Settings2 className="h-4 w-4" /> Numeri e collegamenti
           </Link>
         </Button>
       </div>
@@ -83,6 +78,18 @@ export default function Centralino() {
         </Card>
       )}
 
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4"><div className="flex-1"><p className="text-sm font-semibold">Il centralino lavora insieme a Silvio</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Segui cliente, ticket e appuntamento dal centro attività.</p></div><Button asChild size="sm" variant="outline"><Link to="/azienda/silvio-ai/attivita">Centro attività di Silvio</Link></Button><Button asChild size="sm"><Link to="/azienda/agenti-ai?crea=assistenza">Configura l’assistenza</Link></Button></div>
+      {import.meta.env.DEV && (
+        <div className="eic-motion-panel flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+          <div><p className="text-sm font-semibold">Collaudi locali</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Prova lead, assistenza e instradamento con dati fittizi.</p></div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm"><Link to="/azienda/centralino/collaudo-lead">Prova lead e CRM</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link to="/azienda/centralino/collaudo-locale">Prova assistenza</Link></Button>
+            <Button asChild size="sm"><Link to="/azienda/centralino/collaudo-telefonia">Prova telefonia</Link></Button>
+          </div>
+        </div>
+      )}
+      <Tabs value={activeTab} onValueChange={value=>setSearchParams(previous=>{const next=new URLSearchParams(previous);next.set("tab",value);return next;},{replace:true})}><TabsList><TabsTrigger value="chiamate">Chiamate</TabsTrigger><TabsTrigger value="attivita">Attività di assistenza</TabsTrigger></TabsList><TabsContent value="attivita" className="mt-5"><SilvioAssistanceActivities/></TabsContent><TabsContent value="chiamate" className="mt-5 space-y-6">
       {/* Statistiche */}
       {/* Telefono: i quattro numeri su una riga sola, con «Durata» al posto di
           «Tempo totale» che nella casella stretta verrebbe tagliato. */}
@@ -93,7 +100,7 @@ export default function Centralino() {
           { label: "Completate", value: String(stats.completed) },
           { label: "Tempo totale", breve: "Durata", value: fmtDur(stats.totalSec) },
         ].map((s) => (
-          <Card key={s.label}>
+          <Card key={s.label} className="eic-motion-panel">
             <CardContent className="py-3 max-md:px-2 max-md:py-1.5">
               <p className="text-2xl font-bold tabular-nums max-md:text-base">{s.value}</p>
               <p className="text-xs text-muted-foreground max-md:truncate max-md:text-[11px]">
@@ -159,6 +166,7 @@ export default function Centralino() {
 
         <Card className="min-w-0"><CardContent className="p-5 max-md:p-3"><CentralinoCallHistory /></CardContent></Card>
       </div>
+      </TabsContent></Tabs>
     </div>
   );
 }

@@ -1,3 +1,6 @@
+import { Link } from "react-router-dom";
+import { SilvioAssistanceActivities } from "./SilvioAssistanceActivities";
+import { SilvioFishCallbacks } from "./SilvioFishCallbacks";
 /**
  * SilvioHub — vista unica dell'agente operativo Silvio (per-azienda).
  * Sotto-sezioni: Azioni (cosa può fare) · Da approvare (coda conferme, MP-06) ·
@@ -73,6 +76,7 @@ function InCorso() {
         <div key={t.id} className="flex items-center gap-2 rounded-md border bg-white px-3 py-2">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-slate-800">{t.titolo || "(compito)"}</p>
+            {t.contesto.source==="fish_assistance" && <Link className="text-xs text-emerald-800 underline" to="/azienda/silvio-ai/attivita">Apri il percorso di assistenza</Link>}
             <p className="text-[11px] text-muted-foreground">{etichettaOrigine(t.origine)} · passo {t.passo_corrente + 1}</p>
           </div>
           <Badge variant="outline" className="shrink-0 text-[10px]">{t.stato}</Badge>
@@ -153,7 +157,7 @@ function Procedure() {
   );
 }
 
-export function SilvioHub() {
+export function SilvioHub({ defaultTab="approvare", callbackId }: {defaultTab?:string; callbackId?:string}={}) {
   const [richiesta, setRichiesta] = useState("");
   const chiedi = useChiediSilvio();
   const invia = () => {
@@ -186,8 +190,10 @@ export function SilvioHub() {
           Chiedi
         </Button>
       </div>
-      <Tabs defaultValue="approvare" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+      <Tabs defaultValue={defaultTab} className="w-full">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">
+          <TabsTrigger value="assistenza" className="gap-1 text-xs"><Bot className="h-3.5 w-3.5" /> Assistenza</TabsTrigger>
+          <TabsTrigger value="richiami" className="gap-1 text-xs"><Clock className="h-3.5 w-3.5" /> Richiami</TabsTrigger>
           <TabsTrigger value="approvare" className="gap-1 text-xs"><MailWarning className="h-3.5 w-3.5" /> Da approvare</TabsTrigger>
           <TabsTrigger value="corso" className="gap-1 text-xs"><ListChecks className="h-3.5 w-3.5" /> In corso</TabsTrigger>
           <TabsTrigger value="storico" className="gap-1 text-xs"><History className="h-3.5 w-3.5" /> Storico</TabsTrigger>
@@ -195,6 +201,8 @@ export function SilvioHub() {
           <TabsTrigger value="azioni" className="gap-1 text-xs"><ShieldCheck className="h-3.5 w-3.5" /> Permessi</TabsTrigger>
           <TabsTrigger value="canali" className="gap-1 text-xs"><MessageCircle className="h-3.5 w-3.5" /> Canali</TabsTrigger>
         </TabsList>
+        <TabsContent value="assistenza" className="mt-4"><SilvioAssistanceActivities /></TabsContent>
+        <TabsContent value="richiami" className="mt-4"><SilvioFishCallbacks callbackId={callbackId} /></TabsContent>
         <TabsContent value="approvare" className="mt-3"><DaApprovare /></TabsContent>
         <TabsContent value="corso" className="mt-3"><InCorso /></TabsContent>
         <TabsContent value="storico" className="mt-3"><Storico /></TabsContent>

@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { callFishAgent } from "@/lib/fishAgentProxy";
+import { fishScenarioForFlow } from "@/lib/fishOnboarding";
 import { FISH_SCENARIOS, buildFishSimulation } from "../../../supabase/functions/_shared/fishSimulation";
 import { enabledFishTools } from "../../../supabase/functions/_shared/fishAgentConfig";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ const creditExhausted = (value: unknown) => /no trial balance|api credit left|in
 
 export function FishSimulationPanel({ companyId, agentId, agent, remoteReady, initialBatchId, testIds,onTryVoice }: { companyId: string; agentId: string; agent: any; remoteReady: boolean; initialBatchId?: string; testIds?: Record<string, string>;onTryVoice?:(scenario:string)=>void }) {
   const cache=useQueryClient();
-  const [scenario, setScenario] = useState(agent.tools_config?.fish?.flow_id==="lead_qualification"?"lead_appointment":"appointment");
+  const [scenario, setScenario] = useState(() => fishScenarioForFlow(agent.tools_config?.fish?.flow_id));
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<any>(null);
   const [batch, setBatch] = useState<Batch | null>(null);
@@ -51,14 +52,40 @@ export function FishSimulationPanel({ companyId, agentId, agent, remoteReady, in
     } catch (error) { toast.error(error instanceof Error ? error.message : "Simulazione non avviata"); }
     finally { setStarting(false); }
   };
-  return <section className="space-y-3 border-t pt-4" aria-label="Simulazione del flusso Fish">
-    <h3 className="font-medium">Prova il flusso prima di attivare la linea</h3>
-    <p className="text-sm text-muted-foreground">L’anteprima locale controlla gli strumenti scelti e mostra il percorso previsto. La simulazione AI fa conversare un cliente dimostrativo con la bozza Fish e valuta il risultato. Tutti gli strumenti sono simulati: nessuna telefonata, prenotazione o modifica reale al gestionale.</p>
-    <div><Label>Scenario di prova</Label><Select value={scenario} onValueChange={setScenario}><SelectTrigger aria-label="Scenario di prova"><SelectValue /></SelectTrigger><SelectContent>{FISH_SCENARIOS.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent></Select></div>
-    <div><Label htmlFor={`fish-scenario-${agentId}`}>Indicazioni per il cliente dimostrativo, facoltative</Label><Textarea id={`fish-scenario-${agentId}`} maxLength={3000} value={note} onChange={e => setNote(e.target.value)} placeholder="Per esempio: il cliente ha fretta e preferisce essere richiamato. Usa dati dimostrativi." /></div>
-    <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={local}>Anteprima locale del flusso</Button><Button disabled={!remoteReady || starting || (!!current && !current.completed && watch)} onClick={simulate}>{starting ? "Avvio…" : "Avvia simulazione AI su Fish"}</Button></div>
-    {onTryVoice && <Button variant="outline" disabled={!remoteReady} onClick={()=>onTryVoice(scenario)}>Prova a voce questo scenario</Button>}
-    <p className="text-xs text-muted-foreground">La prova AI richiede una bozza Fish sincronizzata e usa il servizio di test del provider. Non serve una linea reale assegnata. Le simulazioni sono testuali; l’audio si collauda separatamente.</p>
+  return <section className="space-y-2.5 border-t pt-3" aria-label="Simulazione del flusso Fish">
+    <div>
+      <h3 className="text-sm font-semibold">Simulazioni del flusso</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">L’anteprima mostra i passaggi previsti. Fish esegue un dialogo testuale con dati di prova.</p>
+    </div>
+    <div>
+      <Label htmlFor={`fish-scenario-choice-${agentId}`}>Scenario di prova</Label>
+      <Select value={scenario} onValueChange={value => { setScenario(value); setPreview(null); }}>
+        <SelectTrigger id={`fish-scenario-choice-${agentId}`} aria-label="Scenario di prova"><SelectValue /></SelectTrigger>
+        <SelectContent>{FISH_SCENARIOS.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+    <details className="rounded-lg border px-2.5 py-2">
+      <summary className="cursor-pointer text-xs font-medium">
+        Indicazioni per il cliente dimostrativo{note.trim() && " · aggiunte"}
+      </summary>
+      <Textarea
+        aria-label="Indicazioni per il cliente dimostrativo, facoltative"
+        maxLength={3000}
+        value={note}
+        onChange={e => { setNote(e.target.value); setPreview(null); }}
+        placeholder="Per esempio: il cliente ha fretta e preferisce essere richiamato."
+        rows={2}
+        className="mt-2"
+      />
+    </details>
+    <div className="flex flex-wrap gap-1.5">
+      <Button size="sm" variant="outline" onClick={local}>Anteprima locale del flusso</Button>
+      <Button size="sm" disabled={!remoteReady || starting || (!!current && !current.completed && watch)} onClick={simulate}>
+        {starting ? "Avvio…" : "Avvia simulazione AI su Fish"}
+      </Button>
+      {onTryVoice && <Button size="sm" variant="outline" disabled={!remoteReady} onClick={()=>onTryVoice(scenario)}>Prova a voce questo scenario</Button>}
+    </div>
+    <p className="text-xs text-muted-foreground">La simulazione AI usa credito Fish. Il gestionale usa dati dimostrativi per queste prove.</p>
     {preview && <div className="space-y-2 rounded-md bg-muted p-3 text-sm" role="status"><p className="font-medium">Anteprima a regole · configurazione attuale</p><ol className="list-decimal space-y-2 pl-5">{preview.simulation.assertions.tool_calls.map((step: any) => {
       const answer = preview.simulation.tool_mocks.tools.find((m: any) => m.tool.name === step.tool.name)?.result?.risposta;
       return <li key={step.tool.name}><strong>{LABELS[step.tool.name] || step.tool.name}</strong>{answer && <p>{answer}</p>}</li>;

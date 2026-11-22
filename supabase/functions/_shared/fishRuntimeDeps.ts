@@ -4,7 +4,7 @@ import { agentCompanyAccess } from "./agentCompanyAccess.ts";
 import { amministraAzienda } from "./amministraAzienda.ts";
 import { getCorsHeaders } from "./headers.ts";
 import { saldoVoce } from "./voiceCredits.ts";
-import { eseguiCustomerTool, suffissoTelefono } from "./ediliziaCustomerTools.ts";
+import { eseguiCustomerTool, richiestaRichiamo, suffissoTelefono } from "./ediliziaCustomerTools.ts";
 import type { FishRuntimeDeps } from "./fishCentralino.ts";
 import { checkRateLimit } from "./rateLimit.ts";
 import { fishRealCustomerTool } from "./fishCustomerTools.ts";
@@ -35,8 +35,15 @@ export function fishRuntimeDeps(): FishRuntimeDeps {
     },
     executeTool(company, phone, session, name, params, config) {
       if(["info_cliente","crea_ticket"].includes(name))return fishRealCustomerTool(db,company,phone,name,params);
-      if(config?.calendarId && ["disponibilita","fissa_appuntamento"].includes(name)) return fishCalendarTool(db,company,config.calendarId,phone,name,params);
-      return eseguiCustomerTool(db, company, { rawPhone: phone, suffix: suffissoTelefono(phone), conversationId: session }, name, params);
+      if(config?.calendarId && ["disponibilita","fissa_appuntamento"].includes(name)) return fishCalendarTool(db,company,config.calendarId,phone,name,params,undefined,{leadBooking:config.leadBooking});
+      const ctx = { rawPhone: phone, suffix: suffissoTelefono(phone), conversationId: session, fishAgentId: config?.callback?.agentId };
+      if (name === "richiesta_richiamo") return richiestaRichiamo(db, company, ctx, {
+        motivo:typeof params.motivo === "string" ? params.motivo : undefined,
+        nome:typeof params.nome === "string" ? params.nome : undefined,
+        urgenza:typeof params.urgenza === "string" ? params.urgenza : undefined,
+        recapito:typeof params.recapito === "string" ? params.recapito : undefined,
+      }, config?.callback?.contact);
+      return eseguiCustomerTool(db, company, ctx, name, params);
     },
   };
 }

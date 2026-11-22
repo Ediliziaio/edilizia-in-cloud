@@ -53,12 +53,12 @@ export function getDateLabel(dateStr: string) {
   return format(d, "d MMMM yyyy", { locale: it });
 }
 
-export type RightTab = "tracking" | "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "sms_log" | "settings";
+export type RightTab = "tracking" | "activities" | "notes" | "appointments" | "opportunities" | "quotes" | "invoices" | "documents" | "ai_conversations" | "calls" | "sms_log" | "settings";
 
 import {
   FileText as FileTextIcon, Activity as ActivityIcon, StickyNote as StickyNoteIcon,
   CalendarDays, Target as TargetIcon, FileSignature, Bot, Smartphone, Settings as SettingsIcon,
-  Radar as RadarIcon,
+  Radar as RadarIcon, Phone,
 } from "lucide-react";
 
 export const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
@@ -71,6 +71,7 @@ export const RIGHT_TABS: { key: RightTab; icon: any; label: string }[] = [
   { key: "quotes", icon: FileSignature, label: "Preventivi" },
   { key: "invoices", icon: FileTextIcon, label: "Fatture" },
   { key: "ai_conversations", icon: Bot, label: "Conversazioni AI" },
+  { key: "calls", icon: Phone, label: "Chiamate" },
   { key: "sms_log", icon: Smartphone, label: "Log SMS" },
   { key: "settings", icon: SettingsIcon, label: "Impostazioni" },
 ];
