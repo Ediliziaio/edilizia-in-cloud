@@ -6,7 +6,7 @@ import { stileFatturaXml } from './fatturaXmlDocumentoStile';
 export interface CampoXml { campo: string; valore: string }
 export interface RigaXmlStampabile {
   numero: string; descrizione: string; quantita: string; prezzoUnitario: string;
-  unitaMisura: string; importo: string; iva: string; dettagli: CampoXml[];
+  unitaMisura: string; importo: string; iva: string; dettagli: CampoXml[]; targhe?: string[];
 }
 export interface TabellaXml {
   titolo: string; intestazioni: string[]; righe: string[][]; larghezze?: Array<number | '*'>;
@@ -136,7 +136,12 @@ export function leggiFattureXmlStampabili(xml: string, opzioni: OpzioniFatturaXm
       const collegati = docPerRiga.filter(d => d.linee.some(l => lineaUguale(l, linea))).map(d => d.campo);
       dettagliRighe.push([...codici, ...campiXml(r, usati), ...collegati]);
       const soloColonne = new Set(Array.from(r.children).filter(e => CORE_RIGA.has(e.localName)));
-      righeXml.push({ numero: linea, descrizione, quantita, prezzoUnitario, unitaMisura, importo, iva, dettagli: [...campiXml(r, soloColonne), ...collegati] });
+      const targhe = children(r, 'AltriDatiGestionali').flatMap(dato => {
+        const tipo = testo(child(dato, 'TipoDato')).toUpperCase().replace(/[^A-Z]/g, '');
+        const targa = testo(child(dato, 'RiferimentoTesto')).toUpperCase().replace(/[\s-]+/g, '');
+        return ['TARGA', 'TARGAVEICOLO', 'TARGAMEZZO'].includes(tipo) && /^[A-Z0-9]{6,10}$/.test(targa) ? [targa] : [];
+      });
+      righeXml.push({ targhe, numero: linea, descrizione, quantita, prezzoUnitario, unitaMisura, importo, iva, dettagli: [...campiXml(r, soloColonne), ...collegati] });
       const quantitaConUnita = unitaMisura === '—' ? quantita : quantita + ' ' + unitaMisura;
       return [linea, descrizione, quantitaConUnita, prezzoUnitario, iva, importo, sconti];
     });

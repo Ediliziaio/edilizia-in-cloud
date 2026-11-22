@@ -184,7 +184,10 @@ export default function MappaOperativa({
   });
   const mezzi = useMezziMappa(company, user?.id, giorno, personale, vistaMezzi);
   const { visibili: mezziVisibili, pin: pinMezzi, inMappa: mezziInMappa } = usePinMezziMappa(
-    mezzi.data, preferenze, preferenze.mezzoScelto);
+    mezzi.data?.elenco, preferenze, preferenze.mezzoScelto);
+  const soloAttrezzature = mezziVisibili.length > 0 && mezziVisibili.every(m => m.attrezzatura);
+  const tipoRisorse = soloAttrezzature ? ["attrezzatura", "attrezzature"] :
+    mezziVisibili.some(m => m.attrezzatura) ? ["risorsa", "risorse"] : ["mezzo", "mezzi"];
   const effettivi = useQuery({
     queryKey: [...viaggiKey(company ?? ""), "mappa-km", user?.id, ambito, personale, giorno], enabled: !!company && !vistaMezzi,
     queryFn: async ({ signal }) => {
@@ -592,7 +595,7 @@ export default function MappaOperativa({
         contesto={`${giorno}:${vista}`} inquadratura={inquadratura} onInquadratura={salvaInquadratura} onSeleziona={aggiornaSelezione} onPunto={posiziona ? setBozza : undefined} />
       <div className="min-w-0 rounded-lg border bg-background">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-xs text-muted-foreground">{vistaMezzi ? `${mezziVisibili.length} ${mezziVisibili.length === 1 ? "mezzo" : "mezzi"} · ${mezziInMappa} sulla mappa` :
+          <span className="text-xs text-muted-foreground">{vistaMezzi ? `${mezziVisibili.length} ${tipoRisorse[mezziVisibili.length === 1 ? 0 : 1]} · ${mezziInMappa} sulla mappa` :
             vista === "percorso" ? `${tappe.length} tappe · ${pin.length} sulla mappa` :
             vista === "problemi" ? `${attivitaDaMostrare.length + viaggiDaMostrare.length} da completare · ${pin.length} sulla mappa` :
               vistaGps ? `${pin.length} timbrature sulla mappa` : `${filtrate.length} in elenco · ${pin.length} sulla mappa`}</span>
@@ -615,7 +618,7 @@ export default function MappaOperativa({
           {loading && !vistaGps && !vistaMezzi && <p className="p-4 text-sm text-muted-foreground" role="status">Caricamento attività…</p>}
           {vistaMezzi && <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">Caricamento mezzi…</p>}>
             <MezziMappa mezzi={mezziVisibili} selezione={selezione} giorno={giorno} personale={personale}
-              tipoMezzi={preferenze.tipoMezzi} cercaMezzi={preferenze.cercaMezzi} caricamento={mezzi.isPending} aggiornamento={mezzi.isFetching} errore={mezzi.isError}
+              tipoMezzi={preferenze.tipoMezzi} cercaMezzi={preferenze.cercaMezzi} caricamento={mezzi.isPending} aggiornamento={mezzi.isFetching} errore={mezzi.isError} nonDisponibile={mezzi.data?.nonDisponibile}
               onRiprova={() => void mezzi.refetch()} onFiltri={preferisci} onSeleziona={selezionaRiga}
               haPercorso={id => mappate.some(v => !v.escluso && v.attivita.some(a => a.risorse.some(r => r.tipo === "mezzo" && r.id === id)))}
               onPercorso={id => {

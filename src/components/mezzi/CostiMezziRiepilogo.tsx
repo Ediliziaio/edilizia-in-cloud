@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Truck } from "lucide-react";
+import { ArrowRight, Truck } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { orderDetailLocation } from "@/lib/orders/detailNavigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { usePianoMezziCantiere } from "@/hooks/usePianoMezziCantiere";
 import { useMezziPianoEconomia } from "@/hooks/useMezziPianoEconomia";
@@ -16,8 +18,20 @@ import {
 } from "@/components/ui/dialog";
 import { PianoMezziCantiere } from "./PianoMezziCantiere";
 import { PercorrenzeMezzi } from "./PercorrenzeMezzi";
+type RisorsaEconomica = {
+  id: string; tipo: string; nome: string; assegnazioni: number; previsto: number; registrato: number; invalidi: number; daValorizzare: number;
+};
+
+const categoriaPossesso: Record<string, string> = {
+  proprieta: "Mezzi e attrezzature di proprietà",
+  leasing: "Leasing",
+  noleggio_breve: "Noleggi a breve termine",
+  noleggio_lungo: "Noleggi a lungo termine",
+};
+
 export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
   const p = usePermissions();
+  const location = useLocation();
   const enabled = p.canViewCosts && (p.canViewMezzi || p.isAdmin);
   const { piani, prezzi } = usePianoMezziCantiere(orderId, enabled, true);
   const { fonti } = useMezziPianoEconomia(orderId, enabled);
@@ -34,7 +48,33 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
     prezzi.data ?? {},
     fonti.data ?? { fonti: [], legami: [] },
   );
-  const righe = e.righe.filter(r => !r.piano.annullato || r.registrato || r.invalidi);
+  const risorse = new Map(mezzi.map(m => [m.id, m]));
+  const gruppi = new Map<string, RisorsaEconomica>();
+  for (const r of e.righe) {
+    if (r.piano.annullato && !r.registrato && !r.invalidi) continue;
+    const mezzo = risorse.get(r.piano.mezzo_id);
+    const noleggioPianificato = Boolean(r.piano.origine_noleggio_id || r.piano.fornitore_noleggio);
+    const possesso = mezzo?.possesso;
+    const tipo = noleggioPianificato && (!possesso || possesso === "proprieta")
+      ? "Noleggi"
+      : categoriaPossesso[possesso ?? ""] ?? "Risorse archiviate";
+    const chiave = `${tipo}:${r.piano.mezzo_id}`;
+    const gruppo = gruppi.get(chiave) ?? {
+      id: chiave, tipo, nome: mezzo?.nome ?? "Risorsa", assegnazioni: 0, previsto: 0, registrato: 0, invalidi: 0, daValorizzare: 0,
+    };
+    gruppo.assegnazioni++;
+    gruppo.previsto += r.previsto ?? 0;
+    gruppo.registrato += r.registrato;
+    gruppo.invalidi += r.invalidi;
+    gruppo.daValorizzare += Number(r.previsto === null);
+    gruppi.set(chiave, gruppo);
+  }
+  const categorie = new Map<string, RisorsaEconomica[]>();
+  for (const r of gruppi.values()) {
+    const gruppo = categorie.get(r.tipo);
+    if (gruppo) gruppo.push(r);
+    else categorie.set(r.tipo, [r]);
+  }
   return (
     <section
       className="mt-3 space-y-2.5 rounded-xl border bg-card p-2.5 sm:p-3"
@@ -45,11 +85,16 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
           <Truck className="size-4 text-primary" />
           Mezzi e noleggi
         </h3>
-        <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-          Gestisci risorse e spese
-        </Button>
+        <div className="flex flex-wrap gap-1.5">
+          <Button asChild variant="ghost" size="sm">
+            <Link to={{ pathname: location.pathname, ...orderDetailLocation(location.search, { tab: "cantiere", cantiereView: "lavorazioni", section: "section-viaggi" }) }}>
+              Registro viaggi <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Gestisci risorse e spese</Button>
+        </div>
       </div>
-      <PercorrenzeMezzi ordine={orderId} costi />
+      <PercorrenzeMezzi ordine={orderId} costi compatto />
       {error ? (
         <p role="alert" className="text-xs text-destructive">
           Dati mezzi non disponibili.{" "}
@@ -67,73 +112,27 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
         </p>
       ) : loading ? (
         <p className="text-xs">Caricamento costi mezzi…</p>
-      ) : righe.length ? (
+      ) : gruppi.size ? (
         <>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {[
-              ["Previsto per le assegnazioni", formatCurrency(e.previsto)],
-              [
-                "Già incluso nei costi commessa",
-                e.invalidi ? "Da riconciliare" : formatCurrency(e.registrato),
-              ],
-              [
-                "Copertura del preventivo",
-                e.senzaPreventivo
-                  ? `${e.senzaPreventivo} da valorizzare`
-                  : "Completa",
-              ],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-md bg-muted/45 px-2.5 py-1.5"
-              >
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="text-sm font-semibold tabular-nums">{value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b">
-                  <th className="p-2">Risorsa</th>
-                  <th className="p-2 text-right">Previsto</th>
-                  <th className="p-2 text-right">Registrato e collegato</th>
-                  <th className="p-2">Verifica</th>
-                </tr>
-              </thead>
-              <tbody>
-                {righe.map((r) => (
-                    <tr key={r.piano.id} className="border-b last:border-0">
-                      <td className="p-2">
-                        {mezzi.find((m) => m.id === r.piano.mezzo_id)?.nome ??
-                          "Risorsa"}
-                        {r.piano.annullato ? " · Annullata" : ""}
-                      </td>
-                      <td className="p-2 text-right">
-                        {r.previsto === null
-                          ? "Da definire"
-                          : formatCurrency(r.previsto)}
-                      </td>
-                      <td className="p-2 text-right">
-                        {r.invalidi
-                          ? "Da riconciliare"
-                          : formatCurrency(r.registrato)}
-                      </td>
-                      <td className="p-2">
-                        {r.invalidi
-                          ? "Fonte aggiornata: ricontrolla"
-                          : r.scostamento !== null && r.scostamento > 0
-                            ? `Oltre preventivo: ${formatCurrency(r.scostamento)}`
-                            : r.registrato
-                              ? "Collegamento presente"
-                              : "Collega le spese registrate"}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          {[...categorie].map(([tipo, righe]) => <details key={tipo} className="rounded-lg border">
+            <summary className="cursor-pointer px-3 py-2 text-sm hover:bg-muted/30">
+              <span className="font-semibold">{tipo}</span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                {righe.length} {righe.length === 1 ? "risorsa" : "risorse"} · {formatCurrency(righe.reduce((n, r) => n + r.previsto, 0))} previsto
+                {righe.some(r => r.daValorizzare > 0) && " · Importi da completare"}
+                {" · "}{righe.some(r => r.invalidi) ? "Da riconciliare" : `${formatCurrency(righe.reduce((n, r) => n + r.registrato, 0))} collegato`}
+              </span>
+            </summary>
+            <ul className="divide-y border-t">
+              {righe.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-xs">
+                <span><strong>{r.nome}</strong> <span className="text-muted-foreground">· {r.assegnazioni} {r.assegnazioni === 1 ? "assegnazione" : "assegnazioni"}</span></span>
+                <span className="tabular-nums text-muted-foreground">
+                  {formatCurrency(r.previsto)} previsto{r.daValorizzare ? ` · ${r.daValorizzare} da valorizzare` : ""}
+                  {" · "}{r.invalidi ? "Collegamenti da verificare" : `${formatCurrency(r.registrato)} collegato`}
+                </span>
+              </li>)}
+            </ul>
+          </details>)}
           {e.invalidi > 0 && (
             <p role="alert" className="text-xs text-amber-800">
               Un costo è stato modificato, spostato o annullato: ricontrolla le
@@ -141,7 +140,7 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Importi netti IVA. I costi collegati sono già inclusi nel consuntivo e nel margine.
+            Importi netti IVA. I costi collegati sono già inclusi nel consuntivo della commessa.
           </p>
         </>
       ) : <p className="px-0.5 text-xs text-muted-foreground">Nessun mezzo o noleggio pianificato.</p>}

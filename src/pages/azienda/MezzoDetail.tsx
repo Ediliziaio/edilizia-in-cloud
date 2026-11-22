@@ -367,7 +367,7 @@ export default function MezzoDetail() {
         )}
       </div>
 
-      <Tabs value={tabScelto ?? (searchParams.get("tab") === "viaggi" && haViaggi ? "viaggi" : tabIniziale)} onValueChange={setTabScelto}>
+      <Tabs value={tabScelto ?? (searchParams.get("tab") === "viaggi" && haViaggi ? "viaggi" : searchParams.get("tab") === "fatture" && perms.canViewCosts ? "fatture" : tabIniziale)} onValueChange={setTabScelto}>
         {/* Documenti e manutenzioni restano raggiungibili anche da telefono. */}
         <div className="-mx-1 overflow-x-auto px-1 max-sm:mx-0 max-sm:px-0">
           <TabsList className="inline-flex w-max">
@@ -413,7 +413,7 @@ export default function MezzoDetail() {
         {perms.canViewCosts && (
           <TabsContent value="fatture" className="mt-3">
             <MezzoCostoOrario mezzoId={mezzo.id} puoModificare={puoModificare} />
-            <MezzoFattureSection mezzoId={mezzo.id} puoModificare={puoModificare} />
+            <MezzoFattureSection mezzoId={mezzo.id} puoModificare={puoModificare} ripartoCarburante={haViaggi && perms.canViewMezzi} />
           </TabsContent>
         )}
         <TabsContent value="foto" className="mt-3">

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SCHEMA_COME_OGGI } from "../../../supabase/functions/_shared/moduliCantiere";
 
 const rpc = vi.fn();
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, profile: { company_id: "c1" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 const { useModuloRapportino } = await import("@/hooks/useModuliCantiere");
 
@@ -18,10 +19,11 @@ describe("useModuloRapportino", () => {
   beforeEach(() => rpc.mockReset());
 
   it("legge lo schema dell'azienda dalla commessa", async () => {
-    rpc.mockResolvedValue({ data: { blocchi: { mezzi: false }, campi: [] }, error: null });
+    rpc.mockResolvedValue({ data: { blocchi: { mezzi: false }, campi: [], rilevazioni_mezzi: { ore: true, litri: false } }, error: null });
     const { wrapper } = avvolgi();
     const { result } = renderHook(() => useModuloRapportino("o1"), { wrapper });
     await waitFor(() => expect(result.current.schema.blocchi.mezzi).toBe(false));
+    expect(result.current.schema.rilevazioni_mezzi).toEqual({ ore: true, litri: false });
     expect(rpc).toHaveBeenCalledWith("modulo_rapportino_per_ordine", { p_order_id: "o1" });
   });
 
@@ -49,7 +51,7 @@ describe("useModuloRapportino", () => {
     // Il modulo riprova una volta prima di arrendersi.
     await waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 4000 });
     expect(result.current.schema).toEqual(SCHEMA_COME_OGGI);
-    expect(qc.getQueryData(["modulo-rapportino", "o1"])).toBeUndefined();
+    expect(qc.getQueryData(["modulo-rapportino", "o1", "c1", "u1"])).toBeUndefined();
   });
 
   it("senza commessa non chiede nulla", () => {

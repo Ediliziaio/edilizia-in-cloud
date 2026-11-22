@@ -1,4 +1,4 @@
-import { ArrowUpRight, Construction, Route, Truck } from "lucide-react";
+import { ArrowUpRight, Construction, Route, Truck, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,37 +25,43 @@ function Luogo({ titolo, luogo }: { titolo: string; luogo: PuntoMezzoMappa }) {
 
 type Props = FiltriMezzi & {
   mezzi: MezzoGiornoMappa[]; selezione: string | null; giorno: string; personale: boolean;
-  caricamento: boolean; aggiornamento: boolean; errore: boolean; onRiprova: () => void; onFiltri: (patch: Partial<FiltriMezzi>) => void;
+  caricamento: boolean; aggiornamento: boolean; errore: boolean; nonDisponibile?: string | null; onRiprova: () => void; onFiltri: (patch: Partial<FiltriMezzi>) => void;
   onSeleziona: (id: string | null) => void; haPercorso: (id: string) => boolean; onPercorso: (id: string) => void; registraRiga: (id: string, el: HTMLButtonElement | null) => void;
 };
 
 export default function MezziMappa({ mezzi, selezione, giorno, personale, tipoMezzi, cercaMezzi, caricamento, aggiornamento, errore,
-  onRiprova, onFiltri, onSeleziona, haPercorso, onPercorso, registraRiga }: Props) {
+  nonDisponibile, onRiprova, onFiltri, onSeleziona, haPercorso, onPercorso, registraRiga }: Props) {
   return <section aria-label="Mezzi sulla mappa" className="divide-y">
     <div className="space-y-2 p-3">
       <div className="flex flex-wrap gap-2">
         <select aria-label="Tipo di mezzo" className="h-9 max-w-full rounded-md border bg-background px-2 text-sm" value={tipoMezzi}
           onChange={e => onFiltri({ tipoMezzi: e.target.value as FiltroMezzi })}>
-          <option value="tutti">Tutti i mezzi</option><option value="stradali">Veicoli stradali</option><option value="cantiere">Mezzi da cantiere</option>
+          <option value="tutti">Mezzi e attrezzature</option><option value="stradali">Veicoli stradali</option><option value="cantiere">Mezzi da cantiere</option>
+          <option value="attrezzature">Attrezzature</option>
         </select>
-        <Input aria-label="Cerca un mezzo" className="min-w-28 flex-1" placeholder="Cerca nome, targa, cantiere" value={cercaMezzi}
+        <Input aria-label="Cerca un mezzo" className="min-w-28 flex-1" placeholder="Nome, targa, cantiere o persona" value={cercaMezzi}
           onChange={e => onFiltri({ cercaMezzi: e.target.value })} />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex flex-wrap items-center gap-x-2"><span className="size-2 rounded-sm bg-sky-800" aria-hidden="true" /> Posizione di riferimento
+          <span className="size-2 rounded-sm bg-teal-700" aria-hidden="true" /> Attrezzatura
           <span className="size-2 rounded-sm bg-amber-700" aria-hidden="true" /> Destinazione prevista</span>
         <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onRiprova} disabled={aggiornamento}>Aggiorna mezzi</Button>
       </div>
       <p className="text-xs text-muted-foreground">{personale ? "Mezzi collegati alle tue assegnazioni, ai tuoi viaggi e ai piani di cui sei responsabile. " : ""}
-        Posizioni da assegnazioni e arrivi registrati. I chilometri fanno riferimento al giorno di partenza.</p>
+        {tipoMezzi === "attrezzature" ? "Ubicazioni da assegnazioni, rapportini e scansioni QR." :
+          "Posizioni da assegnazioni e arrivi registrati. I chilometri fanno riferimento al giorno di partenza."}</p>
     </div>
     {caricamento && <p role="status" className="p-3 text-sm text-muted-foreground">Caricamento mezzi…</p>}
     {errore && <p role="alert" className="p-3 text-sm">Mezzi temporaneamente indisponibili. <button className="underline" onClick={onRiprova}>Riprova</button></p>}
-    {!caricamento && !errore && !mezzi.length && <p className="p-3 text-sm text-muted-foreground">Nessun mezzo per il giorno e i filtri selezionati.</p>}
+    {nonDisponibile && <p role="status" className="p-3 text-sm text-muted-foreground">
+      {nonDisponibile} temporaneamente indisponibili. <button type="button" className="underline" onClick={onRiprova}>Riprova</button>
+    </p>}
+    {!caricamento && !errore && !nonDisponibile && !mezzi.length && <p className="p-3 text-sm text-muted-foreground">Nessun mezzo per il giorno e i filtri selezionati.</p>}
     {mezzi.map(m => {
       const attivo = selezione === m.id;
       const tipo = TIPI_MEZZO.find(t => t.value === m.tipo)?.label ?? m.tipo;
-      const Icona = m.stradale ? Truck : Construction;
+      const Icona = m.attrezzatura ? Wrench : m.stradale ? Truck : Construction;
       const misure = m.stradale ? [
         m.metri_registrati != null ? `${formatoKm(m.metri_registrati)} registrati` : null,
         m.metri_stimati != null ? `${formatoKm(m.metri_stimati)} stimati` : null,
@@ -68,16 +74,19 @@ export default function MezziMappa({ mezzi, selezione, giorno, personale, tipoMe
           <span className="min-w-0">
             <span className="block break-words text-sm font-semibold">{m.nome}</span>
             <span className="block text-xs text-muted-foreground">{[tipo, m.targa].filter(Boolean).join(" · ")}</span>
-            <span className="block text-xs">{m.stradale ? misure.join(" · ") || "Km da registrare" :
+            <span className="block text-xs">{m.attrezzatura ? [m.attrezzatura.quantita != null ? [m.attrezzatura.quantita.toLocaleString("it-IT"), m.unita].filter(Boolean).join(" ") : null,
+              m.attrezzatura.custode ? `In carico a ${m.attrezzatura.custode}` : null].filter(Boolean).join(" · ") : m.stradale ? misure.join(" · ") || "Km da registrare" :
               m.contaore != null ? `${m.contaore.toLocaleString("it-IT")} h · lettura contaore` : m.unita === "ore" ? "Lettura contaore da registrare" : "Assegnazione operativa"}</span>
-            <span className="block break-words text-xs text-muted-foreground">{m.posizione ? m.posizione.nome : "Posizione da documentare"}</span>
+            <span className="block break-words text-xs text-muted-foreground">{m.posizione ? [m.posizione.nome, m.attrezzatura && m.posizione.quando ? dataOra(m.posizione.quando) : null].filter(Boolean).join(" · ")
+              : m.attrezzatura?.quantita != null ? "Quantità senza ubicazione registrata" : "Posizione da documentare"}</span>
             {m.destinazione && m.destinazione.order_id !== m.posizione?.order_id &&
               <span className="block break-words text-xs text-primary">Destinazione prevista · {m.destinazione.nome}</span>}
             {m.destinazioni > 1 && <span className="block text-xs text-amber-800 dark:text-amber-300">{m.destinazioni} destinazioni previste · da verificare</span>}
           </span>
         </button>
         {attivo && <div className="space-y-2 px-3 pb-3 text-xs">
-          {m.posizione && <Luogo titolo="Posizione di riferimento" luogo={m.posizione} />}
+          {m.posizione && <Luogo titolo={m.attrezzatura ? "Ultima ubicazione registrata" : "Posizione di riferimento"} luogo={m.posizione} />}
+          {m.posizioneVeicolo && <Luogo titolo="Posizione di riferimento del mezzo" luogo={m.posizioneVeicolo} />}
           {m.destinazione && <Luogo titolo="Destinazione prevista" luogo={m.destinazione} />}
           {!coordinate(m.posizione?.lat, m.posizione?.lng) && m.posizione && <p className="text-muted-foreground">Coordinate della posizione da verificare.</p>}
           {m.fonti_registrate.length > 0 && <p className="text-muted-foreground">{m.fonti_registrate.join(" · ")}</p>}
@@ -85,7 +94,7 @@ export default function MezziMappa({ mezzi, selezione, giorno, personale, tipoMe
           {m.metri_stimati != null && <p className="text-muted-foreground">Stime salvate nel registro viaggi.</p>}
           <div className="flex flex-wrap gap-1">
             <Button asChild size="sm" variant="outline">
-              <Link to={`/azienda/mezzi/${m.id}${m.stradale ? `?tab=viaggi&giorno=${giorno}` : ""}`}>Apri scheda mezzo</Link>
+              <Link to={`/azienda/mezzi/${m.attrezzatura?.scheda_id ?? m.id}${m.stradale ? `?tab=viaggi&giorno=${giorno}` : ""}`}>{m.attrezzatura ? "Apri scheda attrezzatura" : "Apri scheda mezzo"}</Link>
             </Button>
             {m.stradale && <Button asChild size="sm" variant="outline">
               <Link to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa&giorno=${giorno}`}>Storico su mappa</Link>

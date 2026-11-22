@@ -113,6 +113,36 @@ export function useViaggiContesto(
     retry: false,
   });
 }
+const DIMENSIONE_PAGINA_VIAGGI = 50;
+
+function viaggiPerPagina(companyId: string, dal: string, al: string, offset: number, mezzoId?: string, orderId?: string) {
+  return call<{ items: Viaggio[]; has_more: boolean }>("mezzi_viaggi_elenco", {
+    p_company: companyId, p_mezzo: mezzoId ?? null, p_order: orderId ?? null,
+    p_dal: dal, p_al: al, p_offset: offset,
+  });
+}
+
+export function useViaggiRipartoCarburante(companyId: string, mezzoId: string, periodo: { dal: string; al: string } | null) {
+  const actor = useAuth().user?.id;
+  return useQuery({
+    queryKey: [...viaggiKey(companyId), actor, "riparto-carburante", mezzoId, periodo?.dal, periodo?.al],
+    enabled: !!(companyId && actor && mezzoId && periodo),
+    queryFn: async ({ signal }) => {
+      if (!periodo) throw new Error("Scegli le date dei rifornimenti.");
+      const viaggi: Viaggio[] = [];
+      for (let offset = 0; offset < 5_000; offset += DIMENSIONE_PAGINA_VIAGGI) {
+        signal.throwIfAborted();
+        const pagina = await viaggiPerPagina(companyId, periodo.dal, periodo.al, offset, mezzoId);
+        viaggi.push(...pagina.items);
+        if (!pagina.has_more) return viaggi;
+      }
+      throw new Error("Il periodo include più di 5.000 viaggi. Riduci l’intervallo per calcolare tutte le quote.");
+    },
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
 export function useViaggiElenco({
   companyId,
   mezzoId,
@@ -143,15 +173,7 @@ export function useViaggiElenco({
       offset,
     ],
     enabled: enabled && !!companyId && !!dal && !!al && !!actor,
-    queryFn: () =>
-      call<{ items: Viaggio[]; has_more: boolean }>("mezzi_viaggi_elenco", {
-        p_company: companyId,
-        p_mezzo: mezzoId ?? null,
-        p_order: orderId ?? null,
-        p_dal: dal,
-        p_al: al,
-        p_offset: offset,
-      }),
+    queryFn: () => viaggiPerPagina(companyId, dal, al, offset, mezzoId, orderId),
     retry: false,
     staleTime: 30000,
   });

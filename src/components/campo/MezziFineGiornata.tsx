@@ -1,21 +1,15 @@
-/**
- * Mezzi e attrezzi di oggi, dentro il rapportino (26/09/2026, richiesta del
- * founder: «a fine giornata consegna le attrezzature»).
- *
- * L'operaio segna cosa ha usato e dove resta stasera ogni attrezzo (in
- * cantiere, sul furgone, in magazzino, lo tengo io); per il furgone o l'auto i
- * km a fine giornata. Si salva insieme al rapportino (campo_mezzi_fine_giornata)
- * e in ufficio si vede subito dov'è ogni cosa.
- */
+import { Construction, Truck, Wrench } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { ViaggioDialog } from "@/components/mezzi/ViaggioDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { leggiRilevazioneMezzo, mezzoDaCantiere, RILEVAZIONI_MEZZI, type OpzioniRilevazioniMezzi, type TestiRilevazioniMezzi } from "@/lib/campo/rilevazioniMezzi";
 
 export type DoveStasera = "cantiere" | "magazzino" | "furgone" | "con_me" | "invariato";
 
-export interface RigaMezzoGiornata {
+export interface RigaMezzoGiornata extends TestiRilevazioniMezzi {
   usato: boolean;
   dove: DoveStasera;
   su_mezzo_id?: string | null;
@@ -37,9 +31,10 @@ export interface MezzoDellaGiornata {
 }
 
 export function useMezziDellaGiornata(orderId: string | undefined) {
+  const { user, profile, effectiveCompany } = useAuth();
   return useQuery<MezzoDellaGiornata[]>({
-    queryKey: ["campo-mezzi-giornata", orderId],
-    enabled: !!orderId,
+    queryKey: ["campo-mezzi-giornata", orderId, effectiveCompany?.id ?? profile?.company_id, user?.id],
+    enabled: !!orderId && !!user?.id,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("campo_mezzi_giornata", { p_order_id: orderId! });
@@ -50,15 +45,23 @@ export function useMezziDellaGiornata(orderId: string | undefined) {
 }
 
 /** Le righe da salvare: solo quello che l'operaio ha toccato. */
-export function righeDaSalvare(valori: Record<string, RigaMezzoGiornata>) {
+export function righeDaSalvare(valori: Record<string, RigaMezzoGiornata>, rilevazioni: OpzioniRilevazioniMezzi = {}) {
+  if (Object.values(valori).some(v => v.dove === "furgone" && !v.su_mezzo_id)) {
+    throw new Error("Scegli il mezzo su cui caricare ogni attrezzatura.");
+  }
   return Object.entries(valori)
-    .filter(([, v]) => v.usato || v.dove !== "invariato" || !!v.contatore?.trim())
+    .filter(([, v]) => v.usato || v.dove !== "invariato" || !!v.contatore?.trim() || RILEVAZIONI_MEZZI.some(campo => v[campo.campo] !== undefined))
     .map(([mezzo_id, v]) => ({
       mezzo_id,
       usato: v.usato,
       dove: v.dove,
       ...(v.su_mezzo_id ? { su_mezzo_id: v.su_mezzo_id } : {}),
       ...(v.contatore?.trim() ? { contatore: v.contatore.trim() } : {}),
+      ...Object.fromEntries(RILEVAZIONI_MEZZI.flatMap(campo => {
+        const testo = v[campo.campo];
+        return rilevazioni[campo.chiave] && testo !== undefined
+          ? [[campo.campo, v.usato ? leggiRilevazioneMezzo(testo, campo) : null]] : [];
+      })),
     }));
 }
 
@@ -71,42 +74,53 @@ export function MezziFineGiornata({
   valori,
   onChange,
   companyId,
+  rilevazioni = {},
 }: {
   orderId: string;
   valori: Record<string, RigaMezzoGiornata>;
   onChange: (v: Record<string, RigaMezzoGiornata>) => void;
   companyId?: string;
+  rilevazioni?: OpzioniRilevazioniMezzi;
 }) {
   const [viaggioMezzo,setViaggioMezzo]=useState<string|null>(null);
-  const { data: mezzi = [] } = useMezziDellaGiornata(orderId);
+  const { data: mezzi = [], isPending, isError, refetch } = useMezziDellaGiornata(orderId);
+  if (isPending) return <p role="status" className="py-2 text-xs text-muted-foreground">Caricamento mezzi assegnati…</p>;
+  if (isError) return <p className="py-2 text-sm">Mezzi temporaneamente indisponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>;
   if (mezzi.length === 0) return null;
 
   const mieiVeicoli = mezzi.filter((m) => m.veicolo && m.dove_ora === "con_te");
   const veicoli = mezzi.filter((m) => m.veicolo);
-  const attrezzi = mezzi.filter((m) => !m.veicolo);
+  const macchine = mezzi.filter(m => !m.veicolo && mezzoDaCantiere(m.tipo, m.contatore_unita));
+  const attrezzi = mezzi.filter(m => !m.veicolo && !mezzoDaCantiere(m.tipo, m.contatore_unita));
+  const campiAttivi = RILEVAZIONI_MEZZI.filter(c => rilevazioni[c.chiave]);
   const riga = (m: MezzoDellaGiornata): RigaMezzoGiornata => valori[m.id] ?? { usato: false, dove: "invariato" };
   const cambia = (m: MezzoDellaGiornata, patch: Partial<RigaMezzoGiornata>) =>
     onChange({ ...valori, [m.id]: { ...riga(m), ...patch } });
 
   const opzioni = (m: MezzoDellaGiornata) => [
     { key: "cantiere" as const, label: "In cantiere" },
-    ...(mieiVeicoli.length > 0 ? [{ key: "furgone" as const, label: m.dove_ora === "a_bordo" && m.su_mezzo ? `Sul ${m.su_mezzo}` : "Sul furgone" }] : []),
+    ...(mieiVeicoli.length > 0 || m.dove_ora === "a_bordo" ? [{ key: "furgone" as const, label: "A bordo di un mezzo" }] : []),
     { key: "magazzino" as const, label: "In magazzino" },
     { key: "con_me" as const, label: "Lo tengo io" },
   ];
 
+  const gruppi = [
+    { titolo: "Mezzi da cantiere", risorse: macchine, icona: Construction, rileva: true },
+    { titolo: "Attrezzature", risorse: attrezzi, icona: Wrench, rileva: false },
+  ];
+
   return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+    <div className="rounded-xl border bg-background p-4 shadow-sm">
       <p className="text-sm font-semibold text-foreground">Mezzi e attrezzi di oggi</p>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Segna cosa hai usato e dove resta stasera: così in ufficio sanno sempre dov'è.
-      </p>
+      <p className="mb-3 text-xs text-muted-foreground">Seleziona i mezzi usati e aggiorna dove lasci le attrezzature.</p>
 
       <div className="space-y-2">
-        {veicoli.map((m) => {
+        {veicoli.length > 0 && <div className="divide-y rounded-lg border">
+          <p className="flex items-center gap-2 bg-muted/40 px-3 py-2 text-xs font-semibold"><Truck className="size-4" /> Trasporto</p>
+          {veicoli.map((m) => {
           const r = riga(m);
           return (
-            <div key={m.id} className="rounded-xl border bg-muted/30 p-3">
+            <div key={m.id} className="px-3 py-1">
               <button
                 type="button"
                 aria-pressed={r.usato}
@@ -138,50 +152,74 @@ export function MezziFineGiornata({
               </>}
             </div>
           );
-        })}
+          })}
+        </div>}
 
-        {attrezzi.map((m) => {
-          const r = riga(m);
-          const scelto = r.dove === "invariato" ? QUI[m.dove_ora] : r.dove;
-          return (
-            <div key={m.id} className="rounded-xl border bg-muted/30 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 text-sm">
-                  <span className="font-semibold">{m.nome}</span>
-                  <span className="text-muted-foreground"> · ora {ORA[m.dove_ora]}</span>
-                </p>
-                <button
-                  type="button"
-                  aria-pressed={r.usato}
-                  onClick={() => cambia(m, { usato: !r.usato })}
-                  className={cn("min-h-9 shrink-0 rounded-full border px-3 text-xs",
-                    r.usato ? "border-teal-300 bg-teal-50 font-semibold text-teal-800" : "text-muted-foreground")}
-                >
-                  {r.usato ? "Usato oggi" : "Usato?"}
-                </button>
-              </div>
-              <p className="mb-1.5 mt-2 text-xs text-muted-foreground">Stasera resta:</p>
-              <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label={`Dove resta ${m.nome} stasera`}>
-                {opzioni(m).map((o) => (
-                  <button
-                    key={o.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={scelto === o.key}
-                    onClick={() => cambia(m, {
-                      dove: o.key === QUI[m.dove_ora] ? "invariato" : o.key,
-                      su_mezzo_id: o.key === "furgone" ? mieiVeicoli[0]?.id ?? null : null,
-                    })}
-                    className={cn("min-h-11 rounded-lg border px-2 text-sm",
-                      scelto === o.key ? "border-teal-400 bg-teal-50 font-semibold text-teal-800" : "bg-background text-foreground")}
-                  >
-                    {o.label}
+        {gruppi.filter(g => g.risorse.length > 0).map(({ titolo, risorse, icona: Icona, rileva }) => (
+          <div key={titolo} className="divide-y rounded-lg border">
+            <p className="flex items-center gap-2 bg-muted/40 px-3 py-2 text-xs font-semibold"><Icona className="size-4" /> {titolo}</p>
+            {risorse.map(m => {
+              const r = riga(m);
+              const ubicazione = r.dove === "invariato" ? QUI[m.dove_ora] : r.dove;
+              return <div key={m.id} className="space-y-2 px-3 py-2">
+                <div className="flex min-h-10 items-center justify-between gap-2">
+                  <div className="min-w-0 text-sm">
+                    <p className="break-words font-medium">{m.nome}</p>
+                    {r.dove === "invariato" && <p className="text-xs text-muted-foreground">{m.su_mezzo ? `A bordo di ${m.su_mezzo}` : `Ora ${ORA[m.dove_ora]}`}</p>}
+                  </div>
+                  <button type="button" aria-pressed={r.usato} aria-label={`Usato oggi · ${m.nome}`}
+                    onClick={() => cambia(m, { usato: !r.usato })}
+                    className={cn("min-h-10 shrink-0 rounded-full border px-3 text-xs",
+                      r.usato ? "border-teal-300 bg-teal-50 font-semibold text-teal-800" : "text-muted-foreground")}>
+                    {r.usato ? "Usato oggi" : "Usato?"}
                   </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+                </div>
+                {r.usato && rileva && campiAttivi.length > 0 && <div className="grid gap-2 sm:grid-cols-2">
+                  {campiAttivi.map(campo => {
+                    const valore = r[campo.campo] ?? "";
+                    let errore: string | undefined;
+                    try { leggiRilevazioneMezzo(valore, campo); }
+                    catch (e) { errore = (e as Error).message; }
+                    const erroreId = `${m.id}-${campo.campo}-errore`;
+                    return <label key={campo.chiave} className="min-w-0 text-xs font-medium">
+                      {campo.etichetta}
+                      <span className="relative mt-1 block">
+                        <input inputMode="decimal" aria-label={`${campo.etichetta} · ${m.nome}`} aria-invalid={!!errore}
+                          aria-describedby={errore ? erroreId : undefined} value={valore} placeholder="Facoltativo"
+                          onChange={e => cambia(m, { [campo.campo]: e.target.value })}
+                          className="h-10 w-full rounded-md border bg-background pl-2 pr-8 text-base tabular-nums aria-invalid:border-destructive" />
+                        <span className="pointer-events-none absolute right-2 top-3 text-muted-foreground">{campo.unita}</span>
+                      </span>
+                      {errore && <span id={erroreId} className="mt-1 block text-destructive">{errore}</span>}
+                    </label>;
+                  })}
+                </div>}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <label className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">Dove resta</span>
+                    <select aria-label={`Dove resta ${m.nome}`} value={ubicazione}
+                      onChange={e => {
+                        const dove = e.target.value as DoveStasera;
+                        cambia(m, { dove: dove === QUI[m.dove_ora] ? "invariato" : dove,
+                          su_mezzo_id: dove === "furgone" && mieiVeicoli.length === 1 ? mieiVeicoli[0].id : null });
+                      }}
+                      className="h-10 max-w-full rounded-md border bg-background px-2 text-sm">
+                      {opzioni(m).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    </select>
+                  </label>
+                  {ubicazione === "furgone" && mieiVeicoli.length > 0 && <select aria-label={`Mezzo su cui caricare ${m.nome}`}
+                    value={r.su_mezzo_id ?? (r.dove === "invariato" ? "" : mieiVeicoli.length === 1 ? mieiVeicoli[0].id : "")}
+                    onChange={e => cambia(m, { dove: e.target.value ? "furgone" : m.dove_ora === "a_bordo" ? "invariato" : "furgone",
+                      su_mezzo_id: e.target.value || null })}
+                    className="h-10 max-w-full rounded-md border bg-background px-2 text-sm">
+                    <option value="">{m.dove_ora === "a_bordo" ? m.su_mezzo ?? "Mezzo già assegnato" : "Scegli mezzo"}</option>
+                    {mieiVeicoli.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
+                  </select>}
+                </div>
+              </div>;
+            })}
+          </div>
+        ))}
       </div>
       {companyId && viaggioMezzo && <ViaggioDialog companyId={companyId} mezzoId={viaggioMezzo} defaultOrderId={orderId} onClose={()=>setViaggioMezzo(null)} />}
     </div>

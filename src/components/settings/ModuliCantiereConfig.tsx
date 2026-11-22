@@ -1,3 +1,4 @@
+import { RILEVAZIONI_MEZZI } from "@/lib/campo/rilevazioniMezzi";
 import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Impostazioni → Rapportini e presenze: quali parti del rapportino usa l'azienda, i suoi campi e i modelli di verbale.
@@ -218,14 +219,6 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
   const corrente = bozza ?? base;
   const bloccato = !puoModificare || salva.isPending;
 
-  if (mobile || !companyId) return null;
-  if (isLoading) return null;
-  if (isError) {
-    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">
-      Non riesco a leggere i modelli.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
-    </AlertDescription></Alert>;
-  }
-
   const cambiaSchema = (parte: Partial<ModuloSchema>) => { if (corrente && !bloccato) setBozza({ ...corrente, schema: { ...corrente.schema, ...parte } }); };
 
   const prendiPreset = (p: PresetModulo) => {
@@ -234,7 +227,7 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
     if (prima.some(c => !c.archiviato) && !window.confirm("Il modello sostituisce parti e campi di questa bozza. Continuare?")) return;
     const nuove = new Set(p.schema.campi.map(c => c.chiave));
     const daTenere = prima.filter(c => (uso[c.chiave] ?? 0) > 0 && !nuove.has(c.chiave)).map(c => ({ ...c, archiviato: true }));
-    setBozza({ ...corrente, schema: { ...p.schema, campi: [...p.schema.campi, ...daTenere] } });
+    setBozza({ ...corrente, schema: { ...p.schema, rilevazioni_mezzi: corrente.schema.rilevazioni_mezzi, campi: [...p.schema.campi, ...daTenere] } });
   };
 
   const conferma = async (): Promise<boolean> => {
@@ -254,7 +247,15 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
       return true;
     } catch (e) { toast.error(erroreSalvataggio(e)); return false; }
   };
-  salvaOra.current = conferma;
+  useEffect(() => { salvaOra.current = conferma; });
+
+  if (mobile || !companyId) return null;
+  if (isLoading) return null;
+  if (isError) {
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">
+      Non riesco a leggere i modelli.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+    </AlertDescription></Alert>;
+  }
 
   // Dentro la pagina delle regole il bottone è quello della pagina.
   const barraSalva = !onStato && puoModificare && (bozza != null) && (
@@ -287,6 +288,15 @@ export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: Tip
                 </li>
               ))}
             </ul>
+            {corrente.schema.blocchi.mezzi && <fieldset className="grid gap-2 rounded-lg border px-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
+              <legend className="px-1 text-sm font-medium">Rilevazioni dei mezzi da cantiere</legend>
+              {RILEVAZIONI_MEZZI.map(campo => <label key={campo.chiave} className="flex min-h-10 items-center justify-between gap-3 text-sm">
+                {campo.etichetta}
+                <Switch aria-label={campo.etichetta} disabled={bloccato} checked={corrente.schema.rilevazioni_mezzi?.[campo.chiave] === true}
+                  onCheckedChange={v => cambiaSchema({ rilevazioni_mezzi: { ...corrente.schema.rilevazioni_mezzi, [campo.chiave]: v } })} />
+              </label>)}
+            </fieldset>}
+
           </div>
         </SezioneImpostazione>
         <SezioneImpostazione id="campi-propri" titolo="Campi propri" evidenziata={evidenziate?.["campi-propri"]}

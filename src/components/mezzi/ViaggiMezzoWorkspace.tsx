@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, CarFront, ChevronDown, Plus, Route } from "lucide-react";
-import { format, parseISO, subDays } from "date-fns";
+import { endOfMonth, format, parseISO, subDays, subMonths } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,8 @@ const dataOra = (value: string) =>
     timeStyle: "short",
     timeZone: "Europe/Rome",
   });
+const giornoRoma = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeZone: "Europe/Rome" });
+const meseTitolo = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" });
 const stati = {
   bozza: "Bozza",
   inviato: "Da verificare",
@@ -54,7 +56,7 @@ interface Props {
   initialDay?: string;
   initialTripId?: string;
   integrato?: boolean;
-  riepilogoPeriodo?: (dal: string, al: string) => ReactNode;
+  riepilogoPeriodo?: (dal: string, al: string, mezzoFiltro: string) => ReactNode;
 }
 
 /** Lazy history; no route calculations, GPS or writes during reads. */
@@ -89,12 +91,14 @@ export function ViaggiMezzoWorkspace({
       : null;
   const oggi = oggiIso();
   const inizioUltimi30 = format(subDays(parseISO(oggi), 29), "yyyy-MM-dd");
+  const inizioUltimi6Mesi = format(subMonths(parseISO(oggi), 6), "yyyy-MM-dd");
   const [dal, setDal] = useState(
     validInitial ?? (integrato ? inizioUltimi30 : format(subDays(new Date(), 30), "yyyy-MM-dd")),
   );
   const [al, setAl] = useState(validInitial ?? oggi);
   const [dateAperte, setDateAperte] = useState(!!validInitial);
   const [offset, setOffset] = useState(0);
+  const [mezzoFiltro, setMezzoFiltro] = useState("");
   const rangeValid =
     !!dal &&
     !!al &&
@@ -102,7 +106,7 @@ export function ViaggiMezzoWorkspace({
     (Date.parse(al) - Date.parse(dal)) / 86400000 <= 366;
   const list = useViaggiElenco({
     companyId,
-    mezzoId,
+    mezzoId: mezzoId ?? (mezzoFiltro || undefined),
     orderId,
     dal,
     al,
@@ -115,6 +119,31 @@ export function ViaggiMezzoWorkspace({
     (m) =>
       ["autovettura", "furgone", "autocarro", "altro"].includes(m.tipo) &&
       (!m.contatore_unita || m.contatore_unita === "km"),
+  );
+  const mesi = new Map<string, Viaggio[]>();
+  if (integrato) {
+    for (const viaggio of rows) {
+      const mese = giornoRoma.format(new Date(viaggio.partenza)).slice(0, 7);
+      const gruppo = mesi.get(mese);
+      if (gruppo) gruppo.push(viaggio);
+      else mesi.set(mese, [viaggio]);
+    }
+  }
+  const scegliMese = (mese: string) => {
+    if (!/^\d{4}-\d{2}$/.test(mese) || mese > oggi.slice(0, 7)) return;
+    const inizio = mese + "-01";
+    if (!Number.isFinite(Date.parse(inizio))) return;
+    setDal(inizio);
+    setAl(mese === oggi.slice(0, 7) ? oggi : format(endOfMonth(parseISO(inizio)), "yyyy-MM-dd"));
+    setOffset(0);
+    setDateAperte(false);
+  };
+  const rigaViaggio = (v: Viaggio) => (
+    <li key={v.id}>
+      <ViaggioRiga companyId={companyId} viaggio={v} selezionato={v.id === initialTripId} campo={campo}
+        compatto={integrato} editable={!readOnly && !orderId && (!campo || v.stato === "bozza" || v.stato === "inviato")}
+        onEdit={() => setDialog({ mezzoId: v.mezzo_id, viaggio: v })} />
+    </li>
   );
   const periodoRapido = (giorno: string) => {
     setDal(giorno);
@@ -129,9 +158,9 @@ export function ViaggiMezzoWorkspace({
     >
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         {integrato ? <div className="space-y-1.5">
-          <h3 className="sr-only">Registro viaggi</h3>
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><Route className="size-4 text-primary" aria-hidden="true" />Registro viaggi</h3>
           <div role="group" aria-label="Periodo del registro" className="flex flex-wrap gap-1">
-            {[{ testo: "Ultimi 30 giorni", dal: inizioUltimi30 }, { testo: "Oggi", dal: oggi }].map(p => (
+            {[{ testo: "Ultimi 30 giorni", dal: inizioUltimi30 }, { testo: "Ultimi 6 mesi", dal: inizioUltimi6Mesi }, { testo: "Oggi", dal: oggi }].map(p => (
               <Button key={p.testo} type="button" size="sm" variant="ghost" aria-pressed={dal === p.dal && al === oggi}
                 className={cn("h-8 px-2.5", dal === p.dal && al === oggi ? "bg-primary/10 font-semibold text-primary hover:bg-primary/15" : "text-muted-foreground")}
                 onClick={() => periodoRapido(p.dal)}>{p.testo}</Button>
@@ -197,6 +226,19 @@ export function ViaggiMezzoWorkspace({
               {integrato && roadVehicles.length === 0 && <Link to="/azienda/manodopera?tab=mezzi" className="self-center text-xs font-medium text-muted-foreground underline underline-offset-2">Apri il parco mezzi</Link>}
             </div>
           )}
+          {integrato && <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
+              Mese
+              <Input aria-label="Mese dei viaggi" type="month" className="h-8 bg-background"
+                max={oggi.slice(0, 7)} value={dal.endsWith("-01") && dal.slice(0, 7) === al.slice(0, 7) ? dal.slice(0, 7) : ""}
+                onChange={e => scegliMese(e.target.value)} />
+            </label>
+            {roadVehicles.length > 0 && <div className="min-w-0 space-y-1">
+              <p className="text-xs text-muted-foreground">Mezzo</p>
+              <OfficeSelect label="Filtra viaggi per mezzo" className="h-8" value={mezzoFiltro} onValueChange={value => { setMezzoFiltro(value); setOffset(0); }}
+                options={[{ value: "", label: "Tutti i mezzi" }, ...roadVehicles.map(m => ({ value: m.id, label: m.nome }))]} />
+            </div>}
+          </div>}
           {(!integrato || dateAperte) && <div className={cn("grid grid-cols-2 gap-2", integrato && "rounded-lg border bg-muted/25 p-2.5 sm:max-w-md")}>
             <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
               Dal
@@ -230,7 +272,7 @@ export function ViaggiMezzoWorkspace({
               Scegli un periodo valido, al massimo 366 giorni.
             </p>
           )}
-          {rangeValid && riepilogoPeriodo?.(dal, al)}
+          {rangeValid && riepilogoPeriodo?.(dal, al, mezzoFiltro)}
           {orderId && rangeValid && <ArriviDaRapportini key={`${companyId}:${orderId}:${dal}:${al}`}
             companyId={companyId} orderId={orderId} dal={dal} al={al} readOnly={readOnly}
             onCompleta={arrivo => setDialog({ mezzoId: arrivo.mezzoId, arrivo })} />}
@@ -291,26 +333,15 @@ export function ViaggiMezzoWorkspace({
                   {orderId ? "Nessun viaggio con tratte e orari nel periodo." : "Nessun viaggio registrato nel periodo."}
                 </p>
               )}
-              {rows.length > 0 && <ul className={cn("space-y-2", integrato && "p-3")}>
-                {rows.map((v) => (
-                  <li key={v.id}>
-                    <ViaggioRiga
-                      companyId={companyId}
-                      viaggio={v}
-                      selezionato={v.id === initialTripId}
-                      campo={campo}
-                      editable={
-                        !readOnly &&
-                        !orderId &&
-                        (!campo || v.stato === "bozza" || v.stato === "inviato")
-                      }
-                      onEdit={() =>
-                        setDialog({ mezzoId: v.mezzo_id, viaggio: v })
-                      }
-                    />
-                  </li>
-                ))}
-              </ul>}
+              {rows.length > 0 && (integrato ? <div className="divide-y">
+                {[...mesi].map(([mese, gruppo], index) => <details key={mese} open={index === 0}>
+                  <summary className="cursor-pointer px-3 py-2 text-sm hover:bg-muted/35">
+                    <span className="font-medium">{meseTitolo.format(parseISO(mese + "-01"))}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{gruppo.length} {gruppo.length === 1 ? "viaggio" : "viaggi"}{(offset > 0 || list.data?.has_more) && " in pagina"}</span>
+                  </summary>
+                  <ul className="divide-y border-t">{gruppo.map(rigaViaggio)}</ul>
+                </details>)}
+              </div> : <ul className="space-y-2">{rows.map(rigaViaggio)}</ul>)}
               {(!integrato || offset > 0 || list.data?.has_more) && <div className={cn("flex items-center justify-between gap-2 text-xs text-muted-foreground", integrato && "border-t p-2.5")}>
                 <Button
                   variant="outline"
@@ -358,6 +389,7 @@ function ViaggioRiga({
   selezionato,
   campo,
   editable,
+  compatto,
   onEdit,
 }: {
   companyId: string;
@@ -365,6 +397,7 @@ function ViaggioRiga({
   selezionato: boolean;
   campo: boolean;
   editable: boolean;
+  compatto: boolean;
   onEdit: () => void;
 }) {
   const dettaglio = useRef<HTMLDetailsElement>(null);
@@ -380,14 +413,15 @@ function ViaggioRiga({
     : v.stato === "inviato" ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/45 dark:text-amber-200"
       : "bg-muted text-muted-foreground";
   return (
-    <details ref={dettaglio} className="group/viaggio rounded-xl border bg-background">
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-3 py-2.5 text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><CarFront className="size-4" aria-hidden="true" /></span>
+    <details ref={dettaglio} className={cn("group/viaggio bg-background", !compatto && "rounded-xl border")}>
+      <summary className={cn("flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1.5 px-3 text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden",
+        compatto ? "min-h-11 py-1.5" : "rounded-xl py-2.5")}>
+        {!compatto && <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><CarFront className="size-4" aria-hidden="true" /></span>}
         <span className="min-w-0 flex-1 basis-32">
           <span className="block break-words font-semibold">{v.mezzo_nome}</span>
           <span className="block text-xs tabular-nums text-muted-foreground">{dataOra(v.partenza)} · {v.tratte.length} {v.tratte.length === 1 ? "tratta" : "tratte"}</span>
         </span>
-        <span className="flex flex-wrap items-center gap-2 pl-12 sm:pl-0">
+        <span className={cn("flex flex-wrap items-center gap-2", !compatto && "pl-12 sm:pl-0")}>
           <span className="text-xs font-medium tabular-nums">{summary.km == null ? "Km da completare" : `${n(summary.km)} km`}</span>
           <Badge variant="outline" className={cn("rounded-md", statoClasse)}>{stati[v.stato]}</Badge>
         </span>
@@ -441,7 +475,7 @@ function ViaggioRiga({
         {v.ambito_commessa && !campo && (
           <Button asChild variant="outline" className="min-h-11">
             <Link
-              to={`/azienda/mezzi/${v.mezzo_id}?tab=viaggi&giorno=${format(new Date(v.partenza), "yyyy-MM-dd")}`}
+              to={`/azienda/mezzi/${v.mezzo_id}?tab=viaggi&giorno=${giornoRoma.format(new Date(v.partenza))}&viaggio=${encodeURIComponent(v.id)}`}
             >
               Apri registro completo del mezzo
             </Link>
@@ -496,8 +530,8 @@ export function ViaggiCommessa({
 }) {
   const companyId = useEffectiveCompanyId();
   const [open, setOpen] = useState(false);
-  const riepilogoPeriodo = (dal: string, al: string) =>
-    <PercorrenzeMezzi ordine={orderId} dal={dal} al={al} costi={vedeCosti} />;
+  const riepilogoPeriodo = (dal: string, al: string, mezzoFiltro: string) =>
+    <PercorrenzeMezzi ordine={orderId} dal={dal} al={al} costi={vedeCosti} filtraMezzo={mezzoFiltro} compatto={integrato} />;
   if (integrato) return companyId ? <div className="p-3 sm:p-4">
     <ViaggiMezzoWorkspace key={`${companyId}:${orderId}`} companyId={companyId} orderId={orderId} mezzi={mezzi} readOnly={readOnly} vedeCosti={vedeCosti} integrato
       riepilogoPeriodo={riepilogoPeriodo} />

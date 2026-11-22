@@ -35,6 +35,7 @@ export interface ModuloSchema {
   formato: 1;
   blocchi: Record<BloccoStandard, boolean>;
   campi: CampoModulo[];
+  rilevazioni_mezzi?: { ore?: boolean; litri?: boolean; consumo?: boolean };
   /** Solo verbale: le voci da controllare. */
   voci?: string[];
   /** Solo verbale: il titolo del documento. */
@@ -106,10 +107,15 @@ function leggiCampo(raw: unknown): CampoModulo | null {
 export function leggiSchema(raw: unknown): ModuloSchema {
   const s = oggetto(raw);
   const blocchi = oggetto(s.blocchi);
+  const rilevazioni = oggetto(s.rilevazioni_mezzi);
   return {
     formato: 1,
     blocchi: Object.fromEntries(BLOCCHI_STANDARD.map(b => [b, blocchi[b] !== false])) as Record<BloccoStandard, boolean>,
     campi: (Array.isArray(s.campi) ? s.campi : []).map(leggiCampo).filter((c): c is CampoModulo => c !== null),
+    ...(typeof rilevazioni.ore === "boolean" || typeof rilevazioni.litri === "boolean" || typeof rilevazioni.consumo === "boolean" ? {
+      rilevazioni_mezzi: { ore: rilevazioni.ore === true, litri: rilevazioni.litri === true,
+        ...(typeof rilevazioni.consumo === "boolean" ? { consumo: rilevazioni.consumo } : {}) },
+    } : {}),
     ...(Array.isArray(s.voci) ? { voci: s.voci.filter((v): v is string => typeof v === "string") } : {}),
     ...(typeof s.titolo === "string" && s.titolo ? { titolo: s.titolo } : {}),
     ...(typeof s.dal_cantiere === "boolean" ? { dal_cantiere: s.dal_cantiere } : {}),

@@ -1,3 +1,4 @@
+import { leggiFattureXmlStampabili } from "@/lib/fatturazione/fatturaXmlTabellare";
 import { describe, expect, it } from 'vitest';
 import { generateXML } from '../../../supabase/functions/_shared/generateXML';
 import { calcolaRiga, calcolaTotaliDocumento } from '@/lib/fatturazione/calcoli';
@@ -50,6 +51,11 @@ describe('Dettagli originali della fattura ricevuta', () => {
     expect(righe[0][1]).not.toContain('BB111BB');
     expect(righe.slice(1).every(r => r[1]?.includes('BB111BB') && !r[1]?.includes('AA000AA'))).toBe(true);
     expect(righe.every(r => r[1]?.includes('Kilometri: 00.00'))).toBe(true);
+  });
+
+  it('espone le targhe nei dati gestionali, distinte per riga', () => {
+    const [fattura] = leggiFattureXmlStampabili(xmlDettagliato("aa 000 aa"), { indiceCorpo: 0 });
+    expect(fattura.righeXml.map(r => r.targhe)).toEqual([["AA000AA"], ["BB111BB"], ["BB111BB"], ["BB111BB"]]);
   });
 
   it('preserva prezzi, importi, IVA e pagamento dell’originale', () => {

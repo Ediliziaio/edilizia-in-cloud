@@ -616,6 +616,7 @@ function ContenutoRiepilogo({
                     numeroContratto={d.subappalto?.numero_contratto} contrattoId={f.contratto_subappalto_id ? String(f.contratto_subappalto_id) : null}
                     salId={f.sal_subappaltatore_id ? String(f.sal_subappaltatore_id) : null} cedentePiva={f.cedente_piva ? String(f.cedente_piva) : null}
                     notaDiCredito={isNotaCreditoRicevuta(String(f.tipo_documento ?? ""))}
+                    targheXml={[...new Set(xmlFattura?.righeXml.flatMap(r => r.targhe ?? []) ?? [])]}
                     primaNotaId={f.prima_nota_id ? String(f.prima_nota_id) : null} costoId={f.company_cost_id ? String(f.company_cost_id) : null}
                     vaiPrimaNota={permessi.canViewPrimaNota} vaiTesoreria={permessi.canViewTesoreria} vaiEmail={permessi.canViewMarketingEmail} />
                 )}
