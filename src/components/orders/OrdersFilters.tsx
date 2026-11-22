@@ -257,6 +257,7 @@ type FiltriCommesseCompattiProps = Pick<OrdersFiltersProps,
 > & {
   altriAttivi: number;
   onAvanzati: () => void;
+  children?: ReactNode;
 };
 
 export function FiltriCommesseCompatti({
@@ -264,7 +265,7 @@ export function FiltriCommesseCompatti({
   yearFilter, onYearFilterChange, availableYears,
   paymentFilter, onPaymentFilterChange, monthFilter, onMonthFilterChange,
   generaliFilter, onGeneraliFilterChange, hideCompleted, onHideCompletedChange,
-  altriAttivi, onAvanzati,
+  altriAttivi, onAvanzati, children,
 }: FiltriCommesseCompattiProps) {
   return (
     <GruppoFiltri>
@@ -304,6 +305,7 @@ export function FiltriCommesseCompatti({
           Nascondi completate
           {hideCompleted && <CheckCircle2 aria-hidden="true" className="size-4 text-primary" />}
         </button>
+        {children}
         <button type="button" className="flex min-h-12 w-full items-center justify-between gap-2 px-3 text-left text-sm font-medium text-primary hover:bg-muted/40"
           onClick={onAvanzati}>
           Filtri avanzati

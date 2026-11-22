@@ -1482,92 +1482,93 @@ function OrdersListInner() {
   }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione]);
 
   const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
+  const opzioniTabella = viewMode === "table" ? (
+    <div role="group" aria-label="Opzioni tabella commesse" className="flex shrink-0 flex-wrap items-center gap-1.5 max-lg:p-3">
+      <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
+        <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs max-lg:min-h-11">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="created_at">Data creazione</SelectItem>
+          <SelectItem value="order_code">Codice commessa</SelectItem>
+          <SelectItem value="description">Descrizione</SelectItem>
+          <SelectItem value="total_amount">Importo imponibile</SelectItem>
+          <SelectItem value="expected_date">Data posa prevista</SelectItem>
+          <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
+          <SelectItem value="work_start_date">Inizio lavori</SelectItem>
+          <SelectItem value="work_end_date">Fine lavori</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
+        <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs max-lg:min-h-11">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="desc">{
+            ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+              ? "↓ Recenti"
+              : "↓ Z → A"
+          }</SelectItem>
+          <SelectItem value="asc">{
+            ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+              ? "↑ Vecchi"
+              : "↑ A → Z"
+          }</SelectItem>
+        </SelectContent>
+      </Select>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs max-lg:size-11" title="Colonne visibili" aria-label="Colonne visibili">
+            <Columns className="h-3.5 w-3.5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-[280px] p-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Colonne visibili</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setVisibleColumns(new Set(DEFAULT_COLUMNS));
+                  try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Ripristina
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
+              {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
+                <label
+                  key={col.key}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                >
+                  <Checkbox
+                    checked={visibleColumns.has(col.key)}
+                    onCheckedChange={() => toggleColumn(col.key)}
+                    className="shrink-0"
+                  />
+                  <span className="text-xs truncate">{col.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+      {(sortField !== "created_at" || sortDir !== "desc") && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="col-span-2 h-8 text-xs sm:col-span-1"
+          onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
+        >
+          Ripristina
+        </Button>
+      )}
+    </div>
+  ) : null;
   const filtriCommesse = (<OrdersFilters panel={barraBacheca}
-            trailingControls={viewMode === "table" ? (
-              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
-                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created_at">Data creazione</SelectItem>
-                    <SelectItem value="order_code">Codice commessa</SelectItem>
-                    <SelectItem value="description">Descrizione</SelectItem>
-                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
-                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
-                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
-                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
-                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↓ Recenti"
-                        : "↓ Z → A"
-                    }</SelectItem>
-                    <SelectItem value="asc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↑ Vecchi"
-                        : "↑ A → Z"
-                    }</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                      <Columns className="h-3.5 w-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-[280px] p-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Colonne visibili</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVisibleColumns(new Set(DEFAULT_COLUMNS));
-                            try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
-                          }}
-                          className="text-xs text-muted-foreground hover:text-foreground underline"
-                        >
-                          Ripristina
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
-                        {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
-                          <label
-                            key={col.key}
-                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
-                          >
-                            <Checkbox
-                              checked={visibleColumns.has(col.key)}
-                              onCheckedChange={() => toggleColumn(col.key)}
-                              className="shrink-0"
-                            />
-                            <span className="text-xs truncate">{col.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {(sortField !== "created_at" || sortDir !== "desc") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="col-span-2 h-8 text-xs sm:col-span-1"
-                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
-                  >
-                    Ripristina
-                  </Button>
-                )}
-              </div>
-            ) : undefined}
+            trailingControls={opzioniTabella}
             summary={
               <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
                 <strong className="tabular-nums text-slate-900">{conteggioFiltri ?? (conteggioNonDisponibile ? "—" : "…")}</strong> risultati
@@ -1769,8 +1770,9 @@ function OrdersListInner() {
           hideCompleted={hideCompleted && statusFilter === "all"}
           onHideCompletedChange={value => { setHideCompleted(value); if (value) setStatusFilter("all"); }}
           altriAttivi={nAltriFiltri}
-          onAvanzati={() => { setFiltriCompattiAperti(false); setSidebarOpen(true); }}
-        />
+          onAvanzati={() => { setFiltriCompattiAperti(false); setSidebarOpen(true); }}>
+          {!telefonoStretto && opzioniTabella}
+        </FiltriCommesseCompatti>
       </PannelloFiltri>
 
       <div className="lg:hidden">

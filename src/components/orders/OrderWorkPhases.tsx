@@ -433,7 +433,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   }, [scheduleHealth]);
 
   const isMobile = useIsMobile();
-  const telefono = useIsMobile(1024) && view === "lavorazioni";
+  const telefono = isMobile && view === "lavorazioni";
+  const filtriCompatti = useIsMobile(1024) && view === "lavorazioni";
   // Dal computer le fasi si gestiscono da una tabella sola, col popup di ogni fase (05/11/2026).
   // La stessa tabella anche da telefono (08/11/2026): un modello solo delle fasi.
   const modoFasi: "schede" | "tabella" = modo === "schede" ? "schede" : "tabella";
@@ -1248,7 +1249,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
             {canEditOrders && nomiRipetuti > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">{nomiRipetuti} nomi di fase compaiono più volte. Controlla le copie e usa «Altre azioni» (⋯) → «Elimina fase» sulla riga da rimuovere. Le lavorazioni già registrate vanno verificate prima della rimozione.</p>}
-            {telefono ? mostraFiltri && (
+            {filtriCompatti ? mostraFiltri && (
               <CercaConFiltri
                 valore={search}
                 onCambia={setSearch}
@@ -1266,7 +1267,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               {mostraFiltri && <div className="relative min-w-[12rem] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 pl-9" aria-label="Cerca lavorazione" placeholder="Cerca una lavorazione…" value={search} onChange={e => setSearch(e.target.value)} /></div>}
               {view && groupCompleted && completedCount > 0 && <Button variant="outline" size="sm" className={cn("h-8", !mostraFiltri && "ml-auto")} aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>{showCompleted ? "Nascondi" : "Mostra"} {completedCount} {completedCount === 1 ? "fase completata" : "fasi completate"}</Button>}
             </div>}
-            {telefono && (
+            {filtriCompatti && (
               <PannelloFiltri
                 aperto={filtriAperti}
                 onAperto={setFiltriAperti}
@@ -1288,7 +1289,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             {view === "lavorazioni" && phases.length > 0 && completedCount === phases.length && visiblePhases.length > 0 && <p role="status" className="text-xs text-muted-foreground">Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna.</p>}
             {visiblePhases.map((phase) => schedaDi(phase))}
             {/* Da telefono le completate si aprono in fondo, dopo quelle da fare */}
-            {telefono && view && groupCompleted && completedCount > 0 && (
+            {filtriCompatti && view && groupCompleted && completedCount > 0 && (
               <Button variant="ghost" size="sm" className="tap-compact h-9 w-full text-slate-600" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>
                 {showCompleted ? "Nascondi le completate" : `Mostra ${completedCount} ${completedCount === 1 ? "fase completata" : "fasi completate"}`}
               </Button>
