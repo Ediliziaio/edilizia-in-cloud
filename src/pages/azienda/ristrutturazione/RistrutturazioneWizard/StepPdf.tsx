@@ -485,12 +485,13 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           onIndietro={onIndietro}
           disabled={computoVuoto}
           disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
-          generaPdfBlob={async () => {
-            // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
-            const url = await renderRstPreviewBlobUrl({ ...payload, progetto: perLaFirma(progetto) });
-            const blob = await readPdfPreviewBlob(url);
-            revokePdfPreviewUrl(url);
-            return blob;
+          generaPdfBlob={async (destinazione) => {
+            const url = await renderRstPreviewBlobUrl({ ...payload, progetto: destinazione === "firma" ? perLaFirma(progetto) : progetto });
+            try {
+              return await readPdfPreviewBlob(url);
+            } finally {
+              revokePdfPreviewUrl(url);
+            }
           }}
         />
       )}

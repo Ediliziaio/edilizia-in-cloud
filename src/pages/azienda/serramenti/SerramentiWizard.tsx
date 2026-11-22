@@ -19,7 +19,7 @@
  * conferma "Modifiche non salvate" — coerente col bottone "Salva e continua".
  */
 import { DatiFiscaliCliente, SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useId, useMemo, useRef } from "react";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "@/components/preventivatore/useModalitaAnteprima";
+import { PdfDatiSalvatiGuard } from "@/components/preventivatore/PdfDatiSalvatiGuard";
 import { AnteprimaPdfLive } from "@/components/serramenti/AnteprimaPdfLive";
 import { Eye, ChevronDown, Copy, GitBranch } from "lucide-react";
 import { STATI_LABEL, TRANSIZIONI_STATO } from "@/lib/serramenti/statoLabels";
@@ -151,6 +152,8 @@ export default function SerramentiWizard() {
   const urlStartAi = searchParams.get("ai") === "1";
 
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
+  const [notePdfAperte, setNotePdfAperte] = useState(false);
+  const notePdfId = useId();
   const [creating, setCreating] = useState(false);
 
   const { data: detail, isLoading, isError, refetch } = useProgetto(id);
@@ -647,6 +650,7 @@ export default function SerramentiWizard() {
     : (updateMut.isPending || pendingWrites > 0) ? "salvando"
     : dirty ? "modifiche"
     : "salvato";
+  const barraPdfCompatta = currentStep === "pdf" && Boolean(id && detail) && statoSalvataggio === "salvato";
 
   const handleSaveAndContinue = async () => {
     // Caso 1: nuovo progetto — crea passando TUTTO il form, non solo 4 campi.
@@ -782,7 +786,7 @@ export default function SerramentiWizard() {
   return (
     // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
     // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
-    <div className={cn("preventivo-touch flex min-h-full flex-col bg-slate-50", BORDI_GUSCIO, currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
+    <div className={cn("preventivo-touch flex min-h-full flex-col bg-slate-50", BORDI_GUSCIO, barraPdfCompatta && RISERVA_BARRA_INVIO_TELEFONO)}>
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
       <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
@@ -992,7 +996,7 @@ export default function SerramentiWizard() {
               size="sm"
               onClick={handlePreviewClick}
               disabled={!canPreview}
-              className="hidden sm:inline-flex h-9 gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+              className="hidden lg:inline-flex h-9 gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
               title={
                 !hasContent
                   ? "Aggiungi almeno un serramento o accessorio per vedere l'anteprima"
@@ -1034,7 +1038,7 @@ export default function SerramentiWizard() {
         destra={
           <>
             {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 xl:hidden" onClick={() => setAnteprimaMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
+            <Button variant="outline" size="sm" className={cn("min-h-11 gap-1.5 xl:hidden", barraPdfCompatta ? "md:max-lg:hidden" : "max-lg:hidden")} onClick={() => setAnteprimaMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
               <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">Anteprima</span>
             </Button>
             {/* Computer: se l'hai nascosta, da qui torna. */}
@@ -1126,15 +1130,24 @@ export default function SerramentiWizard() {
             )}
             {currentStep === "pdf" && id && detail && (
               <div className="space-y-4">
-                {/* "Consulenza" accorpata qui, prima della generazione PDF */}
-                <StepConsulenza form={form} onChange={onChange} />
-                <StepPdf
-                  progettoId={id}
-                  detail={detailSulloSchermo ?? detail}
-                  onIndietro={handleBack}
-                  onVaiAlPasso={(passo) => void handleStepClick(passo)}
-                  onCondizioni={(patch) => { for (const [k, v] of Object.entries(patch)) onChange(k as keyof SrProgettoRow, v as never); }}
-                />
+                <Button type="button" variant="outline" className="min-h-11 w-full justify-between lg:hidden"
+                  aria-expanded={notePdfAperte} aria-controls={notePdfId}
+                  onClick={() => setNotePdfAperte((aperte) => !aperte)}>
+                  Appuntamento e note
+                  <ChevronDown aria-hidden="true" className={cn("size-4", notePdfAperte && "rotate-180")} />
+                </Button>
+                <div id={notePdfId} className={cn(!notePdfAperte && "max-lg:hidden")}>
+                  <StepConsulenza form={form} onChange={onChange} />
+                </div>
+                <PdfDatiSalvatiGuard stato={statoSalvataggio}>
+                  <StepPdf
+                    progettoId={id}
+                    detail={detailSulloSchermo ?? detail}
+                    onIndietro={handleBack}
+                    onVaiAlPasso={(passo) => void handleStepClick(passo)}
+                    onCondizioni={(patch) => { for (const [k, v] of Object.entries(patch)) onChange(k as keyof SrProgettoRow, v as never); }}
+                  />
+                </PdfDatiSalvatiGuard>
               </div>
             )}
             </ErrorBoundary>
@@ -1142,7 +1155,7 @@ export default function SerramentiWizard() {
 
       {/* Piede fisso. Su telefono sopra la barra in basso dell'app; al passo PDF la barra la disegna lo step: indietro · PDF · invia. */}
       <PiedePreventivatore
-        className={cn(currentStep === "pdf" && id && detail && "max-md:hidden")}
+        className={cn(barraPdfCompatta && "max-md:hidden")}
         stato={<StatoDelSalvataggio stato={statoSalvataggio} testo={statoSalvataggio === "salvato" ? formatLastSaved() : null} />}
         telefono={<BottoneTotale valore={totaleTesto ?? "—"} onClick={() => setAnteprimaMobileAperta(true)} />}
       >

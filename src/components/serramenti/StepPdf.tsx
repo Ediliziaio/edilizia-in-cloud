@@ -383,7 +383,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
           disabled={!ready || motiviSoloInvio.length > 0}
           disabledReason={`Completa prima: ${[...mancano.map((c) => c.breve), ...motiviSoloInvio].join(", ")}`}
           // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
-          generaPdfBlob={() => renderSerramentoBlob({ detail: { ...detail, progetto: perLaFirma(p) }, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
+          generaPdfBlob={(destinazione) => renderSerramentoBlob({ detail: destinazione === "firma" ? { ...detail, progetto: perLaFirma(p) } : detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
         />
       )}
 

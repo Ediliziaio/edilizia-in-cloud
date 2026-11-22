@@ -55,7 +55,7 @@ export function SelezionaCliente({ collegatoId, onScegli, onScollega, className,
   return (
     <div className={cn("rounded-md border border-slate-200 bg-white px-3 py-2.5 max-sm:border-0 max-sm:bg-transparent max-sm:p-0", className)}>
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 max-sm:hidden">
+        <div className={cn("min-w-0", collegatoId ? "max-sm:hidden" : "max-lg:hidden")}>
           <p className="text-xs font-semibold text-slate-900">{collegatoId ? titoloCollegato : "Da chi prendo i dati"}</p>
           <p className="truncate text-[11px] text-slate-500">
             {collegatoId ? (collegatoNome ? collegatoNome : "Anagrafica e recapiti presi dal contatto.") : "Un contatto del CRM o un cliente: anagrafica, recapiti e dati fiscali si compilano da soli."}
@@ -66,7 +66,7 @@ export function SelezionaCliente({ collegatoId, onScegli, onScollega, className,
             <Button variant="ghost" size="sm" onClick={onScollega} className="tap-compact h-8 px-2 text-xs text-slate-600">Scollega</Button>
           )}
           <Button size="sm" variant="outline" onClick={() => setAperto(true)}
-            className="tap-compact h-8 gap-1.5 px-3 text-xs hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-sm:flex-1">
+            className="min-h-11 gap-1.5 px-3 text-xs hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-sm:flex-1">
             <Users className="h-3.5 w-3.5" />{collegatoId ? "Cambia" : etichetta}
           </Button>
         </div>

@@ -505,8 +505,8 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
           </DropdownMenuContent>
         </DropdownMenu>
         {desktop && step !== 2 && comandoPdf}
-        <Button variant="outline" size="sm" className={step === 2 ? "max-md:hidden" : undefined} disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
-        <QuotePrimaryButton aria-label="Scarica preventivo" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
+        <Button variant="outline" size="sm" className={step === 2 ? "max-lg:hidden" : "min-h-11 max-lg:px-2.5"} disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
+        <QuotePrimaryButton aria-label="Scarica preventivo" className="max-lg:hidden" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
           {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
         </QuotePrimaryButton>
       </>} />
@@ -636,7 +636,7 @@ export default function ComputoNativoEditor({ storageKey, companyId, azienda, de
     <nav aria-label="Navigazione fasi" className={`flex items-center justify-between gap-2 border-t pt-4 max-lg:sticky max-lg:z-30 max-lg:rounded-lg max-lg:border max-lg:bg-white max-lg:p-2 max-lg:shadow-md ${STICKY_BASSO}`}>
       <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)} className="min-h-11"><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>
       {step < 4 && <QuotePrimaryButton disabled={caricando || esportando} onClick={() => cambiaFase(step + 1)} className="min-h-11">Avanti</QuotePrimaryButton>}
-      {step === 4 && <QuotePrimaryButton disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
+      {step === 4 && <QuotePrimaryButton className="min-h-11" disabled={caricando || esportando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
         {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
       </QuotePrimaryButton>}
     </nav>

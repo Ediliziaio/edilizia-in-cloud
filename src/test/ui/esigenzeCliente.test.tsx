@@ -58,7 +58,10 @@ describe("la scheda «Cosa ti ha detto il cliente?»", () => {
     render(<Prova libreria={LIBRERIA} />);
     expect(screen.getByText("Cosa ti ha detto il cliente?")).toBeTruthy();
     expect(screen.getByText("Facoltativo")).toBeTruthy();
-    expect(screen.getByText(/Se non scegli niente, il PDF resta quello di sempre/)).toBeTruthy();
+    const opzioni = screen.getByRole("button", { name: "Opzioni esigenze del cliente" });
+    expect(opzioni).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(opzioni);
+    expect(opzioni).toHaveAttribute("aria-expanded", "true");
     // Dice anche DOVE escono nel PDF, con le parole del PDF.
     expect(screen.getByText(/Il progetto.*Da dove partiamo/)).toBeTruthy();
     expect(screen.queryByLabelText("Esigenze scelte")).toBeNull();

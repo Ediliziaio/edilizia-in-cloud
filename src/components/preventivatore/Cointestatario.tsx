@@ -8,6 +8,7 @@
  * prende da un contatto del CRM («Scegli dai contatti»), che riempie nome, cognome e
  * codice fiscale; i campi restano modificabili.
  */
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
@@ -78,7 +79,7 @@ export function Cointestatario({ form, onChange }: Props) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <Label htmlFor="preventivo-cointestato" className="text-sm font-medium">Preventivo cointestato</Label>
-          <p className="text-xs text-muted-foreground">Facoltativo: un secondo intestatario, che compare nel PDF e firma anche lui.</p>
+          <p className={cn("text-xs text-muted-foreground", !attivo && "max-lg:hidden")}>Il cointestatario appare nel PDF e firma.</p>
         </div>
         <Switch
           id="preventivo-cointestato"

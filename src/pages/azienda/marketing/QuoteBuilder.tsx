@@ -85,7 +85,8 @@ import { readQuoteDraft, serializeQuoteDraft, quoteDraftInputHash, type QuoteDra
 import { idAttivitaValido } from "../../../../shared/aiAttivita";
 import { useBoundedAutosave, useDraftExitFlush } from "@/hooks/useBoundedAutosave";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
-import { fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
+import { downloadQuotePdf, fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
+import { AnteprimaPdfVero } from "@/components/preventivatore/AnteprimaPdfVero";
 import { erroreSalvataggioTemporaneo, useQuoteAutosaveRetry } from "@/hooks/useQuoteAutosaveRetry";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
@@ -425,7 +426,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   // IMP09: Bundle dialog
   const [bundleOpen, setBundleOpen] = useState(false);
   // Anteprima del PDF VERO (edge generate-quote-pdf), non del mock statico.
-  const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null);
+  const [anteprimaPdf, setAnteprimaPdf] = useState<{ blob: Blob; path?: string } | null>(null);
   const [anteprimaLoading, setAnteprimaLoading] = useState(false);
   // Dopo l'anteprima di un preventivo NUOVO si passa in modifica: un secondo
   // salvataggio dalla rotta /nuovo creerebbe un doppione.
@@ -2324,7 +2325,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           );
           if (ePdf) throw ePdf;
           const blob = await fetchQuotePdf(pdf?.signed_url);
-          setAnteprimaUrl(URL.createObjectURL(blob));
+          setAnteprimaPdf({ blob, path: pdf?.pdf_path });
           // Anche il PDF aggiorna il preventivo (percorso e data del file).
           await rileggiVersione(quoteId);
           if (!isEdit) setPendingEditNavId(quoteId);
@@ -2497,7 +2498,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       <QuotePageHeader
         className="testata-pagina"
         title={localEditor ? "Editor classico · bozza AI locale" : isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
-        subtitle={!isEdit && localDraftSaved && !localDraftFailed ? "Bozza protetta su questo dispositivo. Premi Salva per renderla disponibile online." : undefined}
+        subtitle={!isEdit && localDraftSaved && !localDraftFailed ? "Bozza su questo dispositivo" : undefined}
         icon={<FileCheck className="h-5 w-5" />}
         actions={
           <>
@@ -2885,7 +2886,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               <CardHeader className="max-sm:p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle className="max-sm:text-base">Prodotti e lavori</CardTitle>
-                  <Button type="button" size="sm" variant="outline" onClick={() => addItemPro("nota")}><StickyNote className="mr-2 h-4 w-4" />Aggiungi descrizione</Button>
+                  <Button type="button" size="sm" variant="outline" className="max-lg:hidden" onClick={() => addItemPro("nota")}><StickyNote className="mr-2 h-4 w-4" />Aggiungi descrizione</Button>
                   {preventivatoreUnifiedOn ? (
                     // Sprint A: entry point unificato. Le azioni secondarie
                     // (Riga libera/Sconto/Subtotale) sono dentro il dialog
@@ -4135,7 +4136,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 size="sm"
                 onClick={() => handleSave("bozza", { anteprima: true })}
                 disabled={saving || anteprimaLoading || !quoteReady}
-                className="min-h-11 max-lg:w-11 max-lg:px-0"
+                className="min-h-11 max-lg:px-2.5"
                 aria-label="Salva e apri PDF"
               >
                 {anteprimaLoading ? (
@@ -4143,7 +4144,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 ) : (
                   <Eye className="h-4 w-4 lg:mr-2" />
                 )}
-                <span className="hidden lg:inline">Salva e apri PDF</span>
+                <span className="lg:hidden">PDF</span><span className="hidden lg:inline">Salva e apri PDF</span>
               </Button>
             )}
             {!localEditor && <Button
@@ -4151,7 +4152,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
               size="sm"
               onClick={() => handleSave("bozza")}
               disabled={saving}
-              className="min-h-11 px-2.5 text-slate-600"
+              className={`min-h-11 px-2.5 text-slate-600 ${quoteReady && step === STEPS.length - 1 ? "max-lg:hidden" : ""}`}
               aria-label="Salva bozza"
             >
               {saving ? (
@@ -4193,11 +4194,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
 
       {/* ── Dialogs ── */}
       <Dialog
-        open={!!anteprimaUrl}
+        open={!!anteprimaPdf}
         onOpenChange={(o) => {
-          if (!o && anteprimaUrl) {
-            URL.revokeObjectURL(anteprimaUrl);
-            setAnteprimaUrl(null);
+          if (!o && anteprimaPdf) {
+            setAnteprimaPdf(null);
             if (pendingEditNavId) {
               navigate(`/azienda/marketing/preventivi/${pendingEditNavId}/modifica`, { replace: true });
               setPendingEditNavId(null);
@@ -4205,15 +4205,19 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
           }
         }}
       >
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-4">
-          <DialogHeader className="shrink-0">
+        <DialogContent className="flex h-[min(88dvh,58rem)] w-[calc(100%_-_1rem)] max-w-4xl flex-col gap-2 rounded-xl p-3 sm:p-4">
+          <DialogHeader className="shrink-0 pr-8 text-left">
             <DialogTitle>Anteprima PDF</DialogTitle>
-            <DialogDescription>
-              Questo è il PDF vero che riceverà il cliente, col template scelto.
-            </DialogDescription>
+            <DialogDescription className="sr-only">Il PDF del preventivo salvato.</DialogDescription>
           </DialogHeader>
-          {anteprimaUrl && (
-            <iframe title="Anteprima preventivo" src={anteprimaUrl} className="flex-1 w-full rounded-md border" />
+          {anteprimaPdf && (
+            <>
+              <AnteprimaPdfVero genera={async () => anteprimaPdf.blob} chiave="preventivo-salvato" attivo
+                className="h-auto min-h-0 flex-1 xl:h-auto xl:min-h-0" />
+              <Button type="button" className="min-h-11 shrink-0 self-end" onClick={() => downloadQuotePdf(anteprimaPdf.blob, anteprimaPdf.path)}>
+                Scarica PDF
+              </Button>
+            </>
           )}
         </DialogContent>
       </Dialog>

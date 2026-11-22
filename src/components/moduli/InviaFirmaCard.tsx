@@ -51,8 +51,8 @@ interface Props {
   vatAmount: number;
   total: number;
   validityDays?: number;
-  /** Rende il PDF corrente del modulo (stessa pipeline dell'anteprima). */
-  generaPdfBlob: () => Promise<Blob>;
+  /** Impagina il documento. Solo per la firma si includono sempre le condizioni. */
+  generaPdfBlob: (destinazione: "copia" | "firma") => Promise<Blob>;
   /** Es. computo vuoto: blocca l'invio con motivo (niente PDF vuoto al cliente). */
   disabled?: boolean;
   disabledReason?: string;
@@ -114,7 +114,7 @@ export function InviaFirmaCard(props: Props) {
     setWorking(true);
     try {
       // Le clausole da approvare a parte si leggono dal PDF stesso: il cliente approva quelle del suo contratto.
-      const { risultato: pdfBlob, clausole } = await conClausoleDelDocumento(() => props.generaPdfBlob());
+      const { risultato: pdfBlob, clausole } = await conClausoleDelDocumento(() => props.generaPdfBlob("firma"));
       const row = await upsertModuleQuote({
         companyId: props.companyId,
         userId: user.id,
@@ -345,7 +345,7 @@ export function InviaFirmaCard(props: Props) {
         <BarraInvioMobile
           onIndietro={props.onIndietro}
           titolo={props.titolo}
-          generaPdf={props.generaPdfBlob}
+          generaPdf={() => props.generaPdfBlob("copia")}
           pdfBloccato={pdfDisponibile ? null : props.disabledReason || "Completa il preventivo per generare il PDF."}
         >
           {esito === "accettata" ? (
@@ -390,9 +390,8 @@ export function InviaFirmaCard(props: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-[11px] text-muted-foreground">
-          Il cliente riceve il PDF con un link per firmare (o rifiutare) online:
-          vedi quando lo apre e il promemoria di scadenza parte da solo.
+        <p className="text-xs text-muted-foreground lg:block max-lg:hidden">
+          Il cliente riceve il PDF e un link per firmare online.
         </p>
         {props.disabled && (
           <p className="text-[11px] text-amber-700 flex items-center gap-1">

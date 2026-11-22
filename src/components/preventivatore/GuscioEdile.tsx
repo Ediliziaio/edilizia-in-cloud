@@ -126,7 +126,7 @@ export function GuscioEdile({
             size="icon"
             onClick={testata.onEsci}
             disabled={statoSalvataggio === "salvando"}
-            className="h-10 w-10 shrink-0"
+            className="size-11 shrink-0"
             aria-label="Esci dal preventivo"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -156,21 +156,15 @@ export function GuscioEdile({
               )}
               {/* Telefono: codice e stato sulla prima riga, cliente e salvataggio sotto. */}
               <span aria-hidden className="hidden h-0 basis-full max-md:order-3 max-md:block" />
-              {/* Da computer il salvataggio lo dice il piede: qui resta solo da telefono. */}
-              {statoSalvataggio === "salvando" ? (
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground max-md:order-5 max-md:text-xs md:hidden">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
+              {statoSalvataggio !== "nuovo" && (
+                <span role="status" className={cn("text-xs max-md:order-5 lg:hidden",
+                  statoSalvataggio === "errore" ? "font-medium text-red-700" : statoSalvataggio === "salvato" ? "text-emerald-700" : "text-muted-foreground")}>
+                  {statoSalvataggio === "salvando" ? "Salvataggio…" :
+                    statoSalvataggio === "errore" ? "Salvataggio non riuscito" :
+                    statoSalvataggio === "modifiche" ? "Modifiche da salvare" :
+                    statoSalvataggio === "locale" ? "Su questo dispositivo" : "Salvato"}
                 </span>
-              ) : statoSalvataggio === "modifiche" ? (
-                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs md:hidden" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
-                  ● Modifiche non salvate
-                </span>
-              ) : statoSalvataggio === "errore" ? (
-                // Da telefono il piede non ha lo stato: l'errore del salvataggio si deve vedere comunque.
-                <span className="text-[10px] font-medium text-red-600 max-md:order-5 max-md:text-xs md:hidden" title="Il salvataggio automatico non è riuscito: le modifiche restano qui e si riprova da soli">
-                  ● Salvataggio non riuscito
-                </span>
-              ) : null}
+              )}
             </div>
           </div>
           {testata.azioni && <div className="flex shrink-0 items-center gap-1.5">{testata.azioni}</div>}
@@ -191,7 +185,7 @@ export function GuscioEdile({
         destra={
           <>
             {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 xl:hidden" onClick={() => setMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
+            <Button variant="outline" size="sm" className={cn("min-h-11 gap-1.5 xl:hidden", piede.nascostoSuTelefono ? "md:max-lg:hidden" : "max-lg:hidden")} onClick={() => setMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
               <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">Anteprima</span>
             </Button>
             {/* Computer: se l'hai nascosta, da qui torna. */}
