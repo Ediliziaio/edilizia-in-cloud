@@ -8,7 +8,8 @@ const now = new Date();
 export const giorno = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome", dateStyle: "short" }).format(now);
 const demoStradale = import.meta.env.VITE_MAPPA_DEMO_REALE;
 const scenario = new URLSearchParams(globalThis.location?.search).get("scenario");
-const carburanteDemo = scenario === "carburante";
+const demoMimit = scenario === "mimit-demo";
+const carburanteDemo = scenario === "carburante" || demoMimit;
 const usaPartenze = ["partenze", "giro", "copertura", "ritardo", "flotta"].includes(scenario);
 const puntoFuoriDemo = { lat: 45.9, lng: 9.7 };
 export const sedeDemo = { lat: 45.46588, lng: 9.19032 };
@@ -68,7 +69,7 @@ const agendaCopertura = [appointments[0],
   appointments[2],
 ];
 export const dati = {
-  carburanteDemo, calls: [], rpcCalls: [], storicoCalls: [], viaggiCalls: [], schede: [], appointments: scenario === "ritardo" ? agendaRitardo : scenario === "copertura" ? agendaCopertura : demoStradale ? appointments.slice(0, 3) : appointments,
+  carburanteDemo, demoMimit, calls: [], rpcCalls: [], storicoCalls: [], viaggiCalls: [], schede: [], appointments: scenario === "ritardo" ? agendaRitardo : scenario === "copertura" ? agendaCopertura : demoStradale ? appointments.slice(0, 3) : appointments,
   ordini, posizioni: [],
   routing: true,
 };
@@ -120,10 +121,10 @@ const viaggiFurgone = [
   viaggio("dichiarato-alfa", dataPrima(2), "05:45", "06:58", 18.5, "dichiarati", [tratto("Sede", "Deposito temporaneo", sede, null)]),
   viaggio("incompleto-alfa", dataPrima(9), "05:20", "06:58", null, null, [tratto("Deposito temporaneo", "Rimessa da confermare", null, null)]),
 ];
-let parametriCarburante = { tipo: "gasolio", litri_100: 8.5, dal: dataPrima(29) };
+let parametriCarburante = { tipo: "gasolio", litri_100: demoMimit ? 10 : 8.5, dal: dataPrima(29) };
 let prezzoCarburante = { euro_litro: 1.5, dal: dataPrima(29) };
-let preferenzaCarburante = { zona: "lombardia", zona_impostata: null, preferisci_mimit: false };
-let preferenzaDal;
+let preferenzaCarburante = { zona: "lombardia", zona_impostata: null, preferisci_mimit: demoMimit };
+let preferenzaDal = demoMimit ? dataPrima(1) : undefined;
 const territoriMimit = [
   { chiave: "lombardia", nome: "Lombardia", prezzi: { gasolio: 2.44, benzina: 1.95 } },
   { chiave: "bolzano", nome: "Bolzano", prezzi: { gasolio: 3.66, benzina: 2.1 } },
@@ -137,6 +138,18 @@ const ordiniPerRitiro = [
 const giriSalvati = new Map();
 const registro = new Map();
 const autistaDemo = { id: "autista-demo", label: "Mario Demo" };
+if (demoMimit) {
+  const data = dataPrima(1);
+  const tratta = (id, da, a, km) => ({ id, da, a, km, fonte: "stimati", destinazione: "commessa", order_id: "cm-b", minuti: 30 });
+  registro.set("demo-mimit-giro", {
+    id: "demo-mimit-giro", company_id: company, mezzo_id: flotta[0].id, mezzo_nome: flotta[0].nome,
+    conducente: autistaDemo.label, conducente_hr_id: autistaDemo.id, stato: "inviato", versione: 1,
+    partenza: data + "T08:00:00+01:00", arrivo: data + "T10:00:00+01:00", updated_at: data + "T10:00:00+01:00",
+    contatore_inizio: null, contatore_fine: null, tariffa_km: null,
+    note: "Consegna materiali a Lambrate e ritorno in sede",
+    tratte: [tratta("andata-demo", "Sede", "Lambrate", 18), tratta("ritorno-demo", "Lambrate", "Sede", 22)],
+  });
+}
 const nelPeriodo = (v, p) => {
   const g = v.partenza.slice(0, 10);
   return (!p.p_dal || g >= p.p_dal) && (!p.p_al || g <= p.p_al);
@@ -266,6 +279,21 @@ export const supabase = {
         return null;
       }
       if (name === "mezzi_quadro_percorrenze") {
+        if (demoMimit) {
+          const viaggi = [...registro.values()].filter(v => v.stato !== "bozza" && nelPeriodo(v, p) &&
+            (!p.p_mezzo || v.mezzo_id === p.p_mezzo) && (!p.p_ordine || v.tratte.some(t => t.order_id === p.p_ordine)));
+          const totali = { viaggi: viaggi.length, km_verificati: 0, km_stimati: 0, km_dichiarati: 0,
+            litri: 0, costo_carburante: 0, costo_tariffa: null, tratte_senza_km: 0, km_senza_parametri: 0, mimit: true };
+          for (const v of viaggi) {
+            for (const t of v.tratte.filter(t => !p.p_ordine || t.order_id === p.p_ordine)) {
+              const campo = t.fonte === "stimati" ? "km_stimati" : v.stato === "verificato" ? "km_verificati" : "km_dichiarati";
+              totali[campo] += t.km;
+              totali.litri += t.km * parametriCarburante.litri_100 / 100;
+            }
+          }
+          totali.costo_carburante = Math.round(totali.litri * territoriMimit[0].prezzi.gasolio / 1.22 * 100) / 100;
+          return { totali, mezzi: viaggi.length ? [{ mezzo_id: flotta[0].id, nome: flotta[0].nome, targa: flotta[0].targa, ...totali }] : [] };
+        }
         if (p.p_dal && p.p_ordine) {
           const viaggi = [...registro.values()].filter(v => v.stato !== "bozza" && nelPeriodo(v, p));
           const tratte = viaggi.flatMap(v => v.tratte.filter(t => t.order_id === p.p_ordine));

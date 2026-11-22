@@ -66,9 +66,13 @@ function CalendariDemo() {
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter><QueryClientProvider client={query}>
     <main className="mx-auto max-w-[1500px] p-3">
+      {dati.demoMimit && <div className="mb-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+        <strong>Prova del costo carburante</strong>
+        <p>Nel registro del furgone, apri il viaggio demo. Per simulare 47 km effettivi, imposta 29 km al ritorno e scegli i km dichiarati per entrambe le tratte.</p>
+      </div>}
       {import.meta.env.VITE_MAPPA_DEMO_REALE && <p className="mb-3 text-xs text-muted-foreground">Demo Milano · agenda di prova, mappa e percorsi stradali reali</p>}
       <Link to="/azienda/marketing/calendario" className={dati.carburanteDemo ? "mb-3 mr-3 inline-block text-sm text-primary underline" : "sr-only"}>Calendario appuntamenti</Link>
-      {dati.carburanteDemo && <Link className="mb-3 inline-block text-sm text-primary underline" to="/azienda/ordini/cm-b">Apri commessa demo</Link>}
+      {dati.carburanteDemo && <Link className="mb-3 inline-block text-sm text-primary underline" to={dati.demoMimit ? "/azienda/ordini/cm-b?scenario=mimit-demo" : "/azienda/ordini/cm-b"}>Apri commessa demo</Link>}
       <Suspense fallback={<p>Caricamento…</p>}><Routes><RouterRoute path="/azienda/mezzi/:id" element={<CalendariDemo />} /><RouterRoute path="*" element={<CalendariDemo />} /></Routes></Suspense>
     </main>
     <Toaster />
