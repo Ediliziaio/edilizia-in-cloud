@@ -11,6 +11,23 @@ afterEach(cleanup);beforeEach(()=>vi.clearAllMocks());
 function props(){return {companyId:'azienda',posId:'pos',bozza:posVuoto(),onClose:vi.fn(),onApplica:vi.fn()};}
 function risposta(){return {contenuto:posVuoto(),contesto:{avvisi:[] as string[],mezzi:[] as never[],subappaltatori:[] as never[]}};}
 describe('Confronto fonti prima del riallineamento',()=>{
+ it('seleziona i gruppi vuoti e protegge quelli con dati già inseriti', async () => {
+  const fonte = risposta();
+  fonte.contenuto.impresa.datore_lavoro = 'Datore da anagrafica';
+  fonte.contenuto.impresa.sede_legale.indirizzo = 'Via della fonte';
+  s.leggi.mockResolvedValue(fonte);
+  const p = props();
+  p.bozza.impresa.sede_legale.telefono = '02123456';
+  render(<ConfrontoFontiPos {...p} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Seleziona solo i gruppi vuoti (1)' }));
+  expect(screen.getByRole('checkbox', { name: 'Sostituisci Datore di lavoro' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Sostituisci Sede legale' })).not.toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: 'Applica alla bozza (1)' }));
+  expect(p.onApplica.mock.lastCall?.[0].impresa).toMatchObject({
+   datore_lavoro: 'Datore da anagrafica',
+   sede_legale: { telefono: '02123456', indirizzo: '' },
+  });
+ });
  it('mostra differenze senza preselezione e applica soltanto quelle scelte alla bozza',async()=>{
   const r=risposta();r.contenuto.impresa.ragione_sociale='Nuova società';r.contenuto.opera.cantiere.via='Via nuova';s.leggi.mockResolvedValue(r);const p=props();render(<ConfrontoFontiPos {...p}/>);
   const c=await screen.findByRole('checkbox',{name:'Sostituisci Ragione sociale'});expect((c as HTMLInputElement).checked).toBe(false);expect((screen.getByRole('button',{name:'Applica alla bozza'}) as HTMLButtonElement).disabled).toBe(true);

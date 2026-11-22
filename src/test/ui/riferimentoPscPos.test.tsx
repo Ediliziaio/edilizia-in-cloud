@@ -32,7 +32,9 @@ vi.mock(
 );
 vi.mock(
   "@/components/sicurezza/DocumentiSicurezza",
-  () => ({ CaricaDocumentoSicurezzaDialog: () : null => null }),
+  () => ({ CaricaDocumentoSicurezzaDialog: ({ open, onCaricati, onOpenChange }: {
+    open: boolean; onCaricati: (percorsi: string[]) => void; onOpenChange: (open: boolean) => void;
+  }) => open ? <button type="button" onClick={() => { onCaricati(["c/nuovo.pdf"]); onOpenChange(false); }}>Simula caricamento PSC</button> : null }),
 );
 vi.mock("@/lib/storagePrivato", () => ({ apriFileRiservato: vi.fn() }));
 const fonte = {
@@ -103,6 +105,23 @@ describe("Collegamento originale PSC", () => {
     expect(screen.getByText("PSC A")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Confronta impronta" }))
       .toBeDisabled();
+  });
+  it("cerca per revisione e nome del file", () => {
+    mocks.query.data = [fonte, { ...fonte, id: "b", titolo: "PSC facciate", file_name: "facciate.pdf", revisione: "02" }];
+    draw();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Cerca un PSC della commessa" }), { target: { value: "facciate.pdf 02" } });
+    expect(screen.getByText(/PSC facciate/).closest("option")).toBeInTheDocument();
+    expect(screen.queryByText(/PSC A ·/)?.closest("option") ?? null).toBeNull();
+  });
+  it("preseleziona l’originale appena caricato e chiede la revisione", () => {
+    mocks.query.data = [fonte];
+    draw();
+    fireEvent.click(screen.getByRole("button", { name: "Carica PSC" }));
+    mocks.query.data = [fonte, { ...fonte, id: "nuovo", titolo: "PSC caricato", file_path: "c/nuovo.pdf" }];
+    fireEvent.click(screen.getByRole("button", { name: "Simula caricamento PSC" }));
+    expect(screen.getByLabelText("Originale da collegare")).toHaveValue("sicurezza_documenti:nuovo");
+    expect(screen.getByRole("button", { name: "Usa questo riferimento" })).toBeDisabled();
+    expect(mocks.identifica).not.toHaveBeenCalled();
   });
   it("in sola lettura non consente collegamenti o rimozioni", () => {
     mocks.query.data = [fonte];

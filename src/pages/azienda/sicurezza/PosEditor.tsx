@@ -4,6 +4,8 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { ContestoSchedaCommessa, useModificheSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCommessa";
 import { invalidaRiesameTecnico } from "../../../../supabase/functions/_shared/posTecnica";
 import { ConfrontoFontiPos } from "@/components/sicurezza/pos/ConfrontoFontiPos";
+import { PreparaBozzaPos } from "@/components/sicurezza/pos/PreparaBozzaPos";
+import { inserisciTestiLavorazione, stessaLavorazionePos } from "@/lib/sicurezza/testiLavorazionePos";
 import { useAnteprimaPos } from "@/hooks/useAnteprimaPos";
 import { AnnullaPdf, AnnunciaFasePdf } from "@/components/sicurezza/pos/PosPdfStato";
 import { etichettaFasePdf } from "@/lib/sicurezza/posPdfErrori";
@@ -23,11 +25,11 @@ import { StoricoContenutiPos } from "@/components/sicurezza/pos/StoricoContenuti
  * una nuova revisione. Firme, consultazione dell'RLS e verifiche di impresa
  * affidataria e CSE (art. 101 c. 3) si segnano anche dopo l'approvazione.
  */
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, Copy, FileDown, Loader2, RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, X,
+  AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Copy, Eye, FileDown, Loader2, RefreshCw, RotateCcw, Save, ShieldCheck, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,19 +38,19 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePscCommessa } from "@/hooks/usePscCommessa";
 import {
-  ErrorePos, datiAppPos, lavorazioniAiPos, useApprovaPos, useNuovaRevisione, usePos, useSalvaPos,
+  ErrorePos, chiaveDatiAppPos, datiAppPos, lavorazioniAiPos, useApprovaPos, useNuovaRevisione, usePos, useSalvaPos,
   type IterPos, type PosRiga,
 } from "@/hooks/usePos";
 import type { ContestoPos } from "../../../../supabase/functions/_shared/posModello";
 import {
   completezzaPercento, vociMancanti,
-  type PosContenuto, type SezionePos, type VoceMancante,
+  type Lavorazione, type PosContenuto, type SezionePos, type VoceMancante,
 } from "../../../../supabase/functions/_shared/posModello";
 import { AperturaSezioniContext, Campo } from "@/components/sicurezza/pos/campi";
 import { CosaManca } from "@/components/sicurezza/pos/CosaManca";
@@ -61,6 +63,9 @@ import {
   SezioneAllegati, SezioneEmergenze, SezioneFigure, SezioneFormazione, SezioneImpresa, SezioneLavorazioni,
   SezioneLavoratori, SezioneOpera, SezionePsc, SezioneRumore, type Modifica,
 } from "@/components/sicurezza/pos/PosSezioni";
+
+const AnteprimaBozzaPos = lazy(() => import("@/components/sicurezza/pos/AnteprimaBozzaPos")
+  .then(m => ({ default: m.AnteprimaBozzaPos })));
 
 const SEZIONI: Array<{ id: SezionePos | "iter"; titolo: string }> = [
   { id: "opera", titolo: "Opera e cantiere" },
@@ -80,6 +85,7 @@ const SEZIONI: Array<{ id: SezionePos | "iter"; titolo: string }> = [
 const IDS_SEZIONI_APRIBILI = SEZIONI.filter((x) => x.id !== "iter").map((x) => x.id);
 
 const vaiA = (id: string) => document.getElementById(`pos-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+const chiaveVoce = (v: VoceMancante) => JSON.stringify([v.sezione, v.lavorazione_id, v.riferimento, v.testo]);
 
 function dataIt(iso: string | null | undefined) {
   if (!iso) return "";
@@ -109,11 +115,11 @@ export default function PosEditor() {
 
   // I dati dell'app: il contesto (mezzi e subappaltatori della commessa) per le
   // lavorazioni, e il POS già compilato per chi lo apre la prima volta.
-  const fonti = useQuery({
-    queryKey: ["pos-dati-app", companyId, id],
+  const fonti = useQuery<NonNullable<EditorProps["datiApp"]>>({
+    queryKey: chiaveDatiAppPos(companyId, id),
     enabled: !!id && !!companyId && !!pos && puoScrivere && pos.status !== "approvato",
     queryFn: () => datiAppPos(companyId!, id!),
-    staleTime: 5 * 60 * 1000,
+    staleTime: pos?.daCompilare ? 0 : 5 * 60 * 1000,
     retry: false,
   });
   const datiApp = fonti.data;
@@ -135,8 +141,8 @@ export default function PosEditor() {
   }
   // Un POS del vecchio generatore o creato vuoto dall'assistente si compila
   // subito dai dati dell'app: si aspetta che arrivino.
-  if (pos.daCompilare && puoScrivere && pos.status !== "approvato" && !datiApp && compilazioneManuale !== identita) {
-    if (fonti.isLoading) {
+  if (pos.daCompilare && puoScrivere && pos.status !== "approvato" && !datiApp?.contenuto && compilazioneManuale !== identita) {
+    if (fonti.isLoading || fonti.isFetching) {
       return <div role="status" className="flex flex-col items-center gap-2 py-20 text-sm text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />Recupero i dati della commessa…
       </div>;
@@ -156,19 +162,23 @@ export default function PosEditor() {
   // NON a ogni salvataggio: un rimontaggio a metà di un'operazione (salva e poi
   // chiedi le proposte all'AI, salva e poi approva) ne butterebbe via l'esito.
   const versione = `${companyId}:${pos.id}:${pos.revisione}:${pos.status}`;
-  return <EditorPos key={versione} pos={pos} datiApp={datiApp ?? null} puoScrivere={puoScrivere}
-    senzaPrecompilazione={compilazioneManuale === identita} fontiNonDisponibili={fonti.isError && !datiApp} />;
+  return <EditorPos key={versione} pos={pos} datiApp={datiApp ?? null} puoScrivere={puoScrivere} puoLeggereComputo={perms.canViewOrders}
+    senzaPrecompilazione={compilazioneManuale === identita} fontiNonDisponibili={fonti.isError && !datiApp}
+    fontiInCaricamento={fonti.isLoading && !datiApp} rileggiFonti={() => void fonti.refetch()} />;
 }
 
 interface EditorProps {
   pos: PosRiga;
-  datiApp: { contenuto: PosContenuto; contesto: ContestoPos } | null;
+  datiApp: { contenuto?: PosContenuto; contesto: ContestoPos } | null;
   puoScrivere: boolean;
+  puoLeggereComputo: boolean;
   senzaPrecompilazione: boolean;
   fontiNonDisponibili: boolean;
+  fontiInCaricamento: boolean;
+  rileggiFonti: () => void;
 }
 
-function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDisponibili }: EditorProps) {
+function EditorPos({ pos, datiApp, puoScrivere, puoLeggereComputo, senzaPrecompilazione, fontiNonDisponibili, fontiInCaricamento, rileggiFonti }: EditorProps) {
   const schedaCommessa = useContext(ContestoSchedaCommessa);
   const location = useLocation();
   const companyId = useEffectiveCompanyId();
@@ -178,7 +188,7 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
 
   const approvato = pos.status === "approvato";
   const ro = !puoScrivere || approvato || approva.isPending;
-  const compilaSubito = pos.daCompilare && !!datiApp && !ro && !senzaPrecompilazione;
+  const precompilato = pos.daCompilare && !ro && !senzaPrecompilazione ? datiApp?.contenuto : undefined;
   const aggiornaControlli = !ro && (pos.contenuto.versione_controlli !== 2 || pos.contenuto.versione_prodotti !== 1 || (pos.contenuto.procedure_psc.psc_presente && pos.contenuto.versione_psc !== 1));
 
   // This identifies the content the editor actually loaded, not a later cache
@@ -188,7 +198,7 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
   const salvando=useRef(false);
   const [riusoAperto,setRiusoAperto]=useState(false);
   // Il contenuto da cui parte questa sessione: «Annulla» ci torna (non al POS vuoto da cui si è appena compilato).
-  const contenutoDiPartenza = () => { const base = compilaSubito && datiApp ? datiApp.contenuto : pos.contenuto; return ro ? base : conControlliAggiornati(base); };
+  const contenutoDiPartenza = () => ro ? pos.contenuto : conControlliAggiornati(precompilato ?? pos.contenuto);
   const [bozza, setBozza] = useState<PosContenuto>(contenutoDiPartenza);
   const avvioQuery = useAvvioSicurezza(pos.company_id, pos.order_id);
   const pscCorrente = avvioQuery.data?.psc;
@@ -198,20 +208,25 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
   const erroreAvvio = avvioQuery.isError ? "Riprova a caricare la decisione del PSC in Avvio sicurezza."
     : errorePscAvvio(bozza.procedure_psc, avvio);
   const [iter, setIter] = useState<IterPos>(() => pos.iter);
-  const [sporco, setSporco] = useState(compilaSubito || aggiornaControlli);
+  const [sporco, setSporco] = useState(!!precompilato || aggiornaControlli);
   const [iterSporco, setIterSporco] = useState(false);
   useModificheSchedaCommessa(sporco || iterSporco, salva.isPending || approva.isPending || nuovaRevisione.isPending);
   const [avvisi, setAvvisi] = useState<string[]>(() =>
-    [...(compilaSubito && datiApp ? datiApp.contesto.avvisi : ((location.state as { avvisi?: string[] } | null)?.avvisi ?? [])),
+    [...(precompilato && datiApp ? datiApp.contesto.avvisi : ((location.state as { avvisi?: string[] } | null)?.avvisi ?? [])),
       ...(aggiornaControlli ? ["Controlli aggiornati proposti per questa bozza: verifica formazione, prodotti e il riferimento PSC della commessa; salva prima dell’approvazione. Lo storico approvato resta invariato."] : [])]);
   const anteprima=useAnteprimaPos();
   const [erroreApprovazione,setErroreApprovazione]=useState<string|null>(null);
   const [mancantiServer, setMancantiServer] = useState<VoceMancante[] | null>(null);
+  const [preparazioneAperta, setPreparazioneAperta] = useState(false);
+  const bozzaDaVerificare = useRef<PosContenuto | null>(null);
+  const [guidaAttiva, setGuidaAttiva] = useState(false);
+  const [ultimaVoce, setUltimaVoce] = useState<string | null>(null);
+  const destinazioneElenco = useRef<VoceMancante | string | null>(null);
   const [revisioneAperta, setRevisioneAperta] = useState(false);
   const [descrRevisione, setDescrRevisione] = useState("");
   const [aggiornaAperto, setAggiornaAperto] = useState(false);
-  const [proposte, setProposte] = useState<RisultatoPropostePos | null>(null);
-  const [perimetroAi, setPerimetroAi] = useState(false);
+  const [proposte, setProposte] = useState<(RisultatoPropostePos & { destinazioneId?: string }) | null>(null);
+  const [perimetroAi, setPerimetroAi] = useState<(Pick<PerimetroPropostePos, "ambito" | "fasi"> & { destinazioneId?: string }) | null>(null);
   const [erroreProposte, setErroreProposte] = useState<string | null>(null);
   const [proponendo, setProponendo] = useState(false);
 
@@ -232,15 +247,71 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
     for (const v of mancanti) m.set(v.sezione, (m.get(v.sezione) ?? 0) + 1);
     return m;
   }, [mancanti]);
-  const percento = completezzaPercento(bozza);
+  const percento = completezzaPercento(bozza, mancanti.length);
   // Alla prima apertura restano aperte le sezioni con qualcosa da fare; un POS già approvato (sola lettura) si legge tutto aperto.
   const sezioniApertura = useSezioniApertePos(IDS_SEZIONI_APRIBILI, (id) => ro || (perSezione.get(id) ?? 0) > 0);
   const radiceEditor = useRef<HTMLDivElement>(null);
+  const pulsanteAnteprima = useRef<HTMLButtonElement>(null);
+  const [anteprimaAperta, setAnteprimaAperta] = useState(false);
+  const [puoAffiancare, setPuoAffiancare] = useState(false);
+  const anteprimaAffiancata = anteprimaAperta && puoAffiancare;
   useStickyNelDocumento(radiceEditor);
+  useEffect(() => {
+    const radice = radiceEditor.current;
+    if (!radice || typeof ResizeObserver === "undefined") return;
+    const misura = () => setPuoAffiancare(radice.clientWidth >= 880);
+    misura();
+    const observer = new ResizeObserver(misura);
+    observer.observe(radice);
+    return () => observer.disconnect();
+  }, []);
   const vaiASezione = useCallback((id: string) => {
     sezioniApertura.apri(id);
     requestAnimationFrame(() => requestAnimationFrame(() => vaiA(id)));
   }, [sezioniApertura]);
+  const vocePsc: VoceMancante | null = erroreAvvio && !avvioQuery.isLoading
+    ? { sezione: "psc", campo: "pos-impostazioni-psc", testo: erroreAvvio, riferimento: "Avvio sicurezza" }
+    : null;
+  const vociGuida = vocePsc ? [vocePsc, ...mancanti] : mancanti;
+  const indiceGuida = vociGuida.findIndex(v => chiaveVoce(v) === ultimaVoce);
+  const prossimaVoce = vociGuida[(indiceGuida + 1) % Math.max(1, vociGuida.length)];
+
+  function vaiAVoce(voce: VoceMancante) {
+    setUltimaVoce(chiaveVoce(voce));
+    if (voce.campo !== "pos-impostazioni-psc") sezioniApertura.apri(voce.sezione);
+    requestAnimationFrame(() => {
+      const radice = radiceEditor.current;
+      if (!radice) return;
+      const sezione = document.getElementById(`pos-${voce.sezione}`);
+      const scheda = voce.lavorazione_id ? [...radice.querySelectorAll<HTMLElement>("[data-pos-lavorazione]")]
+        .find(el => el.dataset.posLavorazione === voce.lavorazione_id) : undefined;
+      const apriScheda = scheda?.querySelector<HTMLButtonElement>("[data-pos-apri-scheda]");
+      if (apriScheda?.getAttribute("aria-expanded") === "false") apriScheda.click();
+      if (voce.campo === "pos-impostazioni-psc") {
+        const impostazioni = document.getElementById(voce.campo);
+        if (impostazioni?.getAttribute("aria-expanded") === "false") impostazioni.click();
+      }
+      requestAnimationFrame(() => {
+        const campo = voce.campo ? document.getElementById(voce.campo) : null;
+        // Gli indici delle schede possono cambiare. Il salto preciso vale solo all’interno della scheda giusta.
+        const obiettivo = campo && (scheda ?? radice).contains(campo) && !campo.closest("[hidden]") ? campo : null;
+        const titolo = sezione?.querySelector<HTMLButtonElement>("header button") ?? null;
+        (obiettivo ?? scheda ?? sezione)?.scrollIntoView({ behavior: "smooth", block: obiettivo || scheda ? "center" : "start" });
+        const focus = obiettivo?.matches(":disabled") ? apriScheda ?? titolo : obiettivo ?? apriScheda ?? titolo;
+        focus?.focus({ preventScroll: true });
+      });
+    });
+  }
+
+  function avviaGuida(contenuto: PosContenuto) {
+    const daVerificare = contenuto === bozza ? mancanti : vociMancanti(contenuto);
+    const sezioniDaVerificare = new Set(daVerificare.map(v => v.sezione));
+    setGuidaAttiva(true);
+    sezioniApertura.comprimiComplete(id => sezioniDaVerificare.has(id as SezionePos) ? 1 : 0);
+    const prima = vocePsc ?? daVerificare[0];
+    if (prima) vaiAVoce(prima);
+  }
+
   const sezioniMenu: VoceMenuSezione[] = SEZIONI.map((x) => ({ id: x.id, titolo: x.titolo, mancanti: x.id === "iter" ? undefined : (perSezione.get(x.id) ?? 0) }));
 
   const salvaOra = useCallback(async () => {
@@ -305,10 +376,15 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
     }
   };
 
-  const contestoLetturaPsc: ContestoLetturaPsc | undefined = bozza.procedure_psc.psc_presente && bozza.procedure_psc.documento
+  const pscAllineato = avvio?.stato === "previsto" && !!avvio.psc && bozza.procedure_psc.psc_presente &&
+    stessoRiferimentoPsc(bozza.procedure_psc.documento, avvio.psc);
+  const contestoLetturaPsc: ContestoLetturaPsc | undefined = pscAllineato && bozza.procedure_psc.documento
     ? { companyId: pos.company_id, posId: pos.id, fonte: bozza.procedure_psc.documento, salva: sporco ? salvaOra : undefined }
     : undefined;
-  const apriProposteAi = () => { setErroreProposte(null); setPerimetroAi(true); };
+  const apriProposteAi = (lavorazione?: Lavorazione) => {
+    setErroreProposte(null);
+    setPerimetroAi({ ambito: lavorazione?.titolo.trim().slice(0, 1000) ?? "", fasi: lavorazione?.fase_id ? [lavorazione.fase_id] : [], destinazioneId: lavorazione?.id });
+  };
   const proponiAi = async (perimetro: PerimetroPropostePos) => {
     if (!companyId || proponendo || ro) return;
     setErroreProposte(null);
@@ -319,8 +395,10 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
         return;
       }
       const risultato = await lavorazioniAiPos(companyId, pos.id, perimetro);
-      setProposte(risultato);
-      setPerimetroAi(false);
+      const conservaDestinazione = perimetroAi?.ambito === perimetro.ambito && !perimetro.computo &&
+        perimetroAi.fasi.length === perimetro.fasi.length && perimetroAi.fasi.every(id => perimetro.fasi.includes(id));
+      setProposte({ ...risultato, destinazioneId: conservaDestinazione ? perimetroAi.destinazioneId : undefined });
+      setPerimetroAi(null);
     } catch (e) {
       setErroreProposte(e instanceof Error ? e.message : "Proposte non arrivate. Riprova tra poco.");
     } finally {
@@ -366,9 +444,17 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
   const prossimo = prossimoPassoPos({ status: pos.status, contenuto: bozza, iter }, avvio);
   const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : prossimo ? "PDF approvato · iter da completare" : "Iter registrato") : "Bozza";
   const baseProps = { d: bozza, modifica, ro };
+  const azioneApprovazione = approva.isPending ? etichettaFasePdf(approva.fase) ?? "Approvazione…" : "Approva e prepara PDF";
+  const anteprimaBozza = anteprimaAperta && !approvato && (
+    <Suspense fallback={<p role="status" className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+      <Loader2 aria-hidden="true" className="size-4 animate-spin" /> Apro il visore PDF…
+    </p>}>
+      <AnteprimaBozzaPos contenuto={bozza} revisione={pos.revisione} revisioni={pos.revisioni} codiceCommessa={pos.commessa?.order_code} />
+    </Suspense>
+  );
 
   return (
-    <div ref={radiceEditor} className="mx-auto max-w-6xl space-y-4 pb-28">
+    <div ref={radiceEditor} className={`mx-auto space-y-4 pb-28 ${anteprimaAffiancata ? "max-w-[1500px]" : "max-w-6xl"}`}>
       {/* Su mobile la barra dei comandi usa icone per lasciare spazio al pulsante principale. */}
       <div className="rounded-2xl border bg-card p-4 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {!schedaCommessa && <Link to="/azienda/sicurezza-cantiere" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground max-sm:hidden">
@@ -399,30 +485,34 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
                 <Copy className="h-4 w-4 sm:hidden" aria-hidden="true" /><span className="max-sm:hidden">Riutilizza POS</span>
               </Button>
             )}
+            {!approvato && <Button ref={pulsanteAnteprima} type="button" variant={anteprimaAffiancata ? "secondary" : "outline"}
+              aria-label={anteprimaAperta ? "Chiudi anteprima PDF dal vivo" : "Anteprima PDF dal vivo"}
+              aria-expanded={anteprimaAperta} title="Guarda il PDF mentre compili la bozza"
+              className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" onClick={() => setAnteprimaAperta(v => !v)}>
+              <Eye className="size-4 sm:mr-1" aria-hidden="true" />
+              <span className="max-sm:hidden">{anteprimaAperta ? "Chiudi anteprima PDF" : "Anteprima PDF dal vivo"}</span>
+            </Button>}
             <Button variant="outline" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0"
-              aria-label={anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "Anteprima PDF"}
+              aria-label={anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "PDF dalla versione salvata"}
               disabled={anteprima.inCorso || sporco || iterSporco || salva.isPending}
               title={sporco || iterSporco ? "Salva le modifiche prima di preparare l’anteprima" : "Anteprima del PDF con filigrana BOZZA"}
               onClick={() => void anteprima.apri(pos.company_id, pos.id)}>
               {anteprima.inCorso ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden /> : <FileDown className="h-4 w-4 sm:mr-1" aria-hidden />}
-              <span className="max-sm:hidden">{anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "Anteprima PDF"}</span>
+              <span className="max-sm:hidden">{anteprima.inCorso ? etichettaFasePdf(anteprima.fase) ?? "Preparazione…" : "PDF dalla versione salvata"}</span>
             </Button>
             <AnnullaPdf fase={anteprima.fase} onAnnulla={anteprima.annulla} />
             {!ro && (
-              <Button variant="outline" aria-label="Confronta dati dell’app" title="Confronta con i dati aggiornati dell’app" className="tap-compact max-sm:h-10 max-sm:w-10 max-sm:shrink-0 max-sm:px-0" onClick={() => setAggiornaAperto(true)}>
-                <RefreshCw className="h-4 w-4 sm:mr-1" aria-hidden="true" /><span className="max-sm:hidden">Confronta dati dell’app</span>
-              </Button>
-            )}
-            {!ro && (
-              <Button variant="outline" className="max-sm:hidden border-violet-200 text-violet-700 hover:bg-violet-50" onClick={apriProposteAi} disabled={proponendo}
-                title="Prepara proposte da fasi, computo e PSC della commessa">
-                {proponendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}Completa con l'AI
+              <Button variant="outline" size="icon" aria-label="Confronta dati dell’app" title="Confronta con i dati aggiornati dell’app"
+                className="tap-compact shrink-0" onClick={() => setAggiornaAperto(true)}>
+                <RefreshCw className="size-4" aria-hidden="true" />
               </Button>
             )}
             {puoScrivere && !approvato && (
-              <Button onClick={approvaOra} disabled={approva.isPending || salva.isPending || proponendo} className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-3">
-                {approva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1 h-4 w-4" />}
-                {approva.isPending ? etichettaFasePdf(approva.fase) ?? "Approvazione…" : "Approva e prepara PDF"}
+              <Button variant={vociGuida.length ? "outline" : "default"} onClick={approvaOra} disabled={approva.isPending || salva.isPending || proponendo}
+                aria-label={azioneApprovazione} className="tap-compact max-sm:h-10 max-sm:min-w-0 max-sm:flex-1 max-sm:px-2">
+                {approva.isPending ? <Loader2 className="size-4 animate-spin sm:mr-1" /> : <ShieldCheck className="size-4 sm:mr-1" />}
+                <span className="max-sm:hidden">{azioneApprovazione}</span>
+                <span className="sm:hidden">{approva.isPending ? "In corso…" : "Approva"}</span>
               </Button>
             )}
             {puoScrivere && !approvato && (
@@ -463,9 +553,56 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
         {!puoScrivere && <p className="mt-3 text-xs text-muted-foreground">Sei in sola lettura.</p>}
       </div>
 
-      <BarraSezioniPos sezioni={sezioniMenu} onVai={vaiASezione} percento={percento} mancantiTotali={mancanti.length}
-        onMostraMancanti={() => setMancantiServer(mancanti)}
-        onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
+      {guidaAttiva && !ro ? (
+        <div role="region" aria-label="Compilazione guidata del POS" className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background/95 p-2 backdrop-blur">
+          <div className="min-w-0 text-sm" aria-live="polite">
+            <p className="font-medium">{vociGuida.length ? `${vociGuida.length} ${vociGuida.length === 1 ? "voce da completare" : "voci da completare"}` : "Controlli completati"}</p>
+            {indiceGuida >= 0 && <p className="max-w-lg truncate text-xs text-muted-foreground max-sm:max-w-[calc(100vw-5rem)]">{vociGuida[indiceGuida].testo}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {prossimaVoce ? <>
+              <Button type="button" size="sm" onClick={() => vaiAVoce(prossimaVoce)}>Prossima voce <ArrowRight className="size-4" aria-hidden /></Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setMancantiServer(vociGuida)}>Elenco</Button>
+            </> : <Button type="button" size="sm" onClick={() => void approvaOra()} disabled={approva.isPending || salva.isPending || proponendo}>Approva e genera PDF</Button>}
+            <Button type="button" size="sm" variant="ghost" aria-label="Esci dalla compilazione guidata" onClick={() => setGuidaAttiva(false)}>Esci</Button>
+          </div>
+        </div>
+      ) : <>
+        {!ro && !!vociGuida.length && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Compila il POS</p>
+            <p className="text-xs text-muted-foreground">Recupera dati e testi già disponibili, poi verifica la bozza.</p>
+          </div>
+          <Dialog open={preparazioneAperta} onOpenChange={setPreparazioneAperta}>
+            <DialogTrigger asChild>
+              <Button type="button" size="sm">Prepara la bozza POS <ArrowRight className="size-4" aria-hidden="true" /></Button>
+            </DialogTrigger>
+            {preparazioneAperta && <PreparaBozzaPos bozza={bozza} fonte={datiApp?.contenuto} companyId={pos.company_id} orderId={pos.order_id}
+              fontiInCaricamento={fontiInCaricamento} fontiNonDisponibili={fontiNonDisponibili} rileggiFonti={rileggiFonti}
+              onClose={() => setPreparazioneAperta(false)} onContinua={preparata => {
+                if (preparata) {
+                  modifiche.current++;
+                  setBozza(prev => {
+                    invalidaRiesameTecnico(prev, preparata);
+                    return preparata;
+                  });
+                  setSporco(true);
+                }
+                bozzaDaVerificare.current = preparata ?? bozza;
+                setPreparazioneAperta(false);
+              }} onCloseAutoFocus={event => {
+                const contenuto = bozzaDaVerificare.current;
+                if (!contenuto) return;
+                event.preventDefault();
+                bozzaDaVerificare.current = null;
+                avviaGuida(contenuto);
+              }} />}
+          </Dialog>
+        </div>}
+        <BarraSezioniPos sempreVisibile={anteprimaAffiancata} sezioni={sezioniMenu} onVai={vaiASezione} percento={percento} mancantiTotali={mancanti.length}
+          onMostraMancanti={() => setMancantiServer(mancanti)}
+          onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
+      </>}
 
       {erroreApprovazione&&<div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"><p className="font-medium">POS non approvato</p><p>{erroreApprovazione}</p></div>}
 
@@ -476,6 +613,8 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
         </div>
       )}
       <AvvioSicurezzaPos companyId={pos.company_id} orderId={pos.order_id} solaLettura={!puoScrivere || approva.isPending}
+        idImpostazioni="pos-impostazioni-psc"
+        vaiAllaLettura={pscAllineato ? () => vaiASezione("psc") : undefined}
         usaNelPos={!ro ? (riferimento) => {
           if (bozza.procedure_psc.psc_presente !== !!riferimento || !stessoRiferimentoPsc(bozza.procedure_psc.documento, riferimento)) {
             modifica((x) => {
@@ -504,10 +643,11 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
 
       <EmissioniPos key={`${companyId}:${pos.id}`} companyId={companyId||pos.company_id} posId={pos.id} approvato={approvato}/>
 
-      <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
-        {/* Navigazione fra le sezioni: sul computer di lato (ferma mentre si scorre), altrove la barra in cima */}
-        <NavSezioniPos sezioni={sezioniMenu} onVai={vaiASezione}
-          onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
+      <div className={`grid gap-4 ${anteprimaAffiancata ? "grid-cols-[minmax(0,1fr)_minmax(340px,40%)]" : "lg:grid-cols-[200px_minmax(0,1fr)]"}`}>
+        <div className={anteprimaAffiancata ? "hidden" : "contents"}>
+          <NavSezioniPos sezioni={sezioniMenu} onVai={vaiASezione}
+            onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
+        </div>
 
         <AperturaSezioniContext.Provider value={sezioniApertura}>
         <div className="min-w-0 space-y-4">
@@ -519,8 +659,8 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
             confronta={() => setAggiornaAperto(true)} />
           <SezioneFormazione {...baseProps} mancanti={perSezione.get("formazione") ?? 0} />
           <SezioneRumore {...baseProps} companyId={pos.company_id} orderId={pos.order_id} posId={pos.id} salvaPrimaDellaLettura={sporco ? salvaOra : undefined} allegatiSalvati={pos.contenuto.allegati} mancanti={perSezione.get("rumore") ?? 0} />
-          <SezioneLavorazioni {...baseProps} companyId={pos.company_id} orderId={pos.order_id} mancanti={perSezione.get("lavorazioni") ?? 0}
-            contesto={datiApp?.contesto ?? null} pscVigente={avvio?.stato === "non_previsto" ? null : avvio?.psc} onProponiAi={apriProposteAi} proponendo={proponendo} />
+          <SezioneLavorazioni {...baseProps} companyId={pos.company_id} orderId={pos.order_id} posId={pos.id} puoLeggereComputo={puoLeggereComputo} mancanti={perSezione.get("lavorazioni") ?? 0}
+            vociDaCompletare={mancanti} contesto={datiApp?.contesto ?? null} pscVigente={avvio?.stato === "non_previsto" ? null : avvio?.psc} onProponiAi={apriProposteAi} proponendo={proponendo} />
           <SezionePsc {...baseProps} companyId={pos.company_id} orderId={pos.order_id} lettura={contestoLetturaPsc} onLetturaPronta={ro ? undefined : apriProposteAi} mancanti={perSezione.get("psc") ?? 0} />
           {companyId && <SezioneAllegati {...baseProps} mancanti={perSezione.get("allegati") ?? 0} companyId={companyId} posId={pos.id} />}
 
@@ -599,7 +739,31 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
           </section>
         </div>
         </AperturaSezioniContext.Provider>
+        {anteprimaAffiancata && <aside aria-label="Anteprima PDF dal vivo" className={`sticky top-20 flex min-h-0 min-w-0 flex-col gap-2 self-start ${sporco || iterSporco ? "h-[calc(100dvh-10rem)]" : "h-[calc(100dvh-7rem)]"}`}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">Anteprima della bozza in modifica</p>
+            <Button type="button" size="icon" variant="ghost" className="size-8" aria-label="Chiudi pannello PDF" onClick={() => {
+              setAnteprimaAperta(false);
+              pulsanteAnteprima.current?.focus({ preventScroll: true });
+            }}><X className="size-4" aria-hidden="true" /></Button>
+          </div>
+          <div className="min-h-0 flex-1">{anteprimaBozza}</div>
+        </aside>}
       </div>
+
+      {anteprimaAperta && !anteprimaAffiancata && !approvato && <Dialog open onOpenChange={setAnteprimaAperta}>
+        <DialogContent className="flex h-[100dvh] max-h-none max-w-none flex-col gap-2 overflow-hidden rounded-none p-3 sm:h-[92dvh] sm:max-w-4xl sm:rounded-xl"
+          onCloseAutoFocus={event => {
+            event.preventDefault();
+            pulsanteAnteprima.current?.focus({ preventScroll: true });
+          }}>
+          <DialogHeader className="shrink-0 pr-10">
+            <DialogTitle>Anteprima PDF dal vivo</DialogTitle>
+            <DialogDescription className="sr-only">PDF della bozza in modifica.</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1">{anteprimaBozza}</div>
+        </DialogContent>
+      </Dialog>}
 
       {companyId && <StoricoContenutiPos companyId={companyId} posId={pos.id} codiceCommessa={pos.commessa?.order_code} />}
 
@@ -611,7 +775,7 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
             <div className="flex gap-2">
               <Button variant="ghost" disabled={salva.isPending||approva.isPending} onClick={() => {
                 modifiche.current++; versioneLetta.current=pos.updated_at;
-                setBozza(contenutoDiPartenza()); setIter(pos.iter); setSporco(compilaSubito || aggiornaControlli); setIterSporco(false);
+                setBozza(contenutoDiPartenza()); setIter(pos.iter); setSporco(!!precompilato || aggiornaControlli); setIterSporco(false);
               }}>Annulla</Button>
               <Button onClick={() => void salvaOra()} disabled={salva.isPending||approva.isPending}>
                 {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}Salva
@@ -623,15 +787,25 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
 
       {/* Voci mancanti */}
       <Dialog open={!!mancantiServer} onOpenChange={(o) => !o && setMancantiServer(null)}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto" onCloseAutoFocus={event => {
+          const destinazione = destinazioneElenco.current;
+          if (!destinazione) return;
+          event.preventDefault();
+          destinazioneElenco.current = null;
+          if (typeof destinazione === "string") vaiASezione(destinazione);
+          else vaiAVoce(destinazione);
+        }}>
           <DialogHeader>
-            <DialogTitle>Il POS non ha ancora tutti i contenuti minimi</DialogTitle>
+            <DialogTitle>{guidaAttiva ? "Voci da completare" : "Il POS non ha ancora tutti i contenuti minimi"}</DialogTitle>
             <DialogDescription>
-              Un POS senza uno degli elementi dell'Allegato XV è sanzionabile (art. 159 del D.Lgs 81/2008). Completa queste voci, poi approva.
+              Scegli una voce per aprirla nella bozza.
             </DialogDescription>
           </DialogHeader>
           <CosaManca voci={mancantiServer ?? []} lavorazioni={bozza.lavorazioni} ro={ro}
-            onVai={(sezione) => { setMancantiServer(null); vaiASezione(sezione); }}
+            onVai={(sezione, voce) => {
+              destinazioneElenco.current = voce ?? sezione;
+              setMancantiServer(null);
+            }}
             onConfermaProdotti={(ids) => {
               const applica = (x: PosContenuto) => { for (const l of x.lavorazioni) if (ids.includes(l.id)) l.prodotti_riesaminati = true; };
               modifica(applica);
@@ -650,8 +824,8 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
         }}/>}
 
       {perimetroAi && !ro && <PerimetroAiPos companyId={pos.company_id} orderId={pos.order_id} posId={pos.id} inSubappalto={subappalto} psc={contestoLetturaPsc}
-        occupato={proponendo} errore={erroreProposte} onClose={() => setPerimetroAi(false)} onGenera={proponiAi} />}
-      {proposte && !ro && <RevisioneProposteAiPos risultato={proposte} modalitaVuota={!bozza.opera.modalita_organizzative.trim()}
+        iniziale={perimetroAi} occupato={proponendo} errore={erroreProposte} onClose={() => setPerimetroAi(null)} onGenera={proponiAi} />}
+      {proposte && !ro && <RevisioneProposteAiPos risultato={proposte} modalitaVuota={!bozza.opera.modalita_organizzative.trim()} destinazioneId={proposte.destinazioneId}
         preesistenti={bozza.lavorazioni} onClose={() => setProposte(null)} onApplica={(lavorazioni, modalita, aggiornamenti) => {
           modifica(d => {
             if (modalita && !d.opera.modalita_organizzative.trim()) {
@@ -659,13 +833,18 @@ function EditorPos({ pos, datiApp, puoScrivere, senzaPrecompilazione, fontiNonDi
               d.opera.modalita_organizzative_da_verificare = true;
             }
             for (const proposta of lavorazioni) {
-              const idEsistente = aggiornamenti[proposta.id];
-              if (!idEsistente) {
-                d.lavorazioni.push(proposta);
+              const scelta = aggiornamenti[proposta.id];
+              if (!scelta) {
+                if (!d.lavorazioni.some(l => stessaLavorazionePos(proposta, l))) d.lavorazioni.push(proposta);
                 continue;
               }
-              const esistente = d.lavorazioni.find(l => l.id === idEsistente);
-              if (!esistente || !proposta.fonti_scheda) continue;
+              const esistente = d.lavorazioni.find(l => l.id === scelta.id);
+              if (!esistente) continue;
+              if (scelta.modo === "testi") {
+                inserisciTestiLavorazione(esistente, proposta, "ai");
+                continue;
+              }
+              if (!proposta.fonti_scheda) continue;
               const quesiti = esistente.fonti_scheda?.quesiti ?? [];
               const nuovi = (proposta.fonti_scheda.quesiti ?? []).filter(q => !quesiti.some(x => x.domanda === q.domanda));
               esistente.fonti_scheda = {

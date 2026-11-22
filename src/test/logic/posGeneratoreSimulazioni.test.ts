@@ -27,6 +27,19 @@ describe("Simulazioni del generatore POS", () => {
     for (const r of p) expect(testo.replace(/\s+/g, " ")).toContain(r.estratto);
   });
 
+  it("distingue un rinvio alla planimetria dall’ubicazione del punto di raccolta", () => {
+    const proposte = proponiEmergenzeDalPsc({ riferimento, pagine: [{ pagina: 139, metodo: "ocr", testo: [
+      "11.6 PUNTO DI RACCOLTA",
+      "Bisogna prevedere l’individuazione del punto di raccolta nel cantiere.",
+      "Il punto di raccolta è indicato all’interno del",
+      "Layout di cantiere allegato al PSC.",
+    ].join("\n") }] });
+    expect(proposte).toEqual([expect.objectContaining({
+      campo: "planimetria", pagina: 139, revisione: "02", metodo: "ocr",
+      estratto: "Il punto di raccolta è indicato all’interno del Layout di cantiere allegato al PSC.",
+    })]);
+  });
+
   it("cantiere stradale con fasi: conserva due accessi distinti e ignora il segnaposto", () => {
     const r = proponiEmergenzeDalPsc({ riferimento, pagine: [
       { pagina: 31, testo: "Fase A. I mezzi di soccorso accedono dal cancello sud presso il km 6." },

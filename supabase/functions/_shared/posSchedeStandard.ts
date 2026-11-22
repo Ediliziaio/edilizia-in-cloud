@@ -5,6 +5,9 @@ export const FONTI_SCHEDE_POS = {
   modello: { titolo: "Ministero del Lavoro · Modello semplificato POS, Allegato I", url: "https://www.lavoro.gov.it/documenti-e-norme/normative/Documents/2014/Decreto_Interministeriale_9_settembre_2014.pdf" },
   cantieri: { titolo: "INAIL · Quaderni tecnici per i cantieri", url: "https://www.inail.it/portale/it/inail-comunica/news/notizia.2018.10.-quaderni-tecnici-per-i-cantieri-temporanei-o-mobili-sul-portale-inail-la-nuova-edizione.html" },
   infortuni: { titolo: "INAIL · Infortuni in edilizia, scheda Infor.MO 18", url: "https://www.inail.it/content/dam/inail-hub-site/documenti/2022/03/Scheda%2018%20InforMO%2C0.pdf" },
+  elettrico: { titolo: "INAIL · Valutazione e gestione del rischio elettrico", url: "https://www.inail.it/portale/prevenzione-e-sicurezza/it/come-fare-per/conoscere-il-rischio/rischio-elettrico/valutazione-e-gestione-del-rischio.html" },
+  sollevamento: { titolo: "INAIL · Scelta e messa a disposizione dell’attrezzatura", url: "https://www.inail.it/portale/prevenzione-e-sicurezza/it/come-fare-per/conoscere-il-rischio/attrezzature-di-lavoro/scelta-e-messa-a-disposizione-dell-attrezzatura.html" },
+  strade: { titolo: "Ministero del Lavoro · Attività in presenza di traffico veicolare", url: "https://www.lavoro.gov.it/sites/default/files/documenti-e-norme/normative/Documents/2019/DI-22012019-segnaletica-stradale.pdf" },
 } as const;
 
 interface SchedaStandardPos {
@@ -45,8 +48,36 @@ export const SCHEDE_STANDARD_POS: readonly SchedaStandardPos[] = [
     quesiti: ["Quali elementi e impianti sono stati verificati?", "Come si segregano l’area e il percorso dei materiali di risulta?"], fonte: "infortuni",
   },
   {
+    id: "tramezzi", titolo: "Realizzazione di tramezzi", area: "Opere edili",
+    chiavi: ["tramezz", "divisorio in laterizio", "divisori in laterizio"],
+    descrizione: "Realizzazione di tramezzi nelle aree indicate dalla commessa.",
+    prima: "Verificare le zone di lavoro, i materiali previsti e le indicazioni sui passaggi da mantenere disponibili.",
+    durante: "Organizzare movimentazione, taglio e posa lungo il fronte concordato. Coordinare le attività nelle aree condivise.",
+    dopo: "Verificare le condizioni per la consegna della zona e il ripristino dei passaggi.",
+    rischi: [
+      ["Movimentazione e deposito dei materiali", "Indicare percorso, modalità di movimentazione e area di deposito effettivi."],
+      ["Polveri e interferenze durante la posa", "Confermare metodo di taglio, delimitazioni e gestione dei passaggi condivisi."],
+    ],
+    quesiti: ["In quale zona si realizza il tramezzo e con quali materiali?", "Quali percorsi restano disponibili e chi coordina la consegna dell’area?"],
+    fonte: "infortuni",
+  },
+  {
+    id: "varco", titolo: "Apertura di un varco", area: "Opere edili",
+    chiavi: ["realizzazione varco", "realizzazione del varco", "apertura varco", "apertura di un varco", "apertura di varchi", "apertura varchi"],
+    descrizione: "Apertura di un varco nell’elemento individuato nel progetto o nel sopralluogo.",
+    prima: "Confermare la natura dell’elemento e verificare gli impianti interferenti. Definire con il tecnico competente le condizioni per iniziare.",
+    durante: "Attenersi alla sequenza verificata per il cantiere e gestire le interferenze con passaggi e altre lavorazioni.",
+    dopo: "Verificare le condizioni di stabilità e accessibilità prima della riconsegna.",
+    rischi: [
+      ["Instabilità o caduta di parti", "Collegare i riscontri sulla struttura, le eventuali opere provvisionali e la sequenza concordata."],
+      ["Interferenza con impianti e persone", "Identificare impianti, delimitazioni e percorsi prima di autorizzare l’area di lavoro."],
+    ],
+    quesiti: ["Quale parete è interessata e come è stata verificata la sua natura?", "Quali impianti interferiscono e dove sono riportate le condizioni per iniziare?"],
+    fonte: "infortuni",
+  },
+  {
     id: "murature", titolo: "Murature e ripristini strutturali", area: "Opere edili",
-    chiavi: ["muratura", "murature", "tramezz", "ripristini struttural", "calcestruzzo", "sottofond", "massetto"],
+    chiavi: ["muratura", "murature", "ripristini struttural", "calcestruzzo", "sottofond", "massetto"],
     descrizione: "Realizzazione di nuove murature, riprese e ripristini nelle zone previste.",
     prima: "Verificare supporti, quote, accessi, stabilità e condizioni di consegna dell’area.",
     durante: "Organizzare la posa per tratti, tenere sotto controllo materiali e attrezzature e coordinare gli attraversamenti impiantistici.",
@@ -184,6 +215,36 @@ export const SCHEDE_STANDARD_POS: readonly SchedaStandardPos[] = [
     rischi: [["Rimozione anticipata di protezioni comuni", "Definire chi può autorizzare la rimozione e chi verifica le lavorazioni ancora attive."], ["Interferenza durante carico e pulizia", "Separare carrelli, mezzi e pedoni fino alla completa restituzione delle aree."]],
     quesiti: ["Quali protezioni devono restare disponibili fino a fine lavori?", "Chi conferma la restituzione delle aree e dei percorsi?"], fonte: "infortuni",
   },
+  {
+    id: "fotovoltaico", titolo: "Posa di impianti fotovoltaici", area: "Impianti",
+    chiavi: ["fotovoltaic", "moduli fotovoltaici", "pannelli solari fotovoltaici", "stringhe solari"],
+    descrizione: "Movimentazione, posa dei moduli e attività elettriche previste dal progetto.",
+    prima: "Verificare accessi, supporti, eventuale lavoro in quota, percorsi di movimentazione e perimetro delle attività elettriche.",
+    durante: "Coordinare posa meccanica e attività elettriche con le squadre incaricate. Verificare le condizioni dell’area prima delle prove.",
+    dopo: "Registrare lo stato dell’impianto e degli accessi, i riscontri delle prove e le eventuali limitazioni residue.",
+    rischi: [["Caduta dall’alto o di componenti", "Indicare per quali superfici e fronti servono protezioni e zone interdette."], ["Rischio elettrico durante posa e prove", "Far definire alle figure competenti le condizioni dei circuiti, le procedure e gli incarichi effettivi."]],
+    quesiti: ["Dove si posano i moduli e quali accessi e protezioni sono confermati?", "Chi coordina attività elettriche, prove e riconsegna?"], fonte: "elettrico",
+  },
+  {
+    id: "sollevamento", titolo: "Sollevamento e posa di carichi", area: "Opere edili",
+    chiavi: ["sollevamento carich", "sollevamento material", "autogru", "autogrù", "gru a torre", "posa prefabbricat"],
+    descrizione: "Organizzazione del sollevamento e del posizionamento dei carichi individuati per la fase.",
+    prima: "Confermare carico, punti di presa, attrezzatura, percorso e condizioni delle aree di partenza e arrivo.",
+    durante: "Seguire la procedura definita per l’attrezzatura e coordinare operatori e accessi lungo l’area coinvolta.",
+    dopo: "Verificare stabilità e consegna della zona di posa e registrare le condizioni residue prima di riaprire i passaggi.",
+    rischi: [["Caduta o oscillazione del carico", "Verificare compatibilità di carico, attrezzatura e accessori e individuare l’area da delimitare."], ["Interferenze con mezzi, persone e ostacoli", "Definire chi gestisce le manovre, le comunicazioni e i percorsi."]],
+    quesiti: ["Quali carichi, accessori e attrezzature risultano dal piano di lavoro?", "Quale area e quali addetti sono coinvolti durante le manovre?"], fonte: "sollevamento",
+  },
+  {
+    id: "traffico", titolo: "Lavori stradali in presenza di traffico", area: "Opere edili",
+    chiavi: ["cantiere stradale", "cantieri stradali", "lavori stradali", "traffico veicolare", "segnaletica temporanea stradale"],
+    descrizione: "Attività lungo la viabilità con possibile interferenza tra squadre e traffico.",
+    prima: "Verificare il tratto, la disciplina del traffico, lo schema applicabile e gli incarichi previsti per la segnaletica.",
+    durante: "Coordinare le attività secondo le procedure definite per il tratto e rilevare variazioni di visibilità, traffico o accessi.",
+    dopo: "Registrare le modalità di rimozione della segnaletica e le condizioni autorizzate di restituzione della viabilità.",
+    rischi: [["Investimento da traffico veicolare", "Verificare delimitazioni, schema segnaletico, comunicazioni e procedure per gli addetti."], ["Interferenza con pedoni e accessi laterali", "Definire percorsi, varchi e coordinamento con il gestore del tratto."]],
+    quesiti: ["Quale schema si applica al tratto e chi ne verifica l’attuazione?", "Quali passaggi e accessi laterali devono restare disponibili?"], fonte: "strade",
+  },
 ];
 
 export const testoRicercaSchedePos = (v: string) =>
@@ -191,7 +252,14 @@ export const testoRicercaSchedePos = (v: string) =>
 
 export function suggerisciSchedePos(testo: string) {
   const normalizzato = " " + testoRicercaSchedePos(testo) + " ";
-  return SCHEDE_STANDARD_POS.filter(s => s.chiavi.some(k => normalizzato.includes(" " + k)));
+  if (/\b(?:sola fornitura|fornitura senza posa|esclusa la posa|posa esclusa)\b/.test(normalizzato)) {
+    return /\b(?:scarico|consegna in cantiere)\b/.test(normalizzato)
+      ? SCHEDE_STANDARD_POS.filter(s => s.id === "allestimento")
+      : [];
+  }
+  const proposte = SCHEDE_STANDARD_POS.filter(s => s.chiavi.some(k => normalizzato.includes(" " + testoRicercaSchedePos(k))));
+  // Un ripristino generico non descrive le verifiche necessarie per l’apertura in una parete esistente.
+  return proposte.some(s => s.id === "varco" || s.id === "tramezzi") ? proposte.filter(s => s.id !== "murature") : proposte;
 }
 
 export function nuovaDaSchedaStandard(s: SchedaStandardPos, id: string): Lavorazione {
@@ -199,7 +267,7 @@ export function nuovaDaSchedaStandard(s: SchedaStandardPos, id: string): Lavoraz
     ...lavorazioneVuota(id),
     titolo: s.titolo, descrizione: s.descrizione, modalita: [s.prima, s.durante, s.dopo].join("\n"),
     origine: "modello", verificata: false,
-    ...(s.id === "demolizioni" ? { programma_demolizioni: programmaDemolizioniVuoto() } : {}),
+    ...(["demolizioni", "varco"].includes(s.id) ? { programma_demolizioni: programmaDemolizioniVuoto() } : {}),
     fonti_scheda: { standard: { id: s.id, versione: VERSIONE_SCHEDE_POS }, quesiti: s.quesiti.map(domanda => ({ domanda, risposta: "" })) },
     tecnica: {
       ...tecnicaPosVuota(), prima: s.prima, durante: s.durante, dopo: s.dopo,

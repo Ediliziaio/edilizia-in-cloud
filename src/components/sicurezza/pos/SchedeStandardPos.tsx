@@ -1,14 +1,16 @@
-import { useState } from "react";
-import { BookOpen, Plus, Search } from "lucide-react";
+import { useRef, useState } from "react";
+import { BookOpen, Loader2, Plus, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { chiamaServerPos } from "@/hooks/usePos";
 import { useFasiFascicolo } from "@/hooks/useFascicoloCantiere";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { CAMPI_TESTO_LAVORAZIONE, modelloSuggeritoPos, testiMancantiDaProposta } from "@/lib/sicurezza/testiLavorazionePos";
 import { FONTI_SCHEDE_POS, SCHEDE_STANDARD_POS, nuovaDaSchedaStandard, testoRicercaSchedePos } from "../../../../supabase/functions/_shared/posSchedeStandard";
 import type { FontePscSchedaPos, FontiSchedaPos } from "../../../../supabase/functions/_shared/posFontiScheda";
-import type { Lavorazione } from "../../../../supabase/functions/_shared/posModello";
+import { daCompletare, type Lavorazione } from "../../../../supabase/functions/_shared/posModello";
 
 export function CatalogoSchedeStandardPos({ companyId, orderId, onAggiungi }: {
   companyId?: string; orderId?: string; onAggiungi: (l: Lavorazione) => void;
@@ -79,6 +81,56 @@ function AssociaFaseScheda({ companyId, orderId, fase, scegliFase }: {
   </label>;
 }
 
+export function TestiStandardLavorazionePos({ lavorazione, onInserisci }: {
+  lavorazione: Lavorazione;
+  onInserisci: (proposta: Lavorazione) => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const [scelta, setScelta] = useState("");
+  if (CAMPI_TESTO_LAVORAZIONE.every(c => lavorazione[c.id].trim())) return null;
+  const modello = SCHEDE_STANDARD_POS.find(s => s.id === scelta);
+  const proposta = aperto && modello ? nuovaDaSchedaStandard(modello, lavorazione.id) : null;
+  const testi = proposta ? testiMancantiDaProposta(lavorazione, proposta) : [];
+  return (
+    <Dialog open={aperto} onOpenChange={valore => {
+      if (valore) {
+        setScelta(modelloSuggeritoPos(lavorazione.titolo, lavorazione.fonti_scheda?.standard?.id)?.id ?? "");
+      }
+      setAperto(valore);
+    }}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm"><BookOpen className="size-4" aria-hidden="true" /> Testi pronti</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Testi pronti per la lavorazione</DialogTitle>
+          <DialogDescription>{lavorazione.titolo.trim() || "Lavorazione senza titolo"}. Scegli un modello per precompilare i campi di testo vuoti.</DialogDescription>
+        </DialogHeader>
+        <label className="block space-y-1 text-sm font-medium">
+          <span>Modello di testo</span>
+          <select className="block min-h-9 w-full rounded-md border bg-background px-2 font-normal"
+            value={modello?.id ?? ""} onChange={e => setScelta(e.target.value)}>
+            <option value="">Scegli una scheda standard</option>
+            {SCHEDE_STANDARD_POS.map(s => <option key={s.id} value={s.id}>{s.titolo}</option>)}
+          </select>
+        </label>
+        {testi.map(({ id, titolo, testo }) => <div key={id} className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
+          <p className="font-medium">{titolo}</p>
+          <p className="whitespace-pre-wrap break-words text-muted-foreground">{testo}</p>
+        </div>)}
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
+          <Button type="button" disabled={!proposta || !testi.length} onClick={() => {
+            if (!proposta || !testi.length) return;
+            onInserisci(proposta);
+            setAperto(false);
+          }}>Inserisci testi mancanti</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function RiferimentiSchedaPos({ fonti, superato = false, usaPrescrizione, rimuoviPsc, confermaOcr, apriOriginale }: {
   fonti: FontiSchedaPos; superato?: boolean;
   usaPrescrizione?: (estratto: FontePscSchedaPos["estratti"][number]) => void;
@@ -135,17 +187,82 @@ export function RiferimentiSchedaPos({ fonti, superato = false, usaPrescrizione,
   );
 }
 
-export function QuesitiSchedaPos({ quesiti, readonly, rispondi }: {
-  quesiti: NonNullable<FontiSchedaPos["quesiti"]>; readonly: boolean; rispondi: (n: number, risposta: string) => void;
+type RisposteScheda = NonNullable<FontiSchedaPos["quesiti"]>;
+
+export function QuesitiSchedaPos({ quesiti, readonly, rispondi, proposta, prefissoCampo }: {
+  quesiti: RisposteScheda; readonly: boolean; rispondi: (n: number, risposta: string) => void;
+  prefissoCampo?: string;
+  proposta?: { companyId: string; posId: string; aggiungiAllaModalita: (testo: string) => void };
 }) {
   return (
     <fieldset className="space-y-2 rounded-md border p-2.5">
       <legend className="px-1 text-xs font-semibold">Dettagli da confermare sul cantiere</legend>
       {quesiti.map((q, n) => <label key={n} className="block space-y-1 text-xs">
         <span>{q.domanda}</span>
-        <Textarea rows={2} maxLength={1500} placeholder="Indica il dato verificato o perché il punto non si applica" value={q.risposta}
+        <Textarea id={prefissoCampo ? `${prefissoCampo}-${n}` : undefined} rows={2} maxLength={1500} placeholder="Indica il dato verificato o perché il punto non si applica" value={q.risposta}
           readOnly={readonly} onChange={e => rispondi(n, e.target.value)} />
       </label>)}
+      {!readonly && proposta && <TestoDalleRisposte {...proposta} risposte={quesiti.filter(q => !daCompletare(q.risposta))} />}
     </fieldset>
   );
+}
+
+function TestoDalleRisposte({ companyId, posId, risposte, aggiungiAllaModalita }: {
+  companyId: string; posId: string; risposte: RisposteScheda; aggiungiAllaModalita: (testo: string) => void;
+}) {
+  const [aperto, apri] = useState(false);
+  const [testo, scrivi] = useState("");
+  const [attesa, setAttesa] = useState(false);
+  const [errore, setErrore] = useState("");
+  const [fonteUsata, setFonteUsata] = useState("");
+  const richiestaInCorso = useRef(false);
+  const fonte = JSON.stringify(risposte);
+
+  async function genera() {
+    if (richiestaInCorso.current || !risposte.length) return;
+    richiestaInCorso.current = true;
+    setAttesa(true);
+    setErrore("");
+    try {
+      const r = await chiamaServerPos<{ testo: string }>({ azione: "testo_lavorazione_ai", company_id: companyId, pos_id: posId, risposte });
+      scrivi(r.testo);
+      setFonteUsata(fonte);
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : "Proposta non disponibile. Riprova.");
+    } finally {
+      richiestaInCorso.current = false;
+      setAttesa(false);
+    }
+  }
+
+  return <>
+    <Button type="button" size="sm" variant="outline" disabled={!risposte.length} onClick={() => {
+      scrivi(""); setErrore(""); apri(true);
+    }}><Sparkles className="size-4" aria-hidden="true" /> Prepara testo dalle risposte</Button>
+    <Dialog open={aperto} onOpenChange={v => { if (!attesa) apri(v); }}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Testo per la fase di lavoro</DialogTitle>
+          <DialogDescription>L’AI riformula le risposte che hai compilato. Rileggi il testo prima di aggiungerlo alla modalità di lavoro.</DialogDescription>
+        </DialogHeader>
+        <dl className="max-h-36 space-y-2 overflow-auto text-xs">
+          {risposte.map((q, i) => <div key={i}><dt className="font-medium">{q.domanda}</dt><dd className="break-words">{q.risposta}</dd></div>)}
+        </dl>
+        <Button type="button" size="sm" variant="outline" disabled={attesa || !risposte.length} onClick={() => void genera()}>
+          {attesa && <Loader2 className="mr-1 size-4 animate-spin" aria-hidden="true" />}
+          {attesa ? "Preparo il testo…" : testo ? "Rigenera proposta" : "Genera proposta"}
+        </Button>
+        {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
+        {!!testo && <Textarea aria-label="Testo proposto per la fase di lavoro" rows={6} maxLength={3000}
+          value={testo} onChange={e => scrivi(e.target.value)} readOnly={attesa} />}
+        {!!testo && fonteUsata !== fonte && <p role="status" className="text-xs text-muted-foreground">Le risposte sono cambiate. Rigenera la proposta.</p>}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => apri(false)} disabled={attesa}>Annulla</Button>
+          <Button type="button" disabled={attesa || !testo.trim() || fonteUsata !== fonte} onClick={() => {
+            aggiungiAllaModalita(testo.trim()); apri(false);
+          }}>Aggiungi alla modalità di lavoro</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>;
 }

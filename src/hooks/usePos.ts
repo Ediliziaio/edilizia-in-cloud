@@ -88,11 +88,11 @@ function daDb(r: RigaDb): PosRiga {
   };
 }
 
-export function usePosElenco(orderId?: string) {
+export function usePosElenco(orderId?: string, enabled = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: orderId ? [...chiavi.elenco(companyId), orderId] : chiavi.elenco(companyId),
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     queryFn: async (): Promise<PosRiga[]> => {
       const rows = await readAllPages((from, to) => {
         let query = supabase.from("pos_documents").select(SELECT_POS)
@@ -241,13 +241,23 @@ export async function emettiPos(r: { companyId: string; posId: string; attesaUpd
   }
 }
 
+export const chiaveDatiAppPos = (companyId: string | null, posId?: string) => ["pos-dati-app", companyId, posId] as const;
+
 export function useCreaPos() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orderId, ruoloImpresa, sorgentePos, modelloId }: { orderId: string; ruoloImpresa?: string; sorgentePos?: Pick<PosRiga, "id" | "updated_at">; modelloId?: string }) =>
-      chiamaServerPos<{ pos_id: string; avvisi: string[] }>({ azione: "crea", company_id: companyId, order_id: orderId, ruolo_impresa: ruoloImpresa, sorgente_pos_id: sorgentePos?.id, attesa_updated_at: sorgentePos?.updated_at, modello_id: modelloId }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pos"] }),
+    mutationFn: async ({ orderId, ruoloImpresa, sorgentePos, modelloId, manuale }: { orderId: string; ruoloImpresa?: string; sorgentePos?: Pick<PosRiga, "id" | "updated_at">; modelloId?: string; manuale?: boolean }) => {
+      const creato = await chiamaServerPos<{ pos_id: string; avvisi: string[]; contesto?: ContestoPos }>({
+        azione: manuale ? "crea_manuale" : "crea", company_id: companyId, order_id: orderId, ruolo_impresa: ruoloImpresa,
+        sorgente_pos_id: sorgentePos?.id, attesa_updated_at: sorgentePos?.updated_at, modello_id: modelloId,
+      });
+      return { ...creato, companyId };
+    },
+    onSuccess: ({ pos_id, contesto, companyId: azienda }) => {
+      if (azienda && pos_id && contesto) qc.setQueryData(chiaveDatiAppPos(azienda, pos_id), { contesto });
+      void qc.invalidateQueries({ queryKey: chiavi.elenco(azienda) });
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "POS non creato"),
   });
 }

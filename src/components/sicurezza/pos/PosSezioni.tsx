@@ -7,8 +7,9 @@ import { CAMPI_EMERGENZE_POS, dpiPrevistiPos, type CampoEmergenzePos } from "../
 import { apriRapportoRumorePos, ConsegneDpiLavorazionePos, ScegliRapportoRumorePos } from "./EvidenzeOperativePos";
 import { ProgrammaDemolizioniPos } from "./ProgrammaDemolizioniPos";
 import type { RiferimentoPsc } from "../../../../supabase/functions/_shared/posPsc";
-import { CatalogoSchedeStandardPos, QuesitiSchedaPos, RiferimentiSchedaPos } from "./SchedeStandardPos";
-import { ocrPscDaConfermare, pscSchedaDaRiesaminare } from "../../../../supabase/functions/_shared/posFontiScheda";
+import { CatalogoSchedeStandardPos, QuesitiSchedaPos, RiferimentiSchedaPos, TestiStandardLavorazionePos } from "./SchedeStandardPos";
+import { inserisciTestiLavorazione } from "@/lib/sicurezza/testiLavorazionePos";
+import { chiaviFontiLavorazionePos, ocrPscDaConfermare, pscSchedaDaRiesaminare } from "../../../../supabase/functions/_shared/posFontiScheda";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {RiferimentoPscPos} from "./RiferimentoPscPos";
 import {SegnaleticaLavorazionePos} from "./SegnaleticaLavorazionePos";
@@ -36,11 +37,13 @@ import {
   ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, RIFERIMENTI_SEZIONE, RSPP_LABEL, RUOLO_IMPRESA_LABEL, SVOLGIMENTO_LABEL,
   applicaValutazione, lavorazioneVuota, soggettoVuoto, titoloDemolizionePos, valutazioneDaElenchi, vociMancanti,
   type GestioneEmergenze, type Lavorazione, type PosContenuto, type RsppSvoltoDa, type RuoloImpresa, type Svolgimento,
-  type AllegatoPos, type TipoAllegato,
+  type AllegatoPos, type TipoAllegato, type VoceMancante,
 } from "../../../../supabase/functions/_shared/posModello";
 import type { ContestoPos } from "../../../../supabase/functions/_shared/posModello";
 import { caricaAllegatoPos, linkAllegatoPos } from "@/hooks/usePos";
-import { useFasiFascicolo } from "@/hooks/useFascicoloCantiere";
+import { RisorseNonPrevistePos } from "./RisorseNonPrevistePos";
+import { FasiDaCommessaPos } from "./FasiDaCommessaPos";
+import { TestiOrganizzazionePos } from "./TestiOrganizzazionePos";
 
 import { ProdottiLavorazionePos } from "./ProdottiLavorazionePos";
 import { FunzioniAvanzatePos } from "./FunzioniAvanzatePos";
@@ -111,6 +114,13 @@ export function SezioneOpera({ d, modifica, ro, mancanti }: BaseProps) {
 
       <Area id="descr-att" label="Descrizione sintetica delle attività che saranno svolte in cantiere" rows={3} value={o.descrizione_attivita} readOnly={ro}
         onChange={(v) => modifica((x) => { x.opera.descrizione_attivita = v; })} />
+      {!ro && <TestiOrganizzazionePos turniPresenti={!!o.turni_lavoro.trim()} onInserisci={(righe, turni) => modifica(x => {
+        const precedenti = x.opera.modalita_organizzative.trim();
+        const esistenti = new Set(precedenti.split("\n").map(riga => riga.trim()));
+        const nuove = righe.filter(riga => !esistenti.has(riga));
+        if (nuove.length) x.opera.modalita_organizzative = [precedenti, ...nuove].filter(Boolean).join("\n");
+        if (turni && !x.opera.turni_lavoro.trim()) x.opera.turni_lavoro = turni;
+      })} />}
       <div className="grid gap-3 sm:grid-cols-2">
         <Area id="mod-org" label="Modalità organizzative" rows={3} value={o.modalita_organizzative} readOnly={ro}
           placeholder="Es.: accesso al cantiere dal cancello su via…, area di stoccaggio materiali nel cortile, servizi igienici chimici, orari di consegna"
@@ -626,23 +636,43 @@ export function SezioneRumore({ d, modifica, ro, mancanti, companyId, orderId, p
 interface LavorazioniProps extends BaseProps {
   companyId?:string;
   orderId?:string;
+  puoLeggereComputo?: boolean;
+  posId?: string;
   contesto: ContestoPos | null;
   pscVigente?: RiferimentoPsc | null;
-  onProponiAi: () => void;
+  onProponiAi: (lavorazione?: Lavorazione) => void;
   proponendo: boolean;
+  vociDaCompletare?: readonly VoceMancante[];
 }
 
-export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo, companyId, orderId, pscVigente }: LavorazioniProps) {
-  // Quante voci mancano a ogni scheda: una scheda completa si chiude, quella da fare resta aperta (le altre si aprono a un tocco).
+export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo, companyId, orderId, puoLeggereComputo, posId, pscVigente, vociDaCompletare }: LavorazioniProps) {
   const mancantiPerScheda = useMemo(() => {
     const m = new Map<string, number>();
-    for (const v of vociMancanti(d)) if (v.lavorazione_id) m.set(v.lavorazione_id, (m.get(v.lavorazione_id) ?? 0) + 1);
+    for (const v of vociDaCompletare ?? vociMancanti(d)) if (v.lavorazione_id) m.set(v.lavorazione_id, (m.get(v.lavorazione_id) ?? 0) + 1);
     return m;
-  }, [d]);
-  const [apertaScheda, setApertaScheda] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(d.lavorazioni.map((l) => [l.id, ro || (mancantiPerScheda.get(l.id) ?? 0) > 0 || (l.origine !== "utente" && !l.verificata)])));
+  }, [d, vociDaCompletare]);
+  const [apertaScheda, setApertaScheda] = useState<Record<string, boolean>>(() => {
+    const primaDaCompletare = d.lavorazioni.find(l => (mancantiPerScheda.get(l.id) ?? 0) > 0);
+    return Object.fromEntries(d.lavorazioni.map(l => [l.id, ro || l.id === primaDaCompletare?.id]));
+  });
   const schedaAperta = (id: string) => apertaScheda[id] ?? true;
-  const alternaScheda = (id: string) => setApertaScheda((a) => ({ ...a, [id]: !(a[id] ?? true) }));
+  const alternaScheda = (id: string) => setApertaScheda(a => ({ ...a, [id]: !(a[id] ?? true) }));
+  function aggiungiDaFasi(nuove: Lavorazione[]) {
+    if (!nuove.length) return;
+    setApertaScheda(precedenti => ({
+      ...precedenti,
+      ...Object.fromEntries(nuove.map((l, i) => [l.id, i === 0])),
+    }));
+    modifica(x => {
+      const collegate = new Set(x.lavorazioni.flatMap(chiaviFontiLavorazionePos));
+      for (const lavorazione of nuove) {
+        const chiavi = chiaviFontiLavorazionePos(lavorazione);
+        if (chiavi.some(chiave => collegate.has(chiave))) continue;
+        x.lavorazioni.push(lavorazione);
+        chiavi.forEach(chiave => collegate.add(chiave));
+      }
+    });
+  }
   const campo = (l: Lavorazione, n: number, k: keyof Lavorazione, label: string, righe = 2, placeholder?: string) => (
     <Area id={`lv-${n}-${k}`} label={label} rows={righe} value={String(l[k] ?? "")} readOnly={ro} placeholder={placeholder}
       onChange={(v) => modifica((x) => { (x.lavorazioni[n] as unknown as Record<string, unknown>)[k] = v; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
@@ -653,8 +683,10 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
       azioni={!ro ? (
         // Telefono: due icone (prima i due pulsanti col testo uscivano dallo schermo e «Scheda vuota» si tagliava).
         <div className="flex flex-wrap gap-2">
+          {companyId && orderId && <FasiDaCommessaPos companyId={companyId} orderId={orderId} lavorazioni={d.lavorazioni}
+            puoLeggereComputo={puoLeggereComputo} ditte={contesto?.subappaltatori.map(s => s.ragione_sociale)} onAggiungi={aggiungiDaFasi} />}
           <CatalogoSchedeStandardPos companyId={companyId} orderId={orderId} onAggiungi={l => modifica(x => { x.lavorazioni.push(l); })} />
-          <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Proponi con l'AI" title="Proponi le lavorazioni con l'AI" onClick={onProponiAi} disabled={proponendo}>
+          <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Proponi con l'AI" title="Proponi le lavorazioni con l'AI" onClick={() => onProponiAi()} disabled={proponendo}>
             {proponendo ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden="true" /> : <Sparkles className="h-4 w-4 sm:mr-1" aria-hidden="true" />}<span className="max-sm:hidden">Proponi con l'AI</span>
           </Button>
           <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Aggiungi una scheda vuota" title="Aggiungi una scheda vuota" onClick={() => modifica((x) => { const nuova = lavorazioneVuota(nuovoId()); applicaValutazione(nuova, valutazioneDaElenchi(nuova)); x.lavorazioni.push(nuova); })}>
@@ -669,12 +701,21 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
           {contesto.subappaltatori.length > 0 && <p className="mt-1"><span className="font-medium">Subappaltatori della commessa:</span> {contesto.subappaltatori.map((s) => s.tipo_lavori ? `${s.ragione_sociale} (${s.tipo_lavori})` : s.ragione_sociale).join(", ")}</p>}
         </div>
       )}
-      {!ro && companyId && orderId && <AggiungiLavorazioneDaFase companyId={companyId} orderId={orderId} lavorazioni={d.lavorazioni} modifica={modifica} />}
-      {d.lavorazioni.length === 0 && <p className="text-sm text-muted-foreground">Nessuna lavorazione. Parti da una scheda standard, da una fase della commessa o da una proposta AI.</p>}
+      {d.lavorazioni.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{d.lavorazioni.length} lavorazioni nel POS</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {!ro && <RisorseNonPrevistePos lavorazioni={d.lavorazioni} modifica={modifica} />}
+          {d.lavorazioni.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => {
+            const apriTutte = !d.lavorazioni.some(l => schedaAperta(l.id));
+            setApertaScheda(Object.fromEntries(d.lavorazioni.map(l => [l.id, apriTutte])));
+          }}>{d.lavorazioni.some(l => schedaAperta(l.id)) ? "Comprimi schede" : "Espandi schede"}</Button>}
+        </div>
+      </div>}
+      {d.lavorazioni.length === 0 && <p className="text-sm text-muted-foreground">Nessuna lavorazione. Parti da una scheda standard, dalle lavorazioni della commessa o da una proposta AI.</p>}
       {d.lavorazioni.map((l, n) => (
-        <div key={l.id} className={`rounded-xl border ${l.origine !== "utente" && !l.verificata ? "border-amber-300 bg-amber-50/30" : "bg-slate-50/50"}`}>
+        <div key={l.id} data-pos-lavorazione={l.id} className={`rounded-xl border ${l.origine !== "utente" && !l.verificata ? "border-amber-300 bg-amber-50/30" : "bg-slate-50/50"}`}>
           <div className={cn("flex flex-wrap items-center gap-2 px-3 py-2", schedaAperta(l.id) && "border-b")}>
-            <button type="button" onClick={() => alternaScheda(l.id)} aria-expanded={schedaAperta(l.id)} aria-label={`${schedaAperta(l.id) ? "Chiudi" : "Apri"} la lavorazione ${n + 1}`}
+            <button type="button" data-pos-apri-scheda onClick={() => alternaScheda(l.id)} aria-expanded={schedaAperta(l.id)} aria-label={`${schedaAperta(l.id) ? "Chiudi" : "Apri"} la lavorazione ${n + 1}`}
               className="flex h-8 shrink-0 items-center gap-0.5 rounded-md bg-slate-200 px-1.5 text-xs font-bold">
               {n + 1}<ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !schedaAperta(l.id) && "-rotate-90")} aria-hidden="true" />
             </button>
@@ -707,7 +748,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
               </div>
             )}
           </div>
-          <div className={cn("grid gap-3 p-3 sm:grid-cols-2", !schedaAperta(l.id) && "hidden")}>
+          {schedaAperta(l.id) && <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
             {l.fonti_scheda && <div className="space-y-3 sm:col-span-2">
               <RiferimentiSchedaPos fonti={l.fonti_scheda}
                 superato={pscSchedaDaRiesaminare(l.fonti_scheda.psc, pscVigente === undefined ? d.procedure_psc.documento : pscVigente)}
@@ -740,7 +781,14 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
                   scheda.verificata = false;
                   if (scheda.tecnica) scheda.tecnica.riesaminata = false;
                 })} />
-              {!!l.fonti_scheda.quesiti?.length && <QuesitiSchedaPos quesiti={l.fonti_scheda.quesiti} readonly={ro}
+              {!!l.fonti_scheda.quesiti?.length && <QuesitiSchedaPos quesiti={l.fonti_scheda.quesiti} readonly={ro} prefissoCampo={`lv-${n}-quesito`}
+                proposta={companyId && posId ? { companyId, posId, aggiungiAllaModalita: testo => modifica(x => {
+                  const scheda = x.lavorazioni[n];
+                  if (scheda.modalita.trim().split("\n\n").includes(testo)) return;
+                  scheda.modalita = [scheda.modalita.trim(), testo].filter(Boolean).join("\n\n");
+                  scheda.verificata = false;
+                  if (scheda.tecnica) scheda.tecnica.riesaminata = false;
+                }) } : undefined}
                 rispondi={(i, risposta) => modifica(x => {
                   const scheda = x.lavorazioni[n];
                   const q = scheda.fonti_scheda?.quesiti?.[i];
@@ -752,6 +800,15 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             </div>}
             {d.versione_tecnica===1&&<TecnicaLavorazionePos d={d} n={n} ro={ro} modifica={modifica} companyId={companyId} orderId={orderId}/>}
             <SegnaleticaLavorazionePos l={l} ro={ro} onChange={segnaletica=>modifica(x=>{x.lavorazioni[n].segnaletica=segnaletica;x.lavorazioni[n].verificata=false;if(x.lavorazioni[n].tecnica)x.lavorazioni[n].tecnica!.riesaminata=false;})}/>
+            {!ro && (!l.descrizione.trim() || !l.modalita.trim()) && <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <TestiStandardLavorazionePos lavorazione={l} onInserisci={proposta => modifica(x => {
+                const corrente = x.lavorazioni.find(scheda => scheda.id === l.id);
+                if (corrente) inserisciTestiLavorazione(corrente, proposta, "modello");
+              })} />
+              {l.titolo.trim() && <Button type="button" variant="outline" size="sm" onClick={() => onProponiAi(l)} disabled={proponendo}>
+                <Sparkles className="size-4" aria-hidden="true" /> Proponi testo con l’AI
+              </Button>}
+            </div>}
             {campo(l, n, "descrizione", "Descrizione della lavorazione")}
             {campo(l, n, "modalita", "Modalità e organizzazione della fase di lavoro")}
             {(l.programma_demolizioni || titoloDemolizionePos(l.titolo)) && <ProgrammaDemolizioniPos id={`pos-demolizioni-${n}`} valore={l.programma_demolizioni} preposti={d.preposti.map(p => p.nominativo.trim())}
@@ -766,7 +823,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             {campo(l, n, "macchine", "Macchine e attrezzature", 2, "Anche «Nessuna»")}
             {campo(l, n, "impianti", "Impianti", 2, "Elettrico di cantiere, idrico… o «Nessuno»")}
             <RischiLavorazionePos l={l} n={n} ro={ro} cambia={(fn) => modifica((x) => { const lav = x.lavorazioni[n]; fn(lav); invalidaProdottiLavorazione(lav); if (lav.origine !== "utente") lav.verificata = false; })} />
-            {schedaAperta(l.id) && <ConsegneDpiLavorazionePos l={l} companyId={companyId} orderId={orderId} ro={ro}
+            <ConsegneDpiLavorazionePos l={l} companyId={companyId} orderId={orderId} ro={ro}
               aggiungi={r => modifica(x => {
                 const lav = x.lavorazioni[n];
                 const precedenti = (lav.riscontri_dpi ?? []).filter(v => v.previsto !== r.previsto || v.consegna_id !== r.consegna_id);
@@ -784,7 +841,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
               togli={r => modifica(x => {
                 const lav = x.lavorazioni[n];
                 lav.riscontri_dpi = lav.riscontri_dpi?.filter(v => v.previsto !== r.previsto || v.consegna_id !== r.consegna_id);
-              })} />}
+              })} />
             {campo(l, n, "turni", "Turni di lavoro", 3)}
             <Campo id={`lv-${n}-durata`} label="Durata presunta (giorni)" type="number" value={l.durata_giorni == null ? "" : String(l.durata_giorni)} readOnly={ro}
               onChange={(v) => modifica((x) => { x.lavorazioni[n].durata_giorni = v === "" ? null : Math.max(0, Math.round(Number(v) || 0)); invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
@@ -805,56 +862,14 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             {d.versione_requisiti_addetti===1&&companyId&&orderId&&<RequisitiLavorazionePos companyId={companyId} orderId={orderId} d={d} l={l} n={n} modifica={modifica} ro={ro}/>}
             {l.origine !== "utente" && (
               <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-white p-2 text-sm sm:col-span-2">
-                <Checkbox checked={l.verificata} disabled={ro || ocrPscDaConfermare(l.fonti_scheda?.psc) || !!l.fonti_scheda?.quesiti?.some(q => !q.risposta.trim()) || pscSchedaDaRiesaminare(l.fonti_scheda?.psc, d.procedure_psc.documento)} onCheckedChange={(c) => modifica((x) => { x.lavorazioni[n].verificata = c === true; })} className="mt-0.5" />
+                <Checkbox id={`lv-${n}-conferma`} checked={l.verificata} disabled={ro || ocrPscDaConfermare(l.fonti_scheda?.psc) || !!l.fonti_scheda?.quesiti?.some(q => !q.risposta.trim()) || pscSchedaDaRiesaminare(l.fonti_scheda?.psc, d.procedure_psc.documento)} onCheckedChange={(c) => modifica((x) => { x.lavorazioni[n].verificata = c === true; })} className="mt-0.5" />
                 Ho letto questa scheda, l'ho adattata al cantiere e la confermo
               </label>
             )}
-          </div>
+          </div>}
         </div>
       ))}
     </Sezione>
-  );
-}
-
-function AggiungiLavorazioneDaFase({ companyId, orderId, lavorazioni, modifica }: {
-  companyId: string; orderId: string; lavorazioni: Lavorazione[]; modifica: Modifica;
-}) {
-  const fasi = useFasiFascicolo(companyId, orderId);
-  const [faseDaInserire, setFaseDaInserire] = useState("");
-  const fasiDisponibili = (fasi.data ?? []).filter((fase) => !lavorazioni.some((l) => l.fase_id === fase.id));
-  const faseScelta = fasiDisponibili.find((fase) => fase.id === faseDaInserire);
-  const aggiungiDaFase = () => {
-    if (!faseScelta) return;
-    modifica((x) => {
-      if (x.lavorazioni.some((l) => l.fase_id === faseScelta.id)) return;
-      const nuova = lavorazioneVuota(nuovoId());
-      nuova.titolo = faseScelta.name;
-      nuova.fase_id = faseScelta.id;
-      applicaValutazione(nuova, valutazioneDaElenchi(nuova));
-      x.lavorazioni.push(nuova);
-    });
-    setFaseDaInserire("");
-  };
-  return (
-    <>
-      {fasiDisponibili.length > 0 && (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <Label htmlFor="pos-fase-da-inserire">Parti da una fase della commessa</Label>
-            <UniformSelect id="pos-fase-da-inserire" className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-              value={faseScelta?.id ?? ""} onChange={(e) => setFaseDaInserire(e.target.value)}>
-              <option value="">Scegli la fase</option>
-              {fasiDisponibili.map((fase) => <option key={fase.id} value={fase.id}>{fase.name}</option>)}
-            </UniformSelect>
-          </div>
-          <Button type="button" size="sm" variant="outline" disabled={!faseScelta} onClick={aggiungiDaFase}>Aggiungi la fase</Button>
-          <p className="w-full text-xs text-muted-foreground">La scheda riprende il titolo e il collegamento. Completa rischi, misure e DPI del lavoro effettivo.</p>
-        </div>
-      )}
-      {fasi.isError && (
-        <p role="alert" className="text-sm text-muted-foreground">Fasi della commessa non disponibili. <button type="button" className="underline" onClick={() => void fasi.refetch()}>Riprova</button> oppure aggiungi una scheda vuota.</p>
-      )}
-    </>
   );
 }
 

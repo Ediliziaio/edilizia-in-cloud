@@ -283,6 +283,7 @@ export function ProdottiLavorazionePos({
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
+          id={`lv-${n}-riesame-prodotti`}
           checked={l.prodotti_riesaminati === true}
           disabled={ro}
           onChange={(e) =>

@@ -106,7 +106,7 @@ function rischiMisureHtml(l: Lavorazione, n: number, v: ValutazioneLavorazione):
 }
 
 /** Gli elenchi di cantiere (lettere d ed e) a partire dalle lavorazioni; vuoti se non c'è nessuna lavorazione. */
-export function elenchiCantiereHtml(p: PosContenuto): string {
+export function elenchiCantiereHtml(p: PosContenuto, segnalaCampiVuoti = true): string {
   const senzaLavorazioni = `<p class="vuoto-blocco">Da indicare nelle schede delle lavorazioni.</p>`;
   const opere = raggruppaVoci(p.lavorazioni, (l) => vociElenco(l.opere_provvisionali).map((voce) => ({ voce })));
   const macchine = raggruppaVoci(p.lavorazioni, (l) => [
@@ -117,20 +117,26 @@ export function elenchiCantiereHtml(p: PosContenuto): string {
   const impianti = raggruppaVoci(p.lavorazioni, (l) => vociElenco(l.impianti).map((voce) => ({ voce })));
   const righeCantiere = ([["Opera provvisionale", opere], ["Macchina o attrezzatura", macchine], ["Impianto", impianti]] as const)
     .flatMap(([tipo, voci]) => voci.map((v) => `<tr><td>${esc(tipo)}</td><td>${esc(v.voce)}${v.dettaglio ? `<br>${esc(v.dettaglio)}` : ""}</td><td>${esc(numeriLavorazioni(v.lavorazioni))}</td></tr>`)).join("");
+  const cantiereDaCompletare = segnalaCampiVuoti && p.lavorazioni.some(l =>
+    [l.opere_provvisionali, l.macchine, l.impianti].some(campo => !campo.trim())
+  );
   const cantiere = `<h3>Elenco dei ponteggi, delle opere provvisionali, delle macchine e degli impianti utilizzati in cantiere <span class="rif">(3.2.1 lettera d)</span></h3>`
     + (!p.lavorazioni.length ? senzaLavorazioni : righeCantiere
       ? `<table><tr><th style="width:24%">Tipo</th><th>Voce</th><th style="width:16%">Lavorazioni</th></tr>${righeCantiere}</table>`
-      : `<p>Nessuna opera provvisionale, macchina o impianto dichiarato nelle lavorazioni.</p>`);
+      : cantiereDaCompletare ? "" : `<p>Nessuna opera provvisionale, macchina o impianto dichiarato nelle lavorazioni.</p>`)
+    + (cantiereDaCompletare ? `<p class="vuoto-blocco">Elenco di opere provvisionali, macchine e impianti da completare nelle schede.</p>` : "");
   const schedeAllegate = p.allegati.some((a) => a.tipo === "scheda_sicurezza");
   const sostanze = raggruppaVoci(p.lavorazioni, (l) => [
     ...vociElenco(l.sostanze).map(senzaNotaSds).filter(Boolean).map((voce) => ({ voce })),
     ...(l.prodotti || []).filter((pr) => pr.nome.trim()).map((pr) => ({ voce: `${pr.nome.trim()}${pr.produttore ? ` (${pr.produttore})` : ""}`, dettaglio: sdsDelProdotto(pr) })),
   ]);
   const righeSostanze = sostanze.map((v) => `<tr><td>${esc(v.voce)}</td><td>${esc(numeriLavorazioni(v.lavorazioni))}</td><td>${esc(v.dettaglio || (schedeAllegate ? "Vedi l'elenco degli allegati" : "Da allegare"))}</td></tr>`).join("");
+  const sostanzeDaCompletare = segnalaCampiVuoti && p.lavorazioni.some(l => !l.sostanze.trim());
   const elencoSostanze = `<h3>Elenco delle sostanze e dei preparati pericolosi utilizzati in cantiere <span class="rif">(3.2.1 lettera e)</span></h3>`
     + (!p.lavorazioni.length ? senzaLavorazioni : righeSostanze
       ? `<table><tr><th>Sostanza o preparato</th><th style="width:16%">Lavorazioni</th><th style="width:30%">Scheda di sicurezza</th></tr>${righeSostanze}</table>`
-      : `<p>Nessuna sostanza o preparato pericoloso dichiarato nelle lavorazioni.</p>`);
+      : sostanzeDaCompletare ? "" : `<p>Nessuna sostanza o preparato pericoloso dichiarato nelle lavorazioni.</p>`)
+    + (sostanzeDaCompletare ? `<p class="vuoto-blocco">Elenco delle sostanze e dei preparati pericolosi da completare nelle schede.</p>` : "");
   return cantiere + elencoSostanze;
 }
 
@@ -286,6 +292,7 @@ export function costruisciHtmlPos(d: DatiStampaPos): string {
     return valore ? [`<tr><td class="et">${esc(label)}</td><td>${testo(valore)}</td></tr>`] : [];
   }).join("") : "";
 
+  const quantitaComputo = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 });
   const lavorazioni = p.lavorazioni.length
     ? p.lavorazioni.map((l, i) => `
       <table class="griglia lavorazione">
@@ -306,8 +313,12 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
           <tr><td class="et" colspan="2">Preposto alla sorveglianza</td><td>${testo(l.programma_demolizioni.preposto)}</td></tr>` : ""}
         ${l.programma_demolizioni?.applicabilita === "no" && l.programma_demolizioni.motivo ? `<tr><td class="et" colspan="2">Programma delle demolizioni non applicabile</td><td>${testo(l.programma_demolizioni.motivo)}</td></tr>` : ""}
         ${l.fonti_scheda?.computo ? `<tr><td class="et" colspan="2">Riferimenti al computo</td><td>${testo([
-          l.fonti_scheda.computo.titolo, l.fonti_scheda.computo.voci.map(v => v.codice || v.titolo).join(", "),
-        ].filter(Boolean).join(" · "))}</td></tr>` : ""}
+          l.fonti_scheda.computo.titolo,
+          ...l.fonti_scheda.computo.voci.map(v => [
+            v.codice || v.titolo,
+            v.quantita == null ? "" : [quantitaComputo.format(v.quantita), v.unita].filter(Boolean).join(" "),
+          ].filter(Boolean).join(" · ")),
+        ].filter(Boolean).join("\n"))}</td></tr>` : ""}
         ${l.fonti_scheda?.psc ? `<tr><td class="et" colspan="2">Riferimenti al PSC</td><td>${testo(`Rev. ${l.fonti_scheda.psc.revisione} · pagine ${[...new Set(l.fonti_scheda.psc.estratti.map(r => r.pagina))].join(", ")}${l.fonti_scheda.psc.estratti.some(r => r.metodo === "ocr") ? "\nEstratti OCR: " + l.fonti_scheda.psc.estratti.filter(r => r.metodo === "ocr").map(r => `pag. ${r.pagina} ${r.confermato ? "confrontata" : "da confrontare"}`).join(", ") : ""}`)}</td></tr>` : ""}
         ${(l.fonti_scheda?.quesiti ?? []).filter(q => q.risposta.trim()).map(q =>
           `<tr><td class="et" colspan="2">${testo(q.domanda)}</td><td>${testo(q.risposta)}</td></tr>`).join("")}
@@ -492,7 +503,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
 
   <h2>${iconaPosSvg(ICONE_POS[7].id)}Lavorazioni svolte in cantiere <span class="rif">(3.2.1 lettera a) punto 2 e lettere c, d, e, g, i, h)</span></h2>
   ${lavorazioni}
-  ${elenchiCantiereHtml(p)}
+  ${elenchiCantiereHtml(p, bozza)}
   <h3>Elenco dei dispositivi di protezione individuale previsti dalle lavorazioni <span class="rif">(3.2.1 lettera i)</span></h3>
   <p class="nota">L’elenco indica i DPI previsti. La consegna ai singoli lavoratori richiede le relative evidenze; non è attestata dalla sola scheda di lavorazione.</p>
   ${dpi.length ? `<ul>${dpi.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p class="vuoto-blocco">Da indicare nelle schede delle lavorazioni.</p>`}
@@ -502,7 +513,11 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
     <table><tr><th>Lavorazione</th><th>DPI previsto</th><th>Addetto</th><th>DPI registrato</th><th>Consegnato il</th></tr>${riscontriDpi}</table>` : ""}
 
   <h2>${iconaPosSvg(ICONE_POS[8].id)}Procedure complementari o di dettaglio richieste dal PSC (se previsto) <span class="rif">(3.2.1 lettera h)</span></h2>
-  <p>${psc.psc_presente ? "" : "Per questo cantiere non è previsto il PSC. "}Nel PSC sono state richieste delle procedure complementari o di dettaglio: ${casella(!psc.richieste, "no")} ${casella(psc.richieste, "si")}</p>
+  ${!psc.psc_presente && bozza
+    ? `<p class="nota">PSC non riportato nella bozza. Verificare l’applicabilità in Avvio sicurezza.</p>`
+    : psc.psc_presente && bozza && !psc.richieste
+      ? `<p class="nota">Procedure di dettaglio da verificare rispetto al PSC di riferimento.</p>`
+      : `<p>${psc.psc_presente ? "" : "Per questo cantiere non è previsto il PSC. "}Nel PSC sono state richieste delle procedure complementari o di dettaglio: ${casella(!psc.richieste, "no")} ${casella(psc.richieste, "si")}</p>`}
   ${psc.psc_presente ? psc.documento ? `<table><tr><th colspan="2">Originale PSC di riferimento dichiarato dal compilatore</th></tr><tr><td>Titolo / file</td><td>${esc(psc.documento.titolo)} · ${esc(psc.documento.file_name)}</td></tr><tr><td>Revisione / data</td><td>${esc(psc.documento.revisione)} · ${esc(psc.documento.data_documento||"Non indicata")}</td></tr><tr><td>Identificazione</td><td>${esc(psc.documento.archivio)} · ${esc(psc.documento.id)}</td></tr><tr><td>SHA-256</td><td>${esc(psc.documento.sha256)}</td></tr></table><p class="nota">Il riferimento identifica il file consultato; non attesta la verifica tecnica del PSC o della coerenza del POS.</p>` : `<p class="nota">Originale PSC non collegato: riferimento documentale da completare.</p>` : ""}
   ${procedure ? `<table><tr><th class="num">N</th><th>Procedura richiesta nel PSC</th><th>Indicazioni complementari e di dettaglio</th></tr>${procedure}</table>` : ""}
 

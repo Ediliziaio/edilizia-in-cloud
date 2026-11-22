@@ -99,9 +99,11 @@ export function Sezione({ id, numero, titolo, riferimento, mancanti, descrizione
   );
   return (
     <section id={`pos-${id}`} className="scroll-mt-24 rounded-xl border bg-card" aria-labelledby={`pos-${id}-titolo`}>
-      {/* Mobile: titolo e stato su una riga; il riferimento normativo e la
-          descrizione restano al computer. */}
-      <header className={cn("flex flex-wrap items-start justify-between gap-2 px-4 py-3 max-sm:flex-nowrap max-sm:items-center max-sm:px-3 max-sm:py-2.5", aperta && "border-b")}>
+      <header className={cn(
+        "flex flex-wrap items-start justify-between gap-2 px-4 py-3 max-sm:items-center max-sm:px-3 max-sm:py-2.5",
+        azioni ? "max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto]" : "max-sm:flex-nowrap",
+        aperta && "border-b",
+      )}>
         <div className="min-w-0">
           <h2 id={`pos-${id}-titolo`} className="text-sm font-semibold sm:text-base max-sm:text-[13px] max-sm:leading-tight">
             {apertura
@@ -112,7 +114,7 @@ export function Sezione({ id, numero, titolo, riferimento, mancanti, descrizione
           <p className="mt-0.5 pl-8 text-[11px] text-muted-foreground max-sm:hidden">Allegato XV, {riferimento}</p>
           {descrizione && <div className="mt-1 pl-8 text-xs text-muted-foreground max-sm:hidden">{descrizione}</div>}
         </div>
-        <div className="flex items-center gap-2 max-sm:shrink-0">
+        <div className={cn("flex items-center gap-2 max-sm:shrink-0", azioni && "max-sm:contents")}>
           {mancanti > 0 ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200">
               <AlertTriangle className="h-3 w-3" aria-hidden="true" />
@@ -125,7 +127,7 @@ export function Sezione({ id, numero, titolo, riferimento, mancanti, descrizione
               <span className="max-sm:hidden">Completa</span>
             </span>
           )}
-          {azioni}
+          {azioni && <div className="min-w-0 max-sm:col-span-2">{azioni}</div>}
         </div>
       </header>
       <div id={`pos-${id}-corpo`} hidden={!aperta} className="space-y-4 p-4 max-sm:space-y-3 max-sm:p-3">{children}</div>

@@ -57,16 +57,17 @@ interface BarraProps extends MenuProps {
   percento: number;
   mancantiTotali: number;
   onMostraMancanti: () => void;
+  sempreVisibile?: boolean;
 }
 
 /**
  * Telefono e tablet: una barra sottile che resta in cima mentre si scorre (un POS arriva a decine di schermate), con le
  * sezioni a un tocco, l'avanzamento e le voci mancanti. Prima non c'era nessun modo di spostarsi se non scorrere.
  */
-export function BarraSezioniPos({ sezioni, onVai, onComprimiComplete, onEspandiTutto, percento, mancantiTotali, onMostraMancanti }: BarraProps) {
+export function BarraSezioniPos({ sezioni, onVai, onComprimiComplete, onEspandiTutto, percento, mancantiTotali, onMostraMancanti, sempreVisibile = false }: BarraProps) {
   const [aperto, setAperto] = useState(false);
   return (
-    <div className="sticky top-0 z-30 -mx-1 border-b bg-background/95 px-1 py-1.5 backdrop-blur lg:hidden" role="region" aria-label="Avanzamento del POS">
+    <div className={`sticky top-0 z-30 -mx-1 border-b bg-background/95 px-1 py-1.5 backdrop-blur ${sempreVisibile ? "" : "lg:hidden"}`} role="region" aria-label="Avanzamento del POS">
       <div className="flex items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="tap-compact h-9 shrink-0 gap-1.5 px-2.5" onClick={() => setAperto(true)} aria-haspopup="dialog">
           <ListTree className="h-4 w-4" aria-hidden="true" />Sezioni

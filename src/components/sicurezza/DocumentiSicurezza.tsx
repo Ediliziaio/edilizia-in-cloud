@@ -123,6 +123,8 @@ export function CaricaDocumentoSicurezzaDialog({
   open,
   onOpenChange,
   preset,
+  onCaricati,
+  soloPsc = false,
 }: {
   companyId: string;
   /** Commessa fissa (vista della commessa); senza, si sceglie. */
@@ -130,6 +132,8 @@ export function CaricaDocumentoSicurezzaDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   preset?: PresetCaricamento;
+  onCaricati?: (percorsi: string[]) => void;
+  soloPsc?: boolean;
 }) {
   const formId = useId();
   const uploadInCorso = useRef(false);
@@ -164,14 +168,14 @@ export function CaricaDocumentoSicurezzaDialog({
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    // Qualunque formato: PDF, foto, Word, Excel, disegni. Il limite è la dimensione.
+    accept: soloPsc ? { "application/pdf": [".pdf"] } : undefined,
     maxSize: tipo === "psc" ? LIMITE_PSC_BYTES : LIMITE_FILE_SICUREZZA,
     disabled: carica.isPending,
     onDrop: (accettati, rifiutati) => {
       if (uploadInCorso.current) return;
       if (rifiutati.length)
         toast.error(
-          `${rifiutati.length} file superano i ${tipo === "psc" ? 20 : 50} MB.`,
+          `${rifiutati.length} file rifiutati. ${soloPsc ? "Usa un PDF fino a 20 MB." : `Limite ${tipo === "psc" ? 20 : 50} MB per file.`}`,
         );
       setFile((f) => [
         ...f,
@@ -226,7 +230,8 @@ export function CaricaDocumentoSicurezzaDialog({
       })),
       {
         onSettled: () => { uploadInCorso.current = false; },
-        onSuccess: () => {
+        onSuccess: (percorsi) => {
+          onCaricati?.(percorsi);
           toast.success(
             file.length === 1
               ? "Documento caricato"
@@ -251,9 +256,9 @@ export function CaricaDocumentoSicurezzaDialog({
     >
       <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Carica documenti di sicurezza</DialogTitle>
+          <DialogTitle>{soloPsc ? "Carica il PSC della commessa" : "Carica documenti di sicurezza"}</DialogTitle>
           <DialogDescription>
-            {tipo === "psc" ? "Originale PSC fino a 20 MB per file." : "Documenti fino a 50 MB per file."}
+            {tipo === "psc" ? "Carica il PDF originale o salva la scansione come PDF. Massimo 20 MB per file." : "Documenti fino a 50 MB per file."}
           </DialogDescription>
         </DialogHeader>
         <fieldset disabled={carica.isPending} className="min-w-0 space-y-3">
@@ -308,6 +313,7 @@ export function CaricaDocumentoSicurezzaDialog({
             <Label htmlFor={`${formId}-tipo`}>Tipo di documento</Label>
             <Select
               value={tipo}
+              disabled={soloPsc}
               onValueChange={(v) => setTipo(v as TipoDocumentoSicurezza)}
             >
               <SelectTrigger id={`${formId}-tipo`}>
@@ -330,7 +336,7 @@ export function CaricaDocumentoSicurezzaDialog({
           {!orderId && (
             <div className="space-y-1">
               <Label htmlFor={`${formId}-commessa`}>Commessa</Label>
-              <Select value={commessa} onValueChange={setCommessa}>
+              <Select value={commessa} disabled={soloPsc} onValueChange={setCommessa}>
                 <SelectTrigger id={`${formId}-commessa`}>
                   <SelectValue />
                 </SelectTrigger>
@@ -351,7 +357,7 @@ export function CaricaDocumentoSicurezzaDialog({
           {orderId && (
             <div className="space-y-1">
               <Label htmlFor={`${formId}-ambito`}>Vale per</Label>
-              <Select value={commessa} onValueChange={setCommessa}>
+              <Select value={commessa} disabled={soloPsc} onValueChange={setCommessa}>
                 <SelectTrigger id={`${formId}-ambito`}>
                   <SelectValue />
                 </SelectTrigger>
@@ -366,7 +372,7 @@ export function CaricaDocumentoSicurezzaDialog({
           )}
           <div className="space-y-1">
             <Label htmlFor={`${formId}-impresa`}>Impresa</Label>
-            <Select value={sub} onValueChange={setSub}>
+            <Select value={sub} disabled={soloPsc} onValueChange={setSub}>
               <SelectTrigger id={`${formId}-impresa`}>
                 <SelectValue />
               </SelectTrigger>

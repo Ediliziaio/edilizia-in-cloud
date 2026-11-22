@@ -9,10 +9,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { nuovaDaSchedaStandard, SCHEDE_STANDARD_POS } from "../../../supabase/functions/_shared/posSchedeStandard";
 import { lavorazioneVuota, posVuoto, type PosContenuto } from "../../../supabase/functions/_shared/posModello";
 
 const stato = vi.hoisted(() => ({
   errore: null as Error | null,
+  puoLeggereComputo: false,
+  leggiComputo: vi.fn(),
+  fasiExtra: [] as Array<{ id: string; name: string }>,
   pos: null as unknown,
   sceltaPscDaConfermare: false,
   approva: vi.fn(),
@@ -26,6 +30,12 @@ const stato = vi.hoisted(() => ({
 }));
 
 const pscDellaProva = () => (stato.pos as { contenuto?: PosContenuto } | null)?.contenuto?.procedure_psc.documento;
+vi.mock("../../../supabase/functions/_shared/posComputo", () => ({
+  leggiComputoPerPos: stato.leggiComputo,
+}));
+vi.mock("@/components/sicurezza/pos/AnteprimaBozzaPos", () => ({
+  AnteprimaBozzaPos: ({ contenuto }: { contenuto: PosContenuto }) => <output>{contenuto.impresa.datore_lavoro}</output>,
+}));
 vi.mock("@/hooks/usePscCommessa", () => ({
   usePscCommessa: () => ({ data: pscDellaProva() ? [{ ...pscDellaProva(), created_at: "" }] : [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }),
   identificaPsc: vi.fn(),
@@ -56,6 +66,7 @@ vi.mock("@/hooks/usePos", () => {
   }
   return {
     ErrorePos,
+    chiaveDatiAppPos: (azienda: string, id: string) => ["pos-dati-app", azienda, id],
     usePos: () => ({ data: stato.pos, isLoading: false, error: stato.errore, refetch: vi.fn() }),
     useSalvaPos: () => ({mutate:stato.salva,mutateAsync:stato.salva,isPending:false}),
     useApprovaPos: () => ({ mutate: vi.fn(), mutateAsync: stato.approva, isPending: stato.approvaInCorso, fase: stato.approvaInCorso ? stato.fase : null, annulla: stato.annulla }),
@@ -68,16 +79,15 @@ vi.mock("@/hooks/usePos", () => {
   };
 });
 vi.mock("@/hooks/usePermissions", () => ({
-  usePermissions: () => ({ canViewSicurezzaCantiere: true, isAdmin: true, solaLettura: false }),
+  usePermissions: () => ({ canViewSicurezzaCantiere: true, isAdmin: true, solaLettura: false, canViewOrders: stato.puoLeggereComputo }),
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 
 import { chiamaServerPos, datiAppPos, lavorazioniAiPos } from "@/hooks/usePos";
 import PosEditor from "@/pages/azienda/sicurezza/PosEditor";
-import { changeFormControl } from "@/test/helpers/changeFormControl";
 
 vi.mock("@/hooks/useFascicoloCantiere", () => ({
-  useFasiFascicolo: () => ({ data: [{ id: "fase-demo", name: "Preparazione del cantiere" }], isError: false }),
+  useFasiFascicolo: () => ({ data: [{ id: "fase-demo", name: "Preparazione del cantiere" }, ...stato.fasiExtra], isError: false }),
   useCommesseFascicolo: () => ({ data: [] as never[], isLoading: false, isError: false }),
 }));
 
@@ -90,7 +100,7 @@ beforeAll(() => {
     (globalThis as unknown as { structuredClone: unknown }).structuredClone = (v: unknown) => JSON.parse(JSON.stringify(v));
   }
 });
-afterEach(() => { cleanup(); stato.errore = null; stato.sceltaPscDaConfermare = false; stato.approva.mockReset(); stato.salva.mockReset(); stato.approvaInCorso = false; stato.anteprimaInCorso = false; stato.fase = null; stato.annulla.mockReset(); stato.apriAnteprima.mockReset(); vi.mocked(lavorazioniAiPos).mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); vi.mocked(chiamaServerPos).mockReset().mockResolvedValue({ lettura: null }); });
+afterEach(() => { cleanup(); stato.errore = null; stato.puoLeggereComputo = false; stato.leggiComputo.mockReset(); stato.fasiExtra = []; stato.sceltaPscDaConfermare = false; stato.approva.mockReset(); stato.salva.mockReset(); stato.approvaInCorso = false; stato.anteprimaInCorso = false; stato.fase = null; stato.annulla.mockReset(); stato.apriAnteprima.mockReset(); vi.mocked(lavorazioniAiPos).mockReset(); vi.mocked(datiAppPos).mockImplementation(() => new Promise(() => {})); vi.mocked(chiamaServerPos).mockReset().mockResolvedValue({ lettura: null }); });
 
 function riga(contenuto: PosContenuto, status = "bozza") {
   // The complete fixture now includes a declared PSC original; this suite exercises save concurrency, not source verification.
@@ -105,8 +115,7 @@ function riga(contenuto: PosContenuto, status = "bozza") {
   };
 }
 
-function mostra() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function mostra(qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   const albero=()=> <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={["/azienda/sicurezza-cantiere/pos/pos-1"]}>
         <Routes><Route path="/azienda/sicurezza-cantiere/pos/:id" element={<PosEditor />} /></Routes>
@@ -116,6 +125,110 @@ function mostra() {
 }
 
 describe("editor del POS", () => {
+  it("la guida apre il primo campo, aggiorna il conteggio e raggiunge una scheda chiusa dall’elenco", async () => {
+    const contenuto = posVuoto();
+    contenuto.lavorazioni = [
+      { ...lavorazioneVuota("l1"), titolo: "Prima scheda" },
+      { ...lavorazioneVuota("l2"), titolo: "Seconda scheda" },
+    ];
+    stato.pos = riga(contenuto);
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Prepara la bozza POS" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Prepara la bozza POS" })).getByRole("button", { name: "Vai alla verifica" }));
+    const committente = screen.getByLabelText("Committente: cognome e nome o ragione sociale");
+    await waitFor(() => expect(committente).toHaveFocus(), { timeout: 4000 });
+    const guida = within(screen.getByRole("region", { name: "Compilazione guidata del POS" }));
+    const totaleIniziale = Number(guida.getByText(/^\d+ voci da completare$/).textContent?.split(" ")[0]);
+    fireEvent.change(committente, { target: { value: "Committente Demo" } });
+    expect(guida.getByText(`${totaleIniziale - 1} voci da completare`)).toBeInTheDocument();
+    fireEvent.click(guida.getByRole("button", { name: "Prossima voce" }));
+    await waitFor(() => expect(screen.getByLabelText("Committente: indirizzo")).toHaveFocus(), { timeout: 4000 });
+    expect(screen.getByRole("button", { name: "Apri la lavorazione 2" })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(guida.getByRole("button", { name: "Elenco" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Lavorazione «Seconda scheda»: descrizione/ }));
+    await waitFor(() => expect(document.getElementById("lv-1-descrizione")).toHaveFocus(), { timeout: 4000 });
+    expect(screen.getByRole("button", { name: "Chiudi la lavorazione 2" })).toHaveAttribute("aria-expanded", "true");
+    expect(stato.salva).not.toHaveBeenCalled();
+  });
+
+  it("prepara dati e testi da un solo passaggio, aggiunge solo le fasi confermate e verifica la bozza aggiornata", async () => {
+    const contenuto = posVuoto();
+    contenuto.impresa.sede_legale.telefono = "02123456";
+    contenuto.lavorazioni = [{
+      ...lavorazioneVuota("serramenti"), titolo: "Posa serramenti", fase_id: "fase-serramenti", descrizione: "Tre finestre sul cortile.",
+    }];
+    const originale = riga(contenuto);
+    const fonte = posVuoto();
+    fonte.opera.committente.nominativo = "Committente Demo";
+    fonte.impresa.sede_legale.indirizzo = "Via proposta";
+    stato.pos = originale;
+    stato.fasiExtra = [
+      { id: "fase-serramenti", name: "Posa serramenti" },
+      { id: "fase-cartongesso", name: "Posa cartongesso" },
+    ];
+    stato.salva.mockResolvedValue(originale);
+    vi.mocked(datiAppPos).mockResolvedValue({ contenuto: fonte, contesto: { avvisi: [], mezzi: [], subappaltatori: [] } });
+    mostra();
+    const apri = screen.getByRole("button", { name: "Prepara la bozza POS" });
+    fireEvent.click(apri);
+    let preparazione = within(screen.getByRole("dialog", { name: "Prepara la bozza POS" }));
+    expect(await preparazione.findByRole("checkbox", { name: "Committente" })).toBeChecked();
+    expect(preparazione.queryByRole("checkbox", { name: "Sede legale" })).toBeNull();
+    expect(preparazione.getByRole("checkbox", { name: "Posa serramenti" })).toBeChecked();
+    expect(preparazione.getAllByRole("checkbox", { name: "Posa serramenti" })).toHaveLength(1);
+    const cartongesso = preparazione.getByRole("checkbox", { name: "Posa cartongesso" });
+    expect(cartongesso).not.toBeChecked();
+    fireEvent.click(cartongesso);
+    fireEvent.click(preparazione.getByRole("button", { name: "Annulla" }));
+    expect(await screen.findByLabelText("Committente: cognome e nome o ragione sociale")).toHaveValue("");
+    expect(screen.queryByDisplayValue("Posa cartongesso")).toBeNull();
+    fireEvent.click(apri);
+    preparazione = within(screen.getByRole("dialog", { name: "Prepara la bozza POS" }));
+    expect(preparazione.getByRole("checkbox", { name: "Posa cartongesso" })).not.toBeChecked();
+    fireEvent.click(preparazione.getByRole("checkbox", { name: "Posa cartongesso" }));
+    fireEvent.click(preparazione.getByRole("button", { name: "Applica e vai alla verifica" }));
+    await waitFor(() => expect(screen.getByLabelText("Committente: indirizzo")).toHaveFocus(), { timeout: 4000 });
+    expect(screen.getByLabelText("Committente: cognome e nome o ragione sociale")).toHaveValue("Committente Demo");
+    expect(lavorazioniAiPos).not.toHaveBeenCalled();
+    expect(stato.salva).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva.mock.lastCall?.[0].contenuto).toMatchObject({
+      impresa: { sede_legale: { telefono: "02123456", indirizzo: "" } },
+      lavorazioni: [
+        { id: "serramenti", descrizione: "Tre finestre sul cortile.", modalita: expect.stringContaining("Confermare vani, pesi"), verificata: false },
+        { titolo: "Posa cartongesso", fase_id: "fase-cartongesso", fonti_scheda: { standard: expect.any(Object) }, verificata: false },
+      ],
+    }));
+  });
+
+  it("compila solo i campi di risorsa vuoti e le lavorazioni selezionate", async () => {
+    const contenuto = posVuoto();
+    contenuto.lavorazioni = [
+      { ...lavorazioneVuota("l1"), titolo: "Posa interna", macchine: "Trapano" },
+      { ...lavorazioneVuota("l2"), titolo: "Intervento manuale" },
+      { ...lavorazioneVuota("l3"), titolo: "Intervento da verificare" },
+    ];
+    const originale = riga(contenuto);
+    stato.pos = originale;
+    stato.salva.mockResolvedValue(originale);
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Risorse non previste" }));
+    const dialogo = within(screen.getByRole("dialog", { name: "Dichiara le risorse non previste" }));
+    expect(dialogo.getByRole("button", { name: "Compila 0 campi" })).toBeDisabled();
+    for (const nome of ["Posa interna", "Intervento manuale", "Macchine e attrezzature", "Impianti"]) {
+      fireEvent.click(dialogo.getByRole("checkbox", { name: nome }));
+    }
+    fireEvent.click(dialogo.getByRole("button", { name: "Compila 3 campi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva).toHaveBeenCalledOnce());
+    expect(stato.salva.mock.lastCall?.[0].contenuto.lavorazioni).toMatchObject([
+      { macchine: "Trapano", impianti: "Nessuno", sostanze: "" },
+      { macchine: "Nessuna", impianti: "Nessuno", sostanze: "" },
+      { macchine: "", impianti: "", sostanze: "" },
+    ]);
+    expect(stato.approva).not.toHaveBeenCalled();
+  });
+
   it('il confronto aggiorna soltanto la bozza e richiede ancora Salva',async()=>{
     const contenuto=posVuoto();stato.pos=riga(contenuto);const fonte=posVuoto();fonte.impresa.datore_lavoro='Datore aggiornato';vi.mocked(datiAppPos).mockResolvedValue({contenuto:fonte,contesto:{avvisi:[],mezzi:[],subappaltatori:[]}});mostra();fireEvent.click(screen.getByRole('button',{name:'Confronta dati dell’app'}));fireEvent.click(await screen.findByRole('checkbox',{name:'Sostituisci Datore di lavoro'}));fireEvent.click(screen.getByRole('button',{name:'Applica alla bozza (1)'}));expect((screen.getByLabelText('Datore di lavoro') as HTMLInputElement).value).toBe('Datore aggiornato');expect(stato.salva).not.toHaveBeenCalled();expect(stato.approva).not.toHaveBeenCalled();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();
   });
@@ -237,6 +350,44 @@ describe("la proposta dell'AI", () => {
     return originale;
   };
 
+  it("precompila il perimetro di una scheda e applica solo i testi vuoti alla stessa lavorazione", async () => {
+    const contenuto = posVuoto();
+    contenuto.lavorazioni = [{
+      ...lavorazioneVuota("l-esistente"), titolo: "Posa serramenti", fase_id: "fase-demo",
+      modalita: "Procedura di posa già definita.", macchine: "Ventosa manuale",
+      fonti_scheda: { quesiti: [{ domanda: "Quali ausili?", risposta: "Ventosa manuale" }] },
+    }];
+    const originale = riga(contenuto);
+    stato.pos = originale;
+    stato.salva.mockResolvedValue(originale);
+    vi.mocked(lavorazioniAiPos).mockResolvedValue({
+      lavorazioni: [{
+        ...lavorazioneVuota("l-proposta"), titolo: "Rimozione e posa dei serramenti", fase_id: "fase-demo", origine: "ai",
+        descrizione: "Sostituzione dei serramenti dei vani indicati nel rilievo.", modalita: "Testo alternativo.",
+        macchine: "Sollevatore ipotizzato",
+        fonti_scheda: { quesiti: [{ domanda: "Quali ausili?", risposta: "" }, { domanda: "Quali vani?", risposta: "" }] },
+      }],
+    });
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Proponi testo con l’AI" }));
+    const perimetro = within(screen.getByRole("dialog", { name: "Prepara le lavorazioni con l’AI" }));
+    expect(perimetro.getByRole("textbox", { name: "Lavorazioni da includere" })).toHaveValue("Posa serramenti");
+    expect(perimetro.getByRole("checkbox", { name: "Preparazione del cantiere" })).toBeChecked();
+    fireEvent.click(perimetro.getByRole("button", { name: "Genera proposte" }));
+    const revisione = within(await screen.findByRole("dialog", { name: "Rivedi le proposte AI" }));
+    expect(lavorazioniAiPos).toHaveBeenCalledWith("az-1", "pos-1", { ambito: "Posa serramenti", fasi: ["fase-demo"] });
+    expect(revisione.getByRole("combobox", { name: /Azione per Rimozione/ })).toHaveValue("testi:l-esistente");
+    expect(revisione.getByText("Sostituzione dei serramenti dei vani indicati nel rilievo.")).toBeInTheDocument();
+    expect(revisione.queryByText("Testo alternativo.")).toBeNull();
+    fireEvent.click(revisione.getByRole("button", { name: "Applica alla bozza (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva.mock.lastCall?.[0].contenuto.lavorazioni).toMatchObject([{
+      id: "l-esistente", titolo: "Posa serramenti", descrizione: "Sostituzione dei serramenti dei vani indicati nel rilievo.",
+      modalita: "Procedura di posa già definita.", macchine: "Ventosa manuale", origine: "ai", verificata: false,
+      fonti_scheda: { quesiti: [{ domanda: "Quali ausili?", risposta: "Ventosa manuale" }, { domanda: "Quali vani?", risposta: "" }] },
+    }]));
+  });
+
   it("seleziona un capitolo e modifica la ditta proposta prima di salvare la lavorazione", async () => {
     const originale = bozzaSenzaModalita();
     originale.contenuto.impresa.ruolo = "affidataria_esecutrice";
@@ -247,7 +398,7 @@ describe("la proposta dell'AI", () => {
     risposta.lavorazioni[0] = { ...risposta.lavorazioni[0], titolo: "Posa delle barriere", svolgimento: "subappalto", svolgimento_con: "Asfalti Demo" };
     vi.mocked(lavorazioniAiPos).mockResolvedValue({ ...risposta, ditte: ["Asfalti Demo", "Barriere Demo", "Segnaletica Demo"] });
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Proponi con l'AI" }));
     fireEvent.click(screen.getByRole("button", { name: "Capitoli del computo" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /Barriere · 90 voci/ }));
     fireEvent.click(screen.getByRole("button", { name: "Seleziona le fasi proposte" }));
@@ -270,7 +421,7 @@ describe("la proposta dell'AI", () => {
     mostra();
     const campoModalita = screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement;
     const testoModalita = () => campoModalita.value;
-    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Proponi con l'AI" }));
     const genera = screen.getByRole("button", { name: "Genera proposte" }) as HTMLButtonElement;
     expect(genera.disabled).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
@@ -308,7 +459,7 @@ describe("la proposta dell'AI", () => {
       ],
     });
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Proponi con l'AI" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
     fireEvent.click(screen.getByRole("button", { name: "Genera proposte" }));
     const revisione = await screen.findByRole("dialog", { name: "Rivedi le proposte AI" });
@@ -332,7 +483,7 @@ describe("la proposta dell'AI", () => {
     mostra();
     const campoModalita = screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement;
     const testoModalita = () => campoModalita.value;
-    fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Proponi con l'AI" }));
     const genera = screen.getByRole("button", { name: "Genera proposte" }) as HTMLButtonElement;
     expect(genera.disabled).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: "Preparazione del cantiere" }));
@@ -348,6 +499,29 @@ describe("la proposta dell'AI", () => {
 });
 
 describe("schede standard", () => {
+  it("suggerisce e inserisce il testo standard in una scheda esistente, conservando la descrizione", async () => {
+    const contenuto = posVuoto();
+    contenuto.lavorazioni = [{
+      ...lavorazioneVuota("l1"), titolo: "Posa serramenti", descrizione: "Sostituzione di tre finestre lato cortile.",
+    }];
+    const originale = riga(contenuto);
+    stato.pos = originale;
+    stato.salva.mockResolvedValue(originale);
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Testi pronti" }));
+    const testi = within(screen.getByRole("dialog", { name: "Testi pronti per la lavorazione" }));
+    expect(testi.getByRole("combobox", { name: "Modello di testo" })).toHaveValue("serramenti");
+    expect(testi.queryByText("Descrizione della lavorazione")).toBeNull();
+    expect(testi.getByText(/Confermare vani, pesi/)).toBeInTheDocument();
+    fireEvent.click(testi.getByRole("button", { name: "Inserisci testi mancanti" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.salva.mock.lastCall?.[0].contenuto.lavorazioni).toMatchObject([{
+      id: "l1", descrizione: "Sostituzione di tre finestre lato cortile.", modalita: expect.stringContaining("Confermare vani, pesi"),
+      origine: "modello", verificata: false, fonti_scheda: { standard: { id: "serramenti" } },
+    }]));
+    expect(lavorazioniAiPos).not.toHaveBeenCalled();
+  });
+
   it("cerca un modello senza chiamare l’AI e salva i dettagli della scheda modificabile", async () => {
     const originale = riga(posVuoto());
     stato.pos = originale;
@@ -461,18 +635,79 @@ describe("ricarica in background fallita", () => {
   });
 });
 
-it("dalla fase crea una scheda collegata, lascia il rischio da compilare e non la ripropone", () => {
-  stato.pos = riga(posVuoto());
+it("prepara insieme le sole fasi selezionate, suggerisce uno standard pertinente e blocca il reinserimento", async () => {
+  stato.fasiExtra = [
+    { id: "fase-ser", name: "Sostituzione serramenti piano primo" },
+    { id: "fase-ambigua", name: "Rimozione e posa infissi" },
+    { id: "fase-fv", name: "Posa fotovoltaico" },
+  ];
+  const originale = riga(posVuoto());
+  stato.pos = originale;
+  stato.salva.mockResolvedValue(originale);
   mostra();
-  const selettore = screen.getByLabelText("Parti da una fase della commessa");
-  changeFormControl(selettore, { target: { value: "fase-demo" } });
-  fireEvent.click(screen.getByRole("button", { name: "Aggiungi la fase" }));
+  fireEvent.click(screen.getByRole("button", { name: "Dalle fasi" }));
+  let dialog = within(screen.getByRole("dialog", { name: "Prepara lavorazioni dalle fasi" }));
+  fireEvent.click(dialog.getByRole("checkbox", { name: "Preparazione del cantiere" }));
+  fireEvent.change(dialog.getByRole("searchbox"), { target: { value: "serramenti" } });
+  fireEvent.click(dialog.getByRole("checkbox", { name: "Sostituzione serramenti piano primo" }));
+  expect(dialog.getByRole("combobox", { name: "Testo di partenza per Sostituzione serramenti piano primo" })).toHaveValue("serramenti");
+  fireEvent.change(dialog.getByRole("searchbox"), { target: { value: "" } });
+  fireEvent.click(dialog.getByRole("checkbox", { name: "Rimozione e posa infissi" }));
+  const modello = dialog.getByRole("combobox", { name: "Testo di partenza per Rimozione e posa infissi" });
+  expect(modello).toHaveValue("");
+  fireEvent.change(modello, { target: { value: "demolizioni" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Inserisci 3 lavorazioni" }));
+
   expect(screen.getByLabelText("Titolo della lavorazione 1")).toHaveValue("Preparazione del cantiere");
-  expect(screen.queryByRole("option", { name: "Preparazione del cantiere" })).toBeNull();
-  expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
+  expect(screen.getByLabelText("Titolo della lavorazione 2")).toHaveValue("Sostituzione serramenti piano primo");
+  expect(screen.queryByDisplayValue("Posa fotovoltaico")).toBeNull();
+  expect(screen.getByRole("button", { name: "Apri la lavorazione 2" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Apri la lavorazione 2" }));
+  expect(screen.getByRole("textbox", { name: "Quali ausili si usano per movimentare telai e vetri?" })).toHaveValue("");
+  fireEvent.click(screen.getByRole("button", { name: "Dalle fasi" }));
+  dialog = within(screen.getByRole("dialog", { name: "Prepara lavorazioni dalle fasi" }));
+  expect(dialog.getByRole("checkbox", { name: "Sostituzione serramenti piano primo" })).toBeDisabled();
+  fireEvent.click(dialog.getByRole("button", { name: "Annulla" }));
+
+  fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+  await waitFor(() => expect(stato.salva).toHaveBeenCalled());
+  const schede = stato.salva.mock.calls[0][0].contenuto.lavorazioni;
+  expect(schede).toHaveLength(3);
+  expect(schede[0]).toMatchObject({ fase_id: "fase-demo", rischi: "", origine: "utente" });
+  expect(schede[1]).toMatchObject({ fase_id: "fase-ser", origine: "modello", verificata: false, dpi: "", fonti_scheda: { standard: { id: "serramenti" } } });
+  expect(schede[2]).toMatchObject({ fase_id: "fase-ambigua", fonti_scheda: { standard: { id: "demolizioni" } } });
+  expect(lavorazioniAiPos).not.toHaveBeenCalled();
   expect(stato.approva).not.toHaveBeenCalled();
 });
 
+it("aggiunge alla bozza soltanto i dati dichiarati nella traccia e conserva il testo già scritto", async () => {
+  const contenuto = posVuoto();
+  contenuto.opera.modalita_organizzative = "Fronte nord consegnato.";
+  const originale = riga(contenuto);
+  stato.pos = originale;
+  stato.salva.mockResolvedValue(originale);
+  mostra();
+  fireEvent.click(screen.getByRole("button", { name: "Compila con una traccia" }));
+  const dialog = within(screen.getByRole("dialog", { name: "Organizzazione e turni" }));
+  expect(dialog.getByRole("button", { name: "Inserisci nel POS" })).toBeDisabled();
+  fireEvent.change(dialog.getByLabelText("Accessi e percorsi"), { target: { value: "Ingresso dal varco nord." } });
+  fireEvent.change(dialog.getByLabelText("Giorni e orari dei turni"), { target: { value: "Lunedì–venerdì, 8:00–17:00." } });
+  fireEvent.click(dialog.getByRole("button", { name: "Inserisci nel POS" }));
+  expect(screen.getByLabelText("Modalità organizzative")).toHaveValue("Fronte nord consegnato.\nAccessi e percorsi: Ingresso dal varco nord.");
+  expect(screen.getByLabelText("Turni di lavoro")).toHaveValue("Lunedì–venerdì, 8:00–17:00.");
+  expect(stato.salva).not.toHaveBeenCalled();
+  expect(stato.approva).not.toHaveBeenCalled();
+});
+
+it("riusa il contesto della creazione e evita di scaricare subito di nuovo i dati della commessa", async () => {
+  stato.pos = riga(posVuoto());
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc.setQueryData(["pos-dati-app", "az-1", "pos-1"], { contesto: { mezzi: [{ nome: "Mezzo già recuperato" }], subappaltatori: [], avvisi: [] } });
+  vi.mocked(datiAppPos).mockClear();
+  mostra(qc);
+  expect(await screen.findByText("Mezzo già recuperato", { exact: false })).toBeVisible();
+  expect(datiAppPos).not.toHaveBeenCalled();
+});
 
 describe("Avanzamento del PDF nell'editor", () => {
   const apri = (status = "bozza") => { stato.pos = riga(esempioPdfPos().contenuto, status); mostra(); };
@@ -512,9 +747,9 @@ describe("Avanzamento del PDF nell'editor", () => {
     expect(stato.annulla).toHaveBeenCalledOnce();
   });
 
-  it("«Anteprima PDF» apre l'anteprima di questo POS", () => {
+  it("apre l’anteprima dalla versione salvata di questo POS", () => {
     apri();
-    fireEvent.click(screen.getByRole("button", { name: /Anteprima PDF/ }));
+    fireEvent.click(screen.getByRole("button", { name: "PDF dalla versione salvata" }));
     expect(stato.apriAnteprima).toHaveBeenCalledWith("az-1", "pos-1");
   });
 });
@@ -527,4 +762,90 @@ it("una bozza completa richiede la decisione sulla pertinenza del PSC prima di e
   expect(stato.approva).not.toHaveBeenCalled();
   expect(screen.getByText("POS non approvato")).toBeInTheDocument();
   expect(screen.getAllByText(/Conferma l’applicabilità del PSC/).length).toBeGreaterThan(0);
+});
+
+it("aggiorna l’anteprima con la bozza in memoria e conserva i campi quando la chiude", async () => {
+  stato.pos = riga(posVuoto());
+  mostra();
+  const campo = screen.getByLabelText("Datore di lavoro");
+  fireEvent.change(campo, { target: { value: "Datore della bozza" } });
+  fireEvent.click(screen.getByRole("button", { name: "Anteprima PDF dal vivo" }));
+  const dialog = within(screen.getByRole("dialog", { name: "Anteprima PDF dal vivo" }));
+  expect(await dialog.findByText("Datore della bozza")).toBeVisible();
+  fireEvent.click(dialog.getByRole("button", { name: "Chiudi" }));
+  expect(screen.queryByRole("dialog", { name: "Anteprima PDF dal vivo" })).toBeNull();
+  expect(campo).toHaveValue("Datore della bozza");
+  expect(stato.salva).not.toHaveBeenCalled();
+  expect(stato.apriAnteprima).not.toHaveBeenCalled();
+});
+
+it("prepara fasi e voci di computo con assegnazioni esplicite e conserva i riferimenti senza duplicati", async () => {
+  stato.puoLeggereComputo = true;
+  const originale = riga(posVuoto());
+  stato.pos = originale;
+  stato.salva.mockResolvedValue(originale);
+  const voce = { id: "v1", titolo: "Posa di serramenti del primo piano", codice: "SE-12", capitolo: "Forniture", quantita: 6, unita: "cad" };
+  const altra = { ...voce, id: "v2", codice: "SE-13", quantita: 4 };
+  stato.leggiComputo.mockResolvedValue({ fonte: { id: "cm-1", titolo: "Contratto Demo", stato: "contrattuale", voci: [voce, altra] } });
+  const qc = new QueryClient();
+  qc.setQueryData(["pos-dati-app", "az-1", "pos-1"], {
+    contesto: { avvisi: [], mezzi: [], subappaltatori: [{ ragione_sociale: "Infissi Demo", tipo_lavori: "Serramenti" }] },
+  });
+  mostra(qc);
+  fireEvent.click(screen.getByRole("button", { name: "Fasi e computo" }));
+  let dialog = within(screen.getByRole("dialog", { name: "Prepara lavorazioni" }));
+  fireEvent.click(dialog.getByRole("checkbox", { name: "Preparazione del cantiere" }));
+  expect(stato.leggiComputo).not.toHaveBeenCalled();
+  fireEvent.click(dialog.getByRole("button", { name: "Computo" }));
+  await dialog.findByText("Contratto Demo · Contrattuale · 2 voci");
+  const ricerca = dialog.getByRole("searchbox");
+  fireEvent.change(ricerca, { target: { value: "SE-12" } });
+  fireEvent.click(dialog.getByRole("checkbox", { name: voce.titolo }));
+  fireEvent.change(dialog.getByRole("combobox", { name: `Chi svolge ${voce.titolo}` }), { target: { value: "ditta:Infissi Demo" } });
+  fireEvent.change(ricerca, { target: { value: "SE-13" } });
+  fireEvent.click(dialog.getByRole("checkbox", { name: altra.titolo }));
+  expect(dialog.getByRole("button", { name: "Inserisci 3 lavorazioni" })).toBeDisabled();
+  fireEvent.click(dialog.getByRole("button", { name: "Assegna le rimanenti all’impresa del POS" }));
+  fireEvent.click(dialog.getByRole("button", { name: "Inserisci 3 lavorazioni" }));
+  fireEvent.click(screen.getByRole("button", { name: "Fasi e computo" }));
+  dialog = within(screen.getByRole("dialog", { name: "Prepara lavorazioni" }));
+  fireEvent.click(dialog.getByRole("button", { name: "Computo" }));
+  expect(dialog.getAllByRole("checkbox", { name: voce.titolo })).toHaveLength(2);
+  expect(dialog.getAllByRole("checkbox", { name: voce.titolo }).every(e => e.hasAttribute("disabled"))).toBe(true);
+  fireEvent.click(dialog.getByRole("button", { name: "Annulla" }));
+
+  fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+  await waitFor(() => expect(stato.salva).toHaveBeenCalledOnce());
+  expect(stato.salva.mock.lastCall?.[0].contenuto.lavorazioni).toMatchObject([
+    { fase_id: "fase-demo", svolgimento: "diretto" },
+    { svolgimento: "subappalto", svolgimento_con: "Infissi Demo", verificata: false, fonti_scheda: { computo: { id: "cm-1", voci: [voce] } } },
+    { svolgimento: "diretto", fonti_scheda: { computo: { id: "cm-1", voci: [altra] } } },
+  ]);
+});
+
+it("riformula solo le risposte compilate e aggiunge la proposta rivista senza sostituire il testo manuale", async () => {
+  const contenuto = posVuoto();
+  const scheda = nuovaDaSchedaStandard(SCHEDE_STANDARD_POS.find(s => s.id === "tramezzi")!, "testo-l1");
+  scheda.modalita = "Testo operativo scritto a mano.";
+  const [domanda, segnaposto] = scheda.fonti_scheda!.quesiti!;
+  domanda.risposta = "Intervento previsto in vano A.";
+  segnaposto.risposta = "Da confermare.";
+  contenuto.lavorazioni = [scheda];
+  stato.pos = riga(contenuto);
+  vi.mocked(chiamaServerPos).mockImplementation(async b => (b.azione === "testo_lavorazione_ai" ? { testo: "Si interviene in vano A." } : { lettura: null }) as never);
+  mostra();
+
+  const campo = screen.getByLabelText("Modalità e organizzazione della fase di lavoro");
+  fireEvent.click(screen.getByRole("button", { name: "Prepara testo dalle risposte" }));
+  const dialogo = within(screen.getByRole("dialog", { name: "Testo per la fase di lavoro" }));
+  expect(dialogo.queryByText("Da confermare.")).toBeNull();
+  fireEvent.click(dialogo.getByRole("button", { name: "Genera proposta" }));
+  const proposta = await dialogo.findByRole("textbox", { name: "Testo proposto per la fase di lavoro" });
+  expect(proposta).toHaveValue("Si interviene in vano A.");
+  expect(campo).toHaveValue("Testo operativo scritto a mano.");
+  expect(chiamaServerPos).toHaveBeenCalledWith(expect.objectContaining({ azione: "testo_lavorazione_ai", risposte: [domanda] }));
+  fireEvent.change(proposta, { target: { value: "Impostazione prevista nel vano A." } });
+  fireEvent.click(dialogo.getByRole("button", { name: "Aggiungi alla modalità di lavoro" }));
+  expect(campo).toHaveValue("Testo operativo scritto a mano.\n\nImpostazione prevista nel vano A.");
+  expect(stato.salva).not.toHaveBeenCalled();
 });

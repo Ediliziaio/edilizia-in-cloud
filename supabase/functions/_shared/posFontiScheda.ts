@@ -22,6 +22,17 @@ export interface FontiSchedaPos {
   quesiti?: Array<{ domanda: string; risposta: string }>;
 }
 
+export const chiaveFasePos = (faseId: string) => `fase:${faseId}`;
+export const chiaveVoceComputoPos = (computoId: string, voceId: string) => `computo:${computoId}:${voceId}`;
+
+export function chiaviFontiLavorazionePos({ fase_id, fonti_scheda }: { fase_id?: string | null; fonti_scheda?: FontiSchedaPos }) {
+  const computo = fonti_scheda?.computo;
+  return [
+    ...(fase_id ? [chiaveFasePos(fase_id)] : []),
+    ...(computo?.voci.map(voce => chiaveVoceComputoPos(computo.id, voce.id)) ?? []),
+  ];
+}
+
 const oggetto = (v: unknown): Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 const testo = (v: unknown, max: number) => typeof v === "string" ? v.trim().slice(0, max) : "";

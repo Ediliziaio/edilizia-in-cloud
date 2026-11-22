@@ -6,7 +6,7 @@ interface Props {
   voci: VoceMancante[];
   lavorazioni: Lavorazione[];
   ro: boolean;
-  onVai: (sezione: SezionePos) => void;
+  onVai: (sezione: SezionePos, voce?: VoceMancante) => void;
   /** Conferma, per le lavorazioni indicate, di aver verificato l'elenco dei prodotti realmente usati. */
   onConfermaProdotti: (idLavorazioni: string[]) => void;
 }
@@ -48,7 +48,7 @@ export function CosaManca({ voci, lavorazioni, ro, onVai, onConfermaProdotti }: 
     <ul className="space-y-1.5">
       {raggruppaVoci(voci).map((e, i) => e.tipo === "voce" ? (
         <li key={`${e.voce.sezione}-${i}`}>
-          <button type="button" className="w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => onVai(e.voce.sezione)}>
+          <button type="button" className="w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => e.voce.lavorazione_id || e.voce.campo ? onVai(e.voce.sezione, e.voce) : onVai(e.voce.sezione)}>
             {e.voce.testo}
             <span className="ml-1 text-xs text-muted-foreground">({e.voce.riferimento})</span>
           </button>

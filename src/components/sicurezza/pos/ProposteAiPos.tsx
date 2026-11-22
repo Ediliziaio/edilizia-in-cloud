@@ -10,24 +10,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useFasiFascicolo } from "@/hooks/useFascicoloCantiere";
 import { chiamaServerPos } from "@/hooks/usePos";
-import { testoRicercaSchedePos } from "../../../../supabase/functions/_shared/posSchedeStandard";
+import { stessaLavorazionePos, testiMancantiDaProposta } from "@/lib/sicurezza/testiLavorazionePos";
 import type { Lavorazione } from "../../../../supabase/functions/_shared/posModello";
 import { RiferimentiSchedaPos } from "./SchedeStandardPos";
 
 export interface PerimetroPropostePos { fasi: string[]; ambito: string; pscOcrDa?: number; computo?: { id: string; capitoli: string[] } }
 export interface RisultatoPropostePos { lavorazioni: Lavorazione[]; modalita_organizzative?: string; avvisi?: string[]; ditte?: string[] }
+type AggiornamentoPropostaPos = { id: string; modo: "testi" | "fonti" };
 interface IndiceComputo {
   computo: { id: string; titolo: string; capitoli: { nome: string; voci: number; fase: { id: string; name: string } | null }[] } | null;
   avviso?: string;
 }
 
-export function PerimetroAiPos({ companyId, orderId, posId, inSubappalto, psc, onClose, onGenera, occupato, errore }: {
+export function PerimetroAiPos({ companyId, orderId, posId, inSubappalto, psc, iniziale, onClose, onGenera, occupato, errore }: {
   companyId: string; orderId: string; posId: string; inSubappalto: boolean; psc?: ContestoLetturaPsc; onClose: () => void;
-  onGenera: (scelta: PerimetroPropostePos) => void; occupato: boolean; errore: string | null;
+  iniziale: Pick<PerimetroPropostePos, "ambito" | "fasi">; onGenera: (scelta: PerimetroPropostePos) => void; occupato: boolean; errore: string | null;
 }) {
   const query = useFasiFascicolo(companyId, orderId);
-  const [fasi, scegliFasi] = useState<string[]>([]);
-  const [ambito, scriviAmbito] = useState("");
+  const [fasi, scegliFasi] = useState(iniziale.fasi);
+  const [ambito, scriviAmbito] = useState(iniziale.ambito);
+  const fasiValide = query.data ? fasi.filter(id => query.data.some(f => f.id === id)) : fasi;
   const [apriComputo, setApriComputo] = useState(false);
   const [capitoli, scegliCapitoli] = useState<string[]>([]);
   const indice = useQuery({
@@ -91,8 +93,8 @@ export function PerimetroAiPos({ companyId, orderId, posId, inSubappalto, psc, o
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={occupato}>Annulla</Button>
           <Button disabled={occupato || (capitoli.length > 0 && selezionati.length !== capitoli.length) ||
-              (inSubappalto && !fasi.length && !testo && !capitoli.length)}
-            onClick={() => onGenera({ fasi, ambito: testo, ...(capitoli.length && computo ? { computo: { id: computo.id, capitoli } } : {}) })}>
+              (inSubappalto && !fasiValide.length && !testo && !capitoli.length)}
+            onClick={() => onGenera({ fasi: fasiValide, ambito: testo, ...(capitoli.length && computo ? { computo: { id: computo.id, capitoli } } : {}) })}>
             {occupato && <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" />}
             {occupato ? "Sto preparando le proposte…" : "Genera proposte"}
           </Button>
@@ -102,24 +104,56 @@ export function PerimetroAiPos({ companyId, orderId, posId, inSubappalto, psc, o
   );
 }
 
-export function RevisioneProposteAiPos({ risultato, modalitaVuota, preesistenti, onClose, onApplica }: {
-  risultato: RisultatoPropostePos; modalitaVuota: boolean; preesistenti: Lavorazione[]; onClose: () => void;
-  onApplica: (lavorazioni: Lavorazione[], modalita: string, aggiornamenti: Record<string, string>) => void;
+export function RevisioneProposteAiPos({ risultato, modalitaVuota, preesistenti, destinazioneId, onClose, onApplica }: {
+  risultato: RisultatoPropostePos; modalitaVuota: boolean; preesistenti: Lavorazione[]; destinazioneId?: string; onClose: () => void;
+  onApplica: (lavorazioni: Lavorazione[], modalita: string, aggiornamenti: Record<string, AggiornamentoPropostaPos>) => void;
 }) {
-  const giaPresente = (l: Lavorazione) => preesistenti.some(e =>
-    (!l.fase_id || !e.fase_id || l.fase_id === e.fase_id) &&
-    testoRicercaSchedePos(l.titolo || l.descrizione) === testoRicercaSchedePos(e.titolo || e.descrizione));
-  const [scelte, scegli] = useState(() => new Set(risultato.lavorazioni.filter(l => !giaPresente(l)).map(l => l.id)));
+  const giaPresente = (l: Lavorazione) => preesistenti.some(e => stessaLavorazionePos(l, e));
+  const stessaFase = (proposta: Lavorazione, esistente: Lavorazione) =>
+    !proposta.fase_id || !esistente.fase_id || proposta.fase_id === esistente.fase_id;
+  const destinazione = preesistenti.find(l => l.id === destinazioneId);
+  const [aggiornamenti, aggiorna] = useState<Record<string, AggiornamentoPropostaPos>>(() => {
+    const iniziali: Record<string, AggiornamentoPropostaPos> = {};
+    const assegnate = new Set<string>();
+    for (const proposta of risultato.lavorazioni) {
+      const presenti = preesistenti.filter(e => stessaLavorazionePos(proposta, e));
+      if (!presenti.length && risultato.lavorazioni.length === 1 && destinazione && stessaFase(proposta, destinazione)) presenti.push(destinazione);
+      if (presenti.length !== 1 || assegnate.has(presenti[0].id) || !testiMancantiDaProposta(presenti[0], proposta).length) continue;
+      iniziali[proposta.id] = { id: presenti[0].id, modo: "testi" };
+      assegnate.add(presenti[0].id);
+    }
+    return iniziali;
+  });
+  const [scelte, scegli] = useState(() => new Set(risultato.lavorazioni.filter(l => aggiornamenti[l.id] || !giaPresente(l)).map(l => l.id)));
   const [accettaModalita, scegliModalita] = useState(false);
-  const [aggiornamenti, aggiorna] = useState<Record<string, string>>({});
   const [svolgimento, setSvolgimento] = useState<Record<string, string>>({});
   const modalita = modalitaVuota ? risultato.modalita_organizzative?.trim() ?? "" : "";
+  const pronte: Lavorazione[] = [];
+  const nuove: Lavorazione[] = [];
+  const assegnate = new Set<string>();
+  for (const proposta of risultato.lavorazioni) {
+    if (!scelte.has(proposta.id)) continue;
+    const scelta = aggiornamenti[proposta.id];
+    if (!scelta) {
+      if (!giaPresente(proposta) && !nuove.some(l => stessaLavorazionePos(proposta, l))) {
+        pronte.push(proposta);
+        nuove.push(proposta);
+      }
+      continue;
+    }
+    const esistente = preesistenti.find(e => e.id === scelta.id);
+    if (!esistente || assegnate.has(esistente.id) || !stessaFase(proposta, esistente)) continue;
+    const applicabile = scelta.modo === "fonti" ? !!proposta.fonti_scheda : !!testiMancantiDaProposta(esistente, proposta).length;
+    if (!applicabile) continue;
+    pronte.push(proposta);
+    assegnate.add(esistente.id);
+  }
   return (
     <Dialog open onOpenChange={aperto => { if (!aperto) onClose(); }}>
       <DialogContent className="flex max-h-[88vh] min-h-0 max-w-3xl flex-col gap-3">
         <DialogHeader>
           <DialogTitle>Rivedi le proposte AI</DialogTitle>
-          <DialogDescription>Scegli le schede da inserire. Dopo l’inserimento, completa i dati e conferma le singole lavorazioni.</DialogDescription>
+          <DialogDescription>Rivedi i testi proposti. Puoi compilare i campi vuoti di una scheda esistente o aggiungere una lavorazione.</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-2 overflow-y-auto pr-1">
           {!!risultato.avvisi?.length && <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
@@ -134,51 +168,71 @@ export function RevisioneProposteAiPos({ risultato, modalitaVuota, preesistenti,
             <p className="whitespace-pre-line text-xs text-muted-foreground">{modalita}</p>
           </div>}
           <ul className="space-y-2">
-            {risultato.lavorazioni.map(l => <li key={l.id} className="space-y-2 rounded-lg border p-3">
-              <label className="flex items-start gap-2 text-sm font-semibold">
-                <Checkbox checked={scelte.has(l.id)} onCheckedChange={v => scegli(prev => {
-                  const next = new Set(prev);
-                  if (v === true) next.add(l.id);
-                  else next.delete(l.id);
-                  return next;
-                })} />
-                {l.titolo || l.descrizione}
-              </label>
-              {l.titolo && <p className="text-xs text-muted-foreground">{l.descrizione}</p>}
-              {giaPresente(l) && <p className="text-xs text-muted-foreground">Una scheda con questo titolo è già in bozza.</p>}
-              {l.fonti_scheda && <RiferimentiSchedaPos fonti={l.fonti_scheda} />}
-              {!!l.fonti_scheda?.quesiti?.length && <p className="text-xs text-amber-800">{l.fonti_scheda.quesiti.length} dettagli da confermare sul cantiere</p>}
-              {!!risultato.ditte?.length && !aggiornamenti[l.id] && <label className="block space-y-1 text-xs">
-                <span>Chi esegue · {l.titolo || "lavorazione"}</span>
-                <select className="block min-h-9 w-full rounded-md border bg-background px-2" disabled={!scelte.has(l.id)}
-                  value={svolgimento[l.id] ?? l.svolgimento_con}
-                  onChange={e => setSvolgimento(prev => ({ ...prev, [l.id]: e.target.value }))}>
-                  <option value="">La nostra impresa</option>
-                  {risultato.ditte.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </label>}
-              {!!preesistenti.length && l.fonti_scheda && <label className="block space-y-1 text-xs">
-                <span>Azione per {l.titolo || "la scheda"}</span>
-                <select className="block min-h-9 w-full rounded-md border bg-background px-2" value={aggiornamenti[l.id] ?? ""}
-                  disabled={!scelte.has(l.id)} onChange={e => aggiorna(prev => ({ ...prev, [l.id]: e.target.value }))}>
-                  <option value="">Aggiungi come nuova scheda</option>
-                  {preesistenti.filter(x => (!l.fase_id || !x.fase_id || l.fase_id === x.fase_id) &&
-                      !Object.entries(aggiornamenti).some(([id, esistente]) => id !== l.id && scelte.has(id) && esistente === x.id))
-                    .map(x => <option key={x.id} value={x.id}>Aggiorna le fonti · {x.titolo}</option>)}
-                </select>
-              </label>}
-            </li>)}
+            {risultato.lavorazioni.map(l => {
+              const azione = aggiornamenti[l.id];
+              const esistente = preesistenti.find(x => x.id === azione?.id);
+              const testi = esistente && azione?.modo === "testi" ? testiMancantiDaProposta(esistente, l) : [];
+              const destinazioni = preesistenti.filter(x => stessaFase(l, x) && (azione?.id === x.id ||
+                !Object.entries(aggiornamenti).some(([id, scelta]) => scelte.has(id) && scelta.id === x.id)));
+              return <li key={l.id} className="space-y-2 rounded-lg border p-3">
+                <label className="flex items-start gap-2 text-sm font-semibold">
+                  <Checkbox checked={scelte.has(l.id)} onCheckedChange={v => scegli(prev => {
+                    const next = new Set(prev);
+                    if (v === true) next.add(l.id);
+                    else next.delete(l.id);
+                    return next;
+                  })} />
+                  {l.titolo || l.descrizione}
+                </label>
+                {l.titolo && !testi.length && <p className="break-words text-xs text-muted-foreground">{l.descrizione}</p>}
+                {!!testi.length && <div className="grid gap-2 rounded-md bg-muted/50 p-2.5 text-xs">
+                  {testi.map(t => <div key={t.id}><p className="font-medium">{t.titolo}</p><p className="whitespace-pre-wrap break-words text-muted-foreground">{t.testo}</p></div>)}
+                </div>}
+                {giaPresente(l) && !azione && <p className="text-xs text-muted-foreground">Scheda già in bozza. Scegli come aggiornarla.</p>}
+                {l.fonti_scheda && <RiferimentiSchedaPos fonti={l.fonti_scheda} />}
+                {!!l.fonti_scheda?.quesiti?.length && <p className="text-xs text-amber-800">{l.fonti_scheda.quesiti.length} dettagli da confermare sul cantiere</p>}
+                {!!risultato.ditte?.length && !aggiornamenti[l.id] && <label className="block space-y-1 text-xs">
+                  <span>Chi esegue · {l.titolo || "lavorazione"}</span>
+                  <select className="block min-h-9 w-full rounded-md border bg-background px-2" disabled={!scelte.has(l.id)}
+                    value={svolgimento[l.id] ?? l.svolgimento_con}
+                    onChange={e => setSvolgimento(prev => ({ ...prev, [l.id]: e.target.value }))}>
+                    <option value="">La nostra impresa</option>
+                    {risultato.ditte.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </label>}
+                {!!destinazioni.length && <label className="block space-y-1 text-xs">
+                  <span>Azione per {l.titolo || "la scheda"}</span>
+                  <select className="block min-h-9 w-full rounded-md border bg-background px-2"
+                    value={azione ? `${azione.modo}:${azione.id}` : ""}
+                    disabled={!scelte.has(l.id)} onChange={e => {
+                      const [modo, id] = e.target.value.split(":");
+                      aggiorna(prev => {
+                        const prossime = { ...prev };
+                        if (id && (modo === "testi" || modo === "fonti")) prossime[l.id] = { id, modo };
+                        else delete prossime[l.id];
+                        return prossime;
+                      });
+                    }}>
+                    <option value="">{giaPresente(l) ? "Scegli come aggiornare la scheda" : "Aggiungi come nuova scheda"}</option>
+                    {destinazioni.filter(x => x.id === destinazioneId || stessaLavorazionePos(l, x) || (!!l.fase_id && l.fase_id === x.fase_id))
+                      .filter(x => testiMancantiDaProposta(x, l).length)
+                      .map(x => <option key={x.id} value={`testi:${x.id}`}>Compila i testi mancanti · {x.titolo}</option>)}
+                    {l.fonti_scheda && destinazioni.map(x => <option key={x.id} value={`fonti:${x.id}`}>Aggiorna le fonti · {x.titolo}</option>)}
+                  </select>
+                </label>}
+              </li>;
+            })}
           </ul>
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button disabled={!scelte.size && !(accettaModalita && modalita)}
-            onClick={() => onApplica(risultato.lavorazioni.filter(l => scelte.has(l.id)).map(l => {
+          <Button disabled={!pronte.length && !(accettaModalita && modalita)}
+            onClick={() => onApplica(pronte.map(l => {
               if (!(l.id in svolgimento)) return l;
               const ditta = svolgimento[l.id];
               return { ...l, svolgimento: ditta ? "subappalto" : "diretto", svolgimento_con: ditta };
             }), accettaModalita ? modalita : "", aggiornamenti)}>
-            Applica alla bozza{scelte.size ? ` (${scelte.size})` : ""}
+            Applica alla bozza{pronte.length ? ` (${pronte.length})` : ""}
           </Button>
         </DialogFooter>
       </DialogContent>
