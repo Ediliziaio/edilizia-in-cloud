@@ -58,6 +58,14 @@ jobs:
           src/test/logic/channelMessagesCache.test.ts
           src/test/ui/chatUnreadSharedRealtime.test.tsx
           src/test/logic/internalChatSecurityContract.test.ts
+          src/test/logic/emailAllegatoCodaEndpoint.test.ts
+          src/test/logic/emailEstrazioneTentativi.test.ts
+          src/test/ui/statoCodaAllegati.test.tsx
+      - name: Verify blocked AI queues, fencing and cron destinations in isolated PostgreSQL
+        run: |
+          node scripts/test-email-ai-queue.mjs
+          node scripts/test-cron-legacy.mjs
+          node --test scripts/tests/cronFunctions.test.mjs
       - name: Verify retry leases and health aggregation in isolated PostgreSQL
         run: |
           docker run -d --name eic-chat-health-pg --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
