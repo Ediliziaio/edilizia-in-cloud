@@ -29,7 +29,7 @@ type Voce = Record<string, unknown>;
 interface Bozza {
   updatedAt: unknown; descrizione: string; note: string; ore: string; straordinario: string; conPresenze: boolean;
   presenze: Voce[]; fasi: Voce[]; materiali: Voce[]; mezzi: Voce[]; motivo: string;
-  arrivo: DatiArrivo;
+  arrivo: DatiArrivo[];
 }
 const lista = (v: unknown): Voce[] => (Array.isArray(v) ? (v as Voce[]) : []);
 
@@ -132,8 +132,8 @@ function FormRapportino({ rapportinoId, orderId, onCorretto, onClose, riga }: Pr
       if (b.conPresenze && !b.presenze.length) { campi.ore_lavorate = 0; campi.ore_straordinario = 0; }
       if (!b.conPresenze) { campi.ore_lavorate = misuraRapportino(b.ore, "Ore", 24); campi.ore_straordinario = misuraRapportino(b.straordinario, "Straordinario", 24); }
       const prima = leggiArrivo(riga.data.campi_extra);
-      if (b.arrivo.mezzoId !== prima.mezzoId || b.arrivo.partenza !== prima.partenza || b.arrivo.km !== prima.km) {
-        campi.arrivo_cantiere = campoArrivo(b.arrivo)[0] ?? null;
+      if (JSON.stringify(b.arrivo) !== JSON.stringify(prima)) {
+        campi.arrivo_cantiere = campoArrivo(b.arrivo);
       }
       const { error } = await db.rpc("rapportino_correggi", { p_id: rapportinoId, p_updated_at: b.updatedAt, p_campi: campi, p_motivo: b.motivo });
       if (error) throw new Error(error.message);

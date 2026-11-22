@@ -1,3 +1,4 @@
+import type { PropostaCommessaMappa } from "@/components/calendar/mappa/servizio";
 import { DisponibilitaOperai } from "./DisponibilitaOperai";
 import type { DisponibilitaCantiere } from "@/lib/orders/disponibilitaCantiere";
 import { plannedLaborCost } from "@/lib/orders/laborEconomics";
@@ -41,7 +42,7 @@ export interface InputPrevisione {
   microOrePerAmbito: number[];
 }
 
-export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, puoPersone, puoSquadre, puoDate, puoVoci, doveAssegnato, onPassaggi, onOccupato, previsionale }: {
+export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, puoPersone, puoSquadre, puoDate, puoVoci, doveAssegnato, onPassaggi, onOccupato, previsionale, proposta }: {
   ambiti: AmbitoLavoro[];
   persone: ExecutorOption[];
   squadre: Squadra[];
@@ -52,6 +53,7 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
   puoVoci: boolean;
   doveAssegnato?: (id: string, tipo: "persona" | "squadra", ambiti: readonly AmbitoLavoro[]) => number;
   onPassaggi?: (piano: PianoAssegnazione) => PassaggioPiano[];
+  proposta?: PropostaCommessaMappa;
   previsionale?: {
     salvato?: PianoPrevisto;
     quoteSalvate?: Record<string, number>;
@@ -73,9 +75,11 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
   const [quoteScritte, setQuoteScritte] = useState<Record<string, string>>(() => Object.fromEntries(
     Object.entries(previsionale?.quoteSalvate ?? {}).map(([id, ore]) => [id, String(ore / 1e6).replace(".", ",")]),
   ));
+  const idPersonaProposta = proposta?.tipo === "operai" && puoPersone ? persone.find(p => p.campoUserId === proposta.id)?.id : undefined;
+  const idSquadraProposta = proposta?.tipo === "squadre" && puoSquadre ? squadre.find(s => s.id === proposta.id)?.id : undefined;
   const [cerca, setCerca] = useState("");
-  const [scelte, setScelte] = useState<string[]>(salvato?.persone ?? []);
-  const [team, setTeam] = useState<string[]>(salvato?.squadre.map((s) => s.id) ?? []);
+  const [scelte, setScelte] = useState<string[]>(salvato?.persone ?? (idPersonaProposta ? [idPersonaProposta] : []));
+  const [team, setTeam] = useState<string[]>(salvato?.squadre.map((s) => s.id) ?? (idSquadraProposta ? [idSquadraProposta] : []));
   const [salvaDate, setSalvaDate] = useState(false);
   const [inCorso, setInCorso] = useState(false);
   const [esito, setEsito] = useState("");
@@ -87,12 +91,12 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
 
   const su = (id: string, tipo: "persona" | "squadra") => doveAssegnato?.(id, tipo, bersagli) ?? 0;
   const giaSuTutte = (id: string, tipo: "persona" | "squadra") => bersagli.length > 0 && su(id, tipo) >= bersagli.length;
-  const squadreScelte = squadre.filter((s) => team.includes(s.id) && !giaSuTutte(s.id, "squadra"));
+  const squadreScelte = squadre.filter((s) => (!proposta || puoSquadre) && team.includes(s.id) && !giaSuTutte(s.id, "squadra"));
   const profili = squadreScelte.flatMap((s) => s.componenti);
   const legami = useDipendentiDeiProfili(profili.map((p) => p.id));
   const idDipendente = (id: string) => legami.data?.get(id) ?? (previsionale?.disponibilita ? `hr:${id}` : id);
   const componenti = new Set(profili.map((p) => idDipendente(p.id)));
-  const personeScelte = scelte.filter((id) => !componenti.has(id) && !giaSuTutte(id, "persona"));
+  const personeScelte = scelte.filter((id) => (!proposta || (puoPersone && persone.some(p => p.id === id))) && !componenti.has(id) && !giaSuTutte(id, "persona"));
   const partecipanti = [...new Set([...componenti, ...personeScelte])];
   const tariffe = useCostiOrariPrevisione(partecipanti.filter((id) => !id.startsWith("hr:")));
   const nomi = new Map<string, string>(profili.map((p) => [idDipendente(p.id), `${p.nome} ${p.cognome}`] as const));
@@ -192,6 +196,12 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
   return (
     <section aria-label="Pianifica assegnazione" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border bg-muted/30 px-3 py-2.5">
+      {proposta && <div className="rounded-md border bg-muted/35 p-2 text-xs">
+        <p className="font-medium">Proposta dalla mappa · {proposta.nome} · {proposta.giorno.split("-").reverse().join("/")} · {proposta.inizio}–{proposta.fine}</p>
+        <p className="text-muted-foreground">{idPersonaProposta || idSquadraProposta
+          ? "Verifica le lavorazioni, il periodo e le ore prima di confermare."
+          : "La risorsa non è disponibile tra le scelte di questa commessa."}</p>
+      </div>}
         <h4 className="flex items-center gap-2 text-sm font-semibold"><UsersRound className="h-4 w-4 text-primary" aria-hidden="true" />{previsionale ? salvato ? "Modifica previsione" : "Nuova previsione" : "Nuova assegnazione"}</h4>
         <p className="max-w-full truncate text-xs text-muted-foreground" title={iniziale?.nome}>
           {iniziale?.nome ?? (bersagli.length ? `${bersagli.length} lavorazioni selezionate` : "Seleziona almeno una lavorazione.")}

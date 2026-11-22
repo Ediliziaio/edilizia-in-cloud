@@ -10,6 +10,7 @@ export interface TrattaViaggio {
   km: number | null;
   minuti: number | null;
   fonte: FonteKm;
+  rientro_attribuito?: boolean;
 }
 export interface ViaggioPayload {
   partenza: string;

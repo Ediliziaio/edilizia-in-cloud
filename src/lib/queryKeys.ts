@@ -308,6 +308,7 @@ export const queryKeys = {
   calendarOrders: {
     all: ["calendar-orders"] as const,
     list: (companyId: string | undefined) => ["calendar-orders", "list", companyId] as const,
+    storicoMappa: (companyId: string | undefined) => ["calendar-orders", "list", companyId, "storico-mappa"] as const,
   },
 
   // ── Suppliers ──────────────────────────────────────────

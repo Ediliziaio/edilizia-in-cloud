@@ -58,3 +58,22 @@ it("permette di cambiare la quota di ogni voce e salva soltanto un totale comple
     oreGiorno: 8, microOrePerAmbito: [6_000_000, 2_000_000], dal: "2026-11-23", al: "2026-11-24",
   }), expect.any(String)));
 });
+
+it("porta la proposta dalla mappa al salvataggio esistente dopo la conferma", async () => {
+  const assegna = vi.fn().mockResolvedValue(undefined);
+  const onPassaggi = vi.fn(() => [{ nome: "operaio", esegui: assegna }]);
+  render(<PianificaAssegnazione
+    ambiti={[{ id: "fase", nome: "Serramenti", faseId: "fase", dal: "2026-11-23", al: "2026-11-25" }]}
+    persone={[{ id: "mario", label: "Mario Rossi", campoUserId: "profilo-mario" }]} squadre={[]}
+    calendario={{ lavorativo: () => true, sabato: false }} puoPersone puoSquadre puoVoci puoDate
+    proposta={{ id: "profilo-mario", nome: "Mario Rossi", tipo: "operai", giorno: "2026-11-24",
+      inizio: "10:00", fine: "11:00", company: "azienda", orderId: "commessa" }}
+    onPassaggi={onPassaggi} onOccupato={vi.fn()}
+  />);
+  expect(screen.getByText(/Proposta dalla mappa.*10:00–11:00/)).toBeVisible();
+  expect(screen.getByRole("checkbox", { name: "Mario Rossi" })).toBeChecked();
+  expect(onPassaggi).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Salva assegnazione" }));
+  await waitFor(() => expect(assegna).toHaveBeenCalledOnce());
+  expect(onPassaggi).toHaveBeenCalledWith(expect.objectContaining({ persone: ["mario"], periodo: null }));
+});

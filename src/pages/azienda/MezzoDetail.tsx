@@ -7,11 +7,11 @@ import { ContestoSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCom
  * transenne) hanno i montaggi sui cantieri. Aperta da una scansione
  * (?da=qr), propone di segnarla in magazzino con un tocco.
  */
-import { useContext, useMemo, useState } from "react";
+import { lazy, Suspense, useContext, useMemo, useState } from "react";
 import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Euro, Eye, Gauge, HardHat, Layers, Loader2, Package, Pencil, QrCode, ScanLine, Trash2, User, Warehouse, X,
+  ArrowLeft, Euro, Eye, Gauge, HardHat, Layers, List, Loader2, Map, Package, Pencil, QrCode, ScanLine, Trash2, User, Warehouse, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,10 +43,12 @@ import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
 import { formatCurrency } from "@/lib/formatters";
 import {
   STATO_SCADENZA_BADGE, TIPI_CON_TARGA, classeDi, costoAnnuoMezzo, descriviScadenza, formatContatore, formatData,
-  formatQuantita, giornoItaliano, oggiIso, possessoLabel, statoMezzo, tipoMezzoLabel,
+  formatQuantita, giornoItaliano, mezzoHaRegistroViaggi, oggiIso, possessoLabel, statoMezzo, tipoMezzoLabel,
 } from "@/types/mezzi";
 
 const ORA = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+const StoricoPercorsiMezzo = lazy(() => import("@/components/mezzi/StoricoPercorsiMezzo"));
+const CarburanteMezzo = lazy(() => import("@/components/mezzi/CarburanteMezzo"));
 
 export default function MezzoDetail() {
   const schedaCommessa = useContext(ContestoSchedaCommessa);
@@ -136,7 +138,16 @@ export default function MezzoDetail() {
     : mezzo.assegnato_commessa ?? mezzo.assegnato_persona ?? "in magazzino";
   const inMagazzino = !mezzo.assegnato_order_id && !mezzo.assegnato_hr_profilo_id && !mezzo.su_mezzo_id;
   const puoSpostare = puoModificare && !aQuantita && !TIPI_CON_TARGA.includes(mezzo.tipo);
+  const haViaggi = mezzoHaRegistroViaggi(mezzo);
+  const mostraMappaViaggi = searchParams.get("vista") === "mappa" && perms.canViewMezzi;
   const tabIniziale = aQuantita ? "montaggi" : aperte > 0 ? "segnalazioni" : "scadenze";
+  const cambiaVistaViaggi = (mappa: boolean) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "viaggi");
+    if (mappa) next.set("vista", "mappa");
+    else next.delete("vista");
+    setSearchParams(next, { replace: true });
+  };
 
   const chiudiBannerQr = () => {
     const next = new URLSearchParams(searchParams);
@@ -264,7 +275,7 @@ export default function MezzoDetail() {
                 <div className={cella}>
                   <Gauge className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
                   <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">{mezzo.contatore_unita === "ore" ? "Ore di lavoro" : "Km"}</dt>
+                    <dt className="text-xs text-muted-foreground">{mezzo.contatore_unita === "ore" ? "Contaore" : "Contachilometri"}</dt>
                     <dd className="truncate font-medium">
                       {formatContatore(mezzo.contatore, mezzo.contatore_unita)}
                       {mezzo.contatore_aggiornato_il && (
@@ -356,18 +367,18 @@ export default function MezzoDetail() {
         )}
       </div>
 
-      <Tabs value={tabScelto ?? (searchParams.get("tab")==="viaggi" && mezzo.contatore_unita==="km" ? "viaggi" : tabIniziale)} onValueChange={setTabScelto}>
+      <Tabs value={tabScelto ?? (searchParams.get("tab") === "viaggi" && haViaggi ? "viaggi" : tabIniziale)} onValueChange={setTabScelto}>
         {/* Documenti e manutenzioni restano raggiungibili anche da telefono. */}
         <div className="-mx-1 overflow-x-auto px-1 max-sm:mx-0 max-sm:px-0">
           <TabsList className="inline-flex w-max">
             {aQuantita && <TabsTrigger value="montaggi">Montaggi</TabsTrigger>}
             <TabsTrigger value="scadenze">{attrezzo ? "Documenti" : "Scadenze"}</TabsTrigger>
+            {haViaggi && <TabsTrigger value="viaggi">Viaggi e tratte</TabsTrigger>}
             <TabsTrigger value="manutenzioni">{attrezzo ? "Manutenzioni" : "Tagliandi"}</TabsTrigger>
             {perms.canViewCosts && <TabsTrigger value="fatture">Fatture</TabsTrigger>}
             <TabsTrigger value="foto">Foto</TabsTrigger>
-            {mezzo.contatore_unita==="km" && ["furgone","autocarro","autovettura","altro"].includes(mezzo.tipo) && <TabsTrigger value="viaggi">Viaggi e tratte</TabsTrigger>}
             {!aQuantita && <TabsTrigger value="uso" className="max-sm:hidden">{attrezzo ? "Cantieri" : "Cantieri e km"}</TabsTrigger>}
-            <TabsTrigger value="storico" className="max-sm:hidden">Storico</TabsTrigger>
+            <TabsTrigger value="storico" className="max-sm:hidden">Assegnazioni e QR</TabsTrigger>
             <TabsTrigger value="segnalazioni" className="gap-1.5">
               Segnalazioni
               {aperte > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{aperte}</span>}
@@ -413,7 +424,24 @@ export default function MezzoDetail() {
             <MezzoUsoCantieri mezzoId={mezzo.id} tipo={mezzo.tipo} />
           </TabsContent>
         )}
-        {mezzo.contatore_unita==="km" && ["furgone","autocarro","autovettura","altro"].includes(mezzo.tipo) && <TabsContent value="viaggi" className="mt-3"><ViaggiMezzoWorkspace key={mezzo.id} companyId={companyId} mezzoId={mezzo.id} readOnly={!puoModificare} vedeCosti={perms.canViewCosts} initialDay={searchParams.get("giorno") ?? undefined} /></TabsContent>}
+        {haViaggi && <TabsContent value="viaggi" className="mt-3 space-y-3">
+          {perms.canViewMezzi && <div role="group" aria-label="Vista dei viaggi" className="flex flex-wrap gap-1">
+            <Button size="sm" variant={mostraMappaViaggi ? "outline" : "secondary"} aria-pressed={!mostraMappaViaggi}
+              onClick={() => cambiaVistaViaggi(false)}><List className="size-4" /> Registro</Button>
+            <Button size="sm" variant={mostraMappaViaggi ? "secondary" : "outline"} aria-pressed={mostraMappaViaggi}
+              onClick={() => cambiaVistaViaggi(true)}><Map className="size-4" /> Storico su mappa</Button>
+          </div>}
+          {perms.canViewCosts && perms.canViewMezzi && <Suspense fallback={null}>
+            <CarburanteMezzo key={mezzo.id} company={companyId} mezzo={mezzo.id} modifica={puoModificare} />
+          </Suspense>}
+          {mostraMappaViaggi ? <Suspense fallback={<p role="status" className="p-3 text-sm text-muted-foreground">Caricamento storico…</p>}>
+            <StoricoPercorsiMezzo key={mezzo.id} company={companyId} mezzo={mezzo.id}
+              giorno={searchParams.get("giorno") ?? undefined} routing={perms.canViewCalendar && perms.canViewOrders}
+              costi={perms.canViewCosts} />
+          </Suspense> : <ViaggiMezzoWorkspace key={mezzo.id} companyId={companyId} mezzoId={mezzo.id} readOnly={!puoModificare}
+            vedeCosti={perms.canViewCosts} initialDay={searchParams.get("giorno") ?? undefined}
+            initialTripId={searchParams.get("viaggio") ?? undefined} />}
+        </TabsContent>}
         <TabsContent value="storico" className="mt-3 space-y-5">
           {!aQuantita && <MezzoStoricoSection mezzoId={mezzo.id} puoModificare={puoModificare} />}
           <section className="space-y-2">

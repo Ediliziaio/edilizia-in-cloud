@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
-import { cercaVicini, coordinate, minuti, normalizzaIndirizzo, type Candidato, type Coordinate, type Tratta } from "../../../shared/mappa-operativa/calcoli.ts";
+import { cercaVicini, coordinate, minuti, normalizzaIndirizzo, type Candidato, type ValutazioneVicino, type Coordinate, type Tratta } from "../../../shared/mappa-operativa/calcoli.ts";
 import { cercaIndirizzo, matriceOsrm, percorsoOsrm } from "./provider.ts";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -92,7 +92,9 @@ Deno.serve(async req => {
     }
 
     if (body.azione === "vista") {
-      await conta(body.tile === true ? "maptiler" : "leaflet", "visualizzazioni", 1, 60, 15000);
+      const cartografia = ["openfreemap", "maptiler", "tile_configurati", "leaflet"].includes(body.cartografia)
+        ? body.cartografia : body.tile === true ? "maptiler" : "leaflet";
+      await conta(cartografia, "visualizzazioni", 1, 60, 15000);
       return rispondi({ ok: true });
     }
 
@@ -112,7 +114,7 @@ Deno.serve(async req => {
         ? body.punti.map((p: Coordinate | null) => coordinate(p?.lat, p?.lng)) : [];
       if (!punti.every(Boolean) || punti.length < 2 || punti.length > 25) return rispondi({ error: "Percorso non valido" }, 400);
       if (!router) throw new Servizio("non_configurato");
-      return rispondi(await unica(["percorso", router, profilo, punti, body.revisione], 300, async () => {
+      return rispondi(await unica(["percorso", "geojson_tratte_copertura_v2", router, profilo, punti, body.revisione], 300, async () => {
         await conta("osrm_privato", "percorsi", 1, 15, 3000);
         return percorsoOsrm(router, "driving", punti as Coordinate[], tokenRouting);
       }));
@@ -152,12 +154,15 @@ Deno.serve(async req => {
           });
         } catch (e) { motivo = e instanceof Servizio ? e.codice : "non_disponibile"; throw e; }
       }, envInt("MAPPA_OPERATIVA_CANDIDATI_MAX", 10, 20) || 5);
+      const pubblico = ({ candidato, tratta, margineArrivo, margineRientro, motivo }: ValutazioneVicino) => ({
+        id: candidato.id, nome: candidato.nome, fonte: candidato.fonte, aggiornato: candidato.aggiornato,
+        metri: tratta?.metri ?? candidato.linea, secondi: tratta?.secondi ?? null,
+        margineArrivo, margineRientro, motivo,
+      });
       return rispondi({
         ...risultato, motivo,
-        risultati: risultato.risultati.map(({ candidato, tratta }) => ({
-          id: candidato.id, nome: candidato.nome, fonte: candidato.fonte, aggiornato: candidato.aggiornato,
-          metri: tratta?.metri ?? candidato.linea, secondi: tratta?.secondi ?? null,
-        })),
+        risultati: risultato.risultati.map(pubblico),
+        esclusi: risultato.esclusi.map(pubblico),
       });
     }
     return rispondi({ error: "Azione non supportata" }, 400);

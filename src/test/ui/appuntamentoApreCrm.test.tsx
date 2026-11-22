@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import type { PropostaAppuntamentoMappa } from "@/components/calendar/mappa/servizio";
 
 /**
  * Dall'appuntamento del calendario si apre il contatto e l'opportunità
@@ -125,7 +126,7 @@ const appuntamento: MarketingAppointmentData = {
   is_completed: false,
 };
 
-function apri(contestoScheda?: "contatto" | "opportunita", dati = appuntamento) {
+function apri(contestoScheda?: "contatto" | "opportunita", dati = appuntamento, propostaMappa?: PropostaAppuntamentoMappa) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={["/azienda/marketing/calendario"]}>
@@ -134,8 +135,9 @@ function apri(contestoScheda?: "contatto" | "opportunita", dati = appuntamento) 
           open
           onOpenChange={writing.close}
           appointment={dati}
+          propostaMappa={propostaMappa}
           onSaved={() => {}}
-          calendars={[{ id: "cal-1", name: "Agenda commerciale", owner_id: "u1" }, { id: "cal-2", name: "Agenda collega", owner_id: "u2" }]}
+          calendars={[{ id: "cal-1", name: "Agenda commerciale", owner_id: "u1", calendar_type: "personal" }, { id: "cal-2", name: "Agenda collega", owner_id: "u2", calendar_type: "personal" }]}
           users={[{ id: "u1", first_name: "Primo", last_name: "Commerciale" }, { id: "u2", first_name: "Secondo", last_name: "Commerciale" }]}
           contestoScheda={contestoScheda}
         />
@@ -270,4 +272,16 @@ describe("appuntamento: aprire contatto e opportunità collegati", () => {
     expect(screen.getByText("Tartani - Fotovoltaico")).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Apri opportunità/ })).toBeNull();
   }, TIMEOUT);
+});
+
+
+it("salva la proposta della mappa preservando l’indirizzo del contatto", async () => {
+  apri(undefined, { ...appuntamento, address_line: "Via del cantiere 5" }, {
+    tipo: "vendite", id: "u2", nome: "Secondo Commerciale", giorno: "2026-11-24", inizio: "10:00", fine: "11:00",
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+  await waitFor(() => expect(writing.close).toHaveBeenCalledWith(false));
+  expect(writing.update).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    calendar_id: "cal-2", assigned_to: "u2", appointment_date: "2026-11-24", appointment_time: "10:00:00",
+  }));
 });

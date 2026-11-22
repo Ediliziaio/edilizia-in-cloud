@@ -98,7 +98,7 @@ it("il solo avanzamento del rapportino attiva bozza e avviso di uscita", () => {
   const modifica = estrai(file, "                    avanzamentoModificato.current = true;", "                  }}");
   const aggiornaBozza = vi.fn();
   const setPercentuale = vi.fn();
-  const vuoti = { materialiSel: {}, presenzeSel: {}, presenzeModificate: {}, fasiDichiarate: {}, mezziSel: {}, campiValori: {}, fotoUrls: [] as string[], arrivo: {} };
+  const vuoti = { materialiSel: {}, presenzeSel: {}, presenzeModificate: {}, fasiDichiarate: {}, mezziSel: {}, campiValori: {}, fotoUrls: [] as string[], fotoDaRiprovare: [] as string[], arrivo: [] as unknown[] };
   const bozzaCorrente = { ...vuoti, descrizione: "", sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], firmaClienteNome: "" };
   const ambiente: Record<string, unknown> = {
     ...vuoti, bozzaCorrente, aggiornaBozza, setPercentuale,

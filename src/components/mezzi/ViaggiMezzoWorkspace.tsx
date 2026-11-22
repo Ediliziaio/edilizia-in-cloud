@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, CarFront, ChevronDown, Plus, Route } from "lucide-react";
 import { format, parseISO, subDays } from "date-fns";
@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { formatData, oggiIso } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
 import { ViaggioDialog } from "./ViaggioDialog";
+import { PercorrenzeMezzi } from "./PercorrenzeMezzi";
 import { ArriviDaRapportini } from "./ArriviDaRapportini";
 import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 
@@ -26,6 +27,7 @@ const dataOra = (value: string) =>
   new Date(value).toLocaleString("it-IT", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "Europe/Rome",
   });
 const stati = {
   bozza: "Bozza",
@@ -50,7 +52,9 @@ interface Props {
   autoOpen?: boolean;
   defaultOrderId?: string;
   initialDay?: string;
+  initialTripId?: string;
   integrato?: boolean;
+  riepilogoPeriodo?: (dal: string, al: string) => ReactNode;
 }
 
 /** Lazy history; no route calculations, GPS or writes during reads. */
@@ -65,9 +69,11 @@ export function ViaggiMezzoWorkspace({
   autoOpen = false,
   defaultOrderId,
   initialDay,
+  initialTripId,
   integrato = false,
+  riepilogoPeriodo,
 }: Props) {
-  const [expanded, setExpanded] = useState(!campo || autoOpen);
+  const [expanded, setExpanded] = useState(!campo || autoOpen || !!initialTripId);
   const [dialog, setDialog] = useState<{
     mezzoId: string;
     viaggio?: Viaggio;
@@ -104,7 +110,7 @@ export function ViaggiMezzoWorkspace({
     enabled: expanded && rangeValid,
   });
   const rows = list.data?.items ?? [];
-  const total = orderId ? totaliCommessa(rows, orderId) : null;
+  const total = orderId && !riepilogoPeriodo ? totaliCommessa(rows, orderId) : null;
   const roadVehicles = mezzi.filter(
     (m) =>
       ["autovettura", "furgone", "autocarro", "altro"].includes(m.tipo) &&
@@ -133,7 +139,7 @@ export function ViaggiMezzoWorkspace({
             <Button type="button" size="sm" variant="outline" className="h-8 px-2.5" aria-expanded={dateAperte}
               onClick={() => setDateAperte(v => !v)}><CalendarDays className="size-4" aria-hidden="true" />Periodo</Button>
           </div>
-          {rangeValid && <p className="px-0.5 text-xs tabular-nums text-muted-foreground">{dal === al ? formatData(dal) : `${formatData(dal)} – ${formatData(al)}`}</p>}
+          {rangeValid && <p className="px-0.5 text-xs tabular-nums text-muted-foreground">{dal === al ? formatData(dal) : `${formatData(dal)} – ${formatData(al)}`} · data di partenza</p>}
         </div> : <button
           type="button"
           aria-expanded={expanded}
@@ -224,6 +230,7 @@ export function ViaggiMezzoWorkspace({
               Scegli un periodo valido, al massimo 366 giorni.
             </p>
           )}
+          {rangeValid && riepilogoPeriodo?.(dal, al)}
           {orderId && rangeValid && <ArriviDaRapportini key={`${companyId}:${orderId}:${dal}:${al}`}
             companyId={companyId} orderId={orderId} dal={dal} al={al} readOnly={readOnly}
             onCompleta={arrivo => setDialog({ mezzoId: arrivo.mezzoId, arrivo })} />}
@@ -290,6 +297,7 @@ export function ViaggiMezzoWorkspace({
                     <ViaggioRiga
                       companyId={companyId}
                       viaggio={v}
+                      selezionato={v.id === initialTripId}
                       campo={campo}
                       editable={
                         !readOnly &&
@@ -347,16 +355,24 @@ export function ViaggiMezzoWorkspace({
 function ViaggioRiga({
   companyId,
   viaggio: v,
+  selezionato,
   campo,
   editable,
   onEdit,
 }: {
   companyId: string;
   viaggio: Viaggio;
+  selezionato: boolean;
   campo: boolean;
   editable: boolean;
   onEdit: () => void;
 }) {
+  const dettaglio = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (!selezionato || !dettaglio.current) return;
+    dettaglio.current.open = true;
+    dettaglio.current.scrollIntoView({ block: "nearest" });
+  }, [selezionato]);
   const [history, setHistory] = useState(false);
   const audit = useViaggioStorico(companyId, v.id, history && !campo);
   const summary = riepilogoViaggio(v);
@@ -364,7 +380,7 @@ function ViaggioRiga({
     : v.stato === "inviato" ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/45 dark:text-amber-200"
       : "bg-muted text-muted-foreground";
   return (
-    <details className="group/viaggio rounded-xl border bg-background">
+    <details ref={dettaglio} className="group/viaggio rounded-xl border bg-background">
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-3 py-2.5 text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><CarFront className="size-4" aria-hidden="true" /></span>
         <span className="min-w-0 flex-1 basis-32">
@@ -397,7 +413,7 @@ function ViaggioRiga({
                 {n(t.km)} km ·{" "}
                 {t.fonte === "stimati" ? "Stima, da verificare" : "Dichiarati"}
                 {t.minuti != null ? ` · ${n(t.minuti)} min` : ""} ·{" "}
-                {t.destinazione === "generale"
+                {t.rientro_attribuito ? "Rientro attribuito alla commessa" : t.destinazione === "generale"
                   ? "Spostamento generale"
                   : t.destinazione === "da_attribuire"
                     ? "Da attribuire in ufficio"
@@ -480,8 +496,11 @@ export function ViaggiCommessa({
 }) {
   const companyId = useEffectiveCompanyId();
   const [open, setOpen] = useState(false);
+  const riepilogoPeriodo = (dal: string, al: string) =>
+    <PercorrenzeMezzi ordine={orderId} dal={dal} al={al} costi={vedeCosti} />;
   if (integrato) return companyId ? <div className="p-3 sm:p-4">
-    <ViaggiMezzoWorkspace key={`${companyId}:${orderId}`} companyId={companyId} orderId={orderId} mezzi={mezzi} readOnly={readOnly} vedeCosti={vedeCosti} integrato />
+    <ViaggiMezzoWorkspace key={`${companyId}:${orderId}`} companyId={companyId} orderId={orderId} mezzi={mezzi} readOnly={readOnly} vedeCosti={vedeCosti} integrato
+      riepilogoPeriodo={riepilogoPeriodo} />
   </div> : null;
   return (
     <details
@@ -501,6 +520,7 @@ export function ViaggiCommessa({
             mezzi={mezzi}
             readOnly={readOnly}
             vedeCosti={vedeCosti}
+            riepilogoPeriodo={riepilogoPeriodo}
           />
         </div>
       )}

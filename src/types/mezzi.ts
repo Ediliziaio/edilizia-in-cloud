@@ -356,6 +356,8 @@ export const TIPI_VEICOLO = TIPI_MEZZO.filter((t) => t.value !== "attrezzatura")
 
 /** Furgoni e auto: seguono chi li guida, hanno targa e libretto. */
 export const TIPI_CON_TARGA: MezzoTipo[] = ["furgone", "autocarro", "autovettura"];
+export const mezzoHaRegistroViaggi = (m: Pick<Mezzo, "tipo" | "contatore_unita">) =>
+  m.contatore_unita === "km" && (TIPI_CON_TARGA.includes(m.tipo) || m.tipo === "altro");
 
 export const classeDi = (tipo: string): MezzoClasse => (tipo === "attrezzatura" ? "attrezzatura" : "mezzo");
 

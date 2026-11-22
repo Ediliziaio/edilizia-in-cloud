@@ -230,7 +230,10 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
         </div>
 
         {mezzo.contatore_unita === "km" && ["furgone", "autocarro", "autovettura", "altro"].includes(mezzo.tipo) && (
-          <ViaggiMezzoWorkspace companyId={mezzo.company_id} mezzoId={mezzo.id} campo autoOpen={routeParams.get("viaggio")===mezzo.id} defaultOrderId={routeParams.get("commessa") ?? undefined} />
+          <ViaggiMezzoWorkspace
+            initialDay={routeParams.get("mezzo") === mezzo.id ? routeParams.get("giorno") ?? undefined : undefined}
+            initialTripId={routeParams.get("mezzo") === mezzo.id ? routeParams.get("rivedi") ?? undefined : undefined}
+            companyId={mezzo.company_id} mezzoId={mezzo.id} campo autoOpen={routeParams.get("viaggio")===mezzo.id} defaultOrderId={routeParams.get("commessa") ?? undefined} />
         )}
 
         {scaduti.length > 0 && (

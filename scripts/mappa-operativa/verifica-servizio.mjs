@@ -68,7 +68,19 @@ const app = createServer(async (req, res) => {
     if (url.pathname.startsWith("/route/")) {
       assert.equal(req.headers.authorization, "Bearer routing-fixture");
       chiamate.push({ tipo: "percorso" });
-      return json(200, { code: "Ok", routes: [{ legs: [{ duration: 450, distance: 6000 }], geometry: { coordinates: [[9.1, 45.41], [9.18, 45.42]] } }] });
+      assert.equal(url.searchParams.get("steps"), "true");
+      assert.equal(url.searchParams.get("radiuses"), "500;500;500");
+      if (url.pathname.includes("9.7,45.9")) return json(400, {
+        code: "NoSegment", message: "Could not find a matching segment for coordinate 1",
+      });
+      const partenza = [9.1, 45.41], tappa = [9.18, 45.42], curva = [9.14, 45.43];
+      return json(200, { code: "Ok", routes: [{
+        legs: [
+          { duration: 450, distance: 6000, steps: [{ geometry: { coordinates: [partenza, tappa] } }] },
+          { duration: 540, distance: 7200, steps: [{ geometry: { coordinates: [tappa, curva, partenza] } }] },
+        ],
+        geometry: { coordinates: [partenza, tappa, curva, partenza] },
+      }] });
     }
     if (url.pathname === "/search") {
       assert.equal(req.headers.authorization, "Bearer geocoding-fixture");
@@ -83,7 +95,7 @@ let edge;
 let edgeLog = "";
 try {
   await db.exec(await readFile(path.join(root, "src/test/fixtures/mappaOperativaDatabase.sql"), "utf8"));
-  await db.exec(await readFile(path.join(root, "supabase/migrations/20290506163000_mappa_operativa_calendari.sql"), "utf8"));
+  await db.exec(await readFile(path.join(root, "supabase/migrations/20290507115000_mappa_operativa_calendari.sql"), "utf8"));
   await db.exec(`
     insert into companies values ('${az}'),('${altro}');
     insert into profiles values ('${uid}','${az}','Titolare','QA',false,null);
@@ -131,6 +143,7 @@ try {
   assert.equal((await chiama({ azione: "vista" }, false))[0], 401);
   assert.equal((await chiama({ company: altro, azione: "vista" }))[0], 403);
   assert.equal((await chiama({ azione: "vista", tile: true }))[0], 200);
+  assert.equal((await chiama({ azione: "vista", tile: true, cartografia: "openfreemap" }))[0], 200);
   assert.deepEqual(chiamate, []);
   const meta = { lat: 45.4, lng: 9.18 };
   const cerca = { azione: "vicini", giorno, inizio: "13:00", fine: "14:00", tipo: "vendite", meta };
@@ -145,17 +158,24 @@ try {
     chiama({ azione: "indirizzo", indirizzo: "via demo 4, milano" })]);
   for (const [codice, risposta] of primi) { assert.equal(codice, 200); assert.equal(risposta.risultati[0].lat, 45.41); }
   assert.equal(chiamate.filter(c => c.tipo === "geocodifica").length, 1);
-  const percorso = { azione: "percorso", punti: [meta, { lat: 45.45, lng: 9.21 }], revisione: ["9"] };
-  assert.equal((await chiama(percorso))[1].tratte[0].metri, 6000);
-  await chiama(percorso);
+  const percorso = { azione: "percorso", punti: [meta, { lat: 45.45, lng: 9.21 }, meta], revisione: ["9"] };
+  const [, giro] = await chiama(percorso);
+  assert.deepEqual(giro.tratte.map(t => t.metri), [6000, 7200]);
+  assert.deepEqual(giro.geometrieTratte.map(tratta => tratta.length), [2, 3]);
+  assert.deepEqual((await chiama(percorso))[1], giro);
   assert.equal(chiamate.filter(c => c.tipo === "percorso").length, 1);
   await chiama({ ...percorso, revisione: ["10"] });
   assert.equal(chiamate.filter(c => c.tipo === "percorso").length, 2);
+  const [, pinFuori] = await chiama({ ...percorso, punti: [meta, { lat: 45.9, lng: 9.7 }, meta] });
+  assert.deepEqual(pinFuori, { tratte: [null, null], geometria: [], problema: "fuori_copertura", puntiFuoriCopertura: [1] });
   fallisciMatrice = true;
   const [, risultato] = await chiama({ ...cerca, meta: { lat: 45.41, lng: 9.19 } });
   assert.equal(risultato.metodo, "linea");
   const conteggi = (await db.query("select provider,voce,sum(unita)::int unita from private.mappa_consumo group by provider,voce order by provider,voce")).rows;
-  assert.deepEqual(conteggi.map(c => [c.voce, c.unita]), [["visualizzazioni", 1], ["geocodifiche", 1], ["elementi_matrice", 10], ["percorsi", 2]]);
+  assert.deepEqual(conteggi.map(c => [c.provider, c.voce, c.unita]), [
+    ["maptiler", "visualizzazioni", 1], ["nominatim_privato", "geocodifiche", 1], ["openfreemap", "visualizzazioni", 1],
+    ["osrm_privato", "elementi_matrice", 10], ["osrm_privato", "percorsi", 3],
+  ]);
   console.log(JSON.stringify({ chiamate, conteggi, candidati: dati.totale, valutati: dati.valutati, fallback: risultato.metodo }, null, 2));
 } catch (e) {
   console.error(edgeLog);

@@ -1232,3 +1232,8 @@ verify_jwt = false
 
 [functions.mappa-operativa]
 verify_jwt = false
+
+
+# Aggiornamento giornaliero richiesto dal pg_cron. Verifica del segreto nel worker.
+[functions.carburante-mimit-sync]
+verify_jwt = false

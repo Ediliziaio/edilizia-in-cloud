@@ -1,3 +1,4 @@
+import type { PropostaCommessaMappa } from "@/components/calendar/mappa/servizio";
 import { salvaPreparazioneForniture } from "@/lib/orders/salvaPreparazioneForniture";
 import { pianoSalDaOrdine } from "@/lib/orders/pianoSalAperto";
 import { calcolaQuoteIva, ivaMistaDaOrdine, lordoPattuitoConQuote } from "@/lib/orders/ivaMista";
@@ -24,7 +25,7 @@ import { useOrderContractLink } from "@/hooks/useOrderContractLink";
 import { avanzamentoFasi, seminaSchedaCommessa, type SchedaCommessa } from "@/lib/orders/schedaCommessa";
 import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
-import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation, useSearchParams } from "react-router-dom";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -407,6 +408,7 @@ interface LinkedFiscalDocument {
 function OrderDetailInner() {
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
+  const propostaMappa = (useLocation().state as { propostaMappa?: PropostaCommessaMappa } | null)?.propostaMappa;
   const navigate = useNavigate();
   const { user, effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
@@ -2302,6 +2304,7 @@ function OrderDetailInner() {
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 logisticaIntegrata
+                propostaMappa={propostaMappa?.orderId === id && propostaMappa?.company === companyId ? propostaMappa : undefined}
                 importoContratto={agreedAmount}
                 organizationContent={figureResponsabilita}
                 onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })}

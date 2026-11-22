@@ -15,6 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { PianoMezziCantiere } from "./PianoMezziCantiere";
+import { PercorrenzeMezzi } from "./PercorrenzeMezzi";
 export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
   const p = usePermissions();
   const enabled = p.canViewCosts && (p.canViewMezzi || p.isAdmin);
@@ -33,21 +34,22 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
     prezzi.data ?? {},
     fonti.data ?? { fonti: [], legami: [] },
   );
+  const righe = e.righe.filter(r => !r.piano.annullato || r.registrato || r.invalidi);
   return (
     <section
-      className="mt-3 space-y-3 rounded-xl border border-blue-100 bg-blue-50/30 p-3"
+      className="mt-3 space-y-2.5 rounded-xl border bg-card p-2.5 sm:p-3"
       aria-label="Economia mezzi e noleggi"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Truck className="h-4 w-4" />
-          Mezzi e noleggi della commessa
+          <Truck className="size-4 text-primary" />
+          Mezzi e noleggi
         </h3>
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
           Gestisci risorse e spese
         </Button>
       </div>
-      {!loading && !error && !piani.data?.length && <p className="text-xs text-muted-foreground">Nessun mezzo pianificato. Da «Gestisci risorse e spese» assegna un mezzo o un nolo e indica tariffa, periodo e fornitore. Le fatture confermate alimentano i costi effettivi; il listino definisce il prezzo al cliente.</p>}
+      <PercorrenzeMezzi ordine={orderId} costi />
       {error ? (
         <p role="alert" className="text-xs text-destructive">
           Dati mezzi non disponibili.{" "}
@@ -65,9 +67,9 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
         </p>
       ) : loading ? (
         <p className="text-xs">Caricamento costi mezzi…</p>
-      ) : (
+      ) : righe.length ? (
         <>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             {[
               ["Previsto per le assegnazioni", formatCurrency(e.previsto)],
               [
@@ -83,10 +85,10 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-lg border bg-white/80 p-3 dark:bg-background"
+                className="rounded-md bg-muted/45 px-2.5 py-1.5"
               >
                 <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-1 text-base font-semibold">{value}</p>
+                <p className="text-sm font-semibold tabular-nums">{value}</p>
               </div>
             ))}
           </div>
@@ -101,11 +103,7 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {e.righe
-                  .filter(
-                    (r) => !r.piano.annullato || r.registrato || r.invalidi,
-                  )
-                  .map((r) => (
+                {righe.map((r) => (
                     <tr key={r.piano.id} className="border-b last:border-0">
                       <td className="p-2">
                         {mezzi.find((m) => m.id === r.piano.mezzo_id)?.nome ??
@@ -143,13 +141,10 @@ export function CostiMezziRiepilogo({ orderId }: { orderId: string }) {
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Importi netti IVA. Il previsto serve al confronto; i costi
-            registrati sono già nel consuntivo e nel margine diretto. Non
-            vengono sommati nuovamente, neppure quando arriva la fattura di un
-            OdA. Le stime annue del parco restano separate.
+            Importi netti IVA. I costi collegati sono già inclusi nel consuntivo e nel margine.
           </p>
         </>
-      )}
+      ) : <p className="px-0.5 text-xs text-muted-foreground">Nessun mezzo o noleggio pianificato.</p>}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>

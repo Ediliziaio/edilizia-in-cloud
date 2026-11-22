@@ -29,10 +29,11 @@ import { campoCrewAgendaEnabled } from "@/hooks/campo/useCampoCrewAgenda";
 import { cn } from "@/lib/utils";
 import { haversineMeters } from "@/lib/tsp";
 import { useCompanyBase } from "@/hooks/useCompanyBase";
-import { dataCalendarioOggi, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
+import { dataCalendarioOggi, useDataMappaCalendario, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
 import { coordinate, dataAdiacente, minuti } from "../../../shared/mappa-operativa/calcoli";
 import type { Attivita, VoceMappa } from "@/components/calendar/mappa/dati";
 
+import { preparaSfondoMappa } from "@/components/calendar/mappa/caricaSfondo";
 const MappaOperativa = lazy(() => import("@/components/calendar/mappa/MappaOperativa"));
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -175,13 +176,13 @@ export default function CampoCalendario() {
   const { user, profile } = useAuth();
   const sedeCoords = useCompanyBase();
   const [mostraMappa, setMostraMappa] = useState(false);
-  const statoMappa = useMappaCalendario(profile?.company_id, user?.id);
+  const statoMappa = useMappaCalendario(profile?.company_id ?? undefined, user?.id, "campo");
 
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [selectedAppuntamento, setSelectedAppuntamento] = useState<Appuntamento | null>(null);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(dataCalendarioOggi);
+  const [selectedDay, setSelectedDay] = useDataMappaCalendario(profile?.company_id ?? undefined, user?.id, "campo");
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(selectedDay, { weekStartsOn: 1 }));
+  const [currentMonth, setCurrentMonth] = useState(selectedDay);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -353,7 +354,7 @@ export default function CampoCalendario() {
 
       <div role="group" aria-label="Vista operativa" className="flex gap-1">
         <Button size="sm" variant={mostraMappa ? "ghost" : "secondary"} aria-pressed={!mostraMappa} onClick={() => setMostraMappa(false)}><CalendarDays className="size-4" /> Calendario</Button>
-        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => setMostraMappa(true)}><MapPinned className="size-4" /> Mappa</Button>
+        <Button size="sm" variant={mostraMappa ? "secondary" : "ghost"} aria-pressed={mostraMappa} onClick={() => { preparaSfondoMappa(); setMostraMappa(true); }}><MapPinned className="size-4" /> Mappa</Button>
       </div>
       {mostraMappa ? <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
         <MappaOperativa key={`${profile?.company_id}:${user?.id}:campo`} {...statoMappa} ambito="campo" personale

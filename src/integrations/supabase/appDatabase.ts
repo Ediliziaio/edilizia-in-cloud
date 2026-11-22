@@ -1,3 +1,5 @@
+import type { PrezziMimit } from "../../../shared/carburanti/mimit";
+import type { TrattaViaggio, Viaggio } from "@/lib/mezzi/viaggi";
 import type { Database } from "./types";
 import type { AttivitaAi } from "../../../shared/aiAttivita";
 /** Additive contract until the next full generated schema refresh. */
@@ -11,9 +13,105 @@ export type DriveFolderMode = "automatic" | "manual";
 export type DriveFileRow = { id: string; company_id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; shared: boolean; created_by: string | null; created_at: string };
 type Account = Database["public"]["Tables"]["bank_accounts"];
 type Quote = Database["public"]["Tables"]["quotes"];
+export type PuntoMezzoMappa = {
+  nome: string; fonte: string; order_id: string | null; lat: number | null; lng: number | null;
+  quando?: string | null; dal?: string;
+};
+export type MezzoGiornoMappa = {
+  id: string; nome: string; targa: string | null; tipo: string; stradale: boolean; unita: string;
+  posizione: PuntoMezzoMappa | null; destinazione: PuntoMezzoMappa | null; destinazioni: number;
+  metri_registrati: number | null; metri_stimati: number | null; fonti_registrate: string[];
+  contaore: number | null; contaore_aggiornato: string | null;
+};
+export type PuntoStoricoMezzo = { lat: number | null; lng: number | null; fonte: string };
+export type ViaggioStoricoMezzo = {
+  id: string; partenza: string; arrivo: string; stato: "inviato" | "verificato";
+  fonte: "contatore" | "dichiarati" | "stimati" | null; km: number | null;
+  tratte: { da: string; a: string; partenza: PuntoStoricoMezzo | null; arrivo: PuntoStoricoMezzo | null }[];
+};
+export type StoricoPercorsiMezzo = {
+  totali: { registrati: number | null; stimati: number | null; viaggi: number; senza_km: number };
+  items: ViaggioStoricoMezzo[];
+};
+export type TipoCarburante = "gasolio" | "benzina" | "nessuno";
+export type RiferimentoCarburante = { zona: string | null; zona_impostata: string | null; preferisci_mimit: boolean };
+export type ConfigCarburanteMezzo = {
+  riferimento?: RiferimentoCarburante | null;
+  zone?: { chiave: string; nome: string }[];
+  stima?: { euro_litro: number | null; fonte: "aziendale" | "mimit" | null; zona: string | null; euro_litro_lordo: number | null } | null;
+  consumo: { tipo: TipoCarburante; dal: string; litri_100: number | null } | null;
+  prezzi: Partial<Record<"gasolio" | "benzina", { dal: string; euro_litro: number }>>;
+};
+export type TotaliPercorrenze = {
+  viaggi: number; tratte_senza_km: number; km_verificati: number; km_dichiarati: number; km_stimati: number;
+  mimit?: boolean | null; litri: number | null; costo_carburante: number | null; costo_tariffa: number | null; km_senza_parametri: number | null;
+};
+export type QuadroPercorrenze = {
+  totali: TotaliPercorrenze;
+  mezzi: (TotaliPercorrenze & { mezzo_id: string; nome: string; targa: string | null })[];
+};
+
+export type GiroMezziSalvato = {
+  id: string; mezzo_id: string; mezzo: string; autista: string; partenza: string; arrivo: string;
+  commesse: string[]; oda: string[]; tratte: (TrattaViaggio & { oda: string[] })[];
+  viaggio_id: string | null; stato_viaggio: Viaggio["stato"] | null; annullato_il: string | null;
+};
+
 export type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Views" | "Tables"> & {
     Functions: Database["public"]["Functions"] & {
+      mezzi_giro_contesto: {
+        Args: { p_company: string; p_mezzo: string; p_cantiere: string; p_autista: string };
+        Returns: { autisti: { id: string; label: string }[]; cantieri: { id: string; label: string; indirizzo: string | null }[] };
+      };
+      mezzi_giri_elenco: {
+        Args: { p_company: string; p_order: string }; Returns: GiroMezziSalvato[];
+      };
+      mezzi_giro_salva: {
+        Args: { p_company: string; p_id: string; p_mezzo: string; p_autista: string; p_partenza: string;
+          p_arrivo: string; p_commesse: string[]; p_oda: string[]; p_luogo: string; p_rientro: boolean };
+        Returns: string;
+      };
+      mezzi_giro_annulla: {
+        Args: { p_company: string; p_giro: string }; Returns: undefined;
+      };
+      mezzi_giro_registra: {
+        Args: { p_company: string; p_giro: string }; Returns: Viaggio;
+      };
+      carburante_mimit_giorno: {
+        Args: { p_giorno: string }; Returns: PrezziMimit | null;
+      };
+      mezzo_carburante_riferimento_salva: {
+        Args: { p_company: string; p_mezzo: string; p_dal: string; p_zona: string | null; p_preferisci_mimit: boolean };
+        Returns: undefined;
+      };
+      mezzo_carburante_config: {
+        Args: { p_company: string; p_mezzo: string; p_giorno: string };
+        Returns: ConfigCarburanteMezzo;
+      };
+      mezzo_carburante_salva: {
+        Args: { p_company: string; p_mezzo: string; p_dal: string; p_tipo: TipoCarburante; p_litri_100: number | null; p_euro_litro?: number | null };
+        Returns: undefined;
+      };
+      mezzi_quadro_percorrenze: {
+        Args: { p_company: string; p_ordine?: string; p_mezzo?: string; p_dal?: string; p_al?: string };
+        Returns: QuadroPercorrenze;
+      };
+      mezzi_storico_percorsi: {
+        Args: { p_company: string; p_mezzo: string; p_dal: string; p_al: string; p_offset?: number };
+        Returns: StoricoPercorsiMezzo;
+      };
+      mappa_mezzi_giorno: {
+        Args: { p_company: string; p_giorno: string; p_personale: boolean; p_dopo?: string };
+        Returns: MezzoGiornoMappa[];
+      };
+      mappa_storico_cantieri: {
+        Args: { p_company: string; p_anno: number | null; p_personale: boolean; p_dopo?: string };
+        Returns: {
+          id: string; titolo: string; codice: string | null; indirizzo: string;
+          lat: number | null; lng: number | null; data: string | null; chiusura_registrata: boolean;
+        }[];
+      };
       mappa_assegnati: {
         Args: { p_company: string; p_giorno: string; p_ordini: string[] };
         Returns: { order_id: string; user_id: string; nome: string | null; squadra_id: string | null; employee_id: string | null; mezzo_id: string | null; mezzo: string | null }[];
@@ -22,9 +120,21 @@ export type AppDatabase = Omit<Database, "public"> & {
         Args: { p_company: string; p_giorno: string; p_ordini: string[]; p_personale: boolean };
         Returns: { order_id: string; user_id: string; nome: string | null; tipo: string; ora: string; fonte: string }[];
       };
+      mappa_timbrature_gps: {
+        Args: { p_company: string; p_giorno: string; p_personale: boolean };
+        Returns: {
+          id: string; order_id: string | null; persona_id: string | null; nome: string | null;
+          tipo: string; ora: string; fonte: string; lat: number; lng: number; precisione: number | null;
+          sede: string | null; esito: string | null;
+        }[];
+      };
       mappa_km_effettivi: {
         Args: { p_company: string; p_giorno: string; p_personale: boolean };
         Returns: { id: string; mezzo: string; metri: number; fonte: string; partenza: string; arrivo: string; aggiornato: string }[];
+      };
+      mappa_km_da_registrare: {
+        Args: { p_company: string; p_giorno: string; p_personale: boolean };
+        Returns: { id: string; mezzo_id: string; mezzo: string; partenza: string }[];
       };
       mappa_salva_posizione: {
         Args: { p_company: string; p_tipo: string; p_record: string; p_lat: number; p_lng: number; p_fonte: string; p_indirizzo: string };

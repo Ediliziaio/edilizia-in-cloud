@@ -1,7 +1,7 @@
 // src/components/orders/RapportiniUfficio.tsx
 import { VociRapportinoUfficio } from "@/components/orders/VociRapportinoUfficio";
 import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
-import { ARRIVO_VUOTO, mezzoStradale } from "@/lib/campo/arrivoRapportino";
+import { ARRIVI_VUOTI, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -407,8 +407,10 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
               />
             </Blocco>
 
-            {parti.mezzi && <ArrivoRapportino valore={g.arrivo ?? ARRIVO_VUOTO} onChange={arrivo => cambia(g.chiave, { arrivo })}
-              mezzi={tuttiMezzi.filter(mezzoStradale)} caricamento={mezziQuery.isLoading} errore={mezziQuery.isError}
+            {parti.mezzi && <ArrivoRapportino valore={g.arrivo ?? ARRIVI_VUOTI} onChange={arrivo => cambia(g.chiave, { arrivo })}
+              mezzi={tuttiMezzi.filter(mezzoStradale)} suggeriti={tuttiMezzi.filter(m =>
+                Object.hasOwn(g.mezzi ?? {}, m.id) || (g.data === oggi && idQui.has(m.id))).map(m => m.id)}
+              caricamento={mezziQuery.isLoading} errore={mezziQuery.isError}
               riprova={() => void mezziQuery.refetch()} />}
 
             {parti.mezzi && <Blocco titolo="Mezzi e attrezzi usati">

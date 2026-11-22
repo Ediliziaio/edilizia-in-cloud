@@ -32,6 +32,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import { useAuth } from "@/contexts/AuthContext";
+import { STATI_DDT } from "@/lib/orders/materialProcurement";
 import { formatCurrency } from "@/lib/formatters";
 import { eNotaDiCredito } from "@/lib/fatturazione/noteDiCredito";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -133,13 +134,6 @@ export function cosaManca(
   }
   return { daFare: null, motivo: null };
 }
-
-const STATI_DDT: Record<string, string> = {
-  atteso: "Attesa", attesa: "Attesa", parziale: "Arrivata in parte", ricevuto: "Arrivata, da controllare",
-  verificato: "Controllata", non_conforme: "Non conforme",
-  da_verificare: "Da verificare in ufficio", registrato: "Registrata", rifiutato: "Rifiutata",
-  bozza: "Bozza", emesso: "Emesso", emessa: "Emesso", inviato: "Inviato",
-};
 
 export function useBolleCommessa(orderId: string, abilitato = true) {
   const { effectiveCompany } = useAuth();

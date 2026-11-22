@@ -1,7 +1,7 @@
 import { getOrderWorkPeriods } from "@/lib/calendar/planning";
 import type { CalendarOrder } from "@/types/calendar";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
-import { coordinate, dataAdiacente, minuti, type Coordinate, type Tappa } from "../../../../shared/mappa-operativa/calcoli";
+import { coordinate, dataAdiacente, minuti, ordineTappe, partiNelFuso, type Coordinate, type Tappa } from "../../../../shared/mappa-operativa/calcoli";
 
 export type Risorsa = { id: string; nome: string; tipo: "commerciale" | "operaio" | "squadra" | "mezzo" };
 export type Attivita = { id: string; nome: string; inizio: number | null; fine: number | null; risorse: Risorsa[]; stato?: string };
@@ -10,6 +10,7 @@ export type VoceMappa = Tappa & {
   indirizzo: string;
   stato: string;
   motivo?: string;
+  orarioIncompleto?: boolean;
   escluso?: boolean;
   cliente?: string | null;
   attivita: Attivita[];
@@ -21,6 +22,55 @@ export type AppuntamentoMappa = MarketingAppointment & {
   address_province?: string | null; address_country?: string | null; place_id?: string | null;
   cancelled_at?: string | null;
 };
+
+export type TappaOperativa = Tappa & { voce?: VoceMappa };
+
+export function tappeOperative(voci: VoceMappa[], include: (a: Attivita) => boolean): TappaOperativa[] {
+  const singole = ordineTappe(voci.flatMap(v => v.escluso ? [] : v.attivita.filter(include).map(a => ({
+    id: v.tipo === "appuntamento" ? v.id : `${v.id}:${a.id}`, titolo: v.titolo, punto: v.punto,
+    inizio: a.inizio, fine: a.fine, voce: { ...v, attivita: [a] },
+  }))));
+  const tappe: typeof singole = [];
+  for (const t of singole) {
+    const precedente = tappe.at(-1);
+    if (t.voce.tipo === "cantiere" && precedente?.voce.id === t.voce.id &&
+      precedente.inizio != null && precedente.fine != null && t.inizio != null && t.fine != null &&
+      t.inizio <= precedente.fine) {
+      precedente.fine = Math.max(precedente.fine, t.fine);
+      precedente.voce.attivita.push(...t.voce.attivita);
+    } else {
+      tappe.push(t);
+    }
+  }
+  return tappe;
+}
+
+export function timbratureDellaVisita<T extends { user_id: string; ora: string; tipo: string }>(
+  eventi: T[], visita: Pick<VoceMappa, "inizio" | "fine">, giorno: string, utenti: ReadonlySet<string>,
+) {
+  const { inizio, fine } = visita;
+  if (inizio == null || fine == null || !utenti.size) return [];
+  const domani = fine >= 1440 ? dataAdiacente(giorno, 1) : "";
+  return eventi.filter(evento => {
+    if (!utenti.has(evento.user_id)) return false;
+    const locale = partiNelFuso(evento.ora);
+    if (locale.giorno !== giorno && locale.giorno !== domani) return false;
+    const orario = minuti(locale.ora)! + (locale.giorno === domani ? 1440 : 0) +
+      (new Date(evento.ora).getTime() % 60_000) / 60_000;
+    const chiusura = ["uscita", "pausa_fine", "fine_pausa"].includes(evento.tipo);
+    return chiusura ? orario > inizio && orario <= fine : orario >= inizio && orario < fine;
+  });
+}
+
+export function dettagliTimbratura(tipo: string) {
+  switch (tipo) {
+    case "entrata": return { label: "Entrata", simbolo: "E" };
+    case "uscita": return { label: "Uscita", simbolo: "U" };
+    case "pausa_fine":
+    case "fine_pausa": return { label: "Fine pausa", simbolo: "P" };
+    default: return { label: "Inizio pausa", simbolo: "P" };
+  }
+}
 
 const annullati = new Set(["annullato","annullata","cancelled","canceled","cancellato","cancellata","disdetto","no_show"]);
 export const etichettaStato = (stato: string) => ({
@@ -36,7 +86,9 @@ function orari(inizio: string | null | undefined, fine: string | null | undefine
 
 export function appuntamentiMappa(
   appuntamenti: AppuntamentoMappa[], giorno: string,
-  calendari: { id: string; base_lat: number | null; base_lng: number | null; base_place_id: string | null; duration_minutes: number }[],
+  calendari: { id: string; owner_id?: string | null; calendar_type?: string | null; base_lat: number | null;
+    base_lng: number | null; base_place_id: string | null; duration_minutes: number }[],
+  utente?: string,
 ): VoceMappa[] {
   const basi = new Map(calendari.map(c => [c.id, c]));
   return appuntamenti.flatMap(a => {
@@ -49,16 +101,19 @@ export function appuntamentiMappa(
     const remoto = !!a.meeting_url || (!!a.meeting_provider && a.meeting_provider !== "none") ||
       ["online", "videochiamata", "telefono", "telefonata"].includes(a.appointment_type);
     const escluso = !!a.cancelled_at || annullati.has(stato) || remoto;
-    const indirizzo = a.formatted_address?.trim() || [a.address_line, a.address_postal_code, a.address_city, a.address_province, a.address_country]
-      .map(v => v?.trim()).filter(Boolean).join(", ");
+    const partiIndirizzo = [a.address_line, a.address_postal_code, a.address_city, a.address_province]
+      .map(v => v?.trim()).filter(Boolean);
+    const indirizzo = a.formatted_address?.trim() || (partiIndirizzo.length
+      ? [...partiIndirizzo, a.address_country?.trim()].filter(Boolean).join(", ") : "");
     const inizio = precedente ? 0 : fascia.inizio;
     const fine = precedente ? (fascia.fine ?? 1440) - 1440 : fascia.fine;
     return [{
       id: a.id, tipo: "appuntamento", titolo: a.title, cliente: a.contact_name,
       indirizzo, punto: escluso || a.place_id ? null : coordinate(a.lat, a.lng),
       motivo: remoto ? "Appuntamento da remoto" : escluso ? "Appuntamento annullato" : a.place_id ? "Verifica la posizione per questa cartografia" : undefined,
-      escluso, stato, inizio, fine,
-      base: base && !base.base_place_id ? coordinate(base.base_lat, base.base_lng) : null,
+      escluso, stato, inizio, fine, orarioIncompleto: !a.appointment_time || (!a.appointment_end_time && !base?.duration_minutes),
+      base: utente && a.assigned_to === utente && base?.owner_id === utente && base.calendar_type === "personal" && !base.base_place_id
+        ? coordinate(base.base_lat, base.base_lng) : null,
       attivita: [{
         id: a.id, nome: a.title, inizio, fine,
         risorse: a.assigned_to ? [{ id: a.assigned_to, nome: a.assigned_name || "Commerciale assegnato", tipo: "commerciale" }] : [],
@@ -69,20 +124,38 @@ export function appuntamentiMappa(
 
 export function cantieriMappa(ordini: CalendarOrder[], giorno: string, personale: boolean, personeVisibili: boolean): VoceMappa[] {
   return ordini.flatMap(o => {
+    const ieri = dataAdiacente(giorno, -1);
     const attivita = getOrderWorkPeriods(o).flatMap(f => {
-      const fascia = orari(f.start_time ?? o.work_start_time, f.end_time ?? o.work_end_time);
-      const prima = dataAdiacente(giorno, -1);
-      const oggi = giorno >= f.start_date && giorno <= f.end_date;
-      const precedente = prima >= f.start_date && prima <= f.end_date && (fascia.fine ?? 0) > 1440;
-      const attivita = (data: string, oltreMezzanotte: boolean): Attivita => ({
-        id: f.id + (oltreMezzanotte ? ":continua" : ""), nome: f.name, stato: f.status,
-        inizio: oltreMezzanotte ? 0 : fascia.inizio, fine: oltreMezzanotte ? (fascia.fine ?? 1440) - 1440 : fascia.fine,
-        risorse: personeVisibili ? f.resources.filter(r => r.start_date <= data && r.end_date >= data)
-          .map((r): Risorsa => ({
-            id: r.resourceId, nome: r.resourceName, tipo: r.resourceType === "team" ? "squadra" : "operaio",
-          })) : [],
-      });
-      return [...(precedente ? [attivita(prima, true)] : []), ...(oggi ? [attivita(giorno, false)] : [])];
+      const segmenti = (data: string, continua: boolean): Attivita[] => {
+        if (data < f.start_date || data > f.end_date) return [];
+        const inizioLavoro = f.start_time ?? o.work_start_time;
+        const fineLavoro = f.end_time ?? o.work_end_time;
+        const fasce = new Map<string, { inizio: number | null; fine: number | null; risorse: Risorsa[] }>();
+        const prenotazioni = personeVisibili ? f.resources.filter(r => r.start_date <= data && r.end_date >= data) : [];
+        for (const r of prenotazioni) {
+          const fascia = orari(r.start_time ?? inizioLavoro, r.end_time ?? fineLavoro);
+          const chiave = `${fascia.inizio}:${fascia.fine}`;
+          const gruppo = fasce.get(chiave) ?? { ...fascia, risorse: [] };
+          const tipo = r.resourceType === "team" ? "squadra" : "operaio";
+          if (!gruppo.risorse.some(s => s.id === r.resourceId && s.tipo === tipo)) {
+            gruppo.risorse.push({ id: r.resourceId, nome: r.resourceName, tipo });
+          }
+          fasce.set(chiave, gruppo);
+        }
+        if (!fasce.size) {
+          const fascia = orari(inizioLavoro, fineLavoro);
+          fasce.set(`${fascia.inizio}:${fascia.fine}`, { ...fascia, risorse: [] });
+        }
+        return [...fasce].flatMap(([chiave, fascia]) => {
+          if (continua && (fascia.fine ?? 0) <= 1440) return [];
+          return [{
+            id: `${f.id}:${chiave}${continua ? ":continua" : ""}`, nome: f.name, stato: f.status,
+            inizio: continua ? 0 : fascia.inizio, fine: continua ? (fascia.fine ?? 1440) - 1440 : fascia.fine,
+            risorse: fascia.risorse,
+          }];
+        });
+      };
+      return [...segmenti(ieri, true), ...segmenti(giorno, false)];
     });
     if (!attivita.length) return [];
     const inizi = attivita.flatMap(a => a.inizio == null ? [] : [a.inizio]);

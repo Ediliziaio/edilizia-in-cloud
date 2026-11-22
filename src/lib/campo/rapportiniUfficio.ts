@@ -10,7 +10,7 @@
 import { componiValori, mancanti, type BloccoStandard, type CampoModulo, type FaseScelta } from "../../../supabase/functions/_shared/moduliCantiere";
 import { fasiLavorateDelRapportino, type Sottofase } from "@/lib/orders/sottofasi";
 import { dettagliViaggio, misureViaggioValide, unitaChilometro, voceTrasporto, type BozzaViaggio } from "./viaggiRapportino";
-import { campoArrivo, erroreArrivo, type ArrivoRapportino } from "./arrivoRapportino";
+import { campoArrivo, erroreArrivi, type ArrivoRapportino } from "./arrivoRapportino";
 
 export type StatoSottofaseGiorno = "lavorata" | "finita";
 
@@ -46,7 +46,7 @@ export interface GiornoUfficio {
   presenze?: Record<string, string>;
   /** Mezzo → ore d'uso scritte (vuoto = usato, ore non dette). */
   mezzi?: Record<string, string>;
-  arrivo?: ArrivoRapportino;
+  arrivo?: ArrivoRapportino[];
   /** Articolo della commessa → quantità scritta. */
   materiali?: Record<string, string>;
   foto?: string[];
@@ -112,7 +112,7 @@ export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string,
       const n2 = oreLette(ore);
       if (ore.trim() && (n2 == null || n2 < 0 || n2 > 24)) { errori.push(`Ore dei mezzi da 0 a 24${n}.`); break; }
     }
-    const erroreViaggio = g.arrivo ? erroreArrivo(g.arrivo) : null;
+    const erroreViaggio = g.arrivo ? erroreArrivi(g.arrivo) : null;
     if (erroreViaggio) errori.push(`Arrivo in cantiere${n}. ${erroreViaggio}`);
     for (const [, q] of Object.entries(g.materiali ?? {})) {
       const n2 = oreLette(q);
