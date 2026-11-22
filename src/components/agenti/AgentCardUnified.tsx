@@ -14,8 +14,7 @@ import {
   MessageSquare,
   Users,
   Megaphone,
-  MoreVertical,
-  Settings2,
+  MoreHorizontal,
   Copy,
   Archive,
   Trash2,
@@ -38,7 +37,7 @@ const TIPO_CONFIG: Record<
   vocale: {
     label: "Vocale",
     icon: Phone,
-    headerClass: "bg-primary/10 border-b border-primary/20",
+    headerClass: "border-b border-sky-100 bg-gradient-to-br from-sky-50 to-background dark:border-sky-950 dark:from-sky-950/65",
     badgeClass: "bg-primary/15 text-primary border-primary/25",
   },
   chat: {
@@ -68,7 +67,7 @@ const TIPO_CONFIG: Record<
 };
 
 const STATO_CONFIG: Record<StatoAgente, { label: string; dotClass: string; variant: "default" | "secondary" | "outline" }> = {
-  attivo: { label: "Attivo", dotClass: "bg-[hsl(var(--success))] animate-pulse", variant: "default" },
+  attivo: { label: "Attivo", dotClass: "bg-[hsl(var(--success))]", variant: "default" },
   bozza: { label: "Bozza", dotClass: "bg-muted-foreground", variant: "secondary" },
   pausa: { label: "In pausa", dotClass: "bg-[hsl(var(--warning))]", variant: "outline" },
   archiviato: { label: "Archiviato", dotClass: "bg-muted-foreground/50", variant: "outline" },
@@ -116,22 +115,22 @@ export function AgentCardUnified({
   const isChatType = agente.tipo === "chat" || agente.tipo === "whatsapp";
 
   return (
-    <Card className="overflow-hidden hover:shadow-md transition-shadow group">
+    <Card className="eic-workspace-card flex min-w-0 flex-col overflow-hidden rounded-xl">
       {/* Colored header */}
       <div className={`px-4 py-3 ${tipoCfg.headerClass}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-9 w-9 rounded-lg bg-background/80 flex items-center justify-center shrink-0 shadow-sm">
-              <Bot className="h-4.5 w-4.5 text-foreground" />
+            <div className="eic-workspace-icon">
+              <TipoIcon aria-hidden="true" className="size-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-semibold text-sm truncate text-foreground">{agente.nome}</h3>
+              <h3 className="truncate text-base font-semibold tracking-tight text-foreground">{agente.nome}</h3>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${tipoCfg.badgeClass}`}>
                   <TipoIcon className="h-2.5 w-2.5" /> {tipoCfg.label}
                 </span>
                 {(agente.elevenlabs_agent_id || agente.tools_config?.voice_provider === "fish_audio") && (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))] border border-[hsl(var(--warning))]/20">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950/60 dark:text-orange-200">
                     <Zap className="h-2.5 w-2.5" /> {agente.tools_config?.voice_provider === "fish_audio" ? "Fish" : "EL"}
                   </span>
                 )}
@@ -139,46 +138,22 @@ export function AgentCardUnified({
             </div>
           </div>
 
-          <div className={`flex items-center gap-1 ${soloLettura ? "hidden" : ""}`}>
-            {/* Toggle play/pause */}
-            {agente.stato !== "archiviato" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                disabled={isToggling}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleStatus(
-                    agente.id,
-                    agente.stato === "attivo" ? "pausa" : "attivo"
-                  );
-                }}
-              >
-                {agente.stato === "attivo" ? (
-                  <Pause className="h-3.5 w-3.5" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            )}
-
-            {/* Kebab menu */}
+          {!soloLettura && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <MoreVertical className="h-3.5 w-3.5" />
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Azioni di ${agente.nome}`}>
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={onClick}>
-                  <Settings2 className="h-4 w-4 mr-2" /> Configura
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigateConversations(agente.id)}>
-                  {isVoiceType ? <Phone className="h-4 w-4 mr-2" /> : <MessageSquare className="h-4 w-4 mr-2" />}
-                  {isVoiceType ? "Chiamate" : "Conversazioni"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+              <DropdownMenuContent align="end">
+                {agente.stato !== "archiviato" && (
+                  <>
+                    <DropdownMenuItem disabled={isToggling} onSelect={() => onToggleStatus(agente.id, agente.stato === "attivo" ? "pausa" : "attivo")}>
+                      {agente.stato === "attivo" ? <><Pause className="mr-2 h-4 w-4" /> Metti in pausa</> : <><Play className="mr-2 h-4 w-4" /> Attiva agente</>}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => onDuplicate(agente.id)}>
                   <Copy className="h-4 w-4 mr-2" /> Duplica
                 </DropdownMenuItem>
@@ -192,19 +167,19 @@ export function AgentCardUnified({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          )}
         </div>
       </div>
 
-      <CardContent className={soloLettura ? "p-4" : "p-4 cursor-pointer"} onClick={soloLettura ? undefined : onClick}>
+      <CardContent className="flex flex-1 flex-col p-4">
         {/* Status badge */}
         <div className="flex items-center gap-2 mb-2">
-          <Badge variant={statoCfg.variant} className="text-[10px] gap-1">
+          <Badge variant={statoCfg.variant} className="text-xs gap-1">
             <span className={`h-1.5 w-1.5 rounded-full ${statoCfg.dotClass}`} />
             {statoCfg.label}
           </Badge>
           {agente.voice_nome && isVoiceType && (
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Mic className="h-2.5 w-2.5" /> {agente.voice_nome}
             </span>
           )}
@@ -212,20 +187,20 @@ export function AgentCardUnified({
 
         {/* Description */}
         {agente.descrizione && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+          <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">
             {agente.descrizione}
           </p>
         )}
 
         {/* Contextual metrics */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="mb-3 mt-auto grid grid-cols-3 gap-2">
           {(isVoiceType) && (
             <>
-              <MetricBox icon={Phone} label="Chiamate" value={agente.chiamate_totali} />
+              <MetricBox icon={Phone} label="Chiamate" value={safeNumber(agente.chiamate_totali)} />
               <MetricBox icon={Clock} label="Minuti" value={Math.round(safeNumber(agente.minuti_totali))} />
               <MetricBox
                 icon={TrendingUp}
-                label="Tasso"
+                label="Completate"
                 value={safeNumber(agente.chiamate_totali) > 0
                   ? `${Math.round((safeNumber(agente.chiamate_completate) / safeNumber(agente.chiamate_totali)) * 100)}%`
                   : "–"}
@@ -249,33 +224,15 @@ export function AgentCardUnified({
         </div>
 
         {/* Footer with date */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <span className="text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+          <span className="text-xs text-muted-foreground">
             {(agente.lingua || "it").toUpperCase()} · {safeDateLabel(agente.creato_il)}
           </span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[11px]"
-              onClick={(e) => {
-                e.stopPropagation();
-                onNavigateConversations(agente.id);
-              }}
-            >
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => onNavigateConversations(agente.id)}>
               {isVoiceType ? "Chiamate" : "Chat"}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 px-2 text-[11px]"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-              }}
-            >
-              Configura
-            </Button>
+            <Button variant="outline" size="sm" className="eic-motion-button" onClick={onClick}>{soloLettura ? "Apri" : "Configura"}</Button>
           </div>
         </div>
       </CardContent>
@@ -288,7 +245,7 @@ function MetricBox({ icon: Icon, label, value }: { icon: typeof Phone; label: st
     <div className="flex flex-col items-center gap-0.5 p-1.5 rounded-md bg-muted/50">
       <Icon className="h-3 w-3 text-muted-foreground" />
       <span className="text-xs font-semibold text-foreground">{value}</span>
-      <span className="text-[9px] text-muted-foreground">{label}</span>
+      <span className="text-[11px] text-muted-foreground">{label}</span>
     </div>
   );
 }

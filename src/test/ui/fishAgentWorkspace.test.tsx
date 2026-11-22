@@ -51,6 +51,7 @@ describe("Fish editor saves real settings before synchronizing",()=>{
   expect(screen.getByRole("tab", { name: "Prove" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByRole("button", { name: "Parla con l’agente" })).toBeEnabled();
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Flussi" }), { button: 0, ctrlKey: false });
+  fireEvent.click(screen.getByText("Altri flussi"));
   fireEvent.click(screen.getByRole("radio", {name: /Sopralluoghi e appuntamenti/}));
   expect(screen.getByRole("heading", {name: "Sopralluoghi e appuntamenti"})).toBeVisible();
   expect(screen.getByText("Bozza sincronizzata")).toBeVisible();

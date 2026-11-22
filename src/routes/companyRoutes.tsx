@@ -2,7 +2,8 @@ import { type ReactNode } from "react";
 // Le pagine si caricano col ritentativo: dopo un deploy i chunk vecchi non
 // esistono più e senza questo la pagina va in errore (vedi lazyWithRetry).
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
-import { Route, Navigate, useLocation, useParams } from "react-router-dom";
+import { centralinoCallbackHref } from "@/lib/centralinoNavigation";
+import { Route, Navigate, useLocation, useParams, useSearchParams } from "react-router-dom";
 // Estratti in ./company/_shared (MP-CLN-001): importati QUI in testa e non a
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
@@ -309,7 +310,11 @@ const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
  */
 function AttivitaRouter() {
   const { role } = useAuth();
+  const [params] = useSearchParams();
   const STAFF_ROLES = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"] as const;
+  if (params.get("tab") === "richiami") {
+    return <Navigate to={centralinoCallbackHref(params.get("richiamo") ?? undefined)} replace />;
+  }
   if (STAFF_ROLES.includes(role as typeof STAFF_ROLES[number])) return <AttivitaStaff />;
   return <UnifiedTasks />;
 }
@@ -319,6 +324,14 @@ const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
 const Centralino = lazy(() => import("@/pages/azienda/Centralino"));
+
+function CentralinoRouter() {
+  const [params] = useSearchParams();
+  if (params.get("tab") === "richiami") {
+    return withCompanyPermission("canViewOrders", <Centralino />, permissions => permissions.isAdmin || permissions.canViewOrders);
+  }
+  return withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><Centralino /></FeatureRoute>);
+}
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
 const RenderNew = lazy(() => import("@/pages/azienda/RenderNewV2"));
@@ -896,7 +909,7 @@ export default function CompanyRoutesContainer() {
         {LocalLeadTrialPage && <Route path="centralino/collaudo-lead" element={withCompanyPermission("canViewMarketingAiAgent", <LocalLeadTrialPage />)} />}
         {LocalAssistanceLabPage && <Route path="centralino/collaudo-locale" element={<LocalAssistanceLabPage />} />}
         {LocalPhoneTrialPage && <Route path="centralino/collaudo-telefonia" element={<LocalPhoneTrialPage />} />}
-        <Route path="centralino" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><Centralino /></FeatureRoute>)} />
+        <Route path="centralino" element={<CentralinoRouter />} />
         <Route path="agenti-ai/:agentId" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentDetailPage /></FeatureRoute>)} />
 
         {/* Render AI Routes — gated: render_ai */}

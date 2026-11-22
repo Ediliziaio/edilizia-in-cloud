@@ -132,7 +132,6 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           const call = client.newCall({
             destinationNumber: number,
             callerNumber,
-            callerName: opts?.name,
             audio: true,
             video: false,
             remoteElement: REMOTE_AUDIO_ID,

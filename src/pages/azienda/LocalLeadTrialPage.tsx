@@ -5,7 +5,7 @@ import {
   type LocalLeadVoice,
 } from "@/components/agenti/FishLiveVoice";
 import { Button } from "@/components/ui/button";
-import { FishCallbackCard } from "@/components/silvio/FishCallbackCard";
+import { FishCallbackCard } from "@/components/telephony/FishCallbackCard";
 import { CallTranscript } from "@/components/telephony/CallTranscript";
 import {
   createLocalAssistanceClient,

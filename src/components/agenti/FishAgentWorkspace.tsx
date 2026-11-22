@@ -12,6 +12,7 @@ import {
   fishSpeechModel,
 } from "../../../supabase/functions/_shared/fishAgentConfig";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -38,7 +39,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import {
   Select,
   SelectContent,
@@ -160,9 +162,10 @@ type Status = {
   binding: Binding | null;
   keyConfigured: boolean;
   synchronized?: boolean;
+  localPreview?: boolean;
 };
 type Voice = { id: string; name: string; languages?: string[] };
-const panel = "min-w-0 rounded-lg border bg-card p-3";
+const panel = "eic-workspace-card min-w-0 rounded-xl border bg-card p-3 sm:p-4";
 const NAV = [
   { id: "configurazione", label: "Istruzioni e voce", icon: Settings2 },
   { id: "flussi", label: "Flussi", icon: Bot },
@@ -178,25 +181,47 @@ export function FishAgentWorkspace({
   companyId,
   onBack,
   initialTab = "configurazione",
+  requestedTab,
+  onTabChange,
+  onClosePreview,
+  backLabel = "Torna agli agenti",
+  historyHref,
 }: {
   agent: any;
   companyId: string;
   onBack: () => void;
   initialTab?: FishWorkspaceTab;
+  requestedTab?: string | null;
+  onTabChange?: (tab: FishWorkspaceTab) => void;
+  onClosePreview?: (mode: "ascolta" | "voce") => void;
+  backLabel?: string;
+  historyHref?: string;
 }) {
   const client = useQueryClient();
   const { isAdmin } = usePermissions();
   const auth = useAuth();
   const isSuperAdmin = auth.role === "super_admin" && !auth.viewAsRole;
   const canManage = isAdmin || isSuperAdmin;
-  const [tab, setTab] = useState<string>(initialTab);
+  const [localTab, setLocalTab] = useState<FishWorkspaceTab>(initialTab);
+  const tabs = NAV.filter(({ id }) => !historyHref || id !== "chiamate");
+  const routeTab = requestedTab === "conversazioni" ? "chiamate" : requestedTab;
+  const tab = requestedTab === undefined ? localTab : tabs.find(({ id }) => id === routeTab)?.id ?? initialTab;
+
+  function setTab(value: string) {
+    const next = tabs.find(({ id }) => id === value);
+    if (!next) return;
+    if (onTabChange) onTabChange(next.id);
+    else setLocalTab(next.id);
+  }
   const [flowPreviewId, setFlowPreviewId] = useState<string | null>(null);
   const numberStatus = useFishNumberConnectionStatus(
     companyId,
     agent.id,
     canManage,
   );
-  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(
+    () => new URLSearchParams(window.location.search).get("prova") === "ascolta",
+  );
   const [liveOpen, setLiveOpen] = useState(
     () => new URLSearchParams(window.location.search).get("prova") === "voce",
   );
@@ -271,6 +296,7 @@ export function FishAgentWorkspace({
     retry: false,
     queryFn: () => callFishAgent<Status>(companyId, agent.id, "status"),
   });
+  const localPreview = import.meta.env.DEV && status.data?.localPreview === true;
   const binding = status.data?.binding;
   const configuredVoice = agent.tools_config?.fish?.voice_id;
   const initialVoice =
@@ -452,6 +478,7 @@ export function FishAgentWorkspace({
         .select("id")
         .single();
       if (error || !data) throw error || new Error("Bozza non salvata.");
+      if (localPreview) return { formSnapshot: JSON.stringify(form), voiceSnapshot: voice };
       try {
         await callFishAgent(companyId, agent.id, "configure", {
           voice_id: voice.trim(),
@@ -468,7 +495,7 @@ export function FishAgentWorkspace({
       setSaved(result.formSnapshot);
       setSavedVoice(result.voiceSnapshot);
       toast.success(
-        "Bozza salvata e sincronizzata. Puoi provarla dalle simulazioni.",
+        localPreview ? "Bozza salvata nel gestionale locale." : "Bozza salvata e sincronizzata. Puoi provarla dalle simulazioni.",
       );
     },
     onError: (error: Error) => toast.error(error.message),
@@ -487,6 +514,7 @@ export function FishAgentWorkspace({
     !!status.data?.keyConfigured &&
     status.data?.synchronized !== false &&
     !!binding?.fish_agent_id;
+  const voiceReady = ready || (canManage && localPreview && !!status.data?.keyConfigured);
   const activeFlow = FISH_FLOW_PRESETS.find((item) => item.id === form.flowId);
   const previewFlow =
     FISH_FLOW_PRESETS.find((item) => item.id === flowPreviewId) ??
@@ -513,15 +541,17 @@ export function FishAgentWorkspace({
     {
       id: "flussi",
       icon: Bot,
-      title: "Flusso della bozza",
+      title: "Flusso",
       detail: activeFlow?.title ?? "Personalizzato",
       action: "Scegli il flusso",
     },
     {
       id: "simulazioni",
       icon: Mic,
-      title: "Prova vocale",
-      detail: dirty
+      title: "Voce e prova",
+      detail: localPreview
+        ? "Giulia · Drama 3"
+        : dirty
         ? "Salva le modifiche prima della prova"
         : ready
           ? "Pronta da provare"
@@ -533,7 +563,7 @@ export function FishAgentWorkspace({
     {
       id: "telefonia",
       icon: Phone,
-      title: "Linea telefonica",
+      title: "Numero aziendale",
       detail: line ? line.number + " · " + lineLabel : lineLabel,
       action: "Vedi il collegamento",
     },
@@ -587,8 +617,8 @@ export function FishAgentWorkspace({
     );
   }
   return (
-    <div className="min-w-0 text-foreground">
-      <header className="border-b bg-background px-2.5 py-2 sm:px-4">
+    <div className="eic-workspace min-w-0 text-foreground">
+      <header className="eic-workspace-header eic-motion-enter px-2.5 py-3 sm:px-4">
         <div className="mx-auto flex max-w-[1432px] flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <Button
@@ -596,15 +626,13 @@ export function FishAgentWorkspace({
               variant="ghost"
               className="size-9 shrink-0"
               onClick={onBack}
-              aria-label="Torna agli agenti"
+              aria-label={backLabel}
             >
               <ArrowLeft className="size-4" />
             </Button>
-            <div className="grid size-8 shrink-0 place-items-center rounded-md bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-200">
-              <AudioLines className="size-4" />
-            </div>
+            <span className="eic-workspace-icon"><AudioLines aria-hidden="true" className="size-5" /></span>
             <div className="min-w-0">
-              <h1 className="break-words text-base font-semibold leading-tight tracking-tight">
+              <h1 className="break-words text-lg font-semibold leading-tight tracking-tight sm:text-xl">
                 {form.name || "Il tuo agente"}
               </h1>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -614,6 +642,16 @@ export function FishAgentWorkspace({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 max-sm:pl-1">
+            {tab !== "simulazioni" && (
+              <Button size="sm" variant="outline" onClick={() => setTab("simulazioni")}>
+                <FlaskConical className="mr-1.5 size-3.5" /> Prova agente
+              </Button>
+            )}
+            {historyHref && (
+              <Button asChild size="sm" variant="outline">
+                <Link to={historyHref}><MessageSquare className="mr-1.5 size-3.5" /> Chiamate nel Centralino</Link>
+              </Button>
+            )}
             <span
               role="status"
               className={
@@ -628,7 +666,9 @@ export function FishAgentWorkspace({
                   ? "Modifiche da salvare"
                   : status.isPending
                     ? "Caricamento…"
-                    : binding?.fish_agent_id
+                    : localPreview
+                      ? "Bozza locale"
+                      : binding?.fish_agent_id
                       ? status.data?.synchronized === false
                         ? "Da preparare"
                         : "Bozza sincronizzata"
@@ -640,10 +680,10 @@ export function FishAgentWorkspace({
               disabled={
                 !canManage ||
                 save.isPending ||
-                !status.data?.keyConfigured ||
+                (!status.data?.keyConfigured && !localPreview) ||
                 (binding?.enabled && !dirty && ready)
               }
-              className="eic-motion-button bg-sky-700 text-white hover:bg-sky-800"
+              className="eic-motion-button"
             >
               {save.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
@@ -662,22 +702,8 @@ export function FishAgentWorkspace({
         )}
       </header>
       <Tabs value={tab} onValueChange={setTab}>
-        <div className="min-w-0 overflow-x-auto border-b bg-background px-2.5 sm:px-4">
-          <TabsList
-            aria-label="Gestione dell’agente"
-            className="mx-auto flex h-auto w-full min-w-max max-w-[1432px] justify-start gap-1.5 bg-transparent p-0 sm:gap-3"
-          >
-            {NAV.map(({ id, label, icon: Icon }) => (
-              <TabsTrigger
-                key={id}
-                value={id}
-                className="h-10 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-1.5 text-xs shadow-none sm:h-9 sm:text-sm data-[state=active]:border-sky-700 data-[state=active]:bg-transparent data-[state=active]:text-sky-800 dark:data-[state=active]:text-sky-300 data-[state=active]:shadow-none"
-              >
-                <Icon aria-hidden="true" className="mr-1.5 size-3.5" />
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <div className="mt-3 min-w-0 overflow-x-auto px-1 pb-1 pt-0.5">
+          <WorkspaceTabs items={tabs} selected={tab} label="Gestione dell’agente" />
         </div>
         <div className="mx-auto max-w-[1464px] p-2.5 sm:p-4">
           {status.isError && (
@@ -691,7 +717,7 @@ export function FishAgentWorkspace({
               </Button>
             </div>
           )}
-          {status.data && !status.data.keyConfigured && (
+          {status.data && !status.data.keyConfigured && !localPreview && (
             <div
               role="status"
               className="mb-4 rounded-xl border bg-background p-4 text-sm"
@@ -700,19 +726,22 @@ export function FishAgentWorkspace({
               simulazioni. La chiave resta sul server.
             </div>
           )}
+          {localPreview && (
+            <p className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-100">
+              Collaudo locale di Giulia · Drama 3. Voce di prova Fish, numero e bozza dimostrativi.
+            </p>
+          )}
           <TabsContent value="configurazione" className="eic-motion-enter mt-0">
-            <div className="mb-3 grid divide-y rounded-lg border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="eic-stagger mb-4 grid gap-2.5 sm:grid-cols-3">
               {shortcuts.map(({ id, icon: Icon, title, detail, action }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setTab(id)}
-                  className="flex min-h-11 min-w-0 items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-sky-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600 dark:hover:bg-sky-950/30"
+                  data-tone={id === "telefonia" ? "orange" : "blue"}
+                  className="eic-workspace-card eic-motion-button flex min-w-0 items-center gap-2.5 rounded-xl border bg-card p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600"
                 >
-                  <Icon
-                    aria-hidden="true"
-                    className="size-4 shrink-0 text-sky-700 dark:text-sky-300"
-                  />
+                  <span className="eic-workspace-icon !size-9"><Icon aria-hidden="true" className="size-4" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-semibold">{title}</span>
                     <span className="block break-words text-xs leading-4 text-muted-foreground">
@@ -727,8 +756,8 @@ export function FishAgentWorkspace({
                 </button>
               ))}
             </div>
-            <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_17rem] xl:grid-cols-[minmax(0,1fr)_19rem]">
-              <div className="space-y-3">
+            <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="order-2 space-y-3 lg:order-1">
                 {form.flowId === "support_appointment" && (
                   <FishAssistanceSetup
                     calendarId={form.calendarId}
@@ -858,7 +887,7 @@ export function FishAgentWorkspace({
                 </details>
               </div>
               <aside
-                className="space-y-3"
+                className="order-1 space-y-3 lg:order-2"
                 aria-label="Impostazioni vocali e conversazione"
               >
                 <section className={panel}>
@@ -866,26 +895,10 @@ export function FishAgentWorkspace({
                     <h2 className="font-semibold">Voce</h2>
                     <AudioLines className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div className="mb-2 flex items-center gap-2 rounded-lg border bg-background p-2">
-                    <div className="size-7 shrink-0 rounded-full bg-gradient-to-br from-sky-50 via-sky-100 to-sky-200 dark:from-sky-950 dark:to-sky-900" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {choices.find((v) => v.id === voice)?.name ||
-                          "Scegli una voce"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Fish Audio ·{" "}
-                        {form.ttsModel === "drama-3" ? "Drama 3" : "S2.1 Pro"}
-                      </p>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label="Ascolta la voce"
-                      disabled={!ready}
-                      onClick={() => setVoiceOpen(true)}
-                    >
-                      <AudioLines className="h-4 w-4" />
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 p-2.5">
+                    <span className="text-xs font-medium">Fish Audio · {form.ttsModel === "drama-3" ? "Drama 3" : "S2.1 Pro"}</span>
+                    <Button size="sm" variant="outline" disabled={!voiceReady} onClick={() => setVoiceOpen(true)}>
+                      <AudioLines className="mr-1.5 size-4" /> Ascolta
                     </Button>
                   </div>
                   <Label>Voce dell’agente</Label>
@@ -905,7 +918,9 @@ export function FishAgentWorkspace({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="mt-4">
+                  <details className="mt-3 rounded-md border px-2.5 py-2">
+                    <summary className="cursor-pointer text-xs font-medium">Lingua e modello vocale</summary>
+                  <div className="mt-3">
                     <Label>Modello vocale</Label>
                     <Select
                       value={form.ttsModel}
@@ -952,7 +967,8 @@ export function FishAgentWorkspace({
                       </SelectContent>
                     </Select>
                   </div>
-                  <details className="mt-4 text-xs text-muted-foreground">
+                  </details>
+                  <details className="mt-3 text-xs text-muted-foreground">
                     <summary className="cursor-pointer">
                       Collega un’altra voce
                     </summary>
@@ -980,9 +996,9 @@ export function FishAgentWorkspace({
                     )}
                   </details>
                 </section>
-                <section className={panel}>
-                  <h2 className="mb-4 font-semibold">Naturalezza ed effetti</h2>
-                  <div className="flex items-center justify-between gap-3">
+                <details className={panel}>
+                  <summary className="cursor-pointer text-sm font-medium">Naturalezza ed effetti</summary>
+                  <div className="mt-3 flex items-center justify-between gap-3">
                     <Label htmlFor="fish-expressive">Voce espressiva</Label>
                     <Switch
                       id="fish-expressive"
@@ -1077,7 +1093,7 @@ export function FishAgentWorkspace({
                     effetti. Pause e sospiri specifici si possono confrontare
                     nella Prova voce.
                   </p>
-                </section>
+                </details>
                 <section className={panel}>
                   <h2 className="mb-2 font-semibold">Modello</h2>
                   <p className="mb-4 text-sm text-muted-foreground">
@@ -1192,12 +1208,12 @@ export function FishAgentWorkspace({
                   Cosa deve fare l’agente?
                 </h2>
                 <p className="mb-3 mt-1 text-sm text-muted-foreground">
-                  Scegli un flusso per vederne i passaggi, poi applicalo alla
-                  bozza.
+                  In bozza: <strong>{activeFlow?.title ?? "Personalizzato"}</strong>
                 </p>
                 <FishFlowPicker
                   value={previewFlow.id}
                   onChange={setFlowPreviewId}
+                  quickStart
                 />
               </section>
               <section className={panel} aria-labelledby="fish-flow-preview">
@@ -1222,7 +1238,7 @@ export function FishAgentWorkspace({
                   degli strumenti nella bozza.
                 </p>
                 <Button
-                  className="eic-motion-button bg-sky-700 text-white hover:bg-sky-800"
+                  className="eic-motion-button"
                   disabled={!canManage}
                   onClick={applyFlow}
                 >
@@ -1375,20 +1391,26 @@ export function FishAgentWorkspace({
                   </p>
                 )}
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                  <Button
+                  {localPreview ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/azienda/centralino/collaudo-locale?agente=${encodeURIComponent(agent.id)}`}>
+                        <Mic className="mr-1.5 size-4" /> Dialogo di collaudo
+                      </Link>
+                    </Button>
+                  ) : <Button
                     size="sm"
                     onClick={() => setLiveOpen(true)}
                     disabled={!ready || dirty}
-                    className="eic-motion-button bg-sky-700 text-white hover:bg-sky-800"
+                    className="eic-motion-button"
                   >
                     <Mic className="mr-1.5 size-4" />
                     Parla con l’agente
-                  </Button>
+                  </Button>}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setVoiceOpen(true)}
-                    disabled={!ready}
+                    disabled={!voiceReady}
                   >
                     <AudioLines className="mr-1.5 size-4" />
                     Ascolta la voce
@@ -1440,6 +1462,7 @@ export function FishAgentWorkspace({
                 <FishNumberConnectionRequest
                   companyId={companyId}
                   agentId={agent.id}
+                  localPreview={localPreview}
                 />
               </section>
               {isSuperAdmin && (
@@ -1454,11 +1477,11 @@ export function FishAgentWorkspace({
               )}
             </div>
           </TabsContent>
-          <TabsContent value="chiamate" className="eic-motion-enter mt-0">
+          {!historyHref && <TabsContent value="chiamate" className="eic-motion-enter mt-0">
             <section className={panel}>
               <ConversazioniTab agentIdFilter={agent.id} />
             </section>
-          </TabsContent>
+          </TabsContent>}
         </div>
       </Tabs>
       {onboardingOpen && (
@@ -1489,7 +1512,10 @@ export function FishAgentWorkspace({
           )}
         </DialogContent>
       </Dialog>
-      <Dialog open={liveOpen} onOpenChange={setLiveOpen}>
+      <Dialog open={liveOpen} onOpenChange={open => {
+        setLiveOpen(open);
+        if (!open) onClosePreview?.("voce");
+      }}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Parla con il tuo agente</DialogTitle>
@@ -1531,12 +1557,16 @@ export function FishAgentWorkspace({
           )}
         </DialogContent>
       </Dialog>
-      <Dialog open={voiceOpen} onOpenChange={setVoiceOpen}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={voiceOpen} onOpenChange={open => {
+        setVoiceOpen(open);
+        if (!open) onClosePreview?.("ascolta");
+      }}>
+        <DialogContent className="eic-workspace-dialog max-h-[85vh] overflow-y-auto rounded-2xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Prova la voce dell’agente</DialogTitle>
+            <DialogTitle>{localPreview ? "Ascolta Giulia · Drama 3" : "Prova la voce dell’agente"}</DialogTitle>
+            <DialogDescription className="sr-only">Genera e ascolta un esempio di voce Fish Audio.</DialogDescription>
           </DialogHeader>
-          {dirty && (
+          {dirty && !localPreview && (
             <p className="text-sm text-muted-foreground">
               La prova usa la voce dell’ultima bozza salvata.
             </p>
@@ -1544,8 +1574,9 @@ export function FishAgentWorkspace({
           <FishVoicePreview
             companyId={companyId}
             agentId={agent.id}
-            ready={ready}
+            ready={voiceReady}
             firstMessage={form.first}
+            localPreview={localPreview}
           />
         </DialogContent>
       </Dialog>

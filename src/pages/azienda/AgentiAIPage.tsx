@@ -1,7 +1,8 @@
 import { FishOnboardingWizard } from "@/components/agenti/FishOnboardingWizard";
-import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { useMemo } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import {
   Bot,
   BookOpen,
@@ -12,7 +13,8 @@ import {
   History,
   BarChart2,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { centralinoHistoryFilters, centralinoHistoryHref } from "@/lib/centralinoNavigation";
 import { AgentiTab } from "@/components/agenti/AgentiTab";
 import { AgentiAIStatsBar } from "@/components/agenti/AgentiAIStatsBar";
 import { TelephonyTab } from "@/components/agenti/TelephonyTab";
@@ -29,7 +31,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
 
 type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" | "campagne" | "statistiche" | "crediti";
 
@@ -40,7 +41,7 @@ type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" |
 // cliente), non per il SuperAdmin che è lui stesso il pagatore della
 // piattaforma. Vengono filtrate quando siamo in /admin/marketing/agenti-ai.
 // labelBreve: sotto 1280, dove le otto schede devono stare in una riga.
-const ALL_TABS: { key: MainTab; label: string; labelBreve?: string; icon: typeof Bot; badge?: string; hiddenInAdmin?: boolean }[] = [
+const ALL_TABS: { key: MainTab; label: string; labelBreve?: string; icon: typeof Bot; hiddenInAdmin?: boolean }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
   { key: "telefonia", label: "Telefonia", icon: Phone },
@@ -66,7 +67,7 @@ export default function AgentiAIPage() {
   const isAdminContext = pathname.startsWith("/admin");
   // Filtra le tab non pertinenti al SuperAdmin (oggi solo "Crediti & Utilizzo").
   const TABS = useMemo(
-    () => ALL_TABS.filter((t) => !(isAdminContext && t.hiddenInAdmin)),
+    () => ALL_TABS.filter((t) => !(isAdminContext && t.hiddenInAdmin) && (isAdminContext || t.key !== "conversazioni")),
     [isAdminContext],
   );
   const rawTab = searchParams.get("tab") as MainTab | null;
@@ -95,77 +96,44 @@ export default function AgentiAIPage() {
     setSearchParams({ tab: value }, { replace: true });
   };
 
-  return (
-    <div className="space-y-0">
-      {searchParams.get("crea")==="assistenza" && <FishOnboardingWizard open initialFlowId="support_appointment" onClose={closeAssistance} onSuccess={id=>navigate(`/azienda/agenti-ai/${id}`)}/>}
-      {/* Header — come sul telefono e nelle altre pagine: titolo senza
-          riquadro sfumato, icona né frase («WhatsApp vive nel suo hub…»), e
-          senza il margine proprio (px-6 pt-6) che si sommava a quello del layout. */}
-      <div className="pb-4 max-md:pb-3">
-        <div>
-          <div className="mb-1 flex items-start justify-between gap-3 max-md:mb-0">
-            <div className="flex items-start gap-3">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-950 max-md:text-lg">Agenti AI</h1>
-                <p className="hidden text-[11px] text-slate-500 max-md:block">si creano e si modificano da computer o tablet</p>
-              </div>
-            </div>
+  if (!isAdminContext && (rawTab === "conversazioni" || searchParams.get("tab") === "chiamate")) {
+    return <Navigate to={centralinoHistoryHref(centralinoHistoryFilters(searchParams).agentId)} replace />;
+  }
 
-            {/* ElevenLabs status badge (read-only) */}
-            {elConfig?.api_key_valida && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-orange-100 bg-white/80 px-3 py-1.5 shadow-sm max-md:hidden">
-                <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                <span className="text-xs font-medium text-slate-800">ElevenLabs connesso</span>
-                {elConfig.crediti_rimanenti != null && (
-                  <span className="ml-1 text-xs text-slate-500">
-                    · {Math.round(elConfig.crediti_rimanenti).toLocaleString("it-IT")} crediti
-                  </span>
-                )}
-              </div>
-            )}
+  return (
+    <div className="eic-workspace space-y-4">
+      {searchParams.get("crea")==="assistenza" && <FishOnboardingWizard open initialFlowId="support_appointment" onClose={closeAssistance} onSuccess={id=>navigate(`/azienda/agenti-ai/${id}`)}/>}
+      <header className="eic-workspace-header eic-motion-enter flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="eic-workspace-icon"><Bot aria-hidden="true" className="size-5" /></span>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Agenti AI</h1>
+            <p className="text-xs text-muted-foreground md:hidden">Configurazione da computer o tablet</p>
           </div>
         </div>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isAdminContext && (
+            <Button asChild variant="outline" size="sm" className="eic-motion-button">
+              <Link to={centralinoHistoryHref()}><History aria-hidden="true" className="mr-1.5 size-4" /> Chiamate nel Centralino</Link>
+            </Button>
+          )}
+          {elConfig?.api_key_valida && (
+            <div className="hidden items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs md:flex">
+              <span className="size-2 rounded-full bg-orange-500" aria-hidden="true" />
+              ElevenLabs connesso
+              {elConfig.crediti_rimanenti != null && (
+                <span className="text-muted-foreground">· {Math.round(elConfig.crediti_rimanenti).toLocaleString("it-IT")} crediti</span>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        {/* Su mobile le otto tab non ci stanno: la riga scorre invece di uscire
-            dallo schermo (la pagina non deve mai scorrere in orizzontale). */}
-        {/* Da 768 le schede standard dell'app (prima in una card con ombra e
-            l'attiva arancione) e senza icone fino a 1280: a 1024 le otto
-            schede scorrevano e «Campagne» era tagliata. */}
-        <div className="overflow-x-auto pb-3">
-          <TabsList className="gap-1 max-md:h-auto max-md:w-full max-md:min-w-full max-md:justify-start max-md:rounded-xl max-md:border max-md:border-slate-200 max-md:bg-white max-md:p-1">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <TabsTrigger
-                  key={tab.key}
-                  value={tab.key}
-                  className={cn(
-                    "max-md:rounded-xl max-md:text-slate-600 max-md:transition-colors max-md:hover:bg-slate-100 max-md:hover:text-slate-900 max-md:data-[state=active]:bg-orange-50 max-md:data-[state=active]:text-orange-700 max-md:data-[state=active]:shadow-sm max-md:data-[state=active]:ring-1 max-md:data-[state=active]:ring-orange-200",
-                    "max-md:flex-1 max-md:rounded-lg max-md:px-2 max-md:py-2 max-md:text-[13px]",
-                    !TAB_TELEFONO.includes(tab.key) && "max-md:hidden",
-                  )}
-                >
-                  <Icon className="mr-1.5 hidden h-4 w-4 xl:block" />
-                  {tab.labelBreve ? (
-                    <>
-                      <span className="xl:hidden">{tab.labelBreve}</span>
-                      <span className="hidden xl:inline">{tab.label}</span>
-                    </>
-                  ) : (
-                    tab.label
-                  )}
-                  {tab.badge && (
-                    <Badge variant="secondary" className="ml-1.5 text-[9px] px-1 py-0">
-                      {tab.badge}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
+        <div className="min-w-0 overflow-x-auto px-1 pb-3 pt-1">
+          <WorkspaceTabs label="Sezioni di Agenti AI" selected={activeTab} compactIcons className="max-md:w-full"
+            items={TABS.filter(({ key }) => !isMobile || TAB_TELEFONO.includes(key))
+              .map(({ key, label, labelBreve, icon }) => ({ id: key, label, shortLabel: labelBreve, icon }))} />
         </div>
 
         {/* Stats bar — only on Agenti tab */}
@@ -205,9 +173,9 @@ export default function AgentiAIPage() {
           <TelephonyTab />
         </TabsContent>
 
-        <TabsContent value="conversazioni" className="mt-0 pt-1 max-md:py-3">
+        {isAdminContext && <TabsContent value="conversazioni" className="mt-0 pt-1 max-md:py-3">
           <ConversazioniTab />
-        </TabsContent>
+        </TabsContent>}
 
         <TabsContent value="chat" className="mt-0 pt-1 max-md:py-3">
           <ChatConversazioniTab />

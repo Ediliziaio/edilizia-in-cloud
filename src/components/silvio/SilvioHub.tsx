@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { SilvioAssistanceActivities } from "./SilvioAssistanceActivities";
-import { SilvioFishCallbacks } from "./SilvioFishCallbacks";
 /**
  * SilvioHub — vista unica dell'agente operativo Silvio (per-azienda).
  * Sotto-sezioni: Azioni (cosa può fare) · Da approvare (coda conferme, MP-06) ·
@@ -157,7 +156,7 @@ function Procedure() {
   );
 }
 
-export function SilvioHub({ defaultTab="approvare", callbackId }: {defaultTab?:string; callbackId?:string}={}) {
+export function SilvioHub({ defaultTab="approvare" }: {defaultTab?:string}={}) {
   const [richiesta, setRichiesta] = useState("");
   const chiedi = useChiediSilvio();
   const invia = () => {
@@ -191,9 +190,8 @@ export function SilvioHub({ defaultTab="approvare", callbackId }: {defaultTab?:s
         </Button>
       </div>
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-7">
           <TabsTrigger value="assistenza" className="gap-1 text-xs"><Bot className="h-3.5 w-3.5" /> Assistenza</TabsTrigger>
-          <TabsTrigger value="richiami" className="gap-1 text-xs"><Clock className="h-3.5 w-3.5" /> Richiami</TabsTrigger>
           <TabsTrigger value="approvare" className="gap-1 text-xs"><MailWarning className="h-3.5 w-3.5" /> Da approvare</TabsTrigger>
           <TabsTrigger value="corso" className="gap-1 text-xs"><ListChecks className="h-3.5 w-3.5" /> In corso</TabsTrigger>
           <TabsTrigger value="storico" className="gap-1 text-xs"><History className="h-3.5 w-3.5" /> Storico</TabsTrigger>
@@ -202,7 +200,6 @@ export function SilvioHub({ defaultTab="approvare", callbackId }: {defaultTab?:s
           <TabsTrigger value="canali" className="gap-1 text-xs"><MessageCircle className="h-3.5 w-3.5" /> Canali</TabsTrigger>
         </TabsList>
         <TabsContent value="assistenza" className="mt-4"><SilvioAssistanceActivities /></TabsContent>
-        <TabsContent value="richiami" className="mt-4"><SilvioFishCallbacks callbackId={callbackId} /></TabsContent>
         <TabsContent value="approvare" className="mt-3"><DaApprovare /></TabsContent>
         <TabsContent value="corso" className="mt-3"><InCorso /></TabsContent>
         <TabsContent value="storico" className="mt-3"><Storico /></TabsContent>
