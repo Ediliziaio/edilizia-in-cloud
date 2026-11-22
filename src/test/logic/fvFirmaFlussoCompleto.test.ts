@@ -17,7 +17,11 @@ vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => s
 vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({ requireAuth: async () => ({ userId: "u1", supabaseAdmin: state.db }), requireCompanyAccess: async (): Promise<void> => undefined, aziendaAccessibile: async () => true }));
 vi.mock("../../../supabase/functions/_shared/requirePaymentMethod.ts", () => ({ checkPaymentMethod: async () => ({ allowed: true }) }));
 vi.mock("../../../supabase/functions/_shared/getBranding.ts", () => ({ getBrandingForCompany: async () => ({ siteUrl: "https://example.test", platformName: "Impresa QA" }) }));
-vi.mock("../../../supabase/functions/_shared/clausoleFirma.ts", () => ({ clausoleDellaFirma: async (): Promise<ClausolaFirma[]> => [], informativaPrivacyDellaFirma: async (): Promise<string | null> => null }));
+vi.mock(import("../../../supabase/functions/_shared/clausoleFirma.ts"), async (originale) => ({
+  ...await originale(),
+  clausoleDellaFirma: async (): Promise<ClausolaFirma[]> => [],
+  informativaPrivacyDellaFirma: async (): Promise<string | null> => null,
+}));
 vi.mock("../../../supabase/functions/_shared/proveFirma.ts", () => ({ conservaProveFirma: async (): Promise<void> => undefined }));
 vi.mock("../../../supabase/functions/_shared/inviaSmsFirma.ts", () => ({ inviaSmsCodiceFirma: async () => ({ inviato: false }) }));
 vi.mock("../../../supabase/functions/_shared/sendEmailUnified.ts", () => ({ sendEmailUnified: async (args: { templateName?: string; text?: string }) => {
@@ -99,6 +103,15 @@ async function request(id: string) {
   return call("fea-richiedi-firma", { tipo_documento: "fv", documento_id: id, tipo_firmatario: "b2b", signer_name: "Cliente QA", signer_email: "qa@example.test" });
 }
 
+function pagineHtmlOriginale(html: Uint8Array) {
+  const documento = new DOMParser().parseFromString(new TextDecoder().decode(html), "text/html");
+  return documento.querySelectorAll(".page").length;
+}
+
+function paginePreventivo(id: string) {
+  return pagineHtmlOriginale(files.get(`fv-progetti/c1/${id}/vendita.html`)!);
+}
+
 describe.runIf(enabled)("Firma FV: gestori veri, Chromium vero, storage e invii simulati", () => {
   it("il solo accesso in lettura all'azienda non autorizza l'invio neppure chiamando direttamente la funzione", async () => {
     const id = project(false);
@@ -117,13 +130,14 @@ describe.runIf(enabled)("Firma FV: gestori veri, Chromium vero, storage e invii 
     const row = state.db.tabelle.signature_requests[0];
     Object.assign(row, { otp_tentativi: 0, otp_invii: 0, otp_hash: null, otp_errori_totali: 0 });
     const original = files.get(`quote-pdfs/${row.documento_path}`)!;
-    expect((await PDFDocument.load(original)).getPageCount()).toBe(15);
+    const pagineCongelate = (await PDFDocument.load(original)).getPageCount();
+    expect(pagineCongelate).toBe(paginePreventivo(id) + 2);
     await call("fea-genera-otp", { token, request_id });
     const verified = await call("fea-verifica-otp", { token, otp: state.otp });
     expect((await call("fea-completa-firma", { token, sessione_firma: verified.body.sessione_firma })).body.success).toBe(true);
     const download = await call("fea-pdf-firmato", { request_id });
     const bytes = files.get(new URL(download.body.url).pathname.slice(1))!;
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(16);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(pagineCongelate + 1);
     if (process.env.EIC_QA_PDF_DIR) {
       await mkdir(process.env.EIC_QA_PDF_DIR, { recursive: true });
       await writeFile(path.join(process.env.EIC_QA_PDF_DIR, "fv-con-schede-firmato.pdf"), bytes);
@@ -160,7 +174,7 @@ describe.runIf(enabled)("Firma FV: gestori veri, Chromium vero, storage e invii 
     expect(row.documento_path).toMatch(/\.pdf$/);
     const frozen = files.get(`quote-pdfs/${row.documento_path}`)!;
     const pages = (await PDFDocument.load(frozen)).getPageCount();
-    expect(pages).toBe(13);
+    expect(pages).toBe(paginePreventivo(id));
     const opened = await call("fea-documento-pubblico", { token });
     expect(opened.body.pdf_url).toContain(row.documento_path);
     expect((await call("fea-genera-otp", { token, request_id })).body.success).toBe(true);
@@ -228,7 +242,7 @@ describe.runIf(enabled)("Firma FV: gestori veri, Chromium vero, storage e invii 
     const recovered = await call("fea-pdf-firmato", { request_id });
     expect(recovered.status).toBe(200);
     const key = new URL(recovered.body.url).pathname.slice(1);
-    expect((await PDFDocument.load(files.get(key)!)).getPageCount()).toBe(14);
+    expect((await PDFDocument.load(files.get(key)!)).getPageCount()).toBe(paginePreventivo(id) + 1);
   }, 90_000);
   it.each([false, true])("anche il vecchio link HTML restituisce il preventivo completo senza riscrivere le prove (copia=%s)", async copy => {
     const id = project(copy);
@@ -248,7 +262,7 @@ describe.runIf(enabled)("Firma FV: gestori veri, Chromium vero, storage e invii 
     const opened = await call("fea-documento-pubblico", { token });
     expect(opened.body.pdf_firmato_url).toContain("-completo.pdf");
     const key = new URL(opened.body.pdf_firmato_url).pathname.slice(1);
-    expect((await PDFDocument.load(files.get(key)!)).getPageCount()).toBe(14);
+    expect((await PDFDocument.load(files.get(key)!)).getPageCount()).toBe(pagineHtmlOriginale(original) + 1);
     expect(row.documento_hash).toBe(hash);
     expect(Array.from(files.get(`quote-pdfs/${frozenPath}`)!)).toEqual(Array.from(original));
     expect(Array.from(files.get(`quote-pdfs/${oldPath}`)!)).toEqual(Array.from(oldBytes));

@@ -86,7 +86,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify(sigReq.otp_tentativi >= 5
           ? { error: "Attendi un minuto dall'ultimo invio prima di richiedere un nuovo codice." }
-          : { success: true, gia_inviato: true, sms_inviato: sigReq.otp_canale === "sms" }),
+          : { success: true, gia_inviato: true, sms_inviato: sigReq.otp_canale === "sms", otp_valido_fino: sigReq.otp_scadenza }),
         { status: sigReq.otp_tentativi >= 5 ? 429 : 200, headers: { ...corsH, "Content-Type": "application/json" } }
       );
     }
@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, sms_inviato: smsInviato }),
+      JSON.stringify({ success: true, sms_inviato: smsInviato, otp_valido_fino: otpScadenza }),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   } catch (err) {
