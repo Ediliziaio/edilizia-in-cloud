@@ -69,6 +69,22 @@ export function useCollegaArrivoRapportino(companyId: string, orderId?: string) 
     onSuccess: () => void qc.invalidateQueries({ queryKey: arriviKey(companyId, orderId) }),
   });
 }
+export function useCarburanteMezzo(companyId: string, mezzoId: string, giorno: string, enabled = true) {
+  const actor = useAuth().user?.id;
+  return useQuery({
+    queryKey: [...viaggiKey(companyId), actor, "carburante", mezzoId, giorno],
+    enabled: Boolean(enabled && actor && companyId && mezzoId && giorno),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase.rpc("mezzo_carburante_config", {
+        p_company: companyId, p_mezzo: mezzoId, p_giorno: giorno,
+      }).abortSignal(signal);
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 30_000, retry: false,
+  });
+}
+
 export function useViaggiContesto(
   companyId: string,
   mezzoId: string,

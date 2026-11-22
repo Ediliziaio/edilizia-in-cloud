@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { viteLocalCacheKey } from "./config/viteLocalCache";
 import { localPlanOcrPlugin } from "./dev/preventivatore-ai/planOcrPlugin.mts";
 import { localQuoteChatProxy } from "./dev/preventivatore-ai/chatProxyPlugin.mts";
+import { PERCORSO_MIMIT, rispostaPrezziMimit } from "./shared/carburanti/mimit";
 import { localCadPlugin } from "./dev/preventivatore-ai/cadPlugin.mts";
 
 // https://vitejs.dev/config/
@@ -45,6 +46,19 @@ export default defineConfig(({ command, mode }) => ({
     pipelineCommesseDev(),
     localPlanOcrPlugin(),
     localCadPlugin(),
+    {
+      name: "carburanti-mimit",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.method !== "GET" || req.url?.split("?")[0] !== PERCORSO_MIMIT) return next();
+          void rispostaPrezziMimit().then(async risposta => {
+            res.statusCode = risposta.status;
+            risposta.headers.forEach((value, key) => res.setHeader(key, value));
+            res.end(await risposta.text());
+          }, next);
+        });
+      },
+    },
     // Explicitly authorized Demo 2 trial. Dev-only, fixed function, tenant checked twice.
     localQuoteChatProxy({ allowDemoRemote: true }),
     // v8.6.109 — Defer del CSS principale per migliorare FCP/LCP mobile.

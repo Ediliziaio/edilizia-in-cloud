@@ -4,7 +4,7 @@ import { ArrowRight, CarFront, ChevronDown, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useArriviDaRapportini, useCollegaArrivoRapportino } from "@/hooks/useMezziViaggi";
-import { formatData } from "@/types/mezzi";
+import { formatData, giornoItaliano } from "@/types/mezzi";
 import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 
 const orario = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" });
@@ -17,11 +17,12 @@ function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
   occupato: boolean;
 }) {
   const [collega, setCollega] = useState(false);
-  const dettaglio = `/azienda/mezzi/${arrivo.mezzoId}?tab=viaggi&giorno=${arrivo.giorno}`;
-  return <li className="space-y-2 px-3 py-3">
+  const dettaglio = (id: string, giorno: string) =>
+    `/azienda/mezzi/${arrivo.mezzoId}?tab=viaggi&giorno=${giorno}&viaggio=${id}`;
+  return <li className="space-y-1.5 px-2.5 py-2">
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
       <div className="flex min-w-0 flex-1 basis-52 items-start gap-2.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><CarFront className="size-4" aria-hidden="true" /></span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><CarFront className="size-4" aria-hidden="true" /></span>
         <div className="min-w-0">
           <p className="break-words text-sm font-semibold">{arrivo.nomeMezzo} <span className="ml-1 font-normal tabular-nums text-muted-foreground">{formatData(arrivo.giorno)}</span></p>
           <p className="mt-0.5 break-words text-xs text-muted-foreground">
@@ -30,7 +31,7 @@ function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
           </p>
         </div>
       </div>
-      {arrivo.viaggioId ? <Button asChild variant="outline" size="sm" className="ml-auto"><Link to={dettaglio}>{arrivo.viaggioStato === "bozza" ? "Apri bozza" : "Apri viaggio"}</Link></Button>
+      {arrivo.viaggioId ? <Button asChild variant="outline" size="sm" className="ml-auto"><Link to={dettaglio(arrivo.viaggioId, arrivo.viaggioGiorno ?? arrivo.giorno)}>{arrivo.viaggioStato === "bozza" ? "Apri bozza" : "Apri viaggio"}</Link></Button>
         : !readOnly && (!arrivo.richiedeCollegamento || arrivo.viaggiCompatibili.length > 0) && <Button type="button" variant="outline" size="sm" className="ml-auto text-primary"
           aria-expanded={arrivo.viaggiCompatibili.length ? collega : undefined} onClick={arrivo.viaggiCompatibili.length ? () => setCollega(v => !v) : onCompleta}>
           {arrivo.viaggiCompatibili.length ? "Confronta viaggi" : "Completa viaggio"}
@@ -42,7 +43,7 @@ function ArrivoRiga({ arrivo, readOnly, onCompleta, onCollega, occupato }: {
     {collega && !arrivo.viaggioId && <div className="space-y-2 rounded-lg bg-muted/50 p-2.5 text-xs">
       <p>Ci sono viaggi dello stesso mezzo in questa data. Collega quello che corrisponde all’arrivo.</p>
       {arrivo.viaggiCompatibili.map(v => <div key={v.id} className="flex flex-wrap items-center justify-between gap-2">
-        <Link to={dettaglio} className="underline underline-offset-2">Dalle {orario.format(new Date(v.partenza))} alle {orario.format(new Date(v.arrivo))}</Link>
+        <Link to={dettaglio(v.id, giornoItaliano(v.partenza))} className="underline underline-offset-2">Dalle {orario.format(new Date(v.partenza))} alle {orario.format(new Date(v.arrivo))}</Link>
         <Button type="button" variant="outline" size="sm" disabled={occupato} onClick={() => onCollega(v.id)}><Link2 className="mr-1 h-3.5 w-3.5" />Collega questo viaggio</Button>
       </div>)}
       {!arrivo.richiedeCollegamento && <Button type="button" variant="ghost" size="sm" onClick={onCompleta}>È un altro viaggio</Button>}
@@ -61,6 +62,7 @@ export function ArriviDaRapportini({ companyId, orderId, dal, al, readOnly, onCo
   const collegati = arrivi.filter(a => a.viaggioId);
   const renderArrivo = (arrivo: ArrivoDaRapportino) => <ArrivoRiga key={arrivo.id} arrivo={arrivo} readOnly={readOnly} occupato={collega.isPending}
     onCompleta={() => onCompleta(arrivo)} onCollega={viaggioId => collega.mutate({ arrivo, viaggioId })} />;
+  if (query.isSuccess && !arrivi.length && offset === 0) return null;
   return <section className="rounded-xl border bg-background" aria-label="Arrivi dai rapportini">
     <header className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b bg-muted/30 px-3 py-2.5">
       <h4 className="flex items-center gap-2 text-sm font-semibold"><CarFront className="size-4 text-primary" aria-hidden="true" />Arrivi dai rapportini</h4>

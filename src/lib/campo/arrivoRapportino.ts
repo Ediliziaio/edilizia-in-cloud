@@ -8,7 +8,13 @@ export interface ArrivoRapportino {
   km: string;
 }
 
-export const ARRIVO_VUOTO: ArrivoRapportino = { mezzoId: "", partenza: "", km: "" };
+export const ARRIVI_VUOTI: ArrivoRapportino[] = [];
+export const MAX_MEZZI_TRASPORTO = 10;
+
+export function arriviDaBozza(raw: ArrivoRapportino[] | ArrivoRapportino | undefined): ArrivoRapportino[] {
+  if (Array.isArray(raw)) return raw;
+  return raw?.mezzoId ? [raw] : ARRIVI_VUOTI;
+}
 
 export function mezzoStradale(mezzo: { tipo: string; contatore_unita?: string | null }): boolean {
   return mezzo.contatore_unita === "km" && ["autovettura", "furgone", "autocarro", "altro"].includes(mezzo.tipo);
@@ -25,7 +31,6 @@ type CampoArrivo = {
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 export function erroreArrivo(arrivo: ArrivoRapportino): string | null {
-  if (!arrivo.mezzoId) return null;
   const km = numeroViaggio(arrivo.km);
   if (!uuid.test(arrivo.mezzoId)) return "Scegli un mezzo stradale dell’azienda.";
   if (km != null && (!Number.isFinite(km) || km > 10000)) return "Indica i km percorsi all’andata, fino a 10.000.";
@@ -33,27 +38,40 @@ export function erroreArrivo(arrivo: ArrivoRapportino): string | null {
   return null;
 }
 
-export function campoArrivo(arrivo: ArrivoRapportino): CampoArrivo[] {
-  const errore = erroreArrivo(arrivo);
-  if (errore) throw new Error(errore);
-  if (!arrivo.mezzoId) return [];
-  return [{
-    chiave: CHIAVE_ARRIVO, tipo: "arrivo_cantiere", mezzo_id: arrivo.mezzoId.toLowerCase(),
-    partenza: arrivo.partenza.trim() || null, km: numeroViaggio(arrivo.km),
-  }];
+export function erroreArrivi(arrivi: ArrivoRapportino[]): string | null {
+  if (arrivi.length > MAX_MEZZI_TRASPORTO) return `Puoi indicare fino a ${MAX_MEZZI_TRASPORTO} mezzi di trasporto.`;
+  if (new Set(arrivi.map(a => a.mezzoId.toLowerCase())).size !== arrivi.length) return "Indica ogni mezzo di trasporto una sola volta.";
+  for (const arrivo of arrivi) {
+    const errore = erroreArrivo(arrivo);
+    if (errore) return errore;
+  }
+  return null;
 }
 
-export function leggiArrivo(raw: unknown): ArrivoRapportino {
-  if (!Array.isArray(raw)) return ARRIVO_VUOTO;
-  const campi = raw.filter((campo): campo is CampoArrivo => !!campo && typeof campo === "object" && campo.chiave === CHIAVE_ARRIVO);
-  if (campi.length !== 1) return ARRIVO_VUOTO;
-  const campo = campi[0];
-  if (campo.tipo !== "arrivo_cantiere" || typeof campo.mezzo_id !== "string" || !uuid.test(campo.mezzo_id)) return ARRIVO_VUOTO;
-  return {
-    mezzoId: campo.mezzo_id.toLowerCase(),
-    partenza: typeof campo.partenza === "string" ? campo.partenza.trim().slice(0, 150) : "",
-    km: typeof campo.km === "number" && Number.isFinite(campo.km) && campo.km >= 0 && campo.km <= 10000 ? String(campo.km) : "",
-  };
+export function campoArrivo(arrivi: ArrivoRapportino[]): CampoArrivo[] {
+  const errore = erroreArrivi(arrivi);
+  if (errore) throw new Error(errore);
+  return arrivi.map(arrivo => ({
+    chiave: CHIAVE_ARRIVO, tipo: "arrivo_cantiere", mezzo_id: arrivo.mezzoId.toLowerCase(),
+    partenza: arrivo.partenza.trim() || null, km: numeroViaggio(arrivo.km),
+  }));
+}
+
+export function leggiArrivo(raw: unknown): ArrivoRapportino[] {
+  if (!Array.isArray(raw)) return ARRIVI_VUOTI;
+  const mezzi = new Map<string, ArrivoRapportino>();
+  for (const campo of raw) {
+    if (campo?.chiave !== CHIAVE_ARRIVO || campo.tipo !== "arrivo_cantiere" ||
+        typeof campo.mezzo_id !== "string" || !uuid.test(campo.mezzo_id)) continue;
+    const mezzoId = campo.mezzo_id.toLowerCase();
+    if (mezzi.has(mezzoId)) continue;
+    mezzi.set(mezzoId, {
+      mezzoId,
+      partenza: typeof campo.partenza === "string" ? campo.partenza.trim().slice(0, 150) : "",
+      km: typeof campo.km === "number" && Number.isFinite(campo.km) && campo.km >= 0 && campo.km <= 10000 ? String(campo.km) : "",
+    });
+  }
+  return [...mezzi.values()];
 }
 
 export interface ArrivoDaRapportino {
@@ -66,6 +84,7 @@ export interface ArrivoDaRapportino {
   rapportini: number;
   datiDiscordanti: boolean;
   viaggioId: string | null;
+  viaggioGiorno?: string | null;
   viaggioStato: "bozza" | "inviato" | "verificato" | null;
   richiedeCollegamento?: boolean;
   viaggiCompatibili: { id: string; partenza: string; arrivo: string }[];

@@ -1,3 +1,4 @@
+import type { PropostaCommessaMappa } from "@/components/calendar/mappa/servizio";
 import { PrevisioniRegistrate } from "./PrevisioniRegistrate";
 import { usePrevisionaleCantiereLocale } from "@/hooks/usePrevisionaleCantiereLocale";
 import { chiavePrevisto, destinazionePrevisto, riepilogaPrevisioni, type DestinazionePrevisto } from "@/lib/orders/previsionaleSalvato";
@@ -193,9 +194,10 @@ interface OrderWorkPhasesProps {
   /** Le figure della commessa condividono l'organizzazione, senza duplicare anagrafiche o permessi. */
   organizationContent?: ReactNode;
   logisticaIntegrata?: boolean;
+  propostaMappa?: PropostaCommessaMappa;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra, logisticaIntegrata }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra, logisticaIntegrata, propostaMappa }: OrderWorkPhasesProps) {
   const paginaLavorazioni = view === "lavorazioni" && logisticaIntegrata;
   const showWork = true;
   const showTeam = showWork;
@@ -205,7 +207,12 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   // Squadre: le mette sulla commessa chi modifica le commesse o gli operai.
   const puoSquadre = !solaLettura && (canEditOrders || canEditOperai);
   const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
+  const [proposta, setProposta] = useState(() => propostaMappa && propostaMappa.company === effectiveCompany?.id &&
+    propostaMappa.orderId === orderId && !solaLettura &&
+    (propostaMappa.tipo === "operai" ? canEditOrders : propostaMappa.tipo === "squadre" && puoSquadre)
+    ? propostaMappa : undefined);
   const [organizza, setOrganizza] = useState<AperturaLavoro | null>(() => {
+    if (proposta) return { attiva: INTERA_COMMESSA, ids: [INTERA_COMMESSA], sezione: "chi" };
     if (!import.meta.env.DEV) return null;
     const parametri = new URLSearchParams(window.location.search);
     const subappalto = parametri.get("subappalto");
@@ -225,7 +232,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     setTipoAssegnazione("interni");
     setOrganizza({ attiva, ids: ids.length ? ids : [attiva], sezione: assegna ? "chi" : "sottofasi" });
   };
-  const chiudiOrganizza = () => { setOrganizza(null); setAvanzate(false); };
+  const chiudiOrganizza = () => { setOrganizza(null); setAvanzate(false); setProposta(undefined); };
   const setAssegnaPersona = () => apriOrganizza([], true);
   const setFaseAperta = (id: string | null) => id ? apriOrganizza([id], false) : chiudiOrganizza();
   const assegnaSquadre = useAssegnaAlleFasi(orderId);
@@ -930,7 +937,10 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               onOccupato={setOccupato} onAdd={(payload, opts) => addAssignment.mutate(payload, opts)} />}
           </section>}
           {!assegnaDitta && (puoModificare || puoSquadre) && (!advanced
-            ? <PianificaAssegnazione key={`assegnazione:${organizza.attiva}`} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
+            ? proposta && (isLoading || (proposta.tipo === "squadre" && squadreDisponibili.isLoading))
+              ? <p role="status" className="text-sm text-muted-foreground">Caricamento risorse…</p>
+              : <PianificaAssegnazione key={`assegnazione:${organizza.attiva}`} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
+              proposta={proposta?.company === effectiveCompany?.id ? proposta : undefined}
               calendario={calendario} puoPersone={puoModificare} puoSquadre={puoSquadre && (!voce || puoModificare)} puoDate={puoModificare}
               puoVoci={puoModificare && chiSottofasi.dati.disponibile}
               doveAssegnato={(id, tipo, ambiti) => ambiti.filter((a) => assegnatoSu(id, tipo, a)).length} onPassaggi={passaggiPiano} onOccupato={setOccupato} />

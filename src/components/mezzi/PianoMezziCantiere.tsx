@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { MezzoFormDialog } from "./MezzoFormDialog";
 import { MezziCommessaCard } from "./MezziCommessaCard";
 import { ViaggiCommessa } from "./ViaggiMezzoWorkspace";
+import { GiroMaterialiCommessa } from "./GiroMaterialiCommessa";
 import { StrumentiComputo } from "@/components/orders/materiali/StrumentiComputo";
 import type { PropostaRisorsa } from "@/lib/distinta/proposteRisorseComputo";
 
@@ -604,7 +605,11 @@ export function PianoMezziCantiere({
   );
   return (
     <div>
-      {conViaggi ? <SchedeLogistica mezzi={elencoMezzi} viaggi={<ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!modifica} vedeCosti={costi} integrato />} /> : elencoMezzi}
+      {conViaggi ? <SchedeLogistica mezzi={elencoMezzi} viaggi={<>
+        {companyId && <div className="px-3 pt-3 sm:px-4"><GiroMaterialiCommessa company={companyId} ordine={orderId}
+          mezzi={mezzi} modifica={modifica} acquistiVisibili={perms.canViewWarehouse || perms.canManagePurchasing || perms.isAdmin} /></div>}
+        <ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!modifica} vedeCosti={costi} integrato />
+      </>} /> : elencoMezzi}
       <Dialog
         open={aperto}
         onOpenChange={(v) => {

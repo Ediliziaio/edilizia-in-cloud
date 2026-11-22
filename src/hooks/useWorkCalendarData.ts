@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { personalOrderIds } from "@/lib/calendar/personalOrderIds";
 import { loadDashboardRows } from "@/lib/attivita/dashboardTasks";
 import {
   loadArchivedOrderIds,
@@ -28,42 +29,6 @@ const columns: string = `id, order_code, description, expected_date, work_start_
   order_external_teams(phase_id, phase:order_work_phases!order_external_teams_phase_id_fkey(id,name,start_date,end_date), external_team:external_teams(id,name,color)),
   squadre_commesse(phase_id,dal,al,phase:order_work_phases!squadre_commesse_phase_id_fkey(id,name,start_date,end_date),squadra:external_teams!squadre_commesse_squadra_id_fkey(id,name,color))`;
 
-async function personalOrderIds(
-  company: string,
-  user: string,
-  signal: AbortSignal,
-) {
-  const [direct, campo] = await Promise.all([
-    loadDashboardRows<{ id: string }>((a, b) =>
-      supabase
-        .from("orders")
-        .select("id")
-        .eq("company_id", company)
-        .is("deleted_at", null)
-        .or(`assigned_to.eq.${user},capomastro_user_id.eq.${user}`)
-        .order("id")
-        .range(a, b)
-        .abortSignal(signal),
-    ),
-    loadDashboardRows<{ id: string; order_id: string }>((a, b) =>
-      supabase
-        .from("order_campo_assignments")
-        .select("id,order_id")
-        .eq("company_id", company)
-        .eq("user_id", user)
-        .order("id")
-        .range(a, b)
-        .abortSignal(signal),
-    ),
-  ]);
-  return [
-    ...new Set(
-      [...direct.map((o) => o.id), ...campo.map((a) => a.order_id)].filter(
-        Boolean,
-      ),
-    ),
-  ];
-}
 const chunks = (ids: string[]) =>
   Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) =>
     ids.slice(i * 100, i * 100 + 100),
@@ -73,11 +38,12 @@ export function useWorkCalendarData(
   from: string,
   to: string,
   requestedScope: CalendarScope = "personal",
+  enabled = true,
 ) {
   const { user, effectiveCompany } = useAuth();
   const p = usePermissions();
   const company = effectiveCompany?.id;
-  const ready = !!company && !!user?.id && !p.isLoading && p.canViewCalendar;
+  const ready = enabled && !!company && !!user?.id && !p.isLoading && p.canViewCalendar;
   const canViewTeam =
     !p.onlyAssignedWork && (p.isAdmin || p.canViewAllTeamCalendar);
   const scope: CalendarScope =

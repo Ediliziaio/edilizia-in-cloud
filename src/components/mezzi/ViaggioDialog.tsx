@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { MapPin, Plus, Route, Trash2 } from "lucide-react";
+import { MapPin, Plus, Route, Trash2, Undo2 } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useSalvaViaggio, useViaggiContesto } from "@/hooks/useMezziViaggi";
+import { useCarburanteMezzo, useSalvaViaggio, useViaggiContesto } from "@/hooks/useMezziViaggi";
 import {
   draftViaggioKey,
   erroriViaggio,
@@ -311,6 +312,15 @@ function ViaggioForm({
   if (arrivoRapportino && !dati.tratte.some(t => t.order_id === defaultOrderId && t.destinazione === "commessa"))
     errors.push("Collega almeno una tratta a questa commessa.");
   const summary = riepilogoViaggio(dati);
+  const giornoPrezzo = dati.partenza ? giornoItaliano(dati.partenza) : "";
+  const kmStima = summary.delta != null && Number.isFinite(summary.delta) && summary.delta >= 0 ? summary.delta : summary.km;
+  const prima = draft.tratte[0];
+  const ultima = draft.tratte.at(-1);
+  const partenzaGiro = prima?.da.trim();
+  const destinazioneUltima = ultima?.a.trim();
+  const aggiungiRientro = Boolean(
+    partenzaGiro && destinazioneUltima && partenzaGiro.toLowerCase() !== destinazioneUltima.toLowerCase() && draft.tratte.length < 30,
+  );
   const locked =
     viaggio?.stato === "verificato" || viaggio?.stato === "annullato";
   const busy = save.isPending || routing != null;
@@ -711,27 +721,18 @@ function ViaggioForm({
                 </li>
               ))}
             </ol>
-            <Button
-              variant="outline"
-              disabled={draft.tratte.length >= 30}
-              onClick={() =>
-                update({
-                  tratte: [
-                    ...draft.tratte,
-                    nuovaTratta(draft.tratte.at(-1)?.a),
-                  ],
-                })
-              }
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Aggiungi tappa / tratta
-            </Button>
-            <p className="text-xs text-slate-600">
-              Ogni riga è una tratta di sola andata. Inserisci esplicitamente
-              anche il ritorno: non viene raddoppiato. Per stimare il percorso,
-              le coordinate selezionate vengono inviate al servizio stradale già
-              configurato; non viene attivato il GPS.
-            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" disabled={draft.tratte.length >= 30} onClick={() =>
+                update({ tratte: [...draft.tratte, nuovaTratta(ultima?.a)] })
+              }><Plus className="mr-1 h-4 w-4" /> Aggiungi tappa / tratta</Button>
+              {aggiungiRientro && <Button type="button" variant="outline" onClick={() => {
+                const ordini = [...new Set(draft.tratte.flatMap(t => t.order_id ? [t.order_id] : []))];
+                const order_id = ordini.length === 1 ? ordini[0] : null;
+                update({ tratte: [...draft.tratte, { ...nuovaTratta(destinazioneUltima), a: partenzaGiro!,
+                  order_id, destinazione: order_id ? "commessa" : "generale" }] });
+              }}><Undo2 className="mr-1 h-4 w-4" /> Aggiungi rientro</Button>}
+            </div>
+            <p className="text-xs text-slate-600">Stima o inserisci i km di ogni tratta, compreso il rientro. Puoi aggiornare i km effettivi prima della verifica.</p>
             <details className="rounded-xl border p-3">
               <summary className="cursor-pointer text-sm font-medium">
                 Note viaggio (facoltative)
@@ -789,6 +790,10 @@ function ViaggioForm({
               Dichiarati: {number(summary.kmDichiarati)} km · Stimati:{" "}
               {number(summary.kmStimati)} km
             </p>
+            {context.data?.vede_costi && user?.id && giornoPrezzo && kmStima != null && dati.tariffa_km == null && (
+              <StimaCarburanteViaggio company={companyId} mezzo={mezzoId} giorno={giornoPrezzo} km={kmStima}
+                parziale={summary.delta == null && summary.mancanti > 0} />
+            )}
             {summary.tappeDiscontinue && (
               <p>
                 Il percorso ha un’interruzione tra le tappe: aggiungi la tratta
@@ -866,4 +871,17 @@ function ViaggioForm({
       </DialogContent>
     </Dialog>
   );
+}
+
+
+function StimaCarburanteViaggio({ company, mezzo, giorno, km, parziale }: {
+  company: string; mezzo: string; giorno: string; km: number; parziale: boolean;
+}) {
+  const { data } = useCarburanteMezzo(company, mezzo, giorno);
+  const consumo = data?.consumo?.litri_100;
+  const prezzoLitro = data?.stima?.euro_litro;
+  if (consumo == null || prezzoLitro == null) return null;
+  return <p>Carburante {parziale ? "parziale" : "stimato"} · <strong>{formatCurrency(km * consumo / 100 * prezzoLitro)}</strong>
+    {" "}su {km.toLocaleString("it-IT", { maximumFractionDigits: 2 })} km · {data.stima?.fonte === "mimit" ? "media MIMIT" : "prezzo aziendale"} al netto IVA
+  </p>;
 }

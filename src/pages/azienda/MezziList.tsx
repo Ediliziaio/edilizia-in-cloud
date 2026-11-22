@@ -18,7 +18,7 @@ import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorriment
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle, ChevronRight, ClipboardCheck, EyeOff, FileWarning, HardHat, Loader2, MapPin, Plus, QrCode, Search, Settings2,
-  Truck, UserRound, Warehouse, Wrench, type LucideIcon,
+  Route, Truck, UserRound, Warehouse, Wrench, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ import { EtichetteQrDialog } from "@/components/mezzi/EtichetteQrDialog";
 import { CategorieAttrezziDialog } from "@/components/mezzi/CategorieAttrezziDialog";
 import {
   STATO_SCADENZA_BADGE, TIPI_VEICOLO, classeDi, costoAnnuoMezzo, descriviScadenza, formatContatore, formatData,
-  formatQuantita, giorniTra, giornoItaliano, oggiIso, statoMezzo, statoPeggiore, tipoMezzoLabel, tipoSegnalazioneLabel,
+  formatQuantita, giorniTra, giornoItaliano, mezzoHaRegistroViaggi, oggiIso, statoMezzo, statoPeggiore, tipoMezzoLabel, tipoSegnalazioneLabel,
   type MezzoClasse, type MezzoConAssegnazione, type MezzoDisponibilita, type MezzoScadenza, type MezzoTipo,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
@@ -824,10 +824,10 @@ function RigaMezzo({
     : peggiore ? STATO_SCADENZA_BADGE[peggiore].label : "";
 
   return (
-    <li className="min-w-0 bg-white">
+    <li className="flex min-w-0 items-center bg-white">
       <Link
         to={`/azienda/mezzi/${m.id}`}
-        className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-orange-50/40 max-sm:px-3 max-sm:py-2.5"
+        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-orange-50/40 max-sm:px-3 max-sm:py-2.5"
       >
         {copertina ? (
           <img src={copertina} alt="" loading="lazy" className="h-10 w-12 shrink-0 rounded-lg border object-cover" />
@@ -877,6 +877,10 @@ function RigaMezzo({
         )}
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </Link>
+      {mezzoHaRegistroViaggi(m) && <Link className="mr-2 grid size-9 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-muted hover:text-primary"
+        to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa`} aria-label={`Storico percorsi di ${m.nome}`} title="Storico percorsi">
+        <Route className="size-4" />
+      </Link>}
     </li>
   );
 }
@@ -938,7 +942,10 @@ function ElencoMezzi({
                   <Link to={`/azienda/mezzi/${m.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-medium text-slate-900 hover:text-orange-700">
                     {m.nome}
                   </Link>
-
+                  {mezzoHaRegistroViaggi(m) && <Link to={`/azienda/mezzi/${m.id}?tab=viaggi&vista=mappa`} onClick={e => e.stopPropagation()}
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                    <Route className="size-3" /> Storico percorsi
+                  </Link>}
                 </TableCell>
                 <TableCell className="font-mono text-xs">{(attrezzi ? m.codice : m.targa) || "—"}</TableCell>
                 <TableCell className="text-sm text-slate-600">

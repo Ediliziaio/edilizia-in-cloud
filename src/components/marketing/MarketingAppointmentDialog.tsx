@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import type { PropostaAppuntamentoMappa } from "@/components/calendar/mappa/servizio";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { appointmentEditPatch } from "@/lib/marketing/appointmentEdit";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleComp } from "@/components/ui/alert-dialog";
@@ -14,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle, Sparkles, ListChecks, Video, ExternalLink, Copy } from "lucide-react";
-import { addDays, format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +45,7 @@ interface CalendarOption {
   id: string;
   name: string;
   owner_id?: string | null;
+  calendar_type?: string | null;
   base_lat?: number | null;
   base_lng?: number | null;
   base_formatted_address?: string | null;
@@ -94,6 +96,8 @@ export interface MarketingAppointmentData {
   meeting_created_at?: string | null;
 }
 
+const ViciniAppuntamento = lazy(() => import("@/components/calendar/mappa/ViciniAppuntamento"));
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -104,6 +108,8 @@ interface Props {
   defaultDate?: string;
   defaultTime?: string;
   defaultContactId?: string;
+  viciniDaCalendario?: boolean;
+  propostaMappa?: PropostaAppuntamentoMappa;
   /**
    * Titolo precompilato per le nuove prenotazioni (ignorato in modifica).
    * Usato dal flusso Outreach "Prenota demo" per proporre es.
@@ -121,7 +127,7 @@ const formatEuro = (value: number | null | undefined) =>
 
 export default function MarketingAppointmentDialog({
   open,
-  onOpenChange,
+  onOpenChange: cambiaApertura,
   appointment,
   onSaved,
   calendars,
@@ -129,6 +135,8 @@ export default function MarketingAppointmentDialog({
   defaultDate,
   defaultTime,
   defaultContactId,
+  viciniDaCalendario = false,
+  propostaMappa,
   defaultTitle,
   contestoScheda,
 }: Props) {
@@ -140,7 +148,13 @@ export default function MarketingAppointmentDialog({
   const routePrefix = useMarketingRoutePrefix();
   // In sola lettura niente prenotazioni né modifiche: la policy su appointments
   // le rifiuterebbe, meglio dirlo sul bottone.
-  const { solaLettura, onlyAssigned, canViewMarketingContacts, canViewMarketingOpportunities } = usePermissions();
+  const { solaLettura, onlyAssigned, canViewMarketingContacts, canViewMarketingOpportunities,
+    canViewMarketingAppointments, canViewOrders, canViewCalendar, canViewPersone, canViewAllTeamCalendar, onlyAssignedWork } = usePermissions();
+  const [viciniAperti, setViciniAperti] = useState(false);
+  const onOpenChange = (visibile: boolean) => {
+    if (!visibile) setViciniAperti(false);
+    cambiaApertura(visibile);
+  };
   const bloccoTitle = solaLettura ? "Sei in sola lettura" : undefined;
   const queryClient = useQueryClient();
 
@@ -188,6 +202,28 @@ export default function MarketingAppointmentDialog({
     if (destinations.length === 1) setCalendarId(destinations[0].id);
   };
 
+  const fasciaProposta = useRef(false);
+  const mantieniIndirizzoContatto = useRef(false);
+  const calendarioProposto = propostaMappa && !solaLettura && propostaMappa.tipo === "vendite" &&
+    users.some(u => u.id === propostaMappa.id) ? calendarioPersonalePerProposta(propostaMappa.id) : undefined;
+  function calendarioPersonalePerProposta(id: string) {
+    const personali = calendars.filter(c => c.owner_id === id && c.calendar_type === "personal");
+    return personali.length === 1 ? personali[0].id : undefined;
+  }
+
+  const applicaProposta = (proposta: PropostaAppuntamentoMappa) => {
+    const calendario = calendarioPersonalePerProposta(proposta.id);
+    if (solaLettura || proposta.tipo !== "vendite" || !users.some(u => u.id === proposta.id) || !calendario) return;
+    mantieniIndirizzoContatto.current = true;
+    fasciaProposta.current = true;
+    setAssignedTo(proposta.id);
+    setCalendarId(calendario);
+    setAppointmentDate(parseISO(proposta.giorno));
+    setStartTime(proposta.inizio);
+    setEndTime(proposta.fine);
+    setViciniAperti(false);
+  };
+
   const selectedCalendar = useMemo(() => {
     return calendars.find((c) => c.id === calendarId) || null;
   }, [calendars, calendarId]);
@@ -200,6 +236,8 @@ export default function MarketingAppointmentDialog({
 
   useEffect(() => {
     if (!open) return;
+    fasciaProposta.current = false;
+    mantieniIndirizzoContatto.current = !!propostaMappa?.destinazione;
     if (appointment) {
       setActiveTab(appointment.is_blocked_slot ? "blocked" : "appointment");
       setTitle(appointment.title);
@@ -243,7 +281,7 @@ export default function MarketingAppointmentDialog({
       const st = defaultTime || "09:00";
       setStartTime(st);
       setEndTime(addMinutesToTime(st, 30));
-      setAppointmentDate(defaultDate ? new Date(defaultDate) : new Date());
+      setAppointmentDate(defaultDate ? new Date(defaultDate + "T12:00:00") : new Date());
       setCalendarId(defaultCalendarId);
       setAssignedTo("");
       setContactId(defaultContactId || "");
@@ -257,12 +295,25 @@ export default function MarketingAppointmentDialog({
       setFollowUpTitle("");
       setFollowUpDueDate("");
       setFollowUpPriority("normale");
-      setAddressData(emptyAddress);
+      const destinazione = propostaMappa?.destinazione;
+      setAddressData(destinazione ? {
+        ...emptyAddress, address_line: destinazione.indirizzo ?? "", formatted_address: destinazione.indirizzo ?? "",
+        lat: destinazione.punto.lat, lng: destinazione.punto.lng,
+      } : emptyAddress);
     }
-  }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId, defaultTitle]);
+    if (propostaMappa && calendarioProposto && !appointment?.is_blocked_slot) {
+      mantieniIndirizzoContatto.current = true;
+      fasciaProposta.current = true;
+      setAssignedTo(propostaMappa.id);
+      setCalendarId(calendarioProposto);
+      setAppointmentDate(parseISO(propostaMappa.giorno));
+      setStartTime(propostaMappa.inizio);
+      setEndTime(propostaMappa.fine);
+    }
+  }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId, defaultTitle, propostaMappa, calendarioProposto]);
 
   useEffect(() => {
-    if (!open || isEditing || activeTab === "blocked" || !selectedCalendar) return;
+    if (!open || isEditing || activeTab === "blocked" || !selectedCalendar || propostaMappa?.destinazione) return;
     // Il link fisso del calendario vince sul Meet generato: è quello che il
     // cliente riceve nella conferma e nei promemoria.
     const linkFisso = selectedCalendar.link_videochiamata?.trim() || "";
@@ -276,17 +327,15 @@ export default function MarketingAppointmentDialog({
     setMeetingProvider(nextProvider);
     setMeetingStatus(nextProvider === "google_meet" ? "pending" : "none");
     setMeetingUrl("");
-  }, [activeTab, isEditing, open, selectedCalendar]);
+  }, [activeTab, isEditing, open, selectedCalendar, propostaMappa?.destinazione]);
 
-  // Update end time when calendar/duration changes for new appointments.
+  // La durata del calendario è il valore iniziale. Una fascia proposta è già esplicita.
+  const durataCalendario = selectedCalendar?.duration_minutes;
   useEffect(() => {
-    if (!isEditing && calendarId && calendarId !== "none" && startTime) {
-      const cal = calendars.find((c) => c.id === calendarId);
-      if (cal?.duration_minutes && startTime) {
-        setEndTime(addMinutesToTime(startTime, cal.duration_minutes));
-      }
+    if (!isEditing && startTime && durataCalendario && !fasciaProposta.current) {
+      setEndTime(addMinutesToTime(startTime, durataCalendario));
     }
-  }, [calendarId, calendars, isEditing, startTime]);
+  }, [calendarId, durataCalendario, isEditing, startTime]);
 
   // Il contatto scelto si legge per id. Prima si caricava «tutto l'elenco», ma il
   // database ne restituisce al massimo mille: oltre il millesimo cognome il
@@ -765,7 +814,7 @@ export default function MarketingAppointmentDialog({
           void queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
         }
       }
-      if (effectiveContactId && addressData.address_line) {
+      if (effectiveContactId && addressData.address_line && !mantieniIndirizzoContatto.current) {
         await supabase
           .from("marketing_contacts")
           .update({
@@ -998,6 +1047,17 @@ export default function MarketingAppointmentDialog({
                 {/* Location section */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <AddressAutocomplete value={addressData} onChange={setAddressData} />
+                  {viciniDaCalendario && canViewMarketingAppointments && companyId && meetingProvider === "none" && (
+                    viciniAperti ? <Suspense fallback={<p role="status" className="text-xs">Caricamento disponibilità…</p>}>
+                      <ViciniAppuntamento key={`${appointmentDate?.toDateString()}:${startTime}:${endTime}:${addressData.formatted_address}:${addressData.address_line}`}
+                        company={companyId} giorno={format(appointmentDate ?? new Date(), "yyyy-MM-dd")} inizio={startTime} fine={endTime}
+                        indirizzo={addressData.formatted_address || [addressData.address_line, addressData.address_postal_code, addressData.address_city, addressData.address_province].filter(Boolean).join(", ")}
+                        punto={!addressData.place_id && addressData.lat != null && addressData.lng != null ? { lat: addressData.lat, lng: addressData.lng } : null}
+                        escludi={appointment?.id} lavori={canViewOrders && canViewCalendar && canViewPersone && canViewAllTeamCalendar && !onlyAssignedWork}
+                        puoProporre={(tipo, id) => tipo === "vendite" && !solaLettura && users.some(u => u.id === id) && !!calendarioPersonalePerProposta(id)}
+                        onProposta={applicaProposta} onChiudi={() => setViciniAperti(false)} />
+                    </Suspense> : <Button type="button" variant="outline" size="sm" onClick={() => setViciniAperti(true)}>Chi è più vicino?</Button>
+                  )}
                   {addressData.lat != null && addressData.lng != null && (
                     <>
                       <AddressMapPreview

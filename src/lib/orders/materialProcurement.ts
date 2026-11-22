@@ -2,6 +2,13 @@ import { errorePrecisioneOda } from "./preparazioneForniture";
 import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
 import { valoreAsse } from "@/lib/surveys/misureRilievo";
 
+export const STATI_DDT: Record<string, string> = {
+  atteso: "Attesa", attesa: "Attesa", parziale: "Arrivata in parte", ricevuto: "Arrivata, da controllare",
+  verificato: "Controllata", non_conforme: "Non conforme",
+  da_verificare: "Da verificare in ufficio", registrato: "Registrata", rifiutato: "Rifiutata",
+  bozza: "Bozza", emesso: "Emesso", emessa: "Emesso", inviato: "Inviato",
+};
+
 /** Quantities, never inferred from the article name. A purchased service can
  * legitimately be on an OdA; labour classification needs explicit user intent. */
 export interface ProcurementItem {

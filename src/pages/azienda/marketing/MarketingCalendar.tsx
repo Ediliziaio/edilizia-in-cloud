@@ -1,12 +1,13 @@
+import type { PropostaAppuntamentoMappa, TipoCandidato } from "@/components/calendar/mappa/servizio";
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { useOutlookCalendarSync } from "@/hooks/useOutlookCalendarSync";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -43,6 +44,7 @@ import {
   Users,
   RefreshCw,
   Loader2,
+  Map as MapIcon,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -66,8 +68,15 @@ import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFi
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 
-type TabKey = "calendar" | "list";
+import { appuntamentiMappa } from "@/components/calendar/mappa/dati";
+import { useDataMappaCalendario, useMappaCalendario } from "@/components/calendar/mappa/useMappaCalendario";
+
+import { preparaSfondoMappa } from "@/components/calendar/mappa/caricaSfondo";
+const MappaOperativa = lazy(() => import("@/components/calendar/mappa/MappaOperativa"));
+type TabKey = "calendar" | "list" | "map";
 type CalendarView = "day" | "week" | "month";
+const CAMPI_MAPPA = "id,title,appointment_date,appointment_time,appointment_end_time,appointment_type,status,calendar_id,assigned_to,contact_id,is_blocked_slot,meeting_provider,meeting_url,cancelled_at,lat,lng,formatted_address,place_id,address_line,address_city,address_country,address_postal_code,address_province";
+const CAMPI_SCHEDA = `${CAMPI_MAPPA},description,is_completed,internal_notes,address_notes,opportunity_id,meeting_status,meeting_created_at`;
 
 export default function MarketingCalendar() {
   const navigate = useNavigate();
@@ -189,14 +198,17 @@ export default function MarketingCalendar() {
     [googleBusySlots, appleBusySlots, outlookBusySlots, crmGoogleEventIds],
   );
 
-  const [activeTab, setActiveTab] = useState<TabKey>("calendar");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabKey>(() => searchParams.get("mappa") === "giorno" ? "map" : "calendar");
   // 2026-05-27: ripristinato lo switcher Day/Week/Month dopo bug in cui mancava
   // il setter — la vista era hardcoded "month" e i tasti non facevano nulla.
   const [calendarView, setCalendarView] = useState<CalendarView>("month");
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useDataMappaCalendario(companyId, user?.id, "vendite");
+  const statoMappa = useMappaCalendario(companyId, user?.id, permissions.onlyAssigned ? "vendite:personale" : "vendite:team");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<MarketingAppointmentData | null>(null);
+  const [propostaMappa, setPropostaMappa] = useState<PropostaAppuntamentoMappa>();
   const [defaultDate, setDefaultDate] = useState<string | undefined>();
   const [defaultTime, setDefaultTime] = useState<string | undefined>();
   const [syncingExternal, setSyncingExternal] = useState(false);
@@ -221,7 +233,7 @@ export default function MarketingCalendar() {
       if (!companyId) return [];
       let q = supabase
         .from("marketing_calendars")
-        .select("id, name, owner_id, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled, color, link_videochiamata")
+        .select("id, name, owner_id, calendar_type, is_active, base_lat, base_lng, base_place_id, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled, color, link_videochiamata")
         .eq("company_id", companyId)
         .eq("is_active", true);
       // Ruolo ristretto (only_assigned): nel filtro vede solo i calendari di cui
@@ -374,7 +386,7 @@ export default function MarketingCalendar() {
       const end = format(addMonths(currentDate, 12), "yyyy-MM-dd");
       return { start, end };
     }
-    if (calendarView === "day") {
+    if (activeTab === "map" || calendarView === "day") {
       const start = format(subDays(currentDate, 1), "yyyy-MM-dd");
       const end = format(addDays(currentDate, 1), "yyyy-MM-dd");
       return { start, end };
@@ -408,14 +420,14 @@ export default function MarketingCalendar() {
   const showOperativi = preferenzaOperativi && puoVedereOperativi;
 
   // Fetch appointments with date range filter
-  const { data: rawAppointments = [], error: appointmentsError, refetch: refetchAppointments } = useQuery({
-    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi],
+  const { data: rawAppointments = [], isLoading: appuntamentiInCaricamento, error: appointmentsError, refetch: refetchAppointments } = useQuery({
+    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi, activeTab === "map"],
     queryFn: async () => {
       if (!companyId) return [];
       const archivedIds = await loadArchivedOrderIds(companyId);
       let query = supabase
         .from("appointments")
-        .select("*")
+        .select(activeTab === "map" ? CAMPI_MAPPA : "*")
         .eq("company_id", companyId)
         .gte("appointment_date", dateRange.start)
         .lte("appointment_date", dateRange.end)
@@ -435,6 +447,15 @@ export default function MarketingCalendar() {
       const { data, error } = await query;
       if (error) throw error;
       return (data || []) as any[];
+    },
+    // Quando si passa alla mappa, riusa subito l’agenda già letta con lo stesso perimetro.
+    // La query leggera del giorno si aggiorna in parallelo.
+    placeholderData: (precedenti, queryPrecedente) => {
+      if (activeTab !== "map" || !precedenti || !queryPrecedente) return undefined;
+      const [, azienda, da, a, assegnati, utente, operativi] = queryPrecedente.queryKey;
+      if (azienda !== companyId || utente !== user?.id || assegnati !== permissions.onlyAssigned || operativi !== showOperativi ||
+          typeof da !== "string" || typeof a !== "string" || da > dateRange.start || a < dateRange.end) return undefined;
+      return precedenti.filter(r => r.appointment_date >= dateRange.start && r.appointment_date <= dateRange.end);
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
@@ -643,7 +664,7 @@ export default function MarketingCalendar() {
   const { data: travelLegs = [] } = useQuery({
     queryKey: ["travel-legs-day", baseCalendarWaypoint?.lat, dayTravelKey],
     queryFn: () => computeTravelLegsForDate(dayAppointmentsWithCoords),
-    enabled: calendarView === "day" && (dayAppointmentsWithCoords.length >= 2 || (dayAppointmentsWithCoords.length >= 1 && !!baseCalendarWaypoint)),
+    enabled: activeTab === "calendar" && calendarView === "day" && (dayAppointmentsWithCoords.length >= 2 || (dayAppointmentsWithCoords.length >= 1 && !!baseCalendarWaypoint)),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -685,7 +706,7 @@ export default function MarketingCalendar() {
       entries.forEach(({ dateKey, legs }) => { result[dateKey] = legs; });
       return result;
     },
-    enabled: calendarView === "week" && weekDaysWithAppts.length > 0,
+    enabled: activeTab === "calendar" && calendarView === "week" && weekDaysWithAppts.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -823,16 +844,18 @@ export default function MarketingCalendar() {
   // su filteredAppointments (pre-filtro KPI) così non cambiano cliccandole.
   const [kpiFilter, setKpiFilter] = useState<"all" | "unassigned" | "conflicts">("all");
   const displayAppointments = useMemo(() => {
+    const condivisi = filteredAppointments.filter(a => (!statoMappa.state.risorsa || statoMappa.state.risorsa === `commerciale:${a.assigned_to}`)
+      && (!statoMappa.state.stato || statoMappa.state.stato === a.status?.toLowerCase()));
     if (kpiFilter === "unassigned") {
-      return filteredAppointments.filter((a: any) => !a.assigned_to && !a.is_blocked_slot);
+      return condivisi.filter((a: any) => !a.assigned_to && !a.is_blocked_slot);
     }
     if (kpiFilter === "conflicts") {
-      return filteredAppointments.filter((a: any) => headerStats.conflictIds.has(a.id));
+      return condivisi.filter((a: any) => headerStats.conflictIds.has(a.id));
     }
-    return filteredAppointments;
-  }, [filteredAppointments, kpiFilter, headerStats.conflictIds]);
+    return condivisi;
+  }, [filteredAppointments, kpiFilter, headerStats.conflictIds, statoMappa.state.risorsa, statoMappa.state.stato]);
 
-  const openNewDialog = (date?: Date, hour?: number, minute?: number) => {
+  const openNewDialog = (date?: Date, hour?: number, minute?: number, proposta?: PropostaAppuntamentoMappa) => {
     // In sola lettura clic su slot e giorni non aprono un modulo che non salverebbe.
     if (permissions.solaLettura) return;
     if (!hasCalendars) {
@@ -840,12 +863,15 @@ export default function MarketingCalendar() {
       return;
     }
     setEditingAppointment(null);
+    setPropostaMappa(proposta);
     setDefaultDate(date ? format(date, "yyyy-MM-dd") : undefined);
     setDefaultTime(hour !== undefined ? `${String(hour).padStart(2, "0")}:${String(minute ?? 0).padStart(2, "0")}` : undefined);
     setDialogOpen(true);
   };
 
-  const openEditDialog = (apt: any) => {
+  const openEditDialog = (apt: any, proposta?: PropostaAppuntamentoMappa) => {
+    setPropostaMappa(proposta);
+    statoMappa.onState({ id: apt.id });
     setEditingAppointment({
       id: apt.id,
       title: apt.title,
@@ -879,6 +905,16 @@ export default function MarketingCalendar() {
     });
     setDialogOpen(true);
   };
+
+  const apriSchedaMappa = async (id: string, proposta?: PropostaAppuntamentoMappa) => {
+    const { data, error } = await supabase.from("appointments").select(CAMPI_SCHEDA)
+      .eq("company_id", companyId!).eq("id", id).maybeSingle();
+    if (error || !data) { toast.error("Impossibile aprire la scheda dell’appuntamento"); return; }
+    openEditDialog(data, proposta);
+  };
+  const puoProporre = (tipo: TipoCandidato, id: string) =>
+    tipo === "vendite" && !permissions.solaLettura && users.some(u => u.id === id) &&
+    calendars.filter(c => c.owner_id === id && c.calendar_type === "personal").length === 1;
 
   const syncExternalCalendarsForAppointment = useCallback(async (appointmentId: string) => {
     const tasks: Promise<unknown>[] = [];
@@ -943,7 +979,7 @@ export default function MarketingCalendar() {
     // 2026-05-27 (audit fix): queryKey deve includere showOperativi, altrimenti
     // l'optimistic update scrive su una key che nessuna view sta osservando
     // → l'item rimbalza alla vecchia posizione fino al refetch.
-    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi];
+    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi, false];
     const previousData = queryClient.getQueryData<any[]>(queryKey);
     queryClient.setQueryData<any[]>(queryKey, (old) => {
       if (!old) return old;
@@ -1030,7 +1066,7 @@ export default function MarketingCalendar() {
     // 2026-05-27 (audit fix): queryKey deve includere showOperativi, altrimenti
     // l'optimistic update scrive su una key che nessuna view sta osservando
     // → l'item rimbalza alla vecchia posizione fino al refetch.
-    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi];
+    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi, false];
     const previousData = queryClient.getQueryData<any[]>(queryKey);
     // Guard: il drag-resize bypassa la validazione del dialog → evita di salvare
     // un orario di fine ≤ inizio (range non valido).
@@ -1137,6 +1173,7 @@ export default function MarketingCalendar() {
 
   const tabs = [
     { key: "calendar" as const, label: "Calendario", icon: CalendarIcon },
+    ...(!isAdminContext ? [{ key: "map" as const, label: "Mappa", icon: MapIcon }] : []),
     { key: "list" as const, label: "Elenco", icon: ListIcon },
   ];
 
@@ -1148,6 +1185,11 @@ export default function MarketingCalendar() {
   const googleConnectedNotSynced = Boolean(
     googleSync.hasGoogleConnection && !googleSync.connection?.last_sync_at,
   );
+
+  const giornoMappa = format(currentDate, "yyyy-MM-dd");
+  const appuntamentiDelGiorno = useMemo(() => activeTab === "map"
+    ? appuntamentiMappa(filteredAppointments, giornoMappa, calendars, user?.id) : [],
+  [activeTab, filteredAppointments, giornoMappa, calendars, user?.id]);
 
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden pb-20 md:pb-0">
@@ -1338,7 +1380,10 @@ export default function MarketingCalendar() {
               key={t.key}
               role="tab"
               aria-selected={activeTab === t.key}
-              onClick={() => setActiveTab(t.key)}
+              onClick={() => {
+                if (t.key === "map") preparaSfondoMappa();
+                setActiveTab(t.key);
+              }}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                 activeTab === t.key
@@ -1378,6 +1423,30 @@ export default function MarketingCalendar() {
             Riprova
           </Button>
         </div>
+      )}
+
+      {activeTab === "map" && (
+        <Suspense fallback={<p role="status" className="p-3 text-sm">Caricamento mappa…</p>}>
+          <MappaOperativa key={`${companyId}:${user?.id}:vendite`} {...statoMappa} ambito="vendite"
+            giorno={giornoMappa} onGiorno={d => setCurrentDate(parseISO(d))}
+            voci={appuntamentiDelGiorno}
+            personale={permissions.onlyAssigned} loading={appuntamentiInCaricamento} erroreDati={!!appointmentsError}
+            modifica={!permissions.solaLettura && (permissions.isAdmin || permissions.canEditMarketingOpportunities)}
+            registroMezzi={permissions.canViewMezzi} onRiprova={() => void refetchAppointments()}
+            vendite={permissions.canViewMarketingAppointments}
+            lavori={permissions.canViewCalendar && permissions.canViewOrders && permissions.canViewAllTeamCalendar && permissions.canViewPersone && !permissions.onlyAssignedWork}
+            consumo={permissions.isAdmin}
+            nuovo={hasCalendars && !permissions.solaLettura ? () => openNewDialog(currentDate) : undefined}
+            puoProporre={puoProporre}
+            onProposta={(proposta, destinazione) => {
+              if (!puoProporre(proposta.tipo, proposta.id)) return;
+              if (destinazione.voce) void apriSchedaMappa(destinazione.voce.id, proposta);
+              else openNewDialog(parseISO(proposta.giorno), undefined, undefined, {
+                ...proposta, destinazione: { punto: destinazione.punto, indirizzo: destinazione.indirizzo },
+              });
+            }}
+            onScheda={apriSchedaMappa} />
+        </Suspense>
       )}
 
       {/* Content */}
@@ -1702,6 +1771,8 @@ export default function MarketingCalendar() {
         }}
         calendars={calendars.map(calendar => ({ ...calendar, default_meeting_provider: calendar.default_meeting_provider === "google_meet" ? "google_meet" as const : "none" as const }))}
         users={users}
+        viciniDaCalendario={!isAdminContext}
+        propostaMappa={propostaMappa}
         defaultDate={defaultDate}
         defaultTime={defaultTime}
       />

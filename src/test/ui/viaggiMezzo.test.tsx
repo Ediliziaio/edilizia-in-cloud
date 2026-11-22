@@ -19,11 +19,13 @@ import { MemoryRouter } from "react-router-dom";
 import { ViaggioDialog } from "@/components/mezzi/ViaggioDialog";
 import { draftViaggioKey } from "@/lib/mezzi/viaggi";
 import { ViaggiMezzoWorkspace } from "@/components/mezzi/ViaggiMezzoWorkspace";
+import type { ConfigCarburanteMezzo } from "@/integrations/supabase/appDatabase";
 import type { ContestoViaggi, Viaggio } from "@/lib/mezzi/viaggi";
 import type { ArrivoDaRapportino } from "@/lib/campo/arrivoRapportino";
 
 const state = vi.hoisted(() => ({
   user: "u1",
+  carburante: null as ConfigCarburanteMezzo | null,
   context: null as ContestoViaggi | null,
   rows: [] as Viaggio[],
   arrivi: [] as ArrivoDaRapportino[],
@@ -35,6 +37,7 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: state.user } }),
 }));
 vi.mock("@/hooks/useMezziViaggi", () => ({
+  useCarburanteMezzo: () => ({ data: state.carburante }),
   useViaggiContesto: () => ({
     data: state.context,
     isPending: false,
@@ -87,6 +90,7 @@ afterAll(() => {
 beforeEach(() => {
   localStorage.clear();
   state.user = "u1";
+  state.carburante = null;
   state.rows = [];
   state.arrivi = [];
   state.readError = false;
@@ -286,6 +290,26 @@ describe("Viaggi nell’app operai e nell’ufficio", () => {
     await waitFor(() => expect(state.mutate).toHaveBeenCalledOnce());
     expect(state.mutate.mock.calls[0][0].dati.conducente_hr_id).toBe("h2");
   });
+  it("stima il carburante di andata e ritorno e ricalcola quando aumentano i km", () => {
+    state.context!.vede_costi = true;
+    state.carburante = {
+      consumo: { tipo: "gasolio", dal: "2020-10-01", litri_100: 10 }, prezzi: {},
+      stima: { fonte: "mimit", zona: "lombardia", euro_litro: 2, euro_litro_lordo: 2.44 },
+    };
+    form({ defaultOrderId: "o1" });
+    fill();
+    fireEvent.change(screen.getByLabelText("Km tratta 1"), { target: { value: "18" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi rientro" }));
+    expect(screen.getByLabelText("Partenza tratta 2")).toHaveValue("Fornitore");
+    expect(screen.getByLabelText("Destinazione tratta 2")).toHaveValue("Sede");
+    expect(screen.getByLabelText("Km tratta 2")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Aggiungi rientro" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Km tratta 2"), { target: { value: "22" } });
+    expect(screen.getByRole("status").textContent).toMatch(/8,00.+40 km.*MIMIT/);
+    fireEvent.change(screen.getByLabelText("Km tratta 2"), { target: { value: "29" } });
+    expect(screen.getByRole("status").textContent).toMatch(/9,40.+47 km.*MIMIT/);
+  });
+
   it("blocca la verifica con contachilometri discordanti", () => {
     state.context!.puo_verificare = true;
     state.context!.vede_costi = true;
@@ -345,4 +369,22 @@ describe("Viaggi nell’app operai e nell’ufficio", () => {
       screen.queryByText(/Nessun viaggio registrato nel periodo/),
     ).not.toBeInTheDocument();
   });
+});
+
+it("apre il viaggio indicato dalla mappa sul giorno corretto, in sola lettura fino alla scelta di rivederlo", () => {
+  const base: Viaggio = {
+    id: "v1", company_id: "c1", mezzo_id: "m1", mezzo_nome: "Ducato", stato: "bozza", versione: 1,
+    conducente: "Mario", partenza: "2026-11-22T08:00:00+01:00", arrivo: "2026-11-22T08:30:00+01:00",
+    updated_at: "2026-11-22T08:30:00+01:00", contatore_inizio: null, contatore_fine: null, note: "", tratte: [],
+  };
+  state.rows = [base, { ...base, id: "v2", note: "Viaggio da completare" }];
+  const { container } = render(<MemoryRouter>
+    <ViaggiMezzoWorkspace companyId="c1" mezzoId="m1" campo initialTripId="v2" initialDay="2026-11-22" />
+  </MemoryRouter>);
+  expect(state.lastRead).toMatchObject({ enabled: true, dal: "2026-11-22", al: "2026-11-22" });
+  const details = container.querySelectorAll("details");
+  expect(details[0].open).toBe(false);
+  expect(details[1].open).toBe(true);
+  expect(details[1]).toHaveTextContent("Viaggio da completare");
+  expect(state.mutate).not.toHaveBeenCalled();
 });
