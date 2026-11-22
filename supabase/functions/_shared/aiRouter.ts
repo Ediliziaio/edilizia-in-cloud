@@ -57,6 +57,8 @@ export interface AiRouterMessage {
 }
 
 export interface AiRouterParams {
+  /** Opt-in server per scansioni: lascia invariata la lettura nativa degli altri task. */
+  pdfEngine?: "mistral-ocr";
   /** Request-local comparison setting; never taken from unvalidated client data. */
   reasoning?: { effort: "low" | "medium" | "high" };
   temperature?: number;
@@ -817,6 +819,9 @@ async function callOpenRouter(
   // The last SSE event remains necessary to collect the full usage/cost.
   body.usage = { include: true };
   if (responseFormat) body.response_format = responseFormat;
+  if (params.pdfEngine === "mistral-ocr" && finalMessages.some(m => Array.isArray(m.content) && m.content.some((p: unknown) => p != null && typeof p === "object" && "type" in p && p.type === "file"))) {
+    body.plugins = [{ id: "file-parser", pdf: { engine: "mistral-ocr" } }];
+  }
   // Only opted-in endpoints prioritize latency; structured-output support stays required.
   if (preferLowLatency) body.provider = { sort: "latency", require_parameters: true };
   // Streaming: la risposta arriva a pezzi (SSE) e viene ricomposta da
