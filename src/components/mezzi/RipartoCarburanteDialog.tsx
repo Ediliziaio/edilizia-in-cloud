@@ -30,7 +30,7 @@ export default function RipartoCarburanteDialog({ companyId, mezzoId, numero, da
     Math.sign(centesimi) === Math.sign(quota) && Math.abs(centesimi) <= Math.round(Math.abs(quota) * 100);
   const viaggi = useViaggiRipartoCarburante(companyId, mezzoId, richiesta);
   const corrente = richiesta?.dal === dal && richiesta?.al === al && richiesta.centesimi === centesimi;
-  const riparto = corrente && viaggi.data ? ripartoCarburante(viaggi.data, centesimi) : null;
+  const riparto = corrente && viaggi.isSuccess && !viaggi.isFetching ? ripartoCarburante(viaggi.data, centesimi) : null;
   const ids = (riparto?.quote.flatMap(q => q.ordine ? [q.ordine] : []) ?? []).sort();
   const actor = useAuth().user?.id;
   const commesse = useQuery({
@@ -103,7 +103,7 @@ export default function RipartoCarburanteDialog({ companyId, mezzoId, numero, da
             <span className="text-xs tabular-nums text-muted-foreground">{formatKm(q.metri)} km</span>
             <strong className="min-w-[5rem] text-right tabular-nums">{formatCurrency(q.centesimi / 100)}</strong>
           </li>)}
-        </ul> : <p className="text-sm">{formatCurrency(riparto.daRipartire)} da attribuire. Il mezzo non ha km verificati in questo periodo.</p>}
+        </ul> : <p className="text-sm">{formatCurrency(riparto.daRipartire / 100)} da attribuire. Il mezzo non ha km verificati in questo periodo.</p>}
         <p className="text-xs text-muted-foreground">Quota = imponibile carburante × km verificati della destinazione ÷ km verificati del mezzo nel periodo.</p>
         {(riparto.viaggiDaVerificare > 0 || riparto.tratteSenzaKm > 0) && <p role="status" className="text-xs text-amber-800 dark:text-amber-300">
           Da controllare prima di imputare il costo. Viaggi in attesa di verifica: {riparto.viaggiDaVerificare}. Tratte senza km confermati: {riparto.tratteSenzaKm}.
