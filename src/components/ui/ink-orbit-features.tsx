@@ -163,27 +163,9 @@ export default function InkOrbitFeatures({
   }
   const L: InkLabels = { ...D_LABELS, ...labels }
 
-  const [dark, setDark] = React.useState(theme === "dark")
-  const [reduced, setReduced] = React.useState(false)
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      setDark(theme === "dark")
-      return
-    }
-    const scheme = window.matchMedia("(prefers-color-scheme: dark)")
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const sync = () => {
-      setDark(theme === "auto" ? scheme.matches : theme === "dark")
-      setReduced(motion.matches)
-    }
-    sync()
-    scheme.addEventListener?.("change", sync)
-    motion.addEventListener?.("change", sync)
-    return () => {
-      scheme.removeEventListener?.("change", sync)
-      motion.removeEventListener?.("change", sync)
-    }
-  }, [theme])
+  const schemaScuro = useMedia("(prefers-color-scheme: dark)")
+  const reduced = useMedia("(prefers-reduced-motion: reduce)")
+  const dark = theme === "auto" ? schemaScuro : theme === "dark"
 
   const [featRef, featIn] = useInView(0.12)
 
@@ -211,6 +193,21 @@ export default function InkOrbitFeatures({
 
 /* ---------------------------------------------------------------- pezzi */
 
+// Segue una media query del browser (tema scuro, movimento ridotto).
+// Sul server vale false: la pagina prerenderizzata è quella chiara e animata.
+function useMedia(query: string): boolean {
+  return React.useSyncExternalStore(
+    (avvisa) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => {}
+      const m = window.matchMedia(query)
+      m.addEventListener?.("change", avvisa)
+      return () => m.removeEventListener?.("change", avvisa)
+    },
+    () => (typeof window !== "undefined" && !!window.matchMedia ? window.matchMedia(query).matches : false),
+    () => false,
+  )
+}
+
 // true quando l'elemento è entrato nello schermo
 function useInView(threshold = 0.2) {
   const ref = React.useRef(null as HTMLElement | null)
@@ -219,8 +216,8 @@ function useInView(threshold = 0.2) {
     const el = ref.current
     if (!el || inView) return
     if (typeof IntersectionObserver !== "function") {
-      setInView(true)
-      return
+      const t = setTimeout(() => setInView(true), 0)
+      return () => clearTimeout(t)
     }
     const io = new IntersectionObserver(
       (es) => {
