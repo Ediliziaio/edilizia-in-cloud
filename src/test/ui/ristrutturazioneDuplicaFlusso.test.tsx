@@ -39,9 +39,13 @@ const Path = () => <output data-testid="path">{useLocation().pathname}</output>;
 function setup() { render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><TooltipProvider><UnifiedPreventiviList /><Path /></TooltipProvider></MemoryRouter></QueryClientProvider>); }
 beforeEach(() => { mocks.canEdit = true; mocks.mobile = true; mocks.rpc.mockClear(); });
 afterEach(cleanup);
+async function apriDuplicazioneMobile() {
+  fireEvent.keyDown(await screen.findByRole('button', { name: 'Altre azioni per RST-001' }, { timeout: 8000 }), { key: 'Enter' });
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Duplica preventivo' }));
+}
 describe('duplicazione Ristrutturazioni dall’elenco unico realmente usato', () => {
   it('mobile: richiede anteprima e conferma, poi apre la nuova bozza', async () => {
-    setup(); fireEvent.click(await screen.findByRole('button', { name: 'Duplica preventivo RST-001' }, { timeout: 8000 }));
+    setup(); await apriDuplicazioneMobile();
     await screen.findByText('Da RST-001'); expect(mocks.rpc.mock.calls[0][0]).toBe('duplica_lavoro_atomic');
     expect(mocks.rpc.mock.calls.every(c => c[1].p_anteprima)).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Crea copia e apri' }));
@@ -50,11 +54,11 @@ describe('duplicazione Ristrutturazioni dall’elenco unico realmente usato', ()
   });
   it('senza modifica preventivi non propone la duplicazione', async () => {
     mocks.canEdit = false; setup(); await screen.findAllByText('RST-001', {}, { timeout: 8000 });
-    expect(screen.queryByRole('button', { name: 'Duplica preventivo RST-001' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Altre azioni per RST-001' })).not.toBeInTheDocument();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('annullare il riepilogo non scrive una copia', async () => {
-    setup(); fireEvent.click(await screen.findByRole('button', { name: 'Duplica preventivo RST-001' }, { timeout: 8000 }));
+    setup(); await apriDuplicazioneMobile();
     await screen.findByText('Da RST-001'); fireEvent.click(screen.getByRole('button', { name: 'Annulla' }));
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Duplica preventivo' })).not.toBeInTheDocument());
     expect(mocks.rpc.mock.calls.every(c => c[1].p_anteprima)).toBe(true);

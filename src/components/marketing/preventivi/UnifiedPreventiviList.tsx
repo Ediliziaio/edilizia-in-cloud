@@ -1540,12 +1540,12 @@ export function UnifiedPreventiviList({ onApriCestino }: { onApriCestino?: () =>
                     {r.tipo === "ristrutturazione" && canEditPreventivi && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={`Azioni per ${r.numero}`}>
+                          <Button variant="ghost" size="icon" className="size-11 shrink-0" aria-label={`Altre azioni per ${r.numero}`}>
                             <MoreHorizontal aria-hidden="true" className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="min-h-11" onSelect={() => void duplica(r)}>
+                          <DropdownMenuItem className="min-h-11" disabled={inDuplicazione === r.id} onSelect={() => void duplica(r)}>
                             <Copy className="mr-2 size-4" /> Duplica preventivo
                           </DropdownMenuItem>
                         </DropdownMenuContent>
