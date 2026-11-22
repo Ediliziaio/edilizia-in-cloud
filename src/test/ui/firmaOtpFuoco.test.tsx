@@ -45,6 +45,7 @@ import FirmaDocumento from "@/pages/public/FirmaDocumento";
 afterEach(() => {
   cleanup();
   codiceInviatoDaUnAltraScheda = false;
+  vi.restoreAllMocks();
 });
 
 describe("firma del cliente: i campi OTP tengono il fuoco", () => {
@@ -76,6 +77,7 @@ describe("firma del cliente: i campi OTP tengono il fuoco", () => {
   });
 
   it("mostra il tempo effettivo se il server riusa il codice inviato da un’altra scheda", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-22T09:00:00Z"));
     codiceInviatoDaUnAltraScheda = true;
     render(
       <MemoryRouter initialEntries={["/firma-fea/abc"]}>
