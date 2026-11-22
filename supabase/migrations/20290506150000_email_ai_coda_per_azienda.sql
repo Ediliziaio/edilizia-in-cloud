@@ -162,7 +162,7 @@ declare l private.email_ai_lavori%rowtype; d public.email_documento_estratto%row
 begin
   select * into l from private.email_ai_lavori where email_id=p_email for update;
   if not found or l.token<>p_token or l.scade_il<=clock_timestamp() then
-    raise exception 'Presa in carico scaduta: la bozza non è stata modificata' using errcode='40001';
+    raise exception 'Presa in carico scaduta: la bozza non è stata modificata' using errcode='PT409';
   end if;
   if p_dati->>'stato' not in ('da_confermare','duplicato') or p_dati->>'stato' is null then raise exception 'Stato bozza non valido'; end if;
   if exists(select 1 from public.email_documento_estratto where email_id=p_email and pdf_storage_path=l.allegato_path and stato not in ('da_confermare','duplicato','scartato')) then

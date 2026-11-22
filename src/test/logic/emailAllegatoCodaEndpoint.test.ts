@@ -80,7 +80,7 @@ it('salva attraverso la RPC atomica, mantenendo il documento da confermare',asyn
   expect(provider).toHaveBeenCalledTimes(1);
 });
 it('un worker scaduto non trasforma il conflitto in un nuovo tentativo tecnico',async()=>{
-  saveError={code:'40001'};expect((await call()).status).toBe(409);
+  saveError={code:'PT409'};expect((await call()).status).toBe(409);
   expect(rpc.mock.calls.some(([name])=>name==='email_ai_registra_fallimento')).toBe(false);
 });
 it('il blocco credito sopravvenuto non consuma tentativi tecnici',async()=>{

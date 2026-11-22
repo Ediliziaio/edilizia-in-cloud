@@ -36,6 +36,12 @@ La ricostruzione del database in CI verifica ora che ogni destinazione HTTP dei 
 - Migrazione cron: idempotenza, tutela del lavoro presente e conservazione degli altri job verificate.
 - TypeScript e Deno passati; nessuna dipendenza aggiunta; lint dei file modificati senza errori.
 - Prima dell'applicazione, 2.190 allegati usavano il prefisso azienda e uno quello del proprietario. I 390 documenti già estratti con PDF rispettavano il nuovo controllo.
-- La build locale compila l'app, ma il prerender del sito ha raggiunto il limite di 15 minuti. La build completa in CI deve essere verde prima del merge. Il lint globale preesistente (837 errori e 3.022 avvisi) resta oggetto delle successive correzioni del rapporto.
+- La build locale iniziale raggiungeva il limite di 15 minuti. Corretto il parametro del timeout SEO del prerender: l'opzione era passata come argomento alla pagina, con attesa predefinita di 30 secondi invece di 2. Build completa in verifica; deve essere verde prima del merge. Il lint globale preesistente (837 errori e 3.022 avvisi) resta oggetto delle successive correzioni del rapporto.
+
+## Correzioni emerse in CI
+
+Il primo giro ha fermato correttamente il rilascio. Il conflitto applicativo della presa scaduta usa ora `PT409`, senza retry del gateway; la migrazione di riallineamento conserva OID e permessi della preparazione già applicata. L'endpoint e le prove PostgreSQL verificano lo stesso codice.
+
+La ricostruzione ha inoltre rilevato due destinazioni ritirate: il cron Enable Banking veniva ricreato da un file successivo al suo ritiro; il monitor Render era rimosso solo se inattivo. La migrazione finale rimuove esclusivamente i due nomi con la destinazione esatta, mantenendo cron attuali e varianti. In produzione entrambi erano già assenti. Le quattro migrazioni sono applicate e riallineate; il filtro operativo resta spento fino al deploy.
 
 Per fermare il nuovo filtro durante un problema operativo, riportare `filtro_attivo=false`. Non disattivare i controlli di spesa o le protezioni dei file. Per la funzione edge resta disponibile il bundle dell'ultimo deploy riuscito; le funzioni SQL preparatorie restano compatibili con quello precedente.

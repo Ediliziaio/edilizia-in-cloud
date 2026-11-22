@@ -42,6 +42,11 @@ try {
   const path=process.env.EMAIL_QUEUE_MIGRATION || 'supabase/migrations/20290506150000_email_ai_coda_per_azienda.sql';
   const sql=readFileSync(path,'utf8');
   await db.exec(sql);await db.exec(sql);
+  const correction=readFileSync('supabase/migrations/20290506152000_email_ai_conflitto_senza_retry.sql','utf8');
+  // Stesso percorso dell'ambiente preparato prima del deploy, poi replay nuovo.
+  const saveDef=await value("select pg_get_functiondef('public.email_ai_salva_bozza(uuid,uuid,jsonb)'::regprocedure) v");
+  await db.exec(saveDef.replace("'PT409'","'40001'"));
+  await db.exec(correction);await db.exec(correction);
   assert.equal(await value('select filtro_attivo v from private.email_ai_coda_config'),false);
   await db.query("insert into companies values($1,'none','active'),($2,'stripe','active')",[company,other]);
   await db.query('insert into ai_credits(company_id,balance_eur) values($1,0),($2,10)',[company,other]);
@@ -75,7 +80,7 @@ try {
   assert.equal(claims.filter(x=>x.presa).length,1);
   await db.exec("update private.email_ai_lavori set scade_il=clock_timestamp()-interval '1 second'");
   assert.equal((await claim(email,next)).presa,true);
-  await assert.rejects(save(token),/Presa in carico scaduta/);
+  await assert.rejects(save(token),{code:'PT409',message:'Presa in carico scaduta: la bozza non è stata modificata'});
   assert.equal(await value("select email_ai_registra_fallimento($1,$2,'vision_error','worker superato') v",[email,token]),false);
   await db.query('select email_ai_rilascia_lavoro($1,$2)',[email,token]);
   assert.equal(await value('select token v from private.email_ai_lavori where email_id=$1',[email]),next);

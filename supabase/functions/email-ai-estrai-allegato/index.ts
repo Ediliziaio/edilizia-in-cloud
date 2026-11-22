@@ -333,8 +333,8 @@ serveConMetricheRapida("email-ai-estrai-allegato", async (req) => {
       },
     });
     if (insErr) {
-      if (insErr.code !== "40001") await segnaTentativo(supabase, att.inbox_id, "vision_error", "Salvataggio bozza non riuscito", tokenLavoro);
-      return json({ error: "La bozza non è stata salvata. Aggiorna la pagina e riprova.", code: insErr.code === "40001" ? "lavoro_scaduto" : "save_failed" }, insErr.code === "40001" ? 409 : 500, cors);
+      if (insErr.code !== "PT409") await segnaTentativo(supabase, att.inbox_id, "vision_error", "Salvataggio bozza non riuscito", tokenLavoro);
+      return json({ error: "La bozza non è stata salvata. Aggiorna la pagina e riprova.", code: insErr.code === "PT409" ? "lavoro_scaduto" : "save_failed" }, insErr.code === "PT409" ? 409 : 500, cors);
     }
 
     return json({ ok: true, draft, model: SONNET_MODEL }, 200, cors);

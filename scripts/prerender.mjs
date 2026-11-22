@@ -411,6 +411,7 @@ async function main() {
         await page
           .waitForFunction(
             () => document.documentElement.getAttribute("data-seo-applied") === "true",
+            undefined,
             { timeout: 2_000 },
           )
           .catch(async () => {

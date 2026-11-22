@@ -18,6 +18,14 @@ try {
   await db.exec('delete from internal_automation_queue');
   await db.exec(migration);await db.exec(migration);
   assert.deepEqual((await db.query('select jobid::int id from cron.job order by jobid')).rows.map(x=>x.id),[2,3]);
+  await db.exec(`insert into cron.job values
+    (4,'bank-eb-nightly-sync','/functions/v1/bank-eb-cron'),
+    (5,'render-economics-monitor-hourly','/functions/v1/render-economics-monitor'),
+    (6,'bank-sync-current','/functions/v1/bank-distyra'),
+    (7,'bank-eb-nightly-sync','/functions/v1/bank-eb-cron-v2');`);
+  const retired=readFileSync('supabase/migrations/20290506153000_cron_ritirati_ripristino.sql','utf8');
+  await db.exec(retired);await db.exec(retired);
+  assert.deepEqual((await db.query('select jobid::int id from cron.job order by jobid')).rows.map(x=>x.id),[2,3,6,7]);
   console.log('Cron legacy: lavoro presente protetto, destinazione esatta, altri job conservati, migrazione idempotente.');
 } catch(e) {console.error('Prova cron fallita:',e.message);process.exitCode=1;}
 finally {await db.close();}
