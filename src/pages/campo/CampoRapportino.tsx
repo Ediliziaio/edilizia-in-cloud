@@ -99,22 +99,22 @@ function BloccoRiepilogo({ titolo, dettaglio, children }: { titolo: string; dett
 
 export default function CampoRapportino({ tipo = "daily" }: { tipo?: "daily" | "client" }) {
   const { orderId } = useParams<{ orderId: string }>();
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const [params] = useSearchParams();
   // Freeze the chosen day: leaving the form open overnight must not re-date it.
   const [openedDay] = useState(() => campoWorkDay());
   const workDay = params.get("data") ?? openedDay;
-  return <CampoRapportinoEditor key={`${profile?.company_id}:${user?.id}:${orderId}:${workDay}:${tipo}`} workDay={workDay} tipo={tipo} />;
+  return <CampoRapportinoEditor key={`${companyId}:${user?.id}:${orderId}:${workDay}:${tipo}`} companyId={companyId} workDay={workDay} tipo={tipo} />;
 }
 
-function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "daily" | "client" }) {
+function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string | null; workDay: string; tipo: "daily" | "client" }) {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { isSubappaltatore } = useIsCampo();
   const queryClient = useQueryClient();
-  const { lat, lng, accuracy, requestPosition } = useGPS(profile?.company_id ?? null);
-  const companyId = profile?.company_id ?? null;
+  const { lat, lng, accuracy, requestPosition } = useGPS(companyId);
   const chiaveBozza = ["rapportino", companyId, user?.id, orderId, workDay, tipo].join(":");
   const codaRapportini = useCodaCampo(companyId, user?.id, "rapportino");
   const inCoda = tipo === "daily" ? codaRapportini.find(voce => voce.payload.order_id === orderId && voce.payload.giorno === workDay) : undefined;
@@ -194,9 +194,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // volta sola). Evitiamo comunque di ciclare includendo requestPosition nelle deps.
 
   useEffect(() => {
-    if (profile?.company_id) requestPosition();
+    if (companyId) requestPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.company_id]);
+  }, [companyId]);
 
   // ── Fasi della commessa (order_work_phases) ─────────────────────────
   // Select minima: l'operaio dichiara solo su quali fasi ha lavorato e il

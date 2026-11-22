@@ -1058,6 +1058,7 @@ jobs:
         run: >-
           TZ=Europe/Rome bunx vitest run --maxWorkers=2 --testTimeout=30000
           src/test/logic/campoCodaOperazioni.test.ts
+          src/test/logic/campoOfflineProcessor.test.ts
           src/test/security/campoRapportinoRicevutaOffline.test.ts
           src/test/ui/campoPrelievoDestinazione.test.tsx
           src/test/ui/campoRapportinoCampiFase.test.tsx

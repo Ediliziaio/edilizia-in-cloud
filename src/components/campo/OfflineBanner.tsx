@@ -17,13 +17,14 @@ import type { JSX } from "react";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? profile?.company_id;
   const queryClient = useQueryClient();
   const { queueCount, isSyncing, failedCount, lastError, retry } = useOfflineSync();
   const [draftCount, setDraftCount] = useState(0);
 
   useEffect(() => syncQueue.on("processed", (esito) => {
-    if (!esito || esito.companyId !== profile?.company_id || esito.userId !== user?.id) return;
+    if (!esito || esito.companyId !== companyId || esito.userId !== user?.id) return;
     if (esito.tipo === "prelievo") {
       void import("@/lib/campo/prelievoInCoda").then(({ aggiornaPrelieviCampo }) => aggiornaPrelieviCampo(queryClient, esito));
       if (esito.errore) toast.error("Controlla il prelievo", { description: esito.errore });
@@ -44,11 +45,11 @@ export default function OfflineBanner(): JSX.Element | null {
       const id = esito.id;
       void import("@/lib/campo/rapportinoPdf").then(({ notifyRapportinoPdf }) => notifyRapportinoPdf(id, esito.orderId, queryClient));
     }
-  }), [profile?.company_id, queryClient, user?.id]);
+  }), [companyId, queryClient, user?.id]);
 
   // Conta bozze salvate
   useEffect(() => {
-    const count = () => listDraftKeys().filter(k => k.startsWith(`rapportino:${profile?.company_id}:${user?.id}:`) || k.startsWith(`merce:${profile?.company_id}:${user?.id}:`)).length;
+    const count = () => listDraftKeys().filter(k => k.startsWith(`rapportino:${companyId}:${user?.id}:`) || k.startsWith(`merce:${companyId}:${user?.id}:`)).length;
     let active = true;
     void Promise.resolve().then(() => { if (active) setDraftCount(count()); });
     // Aggiorna ogni 5s
@@ -56,7 +57,7 @@ export default function OfflineBanner(): JSX.Element | null {
       setDraftCount(count());
     }, 5000);
     return () => { active = false; clearInterval(interval); };
-  }, [profile?.company_id, user?.id]);
+  }, [companyId, user?.id]);
 
 
   // Offline: banner giallo

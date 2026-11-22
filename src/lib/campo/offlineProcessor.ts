@@ -14,7 +14,7 @@ export async function processCampoOffline(item: SyncItem) {
   const row = (item.type === "foto" ? payload.riga : payload) as
     | Record<string, unknown>
     | undefined;
-  const { owner } = syncItemScope(item);
+  const { owner, companyId } = syncItemScope(item);
   const { data, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !data.session)
     throw new SyncDeferredError("Accedi per sincronizzare");
@@ -22,6 +22,12 @@ export async function processCampoOffline(item: SyncItem) {
     throw new SyncDeferredError(
       "Questa operazione appartiene a un altro utente o richiede verifica dell’autore",
     );
+  if (item.type === "prelievo" || item.type === "rapportino") {
+    const { data: azienda, error } = await supabase.rpc("get_my_company_id");
+    if (error || !azienda || azienda !== companyId) {
+      throw new SyncDeferredError("L’invio riprende quando è disponibile l’azienda della registrazione.");
+    }
+  }
   if (item.type === "prelievo") {
     const { inviaPrelievoInCoda } = await import("./prelievoInCoda");
     return inviaPrelievoInCoda(item.payload as import("./prelievoInCoda").PrelievoInCoda, await syncOperationId(item));

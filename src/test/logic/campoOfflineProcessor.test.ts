@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { processCampoOffline } from "@/lib/campo/offlineProcessor";
 import { SyncDeferredError, SyncPermanentError, type SyncItem } from "@/lib/campo/sync-queue";
 const state = vi.hoisted(() => ({ owner: "u", insert: vi.fn(), upsert: vi.fn(), update: vi.fn(), select: vi.fn(), filters: vi.fn(), upload: vi.fn(), download: vi.fn(), error: null as null | { code: string; message: string }, existing: null as null | { id: string } }));
+const rpc = vi.hoisted(() => vi.fn());
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  rpc,
   auth: { getSession: async () => ({ data: { session: { user: { id: state.owner } } }, error: null as null }) },
   from: () => { const q = { insert: (p: unknown) => { state.insert(p); return Promise.resolve({ error: state.error }); }, upsert: async (p: unknown) => { state.upsert(p); return { error: state.error }; }, update: (p: unknown) => { state.update(p); return q; }, select: (p: string) => { state.select(p); return q; }, eq: (...p: unknown[]) => { state.filters(...p); return q; }, maybeSingle: async () => ({ data: state.existing, error: null as null }) }; return q; },
   storage: { from: () => ({ upload: state.upload, download: state.download }) },
@@ -61,6 +63,13 @@ describe("Sincronizzazione con API simulate", () => {
   });
   it("non invia la coda di un altro utente", async () => {
     state.owner = "other"; await expect(processCampoOffline(item())).rejects.toBeInstanceOf(SyncDeferredError); expect(state.insert).not.toHaveBeenCalled();
+  });
+  it.each(["prelievo", "rapportino"] as const)("tiene in attesa il %s mentre è attiva un'altra azienda", async type => {
+    rpc.mockResolvedValueOnce({ data: "altra-azienda", error: null });
+    await expect(processCampoOffline(item({ type }))).rejects.toBeInstanceOf(SyncDeferredError);
+    expect(rpc.mock.calls).toEqual([["get_my_company_id"]]);
+    expect(state.select).not.toHaveBeenCalled();
+    expect(state.upload).not.toHaveBeenCalled();
   });
   it("conserva le vecchie note vocali senza dichiararle giornalieri ricevuti", async () => {
     await expect(processCampoOffline(item({ type: "rapportino_vocale", payload: { operaio_id: "u", company_id: "c", trascrizione: "giornata" } }))).rejects.toBeInstanceOf(SyncPermanentError); expect(state.insert).not.toHaveBeenCalled();

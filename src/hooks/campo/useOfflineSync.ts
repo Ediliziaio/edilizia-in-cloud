@@ -57,10 +57,10 @@ export function useOfflineSync(options?: {
   sync: () => Promise<void>;
   retry: () => Promise<void>;
 } {
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
   const userId = user?.id;
   const companyId =
-    options?.companyId === undefined ? profile?.company_id : options.companyId;
+    options?.companyId === undefined ? effectiveCompany?.id ?? profile?.company_id : options.companyId;
   const scopeKey = `${userId ?? ""}:${companyId ?? ""}`;
   const activeScope = useRef(scopeKey);
   useLayoutEffect(() => {
