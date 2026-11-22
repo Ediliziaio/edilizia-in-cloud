@@ -5,6 +5,7 @@
  * Mostra anche info sulle bozze salvate localmente.
  */
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { WifiOff, CloudUpload, Save } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
@@ -13,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { syncQueue } from "@/lib/campo/sync-queue";
+import { bozzeCantieriPrelievo } from "@/lib/campo/bozzaPrelievo";
 import { aggiornaPrelieviCampo } from "@/lib/campo/prelievoInCoda";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
@@ -48,7 +50,11 @@ export default function OfflineBanner(): JSX.Element | null {
 
   // Conta bozze salvate
   useEffect(() => {
-    const count = () => listDraftKeys().filter(k => k.startsWith(`rapportino:${companyId}:${user?.id}:`) || k.startsWith(`merce:${companyId}:${user?.id}:`)).length;
+    const count = () => {
+      if (!companyId || !user?.id) return 0;
+      const moduli = listDraftKeys().filter(k => k.startsWith(`rapportino:${companyId}:${user.id}:`) || k.startsWith(`merce:${companyId}:${user.id}:`)).length;
+      return moduli + bozzeCantieriPrelievo(companyId, user.id).filter(v => !v.bozza.inVerifica).length;
+    };
     let active = true;
     void Promise.resolve().then(() => { if (active) setDraftCount(count()); });
     // Aggiorna ogni 5s
@@ -73,22 +79,22 @@ export default function OfflineBanner(): JSX.Element | null {
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {draftCount > 0 && (
-            <span className="bg-amber-900/90 text-amber-100 text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Link to="/campo/invii" className="flex min-h-9 items-center gap-1 rounded-full bg-amber-900/90 px-2 text-[11px] font-bold text-amber-100">
               <Save className="w-3 h-3" />
-              {draftCount} bozze
-            </span>
+              {draftCount} {draftCount === 1 ? "bozza" : "bozze"}
+            </Link>
           )}
           {queueCount > 0 && (
-            <span className="bg-amber-900/90 text-amber-100 text-[11px] font-bold px-2 py-0.5 rounded-full">
+            <Link to="/campo/invii" className="inline-flex min-h-9 items-center rounded-full bg-amber-900/90 px-2 text-[11px] font-bold text-amber-100">
               {queueCount} in coda
-            </span>
+            </Link>
           )}
         </span>
       </div>
     );
   }
 
-  if (lastError || failedCount > 0) return <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-amber-100 px-4 py-2 text-sm text-amber-950"><span className="flex-1">{failedCount > 0 ? `${failedCount} operazioni da verificare. ` : ""}{lastError || "I dati sono conservati sul telefono."}</span><button type="button" disabled={isSyncing} className="min-h-11 underline" onClick={() => void retry()}>Riprova invio</button></div>;
+  if (lastError || failedCount > 0) return <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-amber-100 px-4 py-2 text-sm text-amber-950"><span className="flex-1">{failedCount > 0 ? `${failedCount} operazioni da verificare. ` : ""}{lastError || "I dati sono conservati sul telefono."}</span><Link to="/campo/invii" className="inline-flex min-h-11 items-center font-semibold underline">Apri invii</Link><button type="button" disabled={isSyncing} className="min-h-11 underline" onClick={() => void retry()}>Riprova invio</button></div>;
 
   // Online + syncing: banner verde
   if (isSyncing || queueCount > 0) {
@@ -103,9 +109,9 @@ export default function OfflineBanner(): JSX.Element | null {
           {isSyncing ? "Sincronizzazione in corso…" : "Operazioni in attesa di sincronizzazione…"}
         </span>
         {queueCount > 0 && (
-          <span className="bg-emerald-900/90 text-[11px] font-bold px-2 py-0.5 rounded-full">
-            {queueCount}
-          </span>
+          <Link to="/campo/invii" className="inline-flex min-h-9 items-center rounded-full bg-emerald-900/90 px-2 text-[11px] font-bold">
+            {queueCount} in coda
+          </Link>
         )}
       </div>
     );

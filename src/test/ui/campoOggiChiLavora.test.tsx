@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CampoOggi } from "@/components/campo/CampoOggi";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 
 const state = vi.hoisted(() => ({ giornata: null as unknown, chi: null as unknown }));
 
@@ -52,6 +53,21 @@ describe("App di cantiere: Oggi", () => {
     expect(screen.getByText("Il capocantiere sei tu")).toBeInTheDocument();
     expect(screen.getByText("· sei il caposquadra")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Chi c'è oggi/ })).toHaveAttribute("href", "/campo/squadra/o1");
+  });
+
+  it("porta a rapportino, bolla e prelievo dello stesso cantiere e ricorda la scelta", () => {
+    localStorage.removeItem("campo-cantiere-oggi:azienda:operaio");
+    state.giornata = { giorni: [{ giorno: "2026-10-15", cantieri: [cantiere(), cantiere({ order_id: "o2", titolo: "Bagno Rossi" })] }] };
+    const apri = () => render(<MemoryRouter><CampoOggi memoria="azienda:operaio" puoPrelevare /></MemoryRouter>);
+    const prima = apri();
+    changeFormControl(screen.getByRole("combobox", { name: "Cantiere di oggi" }), { target: { value: "o2" } });
+    expect(screen.getByRole("link", { name: "Rapportino" })).toHaveAttribute("href", "/campo/lavoro/o2/rapportino?data=2026-10-15");
+    expect(screen.getByRole("link", { name: "Bolla" })).toHaveAttribute("href", "/campo/ddt?order=o2");
+    expect(screen.getByRole("link", { name: "Prelievo" })).toHaveAttribute("href", "/campo/magazzino?order_id=o2");
+    prima.unmount();
+    apri();
+    expect(screen.getByRole("link", { name: "Rapportino" })).toHaveAttribute("href", "/campo/lavoro/o2/rapportino?data=2026-10-15");
+    localStorage.removeItem("campo-cantiere-oggi:azienda:operaio");
   });
 
   it("senza lavoro oggi indica il prossimo giorno; senza date non occupa spazio", () => {

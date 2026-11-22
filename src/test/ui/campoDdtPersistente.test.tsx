@@ -20,7 +20,9 @@ const m = vi.hoisted(() => ({
   lettura: "ai_subito" as "ai_subito" | "solo_foto",
   online: true,
   toast: vi.fn(),
+  comprimi: vi.fn(),
 }));
+vi.mock("@/lib/campo/compressImage", () => ({ compressImage: m.comprimi }));
 vi.mock("@/hooks/campo/useNetworkStatus", () => ({ useNetworkStatus: () => m.online }));
 vi.mock("@/hooks/useImpostazioniAcquisti", () => ({
   useLetturaBolleTelefono: () => ({ data: m.lettura }),
@@ -85,6 +87,7 @@ beforeEach(() => {
   ];
   m.enqueue.mockReset().mockResolvedValue("operazione");
   m.process.mockReset().mockResolvedValue(undefined);
+  m.comprimi.mockReset().mockResolvedValue(new Blob(["ruotata"], { type: "image/jpeg" }));
 });
 const apri = () =>
   render(
@@ -121,6 +124,34 @@ it("salva tutte le foto dello stesso DDT prima di avviare la rete, senza richied
   await waitFor(() => expect(m.process).toHaveBeenCalledTimes(1));
   expect(screen.queryByText("1. fronte.heic")).not.toBeInTheDocument();
 });
+it("riordina, ruota e sostituisce pagine della stessa bolla prima di accodarla", async () => {
+  apri();
+  changeFormControl(screen.getByLabelText("Scegli le pagine del DDT"), { target: { files: [
+    new File(["fronte"], "fronte.png", { type: "image/png" }),
+    new File(["retro"], "retro.png", { type: "image/png" }),
+  ] } });
+  await screen.findByText("2. retro.png");
+  const menu = (numero: number) => fireEvent.pointerDown(screen.getByRole("button", { name: `Modifica pagina ${numero}` }),
+    { button: 0, ctrlKey: false, pointerType: "mouse" });
+  menu(2);
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Sposta su" }));
+  await screen.findByText("1. retro.png");
+  menu(1);
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Ruota a destra" }));
+  await screen.findByText("1. retro.jpg");
+  expect(m.comprimi).toHaveBeenCalledWith(expect.any(File), 2800, 0.93, true);
+  menu(2);
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Sostituisci" }));
+  changeFormControl(screen.getByLabelText("Scegli una foto sostitutiva"), { target: { files: [
+    new File(["nuova"], "fronte-nuovo.png", { type: "image/png" }),
+  ] } });
+  await screen.findByText("2. fronte-nuovo.png");
+  fireEvent.click(screen.getByRole("button", { name: "Invia la bolla" }));
+  await waitFor(() => expect(m.enqueue).toHaveBeenCalledOnce());
+  const payload = m.enqueue.mock.calls[0][0].payload;
+  expect(payload.fileNames).toEqual(["retro.jpg", "fronte-nuovo.png"]);
+  expect(payload.files.map((page: ArrayBuffer) => new TextDecoder().decode(page))).toEqual(["ruotata", "nuova"]);
+});
 it("un errore di IndexedDB conserva le foto e non dichiara un invio riuscito", async () => {
   m.enqueue.mockRejectedValue(new Error("quota esaurita"));
   apri();
@@ -144,7 +175,7 @@ it("rifiuta un formato non supportato prima di salvare e non accetta cantieri es
     </MemoryRouter>,
   );
   expect(screen.getByRole("combobox", { name: "Cantiere" })).toHaveValue(
-    "cantiere",
+    "",
   );
   changeFormControl(screen.getByLabelText("Scegli le pagine del DDT"), {
     target: {
@@ -159,6 +190,10 @@ it("rifiuta un formato non supportato prima di salvare e non accetta cantieri es
   expect(
     screen.getByRole("button", { name: "Invia la bolla" }),
   ).toBeDisabled();
+  await caricaBolla();
+  expect(screen.getByRole("button", { name: "Invia la bolla" })).toBeDisabled();
+  changeFormControl(screen.getByRole("combobox", { name: "Cantiere" }), { target: { value: "cantiere" } });
+  expect(screen.getByRole("button", { name: "Invia la bolla" })).toBeEnabled();
 });
 
 const dueCantieri = () => {

@@ -9,14 +9,14 @@
  * deve restare, almeno come «non riesco a controllare».
  */
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { AlertTriangle, ChevronRight, ClipboardList } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
-import { campoWorkDay } from "@/lib/campo/workDay";
+import { useRapportiniSospesi } from "@/hooks/campo/useRapportiniSospesi";
+import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /** Il rapportino di quel giorno, già compilato se era respinto o in bozza. */
@@ -83,47 +83,9 @@ export function RapportiniDaCompilareOggi() {
   );
 }
 
-interface RapportinoSospeso {
-  id: string;
-  order_id: string;
-  data_lavoro: string;
-  stato: string;
-  order: { order_code: string | null; description: string | null } | null;
-}
-
 export function RapportiniSospesi() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
-  const companyId = profile?.company_id ?? null;
-  // «Giorni precedenti» rispetto a oggi in Italia, non a oggi sul telefono.
-  const today = campoWorkDay();
-
-  const { data: rapportini = [], isError, refetch } = useQuery({
-    queryKey: ["campo-rapportini-sospesi", user?.id, companyId],
-    queryFn: async (): Promise<RapportinoSospeso[]> => {
-      // Filtro azienda: i rapportini sono dell'utente ma restano nel tenant
-      // in cui sono nati — cambiando azienda i vecchi non devono riapparire
-      // come "da completare" (e il link aprirebbe un cantiere non accessibile).
-      //
-      // "Da completare" = bozza mai inviata o rapportino RESPINTO dall'ufficio.
-      // Prima il filtro era lavoro_completato=false, ma quel flag significa
-      // "il CANTIERE è finito": ogni rapportino normale di un cantiere aperto
-      // restava segnato per sempre come sospeso, anche se già inviato — la
-      // card gridava al lupo tutti i giorni e i veri sospesi si perdevano.
-      const { data, error } = await supabase
-        .from("campo_rapportini")
-        .select("id, order_id, data_lavoro, stato, order:orders(order_code, description)")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId!)
-        .in("stato", ["bozza", "rifiutato"])
-        .is("annullato_at", null)
-        .lt("data_lavoro", today)
-        .order("data_lavoro", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as RapportinoSospeso[];
-    },
-    enabled: !!user?.id && !!companyId,
-  });
+  const { data: rapportini = [], isError, refetch } = useRapportiniSospesi();
 
   if (isError && rapportini.length === 0) {
     return (
@@ -153,7 +115,7 @@ export function RapportiniSospesi() {
         {rapportini.slice(0, 3).map((r) => (
           <button
             key={r.id}
-            onClick={() => navigate(rapportinoDelGiorno(r.order_id, r.data_lavoro))}
+            onClick={() => navigate(campoReportUrl(r.order_id, isClientReport(r) ? "client" : "daily", r.data_lavoro))}
             className="min-h-14 w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-amber-100/50 transition-colors"
           >
             <div>

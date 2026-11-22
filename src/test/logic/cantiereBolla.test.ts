@@ -7,7 +7,9 @@ it("operaio: senza cantiere non è pronto; il link vale solo per i suoi cantieri
     valore: "",
     pronto: false,
   });
-  expect(cantiereBolla({ richiesto: "x", scelta: "", cantieri: ["a"], ufficio: false }).orderId).toBe("a");
+  expect(cantiereBolla({ richiesto: "x", scelta: "", cantieri: ["a"], ufficio: false }).pronto).toBe(false);
+  expect(cantiereBolla({ richiesto: "x", scelta: "a", cantieri: ["a"], ufficio: false }).orderId).toBe("a");
+  expect(cantiereBolla({ richiesto: null, scelta: "", cantieri: ["a"], ufficio: false }).orderId).toBe("a");
   expect(cantiereBolla({ richiesto: "b", scelta: "", cantieri: ["a", "b"], ufficio: false }).orderId).toBe("b");
   // La voce dell'ufficio non apre la strada a un operaio.
   expect(cantiereBolla({ richiesto: null, scelta: NESSUN_CANTIERE, cantieri: ["a", "b"], ufficio: false }).pronto).toBe(

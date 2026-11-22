@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HardHat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-export function RapportinoSiteContext({ orderId, companyId }: { orderId?: string; companyId: string | null }) {
+export function RapportinoSiteContext({ orderId, companyId, compatto = false }: { orderId?: string; companyId: string | null; compatto?: boolean }) {
   const { data: order, isError, isLoading, refetch } = useQuery({
     queryKey: ["campo-rapportino-cantiere", companyId, orderId],
     enabled: !!orderId && !!companyId,
@@ -15,6 +15,12 @@ export function RapportinoSiteContext({ orderId, companyId }: { orderId?: string
       return data;
     },
   });
+  if (compatto) {
+    const indirizzo = [order?.order_code, order?.description || order?.indirizzo_lavori].filter(Boolean).join(" · ");
+    return <p aria-label="Cantiere della registrazione" title={indirizzo} className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+      {indirizzo || "Cantiere"}
+    </p>;
+  }
   return <div className="mt-2 flex min-w-0 items-start gap-2 text-sm" aria-label="Cantiere del rapportino">
     <HardHat className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
     <div className="min-w-0">

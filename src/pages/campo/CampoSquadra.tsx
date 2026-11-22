@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { linkTelefono } from "@/hooks/campo/useCampoGiornata";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
+import { useMezziDellaGiornata } from "@/components/campo/MezziFineGiornata";
+import { campoReportUrl } from "@/lib/campo/reportKind";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,11 +43,62 @@ interface RigaSquadra {
 const ora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : null;
 
+const oreDaControllare = (riga: RigaSquadra) =>
+  riga.in_cantiere || (!riga.rapportino_inviato && !(Number(riga.ore) > 0));
+
+function FineGiornata({ orderId, companyId, squadra, soloDaControllare, onFiltra }: {
+  orderId: string;
+  companyId: string;
+  squadra: RigaSquadra[];
+  soloDaControllare: boolean;
+  onFiltra: () => void;
+}) {
+  const navigate = useNavigate();
+  const mezzi = useMezziDellaGiornata(orderId);
+  const fasi = useQuery({
+    queryKey: ["campo-fine-giornata-fasi", companyId, orderId],
+    queryFn: async ({ signal }) => {
+      const { count, error } = await supabase.from("order_work_phases").select("id", { count: "exact", head: true })
+        .eq("company_id", companyId).eq("order_id", orderId).neq("status", "completata").abortSignal(signal);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const daControllare = squadra.filter(oreDaControllare).length;
+  const attrezzature = mezzi.data ?? [];
+  const registrati = attrezzature.filter(m => m.segnato_oggi).length;
+
+  return <section aria-labelledby="chiusura-campo" className="space-y-2 rounded-2xl border bg-card p-3">
+    <h2 id="chiusura-campo" className="text-sm font-bold">Fine giornata</h2>
+    <div className="grid grid-cols-3 gap-1.5" aria-label="Riepilogo giornata">
+      <button type="button" aria-pressed={soloDaControllare} disabled={!soloDaControllare && daControllare === 0} onClick={onFiltra}
+        className={cn("min-h-14 rounded-xl border px-1 py-1.5 text-xs disabled:opacity-70", soloDaControllare && "border-primary bg-primary/10")}>
+        <span className="block text-sm font-bold">{daControllare}</span> Ore da verificare
+      </button>
+      <div className="flex min-h-14 flex-col items-center justify-center rounded-xl border px-1 py-1.5 text-center text-xs">
+        <span className="text-sm font-bold">{mezzi.data ? `${registrati}/${attrezzature.length}` : "—"}</span> Mezzi segnati
+      </div>
+      <button type="button" onClick={() => navigate(`/campo/avanzamento?order_id=${encodeURIComponent(orderId)}`)}
+        className="min-h-14 rounded-xl border px-1 py-1.5 text-xs">
+        <span className="block text-sm font-bold">{fasi.data ?? "—"}</span> Fasi aperte
+      </button>
+    </div>
+    {(mezzi.isError || fasi.isError) && <p className="text-xs text-muted-foreground">Alcuni dati non disponibili.{" "}
+      <button type="button" className="min-h-11 text-primary underline" onClick={() => { void mezzi.refetch(); void fasi.refetch(); }}>Riprova</button>
+    </p>}
+    <Button type="button" className="min-h-11 w-full gap-2" onClick={() => navigate(campoReportUrl(orderId, "daily"))}>
+      <FileText className="size-4" aria-hidden="true" /> Apri rapportino della giornata
+    </Button>
+  </section>;
+}
+
 export default function CampoSquadra() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? profile?.company_id;
   const [sollecitati, setSollecitati] = useState<Set<string>>(new Set());
+  const [soloDaControllare, setSoloDaControllare] = useState(false);
   // Dove il rapportino lo fa il capo, gli operai non hanno niente da mandare.
   const { data: regole } = useRegoleCampoOrdine(orderId);
   const sollecita = useMutation({
@@ -62,16 +115,18 @@ export default function CampoSquadra() {
   });
 
   const { data: order } = useQuery({
-    queryKey: ["campo-squadra-ordine", orderId],
-    enabled: !!orderId,
+    queryKey: ["campo-squadra-ordine", orderId, companyId],
+    enabled: !!orderId && !!companyId,
     queryFn: async () => {
-      const { data } = await supabase.from("orders").select("order_code, description").eq("id", orderId!).maybeSingle();
+      const { data, error } = await supabase.from("orders").select("order_code, description")
+        .eq("id", orderId!).eq("company_id", companyId!).maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
 
   const { data: squadra = [], isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["campo-squadra-oggi", orderId],
+    queryKey: ["campo-squadra-oggi", orderId, companyId, user?.id],
     enabled: !!orderId,
     refetchInterval: 60_000,
     queryFn: async (): Promise<RigaSquadra[]> => {
@@ -84,6 +139,7 @@ export default function CampoSquadra() {
 
   const dentro = squadra.filter((r) => r.in_cantiere).length;
   const conRapportino = squadra.filter((r) => r.rapportino_inviato).length;
+  const righeVisibili = soloDaControllare ? squadra.filter(oreDaControllare) : squadra;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-3 md:space-y-4">
@@ -101,6 +157,10 @@ export default function CampoSquadra() {
           <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
         </Button>
       </div>
+
+      {!isLoading && !isError && orderId && companyId && order && <FineGiornata key={orderId}
+        orderId={orderId} companyId={companyId} squadra={squadra} soloDaControllare={soloDaControllare}
+        onFiltra={() => setSoloDaControllare(v => !v)} />}
 
       <Card>
         <CardHeader className="pb-2">
@@ -120,10 +180,10 @@ export default function CampoSquadra() {
                 ? "Solo il capocantiere e il caposquadra possono vedere chi c'è oggi."
                 : "Non riesco a leggere la squadra. Riprova tra poco."}
             </p>
-          ) : squadra.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Oggi qui non è previsto nessuno.</p>
+          ) : righeVisibili.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{soloDaControllare ? "Le ore della squadra risultano complete." : "Oggi qui non è previsto nessuno."}</p>
           ) : (
-            squadra.map((r, i) => {
+            righeVisibili.map((r, i) => {
               const tel = linkTelefono(r.telefono ?? null);
               const uid = r.user_id;
               const puoSollecitare = !!uid && uid !== user?.id && !r.rapportino_inviato && !!regole && regole.chiCompila !== "capo";

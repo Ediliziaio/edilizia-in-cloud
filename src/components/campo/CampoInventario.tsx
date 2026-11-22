@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, HardHat, Loader2, MapPin, MessageSquare, Minus, Plus, Search, ShoppingCart, Warehouse, X } from "lucide-react";
+import { Check, ChevronDown, HardHat, Loader2, MapPin, MessageSquare, Minus, Plus, ScanLine, Search, ShoppingCart, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { CampoListaRitiro } from "@/components/campo/CampoListaRitiro";
+import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import {
-  useCampoCantieriPrelievo, useCampoInventario,
+  useCampoCantieriPrelievo, useCampoInventario, useMieiPrelievi,
   type CantierePrelievo, type StockCampo,
 } from "@/hooks/campo/useCampoPrelievo";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -53,6 +54,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const [erroreBozza, setErroreBozza] = useState<string | null>(null);
   const [erroreInvio, setErroreInvio] = useState<string | null>(null);
   const [ricerca, setRicerca] = useState("");
+  const [scansione, setScansione] = useState(false);
   const [soloDisponibili, setSoloDisponibili] = useState(true);
   const inputRicerca = useRef<HTMLInputElement>(null);
   const cerca = useDebounce(ricerca.trim(), 250);
@@ -64,6 +66,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   const online = useOnlineStatus();
   const inventario = useCampoInventario(companyId, cerca, soloDisponibili, attivo);
   const cantieri = useCampoCantieriPrelievo(companyId, attivo && puoPrelevare);
+  const { data: storico } = useMieiPrelievi(companyId, attivo && puoPrelevare);
 
   useEffect(() => {
     if (!puoPrelevare) return;
@@ -79,6 +82,9 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
   }, [leggiBozze, puoPrelevare]);
 
   const articoli = inventario.data?.pages.flat() ?? [];
+  const recenti = [...new Map((storico?.prelievi ?? [])
+    .filter(prelievo => prelievo.stato === "consegnato")
+    .flatMap(prelievo => Array.isArray(prelievo.righe) ? prelievo.righe.map(riga => [riga.stock_item_id, riga.name] as const) : []))].slice(0, 4);
   const articoliVisibili = new Map(articoli.map((articolo) => [articolo.id, articolo]));
   const assegnabili = cantieri.isError ? [] : cantieri.data ?? [];
   const cantieriPerId = new Map(assegnabili.map((cantiere) => [cantiere.id, cantiere]));
@@ -239,7 +245,7 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
         <div className="relative min-w-0 flex-1">
           <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input ref={inputRicerca} type="search" aria-label="Cerca nell’inventario" value={ricerca}
-            title="Cerca per materiale, codice o ubicazione" placeholder="Cerca materiale"
+            title="Cerca per materiale, codice o ubicazione" placeholder="Cerca"
             onChange={(e) => setRicerca(e.target.value)}
             className={cn("h-11 rounded-lg pl-8 text-base [&::-webkit-search-cancel-button]:hidden", ricerca && "pr-11")} />
           {ricerca && (
@@ -252,6 +258,10 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
             </Button>
           )}
         </div>
+        <Button type="button" variant="outline" size="icon" className="size-11 shrink-0 rounded-lg"
+          aria-label="Scansiona codice articolo" title="Scansiona codice articolo" onClick={() => setScansione(true)}>
+          <ScanLine className="size-5" aria-hidden="true" />
+        </Button>
         <UniformSelect aria-label="Disponibilità dei materiali" value={soloDisponibili ? "disponibili" : "tutti"}
           onChange={(e) => setSoloDisponibili(e.target.value === "disponibili")}
           className="h-11 w-[7.25rem] shrink-0 rounded-lg px-2.5 text-sm sm:w-32">
@@ -259,8 +269,25 @@ export function CampoInventario({ companyId, userId, attivo, puoPrelevare, richi
           <option value="tutti">Tutti</option>
         </UniformSelect>
       </div>
+      <BarcodeScanner open={attivo && scansione} onOpenChange={setScansione} onScan={codice => {
+        setRicerca(codice);
+        setSoloDisponibili(false);
+      }} />
+      {!ricerca && recenti.length > 0 && (
+        <section aria-label="Ultimi materiali prelevati" className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">Recenti</span>
+          <div className="flex min-w-0 gap-1.5 overflow-x-auto p-0.5">
+            {recenti.map(([id, nome]) => (
+              <button key={id} type="button" className="min-h-11 max-w-40 shrink-0 truncate rounded-lg border px-2 text-xs font-medium"
+                title={nome} onClick={() => { setRicerca(nome); setSoloDisponibili(false); }}>{nome}</button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {inventario.isLoading ? (
+      {!online && !articoli.length && cerca && inventario.isPaused ? (
+        <p role="status" className="rounded-xl border p-3 text-sm text-muted-foreground">I risultati di questa ricerca non sono sul telefono. Riprova quando torna la rete.</p>
+      ) : inventario.isLoading ? (
         <div role="status" className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /><span className="sr-only">Carico l’inventario</span></div>
       ) : inventario.isError && !inventario.isFetchNextPageError ? (
         <div role="alert" className="space-y-2 rounded-xl border p-4 text-sm">

@@ -97,6 +97,41 @@ const ore = () => screen.queryByLabelText("Ore ordinarie su questo cantiere");
 const avanti = () => fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
 const invia = () => fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
 
+it("riapre un invio fallito con testo e foto e riusa l’identificativo del rapportino", async () => {
+  state.role = { isCapocantiere: false, esisteCapo: true };
+  const { SyncPermanentError, syncQueue } = await vi.importActual<typeof import("@/lib/campo/sync-queue")>("@/lib/campo/sync-queue");
+  const percorso = "company/order/bozza/aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa.jpg";
+  const foto = `campo-rapportini/${percorso}`;
+  const allegato = { percorso, bytes: new Uint8Array([20, 21]).buffer, contentType: "image/jpeg" };
+  syncQueue.registerProcessor(async () => { throw new SyncPermanentError("Correggi la descrizione"); });
+  const salvato = await syncQueue.enqueue<RapportoInCoda>({ type: "rapportino", operationId: "stesso-rapporto", payload: {
+    company_id: "company", user_id: "worker", order_id: "order", giorno: "2026-09-24", roleType: "employee",
+    campi: { descrizione_lavori: "Testo precedente", ore_lavorate: 7, foto_urls: [foto] },
+    allegati: [allegato], mezzi: [], bozzaCompilata: { descrizione: "Testo precedente", oreLavorate: 7, fotoUrls: [foto] },
+  } });
+  const ripartenza = vi.fn().mockResolvedValue(undefined);
+  try {
+    await syncQueue.processQueue();
+    syncQueue.registerProcessor(ripartenza);
+    render(<CampoRapportino />);
+    expect(await screen.findByText("Testo precedente")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Foto del rapportino in coda" })).toBeInTheDocument();
+    const correggi = screen.getByRole("button", { name: "Correggi il rapportino" });
+    await waitFor(() => expect(correggi).toBeEnabled());
+    fireEvent.click(correggi);
+    const descrizione = await screen.findByLabelText("Descrizione dei lavori");
+    expect(descrizione).toHaveValue("Testo precedente");
+    fireEvent.change(descrizione, { target: { value: "Testo corretto" } });
+    invia();
+    await waitFor(() => expect(ripartenza).toHaveBeenCalledWith(expect.objectContaining({ operationId: "stesso-rapporto",
+      payload: expect.objectContaining({ campi: expect.objectContaining({ descrizione_lavori: "Testo corretto", foto_urls: [foto] }),
+        allegati: [allegato] }),
+    })));
+  } finally {
+    await syncQueue.remove(salvato);
+  }
+});
+
 describe("Il capocantiere, con le ore dalle timbrature", () => {
   const squadra: Membro[] = [
     { key: "emp-1", employee_id: "1", nome: "Mario", ore_timbrate: 7.5 },

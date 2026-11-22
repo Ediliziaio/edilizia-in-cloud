@@ -8,6 +8,8 @@ import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+// La Home rende disponibili gli invii offline anche alla prima apertura della schermata.
+import CampoInvii from "@/pages/campo/CampoInvii";
 import CampoLavoroDetail from "@/pages/campo/CampoLavoroDetail";
 import { CAMPO_ROLES } from "@/types/auth";
 
@@ -80,6 +82,7 @@ export default function CampoRoutesContainer() {
         <Route path="cedolini" element={<CampoCedolini />} />
         <Route path="magazzino" element={<CampoMagazzino />} />
         <Route path="ddt" element={<CampoDDT />} />
+        <Route path="invii" element={<CampoInvii />} />
         <Route path="merce" element={<CampoMerce />} />
         <Route path="merce/arrivo/:odaId" element={<CampoArrivoPosizioni />} />
         <Route path="mezzi" element={<CampoMezzi />} />

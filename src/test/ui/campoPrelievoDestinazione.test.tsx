@@ -9,12 +9,13 @@ import {
   BOZZA_PRELIEVO_VUOTA, bozzeCantieriPrelievo, chiaveBozzaPrelievo, leggiBozzaPrelievo, salvaBozzaPrelievo,
 } from "@/lib/campo/bozzaPrelievo";
 
-const state = vi.hoisted(() => ({ mutate: vi.fn(), refetch: vi.fn(), disponibile: 10, online: true, datiInCache: true, depositoTubo: "deposito", cantieri: [
+const state = vi.hoisted(() => ({ mutate: vi.fn(), refetch: vi.fn(), disponibile: 10, online: true, datiInCache: true, depositoTubo: "deposito", prelievi: [] as unknown[], cantieri: [
   { id: "C064", order_code: "C-064", description: "Via Roma" },
   { id: "C065", order_code: "C-065", description: "Scuola via Milano" },
 ] }));
 
 vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
+  useMieiPrelievi: () => ({ data: { prelievi: state.prelievi } }),
   useCampoInventario: (_azienda: string, _cerca: string, soloDisponibili: boolean) => ({
     data: state.datiInCache ? { pages: [[
       { id: "tubo", warehouse_id: state.depositoTubo, name: "Tubo corrugato", internal_code: "TUB-12", unita_misura: "m", disponibile: state.disponibile, magazzino: "Deposito nord", ubicazione: "Corsia A · Scaffale 4" },
@@ -26,6 +27,8 @@ vi.mock("@/hooks/campo/useCampoPrelievo", () => ({
   useCampoCantieriPrelievo: () => ({ data: state.datiInCache ? state.cantieri : undefined, refetch: state.refetch }),
 }));
 vi.mock("@/hooks/useOnlineStatus", () => ({ useOnlineStatus: () => state.online }));
+vi.mock("@/components/warehouse/BarcodeScanner", () => ({ BarcodeScanner: ({ open, onScan }: { open: boolean; onScan: (codice: string) => void }) =>
+  open ? <button onClick={() => onScan("8012345678901")}>Leggi etichetta di prova</button> : null }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc: async (_nome: string, args: {
@@ -54,6 +57,7 @@ beforeEach(async () => {
   state.cantieri = [...cantieriAssegnati];
   state.disponibile = 10;
   state.datiInCache = true;
+  state.prelievi = [];
   state.depositoTubo = "deposito";
   state.online = true;
   state.refetch.mockClear();
@@ -71,6 +75,18 @@ function modulo(cantiereIniziale: string | undefined, userId = "operaio") {
 function inventario(cantiereIniziale?: string, userId = "operaio") {
   return render(modulo(cantiereIniziale, userId));
 }
+
+it("apre lo scanner e riapre i materiali consegnati con la disponibilità attuale", () => {
+  state.prelievi = [{ stato: "consegnato", righe: [{ stock_item_id: "tubo", name: "Tubo usato ieri" }] },
+    { stato: "rifiutato", righe: [{ stock_item_id: "viti", name: "Articolo rifiutato" }] }];
+  inventario("C064");
+  expect(screen.queryByText("Articolo rifiutato")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Tubo usato ieri" }));
+  expect(screen.getByRole("searchbox")).toHaveValue("Tubo usato ieri");
+  fireEvent.click(screen.getByRole("button", { name: "Scansiona codice articolo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Leggi etichetta di prova" }));
+  expect(screen.getByRole("searchbox")).toHaveValue("8012345678901");
+});
 
 function apriDaCantiere(cantiereIniziale: string) {
   inventario(cantiereIniziale);

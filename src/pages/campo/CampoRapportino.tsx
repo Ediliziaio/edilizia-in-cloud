@@ -28,7 +28,7 @@ import { MezziFineGiornata, righeDaSalvare, useMezziDellaGiornata, type RigaMezz
 import { ArrivoRapportino } from "@/components/orders/ArrivoRapportino";
 import { ARRIVO_VUOTO, campoArrivo, leggiArrivo, mezzoStradale } from "@/lib/campo/arrivoRapportino";
 import type { Json } from "@/integrations/supabase/types";
-import { createStore, del, get, update } from "idb-keyval";
+import { createStore, del, get, set, update } from "idb-keyval";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
@@ -44,8 +44,8 @@ import { CampiModulo } from "@/components/campo/CampiModulo";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoreInTesto, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
-import { inviaRapportoInCoda, riferimentoAllegatoRapportino, type AllegatoRapportino, type RapportoInCoda } from "@/lib/campo/rapportoInCoda";
-import { syncQueue } from "@/lib/campo/sync-queue";
+import { inviaRapportoInCoda, rapportoGiaRicevuto, riferimentoAllegatoRapportino, type AllegatoRapportino, type RapportoInCoda } from "@/lib/campo/rapportoInCoda";
+import { syncOperationId, syncQueue, type SyncItem } from "@/lib/campo/sync-queue";
 import { useCodaCampo } from "@/hooks/campo/useCodaCampo";
 import { buildRapportinoMaterials, restoreRapportinoMaterials, rapportinoStockSelectionKey, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
 import { loadRapportinoArticles } from "@/lib/campo/loadRapportinoArticles";
@@ -118,6 +118,15 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   const chiaveBozza = ["rapportino", companyId, user?.id, orderId, workDay, tipo].join(":");
   const codaRapportini = useCodaCampo(companyId, user?.id, "rapportino");
   const inCoda = tipo === "daily" ? codaRapportini.find(voce => voce.payload.order_id === orderId && voce.payload.giorno === workDay) : undefined;
+  const [modificaCoda, setModificaCoda] = useState<SyncItem<RapportoInCoda> | null>(null);
+  const [verificaCoda, setVerificaCoda] = useState(false);
+  const fotoInCoda = useMemo(() => {
+    const locali = new Map((inCoda?.payload.allegati ?? []).map(f => [riferimentoAllegatoRapportino(f.percorso), f]));
+    return (inCoda?.payload.campi.foto_urls ?? []).map(url => {
+      const f = locali.get(url);
+      return { url, file: f ? new Blob([f.bytes], { type: f.contentType }) : url };
+    });
+  }, [inCoda]);
   const [params, setParams] = useSearchParams();
   const today = useCampoWorkDay();
   const yesterday = shiftWorkDay(today, -1);
@@ -344,8 +353,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       aggiornaBozza(bozzaCorrente);
     }
   }, [bozzaCorrente, aggiornaBozza, ripresaDecisa, companyId, user?.id]);
-  const riprendiBozza = () => {
-    const b = bozza.draft;
+  const applicaBozza = (b: typeof bozza.draft) => {
     setDescrizione(typeof b.descrizione === "string" ? b.descrizione : "");
     if (typeof b.oreLavorate === "number" && Number.isFinite(b.oreLavorate)) modificaOre(b.oreLavorate);
     setOreStraordinario(Number(b.oreStraordinario) || 0); setMeteo(b.meteo || ""); setPercentuale(Number(b.percentuale) || 0);
@@ -358,6 +366,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
   };
+  const riprendiBozza = () => applicaBozza(bozza.draft);
   const { data: squadra = [], isLoading: squadraLoading } = useQuery({
     queryKey: ["campo-squadra", orderId, workDay],
     enabled: !!orderId && registraSquadra,
@@ -794,6 +803,38 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     }
   };
 
+  const correggiInvio = async (voce: SyncItem<RapportoInCoda>) => {
+    if (!online || !fotoPronte || bloccoFoto.current || voce.status !== "failed" || !voce.payload.bozzaCompilata) return;
+    bloccoFoto.current = true;
+    setVerificaCoda(true);
+    try {
+      if (await rapportoGiaRicevuto(voce.payload, await syncOperationId(voce))) {
+        await syncQueue.retryFailed(i => i.id === voce.id);
+        await syncQueue.processQueue();
+        toast.info("L’ufficio aveva già ricevuto questo rapportino.");
+        return;
+      }
+      const b = bozza.hasSavedDraft ? bozza.draft : { ...bozza.draft, ...voce.payload.bozzaCompilata };
+      const indirizzi = new Set(b.fotoUrls);
+      const salvate = bozza.hasSavedDraft ? await get<FotoLocali>(chiaveBozza, fotoBozze) ?? {} : {};
+      const foto = Object.fromEntries(Object.entries(salvate).filter(([url]) => indirizzi.has(url)));
+      for (const allegato of voce.payload.allegati) {
+        const url = riferimentoAllegatoRapportino(allegato.percorso);
+        if (indirizzi.has(url) && !foto[url]) foto[url] = allegato;
+      }
+      await set(chiaveBozza, foto, fotoBozze);
+      setFotoLocali(foto);
+      bozzaAttivata.current = true;
+      setModificaCoda(voce);
+      applicaBozza(b);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Non riesco a riaprire i dati dell’invio.");
+    } finally {
+      bloccoFoto.current = false;
+      setVerificaCoda(false);
+    }
+  };
+
   // ── Salvataggio ──────────────────────────────────────────────────────
   const straordinarioDaInviare = parti.straordinario || daRifare ? oreStraordinario : 0;
   const oreDaInviare = () => confermaCliente || oreNonMie ? 0 : validateRapportinoHours(
@@ -813,7 +854,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     networkMode: "always",
     mutationFn: async () => {
       if (lavoro_completato && !online) throw new Error("Torna online per inviare il collaudo firmato.");
-      if (inCoda) throw new Error("Il rapportino è già in coda.");
+      if (inCoda && !modificaCoda) throw new Error("Il rapportino è già in coda.");
       if (bloccoFoto.current) throw new Error("Attendi che le foto siano pronte.");
       if (verificaInCorso || verificaFallita || !ruoloCampo) throw new Error("Attendi la verifica del cantiere e dei rapporti già inviati, oppure riprova.");
       if (clienteNonConsentito) throw new Error("Il collaudo col cliente lo fa il capocantiere. Puoi inviare il tuo rapportino.");
@@ -825,7 +866,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       if (bloccatoDaEsistente) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
       if (!companyId || !orderId || !user?.id) throw new Error("Sessione non pronta, ricarica la pagina");
 
-      const operationId = lavoro_completato ? (idCollaudo.current ??= crypto.randomUUID()) : crypto.randomUUID();
+      const operationId = modificaCoda ? await syncOperationId(modificaCoda)
+        : lavoro_completato ? (idCollaudo.current ??= crypto.randomUUID()) : crypto.randomUUID();
+      const idFirma = modificaCoda ? crypto.randomUUID() : operationId;
       const quando = new Date().toISOString();
       const arrivoDaSalvare = !lavoro_completato && (parti.mezzi || daRifare) ? campoArrivo(arrivo) : [];
       const materialiPayload = confermaCliente || !parti.materiali ? [] : buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
@@ -845,7 +888,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       const aggiungiFirma = (dataUrl: string | null, autore: "operaio" | "cliente") => {
         if (!dataUrl) return;
         const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(",") + 1)), carattere => carattere.charCodeAt(0)).buffer;
-        const percorso = companyId + "/" + orderId + "/firme/" + operationId + "_" + autore + ".png";
+        const percorso = companyId + "/" + orderId + "/firme/" + idFirma + "_" + autore + ".png";
         allegati.push({ percorso, bytes, contentType: "image/png" });
         return riferimentoAllegatoRapportino(percorso);
       };
@@ -897,16 +940,22 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
           ...(firmaClienteUrl ? { firma_cliente_url: firmaClienteUrl, firma_cliente_nome: firmaClienteNome.trim(), firma_cliente_at: quando } : {}),
         },
         allegati,
-        uscita: chiudeGiornata ? rigaTimbratura({
+        bozzaCompilata: lavoro_completato ? undefined : { ...bozzaCorrente, fotoUrls: fotoAllegate },
+        uscita: modificaCoda?.payload.uscita ?? (chiudeGiornata ? rigaTimbratura({
           companyId, userId: user.id, tipo: "uscita", orderId, quando,
           lat: lat || null, lng: lng || null, accuracy: accuracy ? Math.round(accuracy) : null,
-        }) : undefined,
+        }) : undefined),
         mezzi: righeMezzi as unknown as Json[],
       };
       if (lavoro_completato) return { esito: await inviaRapportoInCoda(payload, operationId) };
-      await syncQueue.enqueue<RapportoInCoda>({
-        type: "rapportino", dedupKey: chiaveBozza, operationId, payload,
-      });
+      if (modificaCoda) {
+        if (!await syncQueue.riaccodaFallito(modificaCoda, payload)) {
+          throw new Error("L’invio è cambiato su un’altra scheda. Le tue modifiche restano nella bozza.");
+        }
+        void syncQueue.processQueue().catch(() => {});
+      } else {
+        await syncQueue.enqueue<RapportoInCoda>({ type: "rapportino", dedupKey: chiaveBozza, operationId, payload });
+      }
       return { esito: undefined };
     },
     onSuccess: ({ esito }) => {
@@ -957,7 +1006,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       cambiaPassaggio(step + 1);
       return;
     }
-    if ((lavoro_completato && !online) || bloccoFoto.current || inCoda) return;
+    if ((lavoro_completato && !online) || bloccoFoto.current || (inCoda && !modificaCoda)) return;
     try {
       oreDaInviare();
     } catch {
@@ -1526,7 +1575,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   const dettagliDaAggiungere = new Intl.ListFormat("it", { type: "conjunction" })
     .format(["la descrizione", ...(parti.foto ? ["le foto"] : []), ...(parti.materiali ? ["i materiali"] : [])]);
 
-  if (inCoda) {
+  if (inCoda && !modificaCoda) {
     const foto = inCoda.payload.campi.foto_urls?.length ?? 0;
     return (
       <section className="mx-auto max-w-2xl space-y-2 rounded-xl border bg-background p-4">
@@ -1537,9 +1586,17 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         </p>
         <p className="text-sm">{inCoda.status === "failed" ? inCoda.lastError
           : online ? "Il telefono sta inviando il rapportino e le foto." : "Il rapportino e le foto partono quando torna la rete."}</p>
+        {inCoda.payload.campi.descrizione_lavori && <p className="whitespace-pre-wrap break-words rounded-xl bg-muted p-2.5 text-sm">{inCoda.payload.campi.descrizione_lavori}</p>}
+        {!!fotoInCoda.length && <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-5" aria-label="Foto del rapportino in coda">
+          {fotoInCoda.map(({ url, file }, i) => <li key={url}><AnteprimaFotoCampo foto={file} etichetta={`foto in coda ${i + 1}`} className="aspect-square h-auto" /></li>)}
+        </ul>}
         <div className="flex flex-wrap gap-3">
+          {inCoda.status === "failed" && inCoda.payload.bozzaCompilata && (
+            <button type="button" disabled={!online || !fotoPronte || verificaCoda} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
+              onClick={() => void correggiInvio(inCoda)}>{verificaCoda ? "Verifico l’invio…" : online ? "Correggi il rapportino" : "Correggi quando torna la rete"}</button>
+          )}
           {inCoda.status === "failed" && (
-            <button type="button" disabled={!online} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
+            <button type="button" disabled={!online || verificaCoda} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
               onClick={() => void syncQueue.retryFailed(voce => voce.id === inCoda.id)
                 .then(syncQueue.processQueue).catch(() => toast.error("Non riesco a riprovare l’invio."))}>Riprova invio</button>
           )}
@@ -1551,8 +1608,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   }
 
   return (
-    <div ref={inizioRapportino} className={cn("mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background md:pb-0",
-      riepilogoRapido && isUltimoStep ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(5.25rem+env(safe-area-inset-bottom))]")}>
+    <div ref={inizioRapportino} className="mx-auto flex w-full max-w-3xl flex-col rounded-t-2xl bg-background pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
       {/* Header */}
       <div className="flex items-start gap-3 rounded-t-2xl border-b border-border bg-background px-3 py-3 shadow-sm md:sticky md:top-0 md:z-10 md:px-4">
         <button type="button"
@@ -2002,9 +2058,10 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
           outer page and main have different scroll heights. The pb-24 above
           keeps the last field visible; CampoLayout hides the app bottom nav. */}
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] md:sticky md:inset-x-auto md:z-20 md:px-4 md:pb-3">
-        {riepilogoRapido && isUltimoStep && (
-          <p className="mb-1.5 truncate text-xs font-medium text-muted-foreground">{riepilogoRapido}</p>
-        )}
+        <div className="mb-1.5 flex min-w-0 items-center gap-2">
+          <RapportinoSiteContext orderId={orderId} companyId={companyId} compatto />
+          {riepilogoRapido && isUltimoStep && <p className="max-w-[40%] truncate text-xs text-muted-foreground" title={riepilogoRapido}>{riepilogoRapido}</p>}
+        </div>
         <div className="flex gap-3">
           <button
             type="button"

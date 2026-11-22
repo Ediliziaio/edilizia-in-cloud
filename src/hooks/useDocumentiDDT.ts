@@ -26,7 +26,7 @@ export function useDocumentiDDT(
   invioId?: string,
 ) {
   const { effectiveCompany, profile, user } = useAuth();
-  const companyId = soloMiei ? profile?.company_id : effectiveCompany?.id;
+  const companyId = effectiveCompany?.id ?? (soloMiei ? profile?.company_id : undefined);
   const query = useInfiniteQuery({
     queryKey: [
       "ddt-documenti",

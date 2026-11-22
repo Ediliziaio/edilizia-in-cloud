@@ -6,14 +6,17 @@ const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   chiCompila: "ognuno" as string,
   righe: [] as Array<Record<string, unknown>>,
+  companyId: undefined as string | undefined,
+  navigate: vi.fn(),
 }));
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn(), useParams: () => ({ orderId: "order" }) }));
+vi.mock("react-router-dom", () => ({ useNavigate: () => state.navigate, useParams: () => ({ orderId: "order" }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "capo" } }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "capo" }, profile: { company_id: state.companyId } }) }));
+vi.mock("@/components/campo/MezziFineGiornata", () => ({ useMezziDellaGiornata: () => ({ data: [{ segnato_oggi: true }, { segnato_oggi: false }] }) }));
 vi.mock("@/hooks/useRegoleCampo", () => ({ useRegoleCampoOrdine: () => ({ data: { chiCompila: state.chiCompila } }) }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
-    data: queryKey[0] === "campo-squadra-oggi" ? state.righe : { order_code: "C-1", description: "Via Roma" },
+    data: queryKey[0] === "campo-squadra-oggi" ? state.righe : queryKey[0] === "campo-fine-giornata-fasi" ? 3 : { order_code: "C-1", description: "Via Roma" },
     isLoading: false, isError: false, error: null as null, refetch: vi.fn(), isFetching: false,
   }),
   useMutation: (config: { mutationFn: (a: string) => Promise<unknown>; onSuccess: (r: unknown, a: string) => void; onError: (e: unknown) => void }) => ({
@@ -25,7 +28,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: async (fn: s
 
 const riga = (o: Record<string, unknown>) => ({ user_id: "a", nome: "Ion Popescu", ruolo: "dipendente", is_capocantiere: false, entrata: null as string | null, uscita: null as string | null, in_cantiere: false, ore: 0, rapportino_inviato: false, telefono: "3331234567", ...o });
 
-beforeEach(() => { vi.clearAllMocks(); state.chiCompila = "ognuno"; state.righe = [riga({})]; });
+beforeEach(() => { vi.clearAllMocks(); state.chiCompila = "ognuno"; state.companyId = undefined; state.righe = [riga({})]; });
 afterEach(cleanup);
 
 describe("Squadra di oggi: il capo agisce", () => {
@@ -57,5 +60,24 @@ describe("Squadra di oggi: il capo agisce", () => {
     state.chiCompila = "capo";
     render(<CampoSquadra />);
     expect(screen.queryByRole("button", { name: /Sollecita/ })).toBeNull();
+  });
+  it("separa le ore da verificare e apre il rapportino e le fasi del cantiere", () => {
+    state.companyId = "azienda";
+    state.righe = [
+      riga({}),
+      riga({ user_id: "b", nome: "Paolo Ore Complete", ore: 8 }),
+      riga({ user_id: "c", nome: "Marco Ancora Dentro", ore: 7, in_cantiere: true, rapportino_inviato: true }),
+    ];
+    render(<CampoSquadra />);
+    expect(screen.getByRole("heading", { name: "Fine giornata" })).toBeInTheDocument();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2 Ore da verificare" }));
+    expect(screen.getByText("Ion Popescu")).toBeInTheDocument();
+    expect(screen.getByText("Marco Ancora Dentro")).toBeInTheDocument();
+    expect(screen.queryByText("Paolo Ore Complete")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "3 Fasi aperte" }));
+    expect(state.navigate).toHaveBeenCalledWith("/campo/avanzamento?order_id=order");
+    fireEvent.click(screen.getByRole("button", { name: "Apri rapportino della giornata" }));
+    expect(state.navigate).toHaveBeenCalledWith("/campo/lavoro/order/rapportino");
   });
 });

@@ -3,12 +3,14 @@
  * e chi chiamare. Le date sono le TUE (seguono le fasi e la squadra), non
  * quelle di tutta la commessa. Sotto, il prossimo giorno di lavoro.
  */
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertCircle, Navigation, Phone, Users } from "lucide-react";
+import { AlertCircle, FilePenLine, Navigation, Package, Phone, Receipt, Users } from "lucide-react";
 import { ScattaFoto } from "@/components/campo/ScattaFoto";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
 import {
   linkMappa, linkTelefono, useMiaGiornata,
@@ -38,7 +40,7 @@ function Chiama({ ruolo, contatto }: { ruolo: string; contatto: Contatto }) {
   );
 }
 
-function SchedaCantiere({ c }: { c: CantiereDelGiorno }) {
+function SchedaCantiere({ c, giorno, puoPrelevare }: { c: CantiereDelGiorno; giorno: string; puoPrelevare: boolean }) {
   const mappa = linkMappa(c.indirizzo);
   const vedeSquadra = c.sono_capocantiere || !!c.squadra?.sono_caposquadra;
   return (
@@ -46,6 +48,21 @@ function SchedaCantiere({ c }: { c: CantiereDelGiorno }) {
       <div className="min-w-0">
         <p className="text-base font-bold leading-tight">{c.titolo || c.codice || "Cantiere"}</p>
         {c.indirizzo && <p className="mt-0.5 text-sm text-muted-foreground">{c.indirizzo}</p>}
+      </div>
+
+      <div className={cn("grid gap-1.5", puoPrelevare ? "grid-cols-3" : "grid-cols-2")} aria-label="Azioni per il cantiere">
+        <Link to={`/campo/lavoro/${c.order_id}/rapportino?data=${giorno}`}
+          className="flex min-h-12 min-w-0 items-center justify-center gap-1 rounded-xl bg-primary/10 px-1 text-xs font-semibold text-primary sm:text-sm">
+          <FilePenLine className="hidden size-4 shrink-0 min-[370px]:block" aria-hidden="true" />Rapportino
+        </Link>
+        <Link to={`/campo/ddt?order=${c.order_id}`}
+          className="flex min-h-12 min-w-0 items-center justify-center gap-1 rounded-xl border px-1 text-xs font-semibold sm:text-sm">
+          <Receipt className="hidden size-4 shrink-0 min-[370px]:block" aria-hidden="true" />Bolla
+        </Link>
+        {puoPrelevare && <Link to={`/campo/magazzino?order_id=${c.order_id}`}
+          className="flex min-h-12 min-w-0 items-center justify-center gap-1 rounded-xl border px-1 text-xs font-semibold sm:text-sm">
+          <Package className="hidden size-4 shrink-0 min-[370px]:block" aria-hidden="true" />Prelievo
+        </Link>}
       </div>
 
       {(c.fasi.length > 0 || c.squadra) && (
@@ -110,7 +127,39 @@ function SchedaCantiere({ c }: { c: CantiereDelGiorno }) {
   );
 }
 
-export function CampoOggi() {
+function CantieriOggi({ cantieri, giorno, memoria, puoPrelevare }: {
+  cantieri: CantiereDelGiorno[];
+  giorno: string;
+  memoria?: string;
+  puoPrelevare: boolean;
+}) {
+  const chiave = memoria ? `campo-cantiere-oggi:${memoria}` : null;
+  const [scelta, setScelta] = useState(() => {
+    try {
+      const salvata = chiave ? localStorage.getItem(chiave) : null;
+      return salvata?.startsWith(`${giorno}:`) ? salvata.slice(giorno.length + 1) : "";
+    } catch { return ""; }
+  });
+  const cantiere = cantieri.find(c => c.order_id === scelta) ?? cantieri[0];
+
+  return <>
+    {cantieri.length > 1 && (
+      <UniformSelect aria-label="Cantiere di oggi" value={cantiere.order_id}
+        onChange={event => {
+          const id = event.target.value;
+          setScelta(id);
+          try { if (chiave) localStorage.setItem(chiave, `${giorno}:${id}`); } catch { /* La scelta rimane nella pagina. */ }
+        }} className="min-h-11 w-full rounded-xl bg-background text-left">
+        {cantieri.map(c => <option key={c.order_id} value={c.order_id}>
+          {[c.codice, c.titolo || c.indirizzo].filter(Boolean).join(" · ") || "Cantiere"}
+        </option>)}
+      </UniformSelect>
+    )}
+    <SchedaCantiere key={cantiere.order_id} c={cantiere} giorno={giorno} puoPrelevare={puoPrelevare} />
+  </>;
+}
+
+export function CampoOggi({ memoria, puoPrelevare = false }: { memoria?: string; puoPrelevare?: boolean } = {}) {
   const { data, isLoading, isError, refetch } = useMiaGiornata(14);
 
   if (isLoading) return <Skeleton className="h-40 w-full rounded-2xl" />;
@@ -139,7 +188,7 @@ export function CampoOggi() {
       {oggi.cantieri.length === 0 ? (
         <p className="rounded-2xl border bg-background p-3 text-sm">Oggi non hai cantieri in programma.</p>
       ) : (
-        oggi.cantieri.map((c) => <SchedaCantiere key={c.order_id} c={c} />)
+        <CantieriOggi key={`${memoria ?? ""}:${oggi.giorno}`} cantieri={oggi.cantieri} giorno={oggi.giorno} memoria={memoria} puoPrelevare={puoPrelevare} />
       )}
 
       {prossimo && (

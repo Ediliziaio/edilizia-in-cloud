@@ -22,6 +22,8 @@ export interface RapportoInCoda {
   roleType: "employee" | "subcontractor";
   campi: Omit<TablesInsert<"campo_rapportini">, "id" | "company_id" | "user_id" | "order_id" | "role_type" | "data_lavoro" | "stato">;
   allegati: AllegatoRapportino[];
+  /** Campi dell'editor per riprendere un invio rifiutato, conservati solo sul dispositivo. */
+  bozzaCompilata?: Record<string, unknown>;
   correzione?: { id: string; versione: string | null };
   uscita?: ReturnType<typeof rigaTimbratura>;
   mezzi: Json[];
@@ -79,18 +81,24 @@ async function registraUscita(uscita: NonNullable<RapportoInCoda["uscita"]>) {
   throw erroreInvioCampo(error);
 }
 
+async function leggiRicevutaRapporto({ company_id, order_id, user_id, giorno, correzione }: RapportoInCoda, operationId: string) {
+  const { data, error } = await supabase.from("campo_rapportini")
+    .select("invio_operazione_id, updated_at, stato, pdf_url, annullato_at")
+    .eq("id", correzione?.id ?? operationId).eq("company_id", company_id).eq("order_id", order_id).eq("user_id", user_id).eq("data_lavoro", giorno)
+    .maybeSingle();
+  if (error) throw erroreInvioCampo(error);
+  return data;
+}
+
+export async function rapportoGiaRicevuto(payload: RapportoInCoda, operationId: string) {
+  return (await leggiRicevutaRapporto(payload, operationId))?.invio_operazione_id === operationId;
+}
+
 async function inviaRapporto(payload: RapportoInCoda, operationId: string): Promise<CampoSyncResult> {
   const { company_id, order_id, user_id, giorno, roleType, campi, correzione, allegati, uscita, mezzi } = payload;
   const id = correzione?.id ?? operationId;
   const risultato = { tipo: "rapportino", companyId: company_id, orderId: order_id, userId: user_id, id } as const;
-  const leggiRicevuta = async () => {
-    const { data, error } = await supabase.from("campo_rapportini")
-      .select("invio_operazione_id, updated_at, stato, pdf_url, annullato_at")
-      .eq("id", id).eq("company_id", company_id).eq("order_id", order_id).eq("user_id", user_id).eq("data_lavoro", giorno)
-      .maybeSingle();
-    if (error) throw erroreInvioCampo(error);
-    return data;
-  };
+  const leggiRicevuta = () => leggiRicevutaRapporto(payload, operationId);
   const ricevuta = await leggiRicevuta();
   if (ricevuta?.invio_operazione_id === operationId && (ricevuta.stato !== "inviato" || ricevuta.annullato_at)) return risultato;
   const inviato = ricevuta?.invio_operazione_id === operationId;

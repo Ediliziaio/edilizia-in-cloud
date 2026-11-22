@@ -1,7 +1,7 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Camera, Check, CloudUpload, FileText, FileUp, HardHat, Loader2, Receipt, Sparkles, Trash2, Warehouse, WifiOff } from "lucide-react";
+import { ArrowDown, ArrowUp, Camera, Check, CloudUpload, FileText, FileUp, HardHat, ImagePlus, Loader2, MoreVertical, Receipt, RotateCw, Sparkles, Trash2, Warehouse, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
@@ -11,6 +11,8 @@ import { AnteprimaFotoCampo } from "@/components/campo/AnteprimaFotoCampo";
 import { cantiereBolla } from "@/lib/campo/cantiereBolla";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { compressImage } from "@/lib/campo/compressImage";
 import {
   CompilaBollaTelefono,
   RevisioneBollaTelefono,
@@ -40,6 +42,7 @@ import {
 } from "@/lib/ddt/preparaDocumento";
 
 const campo = "min-h-12 w-full rounded-xl border bg-background px-3 text-base";
+type PaginaBolla = { id: string; file: File };
 
 function leggiPagina(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
@@ -50,13 +53,34 @@ function leggiPagina(file: File): Promise<ArrayBuffer> {
   });
 }
 
-export default function CampoDDT() {
-  const { user, profile } = useAuth();
-  return <CampoDDTEditor key={`${profile?.company_id}:${user?.id}`} />;
+function FotoBollaInCoda({ voce }: { voce: SyncItem }) {
+  const pagine = useMemo(() => {
+    const p = voce.payload as { files?: (ArrayBuffer | Blob)[]; fileTypes?: string[]; fileNames?: string[] };
+    return (p.files ?? []).map((file, i) => {
+      const tipo = p.fileTypes?.[i] || (file instanceof Blob ? file.type : "");
+      const foto = tipo.startsWith("image/") && (file instanceof Blob || file instanceof ArrayBuffer)
+        ? file instanceof Blob ? file : new Blob([file], { type: tipo }) : null;
+      return { foto, nome: p.fileNames?.[i] || `Pagina ${i + 1}` };
+    });
+  }, [voce.payload]);
+
+  return <ul aria-label="Pagine della bolla conservata" className="mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+    {pagine.map((pagina, i) => <li key={`${pagina.nome}:${i}`} className="min-w-0">
+      {pagina.foto ? <AnteprimaFotoCampo foto={pagina.foto} etichetta={`pagina in coda ${i + 1}`} className="aspect-square h-auto" />
+        : <div className="grid aspect-square place-items-center rounded-xl border bg-background" aria-label={pagina.nome}><FileText className="size-5" aria-hidden="true" /></div>}
+      <p className="truncate text-xs" title={pagina.nome}>{pagina.nome}</p>
+    </li>)}
+  </ul>;
 }
 
-function CampoDDTEditor() {
-  const { user, profile } = useAuth();
+export default function CampoDDT() {
+  const { user, profile, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? profile?.company_id;
+  return <CampoDDTEditor key={`${companyId}:${user?.id}`} companyId={companyId} />;
+}
+
+function CampoDDTEditor({ companyId }: { companyId?: string | null }) {
+  const { user } = useAuth();
   const assegnazioni = useCampoAssignments();
   const [params] = useSearchParams();
   const [scelta, setScelta] = useState("");
@@ -70,7 +94,7 @@ function CampoDDTEditor() {
   const permessi = usePermissions();
   // Impostazioni → Acquisti e materiali → «Bolle dal telefono». Con «solo la foto»
   // chi non è ufficio invia e basta: l'AI la avvia l'ufficio (la regola è nel server).
-  const letturaBolle = useLetturaBolleTelefono(profile?.company_id);
+  const letturaBolle = useLetturaBolleTelefono(companyId);
   const soloFoto = !ufficio && letturaBolle.data === "solo_foto";
   const puoRegistrare = puoRegistrareBolle(permessi) && !soloFoto && !letturaBolle.isLoading;
   const senzaAIPossibile = puoCompilareSenzaAI(permessi) && !soloFoto && !letturaBolle.isLoading;
@@ -98,8 +122,11 @@ function CampoDDTEditor() {
       : id ? "Cantiere" : "Scegli il cantiere";
   };
   const etichettaCantiere = etichettaDestinazione(destinazione, orderId);
-  const [files, setFiles] = useState<File[]>([]);
+  const [pagine, setPagine] = useState<PaginaBolla[]>([]);
+  const files = useMemo(() => pagine.map(p => p.file), [pagine]);
   const [locali, setLocali] = useState<SyncItem[]>([]);
+  const [paginaInCoda, setPaginaInCoda] = useState(() => params.get("invio"));
+  const dettaglioInCoda = useRef<HTMLDivElement>(null);
   const [salvando, setSalvando] = useState(false);
   const [pdfDaDividere, setPdfDaDividere] = useState<
     Array<{ id: string; pdf: PdfDaDividere }>
@@ -109,6 +136,8 @@ function CampoDDTEditor() {
   const bytePagine = useRef(new WeakMap<File, ArrayBuffer>());
   const camera = useRef<HTMLInputElement>(null);
   const archivio = useRef<HTMLInputElement>(null);
+  const sostituzione = useRef<HTMLInputElement>(null);
+  const paginaDaSostituire = useRef<File | null>(null);
   const documenti = useDocumentiDDT(true);
   const salvaSoloDocumento = useSalvaSoloDocumento();
   const occupato = salvando || preparando !== null;
@@ -128,7 +157,7 @@ function CampoDDTEditor() {
                   i.type === "documento_ddt" &&
                   i.status !== "done" &&
                   syncItemScope(i).owner === user?.id &&
-                  syncItemScope(i).companyId === profile?.company_id,
+                  syncItemScope(i).companyId === companyId && (i.payload as { source?: string }).source !== "desktop",
               ).sort((a, b) => b.createdAt - a.createdAt),
             );
         })
@@ -144,7 +173,7 @@ function CampoDDTEditor() {
     };
     // Il cambio identità rimonta l'editor e non mostra bozze di altre persone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profile?.company_id]);
+  }, [user?.id, companyId]);
 
   // Letta la bolla appena inviata, si apre la finestra per confermarla.
   const appenaLetta = attesa
@@ -153,6 +182,11 @@ function CampoDDTEditor() {
   const daRivedere = puoRegistrare ? revisione ?? appenaLetta : null;
   const inAttesa = locali.filter((i) => !(documenti.data ?? []).some((j) => j.id === (i.operationId ?? i.id)));
   const invioInCoda = conAI || !senzaAIPossibile;
+  const dettaglioRichiesto = !!params.get("invio") && inAttesa.some(i => i.id === params.get("invio"));
+
+  useEffect(() => {
+    if (dettaglioRichiesto) dettaglioInCoda.current?.scrollIntoView?.({ block: "start" });
+  }, [dettaglioRichiesto]);
 
   const aggiungi = async (nuovi: File[]) => {
     if (!nuovi.length || blocco.current) return;
@@ -173,7 +207,7 @@ function CampoDDTEditor() {
     blocco.current = true;
     setPreparando(nuovi.some((file) => mimeDocumento(file) === "application/pdf") ? "pdf" : "foto");
     try {
-      const diretti: File[] = [];
+      const diretti: PaginaBolla[] = [];
       const daDividere: typeof pdfDaDividere = [];
       for (const f of nuovi) {
         if (mimeDocumento(f) === "application/pdf") {
@@ -188,9 +222,9 @@ function CampoDDTEditor() {
         // della pagina. I byte letti qui sono anche clonabili in IndexedDB su WebKit.
         const byte = await leggiPagina(f).catch((): null => null);
         if (byte) bytePagine.current.set(f, byte);
-        diretti.push(f);
+        diretti.push({ id: crypto.randomUUID(), file: f });
       }
-      setFiles((p) => [...p, ...diretti]);
+      setPagine((p) => [...p, ...diretti]);
       if (daDividere.length) setPdfDaDividere((p) => [...p, ...daDividere]);
     } catch {
       toast.error(
@@ -202,8 +236,50 @@ function CampoDDTEditor() {
     }
   };
 
+  const spostaPagina = (indice: number, passo: -1 | 1) => {
+    if (blocco.current) return;
+    setPagine(prima => {
+      const arrivo = indice + passo;
+      if (!prima[indice] || !prima[arrivo]) return prima;
+      const pagine = [...prima];
+      [pagine[indice], pagine[arrivo]] = [pagine[arrivo], pagine[indice]];
+      return pagine;
+    });
+  };
+
+  const cambiaPagina = async (prima: File, prepara: () => Promise<File>) => {
+    if (blocco.current || !files.includes(prima)) return;
+    blocco.current = true;
+    setPreparando("foto");
+    try {
+      const nuova = await prepara();
+      const errore = erroreDocumento(nuova);
+      if (errore) throw new Error(errore);
+      if (!mimeDocumento(nuova).startsWith("image/")) throw new Error("Scegli una foto per sostituire la pagina.");
+      if (files.reduce((totale, f) => totale + (f === prima ? nuova.size : f.size), 0) > MAX_DOCUMENTO_BYTE) {
+        throw new Error("La bolla completa supererebbe 18 MB. Scegli una foto più leggera.");
+      }
+      const bytes = await leggiPagina(nuova);
+      bytePagine.current.set(nuova, bytes);
+      setPagine(tutte => tutte.map(p => p.file === prima ? { ...p, file: nuova } : p));
+    } catch (errore) {
+      toast.error(errore instanceof Error && /foto|18 MB/.test(errore.message)
+        ? errore.message : "Operazione non riuscita. La pagina originale è ancora qui.");
+    } finally {
+      blocco.current = false;
+      setPreparando(null);
+    }
+  };
+
+  const ruotaPagina = (pagina: File) => cambiaPagina(pagina, async () => {
+    const bytes = bytePagine.current.get(pagina);
+    const origine = bytes ? new File([bytes], pagina.name, { type: mimeDocumento(pagina) }) : pagina;
+    const foto = await compressImage(origine, 2800, 0.93, true).catch(() => { throw new Error("Non riesco a ruotare questa foto. Puoi sostituirla."); });
+    return new File([foto], `${pagina.name.replace(/\.[^.]+$/, "")}.jpg`, { type: foto.type });
+  });
+
   const preparaInvio = async (pagine: File[]) => {
-    if (!user?.id || !profile?.company_id || !cantierePronto)
+    if (!user?.id || !companyId || !cantierePronto)
       throw new Error("Scegli prima il cantiere");
     return {
       type: "documento_ddt" as const,
@@ -212,9 +288,10 @@ function CampoDDTEditor() {
         fileNames: pagine.map((f) => f.name),
         fileTypes: pagine.map((f) => f.type),
         user_id: user.id,
-        company_id: profile.company_id,
+        company_id: companyId,
         order_id: orderId ?? null,
         destinazione,
+        source: "campo" as const,
       },
     };
   };
@@ -228,7 +305,7 @@ function CampoDDTEditor() {
       blocco.current ||
       !pronto ||
       !user?.id ||
-      !profile?.company_id
+      !companyId
     )
       return;
     blocco.current = true;
@@ -236,14 +313,14 @@ function CampoDDTEditor() {
     try {
       if (soloDocumento) {
         await salvaSoloDocumento(files, orderId);
-        setFiles([]);
+        setPagine([]);
         void documenti.refetch();
         toast.success("Bolla ricevuta dall’ufficio");
         return;
       }
       // Prima IndexedDB, poi rete: la lettura AI non trattiene la pagina aperta.
       const id = await syncQueue.enqueue(await preparaInvio(files));
-      setFiles([]);
+      setPagine([]);
       // Chi può registrare rivede subito quello che l'AI ha letto.
       if (puoRegistrare && typeof id === "string") setAttesa(id);
       toast.success(
@@ -397,8 +474,8 @@ function CampoDDTEditor() {
           hidden
           aria-label="Fotografa il DDT"
           onChange={(e) => {
-            void aggiungi(Array.from(e.target.files ?? []));
-            e.target.value = "";
+            const input = e.currentTarget;
+            void aggiungi(Array.from(input.files ?? [])).finally(() => { input.value = ""; });
           }}
         />
         <input
@@ -409,10 +486,18 @@ function CampoDDTEditor() {
           hidden
           aria-label="Scegli le pagine del DDT"
           onChange={(e) => {
-            void aggiungi(Array.from(e.target.files ?? []));
-            e.target.value = "";
+            const input = e.currentTarget;
+            void aggiungi(Array.from(input.files ?? [])).finally(() => { input.value = ""; });
           }}
         />
+        <input ref={sostituzione} type="file" accept="image/*,.heic,.heif" hidden aria-label="Scegli una foto sostitutiva"
+          onChange={e => {
+            const input = e.currentTarget;
+            const nuova = input.files?.[0];
+            const prima = paginaDaSostituire.current;
+            paginaDaSostituire.current = null;
+            if (prima && nuova) void cambiaPagina(prima, () => Promise.resolve(nuova)).finally(() => { input.value = ""; });
+          }} />
         {preparando && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
@@ -441,9 +526,9 @@ function CampoDDTEditor() {
               Pagine dello stesso DDT ({files.length})
             </p>
             <ul className="space-y-2">
-              {files.map((f, i) => (
+              {pagine.map(({ file: f, id }, i) => (
                 <li
-                  key={`${f.name}:${i}`}
+                  key={id}
                   className="flex min-w-0 items-center gap-2 rounded-xl border bg-background p-1.5 text-sm sm:gap-3"
                 >
                   {mimeDocumento(f) === "application/pdf" ? (
@@ -456,15 +541,35 @@ function CampoDDTEditor() {
                   <span className="min-w-0 flex-1 break-words">
                     {i + 1}. {f.name}
                   </span>
-                  <button
-                    type="button"
-                    className="grid size-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
-                    aria-label={`Rimuovi pagina ${i + 1}`}
-                    disabled={occupato}
-                    onClick={() => setFiles((p) => p.filter((_, k) => i !== k))}
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" disabled={occupato} aria-label={`Modifica pagina ${i + 1}`}
+                        className="grid size-11 shrink-0 place-items-center rounded-lg border text-muted-foreground hover:bg-muted disabled:opacity-50">
+                        <MoreVertical className="size-5" aria-hidden="true" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      {mimeDocumento(f) !== "application/pdf" && <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => void ruotaPagina(f)}>
+                        <RotateCw className="size-4" aria-hidden="true" />Ruota a destra
+                      </DropdownMenuItem>}
+                      <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => {
+                        paginaDaSostituire.current = f;
+                        sostituzione.current?.click();
+                      }}><ImagePlus className="size-4" aria-hidden="true" />Sostituisci</DropdownMenuItem>
+                      {files.length > 1 && <>
+                        <DropdownMenuItem className="min-h-11 gap-2" disabled={i === 0} onSelect={() => spostaPagina(i, -1)}>
+                          <ArrowUp className="size-4" aria-hidden="true" />Sposta su
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="min-h-11 gap-2" disabled={i === files.length - 1} onSelect={() => spostaPagina(i, 1)}>
+                          <ArrowDown className="size-4" aria-hidden="true" />Sposta giù
+                        </DropdownMenuItem>
+                      </>}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setPagine(p => p.filter(pagina => pagina.id !== id))}>
+                        <Trash2 className="size-4" aria-hidden="true" />Rimuovi
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </li>
               ))}
             </ul>
@@ -496,7 +601,7 @@ function CampoDDTEditor() {
             </p>
           )}
           {invioInCoda ? (
-            <button type="button" disabled={!pronto || !user?.id || !profile?.company_id} onClick={() => void salva()}
+            <button type="button" disabled={!pronto || !user?.id || !companyId} onClick={() => void salva()}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50 motion-safe:transition-transform motion-safe:active:scale-[0.98]">
               {salvando ? <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : <CloudUpload className="size-5 shrink-0" aria-hidden="true" />}
               {salvando ? "Salvo la bolla…" : online ? "Invia la bolla" : "Salva la bolla sul telefono"}
@@ -533,6 +638,7 @@ function CampoDDTEditor() {
             <div
               className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm"
               key={i.id}
+              ref={i.id === params.get("invio") ? dettaglioInCoda : undefined}
             >
               <p className="break-words font-semibold">{p?.fileNames?.[0] || "Bolla da inviare"}</p>
               <p className="break-words text-xs text-muted-foreground">{luogo}</p>
@@ -545,6 +651,10 @@ function CampoDDTEditor() {
                     : "In attesa di invio"}
               </p>
               {i.lastError && <p className="mt-1 text-xs">{i.lastError}</p>}
+              <button type="button" className="mr-3 min-h-11 font-semibold text-primary underline" aria-expanded={paginaInCoda === i.id}
+                onClick={() => setPaginaInCoda(p => p === i.id ? null : i.id)}>
+                {paginaInCoda === i.id ? "Nascondi pagine" : "Rivedi pagine"}
+              </button>
               {i.status === "failed" && (
                 <button
                   type="button"
@@ -555,6 +665,7 @@ function CampoDDTEditor() {
                   Riprova l’invio
                 </button>
               )}
+              {paginaInCoda === i.id && <FotoBollaInCoda voce={i} />}
             </div>
             );
           })}
@@ -624,16 +735,16 @@ function CampoDDTEditor() {
           </button>
         )}
       </section>
-      {compila && senzaAIPossibile && profile?.company_id && (
+      {compila && senzaAIPossibile && companyId && (
         <CompilaBollaTelefono
           files={files}
-          companyId={profile.company_id}
+          companyId={companyId}
           orderId={orderId}
           etichettaCantiere={etichettaCantiere}
           onChiudi={() => setCompila(false)}
           onFatto={() => {
             setCompila(false);
-            setFiles([]);
+            setPagine([]);
             void documenti.refetch();
           }}
         />

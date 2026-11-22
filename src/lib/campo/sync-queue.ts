@@ -38,8 +38,10 @@ export interface SyncItem<TPayload = unknown> {
 }
 
 const DB_NAME = "campo-sync-queue";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "items";
+const RICEVUTE = "ricevute";
+const MAX_RICEVUTE = 40;
 const MAX_RETRY = 5;
 const BACKOFF_BASE_MS = 1000;
 const SYNC_LEASE_MS = 5 * 60_000;
@@ -53,6 +55,30 @@ export function syncItemScope(item: SyncItem) {
   const legacyAudio = item.type === "foto" && p.bucket === "campo-audio" && typeof p.path === "string";
   const owner = row?.user_id ?? row?.operaio_id ?? row?.uploaded_by ?? (legacyAudio ? (p.path as string).split("/")[0] : undefined);
   return { owner, companyId: row?.company_id, legacyAudio };
+}
+
+export type TipoInvioCampo = Extract<SyncItemType, "prelievo" | "rapportino" | "documento_ddt">;
+export interface RicevutaCampo {
+  id: string;
+  tipo: TipoInvioCampo;
+  companyId: string;
+  userId: string;
+  orderId: string | null;
+  giorno?: string;
+  nome?: string;
+  data: number;
+}
+
+function ricevutaCampo(item: SyncItem, result?: CampoSyncResult): RicevutaCampo | undefined {
+  if (result?.errore || (item.type !== "prelievo" && item.type !== "rapportino" && item.type !== "documento_ddt")) return;
+  const { owner, companyId } = syncItemScope(item);
+  const dati = item.payload as { order_id?: unknown; giorno?: unknown; fileNames?: unknown; source?: unknown };
+  if (typeof owner !== "string" || typeof companyId !== "string" || dati.source === "desktop") return;
+  const nome = Array.isArray(dati.fileNames) ? dati.fileNames[0] : undefined;
+  return { id: item.operationId ?? item.id, tipo: item.type, companyId, userId: owner,
+    orderId: typeof dati.order_id === "string" ? dati.order_id : null,
+    giorno: typeof dati.giorno === "string" ? dati.giorno : undefined,
+    nome: typeof nome === "string" ? nome : undefined, data: Date.now() };
 }
 export function canProcessSyncItem(item: SyncItem, now = Date.now(), lockEsclusivo = false): boolean {
   if (item.status === "done" || item.retryCount >= MAX_RETRY) return false;
@@ -128,8 +154,13 @@ function openDB(): Promise<IDBDatabase> {
     }
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error("Riapri l’app per aggiornare la coda del telefono"));
     req.onsuccess = () => {
       const db = req.result;
+      if (dbPromise !== opening) {
+        db.close();
+        return;
+      }
       const riapri = () => { if (dbPromise === opening) dbPromise = null; };
       db.onclose = riapri;
       db.onversionchange = () => { db.close(); riapri(); };
@@ -142,6 +173,10 @@ function openDB(): Promise<IDBDatabase> {
         store.createIndex("status", "status", { unique: false });
         store.createIndex("type", "type", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RICEVUTE)) {
+        const ricevute = db.createObjectStore(RICEVUTE, { keyPath: "id" });
+        ricevute.createIndex("ambito", ["companyId", "userId"]);
       }
     };
   });
@@ -219,16 +254,38 @@ async function getQueueCount(): Promise<number> {
   return all.filter((i) => i.status !== "done").length;
 }
 
-async function updateItem(item: SyncItem): Promise<void> {
+async function getRicevute(companyId: string, userId: string): Promise<RicevutaCampo[]> {
   const db = await openDB();
-  item.updatedAt = Date.now();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(item);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(RICEVUTE).objectStore(RICEVUTE).index("ambito").getAll([companyId, userId]);
+    req.onsuccess = () => resolve((req.result as RicevutaCampo[]).sort((a, b) => b.data - a.data));
+    req.onerror = () => reject(req.error);
   });
-  emit("change");
+}
+
+async function riaccodaFallito<T>(voce: SyncItem<T>, payload = voce.payload): Promise<boolean> {
+  const db = await openDB();
+  const riaccodato = await new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const leggi = store.get(voce.id);
+    let aggiornato = false;
+    leggi.onsuccess = () => {
+      const attuale = leggi.result as SyncItem<T> | undefined;
+      if (!attuale || attuale.status !== "failed" || attuale.updatedAt !== voce.updatedAt
+        || attuale.type !== voce.type || attuale.operationId !== voce.operationId) return;
+      const prossima = { ...attuale, payload };
+      const vecchioAmbito = syncItemScope(attuale);
+      const nuovoAmbito = syncItemScope(prossima);
+      if (vecchioAmbito.owner !== nuovoAmbito.owner || vecchioAmbito.companyId !== nuovoAmbito.companyId) return;
+      store.put({ ...prossima, status: "pending", retryCount: 0, lastError: undefined, updatedAt: Date.now() });
+      aggiornato = true;
+    };
+    tx.oncomplete = () => resolve(aggiornato);
+    tx.onabort = () => reject(tx.error);
+  });
+  if (riaccodato) emit("change");
+  return riaccodato;
 }
 
 async function remove(id: string): Promise<void> {
@@ -254,7 +311,7 @@ async function clearCompleted(): Promise<number> {
 async function retryFailed(eligible: (item: SyncItem) => boolean = () => true): Promise<void> {
   for (const item of await getAll()) {
     if (item.status !== "failed" || !eligible(item)) continue;
-    await updateItem({ ...item, status: "pending", retryCount: 0, lastError: undefined });
+    await riaccodaFallito(item);
   }
 }
 
@@ -290,17 +347,30 @@ async function claim(item: SyncItem, operationId: string, lockEsclusivo: boolean
   });
 }
 
-async function terminaTentativo(item: SyncItem, inizio: number): Promise<boolean> {
+async function terminaTentativo(item: SyncItem, inizio: number, result?: CampoSyncResult): Promise<boolean> {
   const db = await openDB();
+  const ricevuta = item.status === "done" ? ricevutaCampo(item, result) : undefined;
   const aggiornata = await new Promise<boolean>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
+    const tx = db.transaction(ricevuta ? [STORE_NAME, RICEVUTE] : STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(item.id);
     let applicata = false;
     req.onsuccess = () => {
       const attuale = req.result as SyncItem | undefined;
       if (!attuale || attuale.status !== "syncing" || attuale.updatedAt !== inizio) return;
-      if (item.status === "done") store.delete(item.id);
+      if (item.status === "done") {
+        store.delete(item.id);
+        if (ricevuta) {
+          const ricevute = tx.objectStore(RICEVUTE);
+          ricevute.put(ricevuta);
+          const storico = ricevute.index("ambito").getAll([ricevuta.companyId, ricevuta.userId]);
+          storico.onsuccess = () => {
+            for (const vecchia of (storico.result as RicevutaCampo[]).sort((a, b) => b.data - a.data).slice(MAX_RICEVUTE)) {
+              ricevute.delete(vecchia.id);
+            }
+          };
+        }
+      }
       else store.put({ ...item, updatedAt: Date.now() });
       applicata = true;
     };
@@ -333,7 +403,7 @@ async function processQueueUnlocked(lockEsclusivo = false): Promise<void> {
         const result = await processor!(item);
         item.status = "done";
         item.lastError = undefined;
-        if (await terminaTentativo(item, inizio)) emit("processed", result || undefined);
+        if (await terminaTentativo(item, inizio, result || undefined)) emit("processed", result || undefined);
       } catch (error) {
         if (error instanceof SyncDeferredError) {
           item.status = "pending";
@@ -382,11 +452,13 @@ export const syncQueue = {
   enqueue,
   enqueueBatch,
   getAll,
+  getRicevute,
   getPending,
   getQueueCount,
   remove,
   clearCompleted,
   retryFailed,
+  riaccodaFallito,
   processQueue,
   registerProcessor,
   on,

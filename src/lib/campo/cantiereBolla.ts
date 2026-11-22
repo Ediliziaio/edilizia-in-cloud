@@ -32,7 +32,7 @@ export function cantiereBolla(opts: {
     return { orderId: null, valore: NESSUN_CANTIERE, pronto: true };
   const id =
     (scelta !== NESSUN_CANTIERE ? scelta : "") ||
-    (cantieri.length === 1 ? cantieri[0] : "");
+    (!richiesto && cantieri.length === 1 ? cantieri[0] : "");
   if (id) return { orderId: id, valore: id, pronto: true };
   return ufficio
     ? { orderId: null, valore: NESSUN_CANTIERE, pronto: true }

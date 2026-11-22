@@ -19,12 +19,12 @@ export interface RigaPrelievo {
 
 const INVENTARIO_PER_PAGINA = 60;
 
-export function useCampoMagazzinoConfig() {
+export function useCampoMagazzinoConfig(enabled = true) {
   const { user, profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? "";
   const query = useQuery({
     queryKey: ["campo-magazzino-config", companyId, user?.id],
-    enabled: !!companyId && !!user?.id,
+    enabled: enabled && !!companyId && !!user?.id,
     staleTime: 30_000,
     refetchInterval: 30_000,
     queryFn: async ({ signal }) => {
@@ -85,11 +85,11 @@ interface PrelievoRow extends PrelievoEsito {
   motivo_rifiuto: string | null;
 }
 
-export function useMieiPrelievi(companyId: string) {
+export function useMieiPrelievi(companyId: string, enabled = true) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["campo-miei-prelievi", companyId, user?.id],
-    enabled: !!user?.id,
+    enabled: enabled && !!user?.id && !!companyId,
     staleTime: 30_000,
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase

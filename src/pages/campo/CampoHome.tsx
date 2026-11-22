@@ -4,24 +4,24 @@
  * Condizionale per operaio vs subappaltatore.
  */
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   MapPin, ChevronRight, ChevronLeft,
   CheckCircle, Clock,
-  CalendarDays, ClipboardCheck,
+  CalendarDays, ClipboardCheck, CloudUpload,
   Sparkles, Navigation, Send, FilePenLine, Users
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
-import { commessaChiusa } from "@/lib/campo/cantieriAperti";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
+import { useCampoMagazzinoConfig } from "@/hooks/campo/useCampoPrelievo";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
@@ -84,8 +84,10 @@ interface CampoAiTask {
 }
 
 export default function CampoHome() {
-  const { profile, user } = useAuth();
+  const { profile, user, effectiveCompany } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
+  const magazzino = useCampoMagazzinoConfig(isOperaio);
+  const azienda = effectiveCompany?.id ?? profile?.company_id;
   // Sul telefono i blocchi nascosti col CSS (`hidden md:block`) erano comunque montati: ognuno faceva le sue
   // richieste a vuoto a ogni apertura della Home. Qui non si montano proprio.
   const isMobile = useIsMobile();
@@ -121,19 +123,17 @@ export default function CampoHome() {
       <div className="rounded-2xl border bg-background p-4 shadow-sm md:border-0 md:bg-transparent md:p-0 md:shadow-none">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-          <p className="text-muted-foreground text-xs md:text-sm capitalize">
-            {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
-          </p>
-          <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">
-            {saluto}, {profile?.first_name ?? ""}
-          </h1>
-        </div>
-        {/* «Operaio» e «Sub» li dice già la testata («Area Operaio»): resta solo quello che la testata non dice */}
-        {isOperaio && isCapocantiere && (
-          <div className="shrink-0 rounded-xl bg-primary/10 px-3 py-1.5 md:hidden">
-            <p className="text-xs text-primary font-semibold">Capocantiere</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <p className="capitalize text-xs text-muted-foreground md:text-sm">
+                {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
+              </p>
+              {isOperaio && isCapocantiere && <span className="rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold text-primary md:hidden">Capocantiere</span>}
+            </div>
+            <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">{saluto}, {profile?.first_name ?? ""}</h1>
           </div>
-        )}
+          <Link to="/campo/invii" aria-label="Invii e bozze" className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-semibold sm:px-3">
+            <CloudUpload className="size-4" aria-hidden="true" /><span className="max-[355px]:sr-only">Invii</span>
+          </Link>
         </div>
       </div>
 
@@ -149,7 +149,8 @@ export default function CampoHome() {
       {isOperaio && sera && <RapportiniDaCompilareOggi />}
 
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
-      {(isOperaio || isSubappaltatore) && <CampoOggi />}
+      {(isOperaio || isSubappaltatore) && <CampoOggi memoria={azienda && user?.id ? `${azienda}:${user.id}` : undefined}
+        puoPrelevare={isOperaio && !magazzino.isError && magazzino.data?.livello === "prelievi"} />}
 
       {isOperaio && <CampoCrewAgenda />}
 

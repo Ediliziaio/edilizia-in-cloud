@@ -5,7 +5,7 @@
  * - URL.revokeObjectURL per evitare memory leak dei blob URL temporanei
  * - timeout 10s per evitare loader "Uploading…" bloccato se il browser non risponde
  */
-export async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promise<Blob> {
+export async function compressImage(file: File, maxWidth = 1280, quality = 0.75, ruota = false): Promise<Blob> {
   const objectUrl = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -19,11 +19,14 @@ export async function compressImage(file: File, maxWidth = 1280, quality = 0.75)
     });
 
     const canvas = document.createElement("canvas");
-    canvas.width = Math.min(img.width || maxWidth, maxWidth);
-    canvas.height = Math.round((img.height || canvas.width) * (canvas.width / (img.width || canvas.width)));
+    const larghezza = Math.min(img.width || maxWidth, maxWidth);
+    const altezza = Math.max(1, Math.round((img.height || larghezza) * (larghezza / (img.width || larghezza))));
+    canvas.width = ruota ? altezza : larghezza;
+    canvas.height = ruota ? larghezza : altezza;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2d context unavailable");
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (ruota) ctx.setTransform(0, 1, -1, 0, altezza, 0);
+    ctx.drawImage(img, 0, 0, larghezza, altezza);
 
     const blob = await new Promise<Blob | null>((resolve, reject) => {
       // Anche toBlob è asincrono: il solo timeout di caricamento non protegge

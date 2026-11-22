@@ -21,17 +21,19 @@ export default function CampoMagazzino() {
   const [parametri] = useSearchParams();
   const cantiereIniziale = parametri.get("order_id")?.trim() || undefined;
   const apriBozza = parametri.get("riprendi") === "1";
+  const schedaIniziale = parametri.get("tab") === "prelievi" ? "prelievi" : undefined;
 
-  return <Magazzino key={`${config.companyId}:${config.userId}:${cantiereIniziale ?? ""}`}
-    config={config} cantiereIniziale={cantiereIniziale} apriBozza={apriBozza} />;
+  return <Magazzino key={`${config.companyId}:${config.userId}:${cantiereIniziale ?? ""}:${schedaIniziale ?? ""}:${apriBozza}`}
+    config={config} cantiereIniziale={cantiereIniziale} apriBozza={apriBozza} schedaIniziale={schedaIniziale} />;
 }
 
-function Magazzino({ config, cantiereIniziale, apriBozza }: {
+function Magazzino({ config, cantiereIniziale, apriBozza, schedaIniziale }: {
   config: ReturnType<typeof useCampoMagazzinoConfig>;
   cantiereIniziale?: string;
   apriBozza: boolean;
+  schedaIniziale?: Scheda;
 }) {
-  const [schedaScelta, setSchedaScelta] = useState<Scheda>();
+  const [schedaScelta, setSchedaScelta] = useState<Scheda | undefined>(schedaIniziale);
   const vedeInventario = !config.isError && !!config.data && config.data.livello !== "nessuno";
   const puoPrelevare = vedeInventario && config.data?.livello === "prelievi";
   const schedeVisibili = vedeInventario ? schede : schede.filter((s) => s.id === "furgone");
