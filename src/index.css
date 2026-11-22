@@ -1051,3 +1051,34 @@ html .react-flow .react-flow__edges svg {
 @keyframes anello-riempie {
   from { stroke-dashoffset: var(--anello-pieno); }
 }
+
+/* Sito pubblico, solo su telefono: una griglia di schede diventa una fila da scorrere
+   col dito (si vede spuntare la scheda dopo), invece di una colonna lunga dieci schermate.
+   Da 640px in su la classe non fa nulla e resta la griglia. `--scorri-pad` è il margine
+   laterale del contenitore (1.5rem = px-6; con px-4 usare anche `scorri-pad-4`). */
+@media (max-width: 639px) {
+  .scorri-mobile {
+    display: flex !important;
+    gap: 12px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-inline: calc(var(--scorri-pad, 1.5rem) * -1);
+    padding-inline: var(--scorri-pad, 1.5rem);
+    scroll-padding-inline: var(--scorri-pad, 1.5rem);
+    padding-block: 8px 14px;
+    align-items: stretch;
+  }
+  .scorri-mobile::-webkit-scrollbar { display: none; }
+  .scorri-mobile > * {
+    flex: 0 0 84%;
+    min-width: 0;
+    margin-top: 0 !important;
+    scroll-snap-align: start;
+  }
+  .scorri-mobile > style { display: none; }
+  .scorri-pad-4 { --scorri-pad: 1rem; }
+  .scorri-pad-5 { --scorri-pad: 1.25rem; }
+}

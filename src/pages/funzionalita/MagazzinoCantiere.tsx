@@ -3,6 +3,7 @@ import { ArrowRight, Check, HardHat, BriefcaseBusiness, PackageCheck, Receipt, A
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import WarehouseFlow from "@/components/landing/WarehouseFlow";
+import ModuloRete from "@/components/landing/ModuloRete";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { useSEO } from "@/hooks/useSEO";
 import { marketingMessages } from "@/lib/marketing/messages";
@@ -29,12 +30,25 @@ export default function MagazzinoCantiere() {
       <JsonLd id="jsonld-warehouse-page" data={{"@context":"https://schema.org","@type":"WebPage","@id":"https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere/#webpage",name:"Magazzino cantiere, bolle e costi delle commesse",url:"https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere/",description:"Materiali, ordini, consegne e fatture collegati alle commesse, con verifica dell’ufficio.",isPartOf:{"@id":"https://www.ediliziaincloud.com/#website"}}} />
       <JsonLd id="jsonld-warehouse-breadcrumb" data={{"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:"Home",item:"https://www.ediliziaincloud.com/"},{"@type":"ListItem",position:2,name:"Funzionalità",item:"https://www.ediliziaincloud.com/funzionalita/"},{"@type":"ListItem",position:3,name:"Magazzino cantiere",item:"https://www.ediliziaincloud.com/funzionalita/magazzino-cantiere/"}]}} />
       <main>
-        <section className="bg-[#f8f8f7] px-5 pb-14 pt-28 md:pb-20 md:pt-36">
+        <section className="bg-[#f8f8f7] px-5 pb-14 pt-24 sm:pt-28 md:pb-20 md:pt-36">
           <div className="mx-auto max-w-6xl">
             <nav aria-label="Percorso" className="mb-8 flex flex-wrap items-center gap-2 text-xs text-black/45"><Link to="/funzionalita/" className="rounded outline-none hover:text-eic-orange focus-visible:ring-2 focus-visible:ring-eic-orange">Funzionalità</Link><span aria-hidden="true">/</span><span>Magazzino cantiere</span></nav>
-            <div className="grid items-start gap-9 lg:grid-cols-[1.4fr_0.8fr]">
-              <div><p className="mb-4 text-xs font-bold uppercase tracking-[0.17em] text-eic-orange-deep">Materiali, acquisti e commesse</p><h1 className="max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-tight md:text-6xl">Sai cosa è arrivato.<br /><span className="text-eic-orange-deep">E quanto costa al cantiere.</span></h1><p className="mt-6 max-w-2xl text-base leading-relaxed text-black/60 md:text-lg">Dal prelievo in magazzino alla bolla fotografata dall’operaio, fino alla fattura del fornitore: documenti e materiali trovano la commessa corretta. L’ufficio verifica prezzi e collegamenti.</p><div className="mt-7 flex flex-wrap items-center gap-3"><a href="#flusso-materiali" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#111111] px-6 py-3 text-sm font-bold text-white outline-none hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-eic-orange">Segui un esempio<ArrowRight size={16} aria-hidden="true" /></a><Link to="/demo/" className="inline-flex min-h-12 items-center rounded-full border border-black/15 px-6 py-3 text-sm font-semibold outline-none hover:border-eic-orange focus-visible:ring-2 focus-visible:ring-eic-orange">Valuta il tuo caso in demo</Link></div><p className="mt-5 text-xs text-black/45">{marketingMessages.companies} · {marketingMessages.activation}</p></div>
-              <aside aria-label="I controlli da tenere distinti" className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"><PackageCheck className="mb-5 text-eic-orange-deep" size={28} aria-hidden="true" /><h2 className="text-lg font-bold">Una bolla non è una fattura.</h2><p className="mt-3 text-sm leading-relaxed text-black/55">Un ordine dice cosa hai richiesto. La consegna dice cosa è arrivato. La fattura documenta l’importo da verificare. Il pagamento dice quando sono usciti i soldi.</p><ul className="mt-5 space-y-3 text-sm">{["Quantità ordinate e ricevute separate", "Prezzo mancante riconoscibile", "Costo della fornitura contato una volta"].map(text=><li key={text} className="flex items-start gap-2"><Check size={16} className="mt-0.5 shrink-0 text-eic-orange-deep" aria-hidden="true" />{text}</li>)}</ul></aside>
+            <div className="grid items-start gap-9 lg:grid-cols-[1.15fr_1fr]">
+              <div><p className="mb-4 text-xs font-bold uppercase tracking-[0.17em] text-eic-orange-deep">Materiali, acquisti e commesse</p><h1 className="max-w-3xl text-3xl sm:text-4xl font-extrabold leading-[1.08] tracking-tight md:text-6xl">Sai cosa è arrivato.<br /><span className="text-eic-orange-deep">E quanto costa al cantiere.</span></h1><p className="mt-6 max-w-2xl text-base leading-relaxed text-black/60 md:text-lg">Dal prelievo in magazzino alla bolla fotografata dall’operaio, fino alla fattura del fornitore: documenti e materiali trovano la commessa corretta. L’ufficio verifica prezzi e collegamenti.</p><div className="mt-7 flex flex-wrap items-center gap-3"><a href="#flusso-materiali" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#111111] px-6 py-3 text-sm font-bold text-white outline-none hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-eic-orange">Segui un esempio<ArrowRight size={16} aria-hidden="true" /></a><Link to="/demo/" className="inline-flex min-h-12 items-center rounded-full border border-black/15 px-6 py-3 text-sm font-semibold outline-none hover:border-eic-orange focus-visible:ring-2 focus-visible:ring-eic-orange">Valuta il tuo caso in demo</Link></div><p className="mt-5 text-xs text-black/45">{marketingMessages.companies} · {marketingMessages.activation}</p></div>
+              <div>
+                <ModuloRete
+                  center={{ title: "Costo del cantiere", icon: PackageCheck }}
+                  items={[
+                    { title: "Ordine", text: "Il fornitore ha confermato l’ordine; verifica cosa è effettivamente arrivato.", icon: BriefcaseBusiness },
+                    { title: "Consegna", text: "Una parte può restare da ricevere: confronta quantità e documenti.", icon: HardHat },
+                    { title: "Prezzo", text: "La bolla non basta a conoscere l’importo definitivo.", icon: AlertCircle },
+                    { title: "Fattura", text: "L’ufficio controlla fattura, collegamenti e attribuzione alla commessa.", icon: Receipt },
+                  ]}
+                  badgeLeft="Una bolla non è una fattura"
+                  badgeRight="Quattro controlli"
+                />
+                <p className="mt-3 text-sm leading-relaxed text-black/55">Un ordine dice cosa hai richiesto. La consegna dice cosa è arrivato. La fattura documenta l’importo da verificare. Il pagamento dice quando sono usciti i soldi.</p>
+              </div>
             </div>
           </div>
         </section>

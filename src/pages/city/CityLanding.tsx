@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { Link, useParams, useLocation, Navigate } from "react-router-dom";
 import { prioritaCaricamento } from "@/lib/immagini/prioritaCaricamento";
 import { ArrowRight, CheckCircle2, Star, MapPin, Phone } from "lucide-react";
@@ -3070,7 +3071,7 @@ export default function CityLanding() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-24 md:pt-36 pb-20 bg-[#0d0d0d]">
+      <section className="relative overflow-hidden pt-24 md:pt-36 pb-12 sm:pb-20 bg-[#0d0d0d]">
         <div className="absolute inset-0">
           <img
             src={config.heroImage}
@@ -3086,6 +3087,7 @@ export default function CityLanding() {
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#0d0d0d]/60 via-[#0d0d0d]/40 to-[#0d0d0d]" />
         </div>
+        <HeroRete />
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
             <MapPin size={13} className="text-eic-orange" />
@@ -3093,7 +3095,7 @@ export default function CityLanding() {
               {config.name} · {config.region}
             </span>
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             {config.heroTitle}
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed">

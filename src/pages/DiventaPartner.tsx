@@ -1,3 +1,4 @@
+import { ProvaCommessa } from "@/components/landing/SilvioAlLavoro";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
@@ -824,7 +825,7 @@ export default function DiventaPartner() {
 
       {/* HOW IT WORKS / TIMELINE */}
       <section
-        className="py-20 md:py-28"
+        className="py-12 sm:py-20 md:py-28"
         style={{ backgroundColor: "#f8fafb" }}
       >
         <div className="max-w-6xl mx-auto px-5 sm:px-6">
@@ -840,8 +841,7 @@ export default function DiventaPartner() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 md:gap-8">
-            {[
+          <ProvaCommessa steps={[
               {
                 n: "Giorno 0",
                 title: "Application",
@@ -878,25 +878,7 @@ export default function DiventaPartner() {
                 desc: "31+ clienti attivi → Tier 4 (30%). 2.000+ €/mese ricorrenti, co-marketing, quote custom. Top 5-10% dei partner.",
                 icon: Trophy,
               },
-            ].map((s, i) => (
-              <div key={i} className="relative">
-                <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm border border-gray-100 h-full hover:shadow-lg transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-eic-orange/10 flex items-center justify-center">
-                      <s.icon className="w-6 h-6 text-eic-orange" />
-                    </div>
-                    <span className="text-[10px] font-mono font-bold tracking-widest text-eic-orange uppercase">
-                      {s.n}
-                    </span>
-                  </div>
-                  <h3 className="text-lg md:text-xl font-extrabold text-[#111111] mb-2">
-                    {s.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+            ].map((s) => ({ title: s.title, text: s.desc, icon: s.icon, etichetta: s.n }))} />
         </div>
       </section>
 
@@ -1103,7 +1085,7 @@ export default function DiventaPartner() {
       {/* CALCULATOR */}
       <section
         id="calcolatore"
-        className="py-20 md:py-28"
+        className="py-12 sm:py-20 md:py-28"
         style={{
           background: "linear-gradient(180deg, #FFF8F2 0%, #FFFFFF 100%)",
         }}
@@ -1240,7 +1222,7 @@ export default function DiventaPartner() {
       <section
         ref={formRef}
         id="candidatura"
-        className="py-20 md:py-28"
+        className="py-12 sm:py-20 md:py-28"
         style={{
           background: "linear-gradient(180deg, #FFFFFF 0%, #FFF8F2 100%)",
         }}

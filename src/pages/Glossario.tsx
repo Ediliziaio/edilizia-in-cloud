@@ -152,7 +152,7 @@ export default function Glossario() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="relative isolate overflow-hidden bg-[#111111] pt-36 pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-24 sm:pt-36 pb-12 sm:pb-20">
         <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
 <div className="min-w-0">
@@ -160,7 +160,7 @@ export default function Glossario() {
             <BookOpen size={14} className="text-eic-orange" />
             <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">Glossario</span>
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             Glossario Edilizia
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10">

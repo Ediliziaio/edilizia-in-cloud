@@ -34,7 +34,7 @@ export default function Confronto() {
     <HubSeoSchema pageName="Confronto gestionali per imprese edili" pagePath="/confronto/" pageDescription={description} breadcrumbs={[{ name: "Home", url: "/" }, { name: "Confronti", url: "/confronto/" }]} />
     <JsonLd id="jsonld-itemlist-confronto" data={{ "@context": "https://schema.org", "@type": "ItemList", name: "Confronti con Edilizia in Cloud", url: `${SITE_URL}/confronto/`, numberOfItems: softwareComparisons.length, itemListElement: softwareComparisons.map((guide, index) => ({ "@type": "ListItem", position: index + 1, name: `Edilizia in Cloud vs ${guide.name}`, url: `${SITE_URL}${guide.path}` })) }} />
     <JsonLd id="jsonld-faq-confronto" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.q, acceptedAnswer: { "@type": "Answer", text: faq.a } })) }} />
-    <header className="relative overflow-hidden bg-white text-[#111111] pt-28 pb-12 md:pt-36 md:pb-16 px-6">
+    <header className="relative overflow-hidden bg-white text-[#111111] pt-24 sm:pt-28 pb-12 md:pt-36 md:pb-16 px-6">
       <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
       <div className="relative max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
 <div className="min-w-0">

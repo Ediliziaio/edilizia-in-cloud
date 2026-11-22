@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import ConstructionVideoLesson from "@/components/marketing/ConstructionVideoLesson";
 import MarginVideoLesson from "@/components/marketing/MarginVideoLesson";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
@@ -206,6 +207,7 @@ export default function Formazione() {
 
       {/* ── HERO ── */}
       <section className="relative overflow-hidden pt-20 md:pt-32 pb-16 bg-[#111111]">
+        <HeroRete />
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
@@ -440,6 +442,7 @@ export default function Formazione() {
 
       {/* ── CTA FINALE ── */}
       <section className="py-16 bg-[#111111] relative overflow-hidden">
+        <HeroRete />
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">

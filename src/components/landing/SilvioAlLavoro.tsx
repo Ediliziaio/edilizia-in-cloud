@@ -33,6 +33,22 @@ function useGiro(n: number, ms: number) {
   return [i, scegli] as const;
 }
 
+// Su telefono le schede stanno in una fila da scorrere (.scorri-mobile): la fila segue
+// da sola il passo acceso. Si muove solo la fila, mai la pagina.
+function useSegueAttivo<T extends HTMLElement>(attivo: number) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || el.scrollWidth <= el.clientWidth + 4) return;
+    const figlio = el.querySelectorAll<HTMLElement>(":scope > li, :scope > div")[attivo];
+    if (!figlio) return;
+    const pad = parseFloat(getComputedStyle(el).paddingLeft) || 0;
+    const left = figlio.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft - pad;
+    el.scrollTo({ left, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [attivo]);
+  return ref;
+}
+
 function useContaSu(target: number, attivo: boolean) {
   const [v, setV] = useState(0);
   useEffect(() => {
@@ -265,7 +281,7 @@ export function AiProduceLavoro({ tools }: { tools: Strumento[] }) {
 }
 
 // ───────────────────────── Passi animati (come funziona) ─────────────────────────
-export type Passo = { title: string; text: string; icon: LucideIcon };
+export type Passo = { title: string; text: string; icon: LucideIcon; /** al posto di «Passo N» (es. «Giorno 0») */ etichetta?: string };
 const DUR_PASSO_ANIMATO = 2600;
 
 /**
@@ -277,6 +293,7 @@ export function PassiAnimati({ steps }: { steps: Passo[] }) {
   const [attivo, scegli] = useGiro(steps.length, DUR_PASSO_ANIMATO);
   const n = steps.length;
   const quota = n > 1 ? attivo / (n - 1) : 1;
+  const fila = useSegueAttivo<HTMLOListElement>(attivo);
   return (
     <div className="relative mt-12">
       <style>{CSS}</style>
@@ -285,7 +302,7 @@ export function PassiAnimati({ steps }: { steps: Passo[] }) {
         <div className="h-full rounded-full bg-eic-orange transition-all duration-700 ease-out" style={{ width: `${quota * 100}%` }} />
         <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-eic-orange shadow-[0_0_0_6px_rgba(249,116,21,0.18)] transition-all duration-700 ease-out" style={{ left: `${quota * 100}%` }} />
       </div>
-      <ol className="relative grid gap-5" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(200px, 1fr))` }}>
+      <ol ref={fila} onTouchStart={() => scegli(attivo)} className="scorri-mobile relative grid gap-5" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(200px, 1fr))` }}>
         {steps.map((s, i) => {
           const on = i === attivo;
           const fatto = i < attivo;
@@ -335,8 +352,9 @@ export function CartePrimaDopo({ areas }: { areas: AreaPrimaDopo[] }) {
   // a turno: giro pari gira la scheda giro/2, giro dispari la tiene girata
   const girataAuto = Math.floor(giro / 2);
   const [mano, setMano] = useState<Record<number, boolean>>({});
+  const fila = useSegueAttivo<HTMLDivElement>(girataAuto);
   return (
-    <div className="mt-12 grid gap-5 sm:grid-cols-2">
+    <div ref={fila} onTouchStart={() => scegli(giro)} className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-2">
       <style>{`
         .cpd { perspective: 1400px; }
         .cpd-inner { display: grid; transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1); transform-style: preserve-3d; }
@@ -429,5 +447,50 @@ export function FunzioniMestiere({ features }: { features: FunzioneMestiere[] })
         );
       })}
     </div>
+  );
+}
+
+// ───────────────────────── Prova su una commessa ─────────────────────────
+/**
+ * Una lista di passi di una prova (es. i 6 passaggi della demo sulla propria commessa)
+ * come griglia di schede: una alla volta si accende, quelle già fatte prendono la spunta.
+ * A differenza di PassiAnimati va a capo senza problemi (3×2, 2×3 o colonna unica).
+ */
+export function ProvaCommessa({ steps }: { steps: Passo[] }) {
+  const [attivo, scegli] = useGiro(steps.length, 3000);
+  const fila = useSegueAttivo<HTMLOListElement>(attivo);
+  return (
+    <ol ref={fila} onTouchStart={() => scegli(attivo)} className="scorri-mobile mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <style>{CSS}</style>
+      {steps.map((s, i) => {
+        const on = i === attivo;
+        const fatto = i < attivo;
+        const Icon = s.icon;
+        return (
+          <li key={s.title}>
+            <button
+              type="button"
+              onPointerEnter={(e) => e.pointerType === "mouse" && scegli(i)}
+              onClick={() => scegli(i)}
+              className={`flex h-full w-full flex-col rounded-2xl border p-5 text-left transition-all duration-500 ${on ? "-translate-y-1 border-eic-orange/50 bg-white shadow-xl shadow-orange-900/10" : "border-slate-200 bg-white/70"}`}
+            >
+              <span className="flex items-center gap-3">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-500 ${on ? "bg-eic-orange text-white" : fatto ? "bg-orange-50 text-eic-orange" : "bg-slate-100 text-slate-400"}`}>
+                  {fatto ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
+                </span>
+                <span className={`text-xs font-bold uppercase tracking-wide transition-colors duration-500 ${on ? "text-eic-orange" : "text-slate-400"}`}>{s.etichetta ?? `Passo ${i + 1}`}</span>
+              </span>
+              <span className="mt-3 block text-base font-bold text-[#111111]">{s.title}</span>
+              <span className="mt-2 block text-sm leading-relaxed text-slate-600">{s.text}</span>
+              <span className="mt-auto block pt-4">
+                <span className="block h-1 overflow-hidden rounded-full bg-slate-100">
+                  {on ? <span key={`p${attivo}`} className="sal-bar block h-full rounded-full bg-gradient-to-r from-eic-orange to-amber-300" style={{ ["--sal-dur" as string]: "3000ms" }} /> : <span className={`block h-full rounded-full bg-eic-orange/60 ${fatto ? "w-full" : "w-0"}`} />}
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

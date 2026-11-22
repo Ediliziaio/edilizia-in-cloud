@@ -145,7 +145,7 @@ export default function Integrazioni() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-white pt-36 pb-20">
+      <section className="relative overflow-hidden bg-white pt-24 sm:pt-36 pb-12 sm:pb-20">
         <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
         <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-orange-200/50 blur-3xl" />
         <div className="relative max-w-6xl mx-auto px-6 text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
@@ -154,7 +154,7 @@ export default function Integrazioni() {
             <Zap size={14} className="text-eic-orange" />
             <span className="text-eic-orange-dark text-xs font-bold uppercase tracking-widest">Integrazioni</span>
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] mb-6 leading-tight">
             Si collega ai programmi<br />
             <span className="text-eic-orange">che già usi</span>
           </h1>

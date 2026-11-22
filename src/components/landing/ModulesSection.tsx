@@ -162,7 +162,7 @@ export default function ModulesSection() {
   const hasMore = filtered.length > INITIAL_VISIBLE && !showAll;
 
   return (
-    <section id="moduli" className="py-24 md:py-32 bg-white">
+    <section id="moduli" className="py-14 sm:py-24 md:py-32 bg-white">
       <div ref={sectionRef} className="max-w-6xl mx-auto px-6">
         {/* Header */}
         <div

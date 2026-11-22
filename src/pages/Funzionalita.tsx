@@ -229,7 +229,7 @@ export default function Funzionalita() {
       <LandingNavbar />
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="relative pt-32 md:pt-36 pb-16 md:pb-20 px-6 bg-white border-b border-gray-100 overflow-hidden">
+      <section className="relative pt-24 sm:pt-32 md:pt-36 pb-16 md:pb-20 px-6 bg-white border-b border-gray-100 overflow-hidden">
         {/* Soft brand glow */}
         <div
           aria-hidden
@@ -245,7 +245,7 @@ export default function Funzionalita() {
               Piattaforma all-in-one
             </span>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] leading-[1.05] tracking-tight mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] leading-[1.05] tracking-tight mb-6">
               Una piattaforma.{" "}
               <span className="text-eic-orange">{TOTAL_COUNT} funzionalità.</span>
               <br />

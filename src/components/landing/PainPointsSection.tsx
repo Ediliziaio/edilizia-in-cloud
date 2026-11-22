@@ -15,7 +15,7 @@ export default function PainPointsSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section id="vantaggi" className="py-24 md:py-32 bg-white">
+    <section id="vantaggi" className="py-14 sm:py-24 md:py-32 bg-white">
       <style>{`
         .pain-flip { perspective: 1200px; }
         .pain-flip-inner { transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1); transform-style: preserve-3d; }
@@ -42,7 +42,7 @@ export default function PainPointsSection() {
         </p>
 
         <div className="grid md:grid-cols-[1fr_360px] lg:grid-cols-[1fr_400px] gap-10 items-stretch">
-          <div className="space-y-4">
+          <div className="scorri-mobile space-y-4">
             {painPoints.map((p, i) => (
               <button
                 key={i}

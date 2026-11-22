@@ -1,3 +1,4 @@
+import { useAlzaChat } from "@/hooks/useAlzaChat";
 import { isVideoUploadDate } from "@/lib/seo/videoMetadata";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -540,6 +541,9 @@ function DashboardMock() {
 /* MAIN PAGE TEMPLATE                                                  */
 /* ================================================================== */
 export default function RenderPageTemplate({ config }: { config: RenderPageConfig }) {
+  // La barra fissa in basso (solo telefono) alza WhatsApp e chat sopra di sé.
+  const stickyRef = useRef<HTMLDivElement>(null);
+  useAlzaChat(stickyRef);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const openLeadModal = () => setLeadModalOpen(true);
   useSEO({
@@ -913,7 +917,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
 
         {/* VIDEO DEMO — solo quando il file esiste davvero (config.videoSrc + videoPoster) */}
         {video && (
-        <section id="video-demo" aria-labelledby="video-title" className="bg-white px-6 py-20">
+        <section id="video-demo" aria-labelledby="video-title" className="bg-white px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
@@ -943,7 +947,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section
           id="famiglia-render"
           aria-labelledby="famiglia-title"
-          className="bg-gradient-to-b from-white to-[#fff7ed] px-6 py-20"
+          className="bg-gradient-to-b from-white to-[#fff7ed] px-6 py-12 sm:py-20"
         >
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
@@ -1014,7 +1018,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* PAIN */}
-        <section className="bg-[#f8fafc] px-6 py-20">
+        <section className="bg-[#f8fafc] px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -1044,7 +1048,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* BEFORE/AFTER AREAS */}
-        <section className="bg-white px-6 py-20">
+        <section className="bg-white px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -1081,7 +1085,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* MECHANISM */}
-        <section id="meccanismo" aria-labelledby="meccanismo-title" className="bg-white px-6 py-20">
+        <section id="meccanismo" aria-labelledby="meccanismo-title" className="bg-white px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -1133,7 +1137,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* COMMERCIAL LEVERS */}
-        <section className="bg-[#0f172a] px-6 py-20 text-white">
+        <section className="bg-[#0f172a] px-6 py-12 sm:py-20 text-white">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
               <div>
@@ -1162,7 +1166,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* RISULTATI CON EDILIZIA IN CLOUD */}
-        <section className="bg-gradient-to-br from-[#fff7ed] via-white to-[#fff1e0] px-6 py-20">
+        <section className="bg-gradient-to-br from-[#fff7ed] via-white to-[#fff1e0] px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
@@ -1225,7 +1229,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* ROI CALCULATOR */}
-        <section className="bg-white px-6 py-20">
+        <section className="bg-white px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
@@ -1256,7 +1260,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* SALES IMPACT */}
-        <section className="bg-[#f8fafc] px-6 py-20">
+        <section className="bg-[#f8fafc] px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
@@ -1285,7 +1289,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* WHAT YOU DELIVER */}
-        <section className="bg-white px-6 py-20">
+        <section className="bg-white px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -1316,7 +1320,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* SCENARIOS */}
-        <section className="bg-[#f8fafc] px-6 py-20">
+        <section className="bg-[#f8fafc] px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
@@ -1343,7 +1347,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         </section>
 
         {/* FAQ */}
-        <section id="faq" aria-labelledby="faq-title" className="bg-white px-6 py-20">
+        <section id="faq" aria-labelledby="faq-title" className="bg-white px-6 py-12 sm:py-20">
           <div className="mx-auto max-w-5xl">
             <div className="text-center">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
@@ -1429,7 +1433,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section
           id="render-request"
           aria-labelledby="final-cta-title"
-          className="bg-[#0b1220] px-6 py-20 text-center text-white"
+          className="bg-[#0b1220] px-6 py-12 sm:py-20 text-center text-white"
         >
           <div className="mx-auto max-w-3xl">
             <Wand2 className="mx-auto h-10 w-10 text-orange-300" />
@@ -1456,7 +1460,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
       </main>
 
       {/* STICKY MOBILE CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+      <div ref={stickyRef} className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
         <button
           type="button"
           onClick={openLeadModal}

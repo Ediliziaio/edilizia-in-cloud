@@ -72,7 +72,7 @@ export default function FinalCtaSection() {
 
         {/* Headline */}
         <h2
-          className={`text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] mb-5 leading-tight transition-all duration-700 ${
+          className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] mb-5 leading-tight transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >

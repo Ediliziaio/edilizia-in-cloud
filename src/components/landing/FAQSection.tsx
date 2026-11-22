@@ -23,7 +23,7 @@ export default function FAQSection() {
   };
 
   return (
-    <section className="py-24 md:py-32" style={{ backgroundColor: "#f8fafb" }}>
+    <section className="py-14 sm:py-24 md:py-32" style={{ backgroundColor: "#f8fafb" }}>
       <div ref={ref} className="max-w-3xl mx-auto px-6">
         {/* Header */}
         <div

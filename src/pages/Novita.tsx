@@ -145,7 +145,7 @@ export default function Novita() {
       <LandingNavbar />
 
       {/* HERO */}
-      <section className="relative isolate overflow-hidden bg-[#111111] pt-28 pb-14 px-4 md:pt-36 md:pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-24 sm:pt-28 pb-14 px-4 md:pt-36 md:pb-20">
         <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto text-center grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
 <div className="min-w-0">

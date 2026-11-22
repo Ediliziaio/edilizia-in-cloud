@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -582,6 +583,7 @@ export default function CalcolatoreMargineCommessa() {
           <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-eic-orange/30 blur-3xl" />
           <div className="absolute -bottom-24 left-1/2 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
         </div>
+        <HeroRete />
 
         <div className="relative mx-auto max-w-4xl px-4 text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-eic-orange/40 bg-eic-orange/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange backdrop-blur">

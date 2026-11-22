@@ -260,13 +260,13 @@ export default function Blog() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="relative isolate overflow-hidden bg-[#111111] pt-36 pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-24 sm:pt-36 pb-12 sm:pb-20">
         <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto px-6 text-center">
           <p className="text-eic-orange font-semibold text-sm uppercase tracking-widest mb-4">
             Edilizia in Cloud Blog
           </p>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             Insights per{" "}
             <span className="text-eic-orange">Imprenditori Edili</span>
           </h1>

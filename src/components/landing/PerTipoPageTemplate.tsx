@@ -409,7 +409,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">{config.problemsTitle}</h2>
             <p className="text-gray-500 text-base md:text-lg">{config.problemsSubtitle}</p>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="scorri-mobile grid md:grid-cols-2 gap-4">
             {config.problems.map((p, i) => (
               <div
                 key={i}
@@ -475,7 +475,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           </div>
 
           {/* 3 loss cards */}
-          <div className="grid md:grid-cols-3 gap-4 mb-8">
+          <div className="scorri-mobile grid md:grid-cols-3 gap-4 mb-8">
             {[
               { value: config.roi.lossValue, label: config.roi.lossLabel, icon: "📉", color: "border-red-500/30 bg-red-500/10" },
               { value: config.roi.wasteValue, label: config.roi.wasteLabel, icon: "⏳", color: "border-orange-500/30 bg-orange-500/10" },
@@ -604,7 +604,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">{config.modulesTitle}</h2>
             <p className="text-gray-500 text-lg">{config.modulesSubtitle}</p>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="scorri-mobile grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {config.modules.map((m, i) => (
               <div
                 key={i}
@@ -653,7 +653,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">{config.aiShowcase.title}</h2>
               <p className="text-gray-500 text-lg max-w-2xl mx-auto">{config.aiShowcase.subtitle}</p>
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="scorri-mobile grid sm:grid-cols-2 gap-4">
               {config.aiShowcase.actions.map((a, i) => (
                 <div
                   key={a.title}
@@ -690,7 +690,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">{config.platformExtra.title}</h2>
               <p className="text-gray-500 text-lg max-w-2xl mx-auto">{config.platformExtra.subtitle}</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="scorri-mobile grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {config.platformExtra.items.map((item, i) => (
                 <div
                   key={item.name}
@@ -787,7 +787,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               Se non funziona per te, esci. Punto.
             </p>
           </div>
-          <div ref={garantieAnim.ref as React.RefObject<HTMLDivElement>} className="grid md:grid-cols-2 gap-4">
+          <div ref={garantieAnim.ref as React.RefObject<HTMLDivElement>} className="scorri-mobile grid md:grid-cols-2 gap-4">
             {/* GARANZIA 1 */}
             <div className={`rounded-2xl border-2 border-green-200 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "0ms" }}>
               <div className="flex items-center gap-3 mb-5">
@@ -897,7 +897,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <h2 className="text-xl md:text-2xl font-extrabold text-[#111111] mb-8">
                 Guide e articoli consigliati per te
               </h2>
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="scorri-mobile grid md:grid-cols-3 gap-6">
                 {relPosts.map((post) => (
                   <Link
                     key={post.id}

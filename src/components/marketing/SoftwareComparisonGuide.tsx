@@ -2,12 +2,24 @@ import MarketingVisual from "@/components/marketing/MarketingVisual";
 import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
 import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Calculator, Camera, PenLine, Receipt, Smartphone, TrendingUp } from "lucide-react";
+import HeroRete from "@/components/landing/HeroRete";
+import { ProvaCommessa } from "@/components/landing/SilvioAlLavoro";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
 import { demoChecklist, type ComparisonGuide } from "@/lib/marketing/softwareComparisons";
+
+// Titolo e icona dei sei passi della prova (il testo resta quello di demoChecklist).
+const PROVA = [
+  { title: "Il preventivo", icon: Calculator },
+  { title: "Firma e commessa", icon: PenLine },
+  { title: "Ore dal telefono", icon: Smartphone },
+  { title: "La bolla in foto", icon: Camera },
+  { title: "Il SAL", icon: Receipt },
+  { title: "Il margine", icon: TrendingUp },
+];
 
 export default function SoftwareComparisonGuide({ guide }: { guide: ComparisonGuide }) {
   const path = `/confronto/${guide.slug}/`;
@@ -21,7 +33,8 @@ export default function SoftwareComparisonGuide({ guide }: { guide: ComparisonGu
       { "@type": "ListItem", position: 3, name: guide.title, item: `${SITE_URL}${path}` },
     ] }} />
     <JsonLd id="jsonld-comparison-faq" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: guide.faqs.map((faq) => ({ "@type": "Question", name: faq.q, acceptedAnswer: { "@type": "Answer", text: faq.a } })) }} />
-    <header className="bg-[#111111] text-white px-6 pt-28 pb-12 md:pt-36 md:pb-16">
+    <header className="relative isolate overflow-hidden bg-[#111111] text-white px-6 pt-24 sm:pt-28 pb-12 md:pt-36 md:pb-16">
+      <HeroRete className="-z-10" />
       <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
 <div className="min-w-0">
         <Link to="/confronto/" className="text-sm text-white/70 hover:text-white">← Tutti i confronti</Link>
@@ -67,7 +80,7 @@ export default function SoftwareComparisonGuide({ guide }: { guide: ComparisonGu
       </section>
       <section id="prova-pratica" className="scroll-mt-24 rounded-2xl bg-[#f7f8fa] p-6 md:p-8">
         <h2 className="text-2xl font-bold">La prova che conta: una tua commessa</h2>
-        <ol className="mt-5 space-y-4 list-decimal pl-5 text-gray-700 leading-relaxed">{demoChecklist.map((step) => <li key={step}>{step}</li>)}</ol>
+        <ProvaCommessa steps={demoChecklist.map((text, i) => ({ text, ...PROVA[i % PROVA.length] }))} />
         <Link to="/demo/" className="inline-flex items-center gap-2 rounded-full mt-7 px-5 py-3 bg-[#111111] text-white font-semibold">Scopri Edilizia in Cloud in demo <ArrowRight size={16} /></Link>
       </section>
       <section><h2 className="text-2xl font-bold mb-5">Domande frequenti</h2><div className="divide-y divide-gray-200">{guide.faqs.map((faq) => <details key={faq.q} className="py-4"><summary className="cursor-pointer font-semibold">{faq.q}</summary><p className="mt-3 leading-relaxed text-gray-700">{faq.a}</p></details>)}</div></section>

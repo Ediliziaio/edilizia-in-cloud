@@ -157,7 +157,7 @@ export default function BlogCategory() {
       <LandingNavbar />
 
       {/* Hero */}
-      <section className="relative isolate overflow-hidden bg-[#111111] pt-36 pb-20">
+      <section className="relative isolate overflow-hidden bg-[#111111] pt-24 sm:pt-36 pb-12 sm:pb-20">
         <HeroRete className="-z-10" />
         <div className="max-w-6xl mx-auto px-6">
           {/* Back link */}
@@ -175,7 +175,7 @@ export default function BlogCategory() {
             <span className="text-white/40 text-sm">{posts.length} articoli</span>
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             {meta.h1}
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-2xl leading-relaxed">

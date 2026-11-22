@@ -1,3 +1,4 @@
+import { PassiAnimati } from "@/components/landing/SilvioAlLavoro";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import React from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
@@ -355,20 +356,13 @@ export default function CasiStudio() {
               </div>
             ))}
           </div>
-          <div className="mt-6 grid md:grid-cols-3 gap-4 text-sm text-gray-600">
-            <div className="flex gap-3 bg-white border border-gray-100 rounded-2xl p-4">
-              <ClipboardList className="w-5 h-5 text-eic-orange shrink-0" />
-              <p><strong className="text-[#111111]">Prima:</strong> dati sparsi tra Excel, WhatsApp, PDF, fogli cantiere e memoria del titolare.</p>
-            </div>
-            <div className="flex gap-3 bg-white border border-gray-100 rounded-2xl p-4">
-              <Clock className="w-5 h-5 text-eic-orange shrink-0" />
-              <p><strong className="text-[#111111]">Durante:</strong> avvio guidato con import dati, template, checklist e abitudini operative semplici.</p>
-            </div>
-            <div className="flex gap-3 bg-white border border-gray-100 rounded-2xl p-4">
-              <Building2 className="w-5 h-5 text-eic-orange shrink-0" />
-              <p><strong className="text-[#111111]">Dopo:</strong> cantieri, preventivi, SAL, documenti, incassi e margini collegati in un unico flusso.</p>
-            </div>
-          </div>
+          <PassiAnimati
+            steps={[
+              { title: "Prima", text: "Dati sparsi tra Excel, WhatsApp, PDF, fogli cantiere e memoria del titolare.", icon: ClipboardList },
+              { title: "Durante", text: "Avvio guidato con import dati, template, checklist e abitudini operative semplici.", icon: Clock },
+              { title: "Dopo", text: "Cantieri, preventivi, SAL, documenti, incassi e margini collegati in un unico flusso.", icon: Building2 },
+            ]}
+          />
         </div>
       </section>
 

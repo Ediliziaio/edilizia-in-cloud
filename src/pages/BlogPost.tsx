@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { getBlogProductPaths } from "@/lib/seo/blogProductPaths";
 import { BLOG_AUTHOR } from "@/data/blogAuthorProfile";
 import { buildBlogHowTo } from "@/lib/seo/blogHowTo";
@@ -411,7 +412,8 @@ export default function BlogPost() {
 
       {/* Le copertine includono già un titolo stampato: nell'intestazione
           si usa solo il titolo HTML. Le immagini restano nelle schede e OG. */}
-      <header className="bg-[#0a0a0a] pt-28 pb-10 sm:pt-32 sm:pb-14">
+      <header className="relative isolate overflow-hidden bg-[#0a0a0a] pt-28 pb-10 sm:pt-32 sm:pb-14">
+        <HeroRete className="-z-10" />
         <div className="max-w-5xl mx-auto px-6">
           <Link
             to="/blog/"

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useSEO } from "@/hooks/useSEO";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import HeroRete from "@/components/landing/HeroRete";
 import { CalendarioInPagina } from "@/components/marketing/CalendarioInPagina";
 
 /**
@@ -28,14 +29,17 @@ export default function DemoGrazie() {
       <LandingNavbar />
 
       <main>
-        <section className="px-5 pb-10 pt-28 sm:px-6 sm:pt-32" style={{ background: "#111111" }}>
+        <section className="relative isolate overflow-hidden px-5 pb-10 pt-28 sm:px-6 sm:pt-32" style={{ background: "#111111" }}>
+          <HeroRete className="-z-10" />
+          <style>{`@keyframes dg-pop { 0% { transform: scale(0.6); opacity: 0 } 60% { transform: scale(1.12) } 100% { transform: scale(1); opacity: 1 } } @keyframes dg-draw { to { stroke-dashoffset: 0 } } @keyframes dg-ring { 0% { transform: scale(1); opacity: 0.6 } 100% { transform: scale(2); opacity: 0 } } .dg-pop { animation: dg-pop 600ms cubic-bezier(0.22,1,0.36,1) backwards } .dg-draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: dg-draw 500ms ease-out 450ms forwards } .dg-ring { animation: dg-ring 1.8s ease-out 700ms infinite } @media (prefers-reduced-motion: reduce) { .dg-pop, .dg-ring { animation: none } .dg-ring { opacity: 0 } .dg-draw { animation: none; stroke-dashoffset: 0 } }`}</style>
           <div className="mx-auto max-w-3xl text-center">
             <div
-              className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full"
+              className="dg-pop relative mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full"
               style={{ background: "rgba(249,116,21,0.16)" }}
             >
+              <span aria-hidden className="dg-ring absolute inset-0 rounded-full border-2 border-eic-orange/60" />
               <svg viewBox="0 0 24 24" fill="none" stroke="#F97415" strokeWidth="2.5" className="h-7 w-7">
-                <polyline points="20 6 9 17 4 12" />
+                <polyline className="dg-draw" points="20 6 9 17 4 12" />
               </svg>
             </div>
             <h1 className="text-[28px] font-extrabold leading-[1.15] text-white sm:text-4xl">

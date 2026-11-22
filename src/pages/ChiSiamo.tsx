@@ -1,3 +1,4 @@
+import MarketingVisual from "@/components/marketing/MarketingVisual";
 import HeroRete from "@/components/landing/HeroRete";
 import { Link } from "react-router-dom";
 import { ArrowRight, HardHat, Users, ChartNoAxesCombined } from "lucide-react";
@@ -35,7 +36,7 @@ export default function ChiSiamo() {
     <JsonLd id="jsonld-organization-chisiamo" data={{ "@context": "https://schema.org", "@type": "Organization", "@id": `${SITE_URL}/#organization`, name: "Edilizia in Cloud", legalName: "Domus Group S.r.l.", url: SITE_URL, vatID: "IT13132010961", address: { "@type": "PostalAddress", streetAddress: "Via Aurelio Saffi 29", postalCode: "20123", addressLocality: "Milano", addressCountry: "IT" }, email: "info@ediliziaincloud.com" }} />
     <JsonLd id="jsonld-faq-chisiamo" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faqs.map(f => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }} />
     <main>
-      <header className="relative isolate overflow-hidden bg-[#111111] px-5 pt-28 pb-14 sm:px-6 md:pt-36 md:pb-20 text-white">
+      <header className="relative isolate overflow-hidden bg-[#111111] px-5 pt-24 sm:pt-28 pb-14 sm:px-6 md:pt-36 md:pb-20 text-white">
         <HeroRete className="-z-10" />
         <div className="mx-auto max-w-7xl grid lg:grid-cols-[1fr_1.05fr] gap-10 lg:gap-14 items-center">
           <div>
@@ -45,12 +46,7 @@ export default function ChiSiamo() {
             <p className="mt-5 text-sm text-white/65">{marketingMessages.companies} · {marketingMessages.activation}</p>
             <div className="mt-8 flex flex-wrap gap-3"><Link to="/demo/" className="inline-flex items-center justify-center gap-2 min-h-12 rounded-full bg-white text-[#111111] px-6 py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange-400 active:scale-[0.98]">Incontraci in demo <ArrowRight size={18} /></Link><a href="#come-lavoriamo" className="inline-flex items-center min-h-12 rounded-full border border-white/30 px-6 py-3 font-semibold hover:bg-white/10">Come lavoriamo</a></div>
           </div>
-          <figure className="min-w-0">
-            <div className="overflow-hidden rounded-[1.75rem] bg-[#e8e2d9] shadow-2xl ring-1 ring-white/10">
-              <img src="/images/about/ufficio-cantiere-960.webp" srcSet="/images/about/ufficio-cantiere-640.webp 640w, /images/about/ufficio-cantiere-960.webp 960w, /images/about/ufficio-cantiere-1536.webp 1536w" sizes="(min-width: 1024px) 50vw, 100vw" width={1536} height={1024} fetchPriority="high" alt="Illustrazione di un ufficio collegato a un cantiere da un percorso arancione" className="w-full h-auto" />
-            </div>
-            <figcaption className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60"><span>Ufficio e cantiere, nello stesso progetto.</span><span>Edilizia in Cloud</span></figcaption>
-          </figure>
+          <MarketingVisual image={{ base: "/images/about/ufficio-cantiere", alt: "Illustrazione di un ufficio collegato a un cantiere da un percorso arancione" }} priority tone="dark" caption="Ufficio e cantiere, nello stesso progetto." />
         </div>
       </header>
       <section id="come-lavoriamo" className="scroll-mt-24 px-5 py-14 md:py-24 sm:px-6">

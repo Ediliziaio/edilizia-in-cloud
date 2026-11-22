@@ -331,7 +331,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="hero-title"
-        className="relative overflow-hidden bg-white pt-32 pb-24 sm:pt-36"
+        className="relative overflow-hidden bg-white pt-32 pb-14 sm:pb-24 sm:pt-36"
       >
         {/* Background effects */}
         <div className="pointer-events-none absolute inset-0">
@@ -471,7 +471,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="speed-title"
-        className="bg-white py-20 px-4"
+        className="bg-white py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -509,7 +509,7 @@ export default function FunzionalitaPageTemplate({
       <section
         id="suite"
         aria-labelledby="family-title"
-        className="bg-slate-50 py-20 px-4"
+        className="bg-slate-50 py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -526,7 +526,7 @@ export default function FunzionalitaPageTemplate({
               {config.familySubheadline}
             </p>
           </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {config.familyItems.map((f) => {
               const inner = (
                 <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-eic-orange/40 hover:shadow-md">
@@ -569,7 +569,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="pain-title"
-        className="bg-white py-20 px-4"
+        className="bg-white py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -586,7 +586,7 @@ export default function FunzionalitaPageTemplate({
               {config.painSubheadline}
             </p>
           </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2">
+          <div className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-2">
             {config.painPoints.map((p) => (
               <div
                 key={p.title}
@@ -608,7 +608,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="ba-title"
-        className="bg-gradient-to-br from-slate-900 via-slate-950 to-[#0b0b0b] py-20 px-4 text-white"
+        className="bg-gradient-to-br from-slate-900 via-slate-950 to-[#0b0b0b] py-12 sm:py-20 px-4 text-white"
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -635,7 +635,7 @@ export default function FunzionalitaPageTemplate({
       <section
         id="meccanismo"
         aria-labelledby="mech-title"
-        className="bg-white py-20 px-4"
+        className="bg-white py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -670,7 +670,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="commercial-title"
-        className="bg-[#0b0b0b] py-20 px-4 text-white"
+        className="bg-[#0b0b0b] py-12 sm:py-20 px-4 text-white"
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -687,7 +687,7 @@ export default function FunzionalitaPageTemplate({
               {config.commercialBody}
             </p>
           </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {config.commercialLevers.map((l) => (
               <div
                 key={l.title}
@@ -709,7 +709,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="results-title"
-        className="bg-slate-50 py-20 px-4"
+        className="bg-slate-50 py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -775,7 +775,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="roi-title"
-        className="bg-white py-20 px-4"
+        className="bg-white py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -804,7 +804,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="impact-title"
-        className="bg-slate-50 py-20 px-4"
+        className="bg-slate-50 py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -821,7 +821,7 @@ export default function FunzionalitaPageTemplate({
               {config.salesBody}
             </p>
           </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {config.salesImpact.map((i) => (
               <div
                 key={i.title}
@@ -841,7 +841,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="features-title"
-        className="bg-white py-20 px-4"
+        className="bg-white py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -876,7 +876,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="scenarios-title"
-        className="bg-slate-50 py-20 px-4"
+        className="bg-slate-50 py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -890,7 +890,7 @@ export default function FunzionalitaPageTemplate({
               {config.scenarioH2}
             </h2>
           </div>
-          <div className="mt-12 grid gap-5 sm:grid-cols-3">
+          <div className="scorri-mobile mt-12 grid gap-5 sm:grid-cols-3">
             {config.scenarios.map((s, i) => (
               <div
                 key={s.title}
@@ -938,7 +938,7 @@ export default function FunzionalitaPageTemplate({
       <section
         id="faq"
         aria-labelledby="faq-title"
-        className="bg-slate-50 py-20 px-4"
+        className="bg-slate-50 py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-3xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -973,7 +973,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section
         aria-labelledby="internal-title"
-        className="bg-white py-20 px-4"
+        className="bg-white py-12 sm:py-20 px-4"
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
@@ -990,7 +990,7 @@ export default function FunzionalitaPageTemplate({
               {config.internalLinksBody}
             </p>
           </div>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="scorri-mobile mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {config.internalLinks.map((l) => (
               <Link
                 key={l.to}
@@ -1017,7 +1017,7 @@ export default function FunzionalitaPageTemplate({
         <section className="border-t border-slate-100 bg-white py-14 px-4">
           <div className="mx-auto max-w-5xl">
             <h2 className="text-base font-bold text-[#111111]">Leggi anche</h2>
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="scorri-mobile mt-6 grid gap-4 sm:grid-cols-3">
               {relatedPosts.map((p) => (
                 <Link
                   key={p.slug}
@@ -1049,7 +1049,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       {/* FINAL CTA                                                     */}
       {/* ════════════════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden bg-[#0b0b0b] py-24 px-4 text-center text-white">
+      <section className="relative overflow-hidden bg-[#0b0b0b] py-14 sm:py-24 px-4 text-center text-white">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-eic-orange/25 blur-3xl" />
           <div className="absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-orange-400/20 blur-3xl" />

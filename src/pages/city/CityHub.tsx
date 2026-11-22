@@ -288,7 +288,7 @@ export default function CityHub() {
             <MapPin className="h-4 w-4" />
             Guida 2026 — copertura nazionale, {CITIES.length} città
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-[#111111] mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#111111] mb-6 leading-tight">
             Software Gestionale Edilizia Cloud<br />
             <span className="text-eic-orange">per imprese edili italiane</span>
           </h1>

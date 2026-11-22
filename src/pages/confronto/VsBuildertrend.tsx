@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useAlzaChat } from "@/hooks/useAlzaChat";
 import PrimaDopo from "@/components/landing/PrimaDopo";
 import { FileText as PdFileText, MessageCircle as PdMessageCircle, Receipt as PdReceipt, HardHat as PdHardHat, Ruler as PdRuler, Clock as PdClock } from "lucide-react";
 import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
@@ -181,6 +183,9 @@ const SEO_DESCRIPTION =
 const H1 = "Edilizia in Cloud vs Buildertrend: cosa serve a un'impresa edile italiana";
 
 export default function VsBuildertrend() {
+  // Il pulsante fisso in basso alza WhatsApp e chat sopra di sé.
+  const stickyRef = useRef<HTMLButtonElement>(null);
+  useAlzaChat(stickyRef);
   useSEO({
     title: SEO_TITLE,
     description: SEO_DESCRIPTION,
@@ -252,7 +257,7 @@ export default function VsBuildertrend() {
       <LandingNavbar />
 
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden bg-white pt-36 pb-24 px-4 text-center">
+      <section className="relative overflow-hidden bg-white pt-24 sm:pt-36 pb-14 sm:pb-24 px-4 text-center">
         <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
         <div className="relative max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center lg:text-left">
           <div className="min-w-0">
@@ -308,7 +313,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── COMPARISON TABLE ── */}
-      <section className="bg-white py-20 px-4">
+      <section className="bg-white py-12 sm:py-20 px-4">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
             Confronto funzionalità
@@ -389,7 +394,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── COSA SERVE IN ITALIA ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4 mt-16">
+      <section className="bg-[#f8f9fa] py-12 sm:py-20 px-4 mt-16">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl md:text-4xl font-extrabold text-center text-[#111111] mb-4">
             Cosa usa ogni settimana un'impresa edile italiana
@@ -431,7 +436,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── QUANDO SCEGLIERE ── */}
-      <section className="bg-white py-20 px-4">
+      <section className="bg-white py-12 sm:py-20 px-4">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-10">
             Per chi ha senso Buildertrend e per chi Edilizia in Cloud
@@ -494,7 +499,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
+      <section className="bg-[#f8f9fa] py-12 sm:py-20 px-4">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-12">
             Domande frequenti
@@ -668,7 +673,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── LE DOMANDE GIUSTE ── */}
-      <section className="bg-[#f8f9fa] py-20 px-4">
+      <section className="bg-[#f8f9fa] py-12 sm:py-20 px-4">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-extrabold text-center text-[#111111] mb-4">
             Le domande giuste da farti prima di scegliere
@@ -694,7 +699,7 @@ export default function VsBuildertrend() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="bg-[#111111] py-20 px-4 text-center">
+      <section className="bg-[#111111] py-12 sm:py-20 px-4 text-center">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
             Guarda una commessa italiana dall'inizio alla fine
@@ -741,6 +746,7 @@ export default function VsBuildertrend() {
 
       {/* ── STICKY CTA ── */}
       <button
+        ref={stickyRef}
         onClick={openModal}
         className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-eic-orange/40 text-sm"
       >

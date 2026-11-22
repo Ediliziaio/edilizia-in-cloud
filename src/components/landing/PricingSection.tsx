@@ -6,7 +6,7 @@ export default function PricingSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section id="prezzi" className="py-24 md:py-32 bg-[#f8fafc] relative overflow-hidden">
+    <section id="prezzi" className="py-14 sm:py-24 md:py-32 bg-[#f8fafc] relative overflow-hidden">
       {/* Glow */}
       <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.8) 60%, transparent 100%)" }} />
       <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(249,116,21,0.10) 0%, transparent 100%)" }} />
@@ -21,7 +21,7 @@ export default function PricingSection() {
 
         {/* Hero claim — niente prezzo, focus su prova + consulenza */}
         <div className={`transition-all duration-700 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          <h2 className="text-4xl md:text-6xl font-extrabold text-[#111111] leading-tight mb-4">
+          <h2 className="text-3xl sm:text-4xl md:text-6xl font-extrabold text-[#111111] leading-tight mb-4">
             Provalo <span className="text-eic-orange">gratis</span>.<br className="hidden sm:block" /> Il piano lo costruiamo su di te.
           </h2>
           <p className="text-gray-500 text-base md:text-lg max-w-2xl mx-auto mb-2">

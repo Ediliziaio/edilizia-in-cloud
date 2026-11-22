@@ -1,3 +1,4 @@
+import HeroRete from "@/components/landing/HeroRete";
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -556,6 +557,7 @@ function Chiusura() {
   return (
     <section className="relative overflow-hidden px-5 py-20 text-center sm:px-6 md:py-28" style={{ background: NERO }}>
       <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-eic-orange/[0.14] blur-[120px]" />
+      <HeroRete />
       <div className="relative mx-auto max-w-3xl">
         <h2 className="text-3xl font-extrabold leading-tight text-balance text-white md:text-5xl">
           Il prossimo cantiere che chiudi, sai già quanto ci hai guadagnato.

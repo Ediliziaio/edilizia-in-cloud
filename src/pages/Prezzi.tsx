@@ -306,7 +306,7 @@ export default function Prezzi() {
 
       {/* ── 1. HERO ─────────────────────────────────────────────────────────── */}
       <section
-        className="relative isolate overflow-hidden pt-28 pb-10 px-4 text-center"
+        className="relative isolate overflow-hidden pt-24 sm:pt-28 pb-10 px-4 text-center"
         style={{ background: "linear-gradient(160deg, #111111 0%, #111111 100%)" }}
       >
         <HeroRete className="-z-10" />
@@ -319,7 +319,7 @@ export default function Prezzi() {
           Consulenza gratuita — Preventivo su misura
         </div>
 
-        <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-5 max-w-3xl mx-auto">
+        <h1 className="text-3xl sm:text-4xl md:text-6xl font-extrabold text-white leading-tight mb-5 max-w-3xl mx-auto">
           Il gestionale per la tua impresa:{" "}
           <span className="text-eic-orange">un flusso di lavoro collegato.</span>
         </h1>
@@ -1015,7 +1015,7 @@ export default function Prezzi() {
 
       {/* ── 8. CTA FINALE ───────────────────────────────────────────────────── */}
       <section
-        className="py-20 px-4 text-center"
+        className="py-12 sm:py-20 px-4 text-center"
         style={{ background: "linear-gradient(135deg, #F97415 0%, #e8650e 100%)" }}
       >
         <div className="max-w-2xl mx-auto">
