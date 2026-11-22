@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CalendarRange } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import type { FaseOperazione } from "@/hooks/useMovimentiOperazione";
 import {
   barra, fasiCronoprogramma, giornoLocale, intervalloCronoprogramma, intervalloPrevistoFase,
@@ -17,13 +18,19 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri }
   onApri: (orderId: string, faseId?: string) => void;
 }) {
   const [periodo, setPeriodo] = useState<"previsto" | "confronto">("confronto");
+  const [filtro, setFiltro] = useState("tutte");
   const oggi = giornoLocale(new Date().toISOString());
   const fasiPerId = new Map(fasi.map(f => [f.id, f.order_id]));
   const fasiPerCommessa = new Map<string, ReturnType<typeof fasiCronoprogramma>>();
   const calendario = fasiCronoprogramma(fasi.map(f => ({
     ...f, percentuale: f.percentuale ?? 0, completata_il: f.completata_il ? giornoLocale(f.completata_il) : null,
   })), lavoroRealeFasi(rapportini), oggi);
-  for (const fase of calendario) {
+  const fasiVisibili = calendario.filter(fase => {
+    if (filtro === "ritardi") return fase.stato !== "completata" && !!ritardoFase(fase);
+    if (filtro === "date") return fase.stato !== "completata" && (!fase.previstoInizio || !fase.previstoFine || fase.dateIncoerenti);
+    return true;
+  });
+  for (const fase of fasiVisibili) {
     const orderId = fasiPerId.get(fase.id)!;
     const gruppo = fasiPerCommessa.get(orderId) ?? [];
     gruppo.push(fase);
@@ -35,7 +42,7 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri }
   const etichette = segni.filter((_, i) => i % passo === 0);
   const oggiVisibile = oggi >= asse.da && oggi <= asse.a;
   const posizioneOggi = barra(oggi, oggi, asse).left;
-  const commesse = [riepilogo.generale, ...riepilogo.figlie];
+  const commesse = [riepilogo.generale, ...riepilogo.figlie].filter(c => filtro === "tutte" || fasiPerCommessa.has(c.id));
 
   return (
     <section aria-labelledby="cronoprogramma-operazione" className="min-w-0 rounded-xl border bg-card">
@@ -46,12 +53,21 @@ export function CronoprogrammaOperazione({ riepilogo, fasi, rapportini, onApri }
           </h3>
           {fasi.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{dataBreve(asse.da)} – {dataBreve(asse.a)}</p>}
         </div>
-        {fasi.length > 0 && <div role="group" aria-label="Periodo del cronoprogramma" className="flex rounded-md border p-0.5">
-          <Button size="sm" variant={periodo === "confronto" ? "secondary" : "ghost"} aria-pressed={periodo === "confronto"} onClick={() => setPeriodo("confronto")}>Previsto e reale</Button>
-          <Button size="sm" variant={periodo === "previsto" ? "secondary" : "ghost"} aria-pressed={periodo === "previsto"} onClick={() => setPeriodo("previsto")}>Solo previsto</Button>
+        {fasi.length > 0 && <div className="flex flex-wrap items-center gap-2">
+          <UniformSelect aria-label="Filtra le fasi del cronoprogramma" className="h-9 rounded-md border px-2 text-sm" value={filtro} onChange={e => setFiltro(e.target.value)}>
+            <option value="tutte">Tutte le fasi</option>
+            <option value="ritardi">In ritardo</option>
+            <option value="date">Date da verificare</option>
+          </UniformSelect>
+          <div role="group" aria-label="Periodo del cronoprogramma" className="flex rounded-md border p-0.5">
+            <Button size="sm" variant={periodo === "confronto" ? "secondary" : "ghost"} aria-pressed={periodo === "confronto"} onClick={() => setPeriodo("confronto")}>Previsto e reale</Button>
+            <Button size="sm" variant={periodo === "previsto" ? "secondary" : "ghost"} aria-pressed={periodo === "previsto"} onClick={() => setPeriodo("previsto")}>Solo previsto</Button>
+          </div>
         </div>}
       </header>
-      {fasi.length === 0 ? <p className="border-t p-4 text-sm text-muted-foreground">Scegli una commessa in Lavorazioni per aggiungere le prime fasi.</p> : <>
+      {fasiVisibili.length === 0 ? <p className="border-t p-4 text-sm text-muted-foreground">
+        {fasi.length === 0 ? "Scegli una commessa in Lavorazioni per aggiungere le prime fasi." : "Nessuna fase corrisponde al filtro."}
+      </p> : <>
         <div role="region" aria-label="Grafico delle fasi per commessa" tabIndex={0} className="overflow-x-auto border-t focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <div className="min-w-[45rem]">
             <div className="flex border-b bg-muted/40 text-xs text-muted-foreground">

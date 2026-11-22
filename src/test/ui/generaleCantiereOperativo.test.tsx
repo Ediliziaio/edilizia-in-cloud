@@ -37,7 +37,8 @@ vi.mock("@/components/orders/LinkedPurchaseOrdersCard", () => ({
     <p>Ordini · {orderId} · {items[0]?.name}</p>,
 }));
 vi.mock("@/components/orders/generali/moduli/RiconciliazioneGenerale", () => ({
-  RiconciliazioneGenerale: (): null => null,
+  RiconciliazioneGenerale: ({ commessaId, onApriPagamenti }: { commessaId?: string; onApriPagamenti: () => void }) =>
+    <><p>Controllo · {commessaId ?? "tutta"}</p><button onClick={onApriPagamenti}>Vedi pagamenti</button></>,
 }));
 
 const riepilogo = {
@@ -70,7 +71,7 @@ function selezionaTab(nome: RegExp) {
 describe("Cantiere della commessa generale", () => {
   it("parte dalla vista complessiva e apre la fase nella commessa che la gestisce", async () => {
     apri();
-    expect(screen.getByRole("region", { name: "Vista aggregata" })).toHaveTextContent("rapportini");
+    expect(screen.getByRole("region", { name: "Vista aggregata" })).toHaveTextContent("da-seguire");
     selezionaTab(/^Lavorazioni$/);
     fireEvent.click(screen.getByRole("button", { name: "Fondazioni" }));
     expect(await screen.findByText("figlia · fase")).toBeInTheDocument();
@@ -103,5 +104,17 @@ describe("Cantiere della commessa generale", () => {
     expect(await screen.findByText("Richieste · generale · generale,figlia")).toBeInTheDocument();
     changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: "figlia" } });
     expect(await screen.findByText("Richieste · figlia")).toBeInTheDocument();
+  });
+
+  it("il controllo forniture segue l'ambito e non si carica insieme all'elenco", async () => {
+    apri("&vista-cantiere=controllo");
+    expect(await screen.findByText("Controllo · tutta")).toBeInTheDocument();
+    changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: "generale" } });
+    expect(await screen.findByText("Controllo · generale")).toBeInTheDocument();
+    changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: "figlia" } });
+    expect(await screen.findByText("Controllo · figlia")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Ordini$/ }));
+    expect(await screen.findByText("Ordini · figlia · Cemento")).toBeInTheDocument();
+    expect(screen.queryByText("Controllo · figlia")).not.toBeInTheDocument();
   });
 });

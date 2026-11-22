@@ -1091,6 +1091,19 @@ button.generale-indicator[aria-pressed="true"] {
   padding: 10px 12px;
 }
 
+.generale-cantiere-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: hsl(var(--background));
+  padding: 4px 0 6px;
+}
+
+.generale-design .generale-cantiere-nav {
+  flex-wrap: nowrap;
+  min-width: max-content;
+}
+
 @media (min-width: 1024px) {
   .generale-design .generale-cantiere-nav { gap: 2px; }
   .generale-design .generale-cantiere-nav [role="tab"] {

@@ -8,7 +8,7 @@ import "../commessa-workspace.css";
 // schede accanto a «Panoramica», solo quando sono pronti e accesi dal modello (schede.tsx).
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, CalendarRange, ChartNoAxesCombined, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
 import { FattureOperazione } from "@/components/orders/generali/design/FattureOperazione";
@@ -122,20 +122,29 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
       ? "contratto" : null
   );
   const schedaAttiva = schede.some((x) => x.id === richiesta) ? richiesta! : "panoramica";
-  const apriScheda = (id: string) => {
+  const apriScheda = (id: string, vistaCantiere?: "da-seguire" | "cronoprogramma") => {
     const dopo = new URLSearchParams(parametri);
     if (id === "panoramica") {
       dopo.delete("scheda");
       dopo.delete("sezione");
     } else dopo.set("scheda", id);
+    if (vistaCantiere) {
+      dopo.set("vista-cantiere", vistaCantiere);
+      dopo.delete("ambito-cantiere");
+      dopo.delete("fase-cantiere");
+    }
     setParametri(dopo, { replace: true });
   };
 
   const elencoCommesse = (
       <section aria-labelledby="figlie-titolo" className="generale-panel generale-children">
-        <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <h2 id="figlie-titolo" className="flex items-center gap-2.5 text-base font-semibold"><span className="generale-section-icon">{immobiliare ? <Building2 aria-hidden="true" /> : <HardHat aria-hidden="true" />}</span>{r.figlie.length ? def.figlia.tante : immobiliare ? "Gestione dell'operazione" : "Lavori sulla commessa generale"}{r.figlie.length > 0 && <span className="generale-count">{quanteVive}</span>}</h2>
-          {r.figlie.length > 0 && (immobiliare ? <Button size="sm" variant="ghost" aria-pressed={analisiUnita} onClick={() => setAnalisiUnita(v => !v)}>{analisiUnita ? "Torna alle vendite" : "Analisi per unità"}</Button> : <span className="text-xs text-muted-foreground">Avanzamento {Math.round(totali.avanzamento)}%</span>)}
+          {r.figlie.length > 0 && (immobiliare ? <Button size="sm" variant="ghost" aria-pressed={analisiUnita} onClick={() => setAnalisiUnita(v => !v)}>{analisiUnita ? "Torna alle vendite" : "Analisi per unità"}</Button> : <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs text-muted-foreground">Avanzamento {Math.round(totali.avanzamento)}%</span>
+            <Button size="sm" variant="ghost" onClick={() => apriScheda("cantiere", "cronoprogramma")}><CalendarRange className="size-4" aria-hidden="true" /> Cronoprogramma</Button>
+            <Button size="sm" variant="outline" onClick={() => apriScheda("cantiere", "da-seguire")}><ListChecks className="size-4" aria-hidden="true" /> Da seguire</Button>
+          </div>)}
         </header>
         {immobiliare && r.figlie.length > 0 && !unitaInUnaRiga && <p className="border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">Costi e margine si controllano sull'intera operazione. L'analisi per unità mostra una ripartizione indicativa dei costi registrati, distinta dal margine finale del piano.</p>}
         {unitaInUnaRiga ? (

@@ -1,13 +1,16 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowRight,
   CalendarRange,
+  ClipboardCheck,
   ClipboardList,
   FileQuestion,
   HardHat,
   ListTree,
+  ListTodo,
   Plus,
   PackageCheck,
   ReceiptText,
@@ -33,8 +36,9 @@ import { MovimentiOperazione } from "./MovimentiOperazione";
 /** Valore del selettore per «tutta l'operazione»: generale e figlie insieme, sola lettura. */
 const TUTTA = "__tutta__";
 
-type Scheda = "rapportini" | "lavorazioni" | "cronoprogramma" | "offerte" | "acquisti" | "ddt" | "contabilita" | "squadre";
+type Scheda = "da-seguire" | "rapportini" | "lavorazioni" | "cronoprogramma" | "offerte" | "acquisti" | "ddt" | "contabilita" | "squadre";
 const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
+  "da-seguire": "da-seguire",
   rapportini: "rapportini",
   lavorazioni: "lavorazioni",
   cronoprogramma: "cronoprogramma",
@@ -50,6 +54,7 @@ const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
   subappalti: "squadre",
 };
 const VISTA_OPERAZIONE: Partial<Record<Scheda, VistaOperazione>> = {
+  "da-seguire": "da-seguire",
   rapportini: "rapportini",
   lavorazioni: "lavorazioni",
   cronoprogramma: "cronoprogramma",
@@ -143,12 +148,23 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const costi = riepilogo.permessi.costi;
   const richiesta = parametri.get("vista-cantiere") ?? "";
   const scheda: Scheda = (() => {
-    const s = SCHEDA_DELLA_SEZIONE[richiesta];
+    const s = Object.hasOwn(SCHEDA_DELLA_SEZIONE, richiesta) ? SCHEDA_DELLA_SEZIONE[richiesta] : undefined;
     // Senza il permesso dei costi la scheda delle fatture non c'è.
-    return !s || (s === "contabilita" && !costi) ? "rapportini" : s;
+    return !s || (s === "contabilita" && !costi) ? "da-seguire" : s;
   })();
   const vista = scheda;
+  const scorrimentoSchede = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const rail = scorrimentoSchede.current;
+    const attiva = rail?.querySelector('[aria-selected="true"]');
+    if (!rail || !attiva) return;
+    const area = rail.getBoundingClientRect();
+    const posizione = attiva.getBoundingClientRect();
+    if (posizione.right > area.right) rail.scrollLeft += posizione.right - area.right;
+    else if (posizione.left < area.left) rail.scrollLeft -= area.left - posizione.left;
+  }, [vista]);
   const vistaOperazione = VISTA_OPERAZIONE[scheda];
+  const mostraControllo = vista === "acquisti" && richiesta === "controllo" && costi;
   const setVista = (x: string) => {
     const p = new URLSearchParams(parametri);
     p.set("vista-cantiere", x);
@@ -156,23 +172,24 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
     setNuovoOda(false);
     setParametri(p, { replace: true });
   };
-  // Un collegamento a una sezione di prima (pagamenti, controllo…) scorre fino a lei.
+  // I link diretti ai pagamenti o ai subappalti conservano la loro sezione.
   useEffect(() => {
-    if (!richiesta || richiesta === scheda) return;
+    if (!["pagamenti", "subappalti"].includes(richiesta)) return;
     const t = window.setTimeout(() => document.getElementById(`cantiere-${richiesta}`)?.scrollIntoView({ block: "start" }), 300);
     return () => window.clearTimeout(t);
   }, [richiesta, scheda]);
   const [nuovoOda, setNuovoOda] = useState(false);
   const ambitoUrl = parametri.get("ambito-cantiere");
-  const sezioneSingola = ["controllo", "pagamenti", "subappalti"].includes(richiesta);
+  const sezioneSingola = ["pagamenti", "subappalti"].includes(richiesta);
   const ambito = ambitoUrl === g.id || ambitoUrl === TUTTA || riepilogo.figlie.some(f => f.id === ambitoUrl)
     ? ambitoUrl
     : riepilogo.figlie.length && !sezioneSingola ? TUTTA : g.id;
   const fase = parametri.get("fase-cantiere");
-  const setAmbito = (id: string, faseId?: string) => {
+  const setAmbito = (id: string, faseId?: string, schedaDaAprire?: Scheda) => {
     setNuovoOda(false);
     const p = new URLSearchParams(parametri);
     p.set("ambito-cantiere", id);
+    if (schedaDaAprire) p.set("vista-cantiere", schedaDaAprire);
     if (faseId) {
       p.set("vista-cantiere", "lavorazioni");
       p.set("fase-cantiere", faseId);
@@ -186,13 +203,9 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const orderId = scelto.id;
   const permessi = usePermissions();
   const puoCreareOda = puoModificare && !permessi.solaLettura && permessi.canViewCosts && permessi.canEditOrders;
-  const materiali = useMaterialiPerFase(vista === "acquisti" && costi && (!tutta || nuovoOda) ? orderId : undefined);
+  const materiali = useMaterialiPerFase(vista === "acquisti" && !mostraControllo && costi && (!tutta || nuovoOda) ? orderId : undefined);
   const righeAcquisto = (materiali.data?.righe ?? []).filter(eMateriale);
   const qc = useQueryClient();
-  useEffect(() => {
-    if (vista === "acquisti" && costi)
-      void qc.invalidateQueries({ queryKey: ["generale-controllo-forniture"] });
-  }, [qc, vista, orderId, costi]);
   // Native mutations predate general projects. Refresh their consolidated figures when leaving the site workspace.
   useEffect(
     () => () => {
@@ -212,13 +225,14 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
         <IntestazioneScheda
           icona={HardHat}
           titolo="Cantiere"
-          descrizione="Consulta l’intera operazione o lavora sulla commessa che scegli."
         />
         <DocumentiInPopup orderId={orderId}>
           <Tabs className="space-y-4" value={vista} onValueChange={setVista}>
-            <div className="overflow-x-auto pb-1">
-              <TabsList className="generale-subtabs generale-section-navigation generale-cantiere-nav h-auto min-w-max justify-start lg:min-w-0"
+            <div className="generale-cantiere-toolbar space-y-1.5">
+            <div ref={scorrimentoSchede} className="overflow-x-auto pb-1">
+              <TabsList className="generale-subtabs generale-section-navigation generale-cantiere-nav h-auto justify-start"
                 aria-label="Sezioni del cantiere">
+                <TabsTrigger value="da-seguire"><ListTodo aria-hidden="true" />Da seguire</TabsTrigger>
                 <TabsTrigger value="rapportini"><ClipboardList aria-hidden="true" />Rapportini</TabsTrigger>
                 <TabsTrigger value="lavorazioni"><ListTree aria-hidden="true" />Lavorazioni</TabsTrigger>
                 <TabsTrigger value="cronoprogramma"><CalendarRange aria-hidden="true" />Cronoprogramma</TabsTrigger>
@@ -244,7 +258,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                   )}
                 </UniformSelect>
               </label>
-              {vista === "acquisti" && tutta && puoCreareOda && (
+              {vista === "acquisti" && !mostraControllo && tutta && puoCreareOda && (
                 <Button type="button" size="sm" className="gap-1.5" onClick={() => setNuovoOda(true)}>
                   <Plus className="size-4" aria-hidden="true" /> Nuovo OdA sulla generale
                 </Button>
@@ -260,18 +274,39 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 </Button>
               )}
             </div>
+            </div>
+
+            {vista === "acquisti" && costi && (
+              <div role="group" aria-label="Vista ordini d’acquisto" className="flex w-fit flex-wrap gap-0.5 rounded-lg border bg-card p-0.5">
+                <Button type="button" size="sm" variant={mostraControllo ? "ghost" : "secondary"} aria-pressed={!mostraControllo} onClick={() => setVista("acquisti")}>
+                  <PackageCheck className="size-4" aria-hidden="true" /> Ordini
+                </Button>
+                <Button type="button" size="sm" variant={mostraControllo ? "secondary" : "ghost"} aria-pressed={mostraControllo} onClick={() => setVista("controllo")}>
+                  <ClipboardCheck className="size-4" aria-hidden="true" /> Controllo forniture
+                </Button>
+              </div>
+            )}
 
             <Suspense fallback={<Skeleton className="mt-4 h-64 w-full" />}>
               {nuovoOda && puoCreareOda && <NuovoOda key={g.id} open onOpenChange={setNuovoOda}
                 orderId={g.id} orderCode={g.codice} items={righeAcquisto} />}
-              {vista === "offerte" ? (
+              {mostraControllo ? (
+                <TabsContent value="acquisti" className="pt-1">
+                  <Riconciliazione key={tutta ? TUTTA : orderId} riepilogo={riepilogo} commessaId={tutta ? undefined : orderId}
+                    onApriFase={setAmbito} onApriPagamenti={() => setVista("contabilita")} />
+                </TabsContent>
+              ) : vista === "offerte" ? (
                 <TabsContent value="offerte" className="pt-2">
                   <Offerte key={tutta ? TUTTA : orderId} orderId={orderId} orderCode={scelto.codice}
                     commesse={tutta ? [g, ...riepilogo.figlie] : undefined} />
                 </TabsContent>
-              ) : tutta && vistaOperazione ? (
+              ) : (tutta || vista === "da-seguire") && vistaOperazione ? (
                 <TabsContent value={vista} className="pt-2">
-                  <MovimentiOperazione riepilogo={riepilogo} vista={vistaOperazione} onApri={setAmbito} />
+                  <MovimentiOperazione riepilogo={riepilogo} vista={vistaOperazione} onApri={setAmbito}
+                    commessaId={tutta ? undefined : orderId} onApriRapportini={id => setAmbito(id, undefined, "rapportini")} />
+                  {vista === "ddt" && costi && <Button className="mt-3" type="button" size="sm" variant="outline" onClick={() => setVista("controllo")}>
+                    Controllo forniture <ArrowRight className="size-4" aria-hidden="true" />
+                  </Button>}
                 </TabsContent>
               ) : (
               <>
@@ -299,28 +334,22 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 <Cronoprogramma key={orderId} orderId={orderId} onApriLavorazioni={() => setVista("lavorazioni")} />
               </TabsContent>
               <TabsContent value="acquisti" className="space-y-6 pt-2">
-                <Sezione id="forniture" titolo="Ordini d’acquisto">
-                  <Forniture
+                <Forniture
                     key={orderId}
                     orderId={orderId}
                     orderCode={scelto.codice}
                     items={righeAcquisto}
-                  />
-                </Sezione>
-                {costi && (
-                  <Sezione id="controllo" titolo="Controllo: ordini, bolle e fatture">
-                    <Riconciliazione riepilogo={riepilogo} />
-                  </Sezione>
-                )}
+                />
               </TabsContent>
               <TabsContent value="ddt" className="space-y-4 pt-2">
-                <Sezione id="ddt" titolo="Documenti di trasporto">
-                  <Bolle
+                <Bolle
                     key={`bolle-${orderId}`}
                     orderId={orderId}
                     puoAprireDocumenti={permessi.canViewOrders}
-                  />
-                </Sezione>
+                />
+                {costi && <Button type="button" size="sm" variant="outline" onClick={() => setVista("controllo")}>
+                  Controllo forniture <ArrowRight className="size-4" aria-hidden="true" />
+                </Button>}
               </TabsContent>
               {costi && (
                 <TabsContent value="contabilita" className="space-y-6 pt-2">

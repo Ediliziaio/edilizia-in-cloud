@@ -9,12 +9,14 @@ import { BookOpen, Building2, ClipboardList, Clock, ListTree, PackageCheck, Rece
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { formattaEuro, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { formatCurrency } from "@/lib/formatters";
+import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { LIMITE_MOVIMENTI, useMovimentiOperazione, type VistaOperazione } from "@/hooks/useMovimentiOperazione";
 import { DDTStatusBadge, DDT_STATO_META } from "@/components/ddt/DDTStatusBadge";
 import type { DDTStato } from "@/hooks/useDDTRicezione";
 import { dataBreve } from "../piano/formato";
 import { CronoprogrammaOperazione } from "./CronoprogrammaOperazione";
+import { DaSeguireOperazione } from "./DaSeguireOperazione";
 import { cn } from "@/lib/utils";
 import { faseCompletata } from "@/lib/orders/schedaCommessa";
 
@@ -32,14 +34,18 @@ export function MovimentiOperazione({
   riepilogo,
   vista,
   onApri,
+  commessaId,
+  onApriRapportini,
 }: {
   riepilogo: RiepilogoGenerale;
   vista: VistaOperazione;
   /** Porta la scheda su quella commessa (generale o figlia). */
   onApri: (orderId: string, faseId?: string) => void;
+  commessaId?: string;
+  onApriRapportini: (orderId: string) => void;
 }) {
   const g = riepilogo.generale;
-  const { data, isLoading, isError, refetch } = useMovimentiOperazione(riepilogo, vista);
+  const { data, isLoading, isError, refetch } = useMovimentiOperazione(riepilogo, vista, commessaId);
   const commesse = new Map<string, { codice: string | null; nome: string | null; generale: boolean }>([
     [g.id, { codice: g.codice, nome: g.nome, generale: true }],
     ...riepilogo.figlie.map((f) => [f.id, { codice: f.codice, nome: f.nome, generale: false }] as const),
@@ -68,6 +74,7 @@ export function MovimentiOperazione({
       </div>
     );
 
+  if (vista === "da-seguire") return <DaSeguireOperazione dati={data} commesse={commesse} apriFase={onApri} apriRapportini={onApriRapportini} />;
   if (vista === "cronoprogramma") return <CronoprogrammaOperazione riepilogo={riepilogo} fasi={data.fasi}
     rapportini={data.rapportiniCronoprogramma} onApri={onApri} />;
 
@@ -228,7 +235,7 @@ export function MovimentiOperazione({
           <Riquadro
             icona={PackageCheck}
             titolo="Ordini ai fornitori"
-            sintesi={`${quante(data.ordini.length, "ordine", "ordini")}${riepilogo.permessi.importi ? ` · ${formattaEuro(data.ordini.reduce((s, x) => s + (x.total ?? 0), 0))}` : ""}`}
+            sintesi={`${quante(data.ordini.length, "ordine", "ordini")}`}
             vuoto="Nessun ordine sull'operazione."
             righe={data.ordini.length}
           >
@@ -243,7 +250,7 @@ export function MovimentiOperazione({
                   <Td className="font-mono text-xs"><Link className="text-primary hover:underline"
                     to={`/azienda/ordini-acquisto/${x.id}`}>{x.oda_number ?? "Apri ordine"}</Link></Td>
                   <Td>{fornitore(x.supplier_id)}</Td>
-                  {riepilogo.permessi.importi && <Td className="text-right tabular-nums">{x.total != null ? formattaEuro(x.total) : "—"}</Td>}
+                  {riepilogo.permessi.importi && <Td className="text-right tabular-nums">{x.total != null ? formatCurrency(x.total) : "—"}</Td>}
                   <Td>{parola(x.status)}</Td>
                 </tr>
               ))}
@@ -263,7 +270,8 @@ export function MovimentiOperazione({
                   <Td className="font-mono text-xs"><Link className="text-primary hover:underline"
                     to={`/azienda/ddt/${x.id}`}>{x.numero_ddt ?? "Apri DDT"}</Link></Td>
                   <Td>{fornitore(x.supplier_id)}</Td>
-                  <Td>{x.purchase_order_id ? "Sì" : "Senza ordine"}</Td>
+                  <Td>{x.purchase_order_id ? <Link className="text-primary hover:underline"
+                    to={`/azienda/ordini-acquisto/${x.purchase_order_id}`}>{x.purchase_orders?.oda_number ?? "Apri OdA"}</Link> : "Senza ordine"}</Td>
                   <Td>{x.stato && x.stato in DDT_STATO_META
                     ? <DDTStatusBadge stato={x.stato as DDTStato} size="sm" /> : parola(x.stato)}</Td>
                 </tr>
@@ -276,7 +284,7 @@ export function MovimentiOperazione({
         <Riquadro
           icona={ReceiptText}
           titolo="Costi e fatture dei fornitori"
-          sintesi={`${quante(data.costi.length, "costo", "costi")} · ${formattaEuro(data.costi.reduce((s, x) => s + (x.amount ?? 0), 0))} · non segnati pagati ${formattaEuro(data.costi.filter((x) => !x.is_paid).reduce((s, x) => s + (x.amount ?? 0), 0))}`}
+          sintesi={`${quante(data.costi.length, "costo registrato", "costi registrati")}`}
           vuoto="Nessun costo sull'operazione."
           righe={data.costi.length}
         >
@@ -290,7 +298,7 @@ export function MovimentiOperazione({
                 <Td><Commessa id={x.order_id} /></Td>
                 <Td>{fornitore(x.supplier_id)}</Td>
                 <Td className="max-w-[20rem] truncate" title={x.name ?? undefined}>{x.name || "—"}</Td>
-                <Td className="whitespace-nowrap text-right tabular-nums">{formattaEuro(x.amount ?? 0)}</Td>
+                <Td className="whitespace-nowrap text-right tabular-nums">{x.amount != null ? formatCurrency(x.amount) : "—"}</Td>
                 <Td className={cn("whitespace-nowrap", !x.is_paid && "text-amber-700")}>
                   {x.is_paid
                     ? `Pagato${dataVera(x.paid_date) ? ` il ${dataBreve(x.paid_date)}` : ""}`

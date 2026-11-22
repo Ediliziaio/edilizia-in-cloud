@@ -19,12 +19,12 @@ import { leggiCostiOperazione } from "@/lib/orders/generali/costiOperazione";
 const db = supabase as any;
 const unici = <T extends { id: string }>(rows: T[]) => [...new Map(rows.map((r) => [r.id, r])).values()];
 
-export function useControlloFornitureGenerale(r: RiepilogoGenerale) {
+export function useControlloFornitureGenerale(r: RiepilogoGenerale, commessaId?: string) {
   const companyId = useEffectiveCompanyId();
-  const ids = [r.generale.id, ...r.figlie.map((f) => f.id)];
+  const ids = [r.generale.id, ...r.figlie.map((f) => f.id)].filter(id => !commessaId || id === commessaId);
   return useQuery({
     queryKey: ["generale-controllo-forniture", companyId, r.generale.id, ids.join(","), "ddt-diretti"],
-    enabled: !!companyId && r.permessi.costi,
+    enabled: !!companyId && r.permessi.costi && ids.length > 0,
     staleTime: 30_000,
     queryFn: async () => {
       // Stable pagination and bounded IN lists, always restricted to the active legal entity.
@@ -65,10 +65,10 @@ export function useControlloFornitureGenerale(r: RiepilogoGenerale) {
       const odaIds = attivi.map((o) => o.id);
       const campiFattura =
         "id, purchase_order_id, company_cost_id, fornitore_id, numero_fattura, righe, tipo_documento, imponibile_totale, stato, updated_at";
-      const [righe, daOrdine, fattureOrdine, fattureCosto, quote] = await Promise.all([
+      const [righe, daOrdine, legamiOrdine, fattureOrdine, fattureCosto, quote] = await Promise.all([
         leggi<RigaOrdinata>(
           "purchase_order_items",
-          "id, purchase_order_id, description, quantity, quantity_received, unit_price, discount_percent, line_total, price_pending",
+          "id, purchase_order_id, order_item_id, description, quantity, quantity_received, unit_price, discount_percent, line_total, price_pending",
           "purchase_order_id",
           odaIds,
         ),
@@ -78,6 +78,7 @@ export function useControlloFornitureGenerale(r: RiepilogoGenerale) {
           "purchase_order_id",
           odaIds,
         ),
+        leggi<{ id: string; ddt_id: string }>("ddt_ordini_collegati", "id, ddt_id", "purchase_order_id", odaIds),
         leggi<FatturaFornitura>("fatture_ricevute", campiFattura, "purchase_order_id", odaIds),
         leggi<FatturaFornitura>(
           "fatture_ricevute",
@@ -92,10 +93,18 @@ export function useControlloFornitureGenerale(r: RiepilogoGenerale) {
           odaIds,
         ),
       ]);
-      const bolle = unici([...diretti, ...daOrdine]).filter(
+      const note = new Set([...diretti, ...daOrdine].map(d => d.id));
+      const [daAltriOrdini, materialiLetti] = await Promise.all([
+        leggi<DocumentoConsegna>("ddt_ricezione", "id, purchase_order_id, order_id, numero_ddt, stato", "id",
+          [...new Set(legamiOrdine.map(l => l.ddt_id))].filter(id => !note.has(id))),
+        leggi<{ id: string; order_id: string; phase_id: string | null }>("order_items", "id, order_id, phase_id", "id",
+          [...new Set(righe.map(riga => riga.order_item_id).filter((id): id is string => !!id))]),
+      ]);
+      const materiali = materialiLetti.filter(m => ids.includes(m.order_id));
+      const bolle = unici([...diretti, ...daOrdine, ...daAltriOrdini]).filter(
         (d) => !["annullato", "rifiutato"].includes(d.stato),
       );
-      const [consegne, fattureQuote, legamiDdt] = await Promise.all([
+      const [consegne, fattureQuote, legamiDdt, fasi] = await Promise.all([
         leggi<RigaConsegnata>(
           "ddt_righe",
           "id, ddt_ricezione_id, purchase_order_item_id, quantita, prezzo_unitario, importo, descrizione, unita_misura",
@@ -111,11 +120,21 @@ export function useControlloFornitureGenerale(r: RiepilogoGenerale) {
           "ddt_ricezione_id",
           bolle.map((d) => d.id),
         ),
+        leggi<{ id: string; order_id: string; name: string }>("order_work_phases", "id, order_id, name", "id",
+          [...new Set(materiali.map(m => m.phase_id).filter((id): id is string => !!id))]),
       ]);
+      const fasiPerId = new Map(fasi.map(f => [f.id, f]));
+      const fasiPerMateriale = Object.fromEntries(materiali.flatMap(m => {
+        const fase = m.phase_id ? fasiPerId.get(m.phase_id) : undefined;
+        return fase?.order_id === m.order_id ? [[m.id, fase] as const] : [];
+      }));
       const fattureDdt = await leggi<FatturaFornitura>("fatture_ricevute", campiFattura, "id", [
         ...new Set(legamiDdt.map((d) => d.fattura_ricevuta_id)),
       ]);
       const fatture = unici([...fattureOrdine, ...fattureCosto, ...fattureQuote, ...fattureDdt]);
+      const righeInAmbito = new Set(righe.map(r => r.id));
+      const ordiniInAmbito = new Set(odaIds);
+      const fattureConQuota = new Set(quote.map(q => q.fattura_id));
       // Anche le altre bolle della stessa fattura, eventualmente fuori dall'operazione:
       // senza questa lettura una fattura cumulativa sembrerebbe tutta di ciascun DDT.
       const tuttiLegamiDdt = await leggi<LegameFatturaDdt>(
@@ -141,14 +160,16 @@ export function useControlloFornitureGenerale(r: RiepilogoGenerale) {
       return {
         ordini: attivi,
         righe,
+        fasiPerMateriale,
         bolle,
+        bolleConOrdine: legamiOrdine.map(l => l.ddt_id),
         consegne,
         fatture,
         fattureConOrdine: fatture.filter(
           (f) =>
-            f.purchase_order_id ||
-            quote.some((q) => q.fattura_id === f.id) ||
-            (Array.isArray(f.righe) && f.righe.some((r) => r.purchase_order_item_id)),
+            ordiniInAmbito.has(f.purchase_order_id ?? "") ||
+            fattureConQuota.has(f.id) ||
+            (Array.isArray(f.righe) && f.righe.some((r) => righeInAmbito.has(r.purchase_order_item_id ?? ""))),
         ),
         legamiDdt: unici([...legamiDdt, ...tuttiLegamiDdt]),
         quadri,

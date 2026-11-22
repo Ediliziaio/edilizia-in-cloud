@@ -9,6 +9,7 @@ export interface OrdineFornitura {
 export interface RigaOrdinata {
   id: string;
   purchase_order_id: string;
+  order_item_id?: string | null;
   description: string;
   quantity: number;
   quantity_received: number;

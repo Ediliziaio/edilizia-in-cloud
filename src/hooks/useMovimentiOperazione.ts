@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { readAllOrderRows } from "@/lib/orders/listScope";
-import type { RapportinoFasi, StatoFase } from "@/lib/orders/cronoprogramma";
+import { giornoLocale, type RapportinoFasi, type StatoFase } from "@/lib/orders/cronoprogramma";
 
 // Alcune colonne non sono nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,7 +24,7 @@ const db = supabase as any;
 
 /** Quante righe al massimo per tipo: un'operazione grande ne ha centinaia, non migliaia al mese. */
 export const LIMITE_MOVIMENTI = 500;
-export type VistaOperazione = "rapportini" | "lavorazioni" | "cronoprogramma" | "acquisti" | "ddt" | "squadre" | "fatture";
+export type VistaOperazione = "da-seguire" | "rapportini" | "lavorazioni" | "cronoprogramma" | "acquisti" | "ddt" | "squadre" | "fatture";
 
 export interface RapportinoOperazione {
   id: string;
@@ -42,6 +42,7 @@ export interface OrdineOperazione {
   oda_number: string | null;
   status: string | null;
   issue_date: string | null;
+  expected_delivery_date: string | null;
   total: number | null;
   supplier_id: string | null;
 }
@@ -53,6 +54,7 @@ export interface DdtOperazione {
   stato: string | null;
   supplier_id: string | null;
   purchase_order_id: string | null;
+  purchase_orders?: { oda_number: string | null } | null;
 }
 export interface CostoOperazioneRiga {
   id: string;
@@ -127,7 +129,7 @@ export interface MovimentiOperazione {
   troncati: string[];
 }
 
-async function leggi<T>(tabella: string, colonne: string, companyId: string, ids: string[], ordina: string, filtra?: (q: unknown) => unknown): Promise<T[]> {
+async function leggi<T>(tabella: string, colonne: string, companyId: string, ids: string[], ordina: string, filtra?: (q: typeof db) => typeof db): Promise<T[]> {
   let q = db.from(tabella).select(colonne).eq("company_id", companyId).in("order_id", ids);
   if (filtra) q = filtra(q);
   const { data, error } = await q.order(ordina, { ascending: false, nullsFirst: false }).limit(LIMITE_MOVIMENTI);
@@ -156,26 +158,33 @@ async function leggiCronoprogramma(companyId: string, ids: string[], signal: Abo
   return { fasi, rapportini };
 }
 
-export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazione) {
+export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazione, commessaId?: string) {
   const companyId = useEffectiveCompanyId();
-  const ids = [r.generale.id, ...r.figlie.map((f) => f.id)];
+  const ids = [r.generale.id, ...r.figlie.map((f) => f.id)].filter(id => !commessaId || id === commessaId);
   return useQuery({
     queryKey: ["generale-movimenti-operazione", companyId, r.generale.id, ids.join(","), r.permessi.costi, r.permessi.importi, vista],
-    enabled: !!companyId,
+    enabled: !!companyId && ids.length > 0,
     staleTime: 30_000,
     refetchOnMount: "always",
     refetchInterval: 30_000,
     queryFn: async ({ signal }): Promise<MovimentiOperazione> => {
+      const daSeguire = vista === "da-seguire";
+      const oggi = giornoLocale(new Date().toISOString());
       const [rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fasi, subappalti, crono] = await Promise.all([
-        vista === "rapportini" ? leggi<RapportinoOperazione>(
+        vista === "rapportini" || daSeguire ? leggi<RapportinoOperazione>(
           "campo_rapportini",
           "id, order_id, data_lavoro, ore_lavorate, descrizione_lavori, stato, approvato, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)",
           companyId!, ids, "data_lavoro",
-          (q) => (q as { is: (c: string, v: null) => unknown }).is("annullato_at", null),
+          q => daSeguire ? q.is("annullato_at", null).eq("stato", "inviato") : q.is("annullato_at", null),
         ) : [],
-        vista === "acquisti" ? leggi<OrdineOperazione>("purchase_orders",
-          `id, order_id, oda_number, status, issue_date, supplier_id${r.permessi.importi ? ", total" : ""}`, companyId!, ids, "issue_date") : [],
-        vista === "ddt" ? leggi<DdtOperazione>("ddt_ricezione", "id, order_id, numero_ddt, data_ricezione, stato, supplier_id, purchase_order_id", companyId!, ids, "data_ricezione") : [],
+        vista === "acquisti" || daSeguire ? leggi<OrdineOperazione>("purchase_orders",
+          `id, order_id, oda_number, status, issue_date, supplier_id, expected_delivery_date${vista === "acquisti" && r.permessi.importi ? ", total" : ""}`,
+          companyId!, ids, daSeguire ? "expected_delivery_date" : "issue_date",
+          daSeguire ? q => q.in("status", ["inviato", "confermato", "parziale"]).lt("expected_delivery_date", oggi) : undefined) : [],
+        vista === "ddt" || daSeguire ? leggi<DdtOperazione>("ddt_ricezione",
+          `id, order_id, numero_ddt, data_ricezione, stato, supplier_id, purchase_order_id${vista === "ddt" ? ", purchase_orders!ddt_ricezione_purchase_order_id_fkey(oda_number)" : ""}`,
+          companyId!, ids, "data_ricezione",
+          daSeguire ? q => q.in("stato", ["ricevuto", "parziale", "non_conforme"]) : undefined) : [],
         vista === "fatture" && r.permessi.costi
           ? leggi<CostoOperazioneRiga>("company_costs", "id, order_id, name, amount, documento_data, due_date, is_paid, paid_date, supplier_id", companyId!, ids, "documento_data")
           : Promise.resolve(null),
@@ -194,7 +203,7 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, vista: VistaOperazi
           "id, order_id, name, status, percentuale, start_date, end_date, completata_il, position", companyId!, ids, "updated_at") : [],
         vista === "squadre" && r.permessi.costi ? leggi<SubappaltoOperazione>("contratti_subappalto",
           "id, order_id, numero_contratto, descrizione_lavori, stato, subappaltatori_sicurezza(ragione_sociale)", companyId!, ids, "created_at") : [],
-        vista === "cronoprogramma" ? leggiCronoprogramma(companyId!, ids, signal) : null,
+        vista === "cronoprogramma" || daSeguire ? leggiCronoprogramma(companyId!, ids, signal) : null,
       ]);
       const idFornitori = [...new Set([...ordini, ...ddt, ...(costi ?? [])].map((x) => x.supplier_id).filter((x): x is string => !!x))];
       const fornitori: Record<string, string> = {};
