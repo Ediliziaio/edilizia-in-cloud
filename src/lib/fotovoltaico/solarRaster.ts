@@ -165,15 +165,17 @@ export function misuraPianoSolarFv(
   return fit;
 }
 export type MisureTettoSolarFv = {
-  altezza: number;
+  altezza: number | null;
   falde: MappaFv["falde"];
   scarto: number;
-  terreno: number;
+  terreno: number | null;
+  avvisoAltezza?: string;
 };
 export function misureTettoSolarFv(
   m: MappaFv,
   dsm: RasterSolarFv,
   mask: RasterSolarFv,
+  dataFoto?: string,
 ): MisureTettoSolarFv {
   if (!m.falde.length) throw Error("Traccia prima le falde sulla foto Google");
   const terra: number[] = [];
@@ -202,17 +204,12 @@ export function misureTettoSolarFv(
       ) terra.push(z);
     }
   }
-  if (terra.length < 30) {
-    throw Error(
-      "Google non ha restituito abbastanza terreno per riferire le altezze",
-    );
-  }
-  if (quantile(terra, .8) - quantile(terra, .2) > 1.5) {
-    throw Error(
-      "Il terreno vicino al tetto è irregolare: conferma manualmente le altezze",
-    );
-  }
-  const terreno = quantile(terra, .2);
+  let avvisoAltezza = terra.length < 30
+    ? "Google non ha restituito abbastanza terreno per riferire le altezze"
+    : quantile(terra, .8) - quantile(terra, .2) > 1.5
+    ? "Il terreno vicino al tetto è irregolare: conferma manualmente le altezze"
+    : undefined;
+  const terreno = avvisoAltezza ? null : quantile(terra, .2);
   const fits = m.falde.map((f) => {
     const pts = f.punti.map((p) => dsm.pixel(coordinateDaMetri(p, m.origine))),
       minX = Math.max(0, Math.floor(Math.min(...pts.map((p) => p.x)))),
@@ -240,15 +237,13 @@ export function misureTettoSolarFv(
     const fit = misuraPianoSolarFv(samples),
       gronda = Math.min(...f.punti.map((p) =>
         fit.a * p.x + fit.b * p.y + fit.c
-      )) - terreno;
-    if (gronda < 2 || gronda > 150) {
-      throw Error(
-        "Altezza dal terreno non attendibile: conferma le quote manualmente",
-      );
-    }
+      ));
     return { fit, gronda, f };
   });
-  const altezza = Math.min(...fits.map((f) => f.gronda));
+  const quotaMinima = Math.min(...fits.map((f) => f.gronda));
+  const altezzaStimata = terreno == null ? null : quotaMinima - terreno;
+  const altezza = altezzaStimata != null && altezzaStimata >= 2 && altezzaStimata <= 150 ? altezzaStimata : null;
+  if (altezza == null && !avvisoAltezza) avvisoAltezza = "Altezza dal terreno non attendibile: conferma le quote manualmente";
   const falde = fits.map(({ f, fit, gronda }) => ({
     ...f,
     inclinazione: Number(
@@ -258,12 +253,14 @@ export function misureTettoSolarFv(
       ((Math.atan2(-fit.a, -fit.b) * 180 / Math.PI + 360) % 360).toFixed(4),
     ) % 360,
     inclinazioneStimata: true,
-    dislivelloGronda: Number((gronda - altezza).toFixed(3)),
+    dislivelloGronda: Number((gronda - quotaMinima).toFixed(3)),
+    ...(dataFoto ? { misuraSolar: { data: dataFoto, scarto: fit.scarto, campioni: fit.campioni } } : {}),
   }));
   return {
-    altezza: Number(altezza.toFixed(3)),
+    altezza: altezza == null ? null : Number(altezza.toFixed(3)),
     falde,
     scarto: Math.max(...fits.map((f) => f.fit.scarto)),
     terreno,
+    ...(avvisoAltezza ? { avvisoAltezza } : {}),
   };
 }

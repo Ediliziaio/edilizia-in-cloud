@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { FvConfrontoConfigurazioni } from "./FvConfrontoConfigurazioni";
+import { proposteImpiantoFv, type PropostaImpiantoFv } from "@/lib/fotovoltaico/proposteImpianto";
+import { leggiPiano } from "../../../supabase/functions/_shared/fvPianoTetto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -6,10 +9,6 @@ import {
   type AnalisiConsumiFv,
   analisiConsumiIniziale,
 } from "../../../supabase/functions/_shared/fvBollette";
-import {
-  consigliaModuliFv,
-  simulaEnergiaFv,
-} from "../../../supabase/functions/_shared/fvSimulazioneEnergetica";
 import {
   type DisegnoCommercialeFv,
   disponiModuliOttimizzati,
@@ -19,27 +18,14 @@ import {
 } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
 import type { WizardData } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/types";
 import {
-  anteprimaFotovoltaico,
-  stimaProduzioneFv,
-} from "@/lib/fotovoltaico/anteprima";
-import {
   type ListinoComponentiFv,
-  righeComponentiFv,
 } from "@/lib/fotovoltaico/componentiConfigurazione";
 import type { DiscountRule } from "@/hooks/useDiscountRules";
-import { resaMappaFv } from "../../../supabase/functions/_shared/fvMappa";
-import { datiDalDisegno } from "@/lib/fotovoltaico/disegnoPreventivo";
 const numero = (n: number, d = 0) =>
   n.toLocaleString("it-IT", {
     maximumFractionDigits: d,
     minimumFractionDigits: d,
   });
-const eur = (n: number) =>
-  new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(n);
 const PROFILI_RAPIDI_FV = [
   {
     id: "casa_giorno",
@@ -428,6 +414,8 @@ type ScenarioPatch = Pick<
   | "capacita_accumulo_kwh"
   | "accumulo_id"
   | "analisi_consumi"
+  | "prezzo_vendita_manuale"
+  | "prodotti_extra"
 >;
 export function FvScenariEnergia({
   data,
@@ -487,93 +475,21 @@ export function FvScenariEnergia({
       );
     }
   };
-  const consigliata = valida
-    ? consigliaModuliFv({
-      massimo: valida.pannelli.length,
-      watt,
-      consumoAnnuo: data.consumo_annuo_kwh ?? 0,
-      resaKwhKwp: stimaProduzioneFv({ ...data, potenza_kwp: 1 }),
-      profilo: a.profilo,
-      obiettivo: a.obiettivo,
-      copertura: a.coperturaObiettivo,
-      pesiProduzioneMensili: resaMappaFv(valida)?.pesiMensili,
-    })
-    : null;
-  const batteria = listino.accumuli.find((p) => p.id === data.accumulo_id) ??
-    listino.accumuli.filter((p) => Number(p.capacita_kwh) > 0).sort((x, y) =>
-      Math.abs(
-        Number(x.capacita_kwh) - (data.consumo_annuo_kwh ?? 0) / 365 * .5,
-      ) -
-      Math.abs(
-        Number(y.capacita_kwh) - (data.consumo_annuo_kwh ?? 0) / 365 * .5,
-      )
-    )[0];
-  const scenari = valida && consigliata
-    ? (["consigliata", "accumulo", "massima"] as const).map((id) => {
-      const quantita = id === "massima"
-          ? valida.pannelli.length
-          : consigliata.consigliati,
-        con_accumulo = id === "accumulo",
-        capacita_accumulo_kwh = con_accumulo
-          ? Number(batteria?.capacita_kwh) || 0
-          : 0;
-      const configurazione = {
-        ...data,
-        ...datiDalDisegno({
-          ...valida,
-          pannelli: valida.pannelli.slice(0, quantita),
-        }, watt),
-        con_accumulo,
-        capacita_accumulo_kwh,
-        accumulo_id: con_accumulo && batteria ? String(batteria.id) : null,
-      };
-      let flussi: ReturnType<typeof simulaEnergiaFv> | null = null;
-      try {
-        flussi = simulaEnergiaFv({
-          consumoAnnuo: data.consumo_annuo_kwh ?? 0,
-          produzioneAnnua: stimaProduzioneFv(configurazione),
-          batteriaKwh: capacita_accumulo_kwh,
-          costoEvitabileKwh: data.costo_kwh_attuale ?? 0,
-          prezzoImmissione: a.prezzoImmissione,
-          profilo: a.profilo,
-          pesiProduzioneMensili: resaMappaFv(configurazione.layout_overlay)
-            ?.pesiMensili,
-        });
-      } catch { /* Il messaggio nel riepilogo indica i dati da completare. */ }
-      const righe = righeComponentiFv(configurazione, listino),
-        prezziConfermati = !!data.inverter_id &&
-          righe.length >= (con_accumulo ? 3 : 2) && righe.every((r) =>
-            r.prezzo_unitario_vendita > 0
-          ) && (!con_accumulo || !!batteria);
-      const prezzo = prezziConfermati
-        ? anteprimaFotovoltaico(configurazione, {
-          listino,
-          regoleSconto,
-          impiantoConfigurato: true,
-        }).totaleDocumento
-        : null;
-      const posaValorizzata = data.prezzo_vendita_manuale! > 0 ||
-        data.manodopera_righe.some((r) =>
-          r.ore > 0 && r.tariffa_oraria_vendita > 0
-        );
-      const beneficio = flussi
-        ? (data.costo_kwh_attuale != null
-          ? flussi.risparmioAcquisti + flussi.ricaviImmissione
-          : null)
-        : null;
-      return {
-        id,
-        configurazione,
-        flussi,
-        prezzo,
-        beneficio,
-        posaValorizzata,
-        rientro: posaValorizzata && prezzo && beneficio && beneficio > 0
-          ? prezzo / beneficio
-          : null,
-      };
-    })
-    : [];
+  const senzaMappa = !piano && !leggiPiano(data.layout_overlay);
+  const confronto = useMemo(() => (valida || senzaMappa) ? proposteImpiantoFv(data, listino, regoleSconto, valida) : null,
+    [data, listino, regoleSconto, valida, senzaMappa]);
+  const applica = (s: PropostaImpiantoFv) => onScenario({
+    layout_overlay: s.configurazione.layout_overlay,
+    numero_pannelli_scelti: s.configurazione.numero_pannelli_scelti,
+    potenza_kwp: s.configurazione.potenza_kwp,
+    con_accumulo: s.configurazione.con_accumulo,
+    capacita_accumulo_kwh: s.configurazione.capacita_accumulo_kwh,
+    accumulo_id: s.configurazione.accumulo_id,
+    analisi_consumi: { ...a, scenario: s.id },
+    prezzo_vendita_manuale: s.configurazione.prezzo_vendita_manuale,
+    prodotti_extra: s.configurazione.prodotti_extra,
+  });
+  const schede = confronto && <FvConfrontoConfigurazioni confronto={confronto} modificabile={modificabile} pannelliSalvati={piano?.pannelli.length ?? 0} selezionata={a.scenario} onScegli={applica} />;
   return (
     <section
       className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 [&_button]:min-h-11 [&_input:not([type=checkbox])]:min-h-11 [&_select]:min-h-11"
@@ -583,9 +499,7 @@ export function FvScenariEnergia({
         Spazio disponibile e impianto consigliato
       </h3>
       <p className="mt-1 text-sm text-slate-600">
-        La capienza deriva dai moduli che entrano nelle falde, provando posa
-        verticale e orizzontale. La proposta è una ricerca limitata di griglie,
-        da verificare nel sopralluogo.
+        {piano ? "La capienza deriva dai moduli che entrano nelle falde, provando posa verticale e orizzontale. La proposta è una ricerca limitata di griglie, da verificare nel sopralluogo." : "Confronta quantità, consumo nelle diverse ore e prezzi delle voci inserite. Il riferimento energetico annuo non coincide necessariamente con la taglia più conveniente."}
       </p>
       {piano
         ? (
@@ -665,7 +579,7 @@ export function FvScenariEnergia({
                 disposizione.
               </p>
             )}
-            {valida && !consigliata && (
+            {valida && !confronto && (
               <p role="status" className="mt-2 text-sm text-amber-800">
                 Completa consumo annuo, stima di produzione e profilo orario per
                 ottenere una potenza consigliata.
@@ -704,129 +618,7 @@ export function FvScenariEnergia({
                 </p>
               </>
             )}
-            {consigliata && (
-              <p className="mt-3">
-                <strong>
-                  Potenza consigliata:{" "}
-                  {numero(consigliata.consigliati * watt / 1000, 2)} kWp
-                </strong>. {consigliata.criterio}{" "}
-                {!consigliata.obiettivoRaggiungibile &&
-                  "Con lo spazio e il profilo attuali l’obiettivo non è raggiunto."}
-              </p>
-            )}
-            {scenari.length > 0 && (
-              <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                {scenari.map((s) => (
-                  <article
-                    key={s.id}
-                    className="rounded-xl border border-slate-200 p-3"
-                  >
-                    <h4 className="font-semibold">
-                      {s.id === "consigliata"
-                        ? "Consigliata"
-                        : s.id === "accumulo"
-                        ? "Con accumulo"
-                        : "Massima potenza"}
-                    </h4>
-                    <p className="mt-2 text-sm">
-                      {s.configurazione.numero_pannelli_scelti} pannelli ·{" "}
-                      {numero(s.configurazione.potenza_kwp, 2)} kWp ·{" "}
-                      {numero(s.configurazione.capacita_accumulo_kwh, 1)}{" "}
-                      kWh accumulo
-                    </p>
-                    {s.flussi
-                      ? (
-                        <dl className="mt-2 space-y-1 text-xs">
-                          {[[
-                            "Produzione annua",
-                            `${numero(s.flussi.produzione)} kWh`,
-                          ], [
-                            "Energia autoconsumata",
-                            `${numero(s.flussi.autoconsumo)} kWh`,
-                          ], [
-                            "Energia immessa",
-                            `${numero(s.flussi.immessa)} kWh`,
-                          ], [
-                            "Energia ancora acquistata",
-                            `${numero(s.flussi.acquistata)} kWh`,
-                          ], [
-                            "Consumi coperti",
-                            `${numero(s.flussi.coperturaConsumi * 100)}%`,
-                          ], [
-                            "Produzione utilizzata dal cliente",
-                            `${numero(s.flussi.quotaProduzioneUsata * 100)}%`,
-                          ], [
-                            "Risparmio sugli acquisti",
-                            data.costo_kwh_attuale == null
-                              ? "Costo evitabile da confermare"
-                              : eur(s.flussi.risparmioAcquisti),
-                          ], [
-                            "Valore immissioni",
-                            eur(s.flussi.ricaviImmissione),
-                          ], [
-                            "Costo voci inserite",
-                            s.prezzo == null
-                              ? "Componenti o prezzi da confermare"
-                              : eur(s.prezzo),
-                          ], [
-                            "Rientro semplice",
-                            s.rientro == null
-                              ? "Dati insufficienti"
-                              : `${numero(s.rientro, 1)} anni`,
-                          ]].map(([k, v]) => (
-                            <div
-                              key={k}
-                              className="flex flex-wrap justify-between gap-2"
-                            >
-                              <dt>{k}</dt>
-                              <dd className="font-medium">{v}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      )
-                      : (
-                        <p className="mt-2 text-sm text-amber-800">
-                          Completa consumi, produzione e profilo orario per
-                          confrontare il beneficio.
-                        </p>
-                      )}
-                    {!s.posaValorizzata && (
-                      <p className="mt-2 text-xs text-amber-800">
-                        Posa da valorizzare: aggiungi le lavorazioni o un prezzo
-                        a corpo completo prima di stimare il rientro.
-                      </p>
-                    )}
-                    {s.id === "accumulo" && !batteria && (
-                      <p className="mt-2 text-xs text-amber-800">
-                        Aggiungi un accumulo al catalogo aziendale.
-                      </p>
-                    )}
-                    <Button
-                      type="button"
-                      variant={a.scenario === s.id ? "default" : "outline"}
-                      className="mt-3"
-                      disabled={!modificabile ||
-                        s.configurazione.numero_pannelli_scelti < 1 ||
-                        (s.id === "accumulo" && !batteria)}
-                      onClick={() =>
-                        onScenario({
-                          layout_overlay: s.configurazione.layout_overlay,
-                          numero_pannelli_scelti:
-                            s.configurazione.numero_pannelli_scelti,
-                          potenza_kwp: s.configurazione.potenza_kwp,
-                          con_accumulo: s.configurazione.con_accumulo,
-                          capacita_accumulo_kwh:
-                            s.configurazione.capacita_accumulo_kwh,
-                          accumulo_id: s.configurazione.accumulo_id,
-                          analisi_consumi: { ...a, scenario: s.id },
-                        })}
-                    >
-                      Usa questa configurazione
-                    </Button>
-                  </article>
-                ))}
-              </div>
-            )}
+            {schede}
             {!!pannelliDaRivedere(piano).length && (
               <p role="alert" className="mt-3 text-sm text-amber-800">
                 Controlla i pannelli evidenziati nell’editor prima di confermare
@@ -836,11 +628,10 @@ export function FvScenariEnergia({
           </>
         )
         : (
-          <p className="mt-3 text-sm text-slate-600">
-            Disegna le falde nella fase Tetto per confrontare lo spazio
-            disponibile. Puoi comunque configurare manualmente un impianto con
-            misure rilevate.
-          </p>
+          <div>
+            <p className="mt-3 text-sm text-slate-600">Disegna le falde nella fase Tetto per verificare lo spazio disponibile. Prima del disegno puoi confrontare le taglie usando consumi, orari e catalogo.</p>
+            {schede || <p role="status" className="mt-3 text-sm text-amber-800">Completa consumo annuo, modello di pannello e stima solare per ottenere le proposte.</p>}
+          </div>
         )}
       {errore && (
         <p role="alert" className="mt-3 text-sm text-red-700">{errore}</p>

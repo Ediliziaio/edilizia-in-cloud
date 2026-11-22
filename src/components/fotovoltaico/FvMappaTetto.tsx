@@ -1,5 +1,6 @@
 import { FvFotoSolar } from "./tetto/FvFotoSolar";
 import { FvGoogleSolarPanel } from "./tetto/FvGoogleSolarPanel";
+import { FvVerificaMisure } from "./tetto/FvVerificaMisure";
 import type { FotoSolarFv } from "../../../supabase/functions/_shared/fvGoogleSolar";
 import { type PointerEvent, useRef, useState } from "react";
 import "./FvMappaTetto.css";
@@ -35,7 +36,8 @@ import {
   poligonoValido,
   type PuntoFv,
 } from "../../../supabase/functions/_shared/fvDisegnoCommerciale";
-import { pianoDaMappaFv } from "./tetto/mappaGeometria";
+import { erroreFaldeMappaFv, pianoDaMappaFv } from "./tetto/mappaGeometria";
+import { agganciaPuntoFv, impostaLunghezzaLatoFv } from "./tetto/aggancioMappa";
 
 export type RiferimentoTettoFv = {
   posizione: PosizioneMappaFv;
@@ -103,6 +105,9 @@ export function FvMappaTetto(
     [punti, setPunti] = useState<PuntoFv[]>([]),
     [errore, setErrore] = useState("");
   const [vertice, setVertice] = useState(0);
+  const [aggancio, setAggancio] = useState(true);
+  const [guidaAggancio, setGuidaAggancio] = useState("");
+  const [lunghezzaLato, setLunghezzaLato] = useState("");
   const [spostamento, setSpostamento] = useState({ x: 0, y: 0 });
   const [cursore, setCursore] = useState<PuntoFv | null>(null);
   const vistaDrag = useRef<
@@ -139,6 +144,7 @@ export function FvMappaTetto(
       Math.abs(pin.lat - origineConfermata.lat) < 1e-8 &&
       Math.abs(pin.lng - origineConfermata.lng) < 1e-8;
   const selezionata = falde.find((f) => f.id === attiva);
+  const erroreGeometria = erroreFaldeMappaFv(falde);
   const contorniInvariati = piano?.mappa &&
     JSON.stringify(piano.mappa.falde) === JSON.stringify(falde) &&
     piano.mappa.distanzaOstacoli === ostacoli && piano.distanzaBordo === bordo;
@@ -156,6 +162,17 @@ export function FvMappaTetto(
       const q = schermo(p);
       return `${q.x},${q.y}`;
     }).join(" ");
+  const aggancia = (p: PuntoFv, precedenti: PuntoFv[], escludi?: { fid: string; i: number }) => {
+    if (!aggancio) return p;
+    const centroMetri = metriDaCoordinate(centro, origine);
+    const pixelMetri = metriDaCoordinate(coordinateDaPixel({ x: dimensioni.w / 2 + 8, y: dimensioni.h / 2 }, centro, zoom, dimensioni.w, dimensioni.h), origine);
+    const tolleranza = Math.min(.75, Math.hypot(pixelMetri.x - centroMetri.x, pixelMetri.y - centroMetri.y));
+    const vertici = [...falde.flatMap(f => f.punti.filter((_, i) => f.id !== escludi?.fid || i !== escludi.i)), ...(!escludi ? punti : [])];
+    const direzione = precedenti.length >= 2 ? { x: precedenti[1].x - precedenti[0].x, y: precedenti[1].y - precedenti[0].y } : undefined;
+    const r = agganciaPuntoFv(p, vertici, precedenti.at(-1), tolleranza, direzione);
+    setGuidaAggancio(r.tipo === "vertice" ? "Aggancio a un vertice" : r.tipo ? "Lato allineato" : "");
+    return r.punto;
+  };
   const posizione = (e: PointerEvent) => {
     const el = svg.current!, r = el.getBoundingClientRect();
     return coordinateDaPixel(
@@ -197,7 +214,7 @@ export function FvMappaTetto(
   };
   const modifica = (patch: Partial<MappaFv["falde"][number]>) => {
     if (modificabile) {
-      setFalde((v) => v.map((f) => f.id === attiva ? { ...f, ...patch } : f));
+      setFalde((v) => v.map((f) => f.id === attiva ? { ...f, ...patch, ...("punti" in patch || "inclinazione" in patch || "azimut" in patch ? { misuraSolar: undefined } : {}) } : f));
     }
   };
   const aggiornaPunti = (fid: string, ps: PuntoFv[]) => {
@@ -206,7 +223,7 @@ export function FvMappaTetto(
       return;
     }
     setErrore("");
-    setFalde((v) => v.map((f) => f.id === fid ? { ...f, punti: ps } : f));
+    setFalde((v) => v.map((f) => f.id === fid ? { ...f, punti: ps, misuraSolar: undefined } : f));
   };
   const annullaTrascinamento = () => {
     const d = drag.current;
@@ -256,7 +273,7 @@ export function FvMappaTetto(
           piano?.modulo ?? { corto: 1.134, lungo: 1.762, stimato: true },
         );
       // Solo nuovi contorni o margini richiedono una nuova disposizione dei pannelli.
-      onChange({ ...next, distanzaBordo: bordo });
+      onChange({ ...next, distanzaBordo: bordo, confermaMisure: piano?.confermaMisure });
       setErrore("");
     } catch (e) {
       setErrore(
@@ -433,7 +450,8 @@ export function FvMappaTetto(
                     aggiungi(punti);
                     return;
                   }
-                  setPunti((v) => [...v, metriDaCoordinate(p, origine)]);
+                  const prossimo = e.altKey ? metriDaCoordinate(p, origine) : aggancia(metriDaCoordinate(p, origine), punti);
+                  setPunti((v) => [...v, prossimo]);
                 }
               }}
               onPointerMove={(e) => {
@@ -459,12 +477,14 @@ export function FvMappaTetto(
                 }
                 if (tool === "poligono") {
                   setCursore(
-                    metriDaCoordinate(posizione(e), origine),
+                    e.altKey ? metriDaCoordinate(posizione(e), origine) : aggancia(metriDaCoordinate(posizione(e), origine), punti),
                   );
                 }
                 if (!drag.current) return;
                 const d = drag.current,
-                  p = metriDaCoordinate(posizione(e), origine);
+                  grezzo = metriDaCoordinate(posizione(e), origine),
+                  p = d.tipo === "vertice" && !e.altKey
+                    ? aggancia(grezzo, [d.punti[(d.i + d.punti.length - 2) % d.punti.length], d.punti[(d.i + d.punti.length - 1) % d.punti.length]], { fid: d.fid, i: d.i }) : grezzo;
                 aggiornaPunti(
                   d.fid,
                   d.tipo === "vertice"
@@ -704,13 +724,14 @@ export function FvMappaTetto(
           <p className="mt-2 text-xs text-slate-500">
             Nord in alto · {satellite.pronto
               ? "Google Maps: vista satellitare interattiva, scala da coordinate geografiche"
-              : "Schema metrico manuale: verifica le misure sul posto"}. Le
-            {fotoSolar ? `foto Google Solar del ${fotoSolar.data}, conservata nella proposta.` : "immagini Google Maps non sono salvate nel progetto."}
+              : "Schema metrico manuale: verifica le misure sul posto"}. {fotoSolar ? `Foto Google Solar del ${fotoSolar.data}, conservata nella proposta.` : "Le immagini Google Maps non sono salvate nel progetto."}
           </p>
         </div>
         <aside className="fv-mappa-laterale" aria-label="Comandi del tetto">
           <div className="fv-mappa-strumenti">
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Strumenti di disegno</h4>
+            <label className="mb-2 flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={aggancio} onChange={e => setAggancio(e.target.checked)} />Aggancia vertici e allinea i lati</label>
+            {guidaAggancio && <p role="status" className="mb-2 text-xs text-emerald-800">{guidaAggancio} · Alt per muovere liberamente</p>}
       <div
         className="fv-mappa-tools"
         role="toolbar"
@@ -873,9 +894,16 @@ export function FvMappaTetto(
               <summary className="cursor-pointer text-sm font-semibold">Migliora foto e misure con Google Solar</summary>
           <FvGoogleSolarPanel progettoId={progettoId} posizione={pin} mappa={{versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde,distanzaOstacoli:ostacoli,fotoSolar}} modificabile={modificabile} pannelli={piano?.pannelli.length??0}
             onFoto={foto=>{setFotoSolar(foto);if(piano?.mappa&&contorniInvariati)onChange({...piano,mappa:{...piano.mappa,fotoSolar:foto}});}}
-            onMisure={misure=>{if((piano?.pannelli.length??0)>0)return;setFalde(misure.falde);const next=pianoDaMappaFv({versione:1,origine,ricerca:{indirizzo,posizione:ricerca},falde:misure.falde,distanzaOstacoli:ostacoli,fotoSolar},piano?.modulo??{corto:1.134,lungo:1.762,stimato:true});onChange({...next,distanzaBordo:bordo,schema3d:{...piano?.schema3d,altezza:misure.altezza,pendenza:piano?.schema3d?.pendenza??20}});}}/>
+            onMisure={misure => {
+              if ((piano?.pannelli.length ?? 0) > 0) return;
+              setFalde(misure.falde);
+              const next = pianoDaMappaFv({ versione: 1, origine, ricerca: { indirizzo, posizione: ricerca }, falde: misure.falde, distanzaOstacoli: ostacoli, fotoSolar }, piano?.modulo ?? { corto: 1.134, lungo: 1.762, stimato: true });
+              const schema3d = misure.altezza != null ? { ...piano?.schema3d, altezza: misure.altezza, pendenza: piano?.schema3d?.pendenza ?? 20 } : piano?.schema3d;
+              onChange({ ...next, distanzaBordo: bordo, schema3d, confermaMisure: piano?.confermaMisure });
+            }}/>
             </details>
-          <h4 className="mb-3 text-sm font-semibold text-slate-900">
+          {piano && contorniInvariati && <FvVerificaMisure piano={piano} modificabile={modificabile} onChange={onChange} />}
+          <h4 className="mb-3 mt-3 text-sm font-semibold text-slate-900">
             Il tuo tetto
           </h4>
           {!falde.length && (
@@ -1181,6 +1209,14 @@ export function FvMappaTetto(
                             </label>
                           ))}
                         </div>
+                        <div className="sm:col-span-3 rounded-lg border bg-white p-3 text-xs">
+                          <label>Lunghezza del lato dal vertice {Math.min(vertice, selezionata.punti.length - 1) + 1} al successivo (m)<Input aria-label="Lunghezza lato selezionato in pianta" type="number" min={.1} max={400} step={.01} value={lunghezzaLato} placeholder="Nuova quota in pianta" disabled={!modificabile} onChange={e => setLunghezzaLato(e.target.value)} /></label>
+                          <Button type="button" variant="outline" className="mt-2 w-full" disabled={!modificabile || !lunghezzaLato} onClick={() => {
+                            try { modifica({ punti: impostaLunghezzaLatoFv(selezionata.punti, Math.min(vertice, selezionata.punti.length - 1), Number(lunghezzaLato)) }); setLunghezzaLato(""); setErrore(""); }
+                            catch (e) { setErrore(e instanceof Error ? e.message : "Controlla la quota del lato."); }
+                          }}>Applica quota al lato</Button>
+                          <p className="mt-2 text-slate-500">Sposta solo il vertice successivo nella direzione del lato. Controlla i lati vicini e riconferma la nuova posa.</p>
+                        </div>
                         <Button
                           type="button"
                           variant="outline"
@@ -1272,7 +1308,7 @@ export function FvMappaTetto(
                   <Button
                     type="button"
                     className="w-full whitespace-normal"
-                    disabled={!modificabile}
+                    disabled={!modificabile || !!erroreGeometria}
                     onClick={salva}
                   >
                     {mantieniPannelli
@@ -1288,8 +1324,8 @@ export function FvMappaTetto(
           )}
         </aside>
       </div>
-      {errore && (
-        <p role="alert" className="mt-3 text-sm text-red-700">{errore}</p>
+      {(errore || erroreGeometria) && (
+        <p role="alert" className="mt-3 text-sm text-red-700">{errore || erroreGeometria}</p>
       )}
     </section>
   );

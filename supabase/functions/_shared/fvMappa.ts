@@ -1,4 +1,5 @@
 import { leggiFotoSolar, type FotoSolarFv } from "./fvGoogleSolar.ts";
+import { dataMisuraValida } from "./fvVerificaMisure.ts";
 /** Riferimenti della mappa, senza immagini o chiavi del provider. Metri est/nord dall'origine. */
 export type PosizioneMappaFv = { lat: number; lng: number };
 export type MappaFv = {
@@ -14,6 +15,7 @@ export type MappaFv = {
       azimut: number;
       inclinazioneStimata: boolean;
       dislivelloGronda?: number;
+      misuraSolar?: { data: string; scarto: number; campioni: number };
     }
   >;
   distanzaOstacoli: number;
@@ -50,6 +52,10 @@ export function leggiMappaFv(raw: unknown): MappaFv | null {
     ) {
       return null;
     }
+    const misura = record(f.misuraSolar) && dataMisuraValida(f.misuraSolar.data) &&
+        n(f.misuraSolar.scarto) && f.misuraSolar.scarto >= 0 && f.misuraSolar.scarto <= .5 &&
+        n(f.misuraSolar.campioni) && Number.isInteger(f.misuraSolar.campioni) && f.misuraSolar.campioni >= 20
+      ? { data: f.misuraSolar.data, scarto: f.misuraSolar.scarto, campioni: f.misuraSolar.campioni } : undefined;
     falde.push({
       id: f.id,
       nome: f.nome,
@@ -57,6 +63,7 @@ export function leggiMappaFv(raw: unknown): MappaFv | null {
       inclinazione: f.inclinazione,
       azimut: f.azimut,
       inclinazioneStimata: f.inclinazioneStimata !== false,
+      ...(misura ? { misuraSolar: misura } : {}),
       ...(n(f.dislivelloGronda) && f.dislivelloGronda >= 0 && f.dislivelloGronda <= 100 ? {dislivelloGronda:f.dislivelloGronda} : {}),
     });
   }

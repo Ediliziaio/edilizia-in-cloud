@@ -100,8 +100,32 @@ export async function costruisciPagineSchedeTecniche(articoloIds: Array<string |
  * mancanza, prima della firma / del recesso / della fine del documento). Ancore
  * sul testo dell'HTML già generato: non serve rigenerare il preventivo.
  */
+export function rinumeraPagineFv(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const pagine = Array.from(doc.querySelectorAll<HTMLElement>(".page"));
+  if (!pagine.length) return html;
+  pagine.forEach((pagina, i) => {
+    let numero = pagina.querySelector<HTMLElement>(".pnum");
+    if (!numero) {
+      numero = doc.createElement("div");
+      numero.className = "pnum fv-allegato-pnum";
+      numero.style.cssText = "position:absolute;bottom:3mm;left:0;right:0;text-align:center;font:8pt Arial,sans-serif;color:#1e3a5f;background:white;padding:1mm 0;";
+      pagina.style.paddingBottom = "8mm";
+      pagina.style.boxSizing = "border-box";
+      pagina.append(numero);
+    }
+    numero.textContent = `${i + 1} / ${pagine.length}`;
+  });
+  return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;
+}
+
 export function inserisciPagineSchede(html: string, pagineSchede: string): string {
   if (!pagineSchede) return html;
+  const finale = inserisciSchede(html, pagineSchede);
+  return rinumeraPagineFv(finale);
+}
+
+function inserisciSchede(html: string, pagineSchede: string): string {
   for (const sezione of ["condizioni", "firma", "recesso"]) {
     const idx = html.indexOf(`data-fv-section="${sezione}"`);
     const start = idx < 0 ? -1 : html.lastIndexOf('<div class="page"', idx);

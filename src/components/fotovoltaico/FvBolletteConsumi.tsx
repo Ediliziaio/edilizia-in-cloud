@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FvRiconciliazioneBolletta } from "./FvRiconciliazioneBolletta";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
@@ -751,6 +752,7 @@ export function FvBolletteConsumi(
           </div>
         </div>
       )}
+      {(a.documenti.length > 0 || riepilogo.consumoAnnuo != null) && <FvRiconciliazioneBolletta consumo={consumoManuale ?? riepilogo.consumoAnnuo} costoKwh={costoManuale ?? riepilogo.costoEvitabileKwh} fissi={riepilogo.fissiAnnui} spesaLetta={riepilogo.spesaAnnua} />}
       {riepilogo.fonteCosto === "spesa_meno_fissi" && (
         <p className="mt-2 text-xs text-slate-500">
           Proposta: spesa ricorrente meno quote fisse, divisa per i consumi.

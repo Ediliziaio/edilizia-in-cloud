@@ -43,7 +43,7 @@ export function FvSuggerimentoPannelli({
       aria-label="Suggerimento automatico pannelli dai consumi"
       className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"
     >
-      <h3 className="font-semibold text-slate-900">Quanti pannelli proporre?</h3>
+      <h3 className="font-semibold text-slate-900">Riferimento dai consumi annuali</h3>
       {!pronto
         ? (
           <p role="status" className="mt-2 text-sm text-slate-700">
