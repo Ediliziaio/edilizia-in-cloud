@@ -176,25 +176,25 @@ function MediaAttachment({ path }: { path: string }) {
 
 export default function AdminWhatsappLocaleInbox() {
   const queryClient = useQueryClient();
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [selectedChat, setSelectedChat] = useState<string | null>(() => searchParams.get("chat"));
   const [filtro, setFiltro] = useState("");
   const [soloNonLetti, setSoloNonLetti] = useState(false);
-  const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">("aperta");
+  const [filtroStato, setFiltroStato] = useState<"aperta" | "chiusa" | "tutte">(() => searchParams.get("chat") ? "tutte" : "aperta");
   const [pannelloAperto, setPannelloAperto] = useState(true);
   const [cercaInChat, setCercaInChat] = useState("");
 
   // Arrivo da un link esterno (es. "apri chat" dalla pipeline campagne):
   // ?chat=<wa_chat_id> apre direttamente quella conversazione. Filtro su
   // "tutte" perche' la chat potrebbe essere gia' stata chiusa.
-  const [searchParams] = useSearchParams();
-  useEffect(() => {
-    const chat = searchParams.get("chat");
-    if (chat) {
-      setSelectedChat(chat);
-      setFiltroStato("tutte");
-    }
-     
-  }, [searchParams]);
+  const chatRichiesta = searchParams.get("chat");
+  const [ultimaRichiesta, setUltimaRichiesta] = useState(chatRichiesta);
+  // Sincronizza la selezione solo quando cambia il parametro, prima del commit.
+  // Non riaprire il vecchio deep link dopo una selezione manuale.
+  if (ultimaRichiesta !== chatRichiesta) {
+    setUltimaRichiesta(chatRichiesta);
+    if (chatRichiesta) { setSelectedChat(chatRichiesta); setFiltroStato("tutte"); }
+  }
   const [reply, setReply] = useState("");
   // Avviso sul telefono quando arriva una risposta. Web push: funziona nel
   // browser del telefono o nella PWA in home, NON dentro l'app nativa
@@ -219,14 +219,9 @@ export default function AdminWhatsappLocaleInbox() {
   // tutto). Paginate: si carica altro solo quando serve.
   const [pagine, setPagine] = useState(1);
   const PER_PAGINA = 50;
-  const ultimoActiveRef = useRef<Thread | null>(null);
-  const selectedChatRef = useRef<string | null>(null);
-  // Terza volta che questa classe di bug stende una pagina (Assistenza, poi
-  // WhatsApp il 1/9, poi WhatsApp il 3/9): l'assegnazione DEVE stare sotto la
-  // useRef. Sopra, durante il render la const non esiste ancora e la pagina
-  // muore con "Cannot access before initialization". TypeScript non lo vede:
-  // è ordine di esecuzione, non tipi. Non spostarla più in alto.
-  selectedChatRef.current = selectedChat;
+  const [ultimoAttivo, setUltimoAttivo] = useState<Thread | null>(null);
+  const selectedChatRef = useRef<string | null>(selectedChat);
+  useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
 
   const threadsQuery = useQuery({
     queryKey: ["openwa", "threads", filtroStato, soloNonLetti, pagine],
@@ -399,7 +394,7 @@ export default function AdminWhatsappLocaleInbox() {
   // scartava un istante dopo → pannello vuoto). Si tiene l'ultima riga vista.
   const trovato = threadsVisibili.find((t) => t.chatId === selectedChat)
     ?? threads.find((t) => t.chatId === selectedChat) ?? null;
-  if (trovato) ultimoActiveRef.current = trovato;
+  if (trovato && ultimoAttivo !== trovato) setUltimoAttivo(trovato);
   const ultimo = messaggiTutti.at(-1);
   const daiMessaggi: Thread | null = ultimo && ultimo.wa_chat_id === selectedChat ? {
     chatId: ultimo.wa_chat_id,
@@ -414,7 +409,7 @@ export default function AdminWhatsappLocaleInbox() {
     stato: "aperta", assegnatoA: null, assegnatoNome: null, noteCount: 0,
   } : null;
   const active = trovato
-    ?? (ultimoActiveRef.current?.chatId === selectedChat ? ultimoActiveRef.current : null)
+    ?? (ultimoAttivo?.chatId === selectedChat ? ultimoAttivo : null)
     ?? daiMessaggi;
   const numeroAttivo = active?.numberId ? numeriById.get(active.numberId) ?? null : null;
   const piuNumeri = (numbersQuery.data?.length ?? 0) > 1;

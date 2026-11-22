@@ -229,7 +229,10 @@ function disegnaSchizzo(p: PiantaVera, d: Definizione, seme: number): Disegno {
         .sort((a, b) => a[0] - b[0]);
       let cur = lo;
       for (const [a, b] of [...buchi, [hi, hi]]) {
-        if (a - cur > 2) orizz ? tratto(cur, y1, a, y1) : tratto(x1, cur, x1, a);
+        if (a - cur > 2) {
+          if (orizz) tratto(cur, y1, a, y1);
+          else tratto(x1, cur, x1, a);
+        }
         cur = Math.max(cur, b);
       }
     }

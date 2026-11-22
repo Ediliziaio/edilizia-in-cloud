@@ -405,7 +405,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda", richiestaChat }: P
   // Chat Team ed Email sono a tutta pagina: in basso a destra c'è il campo
   // di scrittura, e il tondo copriva il tasto di invio. Lì si nasconde solo il
   // bottone: il componente resta montato perché ascolta «silvio:open-chat».
-  const senzaTondo = mode === "azienda" && /^\/azienda\/(chat|email)\/?$/.test(location.pathname);
+  const senzaTondo = mode === "azienda" && /^\/azienda\/(chat|email|scadenzario|prima-nota)\/?$/.test(location.pathname);
 
   const fabButton = (
 	          <motion.button

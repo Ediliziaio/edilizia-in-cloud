@@ -60,14 +60,17 @@ function Pagina() {
 
   useEffect(() => {
     if (!motore) return;
-    try {
-      const t0 = performance.now();
-      setSvg(motore.esporta_svg(json));
-      setTempi((t) => ({ ...t, disegno: ms(t0) }));
-      setErrore(null);
-    } catch (e) {
-      setErrore(String(e));
-    }
+    // Raggruppa le modifiche prima del disegno WASM: una revisione superata
+    // prima del frame non aggiorna più l'anteprima o i tempi.
+    const frame = requestAnimationFrame(() => {
+      try {
+        const t0 = performance.now();
+        setSvg(motore.esporta_svg(json));
+        setTempi((t) => ({ ...t, disegno: ms(t0) }));
+        setErrore(null);
+      } catch (e) { setErrore(String(e)); }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [motore, json]);
 
   const dxf = () => {

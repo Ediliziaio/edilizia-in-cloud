@@ -1,0 +1,24 @@
+import { expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
+const stato=vi.hoisted(()=>({company:"c1"}));
+vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:stato.company}})}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{from:()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:async()=>({data:[],error:null})};return q;}}}));
+it("etichetta i campi e apre una nuova bozza pulita dopo chiusura o cambio azienda",()=>{
+  const client=new QueryClient(),confirm=vi.fn();
+  const vista=(open:boolean)=><QueryClientProvider client={client}><NewScadenzaDialog open={open} onOpenChange={()=>{}} onConfirm={confirm} isPending={false}/></QueryClientProvider>;
+  const {rerender}=render(vista(true));
+  fireEvent.change(screen.getByLabelText("Descrizione"),{target:{value:"Scadenza sintetica"}});
+  fireEvent.change(screen.getByLabelText("Importo (€)"),{target:{value:"12.34"}});
+  fireEvent.change(screen.getByLabelText("Scadenza"),{target:{value:"2026-11-25"}});
+  expect(screen.getByRole("combobox",{name:"Tipo"})).toBeInTheDocument();
+  expect(screen.getByLabelText("Alert (giorni prima)")).toHaveValue(7);
+  rerender(vista(false));rerender(vista(true));
+  expect(screen.getByLabelText("Descrizione")).toHaveValue("");
+  expect(screen.getByLabelText("Importo (€)")).toHaveValue(null);
+  fireEvent.change(screen.getByLabelText("Descrizione"),{target:{value:"Dato vecchia azienda"}});
+  stato.company="c2";rerender(vista(true));
+  expect(screen.getByLabelText("Descrizione")).toHaveValue("");
+  expect(confirm).not.toHaveBeenCalled();
+});

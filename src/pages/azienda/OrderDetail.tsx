@@ -71,6 +71,8 @@ import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
+const SubappaltatoriCommessa = lazy(() => import("@/components/orders/SubappaltatoriCommessa").then(m => ({ default: m.SubappaltatoriCommessa })));
+const OrdineRapportiniCampo = lazy(() => import("@/components/orders/OrdineRapportiniCampo").then(m => ({ default: m.OrdineRapportiniCampo })));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 // Le viste di economia e cantiere si caricano quando si aprono (31/10/2026):
 // prima erano tutte nel pacchetto del dettaglio, oltre 1 MB scaricato anche
@@ -154,7 +156,7 @@ import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
 import { useVertical } from "@/hooks/useVertical";
 import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder, flussoDaApplicare } from "@/lib/orderPlaybook";
 
-import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
 import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo } from "@/lib/orders/incassiCommessa";
@@ -163,7 +165,7 @@ import { caricaImportiFinanziari } from '@/lib/orders/importiFinanziari';
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard, useBolleCommessa, useFattureFornitoriCommessa } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
-import { SubappaltatoriCommessa } from "@/components/orders/SubappaltatoriCommessa";
+
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";

@@ -27,11 +27,10 @@ import { collectBlogSlugs } from "./collect-blog-slugs.mjs";
 
 import { chromium } from "playwright";
 import { validateJsonLd } from "./validate-jsonld.mjs";
-import { spawn } from "node:child_process";
+import { avviaPreviewPrerender, chiudiPreviewPrerender } from "./prerender-preview.mjs";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import net from "node:net";
 import { preparaFoglio, valutaSelettori, cssCritico } from "./cssCritico.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -267,63 +266,6 @@ function foglioPreparato(href) {
 
 // ── Server preview helpers ───────────────────────────────────────────────────
 
-function waitForPort(port, host = "127.0.0.1", timeoutMs = 30_000) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const tryConnect = () => {
-      const sock = net.createConnection(port, host);
-      sock.once("connect", () => { sock.end(); resolve(); });
-      sock.once("error", () => {
-        if (Date.now() - start > timeoutMs) reject(new Error(`port ${port} not ready`));
-        else setTimeout(tryConnect, 250);
-      });
-    };
-    tryConnect();
-  });
-}
-
-function startPreview() {
-  const proc = spawn(
-    "npx",
-    [
-      "vite", "preview",
-      "--port", String(PORT),
-      "--strictPort",
-      "--host", "127.0.0.1",
-      "--logLevel", "error",
-    ],
-    {
-      cwd: ROOT,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
-      // detached:true crea un process group nuovo, cosi possiamo killare
-      // l'INTERA progenie con process.kill(-pid). Senza questo, i child di npx
-      // (esbuild, vite worker) restano zombie anche dopo SIGTERM al parent.
-      detached: true,
-    },
-  );
-  proc.stdout.on("data", (d) => process.stdout.write(`[preview] ${d}`));
-  proc.stderr.on("data", (d) => process.stderr.write(`[preview-err] ${d}`));
-  return proc;
-}
-
-/**
- * Killa il process group del vite preview con SIGKILL (force, non
- * cancellabile). Su Linux: process.kill(-pid) targeta tutto il PG.
- * Fallback a kill(pid) se -pid non funziona (Windows).
- */
-function killPreviewHard(proc) {
-  if (!proc || proc.killed) return;
-  try {
-    if (typeof proc.pid === "number") {
-      // Process group kill (negative pid)
-      try { process.kill(-proc.pid, "SIGKILL"); } catch { /* ignore */ }
-    }
-    // Backup: direct kill
-    proc.kill("SIGKILL");
-  } catch { /* ignore */ }
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -347,9 +289,8 @@ async function main() {
 
   // 2. Avvia preview server
   console.log(`▶ Avvio vite preview su :${PORT}…`);
-  const preview = startPreview();
+  const preview = await avviaPreviewPrerender(ROOT, PORT);
   try {
-    await waitForPort(PORT);
     console.log("✓ Preview pronto");
 
     // 3. Avvia browser headless (con auto-install fallback se manca)
@@ -610,11 +551,7 @@ async function main() {
     }
     if (fail > 0) process.exitCode = 1;
   } finally {
-    // SIGKILL del process group (vite preview + esbuild + tutti i child)
-    killPreviewHard(preview);
-    // Piccolo delay per dare tempo al kernel di propagare SIGKILL prima
-    // che Node esca e CF Pages chiuda lo step.
-    await new Promise((r) => setTimeout(r, 500));
+    await chiudiPreviewPrerender(preview);
   }
 }
 
@@ -626,16 +563,14 @@ async function main() {
 const HARD_TIMEOUT_MS = 15 * 60 * 1000;
 const hardTimer = setTimeout(() => {
   console.error(`✗ Hard timeout ${HARD_TIMEOUT_MS / 60000}min raggiunto — force exit`);
-  process.exit(process.env.CI || process.env.CF_PAGES ? 0 : 1);
+  process.exit(1);
 }, HARD_TIMEOUT_MS);
 hardTimer.unref(); // non tiene vivo l'event loop di per se
 
 // 2. Cleanup su qualsiasi forma di exit (Ctrl+C, kill, errore)
 function cleanupAndExit(code) {
   clearTimeout(hardTimer);
-  // Dato il pattern detached:true del preview, su `process.exit()` Node non
-  // killa i child automaticamente. Qui non abbiamo riferimento al preview
-  // ma il kill diretto e' gia in main()'s finally{}. Uscita immediata.
+  // Il server HTTP appartiene a questo processo: uscire chiude il socket.
   process.exit(code);
 }
 process.on("SIGINT",  () => cleanupAndExit(130));
@@ -647,18 +582,10 @@ main()
     // Force-exit: anche dopo finally{}, alcuni handle (browser, esbuild
     // worker) possono restare aperti e bloccare l'event loop forever.
     // process.exit() chiude TUTTO senza aspettare.
-    process.exit(0);
+    process.exit(process.exitCode || 0);
   })
   .catch((e) => {
     clearTimeout(hardTimer);
     console.error("Prerender errore fatale:", e);
-    // Su CI (Cloudflare Pages, GitHub Actions) il prerender e' best-effort:
-    // se fallisce non bloccare il deploy. Il sito viene servito come SPA
-    // classica (perde solo il prerender SEO per questa build).
-    if (process.env.CI || process.env.CF_PAGES) {
-      console.warn("⚠ CI detected — exit 0 per non bloccare il deploy. SEO prerender disabilitato per questa build.");
-      process.exit(0);
-    } else {
-      process.exit(1);
-    }
+    process.exit(1);
   });
