@@ -37,7 +37,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       });
       return { data: { id: args.p_richiesta_id, ...esito }, error: null as null };
     } catch (errore) {
-      return { data: null, error: errore };
+      return { data: null as null, error: errore };
     }
   },
 } }));
