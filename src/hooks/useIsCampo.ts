@@ -4,6 +4,7 @@
  */
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
+import { CAMPO_TECNICI_ROLES } from "@/types/auth";
 
 export function useIsCampo() {
   const { role, profile, user, multiCompanyAccesses, selectedMultiCompanyId } = useAuth();
@@ -16,6 +17,7 @@ export function useIsCampo() {
   const isOperaio = currentRole === "employee";
   const isSubappaltatore = currentRole === "subcontractor";
   const isCampo = isOperaio || isSubappaltatore;
+  const isTecnico = !!currentRole && CAMPO_TECNICI_ROLES.includes(currentRole);
 
-  return { isCampo, isOperaio, isSubappaltatore, role: currentRole, profile, user };
+  return { isCampo, isOperaio, isSubappaltatore, isTecnico, role: currentRole, profile, user };
 }

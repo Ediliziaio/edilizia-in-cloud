@@ -20,9 +20,12 @@ export type AppRole =
   | "multi_company_user"
   | "produttore_admin"; // admin di un'azienda PRODUTTORE (white-label rivenditori)
 
-/** Ruoli con accesso all'area campo (lavori.ediliziaincloud.com) */
+/** Ruoli operativi dell’area campo (lavori.ediliziaincloud.com). */
 export type CampoRole = "employee" | "subcontractor";
 export const CAMPO_ROLES: CampoRole[] = ["employee", "subcontractor"];
+/** Lo staff accede soltanto alla scheda e all’elenco dei cantieri assegnati. */
+export const CAMPO_TECNICI_ROLES: AppRole[] = ["company_staff", "company_admin"];
+export const CAMPO_APP_ROLES: AppRole[] = [...CAMPO_ROLES, ...CAMPO_TECNICI_ROLES];
 export const OPERAIO_ROLES: AppRole[] = ["employee"];
 export const SUBCONTRACTOR_ROLES: AppRole[] = ["subcontractor"];
 

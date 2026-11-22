@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PencilLine } from "lucide-react";
+import { AggiornamentiFaseCampo } from "@/components/campo/AggiornamentiFaseCampo";
+import { Button } from "@/components/ui/button";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
@@ -10,6 +12,7 @@ import {
 } from "@/lib/orders/cronoprogramma";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 import { planningDay } from "@/lib/orders/planning";
+import { cn } from "@/lib/utils";
 
 const statoFase = { da_iniziare: "Da iniziare", in_corso: "In corso", completata: "Completata" };
 const dataBreve = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
@@ -22,7 +25,7 @@ function periodo(inizio?: string | null, fine?: string | null) {
   return da ? `Dal ${data(da)}` : a ? `Entro il ${data(a)}` : "Date da definire";
 }
 
-function SottofaseRiga({ sottofase, date }: { sottofase: Sottofase; date?: string }) {
+function SottofaseRiga({ sottofase, date, onEdit }: { sottofase: Sottofase; date?: string; onEdit?: () => void }) {
   const pct = sottofase.fatta ? 100 : Math.min(100, Math.max(0, Math.round(sottofase.percentuale || 0)));
   const dettagli = [
     date,
@@ -30,16 +33,24 @@ function SottofaseRiga({ sottofase, date }: { sottofase: Sottofase; date?: strin
     sottofase.risorse > 0 && `${sottofase.risorse} ${sottofase.risorse === 1 ? "persona" : "persone"}`,
     sottofase.in_parallelo && "In parallelo",
   ].filter(Boolean).join(" · ");
-  return <li className="flex items-start gap-2 py-2">
+  return <li className={cn("flex gap-2 py-2", onEdit ? "items-center" : "items-start")}>
     <div className="min-w-0 flex-1">
       <p className="break-words text-sm">{sottofase.name}</p>
       {dettagli && <p className="mt-0.5 text-xs text-muted-foreground">{dettagli}</p>}
     </div>
     <span className="shrink-0 text-xs font-semibold tabular-nums">{pct}%</span>
+    {onEdit && <Button type="button" size="icon" variant="ghost" className="size-11 shrink-0 text-primary"
+      aria-label={`Aggiorna sottofase ${sottofase.name}`} onClick={onEdit}>
+      <PencilLine className="size-4" aria-hidden="true" />
+    </Button>}
   </li>;
 }
 
-export function FasiSchedaCantiere({ fasi }: { fasi: FaseSchedaCantiere[] }) {
+export function FasiSchedaCantiere({ fasi, orderId, onEdit }: {
+  fasi: FaseSchedaCantiere[];
+  orderId: string;
+  onEdit?: (faseId: string, sottofaseId?: string) => void;
+}) {
   const [filtro, setFiltro] = useState("");
   const visibili = fasi.filter(fase => !filtro || fase.status === filtro);
   if (!fasi.length) return <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">Nessuna fase pianificata.</p>;
@@ -55,23 +66,33 @@ export function FasiSchedaCantiere({ fasi }: { fasi: FaseSchedaCantiere[] }) {
     {visibili.map(fase => {
       const pct = avanzamentoFase(fase);
       const completate = fase.sottofasi.filter(s => s.fatta).length;
-      return <details key={fase.id} className="group rounded-xl border bg-card">
-        <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 p-3 [&::-webkit-details-marker]:hidden">
-          <span className="min-w-0 flex-1">
-            <span className="block break-words text-sm font-semibold">{fase.name}</span>
-            <span className="text-xs text-muted-foreground">{statoFase[fase.status]}{fase.sottofasi.length > 0 && ` · Sottofasi ${completate}/${fase.sottofasi.length}`}</span>
-          </span>
-          <span className="shrink-0 text-sm font-semibold tabular-nums text-primary">{pct}%</span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <div className="space-y-2 border-t px-3 pb-2 pt-2.5">
-          <p className="text-xs font-medium text-muted-foreground">{periodo(fase.start_date, fase.end_date)}</p>
-          {fase.note && <p className="whitespace-pre-wrap break-words text-sm">{fase.note}</p>}
-          {fase.sottofasi.length > 0 && <ul className="divide-y" aria-label={`Sottofasi di ${fase.name}`}>
-            {fase.sottofasi.map(s => <SottofaseRiga key={s.id} sottofase={s} date={s.data_inizio || s.data_fine ? periodo(s.data_inizio, s.data_fine) : undefined} />)}
-          </ul>}
-        </div>
-      </details>;
+      return <div key={fase.id} className="relative rounded-xl border bg-card">
+        <details className="group">
+          <summary className={cn("flex min-h-14 cursor-pointer list-none items-center gap-2 p-3 [&::-webkit-details-marker]:hidden",
+            onEdit && "pr-14")}>
+            <span className="min-w-0 flex-1">
+              <span className="block break-words text-sm font-semibold">{fase.name}</span>
+              <span className="text-xs text-muted-foreground">{statoFase[fase.status]}{fase.sottofasi.length > 0 && ` · Sottofasi ${completate}/${fase.sottofasi.length}`}</span>
+            </span>
+            <span className="shrink-0 text-sm font-semibold tabular-nums text-primary">{pct}%</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="space-y-2 border-t px-3 pb-2 pt-2.5">
+            <p className="text-xs font-medium text-muted-foreground">{periodo(fase.start_date, fase.end_date)}</p>
+            {fase.note && <p className="whitespace-pre-wrap break-words text-sm">{fase.note}</p>}
+            {fase.sottofasi.length > 0 && <ul className="divide-y" aria-label={`Sottofasi di ${fase.name}`}>
+              {fase.sottofasi.map(s => <SottofaseRiga key={s.id} sottofase={s}
+                date={s.data_inizio || s.data_fine ? periodo(s.data_inizio, s.data_fine) : undefined}
+                onEdit={onEdit && (() => onEdit(fase.id, s.id))} />)}
+            </ul>}
+            <div className="border-t"><AggiornamentiFaseCampo orderId={orderId} phaseId={fase.id} /></div>
+          </div>
+        </details>
+        {onEdit && <Button type="button" size="icon" variant="ghost" className="absolute right-1 top-1.5 size-11 text-primary"
+          aria-label={`Aggiorna fase ${fase.name}`} onClick={() => onEdit(fase.id)}>
+          <PencilLine className="size-[18px]" aria-hidden="true" />
+        </Button>}
+      </div>;
     })}
   </div>;
 }

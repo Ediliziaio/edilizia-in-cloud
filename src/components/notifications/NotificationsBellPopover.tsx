@@ -1,53 +1,19 @@
-/**
- * NotificationsBellPopover — bell topbar con popover a tendina.
- *
- * UX:
- *   - Trigger Bell con badge unread integrato
- *   - Header con contatori "Tutte (N)" / "Non lette (M)" come filter tabs
- *   - Bottoni: "Segna tutte lette" + refresh implicito (realtime)
- *   - Lista raggruppata per periodo (Oggi / Ieri / Questa settimana / Precedenti)
- *   - Entità con 2+ aggiornamenti collassabili (dedup rumore)
- *   - Per-riga: dot unread, mark-as-read on click, dismiss X on hover,
- *     navigate(action_url) chiude il popover
- *   - Auto-mark-all-read 1.5s dopo apertura del popover (non subito: dà
- *     tempo all'utente di vedere "non lette" prima)
- *   - Empty state informativo per filtro
- */
-
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { formatDistanceToNow, isToday, isYesterday, isThisWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Bell,
-  BellOff,
-  MessageSquare,
-  Package,
-  CheckSquare,
-  Banknote,
-  X,
-  CheckCheck,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Percent,
-  Settings,
-  Sparkles,
-  CalendarClock,
-  AlertTriangle,
-  Truck,
-  Wrench,
-  FileCheck,
-  HardHat,
+  AlertTriangle, Banknote, Bell, CalendarClock, Check, CheckCheck, CheckSquare, ChevronDown,
+  ChevronRight, FileCheck, HardHat, MessageSquare, Package, Percent, RefreshCw, Settings, Truck, Wrench, X,
 } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { PannelloNotifiche } from "@/components/notifications/PannelloNotifiche";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
+import { isNative } from "@/lib/mobile/platform";
+import { percorsoNotifica } from "@/lib/notifiche/percorsoNotifica";
 import { cn } from "@/lib/utils";
-
-type FilterMode = "all" | "unread";
 
 const typeConfig: Record<string, { icon: typeof Bell; bg: string; fg: string }> = {
   ticket_new: { icon: MessageSquare, bg: "bg-blue-50 ring-blue-200", fg: "text-blue-600" },
@@ -75,548 +41,170 @@ const typeConfig: Record<string, { icon: typeof Bell; bg: string; fg: string }> 
   generic: { icon: Bell, bg: "bg-slate-50 ring-slate-200", fg: "text-slate-600" },
 };
 
-const entityTypeLabels: Record<string, string> = {
-  order: "Ordine",
-  ticket: "Ticket",
-  task: "Attività",
-  contact: "Contatto",
-  contatto: "Contatto",
-  cliente: "Cliente",
-  opportunity: "Opportunità",
-  project: "Progetto",
-  invoice: "Fattura",
-  installment: "Rata",
-  quote: "Preventivo",
-  mezzo: "Mezzo",
-  azienda_documento: "Documento della ditta",
-  integration: "Integrazione",
-};
+const periodi = ["Oggi", "Ieri", "Questa settimana", "Precedenti"] as const;
+type Periodo = typeof periodi[number];
 
-type TimePeriod = "oggi" | "ieri" | "questa_settimana" | "precedenti";
-
-const periodLabels: Record<TimePeriod, string> = {
-  oggi: "Oggi",
-  ieri: "Ieri",
-  questa_settimana: "Questa settimana",
-  precedenti: "Precedenti",
-};
-
-const periodOrder: TimePeriod[] = ["oggi", "ieri", "questa_settimana", "precedenti"];
-
-interface EntityGroup {
-  key: string;
-  entityType: string;
-  entityId: string;
-  label: string;
-  notifications: Notification[];
+function periodo(iso: string): Periodo {
+  const date = new Date(iso);
+  if (isToday(date)) return "Oggi";
+  if (isYesterday(date)) return "Ieri";
+  if (isThisWeek(date, { weekStartsOn: 1 })) return "Questa settimana";
+  return "Precedenti";
 }
 
-interface TimePeriodGroup {
-  period: TimePeriod;
-  label: string;
-  count: number;
-  unread: number;
-  singles: Notification[];
-  entityGroups: EntityGroup[];
-}
-
-function getTimePeriod(dateStr: string): TimePeriod {
-  const date = new Date(dateStr);
-  if (isToday(date)) return "oggi";
-  if (isYesterday(date)) return "ieri";
-  if (isThisWeek(date, { weekStartsOn: 1 })) return "questa_settimana";
-  return "precedenti";
-}
-
-function buildEntityGroupLabel(entityType: string, entityId: string, count: number): string {
-  const label = entityTypeLabels[entityType] || entityType;
-  return `${count} aggiornamenti su ${label} #${entityId.slice(0, 8)}`;
-}
-
-function NotificationIcon({ type, unread }: { type: string; unread: boolean }) {
-  const config = typeConfig[type] || typeConfig.generic;
-  const Icon = config.icon;
-  return (
-    <div
-      className={cn(
-        "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 transition-colors",
-        config.bg,
-        unread && "ring-2",
-      )}
-    >
-      <Icon className={cn("h-4 w-4", config.fg)} />
-      {unread && (
-        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
-      )}
-    </div>
-  );
-}
-
-function useGroupedNotifications(
-  notifications: Notification[],
-  filter: FilterMode,
-): TimePeriodGroup[] {
-  return useMemo(() => {
-    const filtered = filter === "unread" ? notifications.filter((n) => !n.is_read) : notifications;
-
-    const buckets: Record<TimePeriod, Notification[]> = {
-      oggi: [],
-      ieri: [],
-      questa_settimana: [],
-      precedenti: [],
-    };
-
-    for (const n of filtered) {
-      buckets[getTimePeriod(n.created_at)].push(n);
-    }
-
-    const result: TimePeriodGroup[] = [];
-
-    for (const period of periodOrder) {
-      const items = buckets[period];
-      if (items.length === 0) continue;
-
-      const entityMap = new Map<string, Notification[]>();
-      const singles: Notification[] = [];
-
-      for (const n of items) {
-        if (n.entity_type && n.entity_id) {
-          const key = `${n.entity_type}::${n.entity_id}`;
-          if (!entityMap.has(key)) entityMap.set(key, []);
-          entityMap.get(key)!.push(n);
-        } else {
-          singles.push(n);
-        }
-      }
-
-      const entityGroups: EntityGroup[] = [];
-      for (const [key, groupItems] of entityMap) {
-        if (groupItems.length < 2) {
-          singles.push(groupItems[0]);
-        } else {
-          const [entityType, entityId] = key.split("::");
-          entityGroups.push({
-            key,
-            entityType,
-            entityId,
-            label: buildEntityGroupLabel(entityType, entityId, groupItems.length),
-            notifications: groupItems,
-          });
-        }
-      }
-
-      singles.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      result.push({
-        period,
-        label: periodLabels[period],
-        count: items.length,
-        unread: items.filter((n) => !n.is_read).length,
-        singles,
-        entityGroups,
-      });
-    }
-
-    return result;
-  }, [notifications, filter]);
-}
-
-function NotificationRow({
-  n,
-  onClickNotification,
-  onDismiss,
-  onMarkRead,
-}: {
-  n: Notification;
-  onClickNotification: (n: Notification) => void;
-  onDismiss: (id: string) => void;
-  onMarkRead: (id: string) => void;
+function NotificaRiga({ voce, apri, chiudi, leggi, online }: {
+  voce: Notification; apri: (voce: Notification) => void; chiudi: (id: string) => void; leggi: (id: string) => void; online: boolean;
 }) {
-  const unread = !n.is_read;
-  // Gli avvisi azienda non si "leggono", si chiudono: la X resta sempre
-  // visibile (non solo all'hover) perché è l'unico modo di spegnerli.
-  const avviso = n.type === "lifecycle";
-  return (
-    <div
-      className={cn(
-        "relative group px-3 py-2.5 flex gap-2.5 transition-colors border-l-2",
-        unread ? "bg-primary/5 border-primary" : "border-transparent",
-        n.action_url && "cursor-pointer hover:bg-accent/50",
-      )}
-      onClick={() => onClickNotification(n)}
-    >
-      <NotificationIcon type={n.type} unread={unread} />
-      <div className="flex-1 min-w-0 pr-12">
-        <p className={cn("text-sm leading-tight", unread ? "font-semibold" : "font-medium")}>
-          {n.title}
-        </p>
-        {n.body && (
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
-        )}
-        <p className="text-[11px] text-muted-foreground/70 mt-1">
-          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: it })}
-        </p>
-      </div>
-      <div
-        className={cn(
-          "absolute top-1.5 right-1.5 flex items-center gap-0.5 transition-opacity",
-          avviso ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-        )}
-      >
-        {unread && !avviso && (
-          <button
-            className="rounded-sm p-1 hover:bg-muted"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMarkRead(n.id);
-            }}
-            title="Segna come letta"
-            aria-label="Segna come letta"
-          >
-            <Check className="h-3.5 w-3.5 text-emerald-600" />
-          </button>
-        )}
-        <button
-          className="rounded-sm p-1 hover:bg-muted"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDismiss(n.id);
-          }}
-          title={avviso ? "Chiudi avviso" : "Elimina"}
-          aria-label={avviso ? "Chiudi avviso" : "Elimina notifica"}
-        >
-          <X className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-      </div>
+  const url = percorsoNotifica(voce.action_url, window.location.origin, isNative);
+  const { icon: Icon, bg, fg } = typeConfig[voce.type]
+    ?? (url?.startsWith("/azienda/scadenzario") ? typeConfig.installment_due : typeConfig.generic);
+  const avviso = voce.type === "lifecycle";
+  const nonLetta = !voce.is_read;
+  const urlValido = !!url;
+  const data = new Date(voce.created_at);
+  const apribile = urlValido || (nonLetta && !avviso && online);
+  const dettaglio = <>
+    <span aria-hidden="true" className={cn("relative mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg ring-1", bg, fg)}>
+      <Icon className="size-4" />
+      {nonLetta && <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary ring-1 ring-background" />}
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className={cn("block break-words text-sm leading-snug", nonLetta ? "font-semibold" : "font-medium")}>{voce.title}</span>
+      {voce.body && <span className="mt-0.5 block whitespace-pre-line break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{voce.body}</span>}
+      {!Number.isNaN(data.getTime()) && <time className="mt-1 block text-xs text-muted-foreground" dateTime={voce.created_at}>
+        {formatDistanceToNow(data, { addSuffix: true, locale: it })}
+      </time>}
+    </span>
+  </>;
+  const riga = "flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left";
+  return <li className={cn("flex min-w-0 items-start border-l-2", nonLetta ? "border-primary bg-primary/5" : "border-transparent")}>
+    {apribile ? <button type="button" onClick={() => apri(voce)} className={cn(riga, "hover:bg-accent/50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring")}>
+      {dettaglio}
+    </button> : <div className={riga}>{dettaglio}</div>}
+    <div className="flex shrink-0 pr-1">
+      {nonLetta && !avviso && <Button type="button" variant="ghost" size="icon" className="size-11 md:size-9"
+        aria-label={`Segna come letta · ${voce.title}`} title="Segna come letta" disabled={!online} onClick={() => leggi(voce.id)}>
+        <Check className="size-4" aria-hidden="true" />
+      </Button>}
+      <Button type="button" variant="ghost" size="icon" className="size-11 md:size-9"
+        aria-label={`${avviso ? "Chiudi avviso" : "Nascondi notifica"} · ${voce.title}`} title={avviso ? "Chiudi avviso" : "Nascondi notifica"}
+        disabled={!online} onClick={() => chiudi(voce.id)}>
+        <X className="size-4 text-muted-foreground" aria-hidden="true" />
+      </Button>
     </div>
-  );
+  </li>;
 }
 
-function EntityGroupRow({
-  group,
-  onClickNotification,
-  onDismiss,
-  onMarkRead,
-}: {
-  group: EntityGroup;
-  onClickNotification: (n: Notification) => void;
-  onDismiss: (id: string) => void;
-  onMarkRead: (id: string) => void;
+function RaggruppaNotifiche({ elenco, raggruppa, ...azioni }: {
+  elenco: Notification[]; raggruppa: boolean;
+} & Omit<Parameters<typeof NotificaRiga>[0], "voce">) {
+  const gruppi = new Map<string, Notification[]>();
+  for (const n of elenco) {
+    const chiave = raggruppa && n.entity_type && n.entity_id ? `${n.entity_type}:${n.entity_id}` : n.id;
+    const voci = gruppi.get(chiave);
+    if (voci) voci.push(n);
+    else gruppi.set(chiave, [n]);
+  }
+  return <ul className="divide-y divide-border/70">
+    {[...gruppi].map(([chiave, voci]) => voci.length === 1
+      ? <NotificaRiga key={chiave} voce={voci[0]} {...azioni} />
+      : <li key={chiave}>
+        <details className="group">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" />
+            <span className="min-w-0 flex-1"><span className="block truncate font-medium">{voci[0].title}</span>
+              <span className="block text-xs text-muted-foreground">{voci.length} aggiornamenti</span></span>
+          </summary>
+          <ul className="ml-3 divide-y border-l">{voci.map(voce => <NotificaRiga key={voce.id} voce={voce} {...azioni} />)}</ul>
+        </details>
+      </li>)}
+  </ul>;
+}
+
+export function NotificationsBellPopover({ badgePronti = true, className, avvisiAzienda = true,
+  trasformaLink, preferenze = "/azienda/impostazioni/notifiche" }: {
+  badgePronti?: boolean; className?: string; avvisiAzienda?: boolean;
+  trasformaLink?: (url: string) => string; preferenze?: string | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const unreadCount = group.notifications.filter((n) => !n.is_read).length;
-  const hasUnread = unreadCount > 0;
-
-  return (
-    <div>
-      <button
-        className={cn(
-          "w-full px-3 py-2.5 flex items-center gap-2.5 transition-colors text-left border-l-2",
-          hasUnread ? "bg-primary/5 border-primary" : "border-transparent",
-          "cursor-pointer hover:bg-accent/50",
-        )}
-        onClick={() => setExpanded((prev) => !prev)}
-      >
-        <NotificationIcon type={group.notifications[0].type} unread={hasUnread} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className={cn("text-sm leading-tight", hasUnread ? "font-semibold" : "font-medium")}>
-              {group.label}
-            </p>
-            {hasUnread && (
-              <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-1.5 py-0.5">
-                {unreadCount} nuove
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground/70 mt-1">
-            Ultimo aggiornamento{" "}
-            {formatDistanceToNow(new Date(group.notifications[0].created_at), {
-              addSuffix: true,
-              locale: it,
-            })}
-          </p>
-        </div>
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-      </button>
-      {expanded && (
-        <div className="ml-5 border-l border-muted">
-          {group.notifications.map((n) => (
-            <NotificationRow
-              key={n.id}
-              n={n}
-              onClickNotification={onClickNotification}
-              onDismiss={onDismiss}
-              onMarkRead={onMarkRead}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function NotificationsBellPopover({ badgePronti = true }: { badgePronti?: boolean }) {
   const navigate = useNavigate();
+  const telefono = useIsMobile();
+  const online = useNetworkStatus();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<FilterMode>("all");
-  const {
-    notifications,
-    unreadCount,
-    unreadMessagesCount,
-    isLoading,
-    tutteLeNonLetteVisibili,
-    markAsRead,
-    markAllAsRead,
-    dismiss,
-  } = useNotifications(badgePronti || open);
+  const [soloNonLette, setSoloNonLette] = useState(false);
+  const { notifications, unreadCount, unreadMessagesCount, isLoading, isError, isRefreshing, isMarkingAll,
+    markAsRead, markAllAsRead, dismiss, refresh } = useNotifications(badgePronti || open, { elenco: open, avvisiAzienda });
 
-  const groupedNotifications = useGroupedNotifications(notifications, filter);
-
-  // Auto-switch al filtro "non lette" all'apertura quando ci sono unread
-  useEffect(() => {
-    if (open && unreadCount > 0 && filter === "all") {
-      // Lasciamo "all" come default: l'utente vede subito tutto in contesto.
-      // Se preferisci aprire su unread, decommenta:
-      // setFilter("unread");
+  const gruppi = useMemo(() => {
+    const data = new Map<Periodo, Notification[]>();
+    for (const notifica of notifications) {
+      if (soloNonLette && notifica.is_read) continue;
+      const chiave = periodo(notifica.created_at);
+      const elenco = data.get(chiave);
+      if (elenco) elenco.push(notifica);
+      else data.set(chiave, [notifica]);
     }
-  }, [open, unreadCount, filter]);
+    return data;
+  }, [notifications, soloNonLette]);
 
-  // Auto mark-all-read 1.5s dopo apertura (un po' più lento del Sheet
-  // originale: l'utente ha più tempo di notare le "non lette" nel popover compatto)
-  // Solo i MESSAGGI si auto-segnano letti: gli avvisi azienda restano
-  // accesi finché non li chiudi (guardarli non li risolve).
-  useEffect(() => {
-    if (!open || unreadMessagesCount === 0 || !tutteLeNonLetteVisibili) return;
-    const timer = setTimeout(() => markAllAsRead(), 1500);
-    return () => clearTimeout(timer);
-  }, [open, unreadMessagesCount, tutteLeNonLetteVisibili, markAllAsRead]);
-
-  const handleClick = (n: Notification) => {
-    if (!n.is_read) markAsRead(n.id);
-    if (n.action_url) {
-      navigate(n.action_url);
+  function apri(voce: Notification) {
+    if (!voce.is_read && voce.type !== "lifecycle" && online) markAsRead(voce.id);
+    const url = percorsoNotifica(voce.action_url, window.location.origin, isNative);
+    if (url) {
       setOpen(false);
+      navigate(trasformaLink ? trasformaLink(url) : url);
     }
-  };
-
-  const visibleCount = groupedNotifications.reduce((sum, g) => sum + g.count, 0);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-9 w-9 shrink-0"
-          title="Notifiche"
-          aria-label={unreadCount > 0 ? `Notifiche (${unreadCount} non lette)` : "Notifiche"}
-        >
-          <Bell
-            className={cn(
-              "h-4 w-4",
-              unreadCount > 0 && "text-primary",
-            )}
-            aria-hidden="true"
-          />
-          {unreadCount > 0 && (
-            <span
-              className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold ring-2 ring-background"
-              aria-hidden="true"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={8}
-        className="w-[400px] sm:w-[440px] p-0 max-h-[85vh] flex flex-col overflow-hidden"
-      >
-        {/* Header */}
-        <div className="px-3 pt-3 pb-2 border-b bg-gradient-to-b from-background to-muted/20">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5">
-              <Bell className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">Notifiche</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={unreadMessagesCount === 0}
-              onClick={() => markAllAsRead()}
-              className="h-7 text-xs gap-1"
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Tutte lette
-            </Button>
-          </div>
-
-          {/* Filter pills */}
-          <div className="flex items-center gap-1">
-            <FilterPill
-              active={filter === "all"}
-              onClick={() => setFilter("all")}
-              label="Tutte"
-              count={notifications.length}
-            />
-            <FilterPill
-              active={filter === "unread"}
-              onClick={() => setFilter("unread")}
-              label="Non lette"
-              count={unreadCount}
-              accent={unreadCount > 0}
-            />
-          </div>
-        </div>
-
-        {/* Content */}
-        <ScrollArea className="flex-1 max-h-[60vh]">
-          {isLoading && visibleCount === 0 ? (
-            <p role="status" className="px-4 py-6 text-center text-sm text-muted-foreground">Caricamento notifiche…</p>
-          ) : visibleCount === 0 ? (
-            <EmptyState filter={filter} totalCount={notifications.length} />
-          ) : (
-            <div>
-              {groupedNotifications.map((group) => (
-                <div key={group.period}>
-                  <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between border-b">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      {group.label}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {group.unread > 0 && (
-                        <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-1.5">
-                          {group.unread} nuove
-                        </span>
-                      )}
-                      <Badge variant="secondary" className="h-4 min-w-[18px] px-1 text-[10px]">
-                        {group.count}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div>
-                    {group.entityGroups.map((eg) => (
-                      <EntityGroupRow
-                        key={eg.key}
-                        group={eg}
-                        onClickNotification={handleClick}
-                        onDismiss={dismiss}
-                        onMarkRead={markAsRead}
-                      />
-                    ))}
-
-                    {group.singles.map((n) => (
-                      <NotificationRow
-                        key={n.id}
-                        n={n}
-                        onClickNotification={handleClick}
-                        onDismiss={dismiss}
-                        onMarkRead={markAsRead}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-
-        {/* Footer */}
-        <div className="border-t bg-muted/30 px-3 py-2 flex items-center justify-between">
-          <Link
-            to="/azienda/impostazioni/notifiche"
-            onClick={() => setOpen(false)}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-          >
-            <Settings className="h-3 w-3" />
-            Preferenze
-          </Link>
-          <span className="text-[11px] text-muted-foreground/70">
-            {notifications.length === 0
-              ? "Nessuna notifica"
-              : `${notifications.length} totali · ${unreadCount} non lette`}
-          </span>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-
-function FilterPill({
-  active,
-  onClick,
-  label,
-  count,
-  accent = false,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-  accent?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "h-7 px-2.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5",
-        active
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground hover:bg-muted/80",
-      )}
-    >
-      {label}
-      <span
-        className={cn(
-          "h-4 min-w-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center",
-          active
-            ? "bg-primary-foreground/20 text-primary-foreground"
-            : accent && count > 0
-            ? "bg-rose-500 text-white"
-            : "bg-background text-muted-foreground",
-        )}
-      >
-        {count > 99 ? "99+" : count}
-      </span>
-    </button>
-  );
-}
-
-function EmptyState({ filter, totalCount }: { filter: FilterMode; totalCount: number }) {
-  if (filter === "unread" && totalCount > 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-        <div className="h-12 w-12 rounded-full bg-emerald-50 ring-1 ring-emerald-200 flex items-center justify-center mb-3">
-          <CheckCheck className="h-6 w-6 text-emerald-600" />
-        </div>
-        <p className="text-sm font-medium">Tutto in pari</p>
-        <p className="text-xs text-muted-foreground mt-1 max-w-[260px]">
-          Nessuna notifica non letta. Hai gestito tutto.
-        </p>
-      </div>
-    );
   }
 
-  return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-      <div className="h-14 w-14 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-        <BellOff className="h-7 w-7 text-muted-foreground/60" />
+  const trigger = <Button type="button" variant="ghost" size="icon" title="Notifiche"
+    className={cn("relative size-11 shrink-0 md:size-9", className)}
+    aria-label={unreadCount ? `Notifiche, ${unreadCount} da leggere o gestire` : "Notifiche"}>
+    <Bell className={cn("size-4", unreadCount > 0 && "text-primary")} aria-hidden="true" />
+    {unreadCount > 0 && <span aria-hidden="true"
+      className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground ring-2 ring-background">
+      {unreadCount > 99 ? "99+" : unreadCount}
+    </span>}
+  </Button>;
+
+  return <PannelloNotifiche aperto={open} onOpenChange={setOpen} trigger={trigger}>
+    <div className="shrink-0 space-y-1.5 border-b bg-background px-3 pb-2">
+      <div className="flex min-h-9 items-center justify-between gap-1 max-md:pr-11 md:pt-2">
+        <h2 className="text-base font-semibold">Notifiche</h2>
+        <Button type="button" variant="ghost" size="icon" className="size-11 shrink-0 md:size-9" aria-label="Aggiorna notifiche"
+          title="Aggiorna notifiche" disabled={!online || isRefreshing} onClick={() => void refresh()}>
+          <RefreshCw className={cn("size-4", isRefreshing && "motion-safe:animate-spin")} aria-hidden="true" />
+        </Button>
       </div>
-      <p className="text-sm font-medium">Nessuna notifica</p>
-      <p className="text-xs text-muted-foreground mt-1 max-w-[280px] flex items-center gap-1">
-        <Sparkles className="h-3 w-3 text-violet-500" />
-        Silvio ti avviserà appena succede qualcosa
-      </p>
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <Button type="button" size="sm" variant={soloNonLette ? "ghost" : "secondary"}
+          className="min-h-11 px-2.5 md:min-h-8" aria-pressed={!soloNonLette} onClick={() => setSoloNonLette(false)}>Tutte</Button>
+        <Button type="button" size="sm" variant={soloNonLette ? "secondary" : "ghost"}
+          className="min-h-11 px-2.5 md:min-h-8" aria-pressed={soloNonLette} onClick={() => setSoloNonLette(true)}>
+          Da leggere{unreadCount > 0 && ` · ${unreadCount > 99 ? "99+" : unreadCount}`}
+        </Button>
+        {unreadMessagesCount > 0 && <Button type="button" size="sm" variant="ghost"
+          className="ml-auto min-h-11 gap-1 px-2 text-xs md:min-h-8" disabled={!online || isMarkingAll}
+          onClick={() => markAllAsRead()}><CheckCheck className="size-4 shrink-0" aria-hidden="true" /> Tutte lette</Button>}
+      </div>
+      {!online && <p role="status" className="px-1 text-xs text-muted-foreground">Sei offline. Le notifiche si aggiornano al ritorno della rete.</p>}
+      {isError && <p role="alert" className="px-1 text-xs text-destructive">Non riesco ad aggiornare le notifiche. Tocca Aggiorna per riprovare.</p>}
     </div>
-  );
+    <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain" aria-label="Elenco notifiche">
+      {gruppi.size === 0 && (isLoading && online
+        ? <p role="status" className="p-6 text-center text-sm text-muted-foreground">Carico le notifiche…</p>
+        : online && !isError && <p className="p-6 text-center text-sm text-muted-foreground">
+          {soloNonLette ? "Nessuna notifica da leggere." : "Nessuna notifica recente."}
+        </p>)}
+      {periodi.map(chiave => {
+        const elenco = gruppi.get(chiave);
+        return elenco && <section key={chiave} aria-label={chiave}>
+          <h3 className="sticky top-0 z-10 border-b bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground">{chiave}</h3>
+          <RaggruppaNotifiche elenco={elenco} raggruppa={!telefono} apri={apri} chiudi={dismiss} leggi={markAsRead} online={online} />
+        </section>;
+      })}
+    </div>
+    {preferenze && <Link to={preferenze} onClick={() => setOpen(false)}
+      className="flex min-h-11 shrink-0 items-center gap-2 border-t bg-background px-3 text-sm font-medium hover:bg-muted">
+      <Settings className="size-4" aria-hidden="true" /> Preferenze notifiche <ChevronRight className="ml-auto size-4" aria-hidden="true" />
+    </Link>}
+  </PannelloNotifiche>;
 }

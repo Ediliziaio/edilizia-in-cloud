@@ -4,9 +4,11 @@ import { afterEach, expect, it, vi } from "vitest";
 import CampoInvii from "@/pages/campo/CampoInvii";
 import { changeFormControl } from "@/test/helpers/changeFormControl";
 import type { RicevutaCampo, SyncItem } from "@/lib/campo/sync-queue";
+import type { BozzaTecnica } from "@/lib/campo/bozzaTecnica";
 
 const dati = vi.hoisted(() => ({ voci: [] as SyncItem[], ricevute: [] as RicevutaCampo[] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "operaio" }, effectiveCompany: { id: "azienda" } }) }));
+vi.mock("@/hooks/useIsCampo", () => ({ useIsCampo: () => ({ isTecnico: false }) }));
 vi.mock("@/hooks/campo/useCampoAssignments", () => ({ useCampoAssignments: () => ({ data: [
   { order_id: "a", order: { description: "Via Roma" } }, { order_id: "b", order: { description: "Via Milano" } },
 ] }) }));
@@ -14,7 +16,7 @@ vi.mock("@/hooks/campo/useRapportiniSospesi", () => ({ useRapportiniSospesi: () 
 vi.mock("@/lib/campo/sync-queue", async originale => {
   const modulo = await originale<typeof import("@/lib/campo/sync-queue")>();
   return { ...modulo, syncQueue: { ...modulo.syncQueue, getAll: async () => dati.voci,
-    getRicevute: async () => dati.ricevute, on: () => () => {} } };
+    getRicevute: async () => dati.ricevute, getBozzeTecniche: async (): Promise<BozzaTecnica[]> => [], on: () => () => {} } };
 });
 
 afterEach(() => localStorage.clear());

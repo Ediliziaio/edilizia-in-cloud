@@ -29,6 +29,7 @@
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
+import { pushNativeConfigurate } from "../_shared/pushNativa.ts";
 
 // Usa npm: specifier (supportato in Supabase Edge Functions / Deno 1.37+)
 import webpush from "npm:web-push@3.6.7";
@@ -44,14 +45,15 @@ Deno.serve(async (req: Request) => {
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const vapidSubject    = Deno.env.get("VAPID_SUBJECT") ?? "mailto:info@ediliziaincloud.it";
 
+  // Richiesta di sola lettura per le impostazioni. Espone solo la chiave pubblica
+  // e la disponibilità dei canali nativi, anche in assenza di Web Push.
+  if (req.method === "GET") {
+    return jsonResponse({ publicKey: vapidPrivateKey ? vapidPublicKey : undefined, native: pushNativeConfigurate(Deno.env.get) });
+  }
+
   if (!vapidPublicKey || !vapidPrivateKey) {
     console.error("Chiavi VAPID mancanti — configura VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY");
     return errorResponse("Configurazione VAPID mancante", 503);
-  }
-
-  // La chiave pubblica non è un segreto: serve al browser per iscriversi.
-  if (req.method === "GET") {
-    return jsonResponse({ publicKey: vapidPublicKey });
   }
 
   // Inviare invece sì: fino al 26/09/2026 bastava la chiave anon (pubblica) per

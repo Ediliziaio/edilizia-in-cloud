@@ -27,7 +27,8 @@ const HOME = "/";
 function indirizzoSicuro(url) {
   try {
     const u = new URL(url || HOME, self.location.origin);
-    return u.origin === self.location.origin ? u.pathname + u.search + u.hash : HOME;
+    return u.origin === self.location.origin && !u.pathname.startsWith("//") && !u.username && !u.password
+      ? u.pathname + u.search + u.hash : HOME;
   } catch {
     return HOME;
   }
@@ -71,12 +72,12 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList) => {
+      .then(async (clientList) => {
         // Se c'è una finestra già aperta, portala in primo piano
         for (const client of clientList) {
           if ("focus" in client) {
-            client.navigate(url);
-            return client.focus();
+            const aperta = await client.navigate(url).catch(() => null);
+            if (aperta) return aperta.focus();
           }
         }
         // Altrimenti apri una nuova finestra

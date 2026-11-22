@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,7 +23,9 @@ import {
 } from "lucide-react";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
 import { SSOButtons } from "@/components/auth/SSOButtons";
-import { CAMPO_ROLES } from "@/types/auth";
+import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
+import { useIsCampo } from "@/hooks/useIsCampo";
+import { CAMPO_APP_ROLES } from "@/types/auth";
 import { useSEO } from "@/hooks/useSEO";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
@@ -34,9 +36,10 @@ const BTN_GRADIENT =
   "bg-gradient-to-r from-orange-600 to-eic-amber-strong hover:from-orange-700 hover:to-amber-600 text-white font-medium shadow-md";
 
 export default function LavoriLogin() {
-  const { user, role, isLoading, signIn, signOut } = useAuth();
+  const { user, isLoading, signIn, signOut } = useAuth();
+  const { role } = useIsCampo();
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const location = useLocation();
   useSEO({ title: "Area Lavori", noindex: true });
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
@@ -46,13 +49,16 @@ export default function LavoriLogin() {
   const [resetSent, setResetSent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // ✅ Già autenticato come operaio/subappaltatore — vai all'area lavori
-  if (!isLoading && user && role && CAMPO_ROLES.includes(role as "employee" | "subcontractor")) {
-    return <Navigate to="/campo" replace />;
+  const autorizzato = !!role && CAMPO_APP_ROLES.includes(role);
+  const da = location.state?.from as { pathname?: string; search?: string } | undefined;
+  const destinazione = da?.pathname && /^\/campo(?:\/|$)/.test(da.pathname)
+    ? `${da.pathname}${da.search || ""}` : "/campo";
+  if (!isLoading && !isSubmitting && view !== "2fa" && user && autorizzato) {
+    return <RoleBasedRedirect campoDestinazione={destinazione} />;
   }
 
   // 🚫 Autenticato ma ruolo non autorizzato
-  if (!isLoading && user && role && !CAMPO_ROLES.includes(role as "employee" | "subcontractor")) {
+  if (!isLoading && user && role && !autorizzato) {
     return (
       <div className={`min-h-screen flex items-center justify-center bg-gradient-to-br ${GRADIENT} p-4`}>
         <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 text-center space-y-6 max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl p-8">
@@ -60,8 +66,7 @@ export default function LavoriLogin() {
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-foreground">Accesso non autorizzato</h1>
             <p className="text-muted-foreground text-sm">
-              Questo portale è riservato a <strong>operai</strong> e{" "}
-              <strong>subappaltatori</strong>.{" "}
+              Questo portale è riservato a operai, subappaltatori e tecnici.{" "}
               {role === "customer"
                 ? "Se sei un cliente, accedi da clienti.ediliziaincloud.com"
                 : "Se hai un account aziendale, accedi da app.ediliziaincloud.com"}
@@ -130,7 +135,7 @@ export default function LavoriLogin() {
 
   const handle2FAVerified = () => {
     toast({ title: "Accesso effettuato", description: "Benvenuto!" });
-    navigate("/campo", { replace: true });
+    setView("login");
   };
 
   const handle2FACancel = async () => {
@@ -226,9 +231,9 @@ export default function LavoriLogin() {
                   <ClipboardList className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-white font-medium text-sm">Avanzamento SAL</p>
+                  <p className="text-white font-medium text-sm">Fasi e rilievi</p>
                   <p className="text-white/60 text-xs mt-0.5">
-                    Stato avanzamento lavori in tempo reale
+                    Aggiorna i lavori e registra le visite in cantiere
                   </p>
                 </div>
               </div>
@@ -255,6 +260,10 @@ export default function LavoriLogin() {
                 <span className="flex items-center gap-1.5 bg-white/20 text-white rounded-full px-3 py-1 text-xs font-medium">
                   <Truck className="h-3 w-3" />
                   Subappaltatore
+                </span>
+                <span className="flex items-center gap-1.5 bg-white/20 text-white rounded-full px-3 py-1 text-xs font-medium">
+                  <ClipboardList className="h-3 w-3" />
+                  Tecnico
                 </span>
               </div>
               <p className="text-white/50 text-xs leading-relaxed mt-3">
@@ -391,7 +400,6 @@ export default function LavoriLogin() {
                 </Button>
               </form>
 
-              {/* SSO Google + Microsoft — il role check filtra chi non è operatore */}
               <SSOButtons disabled={isSubmitting} onError={(msg) => setFormError(msg)} />
 
               <div className="text-center space-y-1">

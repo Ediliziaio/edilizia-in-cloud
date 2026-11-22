@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCantieriTecnici } from "@/hooks/campo/useSchedaCantiere";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { puoSpuntareInCantiere, chiSpuntaValido, type ChiSpunta } from "@/lib/orders/chiSpunta";
 import { faseHaSottofasi, messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
+import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
 
 // Le foto restano indirizzate come prima nel database; in lettura passano da
 // un link a scadenza (linkFileRiservato), cosi' funzionano anche quando il
@@ -92,13 +94,15 @@ async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promi
 }
 
 export default function CampoAvanzamento() {
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const [params] = useSearchParams();
   const orderFilter = params.get("order_id") || null;
   const companyId = profile?.company_id;
   useCommessaCampoSync(orderFilter, companyId, !!user);
   const queryClient = useQueryClient();
   const [uploadingFaseId, setUploadingFaseId] = useState<string | null>(null);
+  const cantieriTecnici = useCantieriTecnici(role === "employee");
+  const schedeAccessibili = new Set(cantieriTecnici.isError ? [] : (cantieriTecnici.data ?? []).map(c => c.id));
 
   // Le fasi dei MIEI cantieri. Non filtriamo per utente: ci pensa la RLS
   // ("Campo workers can view phases of assigned orders"), che copre sia il
@@ -372,7 +376,13 @@ export default function CampoAvanzamento() {
         gruppi.map((g) => (
           <section key={g.orderId} className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="border-b border-border bg-muted/40 px-3 py-2.5">
-              <p className="text-sm font-semibold">{g.cantiere?.order_code ?? "Cantiere"}</p>
+              <div className="flex flex-wrap items-center justify-between gap-x-2">
+                <p className="text-sm font-semibold">{g.cantiere?.order_code ?? "Cantiere"}</p>
+                {schedeAccessibili.has(g.orderId) && <Link to={percorsoCantiereTecnico(g.orderId)}
+                  className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline">
+                  Scheda cantiere
+                </Link>}
+              </div>
               {g.cantiere?.description && (
                 <p className="line-clamp-1 text-xs text-muted-foreground">{g.cantiere.description}</p>
               )}

@@ -71,6 +71,19 @@ describe("Sincronizzazione con API simulate", () => {
     expect(state.select).not.toHaveBeenCalled();
     expect(state.upload).not.toHaveBeenCalled();
   });
+  it("richiede di rileggere l’avanzamento quando il server risponde con un conflitto", async () => {
+    const azienda = "22222222-2222-4222-8222-222222222222";
+    const cantiere = "33333333-3333-4333-8333-333333333333";
+    state.owner = "44444444-4444-4444-8444-444444444444";
+    rpc.mockResolvedValueOnce({ data: azienda, error: null as null });
+    rpc.mockReturnValueOnce({ abortSignal: async (): Promise<{ data: boolean; error: null }> => ({ data: false, error: null }) });
+    rpc.mockResolvedValueOnce({ data: null as null, error: { code: "PT409", details: "avanzamento-cambiato" } });
+    await expect(processCampoOffline(item({ type: "avanzamento", payload: {
+      tipo: "avanzamento", company_id: azienda, user_id: state.owner, order_id: cantiere,
+      nomeCantiere: "Cantiere", note: "", foto: [], valore: "60", chiusuraRichiesta: false,
+      target: { faseId: id, nome: "Posa", percentuale: 30, completata: false },
+    } }))).rejects.toMatchObject({ code: "avanzamento-cambiato", message: expect.stringContaining("Rileggi") });
+  });
   it("conserva le vecchie note vocali senza dichiararle giornalieri ricevuti", async () => {
     await expect(processCampoOffline(item({ type: "rapportino_vocale", payload: { operaio_id: "u", company_id: "c", trascrizione: "giornata" } }))).rejects.toBeInstanceOf(SyncPermanentError); expect(state.insert).not.toHaveBeenCalled();
   });

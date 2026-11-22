@@ -1,11 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { playNotificationSound } from "@/lib/notificationSound";
-import { safeRedirect } from "@/utils/safeRedirect";
+import { percorsoNotifica } from "@/lib/notifiche/percorsoNotifica";
+import { isNative } from "@/lib/mobile/platform";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 
 export interface Notification {
@@ -45,6 +47,9 @@ export function NotificationsRealtime({
   trasformaLink?: (url: string) => string;
 } = {}): null {
   const { profile, effectiveCompany } = useAuth();
+  const navigate = useNavigate();
+  const naviga = useRef(navigate);
+  useEffect(() => { naviga.current = navigate; }, [navigate]);
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
   const userId = profile?.id;
@@ -59,6 +64,12 @@ export function NotificationsRealtime({
       void queryClient.invalidateQueries({ queryKey: unreadKey });
     };
     const channelId = `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
+    const ricevute = new Set<string>();
+    const alRitorno = () => {
+      if (document.visibilityState === "visible") invalidateMessages();
+    };
+    document.addEventListener("visibilitychange", alRitorno);
+    window.addEventListener("online", alRitorno);
 
     const channel = supabase
       .channel(channelId)
@@ -72,17 +83,27 @@ export function NotificationsRealtime({
         },
         (payload) => {
           const newNotif = payload.new as Notification;
-          if (newNotif.company_id !== companyId || newNotif.is_dismissed) return;
+          if (newNotif.company_id !== companyId || newNotif.user_id !== userId || newNotif.is_dismissed) return;
           invalidateMessages();
+          if (document.visibilityState !== "visible" || newNotif.is_read || ricevute.has(newNotif.id)) return;
+          ricevute.add(newNotif.id);
+          if (ricevute.size > 80) ricevute.delete(ricevute.values().next().value!);
+          const route = percorsoNotifica(newNotif.action_url, window.location.origin, isNative);
+          const destinazione = route && (trasformaLink ? trasformaLink(route) : route);
 
           toast(newNotif.title, {
+            id: `notifica:${newNotif.id}`,
             description: newNotif.body ?? undefined,
-            action: newNotif.action_url
+            action: destinazione
               ? {
-                  label: "Vai →",
+                  label: "Apri",
                   onClick: () => {
-                    const url = trasformaLink ? trasformaLink(newNotif.action_url!) : newNotif.action_url!;
-                    safeRedirect(url, "/");
+                    if (document.visibilityState === "visible") {
+                      void supabase.from("notifications").update({ is_read: true })
+                        .eq("id", newNotif.id).eq("company_id", companyId).eq("user_id", userId)
+                        .then(invalidateMessages, invalidateMessages);
+                    }
+                    naviga.current(destinazione);
                   },
                 }
               : undefined,
@@ -111,6 +132,8 @@ export function NotificationsRealtime({
     });
 
     return () => {
+      document.removeEventListener("visibilitychange", alRitorno);
+      window.removeEventListener("online", alRitorno);
       void supabase.removeChannel(channel);
     };
   }, [companyId, userId, queryClient, trasformaLink]);
@@ -153,16 +176,17 @@ function daQuando(iso: string): string {
   return `${giorni} giorni`;
 }
 
-export function useNotifications(enabled = true) {
+export function useNotifications(enabled = true, { elenco = true, avvisiAzienda = true } = {}) {
   const { profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
   const userId = profile?.id;
   const unreadKey = queryKeys.notifications.unread(companyId, userId);
 
-  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: queryKeys.notifications.list(companyId, userId),
-    queryFn: async () => {
+  const listKey = queryKeys.notifications.list(companyId, userId);
+  const list = useQuery<Notification[]>({
+    queryKey: listKey,
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from("notifications")
         .select("id, company_id, user_id, type, title, body, entity_type, entity_id, action_url, is_read, is_dismissed, created_at")
@@ -172,11 +196,12 @@ export function useNotifications(enabled = true) {
         .order("is_read", { ascending: true })
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
-        .limit(50);
+        .limit(50)
+        .abortSignal(signal);
       if (error) throw error;
       return data as Notification[];
     },
-    enabled: enabled && !!companyId && !!userId,
+    enabled: enabled && elenco && !!companyId && !!userId,
     // 2026-05-27: alzato da 30s a 2min — il realtime push tiene la cache
     // fresca, il polling era solo safety-net per eventi persi (raro).
     staleTime: 2 * 60_000,
@@ -184,16 +209,18 @@ export function useNotifications(enabled = true) {
     refetchOnWindowFocus: true,
   });
 
-  const { data: totaleNonLette } = useQuery({
+  const { data: notifications = [] } = list;
+  const nonLette = useQuery({
     queryKey: unreadKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { count, error } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId!)
         .eq("user_id", userId!)
         .eq("is_dismissed", false)
-        .eq("is_read", false);
+        .eq("is_read", false)
+        .abortSignal(signal);
       if (error) throw error;
       return count ?? 0;
     },
@@ -204,20 +231,22 @@ export function useNotifications(enabled = true) {
   });
 
   // ── Avvisi lifecycle (azienda) → stessa lista della campanella ──
-  const { data: righeLifecycle = [], isLoading: lifecycleLoading } = useQuery<LifecycleRow[]>({
+  const { data: totaleNonLette } = nonLette;
+  const lifecycle = useQuery<LifecycleRow[]>({
     queryKey: queryKeys.lifecycleNotifications.byCompany(companyId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from("lifecycle_notifications")
         .select("id, notification_type, title, message, is_read, created_at")
         .eq("company_id", companyId!)
         .eq("is_dismissed", false)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(50)
+        .abortSignal(signal);
       if (error) throw error;
       return data as LifecycleRow[];
     },
-    enabled: enabled && !!companyId,
+    enabled: enabled && avvisiAzienda && !!companyId && !!userId,
     staleTime: 2 * 60_000,
     gcTime: 5 * 60_000,
   });
@@ -230,7 +259,7 @@ export function useNotifications(enabled = true) {
    */
   const gruppiLifecycle = useMemo(() => {
     const perTipo = new Map<string, { rep: LifecycleRow; ids: string[]; dal: string }>();
-    for (const r of righeLifecycle) {
+    for (const r of (avvisiAzienda ? lifecycle.data ?? [] : [])) {
       const g = perTipo.get(r.notification_type);
       if (g) {
         g.ids.push(r.id);
@@ -240,7 +269,7 @@ export function useNotifications(enabled = true) {
       }
     }
     return Array.from(perTipo.values());
-  }, [righeLifecycle]);
+  }, [avvisiAzienda, lifecycle.data]);
 
   /** Da id-con-prefisso al gruppo di righe che rappresenta. */
   const idsPerGruppo = useMemo(() => {
@@ -281,7 +310,7 @@ export function useNotifications(enabled = true) {
   const unreadCount = unreadMessagesCount + gruppiLifecycle.length;
   const tutteLeNonLetteVisibili = totaleNonLette !== undefined && totaleNonLette === visibleUnreadMessagesCount;
   const aggiornaMessaggi = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list(companyId, userId) }),
+    queryClient.invalidateQueries({ queryKey: listKey }),
     queryClient.invalidateQueries({ queryKey: unreadKey }),
   ]);
 
@@ -297,13 +326,16 @@ export function useNotifications(enabled = true) {
         .eq("user_id", userId!);
       if (error) throw error;
     },
-    onMutate: async (id) => {
+    onSuccess: (_, id) => {
       if (idsPerGruppo.has(id)) return;
+      const prima = queryClient.getQueryData<Notification[]>(listKey)?.some(n => n.id === id && !n.is_read);
       queryClient.setQueryData<Notification[]>(
-        queryKeys.notifications.list(companyId, userId),
-        (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+        listKey,
+        old => old?.map(n => n.id === id ? { ...n, is_read: true } : n)
       );
+      if (prima) queryClient.setQueryData<number>(unreadKey, n => n === undefined ? undefined : Math.max(0, n - 1));
     },
+    onError: () => toast.error("Notifica ancora da leggere. Riprova."),
     onSettled: aggiornaMessaggi,
   });
 
@@ -316,11 +348,12 @@ export function useNotifications(enabled = true) {
       // Gli avvisi azienda restano fuori: "letto" non è "risolto", e sparire
       // dal pallino al primo sguardo era esattamente il difetto del banner.
     },
-    onMutate: async () => {
+    onSuccess: () => {
       queryClient.setQueryData<Notification[]>(
-        queryKeys.notifications.list(companyId, userId),
-        (old = []) => old.map((n) => ({ ...n, is_read: true }))
+        listKey,
+        old => old?.map(n => ({ ...n, is_read: true }))
       );
+      queryClient.setQueryData(unreadKey, 0);
     },
     onError: () => {
       toast.error("Errore", { description: "Impossibile segnare tutte le notifiche come lette." });
@@ -337,6 +370,7 @@ export function useNotifications(enabled = true) {
         const { error } = await supabase
           .from("lifecycle_notifications")
           .update({ is_dismissed: true })
+          .eq("company_id", companyId!)
           .in("id", idsLifecycle);
         if (error) throw error;
         return;
@@ -349,24 +383,20 @@ export function useNotifications(enabled = true) {
         .eq("user_id", userId!);
       if (error) throw error;
     },
-    onMutate: async (id) => {
+    onSuccess: (_, id) => {
       const idsLifecycle = idsPerGruppo.get(id);
       if (idsLifecycle) {
         queryClient.setQueryData<LifecycleRow[]>(
           queryKeys.lifecycleNotifications.byCompany(companyId),
-          (old = []) => old.filter((r) => !idsLifecycle.includes(r.id)),
+          old => old?.filter(r => !idsLifecycle.includes(r.id)),
         );
         return;
       }
-      queryClient.setQueryData<Notification[]>(
-        queryKeys.notifications.list(companyId, userId),
-        (old = []) => old.filter((n) => n.id !== id)
-      );
+      const prima = queryClient.getQueryData<Notification[]>(listKey)?.some(n => n.id === id && !n.is_read);
+      queryClient.setQueryData<Notification[]>(listKey, old => old?.filter(n => n.id !== id));
+      if (prima) queryClient.setQueryData<number>(unreadKey, n => n === undefined ? undefined : Math.max(0, n - 1));
     },
-    onError: () => {
-      // Revert optimistic update on error
-      queryClient.invalidateQueries({ queryKey: queryKeys.lifecycleNotifications.byCompany(companyId) });
-    },
+    onError: () => toast.error("Non riesco a chiudere la notifica. Riprova."),
     onSettled: aggiornaMessaggi,
   });
 
@@ -375,7 +405,11 @@ export function useNotifications(enabled = true) {
     unreadCount,
     unreadMessagesCount,
     tutteLeNonLetteVisibili,
-    isLoading: isLoading || lifecycleLoading,
+    isLoading: list.isLoading || (avvisiAzienda && lifecycle.isLoading),
+    isError: list.isError || (avvisiAzienda && lifecycle.isError),
+    isRefreshing: list.isFetching || (avvisiAzienda && lifecycle.isFetching),
+    isMarkingAll: markAllAsRead.isPending,
+    refresh: () => Promise.all([list.refetch(), nonLette.refetch(), ...(avvisiAzienda ? [lifecycle.refetch()] : [])]),
     markAsRead: markAsRead.mutate,
     markAllAsRead: markAllAsRead.mutate,
     dismiss: dismiss.mutate,

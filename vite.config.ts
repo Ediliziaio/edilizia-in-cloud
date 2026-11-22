@@ -308,12 +308,20 @@ export default defineConfig(({ command, mode }) => ({
             // Shell dell'area campo: rete prima (HTML sempre fresco quando c'è
             // linea), cache SOLO se la rete non risponde in 4 s. Fuori da /campo
             // nessuna regola: il sito e l'app ufficio vanno sempre in rete.
-            urlPattern: ({ request, url }) => request.mode === "navigate" && url.pathname.startsWith("/campo"),
+            urlPattern: ({ request, url }) => request.mode === "navigate" && url.origin === self.location.origin
+              && (url.pathname === "/campo" || url.pathname.startsWith("/campo/")),
             handler: "NetworkFirst",
             options: {
               cacheName: "campo-shell-v1",
               networkTimeoutSeconds: 4,
-              expiration: { maxEntries: 30, maxAgeSeconds: 7 * 24 * 3600 },
+              expiration: { maxEntries: 1, maxAgeSeconds: 7 * 24 * 3600 },
+              // Le route servono lo stesso HTML. Dopo una navigazione interna
+              // si può riaprire offline direttamente da Invii o dalla scheda.
+              plugins: [{
+                cacheKeyWillBeUsed: async ({ request }) => new URL("/campo", request.url).href,
+                cacheWillUpdate: async ({ response }) => response.status === 200
+                  && response.headers.get("content-type")?.includes("text/html") ? response : null,
+              }],
             },
           },
           {

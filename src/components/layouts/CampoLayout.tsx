@@ -27,6 +27,7 @@ import {
   Package,
   Truck,
   ShoppingBag,
+  CloudUpload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,7 +46,7 @@ import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { CampoBottomNav } from "@/components/campo/CampoBottomNav";
 import { CampanellaCampo } from "@/components/campo/CampanellaCampo";
 import { NotificationsRealtime } from "@/hooks/useNotifications";
-import { linkPerCampo } from "@/lib/notifiche/linkCampo";
+import { linkPerCampo, linkPerTecnico } from "@/lib/notifiche/linkCampo";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { useFieldSurveyAccess } from "@/hooks/useFieldSurveys";
 import {
@@ -62,6 +63,7 @@ import {
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
 import { AreaSwitcher } from "@/components/layouts/AreaSwitcher";
 import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
+import { percorsoCantiereTecnico } from "@/lib/campo/schedaCantiere";
 
 type CampoNavItem = {
   title: string;
@@ -83,7 +85,7 @@ export default function CampoLayout() {
     });
   }, []);
   const { profile, signOut, company, effectiveCompany } = useAuth();
-  const { isOperaio } = useIsCampo();
+  const { isOperaio, isTecnico } = useIsCampo();
   const surveyAccess = useFieldSurveyAccess();
   const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
   const activeCompany = effectiveCompany ?? company;
@@ -105,11 +107,12 @@ export default function CampoLayout() {
   // get_internal_chat_sidebar_state + realtime), come nell'app azienda: le
   // tabelle "chat_channel_members"/"chat_messages" NON esistono (davano 404 in
   // loop) — i nomi reali sono internal_chat_members / internal_chat_messages.
-  const unreadCount = useInternalChatUnreadTotal();
+  const unreadCount = useInternalChatUnreadTotal(!isTecnico);
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
   const previewSession = usePreviewToken();
-  const roleLabel = isOperaio ? "Operaio" : "Subappaltatore";
+  const roleLabel = isTecnico ? "Tecnico" : isOperaio ? "Operaio" : "Subappaltatore";
+  const home = isTecnico ? percorsoCantiereTecnico() : "/campo";
 
   // Nav items per operaio
   const operaioItems: CampoNavItem[] = [
@@ -150,7 +153,8 @@ export default function CampoLayout() {
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 
-  const navItems = isOperaio ? operaioItems : subItems;
+  const navItems: CampoNavItem[] = isTecnico ? [{ title: "Cantieri", url: home, icon: HardHat }] : isOperaio ? operaioItems : subItems;
+  navItems.push({ title: "Invii e bozze", url: "/campo/invii", icon: CloudUpload });
   if (surveyAccess.data?.can_view) navItems.push({title:"Sopralluoghi",url:"/campo/sopralluoghi",icon:ClipboardCheck});
 
   return (
@@ -164,7 +168,7 @@ export default function CampoLayout() {
         <Sidebar collapsible="icon" className="border-r">
           <div className="space-y-2 border-b px-3 py-3">
             <Link
-              to="/campo"
+              to={home}
               aria-label="Vai alla home Edilizia in Cloud"
               className="flex min-w-0 items-center overflow-hidden rounded-lg transition-colors hover:bg-accent/60 group-data-[collapsible=icon]:justify-center"
             >
@@ -200,7 +204,7 @@ export default function CampoLayout() {
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupLabel>
-                {isOperaio ? "Area Operaio" : "Area Subappaltatore"}
+                Area {roleLabel}
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -284,7 +288,7 @@ export default function CampoLayout() {
               in alto deve essere uguale"): logo EiC + azienda/area + Impostazioni.
               Prima su mobile non c'era header; ora la cornice è uniforme tra le app. */}
           <header className="md:hidden sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background px-2">
-            {isSubPage && !inFlussoCompilazione && (
+            {location.pathname !== home && isSubPage && !inFlussoCompilazione && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -295,7 +299,7 @@ export default function CampoLayout() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
-            <Link to="/campo" aria-label="Home Edilizia in Cloud" className="shrink-0">
+            <Link to={home} aria-label="Home Edilizia in Cloud" className="shrink-0">
               <img
                 src={ediliziaLogo}
                 alt="Edilizia in Cloud"
@@ -310,15 +314,18 @@ export default function CampoLayout() {
                 Area {roleLabel}
               </p>
             </div>
-            <CampanellaCampo />
+            <CampanellaCampo tecnico={isTecnico} />
+            {isTecnico && <Button asChild variant="ghost" size="icon" className="h-11 w-11 shrink-0">
+              <Link to="/campo/invii" aria-label="Invii e bozze"><CloudUpload className="size-4" aria-hidden="true" /></Link>
+            </Button>}
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0"
-              onClick={() => navigate("/campo/impostazioni")}
-              aria-label="Impostazioni"
+              className="h-11 w-11 shrink-0"
+              onClick={isTecnico ? () => void signOut() : () => navigate("/campo/impostazioni")}
+              aria-label={isTecnico ? "Esci" : "Impostazioni"}
             >
-              <Settings className="h-4 w-4" />
+              {isTecnico ? <LogOut className="size-4" /> : <Settings className="size-4" />}
             </Button>
           </header>
 
@@ -334,14 +341,16 @@ export default function CampoLayout() {
                 </>
               )}
             </div>
-            <CampanellaCampo className="ml-auto" />
+            <CampanellaCampo tecnico={isTecnico} className="ml-auto" />
           </header>
 
           {/* Avvisi in tempo reale (toast): i link dell'ufficio diventano quelli del campo. */}
-          <NotificationsRealtime trasformaLink={linkPerCampo} />
+          <NotificationsRealtime trasformaLink={isTecnico ? linkPerTecnico : linkPerCampo} />
 
           {/* Page Content */}
-          <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione ? "pb-4" : "pb-28"} md:pb-6`}>
+          <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione || isTecnico ? "pb-4" : "pb-28"} md:pb-6`}>
+            {isTecnico && location.pathname === home && <CompanyContextSwitcher showSecurityNote={false}
+              className="mx-auto mb-3 max-w-3xl md:hidden" />}
             <PreviewSessionContext.Provider value={previewSession}>
               <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
                 <Outlet />
@@ -351,7 +360,7 @@ export default function CampoLayout() {
         </div>
 
         {/* Mobile bottom navigation — nascosta nei flussi di compilazione */}
-        {!inFlussoCompilazione && <CampoBottomNav unreadCount={unreadCount} />}
+        {!inFlussoCompilazione && !isTecnico && <CampoBottomNav unreadCount={unreadCount} />}
       </div>
     </SidebarProvider>
   );

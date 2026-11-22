@@ -38,7 +38,7 @@ export function orderVisits(surveys: SurveyRow[], appointments: AppointmentData[
       : s.status === "cancelled" || cancelled(appointment) ? "annullati" : s.status === "in_progress" ? "in_corso"
       : appointment?.is_completed ? "effettuati" : s.scheduled_at || appointment?.appointment_date ? "fissati" : "da_fissare";
     return {id:`survey:${s.id}`,code:s.code || "Sopralluogo",survey:s,appointment,group,
-      when:fromAppointment(appointment) || s.scheduled_at || null,
+      when:fromAppointment(appointment) || s.scheduled_at || s.completed_at || null,
       address:[address,city && !address.toLocaleLowerCase("it").endsWith(city.toLocaleLowerCase("it")) ? city : ""].filter(Boolean).join(", "),technicianId:appointment ? appointment.assigned_to : s.technician_id};
   });
   for (const appointment of appointments) {

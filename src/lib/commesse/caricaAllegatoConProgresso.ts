@@ -1,9 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export function oggettoGiaCaricato(errore: unknown) {
-  const risposta = errore as { statusCode?: number; code?: string; message?: string } | undefined;
+  const risposta = errore as { statusCode?: number | string; code?: string; message?: string } | undefined;
   return /^(Duplicate|ResourceAlreadyExists|KeyAlreadyExists)$/i.test(risposta?.code ?? "") ||
-    ((risposta?.statusCode === 400 || risposta?.statusCode === 409) && /already exists/i.test(risposta.message ?? ""));
+    ([400, 409].includes(Number(risposta?.statusCode)) && /already exists/i.test(risposta?.message ?? ""));
 }
 
 /** Usa gli stessi permessi dell'upload SDK, esponendo i byte inviati dal browser. */
