@@ -150,7 +150,7 @@ export function MezziFineGiornata({
                     aria-label={t(m.contatore_unita === "ore" ? "Ore motore di {nome} a fine giornata" : "Km di {nome} a fine giornata", { nome: m.nome })}
                   />
                 </label>
-                {companyId && m.veicolo && m.contatore_unita==="km" && m.dove_ora==="con_te" && <button type="button" className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-blue-200 px-3 text-xs font-semibold text-blue-900" onClick={()=>setViaggioMezzo(m.id)}>Registra viaggio e tappe</button>}
+                {companyId && m.veicolo && m.contatore_unita==="km" && m.dove_ora==="con_te" && <button type="button" className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-blue-200 px-3 text-xs font-semibold text-blue-900" onClick={()=>setViaggioMezzo(m.id)}>{t("Registra viaggio e tappe")}</button>}
               </>}
             </div>
           );

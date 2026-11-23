@@ -54,7 +54,8 @@ describe("Lingue dell'area operai (23/11/2026)", () => {
     // Ogni file dell'area operai che usa la lingua (più i componenti condivisi che il campo mostra).
     const cartelle = ["src/pages/campo", "src/components/campo", "src/components/calendar/mappa"];
     const schermate = [
-      ...cartelle.flatMap(c => readdirSync(c).filter(f => f.endsWith(".tsx")).map(f => join(c, f))),
+      // Anche le sottocartelle (es. src/pages/campo/subappaltatore).
+      ...cartelle.flatMap(c => (readdirSync(c, { recursive: true }) as string[]).filter(f => f.endsWith(".tsx")).map(f => join(c, f))),
       "src/components/layouts/CampoLayout.tsx", "src/pages/azienda/InternalChat.tsx",
       "src/pages/azienda/impostazioni/MioProfilo.tsx",
     ].filter(f => /\b(useT|useLinguaCampo)\b/.test(readFileSync(f, "utf8")));

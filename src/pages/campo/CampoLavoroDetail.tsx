@@ -269,11 +269,11 @@ interface FaseMia {
 }
 
 /** «15 ott – 21 ott», «dal 15 ott», «fino al 21 ott». */
-function periodoFase(f: Pick<FaseMia, "dal" | "al">): string {
+function periodoFase(f: Pick<FaseMia, "dal" | "al">, t: ReturnType<typeof useT>): string {
   const g = (d: string) => format(parseISO(d), "d MMM", { locale: dateFnsCampo() });
   if (f.dal && f.al) return f.dal === f.al ? g(f.dal) : `${g(f.dal)} – ${g(f.al)}`;
-  if (f.dal) return `dal ${g(f.dal)}`;
-  return f.al ? `fino al ${g(f.al)}` : "";
+  if (f.dal) return t("dal {data}", { data: g(f.dal) });
+  return f.al ? t("fino al {data}", { data: g(f.al) }) : "";
 }
 
 export default function CampoLavoroDetail() {
@@ -438,7 +438,7 @@ export default function CampoLavoroDetail() {
             },
           } satisfies CampoAssignment;
         }
-        throw new Error("La rete è lenta o assente: non riesco ad aprire il cantiere.");
+        throw new Error(t("La rete è lenta o assente: non riesco ad aprire il cantiere."));
       }
 
       // Tutti i probe vuoti SENZA timeout: prima di concludere "non assegnato"
@@ -448,7 +448,7 @@ export default function CampoLavoroDetail() {
       // Errore → react-query riprova, invece di cementare il falso negativo.
       const { data: sessionCheck } = await supabase.auth.getSession();
       if (!sessionCheck?.session) {
-        throw new Error("L’accesso non è ancora pronto: riprova tra un attimo.");
+        throw new Error(t("L’accesso non è ancora pronto: riprova tra un attimo."));
       }
 
       // Non assegnato — la UI mostra un fallback recuperabile.
@@ -620,15 +620,15 @@ export default function CampoLavoroDetail() {
 
   const firmaRapportinoMutation = useMutation({
     mutationFn: async ({ rapportinoId, dataUrl }: { rapportinoId: string; dataUrl: string }) => {
-      if (!companyId || !orderId || !currentUserId) throw new Error("Sessione non pronta: riprova.");
+      if (!companyId || !orderId || !currentUserId) throw new Error(t("Sessione non pronta: riprova."));
       const report = rapportini.find(r => r.id === rapportinoId);
-      if (!report || report.user_id !== currentUserId || rapportinoDaRifare(statoRapportino(report))) throw new Error("Il rapporto va prima completato o corretto.");
+      if (!report || report.user_id !== currentUserId || rapportinoDaRifare(statoRapportino(report))) throw new Error(t("Il rapporto va prima completato o corretto."));
       const blob = await (await fetch(dataUrl)).blob();
       const path = `${companyId}/${orderId}/firme/${crypto.randomUUID()}_operaio.png`;
       const { data: up, error: upErr } = await supabase.storage
         .from("campo-rapportini")
         .upload(path, blob, { contentType: "image/png", upsert: false });
-      if (upErr || !up?.path) throw upErr ?? new Error("Upload firma non riuscito");
+      if (upErr || !up?.path) throw upErr ?? new Error(t("Upload firma non riuscito"));
       const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
       const { data: firmato, error: updErr } = await supabase
         .from("campo_rapportini")
@@ -640,18 +640,18 @@ export default function CampoLavoroDetail() {
         .select("id")
         .maybeSingle();
       if (updErr) throw updErr;
-      if (!firmato) throw new Error("Firma non salvata: il rapporto non è più disponibile. Ricarica e riprova.");
+      if (!firmato) throw new Error(t("Firma non salvata: il rapporto non è più disponibile. Ricarica e riprova."));
       // Invalidate the old export immediately; regenerate with visible feedback.
       if (orderId) void notifyRapportinoPdf(rapportinoId, orderId, queryClient);
     },
     onSuccess: () => {
-      toast.success("Rapportino firmato");
+      toast.success(t("Rapportino firmato"));
       setFirmaRapportinoId(null);
       setFirmaDataUrl(null);
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
     },
     onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : "Non riesco a salvare la firma"),
+      toast.error(err instanceof Error ? err.message : t("Non riesco a salvare la firma")),
   });
 
   const apriPdfRapportino = async (r: CampoRapportinoRow) => {
@@ -659,7 +659,7 @@ export default function CampoLavoroDetail() {
     try {
       await openRapportinoPdf(r, orderId!, queryClient);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Non riesco a generare il PDF");
+      toast.error(err instanceof Error ? err.message : t("Non riesco a generare il PDF"));
     } finally {
       setPdfBusyId(null);
     }
@@ -722,9 +722,9 @@ export default function CampoLavoroDetail() {
       <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
         {orderId && <div className="mb-4 w-full max-w-sm text-left"><RapportiniInCoda companyId={companyId} userId={currentUserId ?? undefined} orderId={orderId} online={online} /></div>}
         <AlertCircle className="mb-3 h-10 w-10 text-amber-600" />
-        <p className="font-semibold text-foreground">Caricamento cantiere lento</p>
+        <p className="font-semibold text-foreground">{t("Caricamento cantiere lento")}</p>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          La verifica dell'assegnazione sta impiegando troppo. Puoi riprovare o aprire l'elenco lavori senza restare bloccato.
+          {t("La verifica dell'assegnazione sta impiegando troppo. Puoi riprovare o aprire l'elenco lavori senza restare bloccato.")}
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           <button
@@ -734,13 +734,13 @@ export default function CampoLavoroDetail() {
             }}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
           >
-            Riprova
+            {t("Riprova")}
           </button>
           <button
             onClick={() => navigate("/campo/calendario")}
             className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground"
           >
-            Apri lavori
+            {t("Apri lavori")}
           </button>
         </div>
       </div>
@@ -756,22 +756,22 @@ export default function CampoLavoroDetail() {
         {/* Anche senza cantiere: il rapportino appena inviato si vede, al sicuro sul telefono. */}
         {orderId && <div className="mb-4 w-full max-w-sm text-left"><RapportiniInCoda companyId={companyId} userId={currentUserId ?? undefined} orderId={orderId} online={online} /></div>}
         <AlertCircle className="w-10 h-10 text-destructive mb-3" />
-        <p className="font-semibold text-foreground">Impossibile caricare il lavoro</p>
+        <p className="font-semibold text-foreground">{t("Impossibile caricare il lavoro")}</p>
         <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-xs">
-          {error instanceof Error ? error.message : "Errore di connessione"}
+          {error instanceof Error ? error.message : t("Errore di connessione")}
         </p>
         <div className="flex gap-2">
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] })}
             className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium"
           >
-            Riprova
+            {t("Riprova")}
           </button>
           <button
             onClick={() => navigate("/campo")}
             className="px-4 py-2 rounded-xl border border-border text-sm font-medium"
           >
-            Torna indietro
+            {t("Torna indietro")}
           </button>
         </div>
       </div>
@@ -782,22 +782,22 @@ export default function CampoLavoroDetail() {
     return (
       <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
         <AlertCircle className="mb-3 h-10 w-10 text-muted-foreground" />
-        <p className="font-semibold text-foreground">Lavoro non disponibile</p>
+        <p className="font-semibold text-foreground">{t("Lavoro non disponibile")}</p>
         <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-          Non ho trovato un'assegnazione attiva per questo cantiere. Torna ai lavori e riapri quello assegnato.
+          {t("Non ho trovato un'assegnazione attiva per questo cantiere. Torna ai lavori e riapri quello assegnato.")}
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] })}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
           >
-            Riprova
+            {t("Riprova")}
           </button>
           <button
             onClick={() => navigate("/campo/calendario")}
             className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground"
           >
-            Apri lavori
+            {t("Apri lavori")}
           </button>
         </div>
       </div>
@@ -849,11 +849,11 @@ export default function CampoLavoroDetail() {
   const rapportinoDiOggiUrl = rapportinoDelGiornoUrl(today);
   const passiGiornata: Record<PassoGiornata, { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" }> = {
     "rapportino-vocale": { label: azioneRapportino, icon: ClipboardList, onClick: () => navigate(rapportinoManualeUrl), tone: "primary" },
-    "correggi-rapportino": { label: "Correggi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
-    "completa-rapportino": { label: "Completa il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
-    "timbra-entrata": { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" },
-    "timbra-uscita": { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" },
-    "torna-ai-lavori": { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" },
+    "correggi-rapportino": { label: t("Correggi il rapportino"), icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
+    "completa-rapportino": { label: t("Completa il rapportino"), icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
+    "timbra-entrata": { label: t("Timbra entrata"), icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" },
+    "timbra-uscita": { label: t("Timbra uscita"), icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" },
+    "torna-ai-lavori": { label: t("Torna ai lavori"), icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" },
   };
   const nextStickyAction = passiGiornata[prossimoPassoGiornata({
     statoRapportino: statoRapportinoOggi,
@@ -892,8 +892,8 @@ export default function CampoLavoroDetail() {
           </button>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Lavoro assegnato")}</p>
-            <p className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
-            <p className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
+            <p dir="auto" className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
+            <p dir="auto" className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
           </div>
           {vedeSchedaTecnica && <Link to={percorsoCantiereTecnico(orderId)}
             className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-semibold text-primary">
@@ -912,7 +912,7 @@ export default function CampoLavoroDetail() {
                 style={{ width: `${order?.percentuale_avanzamento ?? 0}%` }}
               />
             </div>
-            <span className="shrink-0 text-xs font-semibold">{statoLeggibile(order?.status)}</span>
+            <span className="shrink-0 text-xs font-semibold">{(order?.status ?? "").trim() ? statoLeggibile(order?.status) : t("In lavorazione")}</span>
           </div>
         </div>
 
@@ -926,7 +926,7 @@ export default function CampoLavoroDetail() {
             className="mt-2 flex w-full items-center gap-2 rounded-xl bg-muted/60 px-3 py-2 text-left active:bg-muted md:rounded-2xl"
           >
             <MapPin className="h-4 w-4 shrink-0 text-primary" />
-            <span className="min-w-0 flex-1 truncate text-xs font-semibold text-primary md:text-sm">{order.indirizzo_lavori}</span>
+            <span dir="auto" className="min-w-0 flex-1 truncate text-xs font-semibold text-primary md:text-sm">{order.indirizzo_lavori}</span>
             <Navigation className="h-4 w-4 shrink-0 text-muted-foreground" />
           </button>
         )}
@@ -1000,21 +1000,21 @@ export default function CampoLavoroDetail() {
               <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Fasi di lavoro</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t("Fasi di lavoro")}</p>
                     {quanteMie > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {quanteMie === 1 ? "Quella colorata è la tua" : `Le ${quanteMie} colorate sono le tue`}
+                        {t(quanteMie === 1 ? "Quella colorata è la tua" : "Le {n} colorate sono le tue", { n: quanteMie })}
                       </p>
                     )}
                   </div>
                   <span className="text-xs font-semibold text-primary">
-                    {fasiCommessa.filter(f => f.status === "completata").length}/{fasiCommessa.length} completate
+                    {t("{fatte}/{totale} completate", { fatte: fasiCommessa.filter(f => f.status === "completata").length, totale: fasiCommessa.length })}
                   </span>
                 </div>
                 {/* Fase attuale: la cosa che conta messa in cima, non annegata tra 8 blocchi uguali. */}
                 {faseAttuale && (
                   <div className="mb-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-primary">Fase attuale</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-primary">{t("Fase attuale")}</p>
                     <div className="mt-0.5 flex items-center justify-between gap-2">
                       <p className="min-w-0 truncate text-base font-bold text-foreground">{faseAttuale.name}</p>
                       <span className="shrink-0 text-sm font-black text-primary">{faseAttualePct}%</span>
@@ -1033,7 +1033,7 @@ export default function CampoLavoroDetail() {
                   </div>
                 )}
                 {!vedeSchedaTecnica && fasiAssegnate.length > 0 && <details className="group">
-                  <summary className="min-h-9 cursor-pointer text-xs font-semibold text-primary">Fasi assegnate</summary>
+                  <summary className="min-h-9 cursor-pointer text-xs font-semibold text-primary">{t("Fasi assegnate")}</summary>
                 <div className="mt-3 space-y-3">
                   {fasiAssegnate.map((fase) => {
                     const done = fase.status === "completata";
@@ -1062,8 +1062,8 @@ export default function CampoLavoroDetail() {
                               </p>
                               {(mia?.dal || mia?.al || miaDavvero) && (
                                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                                  {(mia?.dal || mia?.al) && <span className="tabular-nums">{periodoFase(mia!)}</span>}
-                                  {mia?.tu && <span className="font-semibold text-violet-700 dark:text-violet-300">Tu</span>}
+                                  {(mia?.dal || mia?.al) && <span className="tabular-nums">{periodoFase(mia!, t)}</span>}
+                                  {mia?.tu && <span className="font-semibold text-violet-700 dark:text-violet-300">{t("Tu")}</span>}
                                   {mia?.squadra && <span className="font-semibold text-orange-700 dark:text-orange-300">{mia.squadra}</span>}
                                 </p>
                               )}
@@ -1086,7 +1086,7 @@ export default function CampoLavoroDetail() {
                 </div>
                 </details>}
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Aggiorna le fasi dal rapportino di fine giornata.
+                  {t("Aggiorna le fasi dal rapportino di fine giornata.")}
                 </p>
               </div>
             )}
@@ -1094,8 +1094,8 @@ export default function CampoLavoroDetail() {
             {/* Card cliente */}
             {customer && (
               <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
-                <p className="text-xs text-muted-foreground mb-1">Cliente</p>
-                <p className="font-semibold text-foreground">
+                <p className="text-xs text-muted-foreground mb-1">{t("Cliente")}</p>
+                <p dir="auto" className="font-semibold text-foreground">
                   {customer.first_name} {customer.last_name}
                 </p>
                 {/* Il cliente parla con una persona sola: il telefono lo vede
@@ -1111,7 +1111,7 @@ export default function CampoLavoroDetail() {
                     </a>
                   )
                 ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">Per parlare col cliente passa dal capocantiere.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("Per parlare col cliente passa dal capocantiere.")}</p>
                 )}
               </div>
             )}
@@ -1125,10 +1125,10 @@ export default function CampoLavoroDetail() {
             {orderItems.length > 0 && (
               <details className="rounded-2xl border border-border bg-background p-4 shadow-sm">
                 <summary className="cursor-pointer text-sm font-semibold text-foreground">
-                  Materiali da posare <span className="font-normal text-muted-foreground">({orderItems.length})</span>
+                  {t("Materiali da posare")} <span className="font-normal text-muted-foreground">({orderItems.length})</span>
                   {(() => {
                     const arrivati = orderItems.filter((i) => i.inCantiere === "arrivato" || i.inCantiere === "posato").length;
-                    return <span className="ml-1 text-xs font-normal text-muted-foreground"> · {arrivati} {arrivati === 1 ? "arrivato" : "arrivati"}</span>;
+                    return <span className="ml-1 text-xs font-normal text-muted-foreground"> · {t(arrivati === 1 ? "{n} arrivato" : "{n} arrivati", { n: arrivati })}</span>;
                   })()}
                 </summary>
                 <div className="mt-3 space-y-2">
@@ -1141,7 +1141,7 @@ export default function CampoLavoroDetail() {
                           {q && <p className="text-xs text-muted-foreground">{q.numero} {q.unita}</p>}
                         </div>
                         <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", COLORE_IN_CANTIERE[item.inCantiere])}>
-                          {ETICHETTA_IN_CANTIERE[item.inCantiere]}
+                          {t(ETICHETTA_IN_CANTIERE[item.inCantiere])}
                         </span>
                       </div>
                     );
@@ -1159,8 +1159,8 @@ export default function CampoLavoroDetail() {
                 onClick={() => setDiarioAperto(true)}
                 className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-border bg-background px-4 text-sm font-semibold text-foreground shadow-sm"
               >
-                Diario del cantiere
-                <span className="text-xs font-normal text-muted-foreground">Apri</span>
+                {t("Diario del cantiere")}
+                <span className="text-xs font-normal text-muted-foreground">{t("Apri")}</span>
               </button>
             ))}
           </>
@@ -1172,9 +1172,9 @@ export default function CampoLavoroDetail() {
             <section className="space-y-3 rounded-2xl border bg-background p-3 sm:p-4">
               <h2 className="font-bold">{t(soloTimbratura ? "Rapportino del responsabile" : flussoRapportino.soloOre ? "Le tue ore in cantiere" : "Rapportino di cantiere")}</h2>
               {regoleRapporti.isError ? <div role="alert" className="text-sm text-foreground">
-                <p>Non riesco a leggere le regole del rapportino.</p>
-                <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => void regoleRapporti.refetch()}>Riprova le regole</button>
-              </div> : regoleDaVerificare ? <p role="status" className="text-sm text-muted-foreground">Verifico come compili il rapportino…</p> : <>
+                <p>{t("Non riesco a leggere le regole del rapportino.")}</p>
+                <button type="button" className="min-h-11 font-semibold text-primary" onClick={() => void regoleRapporti.refetch()}>{t("Riprova le regole")}</button>
+              </div> : regoleDaVerificare ? <p role="status" className="text-sm text-muted-foreground">{t("Verifico come compili il rapportino…")}</p> : <>
                 <p className="text-sm text-muted-foreground">{soloTimbratura
                   ? t("Segna entrata e uscita. Il responsabile compila il giornaliero.")
                   : flussoRapportino.soloOre
@@ -1186,24 +1186,24 @@ export default function CampoLavoroDetail() {
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-bold text-primary-foreground motion-safe:transition-transform motion-safe:active:scale-[0.98]"
                 >
                   {soloTimbratura ? <LogIn className="size-5" aria-hidden="true" /> : <ClipboardList className="size-5" aria-hidden="true" />}
-                  {soloTimbratura ? "Entrata e uscita" : azioneRapportino}
+                  {soloTimbratura ? t("Entrata e uscita") : azioneRapportino}
                 </button>
               </>}
             </section>
 
             {orderId && <RapportiniInCoda companyId={companyId} userId={currentUserId ?? undefined} orderId={orderId} online={online} />}
-            {vedeRapportiniCantiere && <p className="text-sm text-muted-foreground">Rapportini del cantiere. Puoi firmare o correggere soltanto quelli compilati da te; l’approvazione spetta all’ufficio.</p>}
-            {ruoloRapportiError ? <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>Non riesco a caricare i rapportini: la rete è lenta o assente.</p><button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Riprova</button></div> : rapportiniLoading || ruoloRapportiLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
+            {vedeRapportiniCantiere && <p className="text-sm text-muted-foreground">{t("Rapportini del cantiere. Puoi firmare o correggere soltanto quelli compilati da te; l’approvazione spetta all’ufficio.")}</p>}
+            {ruoloRapportiError ? <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm"><p>{t("Non riesco a caricare i rapportini: la rete è lenta o assente.")}</p><button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>{t("Riprova")}</button></div> : rapportiniLoading || ruoloRapportiLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">{t("Carico i rapporti…")}</p> : rapportiniError ? (
               <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
-                <p>Non riesco a caricare lo storico. Non significa che i rapporti siano assenti.</p>
-                <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRapportini()}>Riprova lo storico</button>
+                <p>{t("Non riesco a caricare lo storico. Non significa che i rapporti siano assenti.")}</p>
+                <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRapportini()}>{t("Riprova lo storico")}</button>
               </div>
             ) : giornalieri.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 text-center">
                 <FileText className="w-10 h-10 text-muted-foreground" />
                 <div>
-                  <p className="font-semibold text-foreground">Nessun rapportino per questo cantiere</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Scrivilo a fine giornata: puoi anche dettarlo a voce.</p>
+                  <p className="font-semibold text-foreground">{t("Nessun rapportino per questo cantiere")}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t("Scrivilo a fine giornata: puoi anche dettarlo a voce.")}</p>
                 </div>
               </div>
             ) : (
@@ -1213,7 +1213,7 @@ export default function CampoLavoroDetail() {
                 return <RapportinoCardCampo
                   key={r.id}
                   r={r}
-                  autore={vedeRapportiniCantiere ? (mio ? "Tu" : autore || "Operatore del cantiere") : undefined}
+                  autore={vedeRapportiniCantiere ? (mio ? t("Tu") : autore || t("Operatore del cantiere")) : undefined}
                   pdfOccupato={pdfBusyId === r.id}
                   onPdf={mio || r.pdf_url ? () => void apriPdfRapportino(r) : undefined}
                   onFirma={mio ? () => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); } : undefined}
@@ -1234,8 +1234,8 @@ export default function CampoLavoroDetail() {
         {activeTab === "collaudo" && orderId && (
           <div className="space-y-3">
             <div className="rounded-2xl border bg-background p-4">
-              <h2 className="font-bold">Il collaudo col cliente</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Consegna e fine lavori: il cliente controlla e firma. Non è il rapportino, che resta interno.</p>
+              <h2 className="font-bold">{t("Il collaudo col cliente")}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t("Consegna e fine lavori: il cliente controlla e firma. Non è il rapportino, che resta interno.")}</p>
             </div>
 
             {puoCompilareCliente ? (
@@ -1244,32 +1244,32 @@ export default function CampoLavoroDetail() {
                 onClick={() => navigate(campoReportUrl(orderId, "client"))}
                 className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3.5 text-base font-bold text-primary-foreground transition-transform active:scale-[0.98]"
               >
-                <ClipboardSignature className="h-5 w-5" />Firma col cliente in cantiere
+                <ClipboardSignature className="h-5 w-5" />{t("Firma col cliente in cantiere")}
               </button>
             ) : ruoloRapportiLoading ? (
-              <p role="status" className="text-sm text-muted-foreground">Verifico chi può fare il collaudo…</p>
+              <p role="status" className="text-sm text-muted-foreground">{t("Verifico chi può fare il collaudo…")}</p>
             ) : ruoloRapportiError ? (
               <div role="alert" className="text-sm">
-                <p>Non riesco a verificare il tuo ruolo sul cantiere.</p>
-                <button type="button" className="min-h-11 text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Riprova</button>
+                <p>{t("Non riesco a verificare il tuo ruolo sul cantiere.")}</p>
+                <button type="button" className="min-h-11 text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>{t("Riprova")}</button>
               </div>
             ) : (
-              <p className="rounded-xl border bg-muted/40 p-3 text-sm">Il collaudo col cliente lo fa il capocantiere.</p>
+              <p className="rounded-xl border bg-muted/40 p-3 text-sm">{t("Il collaudo col cliente lo fa il capocantiere.")}</p>
             )}
 
             <DocumentiFirmaTab orderId={orderId} customer={customer} />
 
             {/* Collaudi già firmati in cantiere */}
             {collaudiLoading ? (
-              <p role="status" className="py-4 text-center text-sm text-muted-foreground">Carico i collaudi…</p>
+              <p role="status" className="py-4 text-center text-sm text-muted-foreground">{t("Carico i collaudi…")}</p>
             ) : collaudiError ? (
               <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
-                <p>Non riesco a caricare i collaudi. Non significa che manchino.</p>
-                <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaCollaudi()}>Riprova</button>
+                <p>{t("Non riesco a caricare i collaudi. Non significa che manchino.")}</p>
+                <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaCollaudi()}>{t("Riprova")}</button>
               </div>
             ) : rapportiCliente.length > 0 && (
               <div className="space-y-2">
-                <p className="px-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Firmati in cantiere</p>
+                <p className="px-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{t("Firmati in cantiere")}</p>
                 {rapportiCliente.map((r) => {
                   const mio = r.user_id === currentUserId;
                   return (
@@ -1299,25 +1299,25 @@ export default function CampoLavoroDetail() {
         {firmaRapportinoId && (
           <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center">
             <div className="w-full max-w-md space-y-3 rounded-2xl bg-background p-4 shadow-xl">
-              <p className="text-base font-black text-foreground">Aggiungi la tua firma</p>
-              <p className="text-sm text-muted-foreground">Firma di chi ha compilato il rapporto. Non è la firma del cliente.</p>
-              <FirmaPad label="La tua firma" onChange={setFirmaDataUrl} />
+              <p className="text-base font-black text-foreground">{t("Aggiungi la tua firma")}</p>
+              <p className="text-sm text-muted-foreground">{t("Firma di chi ha compilato il rapporto. Non è la firma del cliente.")}</p>
+              <FirmaPad label={t("La tua firma")} onChange={setFirmaDataUrl} />
               <div className="flex gap-2">
                 <button
                   onClick={() => { setFirmaRapportinoId(null); setFirmaDataUrl(null); }}
                   className="flex-1 rounded-xl border border-border bg-muted py-3 text-sm font-semibold text-foreground"
                 >
-                  Annulla
+                  {t("Annulla")}
                 </button>
                 <button
                   onClick={() => {
-                    if (!firmaDataUrl) { toast.error("Firma prima nel riquadro"); return; }
+                    if (!firmaDataUrl) { toast.error(t("Firma prima nel riquadro")); return; }
                     firmaRapportinoMutation.mutate({ rapportinoId: firmaRapportinoId, dataUrl: firmaDataUrl });
                   }}
                   disabled={firmaRapportinoMutation.isPending}
                   className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
                 >
-                  {firmaRapportinoMutation.isPending ? "Salvo…" : "Salva firma"}
+                  {firmaRapportinoMutation.isPending ? t("Salvo…") : t("Salva firma")}
                 </button>
               </div>
             </div>
@@ -1364,6 +1364,7 @@ function statoLeggibile(stato: string | null | undefined): string {
  * vede le sue; l'ufficio le vede tutte.
  */
 function BolleCantiere({ orderId }: { orderId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useAcquistiCommessa(orderId);
   const bolle = data ?? [];
@@ -1374,22 +1375,22 @@ function BolleCantiere({ orderId }: { orderId: string }) {
         onClick={() => navigate(`/campo/ddt?order=${orderId}`)}
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-black text-white transition-transform active:scale-[0.98]"
       >
-        <Camera className="h-4 w-4" />Fotografa una bolla
+        <Camera className="h-4 w-4" />{t("Fotografa una bolla")}
       </button>
-      {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{STATO_DOCUMENTO[j.status]} · {new Date(j.created_at).toLocaleString(intlCampo())}</p></div>)}
-      {documenti.isError && <button className="min-h-11 text-sm underline" onClick={() => void documenti.refetch()}>Riprova a caricare i DDT inviati</button>}
-      {documenti.hasNextPage && <button className="min-h-11 w-full rounded-xl border text-sm" disabled={documenti.isFetchingNextPage} onClick={()=>void documenti.fetchNextPage()}>{documenti.isFetchingNextPage?"Caricamento…":"Carica altri DDT inviati"}</button>}
-      {isLoading && <p className="text-sm text-muted-foreground">Carico le bolle…</p>}
-      {isError && <p className="text-sm text-destructive">Non riesco a leggere le bolle. <button type="button" className="underline" onClick={() => refetch()}>Riprova</button></p>}
+      {documenti.data?.map(j => <div key={j.id} className="rounded-xl border bg-background p-3 text-sm"><p className="break-all font-semibold">{j.files[0]?.name}</p><p className="mt-1 text-xs text-muted-foreground">{t(STATO_DOCUMENTO[j.status])} · {new Date(j.created_at).toLocaleString(intlCampo())}</p></div>)}
+      {documenti.isError && <button className="min-h-11 text-sm underline" onClick={() => void documenti.refetch()}>{t("Riprova a caricare i DDT inviati")}</button>}
+      {documenti.hasNextPage && <button className="min-h-11 w-full rounded-xl border text-sm" disabled={documenti.isFetchingNextPage} onClick={()=>void documenti.fetchNextPage()}>{documenti.isFetchingNextPage?t("Caricamento…"):t("Carica altri DDT inviati")}</button>}
+      {isLoading && <p className="text-sm text-muted-foreground">{t("Carico le bolle…")}</p>}
+      {isError && <p className="text-sm text-destructive">{t("Non riesco a leggere le bolle.")} <button type="button" className="underline" onClick={() => refetch()}>{t("Riprova")}</button></p>}
       {!isLoading && !isError && bolle.length === 0 && !documenti.data?.length && (
         <div className="rounded-xl border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
           <Receipt className="mx-auto mb-2 h-7 w-7 opacity-60" />
-          Nessuna bolla per questo cantiere. Fotografa una bolla, uno scontrino o una fattura: la legge e la registra l’ufficio.
+          {t("Nessuna bolla per questo cantiere. Fotografa una bolla, uno scontrino o una fattura: la legge e la registra l’ufficio.")}
         </div>
       )}
       {bolle.map((b) => {
         const s = descriviStato(b);
-        const tipo = b.tipo_documento === "scontrino" ? "Scontrino" : b.tipo_documento === "fattura" ? "Fattura" : "Bolla";
+        const tipo = b.tipo_documento === "scontrino" ? t("Scontrino") : b.tipo_documento === "fattura" ? t("Fattura") : t("Bolla");
         return (
           <div key={b.id} className="flex gap-3 rounded-xl border bg-background p-3">
             {b.foto_path
@@ -1397,11 +1398,11 @@ function BolleCantiere({ orderId }: { orderId: string }) {
               : <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-lg border bg-muted"><Receipt className="h-5 w-5 text-muted-foreground" /></div>}
             <div className="min-w-0 flex-1 space-y-0.5 text-sm">
               <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 truncate font-semibold">{b.fornitore || "Documento"}</p>
+                <p className="min-w-0 truncate font-semibold">{b.fornitore || t("Documento")}</p>
                 <span className="shrink-0 font-semibold">{euro(b.totale)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {tipo}{b.numero_documento ? ` n. ${b.numero_documento}` : ""}
+                {tipo}{b.numero_documento ? ` ${t("n. {numero}", { numero: b.numero_documento })}` : ""}
                 {b.data_documento ? ` · ${format(parseISO(b.data_documento), "dd/MM/yyyy")}` : ""}
               </p>
               <p className={cn("text-xs", s.tono === "no" ? "font-medium text-red-700" : s.tono === "ok" ? "text-green-700" : s.tono === "attesa" ? "text-amber-700" : "text-muted-foreground")}>{s.testo}</p>
@@ -1414,6 +1415,7 @@ function BolleCantiere({ orderId }: { orderId: string }) {
 }
 
 function DiarioCantiere({ orderId }: { orderId: string }) {
+  const t = useT();
   const { timeline } = useOrderDiary(orderId);
   return (
     <div className="space-y-3">
@@ -1421,9 +1423,9 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
         <div className="flex items-start gap-3">
           <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
           <div>
-            <p className="font-bold">Diario lavori sincronizzato</p>
+            <p className="font-bold">{t("Diario lavori sincronizzato")}</p>
             <p className="mt-1 text-sm text-blue-800/80">
-              Rapportini, foto, note e aggiornamenti dal campo finiscono nello storico principale dell'ordine.
+              {t("Rapportini, foto, note e aggiornamenti dal campo finiscono nello storico principale dell'ordine.")}
             </p>
           </div>
         </div>
@@ -1431,8 +1433,8 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
       {timeline.length === 0 ? (
         <div className="flex flex-col items-center py-12 text-center">
           <BookOpenCheck className="h-10 w-10 text-muted-foreground/40" />
-          <p className="mt-3 font-semibold text-foreground">Diario ancora vuoto</p>
-          <p className="mt-1 text-sm text-muted-foreground">Invia il primo rapportino per alimentare il diario del lavoro.</p>
+          <p className="mt-3 font-semibold text-foreground">{t("Diario ancora vuoto")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Invia il primo rapportino per alimentare il diario del lavoro.")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1441,10 +1443,10 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
             const data = entry.data;
             const payload = entry.kind === "event" ? entry.data.payload ?? {} : {};
             const title = entry.kind === "event"
-              ? diaryEventLabel(entry.data.event_type, payload)
+              ? diaryEventLabel(entry.data.event_type, payload, t)
               : entry.kind === "audit"
                 ? entry.data.title
-                : entry.data.subject || (entry.data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
+                : entry.data.subject || (entry.data.channel === "nota_interna" ? t("Nota interna") : t("Messaggio"));
             const body = entry.kind === "event"
               ? payload.descrizione_lavori || payload.note || payload.message
               : entry.kind === "audit"
@@ -1467,10 +1469,10 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
                         {format(new Date(data.created_at), "d MMM HH:mm", { locale: dateFnsCampo() })}
                       </span>
                     </div>
-                    {actorName && <p className="text-xs text-muted-foreground">Da {actorName}</p>}
+                    {actorName && <p className="text-xs text-muted-foreground">{t("Da {nome}", { nome: actorName })}</p>}
                     {body && <p className="mt-2 text-sm leading-relaxed text-foreground">{String(body)}</p>}
                     {typeof payload.foto_count === "number" && Number.isInteger(payload.foto_count) && payload.foto_count > 0 ? (
-                      <p className="mt-2 text-xs font-semibold text-primary">{payload.foto_count} foto allegate al rapportino</p>
+                      <p className="mt-2 text-xs font-semibold text-primary">{t("{n} foto allegate al rapportino", { n: payload.foto_count })}</p>
                     ) : null}
                   </div>
                 </div>
@@ -1513,6 +1515,7 @@ function CampoCloseDayCard({
   onTimbratura: () => void;
   onRapportino: () => void;
 }) {
+  const t = useT();
   // Il subappaltatore non timbra: la timbratura non è nella sua navigazione
   // (né sidebar né azioni rapide), quindi entrata/uscita resterebbero per
   // sempre "Manca" e la giornata non si chiuderebbe mai. Per lui la giornata
@@ -1530,39 +1533,39 @@ function CampoCloseDayCard({
 
   const status = !rapportinoDone
       ? {
-          label: "Rapportino",
+          label: t("Rapportino"),
           cls: "bg-amber-100 text-amber-800",
-          text: "Manda il rapportino per aggiornare commessa e diario.",
+          text: t("Manda il rapportino per aggiornare commessa e diario."),
         }
       : readyToExit && (isInCantiere || isInPausa)
         ? {
-            label: "Pronto uscita",
+            label: t("Pronto uscita"),
             cls: "bg-emerald-100 text-emerald-800",
-            text: "Dati minimi raccolti. Puoi andare alla timbratura di uscita.",
+            text: t("Dati minimi raccolti. Puoi andare alla timbratura di uscita."),
           }
         : timbraturaAttesa
           ? {
-              label: "Manca la timbratura",
+              label: t("Manca la timbratura"),
               cls: "bg-blue-100 text-blue-800",
-              text: "Il rapportino è presente. Se hai lavorato qui, registra anche la timbratura.",
+              text: t("Il rapportino è presente. Se hai lavorato qui, registra anche la timbratura."),
             }
           : giornataCompleta
             ? {
-                label: "Chiusa",
+                label: t("Chiusa"),
                 cls: "bg-emerald-100 text-emerald-800",
-                text: "Giornata allineata: ore e rapportino sono presenti.",
+                text: t("Giornata allineata: ore e rapportino sono presenti."),
               }
             : {
-                label: "Allineata",
+                label: t("Allineata"),
                 cls: "bg-emerald-100 text-emerald-800",
-                text: "I dati essenziali sono pronti per l'ufficio.",
+                text: t("I dati essenziali sono pronti per l'ufficio."),
               };
 
   return (
     <div className="rounded-2xl border border-emerald-100 bg-background p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-black text-foreground">Chiudi giornata</p>
+          <p className="text-sm font-black text-foreground">{t("Chiudi giornata")}</p>
           <p className="mt-1 text-sm leading-snug text-muted-foreground">{status.text}</p>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${status.cls}`}>
@@ -1577,20 +1580,20 @@ function CampoCloseDayCard({
           <CloseDayStep
             ok={hasTimbrato}
             icon={LogIn}
-            label="Entrata"
-            detail={hasTimbrato ? "Registrata" : "Consigliata"}
+            label={t("Entrata")}
+            detail={hasTimbrato ? t("Registrata") : t("Consigliata")}
             optional
             onClick={onTimbratura}
           />
         )}
-        <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional onClick={onRapportino} />
-        <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0} h` : rapportinoDetail ?? "Manca"} onClick={onRapportino} />
+        <CloseDayStep ok={evidenceOk} icon={Camera} label={t("Evidenze")} detail={evidenceOk ? t("{foto} foto · {materiali} mat.", { foto: fotoCount, materiali: materialiCount }) : t("Consigliate")} optional onClick={onRapportino} />
+        <CloseDayStep ok={rapportinoDone} icon={FileText} label={t("Rapportino")} detail={rapportinoDone ? t("{ore} h", { ore: oreRapportino ?? 0 }) : rapportinoDetail ?? t("Manca")} onClick={onRapportino} />
         {isOperaio && (
         <CloseDayStep
           ok={giornataCompleta}
           icon={LogOut}
-          label="Uscita"
-          detail={giornataCompleta ? "Registrata" : readyToExit ? "Pronta" : requiredMissing === 1 ? "1 passo prima" : `${requiredMissing} passi prima`}
+          label={t("Uscita")}
+          detail={giornataCompleta ? t("Registrata") : readyToExit ? t("Pronta") : t(requiredMissing === 1 ? "{n} passo prima" : "{n} passi prima", { n: requiredMissing })}
           optional={!isOperaio}
           onClick={isOperaio ? onTimbratura : undefined}
         />
@@ -1601,7 +1604,7 @@ function CampoCloseDayCard({
           e uno "0%" qui sembrerebbe un lavoro fermo. */}
       {avanzamentoRapportino != null && avanzamentoRapportino > 0 && (
         <div className="mt-3 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
-          Avanzamento dichiarato oggi: <span className="text-foreground">{avanzamentoRapportino}%</span>
+          {t("Avanzamento dichiarato oggi:")} <span className="text-foreground">{avanzamentoRapportino}%</span>
         </div>
       )}
 
@@ -1690,11 +1693,11 @@ function InfoTile({
   );
 }
 
-function diaryEventLabel(eventType: string, payload: Record<string, unknown>) {
-  if (eventType === "reportino_cantiere") return "Rapportino dal campo";
-  if (eventType === "giornale_lavori_inserito") return "Giornale lavori aggiornato";
-  if (eventType === "foto_rilievo_caricata") return "Foto caricata";
-  if (eventType === "stato_cambiato") return "Stato lavoro aggiornato";
+function diaryEventLabel(eventType: string, payload: Record<string, unknown>, t: ReturnType<typeof useT>) {
+  if (eventType === "reportino_cantiere") return t("Rapportino dal campo");
+  if (eventType === "giornale_lavori_inserito") return t("Giornale lavori aggiornato");
+  if (eventType === "foto_rilievo_caricata") return t("Foto caricata");
+  if (eventType === "stato_cambiato") return t("Stato lavoro aggiornato");
   if (payload?.title) return String(payload.title);
   return eventType.replaceAll("_", " ");
 }
@@ -1729,9 +1732,9 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
   // Crea richiesta firma tramite edge function FEA (invia email + OTP automaticamente)
   const { mutate: creaRichiestaFirma, isPending } = useMutation({
     mutationFn: async () => {
-      if (!selectedTipo) throw new Error("Seleziona il tipo di documento");
-      if (documentMissing) throw new Error(CAMPO_DOCUMENT_REQUIRED);
-      if (!customer?.email) throw new Error("Email del cliente non disponibile");
+      if (!selectedTipo) throw new Error(tr("Seleziona il tipo di documento"));
+      if (documentMissing) throw new Error(tr(CAMPO_DOCUMENT_REQUIRED));
+      if (!customer?.email) throw new Error(tr("Email del cliente non disponibile"));
 
       const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim();
 
@@ -1758,9 +1761,9 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
     },
     onSuccess: (data) => {
       if (data?.otp_inviato === false) {
-        toast.warning("Richiesta creata, ma l'email al cliente non è partita. Avvisa l'ufficio.");
+        toast.warning(tr("Richiesta creata, ma l'email al cliente non è partita. Avvisa l'ufficio."));
       } else {
-        toast.success("Richiesta di firma inviata: il cliente riceve un'email con il link per firmare.");
+        toast.success(tr("Richiesta di firma inviata: il cliente riceve un'email con il link per firmare."));
       }
       queryClient.invalidateQueries({ queryKey: ["campo-firme-ordine"] });
       setShowNewDoc(false);
@@ -1768,7 +1771,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
       setNoteDoc("");
     },
     onError: (err) => {
-      const message = err instanceof Error ? err.message : "Errore nell'invio della richiesta";
+      const message = err instanceof Error ? err.message : tr("Errore nell'invio della richiesta");
       toast.error(message);
     },
   });
@@ -1785,18 +1788,18 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background py-3 text-sm font-semibold text-foreground transition-transform active:scale-[0.98]"
       >
         <PenLine className="w-4 h-4" />
-        Mandalo da firmare via email
+        {tr("Mandalo da firmare via email")}
       </button>
       {firmeRichieste.length > 0 && (
         <p className="px-1 text-xs text-muted-foreground">
-          {firmePending} in attesa · {firmeSigned} firmati
+          {tr("{inAttesa} in attesa · {firmati} firmati", { inAttesa: firmePending, firmati: firmeSigned })}
         </p>
       )}
 
       {/* Form nuova richiesta */}
       {showNewDoc && (
         <div className="bg-background border border-border rounded-2xl p-4 space-y-4">
-          <p className="text-sm font-semibold text-foreground">Seleziona tipo documento</p>
+          <p className="text-sm font-semibold text-foreground">{tr("Seleziona tipo documento")}</p>
 
           <div className="grid grid-cols-2 gap-2">
             {TIPI_DOCUMENTO.map((doc) => {
@@ -1817,8 +1820,8 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
                     <doc.icon className={cn("w-5 h-5", textColor)} />
                   </div>
                   <div className="text-center">
-                    <p className="text-xs font-semibold text-foreground leading-tight">{doc.label}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{doc.description}</p>
+                    <p className="text-xs font-semibold text-foreground leading-tight">{tr(doc.label)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{doc.description ? tr(doc.description) : null}</p>
                   </div>
                 </button>
               );
@@ -1827,16 +1830,16 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
 
           {documentMissing && (
             <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <p className="font-semibold">Verbale da preparare prima della firma</p>
-              <p className="mt-1">{CAMPO_DOCUMENT_REQUIRED}</p>
-              <p className="mt-2">Prepara il verbale dalla commessa → Cantiere → Collaudo e consegna: verifiche, esito, riserve, responsabili e documenti consegnati. Il collegamento alla firma elettronica è ancora da completare: non inviare una richiesta basata sul solo titolo.</p>
+              <p className="font-semibold">{tr("Verbale da preparare prima della firma")}</p>
+              <p className="mt-1">{tr(CAMPO_DOCUMENT_REQUIRED)}</p>
+              <p className="mt-2">{tr("Prepara il verbale dalla commessa → Cantiere → Collaudo e consegna: verifiche, esito, riserve, responsabili e documenti consegnati. Il collegamento alla firma elettronica è ancora da completare: non inviare una richiesta basata sul solo titolo.")}</p>
             </div>
           )}
           {/* Destinatario */}
           {customer && (
             <div className="bg-muted/50 border border-border rounded-xl p-3">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Firma richiesta a</p>
-              <p className="text-sm font-semibold text-foreground">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{tr("Firma richiesta a")}</p>
+              <p dir="auto" className="text-sm font-semibold text-foreground">
                 {customer.first_name} {customer.last_name}
               </p>
               <p className="text-xs text-muted-foreground">{customer.email}</p>
@@ -1847,18 +1850,18 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
               <p className="text-xs text-red-700">
-                Email del cliente non disponibile. Contatta l'ufficio per aggiungere l'email del cliente.
+                {tr("Email del cliente non disponibile. Contatta l'ufficio per aggiungere l'email del cliente.")}
               </p>
             </div>
           )}
 
           {/* Note opzionali */}
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Note (opzionale)</label>
+            <label className="text-xs text-muted-foreground mb-1 block">{tr("Note (opzionale)")}</label>
             <textarea
               className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground resize-none placeholder:text-muted-foreground"
               rows={2}
-              placeholder="Note aggiuntive per il documento..."
+              placeholder={tr("Note aggiuntive per il documento...")}
               value={noteDoc}
               onChange={(e) => setNoteDoc(e.target.value)}
             />
@@ -1869,7 +1872,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
               onClick={() => { setShowNewDoc(false); setSelectedTipo(null); }}
               className="flex-1 bg-muted text-foreground border border-border font-semibold py-3 rounded-xl text-sm active:scale-[0.98] transition-transform"
             >
-              Annulla
+              {tr("Annulla")}
             </button>
             <button
               onClick={() => creaRichiestaFirma()}
@@ -1877,7 +1880,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
               className="flex-1 bg-primary text-primary-foreground font-bold py-3 rounded-xl text-sm active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Invia richiesta
+              {tr("Invia richiesta")}
             </button>
           </div>
         </div>
@@ -1891,7 +1894,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
       ) : firmeRichieste.length === 0 ? null : (
         <div className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Storico documenti ({firmeRichieste.length})
+            {tr("Storico documenti ({n})", { n: firmeRichieste.length })}
           </p>
           {firmeRichieste.map((f) => {
             const tipoDoc = TIPI_DOCUMENTO.find(t => t.tipo === ((f as { categoria?: string | null }).categoria ?? f.tipo_documento))
@@ -1913,11 +1916,11 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <p className="text-sm font-semibold text-foreground">
-                        {tipoDoc?.label || f.tipo_documento || "Documento"}
+                        {tipoDoc ? tr(tipoDoc.label) : f.tipo_documento || tr("Documento")}
                       </p>
                       <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1", stato.cls)}>
                         <StatoIcon className="w-3 h-3" />
-                        {stato.label}
+                        {tr(stato.label)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -1944,7 +1947,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
                       className="flex items-center gap-2 text-sm text-primary font-medium"
                     >
                       <Download className="w-4 h-4" />
-                      Scarica certificato firmato
+                      {tr("Scarica certificato firmato")}
                     </a>
                   </div>
                 )}
@@ -1959,6 +1962,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
 
 // ── Componente inline: link al canale chat del cantiere ──────────────────────
 function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const companyId = profile?.company_id ?? null;
@@ -2012,9 +2016,9 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
             onClick={() => navigate(`/campo/chat/${canale.id}`)}
             className="bg-primary text-primary-foreground font-bold py-3.5 px-8 rounded-xl active:scale-[0.98] transition-transform"
           >
-            Apri chat cantiere
+            {t("Apri chat cantiere")}
           </button>
-          <p className="text-xs text-muted-foreground">Canale: {canale.name}</p>
+          <p className="text-xs text-muted-foreground">{t("Canale: {nome}", { nome: canale.name })}</p>
         </>
       ) : (
         <>
@@ -2022,11 +2026,10 @@ function ChatCantiere({ orderId, orderCode }: { orderId: string; orderCode: stri
             onClick={() => navigate("/campo/chat")}
             className="bg-muted text-foreground font-semibold py-3.5 px-8 rounded-xl active:scale-[0.98] transition-transform border border-border"
           >
-            Vai alla chat
+            {t("Vai alla chat")}
           </button>
           <p className="text-xs text-muted-foreground">
-            Il canale {channelName} verra creato automaticamente
-            quando l&apos;ufficio ti assegna a questo cantiere.
+            {t("Il canale {nome} verrà creato automaticamente quando l'ufficio ti assegna a questo cantiere.", { nome: channelName })}
           </p>
         </>
       )}

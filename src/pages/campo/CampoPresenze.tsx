@@ -8,7 +8,6 @@ import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   getDay, addMonths, subMonths, isSameDay, isToday, isBefore,
 } from "date-fns";
-import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { shiftWorkDay, workDayStart } from "@/lib/campo/workDay";
 import { aggiungiOreRapportini, type GiornoPresenza, type OreRapportino } from "@/lib/campo/presenzeDaRapportini";
 import { oreBrevi } from "@/lib/campo/numeriItaliani";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
@@ -47,6 +47,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function CampoPresenze() {
+  const tr = useT();
   const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -213,17 +214,17 @@ export default function CampoPresenze() {
   return (
     <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-lg md:text-xl font-semibold tracking-tight">Le mie presenze</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">I giorni e le ore che hai lavorato</p>
+        <h1 className="text-lg md:text-xl font-semibold tracking-tight">{tr("Le mie presenze")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{tr("I giorni e le ore che hai lavorato")}</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
         {[
-          { label: "Giorni presente", value: giorniPresente, color: "text-green-600" },
-          { label: "Ore totali", value: oreBrevi(oreTotali), color: "text-primary" },
-          { label: "Giorni ferie", value: giorniFerie, color: "text-blue-500" },
-          { label: "Giorni malattia", value: giorniMalattia, color: "text-orange-500" },
+          { label: tr("Giorni presente"), value: giorniPresente, color: "text-green-600" },
+          { label: tr("Ore totali"), value: oreBrevi(oreTotali), color: "text-primary" },
+          { label: tr("Giorni ferie"), value: giorniFerie, color: "text-blue-500" },
+          { label: tr("Giorni malattia"), value: giorniMalattia, color: "text-orange-500" },
         ].map(kpi => (
           <Card key={kpi.label}>
             <CardContent className="p-4">
@@ -242,7 +243,7 @@ export default function CampoPresenze() {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <CardTitle className="text-base capitalize">
-              {format(currentMonth, "MMMM yyyy", { locale: it })}
+              {format(currentMonth, "MMMM yyyy", { locale: dateFnsCampo() })}
             </CardTitle>
             <button onClick={() => setCurrentMonth(m => addMonths(m, 1))} className="p-2 hover:bg-muted active:bg-muted rounded-lg">
               <ChevronRight className="w-5 h-5" />
@@ -252,7 +253,7 @@ export default function CampoPresenze() {
         <CardContent>
           {isError ? (
             <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-4 text-center text-sm text-destructive">
-              Non riesco a caricare le presenze. Controlla la connessione e riapri la pagina.
+              {tr("Non riesco a caricare le presenze. Controlla la connessione e riapri la pagina.")}
             </p>
           ) : isLoading ? (
             <div className="flex justify-center py-12">
@@ -263,7 +264,7 @@ export default function CampoPresenze() {
               {/* Header giorni */}
               <div className="grid grid-cols-7 gap-1 mb-1">
                 {GIORNI_SETTIMANA.map(g => (
-                  <div key={g} className="text-center text-xs font-medium text-muted-foreground py-1">{g}</div>
+                  <div key={g} className="text-center text-xs font-medium text-muted-foreground py-1">{tr(g)}</div>
                 ))}
               </div>
 
@@ -304,7 +305,7 @@ export default function CampoPresenze() {
                 {Object.entries(STATUS_LABELS).slice(0, 5).map(([key, label]) => (
                   <div key={key} className="flex items-center gap-1.5">
                     <div className={cn("w-2.5 h-2.5 rounded-full", STATUS_COLORS[key])} />
-                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className="text-xs text-muted-foreground">{tr(label)}</span>
                   </div>
                 ))}
               </div>
@@ -318,31 +319,31 @@ export default function CampoPresenze() {
         <Card>
           <CardContent className="p-4">
             <p className="text-sm font-semibold text-foreground capitalize mb-2">
-              {format(selectedDay, "EEEE d MMMM yyyy", { locale: it })}
+              {format(selectedDay, "EEEE d MMMM yyyy", { locale: dateFnsCampo() })}
             </p>
             {selectedDayData ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Badge className={cn("text-white text-xs", STATUS_COLORS[selectedDayData.status])}>
-                    {STATUS_LABELS[selectedDayData.status] || selectedDayData.status}
+                    {STATUS_LABELS[selectedDayData.status] ? tr(STATUS_LABELS[selectedDayData.status]) : selectedDayData.status}
                   </Badge>
                 </div>
                 {selectedDayData.entrata && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Clock className="w-4 h-4" />
-                    <span>Entrata: {selectedDayData.entrata?.slice(0, 5)}</span>
-                    {selectedDayData.uscita && <span>— Uscita: {selectedDayData.uscita?.slice(0, 5)}</span>}
+                    <span>{tr("Entrata: {ora}", { ora: selectedDayData.entrata?.slice(0, 5) ?? "" })}</span>
+                    {selectedDayData.uscita && <span>{tr("— Uscita: {ora}", { ora: selectedDayData.uscita.slice(0, 5) })}</span>}
                   </div>
                 )}
                 {selectedDayData.ore != null && (
                   <p className="text-sm text-muted-foreground">
-                    Ore lavorate: <span className="text-primary font-semibold">{oreBrevi(selectedDayData.ore)}</span>
-                    {selectedDayData.daRapportino && <span> · dal rapportino (non hai timbrato)</span>}
+                    {tr("Ore lavorate:")} <span className="text-primary font-semibold">{oreBrevi(selectedDayData.ore)}</span>
+                    {selectedDayData.daRapportino && <span> · {tr("dal rapportino (non hai timbrato)")}</span>}
                   </p>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Nessun dato per questo giorno</p>
+              <p className="text-sm text-muted-foreground">{tr("Nessun dato per questo giorno")}</p>
             )}
           </CardContent>
         </Card>

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function FotoCantiereRiservata({ bucket, percorso, titolo, chiudi }: { bucket: string; percorso: string; titolo: string; chiudi: () => void }) {
+  const t = useT();
   const [esito, setEsito] = useState<{ url: string | null }>();
   useEffect(() => {
     const controller = new AbortController();
@@ -31,11 +33,11 @@ export function FotoCantiereRiservata({ bucket, percorso, titolo, chiudi }: { bu
   }, [bucket, percorso]);
   return <Dialog open onOpenChange={open => { if (!open) chiudi(); }}>
     <DialogContent aria-describedby={undefined} className="max-w-2xl gap-3">
-      <DialogTitle className="pr-8">{titolo}</DialogTitle>
-      {!esito ? <p role="status" className="text-sm text-muted-foreground">Carico la foto…</p>
+      <DialogTitle className="pr-8" dir="auto">{titolo}</DialogTitle>
+      {!esito ? <p role="status" className="text-sm text-muted-foreground">{t("Carico la foto…")}</p>
         : esito.url ? <img src={esito.url} alt={titolo} onError={() => setEsito({ url: null })}
           className="max-h-[70dvh] w-full rounded-lg bg-muted object-contain" />
-        : <p role="alert" className="text-sm">Foto non disponibile.</p>}
+        : <p role="alert" className="text-sm">{t("Foto non disponibile.")}</p>}
     </DialogContent>
   </Dialog>;
 }

@@ -323,7 +323,7 @@ export default function CampoLayout() {
             </div>
             <CampanellaCampo tecnico={isTecnico} />
             {isTecnico && <Button asChild variant="ghost" size="icon" className="h-11 w-11 shrink-0">
-              <Link to="/campo/invii" aria-label="Invii e bozze"><CloudUpload className="size-4" aria-hidden="true" /></Link>
+              <Link to="/campo/invii" aria-label={t("Invii e bozze")}><CloudUpload className="size-4" aria-hidden="true" /></Link>
             </Button>}
             <Button
               variant="ghost"

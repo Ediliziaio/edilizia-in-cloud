@@ -308,7 +308,7 @@ export default function MioProfilo() {
   const idCalendarioScelto = (googleSettings as { primary_calendar_id?: string | null } | null | undefined)?.primary_calendar_id;
   const nomeCalendarioScelto =
     calendariGoogle.find((c) => c.id === idCalendarioScelto)?.nome ||
-    (!idCalendarioScelto || idCalendarioScelto === "primary" ? "Principale" : idCalendarioScelto);
+    (!idCalendarioScelto || idCalendarioScelto === "primary" ? t("Principale") : idCalendarioScelto);
 
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const connectGoogle = async () => {
@@ -325,8 +325,8 @@ export default function MioProfilo() {
         const popup = window.open(res.data.url, "google-cal-auth", "width=500,height=700,left=400,top=100");
         // v8.6.39 H3 — Early return se popup bloccato dal browser
         if (!popup) {
-          toast.error("Popup bloccato", {
-            description: "Abilita i popup per questo sito nelle impostazioni del browser e riprova.",
+          toast.error(t("Popup bloccato"), {
+            description: t("Abilita i popup per questo sito nelle impostazioni del browser e riprova."),
           });
           setConnectingGoogle(false);
           return;
@@ -341,7 +341,7 @@ export default function MioProfilo() {
         setTimeout(() => { clearInterval(pollInterval); setConnectingGoogle(false); }, 300_000);
       }
     } catch (err: unknown) {
-      toast.error("Collegamento con Google non riuscito", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") });
+      toast.error(t("Collegamento con Google non riuscito"), { description: motivoDelRifiuto(err, t("Riprova tra qualche secondo.")) });
       setConnectingGoogle(false);
     }
   };
@@ -356,21 +356,21 @@ export default function MioProfilo() {
       if (!trustedOrigins.includes(event.origin)) return;
       if (event.data?.type !== "GOOGLE_OAUTH_RESULT") return;
       if (event.data.status === "success") {
-        toast.success("Google Calendar collegato", {
-          description: "Sto importando i tuoi appuntamenti delle prossime 4 settimane…",
+        toast.success(t("Google Calendar collegato"), {
+          description: t("Sto importando i tuoi appuntamenti delle prossime 4 settimane…"),
         });
         queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
         queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
       } else {
-        toast.error("Collegamento non completato", {
-          description: event.data.error || "Riprova dalle impostazioni.",
+        toast.error(t("Collegamento non completato"), {
+          description: event.data.error || t("Riprova dalle impostazioni."),
         });
       }
       setConnectingGoogle(false);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   // Passa dalla stessa funzione della scheda Impostazioni → Calendari: revoca
   // il token su Google, toglie canale push, slot occupati ed eventi mappati e
@@ -383,12 +383,12 @@ export default function MioProfilo() {
       body: { action: "disconnect", companyId },
     });
     if (res.error) {
-      toast.error("Scollegamento non riuscito", { description: motivoDelRifiuto(res.error, "Riprova tra qualche secondo.") });
+      toast.error(t("Scollegamento non riuscito"), { description: motivoDelRifiuto(res.error, t("Riprova tra qualche secondo.")) });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
     queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
-    toast.success("Google Calendar scollegato");
+    toast.success(t("Google Calendar scollegato"));
   };
 
   const [syncing, setSyncing] = useState(false);
@@ -400,7 +400,7 @@ export default function MioProfilo() {
     // continuano a mostrare. Prima si salvava solo il riflesso, e la direzione
     // scelta nella scheda utente non contava nulla.
     mutationFn: async (updates: Record<string, unknown>) => {
-      if (!effectiveCompany?.id || !user?.id) throw new MessaggioPerUtente("Non trovo l'azienda attiva: ricarica la pagina.");
+      if (!effectiveCompany?.id || !user?.id) throw new MessaggioPerUtente(t("Non trovo l'azienda attiva: ricarica la pagina."));
       const { sync_direction: direzione, ...settings } = updates as { sync_direction?: DirezioneSync };
       const { error } = await (supabase as unknown as { from: (t: string) => { update: (p: unknown) => { eq: (k: string, v: string) => { eq: (k: string, v: string) => Promise<{ error: { message: string } | null }> } } } })
         .from("google_calendar_settings")
@@ -419,11 +419,11 @@ export default function MioProfilo() {
       }
     },
     onSuccess: () => {
-      toast.success("Preferenze calendario aggiornate");
+      toast.success(t("Preferenze calendario aggiornate"));
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
       queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", user?.id] });
     },
-    onError: (e: unknown) => toast.error("Preferenze non salvate", { description: motivoDelRifiuto(e, "Riprova tra qualche secondo.") }),
+    onError: (e: unknown) => toast.error(t("Preferenze non salvate"), { description: motivoDelRifiuto(e, t("Riprova tra qualche secondo.")) }),
   });
   // 2026-05-26 (audit fix P1): handling errori migliorato. Prima il catch
   // mostrava `err.message` anche se undefined → "Errore" generico senza
@@ -441,19 +441,19 @@ export default function MioProfilo() {
       if (res.error) throw new Error(res.error.message || "Aggiornamento non riuscito");
       const result = res.data as { synced?: number; skipped?: number } | null;
       const synced = result?.synced ?? 0;
-      toast.success("Calendario aggiornato", {
+      toast.success(t("Calendario aggiornato"), {
         description: synced > 0
-          ? `${synced} appuntamenti dal tuo Google Calendar importati.`
-          : "Nessun nuovo appuntamento trovato nelle prossime 4 settimane.",
+          ? t("{n} appuntamenti dal tuo Google Calendar importati.", { n: synced })
+          : t("Nessun nuovo appuntamento trovato nelle prossime 4 settimane."),
       });
       queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
       queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error("Calendario non aggiornato", {
+      toast.error(t("Calendario non aggiornato"), {
         description: msg.includes("token") || msg.includes("auth")
-          ? "Sembra che il collegamento sia scaduto. Scollega e ricollega Google Calendar."
-          : motivoDelRifiuto(err, "Riprova tra qualche secondo."),
+          ? t("Sembra che il collegamento sia scaduto. Scollega e ricollega Google Calendar.")
+          : motivoDelRifiuto(err, t("Riprova tra qualche secondo.")),
       });
     } finally { setSyncing(false); }
   };
@@ -794,7 +794,7 @@ export default function MioProfilo() {
                   </div>
                   <div>
                     <CardTitle className="text-base">Google Calendar</CardTitle>
-                    <CardDescription>Sincronizza eventi e disponibilità</CardDescription>
+                    <CardDescription>{t("Sincronizza eventi e disponibilità")}</CardDescription>
                   </div>
                 </div>
                 {/* 2026-05-27: badge stato accurato — verde solo se status="connected".
@@ -802,15 +802,15 @@ export default function MioProfilo() {
                 {googleConn ? (
                   googleConn.status === "connected" ? (
                     <Badge variant="default" className="bg-green-100 text-green-700 border-green-200 gap-1">
-                      <Check className="h-3 w-3" /> Connesso
+                      <Check className="h-3 w-3" /> {t("Connesso")}
                     </Badge>
                   ) : (
                     <Badge variant="default" className="bg-amber-100 text-amber-700 border-amber-200 gap-1">
-                      <AlertTriangle className="h-3 w-3" /> Da rinnovare
+                      <AlertTriangle className="h-3 w-3" /> {t("Da rinnovare")}
                     </Badge>
                   )
                 ) : (
-                  <Badge variant="secondary">Non connesso</Badge>
+                  <Badge variant="secondary">{t("Non connesso")}</Badge>
                 )}
               </div>
             </CardHeader>
@@ -844,7 +844,7 @@ export default function MioProfilo() {
                               ? "text-green-800 dark:text-green-300"
                               : "text-amber-800 dark:text-amber-300"
                           }`}>
-                            {isHealthy ? "Calendario collegato" : "Connessione da rinnovare"}
+                            {isHealthy ? t("Calendario collegato") : t("Connessione da rinnovare")}
                           </span>
                         </div>
                         <p className={`text-xs ${
@@ -852,16 +852,16 @@ export default function MioProfilo() {
                             ? "text-green-700 dark:text-green-400"
                             : "text-amber-700 dark:text-amber-400"
                         }`}>
-                          Account: <strong>{hasEmail ? email : "non rilevato"}</strong>
+                          {t("Account:")} <strong>{hasEmail ? email : t("non rilevato")}</strong>
                           {!hasEmail && (
                             <span className="ml-1 italic text-amber-700/80">
-                              (l'indirizzo email non è stato salvato bene: scollega e ricollega il calendario)
+                              {t("(l'indirizzo email non è stato salvato bene: scollega e ricollega il calendario)")}
                             </span>
                           )}
                         </p>
                         {!isHealthy && googleConn.last_error && (
                           <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2 leading-snug">
-                            <strong>Errore:</strong> {googleConn.last_error}
+                            <strong>{t("Errore:")}</strong> {googleConn.last_error}
                           </p>
                         )}
                         {googleConn.last_sync_at ? (
@@ -874,7 +874,7 @@ export default function MioProfilo() {
                           <p className={`text-xs mt-1 italic ${
                             isHealthy ? "text-green-600/70" : "text-amber-600/70"
                           }`}>
-                            Mai aggiornato: premi «Aggiorna ora» per la prima importazione.
+                            {t("Mai aggiornato: premi «Aggiorna ora» per la prima importazione.")}
                           </p>
                         )}
                       </div>
@@ -882,32 +882,32 @@ export default function MioProfilo() {
                   })()}
                   {googleSettings && (
                     <div className="text-sm space-y-1">
-                      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Come funziona il collegamento</p>
+                      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{t("Come funziona il collegamento")}</p>
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Calendario: <strong>{nomeCalendarioScelto}</strong></span>
+                        <span>{t("Calendario:")} <strong dir="auto">{nomeCalendarioScelto}</strong></span>
                       </div>
                       <div className="flex items-center gap-2">
                         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Modalità: <strong>{etichettaDirezione(direzioneCalendario)}</strong></span>
+                        <span>{t("Modalità:")} <strong>{t(etichettaDirezione(direzioneCalendario))}</strong></span>
                       </div>
                       <div className="flex items-start gap-2">
                         <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span>Per ora i colleghi dell'azienda vedono il titolo degli eventi di Google nel calendario.</span>
+                        <span>{t("Per ora i colleghi dell'azienda vedono il titolo degli eventi di Google nel calendario.")}</span>
                       </div>
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={syncGoogle} disabled={syncing} className="gap-2">
                       {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                      Aggiorna ora
+                      {t("Aggiorna ora")}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setSyncPrefsOpen(true)} className="gap-2">
                       <Settings2 className="h-3.5 w-3.5" />
-                      Preferenze del calendario
+                      {t("Preferenze del calendario")}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={disconnectGoogle} className="gap-2 text-destructive hover:text-destructive">
-                      <Unlink className="h-3.5 w-3.5" /> Scollega
+                      <Unlink className="h-3.5 w-3.5" /> {t("Scollega")}
                     </Button>
                   </div>
                 </div>
@@ -917,13 +917,13 @@ export default function MioProfilo() {
                     subito visibile. */
                 <div className="space-y-4">
                   <ul className="text-sm text-muted-foreground space-y-1.5">
-                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> Appuntamenti sincronizzati automaticamente</li>
-                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> Il team vede la tua disponibilità</li>
-                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> Evita sovrapposizioni con appuntamenti personali</li>
+                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> {t("Appuntamenti sincronizzati automaticamente")}</li>
+                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> {t("Il team vede la tua disponibilità")}</li>
+                    <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600" /> {t("Evita sovrapposizioni con appuntamenti personali")}</li>
                   </ul>
                   <Button onClick={connectGoogle} disabled={connectingGoogle} className="gap-2 w-full sm:w-auto">
                     {connectingGoogle ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
-                    Collega Google Calendar
+                    {t("Collega Google Calendar")}
                   </Button>
                 </div>
               )}
@@ -972,8 +972,7 @@ export default function MioProfilo() {
           <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
             <Mail className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              Ogni utente collega il proprio Gmail o Outlook. Vedi solo le tue connessioni;
-              le email di altri membri del team non sono visibili.
+              {t("Ogni utente collega il proprio Gmail o Outlook. Vedi solo le tue connessioni; le email di altri membri del team non sono visibili.")}
             </span>
           </div>
           <EmailOAuthConnectionsCard />

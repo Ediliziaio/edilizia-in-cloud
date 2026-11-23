@@ -266,11 +266,11 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             {cantieriAltri.length > 0 && <optgroup label={t("Altri cantieri")}>{cantieriAltri.map(opzione)}</optgroup>}
             <option value={LUOGO_NESSUNO}>{t("Non so ancora dove — ore da attribuire")}</option>
           </UniformSelect>
-          {assegnazioni.isLoading && <p role="status" className="text-xs text-muted-foreground">Caricamento dei tuoi cantieri…</p>}
+          {assegnazioni.isLoading && <p role="status" className="text-xs text-muted-foreground">{t("Caricamento dei tuoi cantieri…")}</p>}
           {assegnazioni.isError && (
             <p role="alert" className="text-sm text-amber-700">
-              Non riesco a verificare i tuoi cantieri.
-              <button type="button" className="ml-2 min-h-11 text-primary underline" onClick={() => assegnazioni.refetch()}>Riprova</button>
+              {t("Non riesco a verificare i tuoi cantieri.")}
+              <button type="button" className="ml-2 min-h-11 text-primary underline" onClick={() => assegnazioni.refetch()}>{t("Riprova")}</button>
             </p>
           )}
           {partenza?.tipo === "nessuno" && (
@@ -320,7 +320,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
         <p className="text-xs text-muted-foreground">{t("Per cambiare posto termina prima la pausa.")}</p>
       )}
 
-      <div className="space-y-2" aria-label="Azioni di timbratura">
+      <div className="space-y-2" aria-label={t("Azioni di timbratura")}>
         {fuori ? (
           <button
             type="button"

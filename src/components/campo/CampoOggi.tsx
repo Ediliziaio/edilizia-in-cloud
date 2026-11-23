@@ -65,7 +65,7 @@ function SchedaCantiere({ c, giorno, puoPrelevare, nomeNellaTendina }: {
         <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
       </Link>
 
-      <div className={cn("grid gap-2", mappa ? "grid-cols-2" : "grid-cols-1")} aria-label="Azioni per il cantiere">
+      <div className={cn("grid gap-2", mappa ? "grid-cols-2" : "grid-cols-1")} aria-label={t("Azioni per il cantiere")}>
         <Link to={`/campo/lavoro/${c.order_id}/rapportino?data=${giorno}`}
           className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary">
           <FilePenLine className="size-4 shrink-0" aria-hidden="true" />{t("Rapportino")}

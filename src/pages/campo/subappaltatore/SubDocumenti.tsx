@@ -6,7 +6,6 @@ import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   FileText, Upload, AlertTriangle, CheckCircle,
   Clock, Loader2, Trash2, Download, X, RefreshCcw,
@@ -17,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { toast } from "sonner";
 import { PosDellaDitta } from "./PosDellaDitta";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI_DOCUMENTO = [
   { value: "visura_camerale", label: "Visura camerale" },
@@ -58,6 +58,7 @@ async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, messag
 }
 
 export default function SubDocumenti() {
+  const tr = useT();
   const { user, profile } = useAuth();
   const qc = useQueryClient();
   const companyId = (profile as any)?.company_id ?? null;
@@ -103,11 +104,11 @@ export default function SubDocumenti() {
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
-      if (!selectedFile) throw new Error("Seleziona un file");
-      if (selectedFile.size > MAX_FILE_SIZE) throw new Error("File troppo grande: massimo 15 MB");
+      if (!companyId) throw new Error(tr("Azienda non disponibile, ricarica la pagina"));
+      if (!selectedFile) throw new Error(tr("Seleziona un file"));
+      if (selectedFile.size > MAX_FILE_SIZE) throw new Error(tr("File troppo grande: massimo 15 MB"));
       if (selectedFile.type && !ALLOWED_MIME_TYPES.has(selectedFile.type)) {
-        throw new Error("Formato non consentito. Usa PDF, JPG, PNG, DOC o DOCX");
+        throw new Error(tr("Formato non consentito. Usa PDF, JPG, PNG, DOC o DOCX"));
       }
 
       setUploading(true);
@@ -130,7 +131,7 @@ export default function SubDocumenti() {
       if (dbErr) throw dbErr;
     },
     onSuccess: () => {
-      toast.success("Documento caricato");
+      toast.success(tr("Documento caricato"));
       setShowForm(false);
       setSelectedFile(null);
       setNomeFile("");
@@ -138,7 +139,7 @@ export default function SubDocumenti() {
       setTipoDoc("durc");
       qc.invalidateQueries({ queryKey: ["sub-documenti", companyId, user?.id] });
     },
-    onError: (err: any) => toast.error(err.message ?? "Errore nel caricamento"),
+    onError: (err: any) => toast.error(err.message ?? tr("Errore nel caricamento")),
     onSettled: () => setUploading(false),
   });
 
@@ -152,10 +153,10 @@ export default function SubDocumenti() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Documento rimosso");
+      toast.success(tr("Documento rimosso"));
       qc.invalidateQueries({ queryKey: ["sub-documenti"] });
     },
-    onError: () => toast.error("Errore nella rimozione"),
+    onError: () => toast.error(tr("Errore nella rimozione")),
   });
 
   const scadutiCount = documenti.filter((d: any) => getScadenzaStatus(d.data_scadenza) === "scaduto").length;
@@ -172,7 +173,7 @@ export default function SubDocumenti() {
       const { data, error } = await supabase.storage.from(PRIVATE_DOC_BUCKET).createSignedUrl(url, 60 * 5);
       return error ? null : data?.signedUrl;
     });
-    if (!aperto) toast.error("Impossibile aprire il documento");
+    if (!aperto) toast.error(tr("Impossibile aprire il documento"));
   };
 
   // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
@@ -181,13 +182,13 @@ export default function SubDocumenti() {
     <div className="flex flex-col">
       {/* Header */}
       <div className="bg-muted border-b border-border px-4 py-3 flex items-center justify-between">
-        <p className="font-bold text-foreground">I miei documenti</p>
+        <p className="font-bold text-foreground">{tr("I miei documenti")}</p>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-1.5 bg-primary text-primary-foreground font-semibold px-3 py-1.5 rounded-xl text-sm"
         >
           <Upload className="w-4 h-4" />
-          Carica
+          {tr("Carica")}
         </button>
       </div>
 
@@ -198,7 +199,7 @@ export default function SubDocumenti() {
           <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-500/30 rounded-xl">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
             <p className="text-xs text-red-600">
-              {scadutiCount} document{scadutiCount > 1 ? "i" : "o"} scadut{scadutiCount > 1 ? "i" : "o"}
+              {tr(scadutiCount > 1 ? "{n} documenti scaduti" : "{n} documento scaduto", { n: scadutiCount })}
             </p>
           </div>
         )}
@@ -206,7 +207,7 @@ export default function SubDocumenti() {
           <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
             <Clock className="w-4 h-4 text-primary shrink-0" />
             <p className="text-xs text-primary">
-              {inScadenzaCount} document{inScadenzaCount > 1 ? "i" : "o"} in scadenza entro 30 giorni
+              {tr(inScadenzaCount > 1 ? "{n} documenti in scadenza entro 30 giorni" : "{n} documento in scadenza entro 30 giorni", { n: inScadenzaCount })}
             </p>
           </div>
         )}
@@ -220,9 +221,10 @@ export default function SubDocumenti() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold">Documenti non caricati</p>
+                <p className="text-sm font-bold">{tr("Documenti non caricati")}</p>
                 <p className="mt-1 text-xs leading-relaxed">
-                  {(error as Error)?.message || "La richiesta non ha risposto in tempo."} Riprova quando la rete e' stabile.
+                  {(error as Error)?.message === "Caricamento documenti troppo lento" ? tr("Caricamento documenti troppo lento")
+                    : (error as Error)?.message || tr("La richiesta non ha risposto in tempo.")} {tr("Riprova quando la rete e' stabile.")}
                 </p>
               </div>
             </div>
@@ -233,25 +235,26 @@ export default function SubDocumenti() {
               className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-background px-3 text-xs font-bold text-amber-900 shadow-sm disabled:opacity-60"
             >
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-              Riprova
+              {tr("Riprova")}
             </button>
           </div>
         ) : documenti.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3 text-center">
             <FileText className="w-10 h-10 text-muted-foreground" />
-            <p className="text-muted-foreground text-sm">Nessun documento caricato</p>
+            <p className="text-muted-foreground text-sm">{tr("Nessun documento caricato")}</p>
             <button
               onClick={() => setShowForm(true)}
               className="text-primary text-sm font-medium"
             >
-              Carica il primo documento →
+              {tr("Carica il primo documento →")}
             </button>
           </div>
         ) : (
           <div className="space-y-3">
             {documenti.map((doc: any) => {
               const status = getScadenzaStatus(doc.data_scadenza);
-              const tipoLabel = TIPI_DOCUMENTO.find(t => t.value === doc.tipo)?.label ?? doc.tipo;
+              const etichettaTipo = TIPI_DOCUMENTO.find(t => t.value === doc.tipo)?.label;
+              const tipoLabel = etichettaTipo ? tr(etichettaTipo) : doc.tipo;
               return (
                 <div
                   key={doc.id}
@@ -268,7 +271,7 @@ export default function SubDocumenti() {
                         <FileText className="w-4 h-4 text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">{doc.nome_file}</p>
+                        <p className="font-medium text-foreground truncate" dir="auto">{doc.nome_file}</p>
                         <p className="text-xs text-muted-foreground">{tipoLabel}</p>
                         {doc.data_scadenza && (
                           <p className={cn(
@@ -277,7 +280,7 @@ export default function SubDocumenti() {
                             status === "in_scadenza" ? "text-primary" :
                             "text-muted-foreground"
                           )}>
-                            Scade: {format(parseISO(doc.data_scadenza), "d MMM yyyy", { locale: it })}
+                            {tr("Scade: {data}", { data: format(parseISO(doc.data_scadenza), "d MMM yyyy", { locale: dateFnsCampo() }) })}
                           </p>
                         )}
                       </div>
@@ -288,19 +291,19 @@ export default function SubDocumenti() {
                       {status === "scaduto" && (
                         <span className="flex items-center gap-1 text-[10px] bg-red-500/20 text-red-600 border border-red-500/20 rounded-full px-2 py-0.5">
                           <AlertTriangle className="w-3 h-3" />
-                          Scaduto
+                          {tr("Scaduto")}
                         </span>
                       )}
                       {status === "in_scadenza" && (
                         <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5">
                           <Clock className="w-3 h-3" />
-                          In scadenza
+                          {tr("In scadenza")}
                         </span>
                       )}
                       {status === "valido" && (
                         <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-600 border border-green-500/20 rounded-full px-2 py-0.5">
                           <CheckCircle className="w-3 h-3" />
-                          Valido
+                          {tr("Valido")}
                         </span>
                       )}
 
@@ -339,7 +342,7 @@ export default function SubDocumenti() {
             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
           >
             <div className="flex items-center justify-between mb-4">
-              <p className="font-bold text-foreground">Carica documento</p>
+              <p className="font-bold text-foreground">{tr("Carica documento")}</p>
               <button onClick={() => setShowForm(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted">
                 <X className="w-4 h-4 text-foreground" />
               </button>
@@ -348,21 +351,21 @@ export default function SubDocumenti() {
             <div className="space-y-3">
               {/* Tipo */}
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Tipo documento</label>
+                <label className="block text-xs text-muted-foreground mb-1">{tr("Tipo documento")}</label>
                 <UniformSelect
                   value={tipoDoc}
                   onChange={e => setTipoDoc(e.target.value)}
                   className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none"
                 >
                   {TIPI_DOCUMENTO.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
+                    <option key={t.value} value={t.value}>{tr(t.label)}</option>
                   ))}
                 </UniformSelect>
               </div>
 
               {/* Scadenza */}
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Data scadenza (opzionale)</label>
+                <label className="block text-xs text-muted-foreground mb-1">{tr("Data scadenza (opzionale)")}</label>
                 <input
                   type="date"
                   value={dataScadenza}
@@ -389,7 +392,7 @@ export default function SubDocumenti() {
               {selectedFile ? (
                 <div className="flex items-center gap-2 p-3 bg-muted border border-border rounded-xl">
                   <FileText className="w-4 h-4 text-primary" />
-                  <p className="text-sm text-foreground flex-1 truncate">{selectedFile.name}</p>
+                  <p className="text-sm text-foreground flex-1 truncate" dir="auto">{selectedFile.name}</p>
                   <button onClick={() => setSelectedFile(null)}>
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
@@ -400,7 +403,7 @@ export default function SubDocumenti() {
                   className="w-full p-4 border-2 border-dashed border-border rounded-xl flex flex-col items-center gap-2 active:border-primary"
                 >
                   <Upload className="w-5 h-5 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Tocca per selezionare file</p>
+                  <p className="text-sm text-muted-foreground">{tr("Tocca per selezionare file")}</p>
                   <p className="text-xs text-muted-foreground">PDF, JPG, PNG, DOC</p>
                 </button>
               )}
@@ -411,7 +414,7 @@ export default function SubDocumenti() {
                 className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
-                CARICA DOCUMENTO
+                {tr("CARICA DOCUMENTO")}
               </button>
             </div>
           </div>

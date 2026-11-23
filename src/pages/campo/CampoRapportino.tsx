@@ -754,7 +754,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     try {
       const esito = await preparaFoto(files, {
         giaPresenti: fotoUrls.length,
-        onProgresso: (i, n) => setFotoProgresso("Preparo le foto " + i + " di " + n + "…"),
+        onProgresso: (i, n) => setFotoProgresso(t("Preparo le foto {i} di {n}…", { i, n })),
       });
       avvisiPreparazione(esito).forEach(avviso => toast.error(avviso));
       if (esito.pronte.length === 0) return;
@@ -768,7 +768,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         if (!bytes?.byteLength) { illeggibili++; continue; }
         nuove[riferimentoAllegatoRapportino(percorso)] = { percorso, bytes, contentType: foto.contentType };
       }
-      if (illeggibili) toast.error(illeggibili === 1 ? "Una foto non si è aperta. Selezionala di nuovo." : `${illeggibili} foto non si sono aperte. Selezionale di nuovo.`);
+      if (illeggibili) toast.error(t(illeggibili === 1 ? "Una foto non si è aperta. Selezionala di nuovo." : "{n} foto non si sono aperte. Selezionale di nuovo.", { n: illeggibili }));
       if (!Object.keys(nuove).length) return;
       let salvate: FotoLocali = {};
       await update<FotoLocali>(chiaveBozza, prima => {
@@ -778,7 +778,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       setFotoLocali(salvate);
       setFotoUrls(prima => [...new Set([...prima, ...Object.keys(salvate)])]);
     } catch {
-      toast.error("Non riesco a salvare le foto sul telefono. Riprova.");
+      toast.error(t("Non riesco a salvare le foto sul telefono. Riprova."));
     } finally {
       input.value = "";
       bloccoFoto.current = false;
@@ -804,7 +804,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       setFotoUrls(prima => prima.filter(foto => foto !== url));
       setFotoFase(({ [url]: _, ...resto }) => resto);
     } catch {
-      toast.error("Non riesco a rimuovere la foto. Riprova.");
+      toast.error(t("Non riesco a rimuovere la foto. Riprova."));
     } finally {
       bloccoFoto.current = false;
       setUploadingFoto(false);
@@ -819,7 +819,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       if (await rapportoGiaRicevuto(voce.payload, await syncOperationId(voce))) {
         await syncQueue.retryFailed(i => i.id === voce.id);
         await syncQueue.processQueue();
-        toast.info("L’ufficio aveva già ricevuto questo rapportino.");
+        toast.info(t("L’ufficio aveva già ricevuto questo rapportino."));
         return;
       }
       const b = bozza.hasSavedDraft ? bozza.draft : { ...bozza.draft, ...voce.payload.bozzaCompilata };
@@ -836,7 +836,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       setModificaCoda(voce);
       applicaBozza(b);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Non riesco a riaprire i dati dell’invio.");
+      toast.error(error instanceof Error ? error.message : t("Non riesco a riaprire i dati dell’invio."));
     } finally {
       bloccoFoto.current = false;
       setVerificaCoda(false);
@@ -853,7 +853,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     try {
       oreDaInviare();
     } catch (err) {
-      erroreOre = err instanceof Error ? err.message : "Verifica le ore lavorate.";
+      erroreOre = err instanceof Error ? err.message : t("Verifica le ore lavorate.");
     }
   }
 
@@ -861,18 +861,18 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     // Anche senza rete questa mutazione deve scrivere subito su IndexedDB.
     networkMode: "always",
     mutationFn: async () => {
-      if (lavoro_completato && !online) throw new Error("Torna online per inviare il collaudo firmato.");
-      if (inCoda && !modificaCoda) throw new Error("Il rapportino è già in coda.");
-      if (bloccoFoto.current) throw new Error("Attendi che le foto siano pronte.");
-      if (verificaInCorso || verificaFallita || !ruoloCampo) throw new Error("Attendi la verifica del cantiere e dei rapporti già inviati, oppure riprova.");
-      if (clienteNonConsentito) throw new Error("Il collaudo col cliente lo fa il capocantiere. Puoi inviare il tuo rapportino.");
-      if (!lavoro_completato && flusso.soloTimbratura && !daRifare) throw new Error("Il giornaliero lo invia il responsabile: tu registra entrata e uscita. Puoi aggiungere foto dal cantiere.");
-      if (lavoro_completato && !descrizione.trim()) throw new Error("Descrivi i lavori che il cliente deve confermare prima di raccogliere la firma.");
-      if (lavoro_completato && (!firmaCliente || !firmaClienteNome.trim())) throw new Error("Per il collaudo servono nome e cognome del cliente e la sua firma.");
-      if (campiMancanti.length > 0) throw new Error("Compila: " + campiMancanti.join(", "));
+      if (lavoro_completato && !online) throw new Error(t("Torna online per inviare il collaudo firmato."));
+      if (inCoda && !modificaCoda) throw new Error(t("Il rapportino è già in coda."));
+      if (bloccoFoto.current) throw new Error(t("Attendi che le foto siano pronte."));
+      if (verificaInCorso || verificaFallita || !ruoloCampo) throw new Error(t("Attendi la verifica del cantiere e dei rapporti già inviati, oppure riprova."));
+      if (clienteNonConsentito) throw new Error(t("Il collaudo col cliente lo fa il capocantiere. Puoi inviare il tuo rapportino."));
+      if (!lavoro_completato && flusso.soloTimbratura && !daRifare) throw new Error(t("Il giornaliero lo invia il responsabile: tu registra entrata e uscita. Puoi aggiungere foto dal cantiere."));
+      if (lavoro_completato && !descrizione.trim()) throw new Error(t("Descrivi i lavori che il cliente deve confermare prima di raccogliere la firma."));
+      if (lavoro_completato && (!firmaCliente || !firmaClienteNome.trim())) throw new Error(t("Per il collaudo servono nome e cognome del cliente e la sua firma."));
+      if (campiMancanti.length > 0) throw new Error(t("Compila: {campi}", { campi: campiMancanti.join(", ") }));
       controllaGiorno();
-      if (bloccatoDaEsistente) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
-      if (!companyId || !orderId || !user?.id) throw new Error("Sessione non pronta, ricarica la pagina");
+      if (bloccatoDaEsistente) throw new Error(t("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio."));
+      if (!companyId || !orderId || !user?.id) throw new Error(t("Sessione non pronta, ricarica la pagina"));
 
       const operationId = modificaCoda ? await syncOperationId(modificaCoda)
         : lavoro_completato ? (idCollaudo.current ??= crypto.randomUUID()) : crypto.randomUUID();
@@ -890,7 +890,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         const locale = locali[url];
         if (locale) allegati.push(locale);
         else if (url.startsWith(riferimentoAllegatoRapportino(companyId + "/" + orderId + "/bozza/")) && !fotoPrecedenti.has(url)) {
-          throw new Error("Una foto della bozza manca sul telefono. Rimuovila o aggiungila di nuovo.");
+          throw new Error(t("Una foto della bozza manca sul telefono. Rimuovila o aggiungila di nuovo."));
         }
       }
       const aggiungiFirma = (dataUrl: string | null, autore: "operaio" | "cliente") => {
@@ -958,7 +958,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       if (lavoro_completato) return { esito: await inviaRapportoInCoda(payload, operationId) };
       if (modificaCoda) {
         if (!await syncQueue.riaccodaFallito(modificaCoda, payload)) {
-          throw new Error("L’invio è cambiato su un’altra scheda. Le tue modifiche restano nella bozza.");
+          throw new Error(t("L’invio è cambiato su un’altra scheda. Le tue modifiche restano nella bozza."));
         }
         void syncQueue.processQueue().catch(() => {});
       } else {
@@ -976,7 +976,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         // Sempre, non solo da offline: col campo debole il telefono si crede online e prima taceva.
         toast.success(t(testoRapportinoAccodato(online)), { id: TOAST_INVIO_RAPPORTINO });
       } else {
-        toast.success("Collaudo inviato");
+        toast.success(t("Collaudo inviato"));
         if (esito.id && esito.pdf && orderId) void notifyRapportinoPdf(esito.id, orderId, queryClient);
         void refreshCommessaCampoQueries(queryClient, orderId, companyId);
         if (esito.chiudeGiornata) void refreshCampoTimeQueries(queryClient);
@@ -987,7 +987,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
       navigate("/campo/lavoro/" + orderId + "?tab=" + (lavoro_completato ? "collaudo" : "rapportini"));
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error && error.message ? error.message : "Errore nel salvataggio. Riprova.");
+      toast.error(error instanceof Error && error.message ? error.message : t("Errore nel salvataggio. Riprova."));
     },
   });
 
@@ -1010,7 +1010,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     if (!giornoOk()) { toast.error(msgScadenza); return; }
     // Quelli per fase stanno più avanti, per chi ha due passi: si chiedono all'invio.
     const mancaOra = isUltimoStep ? campiMancanti : step === 1 ? mancantiRapportino : [];
-    if (mancaOra.length > 0) { setErroriCampi(true); toast.error(`Compila: ${mancaOra.join(", ")}`); return; }
+    if (mancaOra.length > 0) { setErroriCampi(true); toast.error(t("Compila: {campi}", { campi: mancaOra.join(", ") })); return; }
     if (step < totalSteps) {
       cambiaPassaggio(step + 1);
       return;
@@ -1070,7 +1070,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {fasiCommessa.length === 0 && puoDichiararePercentuali && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-muted-foreground">Avanzamento lavori</p>
+                  <p className="text-sm text-muted-foreground">{t("Avanzamento lavori")}</p>
                   <span className="text-primary font-bold">{percentuale}%</span>
                 </div>
                 <input
@@ -1109,13 +1109,13 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 !giaCoperto(m) && !(m.key in presenzeSel) && (m.ore_timbrate ?? 0) > 0 && !m.timbratura_aperta);
               return (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                <p className="text-sm font-semibold text-foreground">{workDay === today ? "Chi ha lavorato oggi?" : "Chi ha lavorato in questa giornata?"}</p>
+                <p className="text-sm font-semibold text-foreground">{t(workDay === today ? "Chi ha lavorato oggi?" : "Chi ha lavorato in questa giornata?")}</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {dalleTimbrature
+                  {t(dalleTimbrature
                     ? "Le ore sono quelle timbrate in cantiere: controllale e correggile se serve. Chi non ha timbrato lo aggiungi tu, con le sue ore."
                     : isCapocantiere
                       ? "Tocca chi era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."
-                      : "Tocca chi della tua squadra era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."}
+                      : "Tocca chi della tua squadra era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo.")}
                 </p>
                 {dalleTimbrature && timbratiDaSelezionare.length > 0 && (
                   <button
@@ -1130,7 +1130,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     }}
                     className="mb-3 min-h-11 rounded-full border border-primary px-4 text-sm font-semibold text-primary"
                   >
-                    Seleziona chi ha timbrato ({timbratiDaSelezionare.length})
+                    {t("Seleziona chi ha timbrato ({n})", { n: timbratiDaSelezionare.length })}
                   </button>
                 )}
                 <div className="space-y-3">
@@ -1139,7 +1139,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   {(() => {
                     const gruppi = [...new Set(squadra.map(m => m.squadra ?? ""))]
                       .sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a === "Ditta" ? 1 : b === "Ditta" ? -1 : a.localeCompare(b)));
-                    return gruppi.map(gruppo => ({ gruppo, titolo: gruppo === "" ? (gruppi.length > 1 ? "Persone" : "") : gruppo === "Ditta" ? "Ditte" : gruppo }));
+                    return gruppi.map(gruppo => ({ gruppo, titolo: gruppo === "" ? (gruppi.length > 1 ? t("Persone") : "") : gruppo === "Ditta" ? t("Ditte") : gruppo }));
                   })().map(({ gruppo, titolo }) => (
                     <div key={gruppo || "da-soli"}>
                       {titolo && <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titolo}</p>}
@@ -1150,15 +1150,15 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                           if (coperto) {
                             return (
                               <span key={m.key} className="min-h-11 rounded-full border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                                {m.nome} · {coperto === "suo" ? "ha mandato il suo" : "già registrato da un collega"}
+                                {m.nome} · {t(coperto === "suo" ? "ha mandato il suo" : "già registrato da un collega")}
                               </span>
                             );
                           }
                           // cosa dicono le timbrature di questa persona (le ditte non timbrano)
                           const nota = !mostraTimbrate || m.subappaltatore_id ? null
-                            : m.timbratura_aperta ? "ancora dentro"
-                            : (m.ore_timbrate ?? 0) > 0 ? `timbrate ${oreInTesto(m.ore_timbrate!)}`
-                            : "non ha timbrato";
+                            : m.timbratura_aperta ? t("ancora dentro")
+                            : (m.ore_timbrate ?? 0) > 0 ? t("timbrate {ore}", { ore: oreInTesto(m.ore_timbrate!) })
+                            : t("non ha timbrato");
                           return (
                             <button
                               key={m.key}
@@ -1171,7 +1171,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                                   : "border-border bg-muted text-muted-foreground"
                               }`}
                             >
-                              {m.nome}{m.sono_io ? " (tu)" : ""}
+                              {m.sono_io ? t("{nome} (tu)", { nome: m.nome }) : m.nome}
                               {nota && <span className="ml-1.5 text-xs font-normal opacity-80">· {nota}</span>}
                             </button>
                           );
@@ -1182,13 +1182,12 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 </div>
                 {Object.keys(presenzeSel).length > 0 && (
                   <p role="status" className="mt-3 rounded-lg bg-primary/5 p-3 text-xs text-muted-foreground">
-                    Il costo della squadra usa queste presenze.
-                    Se hai lavorato anche tu, seleziona anche il tuo nome.
+                    {t("Il costo della squadra usa queste presenze. Se hai lavorato anche tu, seleziona anche il tuo nome.")}
                   </p>
                 )}
                 {Object.keys(presenzeSel).length > 1 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Stesse ore per tutti:</span>
+                    <span className="text-xs text-muted-foreground">{t("Stesse ore per tutti:")}</span>
                     {[4, 6, 8].map(h => (
                       <button
                         key={h}
@@ -1213,7 +1212,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                       <p className="min-w-0 truncate text-sm font-medium text-foreground">
                         {m.nome}
                         {m.subappaltatore_id && (
-                          <span className="ml-1 text-xs text-muted-foreground">(subappaltatore)</span>
+                          <span className="ml-1 text-xs text-muted-foreground">{t("(subappaltatore)")}</span>
                         )}
                       </p>
                       <div className="flex shrink-0 items-center gap-1.5">
@@ -1230,20 +1229,20 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                             setPresenzeSel(prev => ({ ...prev, [m.key]: ore }));
                           }}
                           className="h-11 w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-base"
-                          aria-label={`Ore di ${m.nome}`}
+                          aria-label={t("Ore di {nome}", { nome: m.nome })}
                         />
-                        <span className="text-xs text-muted-foreground">ore</span>
+                        <span className="text-xs text-muted-foreground">{t("ore")}</span>
                       </div>
                     </div>
                     {mostraTimbrate && !m.subappaltatore_id && (
                       <p className={`mt-1.5 text-xs ${diff?.fuori ? "font-medium text-amber-700" : "text-muted-foreground"}`}>
                         {m.timbratura_aperta
-                          ? "Non ha ancora timbrato l’uscita: scrivi tu le ore."
+                          ? t("Non ha ancora timbrato l’uscita: scrivi tu le ore.")
                           : (m.ore_timbrate ?? 0) > 0
                             ? diff?.fuori
-                              ? `Ha timbrato ${oreInTesto(m.ore_timbrate!)}: hai scritto ${diff.minuti > 0 ? "più" : "meno"} di ${oreInTesto(Math.abs(diff.minuti) / 60)}.`
-                              : `Ha timbrato ${oreInTesto(m.ore_timbrate!)}.`
-                            : "Non ha timbrato: scrivi tu le ore."}
+                              ? t(diff.minuti > 0 ? "Ha timbrato {timbrate}: hai scritto più di {scarto}." : "Ha timbrato {timbrate}: hai scritto meno di {scarto}.", { timbrate: oreInTesto(m.ore_timbrate!), scarto: oreInTesto(Math.abs(diff.minuti) / 60) })
+                              : t("Ha timbrato {timbrate}.", { timbrate: oreInTesto(m.ore_timbrate!) })
+                            : t("Non ha timbrato: scrivi tu le ore.")}
                       </p>
                     )}
                   </div>
@@ -1260,13 +1259,13 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
             {fasiDichiarabili.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                <p className="text-sm font-semibold text-foreground">{workDay === today ? "Su cosa hai lavorato oggi?" : "Su cosa hai lavorato in questa giornata?"}</p>
+                <p className="text-sm font-semibold text-foreground">{t(workDay === today ? "Su cosa hai lavorato oggi?" : "Su cosa hai lavorato in questa giornata?")}</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {!ruoloCampo
+                  {t(!ruoloCampo
                     ? "Ruolo Campo non ancora verificato. Puoi indicare le fasi lavorate; la modifica delle percentuali resta disabilitata."
                     : puoDichiararePercentuali
                     ? "Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)"
-                    : "Tocca le fasi su cui hai lavorato: servono ad attribuire le tue ore. L'avanzamento lo dichiara il capocantiere."}
+                    : "Tocca le fasi su cui hai lavorato: servono ad attribuire le tue ore. L'avanzamento lo dichiara il capocantiere.")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {fasiDichiarabili.map(fase => {
@@ -1334,7 +1333,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                       <div className="mt-2 flex items-center justify-between gap-2">
                         {fase.percentuale > 0 ? (
                           <p className="text-xs text-muted-foreground">
-                            Avanzamento attuale: {fase.percentuale}%
+                            {t("Avanzamento attuale: {n}%", { n: fase.percentuale })}
                           </p>
                         ) : <span />}
                         <button
@@ -1351,7 +1350,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                               : "border-border bg-muted text-muted-foreground"
                           }`}
                         >
-                          {fasiDichiarate[fase.id] === 100 ? "✓ Fase completata" : "Segna completata"}
+                          {t(fasiDichiarate[fase.id] === 100 ? "✓ Fase completata" : "Segna completata")}
                         </button>
                       </div>
                     </div>
@@ -1360,17 +1359,17 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
 
                 {sceltaFasePerOgniCosa && fotoUrls.length > 0 && (
                   <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
-                    <p className="text-sm font-medium text-foreground">Di quale fase sono le foto?</p>
-                    <p className="mb-2 text-xs text-muted-foreground">Facoltativo: le foto senza scelta restano tra quelle generali del cantiere.</p>
+                    <p className="text-sm font-medium text-foreground">{t("Di quale fase sono le foto?")}</p>
+                    <p className="mb-2 text-xs text-muted-foreground">{t("Facoltativo: le foto senza scelta restano tra quelle generali del cantiere.")}</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       {fotoUrls.map((url, i) => (
                         <div key={url}>
-                          <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-square h-auto" />
-                          <UniformSelect aria-label={`Fase della foto ${i + 1}`}
+                          <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={t("foto {n}", { n: i + 1 })} className="aspect-square h-auto" />
+                          <UniformSelect aria-label={t("Fase della foto {n}", { n: i + 1 })}
                             value={fasiSelezionate.some(f => f.id === fotoFase[url]) ? fotoFase[url] : ""}
                             onChange={e => { const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
                             className="mt-1 h-11 w-full min-w-0 rounded-lg border bg-background px-2 text-base">
-                            <option value="">Nessuna fase</option>
+                            <option value="">{t("Nessuna fase")}</option>
                             {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                           </UniformSelect>
                         </div>
@@ -1387,32 +1386,32 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     <>
             {/* ── Materiali usati oggi (facoltativo) ── */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <p className="text-sm font-semibold text-foreground">{workDay === today ? "Materiali usati oggi" : "Materiali usati nella giornata"}</p>
+              <p className="text-sm font-semibold text-foreground">{t(workDay === today ? "Materiali usati oggi" : "Materiali usati nella giornata")}</p>
               <p className="mb-3 text-xs text-muted-foreground">
-                Tocca i materiali usati e verifica quantità e unità (facoltativo). La dichiarazione non scarica automaticamente il magazzino.
+                {t("Tocca i materiali usati e verifica quantità e unità (facoltativo). La dichiarazione non scarica automaticamente il magazzino.")}
               </p>
-              {articoliLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento materiali…</p>}
+              {articoliLoading && <p role="status" className="text-sm text-muted-foreground">{t("Caricamento materiali…")}</p>}
               {articoliError && <div role="alert" className="mb-3 rounded-xl border border-amber-200 p-3 text-sm">
-                Non riesco a caricare gli articoli. I materiali già scelti restano nel rapportino.
-                <button type="button" className="block min-h-11 text-primary underline" onClick={() => refetchArticoli()}>Riprova materiali</button>
+                {t("Non riesco a caricare gli articoli. I materiali già scelti restano nel rapportino.")}
+                <button type="button" className="block min-h-11 text-primary underline" onClick={() => refetchArticoli()}>{t("Riprova materiali")}</button>
               </div>}
               {materialiCommessa.length > 0 && <div className="flex flex-wrap gap-2">{materialiCommessa.map(renderMateriale)}</div>}
               {materialiConsegnati.length > 0 && <details className="mt-3 rounded-xl border px-3 py-1 [&[open]]:pb-3">
-                <summary className="cursor-pointer py-2.5 text-sm font-semibold">Dal magazzino al cantiere ({materialiConsegnati.length})</summary>
-                <p className="mb-3 text-xs text-muted-foreground">Materiali consegnati entro questa giornata. Scegli quelli usati e indica quantità e unità: il rapportino non crea un altro prelievo.</p>
+                <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t("Dal magazzino al cantiere ({n})", { n: materialiConsegnati.length })}</summary>
+                <p className="mb-3 text-xs text-muted-foreground">{t("Materiali consegnati entro questa giornata. Scegli quelli usati e indica quantità e unità: il rapportino non crea un altro prelievo.")}</p>
                 <div className="flex flex-wrap gap-2">{materialiConsegnati.map(renderMateriale)}</div>
               </details>}
               {delivered.isError && <div role="alert" className="mt-3 rounded-xl border border-amber-200 p-3 text-sm">
-                Materiali consegnati non disponibili. Puoi usare gli articoli o aggiungere una voce libera; le scelte già fatte restano salvate nel modulo.
-                <button type="button" className="block min-h-11 text-primary underline" onClick={() => delivered.refetch()}>Riprova consegne</button>
+                {t("Materiali consegnati non disponibili. Puoi usare gli articoli o aggiungere una voce libera; le scelte già fatte restano salvate nel modulo.")}
+                <button type="button" className="block min-h-11 text-primary underline" onClick={() => delivered.refetch()}>{t("Riprova consegne")}</button>
               </div>}
               {articoliDaVerificare.length > 0 && <details className="mt-3 rounded-xl border px-3 py-1 [&[open]]:pb-3">
-                <summary className="cursor-pointer py-2.5 text-sm font-semibold">Articoli da verificare ({articoliDaVerificare.length})</summary>
-                <p className="mb-3 text-xs text-muted-foreground">Queste voci non sono classificate. Seleziona solo materiali effettivamente usati; descrivi manodopera e servizi nelle lavorazioni.</p>
+                <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t("Articoli da verificare ({n})", { n: articoliDaVerificare.length })}</summary>
+                <p className="mb-3 text-xs text-muted-foreground">{t("Queste voci non sono classificate. Seleziona solo materiali effettivamente usati; descrivi manodopera e servizi nelle lavorazioni.")}</p>
                 <div className="flex flex-wrap gap-2">{articoliDaVerificare.map(renderMateriale)}</div>
               </details>}
               {prestazioniCommessa.length > 0 && <p className="mt-3 text-xs text-muted-foreground">
-                {prestazioniCommessa.length} voci di manodopera o servizi escluse dai materiali: descrivile nelle lavorazioni.
+                {t("{n} voci di manodopera o servizi escluse dai materiali: descrivile nelle lavorazioni.", { n: prestazioniCommessa.length })}
               </p>}
 
               {Object.entries(materialiSel).map(([key, m]) => (
@@ -1420,19 +1419,19 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   <p className="w-full text-sm font-medium leading-tight text-foreground">{m.nome}</p>
                   {sceltaFasePerOgniCosa && (
                     <label className="flex w-full items-center gap-2 text-xs text-muted-foreground">
-                      <span className="shrink-0">Fase</span>
-                      <UniformSelect aria-label={`Fase di ${m.nome}`}
+                      <span className="shrink-0">{t("Fase")}</span>
+                      <UniformSelect aria-label={t("Fase di {nome}", { nome: m.nome })}
                         value={m.faseId && fasiSelezionate.some(f => f.id === m.faseId) ? m.faseId : ""}
                         onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, faseId: e.target.value || undefined } }))}
                         className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-2 text-base text-foreground">
-                        <option value="">Nessuna fase</option>
+                        <option value="">{t("Nessuna fase")}</option>
                         {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                       </UniformSelect>
                     </label>
                   )}
                   <button
                     type="button"
-                    aria-label={`Riduci quantità ${m.nome}`}
+                    aria-label={t("Riduci quantità {nome}", { nome: m.nome })}
                     onClick={() =>
                       setMaterialiSel(prev => ({
                         ...prev,
@@ -1444,19 +1443,19 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     <Minus className="w-4 h-4 text-foreground" />
                   </button>
                   <input type="number" min="0.01" step="any" inputMode="decimal"
-                    aria-label={`Quantità ${m.nome}`} value={m.quantita}
+                    aria-label={t("Quantità {nome}", { nome: m.nome })} value={m.quantita}
                     onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, quantita: Number(e.target.value) } }))}
                     className="h-11 min-w-0 w-20 rounded-lg border bg-background px-2 text-center text-base" />
-                  <UniformSelect aria-label={`Unità ${m.nome}`} value={m.unita || ""}
+                  <UniformSelect aria-label={t("Unità {nome}", { nome: m.nome })} value={m.unita || ""}
                     onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, unita: e.target.value } }))}
                     className="h-11 min-w-0 max-w-full rounded-lg border bg-background px-2 text-base">
-                    <option value="" disabled>Scegli unità</option>
+                    <option value="" disabled>{t("Scegli unità")}</option>
                     {rapportinoUnitOptions(m.unita).map(unit => <option key={unit} value={unit}>{unit}</option>)}
                   </UniformSelect>
-                  {!m.unita && <p className="w-full text-xs text-amber-700">Unità non disponibile: scegli come hai misurato il materiale.</p>}
+                  {!m.unita && <p className="w-full text-xs text-amber-700">{t("Unità non disponibile: scegli come hai misurato il materiale.")}</p>}
                   <button
                     type="button"
-                    aria-label={`Aumenta quantità ${m.nome}`}
+                    aria-label={t("Aumenta quantità {nome}", { nome: m.nome })}
                     onClick={() =>
                       setMaterialiSel(prev => ({
                         ...prev,
@@ -1469,7 +1468,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   </button>
                   <button
                     type="button"
-                    aria-label={`Rimuovi materiale ${m.nome}`}
+                    aria-label={t("Rimuovi materiale {nome}", { nome: m.nome })}
                     onClick={() =>
                       setMaterialiSel(prev => {
                         const next = { ...prev };
@@ -1488,7 +1487,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 <input
                   type="text"
                   className="min-w-0 flex-1 rounded-xl border border-border bg-muted/60 px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder="Altro materiale…"
+                  placeholder={t("Altro materiale…")}
                   value={materialeLibero}
                   onChange={e => setMaterialeLibero(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") aggiungiMaterialeLibero(); }}
@@ -1499,7 +1498,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   disabled={!materialeLibero.trim()}
                   className="flex h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
                 >
-                  Aggiungi
+                  {t("Aggiungi")}
                 </button>
               </div>
             </div>
@@ -1528,15 +1527,15 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
   )) : null;
   const bloccoStraordinario = (
               <details open={oreStraordinario > 0 ? true : undefined} className={semplice ? "rounded-xl border bg-muted/30 px-3 py-1 [&[open]]:pb-3" : "border-t border-border pt-1"}>
-                <summary className="cursor-pointer py-2.5 text-sm font-semibold">Straordinario · facoltativo{oreStraordinario > 0 ? ` · ${oreStraordinario}h` : ""}</summary>
-                <p className="mb-2 text-xs text-muted-foreground">Sono ore aggiuntive: se incluse nelle ore rilevate, sottraile dalle ordinarie qui sopra.</p>
+                <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t("Straordinario · facoltativo")}{oreStraordinario > 0 ? ` · ${oreStraordinario}h` : ""}</summary>
+                <p className="mb-2 text-xs text-muted-foreground">{t("Sono ore aggiuntive: se incluse nelle ore rilevate, sottraile dalle ordinarie qui sopra.")}</p>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-muted-foreground">Ore straordinario</p>
+                  <p className="text-sm text-muted-foreground">{t("Ore straordinario")}</p>
                   <span className="text-primary font-bold">{oreStraordinario}h</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    type="button" aria-label="Riduci ore straordinario"
+                    type="button" aria-label={t("Riduci ore straordinario")}
                     onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
                     className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
                   >
@@ -1544,7 +1543,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   </button>
                   <input
                     type="range"
-                    aria-label="Ore straordinario"
+                    aria-label={t("Ore straordinario")}
                     min={0}
                     max={6}
                     step={0.5}
@@ -1553,7 +1552,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     className="flex-1 accent-primary"
                   />
                   <button
-                    type="button" aria-label="Aumenta ore straordinario"
+                    type="button" aria-label={t("Aumenta ore straordinario")}
                     onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
                     className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
                   >
@@ -1573,19 +1572,19 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     if (puoSuggerireMateriali && proposta.materiali.length) setMaterialiSel(restoreRapportinoMaterials(proposta.materiali));
     if (puoSuggerireOre && proposta.ore !== null) modificaOre(proposta.ore);
     tornaAScrivere();
-    toast.success("Proposta inserita. Controlla il rapportino prima di inviarlo.");
+    toast.success(t("Proposta inserita. Controlla il rapportino prima di inviarlo."));
   };
 
   if (!verificaInCorso && !verificaFallita && !lavoro_completato && flusso.soloTimbratura && !daRifare) return (
     <section className="mx-auto max-w-lg space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
-      <h1 className="text-lg font-bold leading-snug">Il giornaliero lo compila il responsabile</h1>
+      <h1 className="text-lg font-bold leading-snug">{t("Il giornaliero lo compila il responsabile")}</h1>
       <RapportinoSiteContext orderId={orderId} companyId={companyId} />
-      <p className="text-sm text-muted-foreground">Registra entrata e uscita. Puoi aggiungere foto e segnalazioni dalla scheda del cantiere.</p>
+      <p className="text-sm text-muted-foreground">{t("Registra entrata e uscita. Puoi aggiungere foto e segnalazioni dalla scheda del cantiere.")}</p>
       <div className="space-y-2">
         <button type="button" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground" onClick={() => navigate(`/campo/timbratura?order_id=${orderId}`)}>
-          <LogIn className="size-5" aria-hidden="true" /> Entrata e uscita
+          <LogIn className="size-5" aria-hidden="true" /> {t("Entrata e uscita")}
         </button>
-        <button type="button" className="min-h-12 w-full rounded-xl border px-4 font-semibold" onClick={() => navigate(`/campo/lavoro/${orderId}`)}>Apri il cantiere</button>
+        <button type="button" className="min-h-12 w-full rounded-xl border px-4 font-semibold" onClick={() => navigate(`/campo/lavoro/${orderId}`)}>{t("Apri il cantiere")}</button>
       </div>
     </section>
   );
@@ -1606,29 +1605,29 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
     const foto = inCoda.payload.campi.foto_urls?.length ?? 0;
     return (
       <section className="mx-auto max-w-2xl space-y-2 rounded-xl border bg-background p-4">
-        <h1 className="text-lg font-bold">{inCoda.status === "failed" ? "Rapportino da verificare" : "Rapportino in coda"}</h1>
+        <h1 className="text-lg font-bold">{t(inCoda.status === "failed" ? "Rapportino da verificare" : "Rapportino in coda")}</h1>
         <RapportinoSiteContext orderId={orderId} companyId={companyId} />
         <p role="status" className="text-sm text-muted-foreground">
-          {dayLabel}{foto > 0 && " · " + foto + " foto"}
+          {dayLabel}{foto > 0 && " · " + t("{n} foto", { n: foto })}
         </p>
         <p className="text-sm">{inCoda.status === "failed" ? inCoda.lastError
-          : online ? "Il telefono sta inviando il rapportino e le foto." : "Il rapportino e le foto partono quando torna la rete."}</p>
-        {inCoda.payload.campi.descrizione_lavori && <p className="whitespace-pre-wrap break-words rounded-xl bg-muted p-2.5 text-sm">{inCoda.payload.campi.descrizione_lavori}</p>}
-        {!!fotoInCoda.length && <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-5" aria-label="Foto del rapportino in coda">
-          {fotoInCoda.map(({ url, file }, i) => <li key={url}><AnteprimaFotoCampo foto={file} etichetta={`foto in coda ${i + 1}`} className="aspect-square h-auto" /></li>)}
+          : t(online ? "Il telefono sta inviando il rapportino e le foto." : "Il rapportino e le foto partono quando torna la rete.")}</p>
+        {inCoda.payload.campi.descrizione_lavori && <p dir="auto" className="whitespace-pre-wrap break-words rounded-xl bg-muted p-2.5 text-sm">{inCoda.payload.campi.descrizione_lavori}</p>}
+        {!!fotoInCoda.length && <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-5" aria-label={t("Foto del rapportino in coda")}>
+          {fotoInCoda.map(({ url, file }, i) => <li key={url}><AnteprimaFotoCampo foto={file} etichetta={t("foto in coda {n}", { n: i + 1 })} className="aspect-square h-auto" /></li>)}
         </ul>}
         <div className="flex flex-wrap gap-3">
           {inCoda.status === "failed" && inCoda.payload.bozzaCompilata && (
             <button type="button" disabled={!online || !fotoPronte || verificaCoda} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
-              onClick={() => void correggiInvio(inCoda)}>{verificaCoda ? "Verifico l’invio…" : online ? "Correggi il rapportino" : "Correggi quando torna la rete"}</button>
+              onClick={() => void correggiInvio(inCoda)}>{t(verificaCoda ? "Verifico l’invio…" : online ? "Correggi il rapportino" : "Correggi quando torna la rete")}</button>
           )}
           {inCoda.status === "failed" && (
             <button type="button" disabled={!online || verificaCoda} className="min-h-11 font-semibold text-primary underline disabled:opacity-50"
               onClick={() => void syncQueue.retryFailed(voce => voce.id === inCoda.id)
-                .then(syncQueue.processQueue).catch(() => toast.error("Non riesco a riprovare l’invio."))}>Riprova invio</button>
+                .then(syncQueue.processQueue).catch(() => toast.error(t("Non riesco a riprovare l’invio.")))}>{t("Riprova invio")}</button>
           )}
           <button type="button" className="min-h-11 font-semibold text-primary underline"
-            onClick={() => navigate("/campo/lavoro/" + orderId + "?tab=rapportini")}>Torna al cantiere</button>
+            onClick={() => navigate("/campo/lavoro/" + orderId + "?tab=rapportini")}>{t("Torna al cantiere")}</button>
         </div>
       </section>
     );
@@ -1650,8 +1649,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
           <h1 className="text-[17px] font-bold leading-tight text-foreground md:text-lg">{titoloRapportino}</h1>
           <RapportinoSiteContext orderId={orderId} companyId={companyId} />
           {totalSteps > 1 && <>
-            <p className="mt-2 text-xs font-semibold text-muted-foreground">{step} di {totalSteps} · {titoloPasso}</p>
-            <div role="progressbar" aria-label="Avanzamento del modulo" aria-valuemin={0} aria-valuemax={totalSteps} aria-valuenow={step}
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">{t("{step} di {totale}", { step, totale: totalSteps })} · {titoloPasso}</p>
+            <div role="progressbar" aria-label={t("Avanzamento del modulo")} aria-valuemin={0} aria-valuemax={totalSteps} aria-valuenow={step}
               className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full origin-left rounded-full bg-primary motion-safe:transition-transform motion-safe:duration-200"
                 style={{ transform: `scaleX(${step / totalSteps})` }} />
@@ -1662,8 +1661,8 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
 
       {/* Contenuto — spacing denso su mobile (regola no-spazio-vuoto) */}
       <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-5">
-        {lavoro_completato && <p className="rounded-xl bg-primary/5 px-3 py-2 text-sm text-muted-foreground">Documento da mostrare al cliente prima della firma. Non è il normale riepilogo di fine giornata.</p>}
-        {verificaInCorso && <p role="status" className="text-sm text-muted-foreground">Verifico cantiere e rapporti già inviati…</p>}
+        {lavoro_completato && <p className="rounded-xl bg-primary/5 px-3 py-2 text-sm text-muted-foreground">{t("Documento da mostrare al cliente prima della firma. Non è il normale riepilogo di fine giornata.")}</p>}
+        {verificaInCorso && <p role="status" className="text-sm text-muted-foreground">{t("Verifico cantiere e rapporti già inviati…")}</p>}
         {!ripresaDecisa && !daRifare && !bloccatoDaEsistente && <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
           <p role="status"><strong>{t("Bozza sul telefono.")}</strong> {t("Puoi riprendere il rapportino di questa giornata.")}</p>
           <div className="flex flex-wrap gap-x-3">
@@ -1674,32 +1673,32 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 setFotoUrls([]);
                 bozza.clearDraft();
                 setRipresaDecisa(true);
-              }).catch(() => toast.error("Non riesco a svuotare la bozza sul telefono."));
+              }).catch(() => toast.error(t("Non riesco a svuotare la bozza sul telefono.")));
             }}>{t("Parti da un modulo vuoto")}</button>
           </div>
         </div>}
         {bozza.saveError && <p role="alert" className="text-sm text-destructive">{bozza.saveError}</p>}
         {ripresaDecisa && bozza.lastSaved && <p role="status" className="text-xs text-muted-foreground">{t("Bozza salvata sul telefono · non ancora inviata all’ufficio")}{tipo === "client" ? `. ${t("La firma del cliente va raccolta di nuovo.")}` : ""}</p>}
         {verificaFallita && <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
-          <p>Non riesco a verificare i rapporti o il tuo ruolo. I dati inseriti restano qui; l’invio è sospeso per evitare doppioni.</p>
-          <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => { void ricaricaRuolo(); void ricaricaEsistente(); void ricaricaRegole?.(); void protocollo.refetch?.(); }}>Riprova la verifica</button>
+          <p>{t("Non riesco a verificare i rapporti o il tuo ruolo. I dati inseriti restano qui; l’invio è sospeso per evitare doppioni.")}</p>
+          <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => { void ricaricaRuolo(); void ricaricaEsistente(); void ricaricaRegole?.(); void protocollo.refetch?.(); }}>{t("Riprova la verifica")}</button>
         </div>}
-        {clienteNonConsentito && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">La conferma del cliente è gestita dal capocantiere. Per raccontare la tua giornata torna al rapportino giornaliero.</p>}
+        {clienteNonConsentito && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t("La conferma del cliente è gestita dal capocantiere. Per raccontare la tua giornata torna al rapportino giornaliero.")}</p>}
         {!lavoro_completato && flusso.soloTimbratura && !daRifare && <div role="status" className="space-y-2 rounded-xl border bg-muted/40 p-3 text-sm">
-          <p>In questa azienda il giornaliero lo invia il responsabile. Tu registra entrata e uscita; puoi aggiungere foto e segnalare problemi dal cantiere.</p>
-          <button type="button" className="min-h-11 text-primary underline" onClick={() => navigate(`/campo/lavoro/${orderId}`)}>Torna al cantiere</button>
+          <p>{t("In questa azienda il giornaliero lo invia il responsabile. Tu registra entrata e uscita; puoi aggiungere foto e segnalare problemi dal cantiere.")}</p>
+          <button type="button" className="min-h-11 text-primary underline" onClick={() => navigate(`/campo/lavoro/${orderId}`)}>{t("Torna al cantiere")}</button>
         </div>}
-        {!dayAllowed && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">{msgScadenza} I dati compilati restano visibili, ma non vengono spostati a oggi.</p>}
+        {!dayAllowed && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">{msgScadenza} {t("I dati compilati restano visibili, ma non vengono spostati a oggi.")}</p>}
         {daRifare && <div role="status" className="space-y-1 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-          <p className="font-semibold">{rapportinoGiaOggi?.stato === "bozza" ? "Questo rapportino è rimasto in bozza" : "L’ufficio ha respinto questo rapportino"}</p>
-          {rapportinoGiaOggi?.motivo_rifiuto?.trim() && <p>Motivo: {rapportinoGiaOggi.motivo_rifiuto.trim()}</p>}
-          <p>È già compilato: correggi quello che serve e {rapportinoGiaOggi?.stato === "bozza" ? "invialo" : "rimandalo"}.</p>
+          <p className="font-semibold">{t(rapportinoGiaOggi?.stato === "bozza" ? "Questo rapportino è rimasto in bozza" : "L’ufficio ha respinto questo rapportino")}</p>
+          {rapportinoGiaOggi?.motivo_rifiuto?.trim() && <p dir="auto">{t("Motivo: {motivo}", { motivo: rapportinoGiaOggi.motivo_rifiuto.trim() })}</p>}
+          <p>{t(rapportinoGiaOggi?.stato === "bozza" ? "È già compilato: correggi quello che serve e invialo." : "È già compilato: correggi quello che serve e rimandalo.")}</p>
         </div>}
         {bloccatoDaEsistente && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {t("Esiste già un rapportino per questa giornata: lo trovi nel cantiere. Per un altro giorno cambia la giornata qui sotto.")}
           {orderId && !lavoro_completato && <button type="button" onClick={() => navigate(linkChiediCorrezione(orderId, workDay))}
             className="mt-1 flex min-h-11 items-center font-semibold text-amber-900 underline">{t("Chiedi una correzione all’ufficio")}</button>}
-          {lavoro_completato && !tipiSeparati && " Per separare i due documenti nello stesso giorno occorre aggiornare il database: non sostituiamo quello già inviato."}
+          {lavoro_completato && !tipiSeparati && " " + t("Per separare i due documenti nello stesso giorno occorre aggiornare il database: non sostituiamo quello già inviato.")}
         </p>}
 
         {/* ── Step 1: Descrizione ── */}
@@ -1716,7 +1715,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   if (datiInseriti && !(await conferma({ title: t("Cambiare giornata?"), description: t("Si apre il rapportino di un altro giorno. Questa bozza e le foto restano sul telefono; le firme vanno raccolte di nuovo."), confirmLabel: t("Cambia giornata"), cancelLabel: t("Resta") }))) return;
                   const next = new URLSearchParams(params); next.set("data", giorno); setParams(next, { replace: true });
                 }} className="h-11 w-[47%] min-w-0 rounded-lg border bg-background px-2 text-base md:text-sm">
-                {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
+                {!dayAllowed && <option value={workDay}>{t("{data} — non inviabile", { data: dayLabel })}</option>}
                 {giorniSelezionabili.map((g) => (
                   <option key={g} value={g}>
                     {g === today ? t("Oggi") : g === yesterday ? t("Ieri") : format(new Date(`${g}T12:00:00`), "EEEE", { locale: dateFnsCampo() })} · {format(new Date(`${g}T12:00:00`), "dd/MM")}
@@ -1725,7 +1724,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               </UniformSelect>
             </div>
             {/* La scadenza si dice solo quando conta: oggi per oggi non serve leggerla. */}
-            {(daRifare || workDay !== today) && <p className="text-xs text-muted-foreground">{daRifare ? "Correzione richiesta dall’ufficio: puoi rimandarla anche dopo la scadenza originale." : dayAllowed ? ultimoGiornoInvio === today ? "Da inviare entro oggi alle 23:59." : ultimoGiornoInvio === shiftWorkDay(today, 1) ? "Da inviare entro domani alle 23:59." : `Da inviare entro il ${format(new Date(`${ultimoGiornoInvio}T12:00:00`), "dd/MM")} alle 23:59.` : "Giornata fuori termine."}</p>}
+            {(daRifare || workDay !== today) && <p className="text-xs text-muted-foreground">{daRifare ? t("Correzione richiesta dall’ufficio: puoi rimandarla anche dopo la scadenza originale.") : dayAllowed ? ultimoGiornoInvio === today ? t("Da inviare entro oggi alle 23:59.") : ultimoGiornoInvio === shiftWorkDay(today, 1) ? t("Da inviare entro domani alle 23:59.") : t("Da inviare entro il {data} alle 23:59.", { data: format(new Date(`${ultimoGiornoInvio}T12:00:00`), "dd/MM") }) : t("Giornata fuori termine.")}</p>}
             {/* Già inviato: resta solo la scelta della giornata. Prima il modulo restava scrivibile e l'operaio
                 lo riempiva per scoprire solo all'invio che non partiva (collaudo 23/11). */}
             <fieldset disabled={bloccatoDaEsistente} aria-hidden={bloccatoDaEsistente || undefined}
@@ -1752,7 +1751,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {/* Con «ore_proprie» l'operaio manda solo le ore: il racconto, le foto
                 e i materiali li scrive il capocantiere per tutto il cantiere. */}
             {soloOreAllOperaio ? (
-              <p className="text-sm text-muted-foreground">Qui segni solo le tue ore. Il racconto del cantiere, le foto e i materiali li scrive il capocantiere.</p>
+              <p className="text-sm text-muted-foreground">{t("Qui segni solo le tue ore. Il racconto del cantiere, le foto e i materiali li scrive il capocantiere.")}</p>
             ) : !vocaleVisibile && (
               <div className="space-y-2 rounded-2xl border border-primary/15 bg-background p-3 shadow-sm">
                 <label htmlFor="rapportino-lavori" className="flex items-center gap-2 text-sm font-semibold max-md:sr-only">
@@ -1760,6 +1759,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 </label>
                 <textarea
                   ref={campoDescrizione}
+                  dir="auto"
                   id="rapportino-lavori"
                   aria-label={t(lavoro_completato ? "Lavori da confermare con il cliente" : "Lavori svolti nella giornata")}
                   className="block w-full resize-y rounded-xl border border-border bg-muted/35 px-3 py-2.5 text-base leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25 md:text-sm"
@@ -1769,26 +1769,26 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   onChange={e => setDescrizione(e.target.value)}
                 />
                 {/* Un microfono solo: se c'è «Compila parlando» (riempie anche ore e materiali), il dettato semplice è un doppione. */}
-                {!bloccatoDaEsistente && !puoCompilareAVoce && <DettaTesto value={descrizione} onChange={setDescrizione} companyId={companyId} contesto="rapportino" campo="descrizione" etichetta="Descrizione dei lavori" disabled={saving || verificaInCorso || verificaFallita || !dayAllowed} />}
+                {!bloccatoDaEsistente && !puoCompilareAVoce && <DettaTesto value={descrizione} onChange={setDescrizione} companyId={companyId} contesto="rapportino" campo="descrizione" etichetta={t("Descrizione dei lavori")} disabled={saving || verificaInCorso || verificaFallita || !dayAllowed} />}
               </div>
             )}
-            {!confermaCliente && registraSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
+            {!confermaCliente && registraSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">{t("Carico chi c’era in cantiere…")}</p>}
             {!confermaCliente && registraSquadra && bloccoSquadra}
             {/* Il meteo non si sceglie: si compila da solo dalle previsioni del cantiere (vedi sopra). Se uno lo scrive nella descrizione va bene. */}
             {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
-            {confermaCliente ? <p className="rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground">Ore e presenze si registrano nel giornaliero. Questa conferma non aggiunge altre ore e non le conta una seconda volta.</p> : oreNonMie ? (
+            {confermaCliente ? <p className="rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground">{t("Ore e presenze si registrano nel giornaliero. Questa conferma non aggiunge altre ore e non le conta una seconda volta.")}</p> : oreNonMie ? (
               <div role="status" className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
-                <p className="text-sm font-semibold">Le tue ore le registra il capocantiere</p>
+                <p className="text-sm font-semibold">{t("Le tue ore le registra il capocantiere")}</p>
                 <p className="text-xs text-muted-foreground">
                   {oreRegistrateDalCapo
-                    ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}).`
-                    : "Il capocantiere registra le ore della squadra."}{" "}
+                    ? t("{chi} ha già segnato le tue ore di questa giornata ({ore}).", { chi: oreGiaRegistrate?.da || t("Il tuo capo"), ore: oreInTesto(Number(oreGiaRegistrate?.ore) || 0) })
+                    : t("Il capocantiere registra le ore della squadra.")}{" "}
                   {soloOreAllOperaio ? t("Puoi indicare eventuali ore aggiuntive.") : t("Qui puoi aggiungere {dettagli}.", { dettagli: dettagliDaAggiungere })}
                 </p>
                 <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
                   {oreRegistrateDalCapo
-                    ? "Ho fatto altre ore, non comprese in queste"
-                    : "Oggi il capocantiere non c’era? Scrivo io le mie ore"}
+                    ? t("Ho fatto altre ore, non comprese in queste")
+                    : t("Oggi il capocantiere non c’era? Scrivo io le mie ore")}
                 </button>
               </div>
             ) : mostraOrePersonali ? (
@@ -1796,8 +1796,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               <div>
                 {oreRegistrateDalCapo && (
                   <p role="status" className="mb-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
-                    {oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato {oreInTesto(Number(oreGiaRegistrate?.ore) || 0)} per te in questa giornata:
-                    scrivi qui solo le ore in più, non quelle già segnate.
+                    {t("{chi} ha già segnato {ore} per te in questa giornata: scrivi qui solo le ore in più, non quelle già segnate.", { chi: oreGiaRegistrate?.da || t("Il tuo capo"), ore: oreInTesto(Number(oreGiaRegistrate?.ore) || 0) })}
                   </p>
                 )}
                 <label htmlFor="ore-cantiere" className="text-sm font-semibold">{t("Ore ordinarie su questo cantiere")}</label>
@@ -1808,9 +1807,9 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                     soloOreAllOperaio ? t("Indica le ore effettive.") :
                     t(parti.foto ? "Per registrare solo foto o note, indica 0 ore." : "Per registrare solo una nota, indica 0 ore.")}
                 </p>
-                {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>Riprova timbrature</button>}
+                {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>{t("Riprova timbrature")}</button>}
                 <div className="mt-3 flex items-center gap-3">
-                  <button type="button" aria-label="Riduci ore ordinarie"
+                  <button type="button" aria-label={t("Riduci ore ordinarie")}
                     onClick={() => modificaOre(Math.max(0, Math.round(((oreLavorate === "" ? 0 : oreLavorate) - 0.5) * 10) / 10))}
                     className="h-11 w-11 shrink-0 rounded-xl bg-muted flex items-center justify-center">
                     <Minus className="w-4 h-4" />
@@ -1818,11 +1817,11 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   <input ref={campoOre} id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
                     aria-invalid={!!erroreOre && !registraSquadra}
                     aria-describedby={erroreOre ? "rapportino-ore-aiuto rapportino-ore-errore" : "rapportino-ore-aiuto"}
-                    value={oreLavorate} placeholder="Da indicare"
+                    value={oreLavorate} placeholder={t("Da indicare")}
                     onChange={e => modificaOre(e.target.value === "" ? "" : Number(e.target.value))}
                     className="h-12 w-full min-w-0 rounded-xl border bg-background px-2 text-center text-base font-semibold tabular-nums" />
                   <span className="text-sm text-muted-foreground">h</span>
-                  <button type="button" aria-label="Aumenta ore ordinarie"
+                  <button type="button" aria-label={t("Aumenta ore ordinarie")}
                     onClick={() => modificaOre(Math.min(24, Math.round(((oreLavorate === "" ? 0 : oreLavorate) + 0.5) * 10) / 10))}
                     className="h-11 w-11 shrink-0 rounded-xl border border-primary/40 bg-background text-primary flex items-center justify-center">
                     <Plus className="w-4 h-4" />
@@ -1835,7 +1834,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             {erroreOre && <p id="rapportino-ore-errore" role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-2.5 text-sm text-destructive">{erroreOre}</p>}
 
             {!soloOreAllOperaio && parti.foto && (
-            <section className="space-y-2 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label="Foto del rapportino">
+            <section className="space-y-2 rounded-2xl border bg-background p-3 shadow-sm sm:p-4" aria-label={t("Foto del rapportino")}>
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[15px] font-semibold md:text-sm">{t("Foto cantiere")}</h3>
                 <p className="text-xs tabular-nums text-muted-foreground">{fotoUrls.length}/{MAX_FOTO_PER_RAPPORTINO}</p>
@@ -1845,19 +1844,19 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                   "flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary",
                   bloccaFoto && "cursor-not-allowed opacity-60",
                 )}>
-                  <input type="file" aria-label="Scatta una foto" accept="image/*" capture="environment" className="sr-only"
+                  <input type="file" aria-label={t("Scatta una foto")} accept="image/*" capture="environment" className="sr-only"
                     onChange={handleFotoChange} disabled={bloccaFoto} />
                   <Camera className="size-5 shrink-0" aria-hidden="true" />{t(fotoUrls.length ? "Altra foto" : "Scatta foto")}
                 </label>
                 <label className={cn("flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-primary", bloccaFoto && "cursor-not-allowed opacity-60")}>
-                  <input type="file" aria-label="Scegli foto dalla galleria" accept="image/*" multiple className="sr-only"
+                  <input type="file" aria-label={t("Scegli foto dalla galleria")} accept="image/*" multiple className="sr-only"
                     onChange={handleFotoChange} disabled={bloccaFoto} />
                   <Images className="size-4 shrink-0" aria-hidden="true" /> {t("Galleria")}
                 </label>
               </div>
               {uploadingFoto ? (
                 <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />{fotoProgresso ?? "Caricamento in corso…"}
+                  <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />{fotoProgresso ?? t("Caricamento in corso…")}
                 </p>
               ) : fotoAlCompleto ? (
                 <p className="text-xs text-muted-foreground">{t("Limite raggiunto. Rimuovi una foto per aggiungerne un’altra.")}</p>
@@ -1866,10 +1865,10 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
                 <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {fotoUrls.map((url, i) => (
                     <li key={url} className="min-w-0">
-                      <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={`foto ${i + 1}`} className="aspect-[4/3] h-auto" />
+                      <AnteprimaFotoCampo foto={anteprimeLocali[url] ?? url} etichetta={t("foto {n}", { n: i + 1 })} className="aspect-[4/3] h-auto" />
                       <button
                         type="button"
-                        aria-label={`Togli la foto ${i + 1}`}
+                        aria-label={t("Togli la foto {n}", { n: i + 1 })}
                         disabled={uploadingFoto}
                         onClick={() => void togliFoto(url)}
                         className="flex min-h-11 w-full items-center justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
@@ -1917,23 +1916,23 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         {/* ── Step 2 (a): fasi, squadra e materiali del cantiere ── */}
         {step === 2 && !semplice && (
           <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Controlla prima di inviare</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">{t("Controlla prima di inviare")}</h2>
             {erroreOre && (
               <div role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 p-2.5 text-sm text-destructive">
                 <p>{erroreOre}</p>
-                <button type="button" onClick={() => void goBack()} className="min-h-11 font-semibold underline">Modifica ore e presenze</button>
+                <button type="button" onClick={() => void goBack()} className="min-h-11 font-semibold underline">{t("Modifica ore e presenze")}</button>
               </div>
             )}
-            {compilaArrivo && arrivo.length > 0 && <p className="text-sm text-muted-foreground">Trasporto · {arrivo.map(a =>
-              [(mezziPerArrivo.data ?? []).find(m => m.id === a.mezzoId)?.nome ?? "Mezzo dichiarato", a.km.trim() && `${a.km} km all’andata`].filter(Boolean).join(" · ")
+            {compilaArrivo && arrivo.length > 0 && <p className="text-sm text-muted-foreground">{t("Trasporto")} · {arrivo.map(a =>
+              [(mezziPerArrivo.data ?? []).find(m => m.id === a.mezzoId)?.nome ?? t("Mezzo dichiarato"), a.km.trim() && t("{km} km all’andata", { km: a.km })].filter(Boolean).join(" · ")
             ).join(", ")}</p>}
             {!confermaCliente && <>{(parti.avanzamento || parti.fasi) && <details className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
-              <summary className="cursor-pointer py-2.5 text-sm font-semibold">{parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento"}{Object.keys(fasiDichiarate).length > 0 ? ` · ${Object.keys(fasiDichiarate).length} selezionate` : ""}</summary>
+              <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t(parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento")}{Object.keys(fasiDichiarate).length > 0 ? " · " + t("{n} selezionate", { n: Object.keys(fasiDichiarate).length }) : ""}</summary>
               <div className="space-y-3">{parti.avanzamento && bloccoAvanzamento}{parti.fasi && bloccoFasi}</div>
             </details>}
             {bloccoCampiFase}
             {parti.materiali && <details className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
-              <summary className="cursor-pointer py-2.5 text-sm font-semibold">Materiali usati · facoltativo{Object.keys(materialiSel).length > 0 ? ` · ${Object.keys(materialiSel).length}` : ""}</summary>
+              <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t("Materiali usati · facoltativo")}{Object.keys(materialiSel).length > 0 ? ` · ${Object.keys(materialiSel).length}` : ""}</summary>
               {bloccoMateriali}
             </details>}
             {parti.mezzi && bloccoMezzi && <details className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
@@ -1948,41 +1947,41 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         {/* ── Step 2 (b): riepilogo, fine lavori e firma dell'autore ── */}
         {step === 2 && !semplice && (
           <>
-            <h3 className="text-base font-black text-foreground">Riepilogo</h3>
+            <h3 className="text-base font-black text-foreground">{t("Riepilogo")}</h3>
 
             {/* Riepilogo a blocchi: la giornata, poi una scheda per ogni fase con i suoi materiali e le sue foto
                 (le stesse schede del PDF), poi quello che non è legato a nessuna fase. */}
-            <BloccoRiepilogo titolo="Giornata">
+            <BloccoRiepilogo titolo={t("Giornata")}>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Data</span>
+                <span className="text-muted-foreground">{t("Data")}</span>
                 <span className="text-foreground">{dayLabel}</span>
               </div>
               {/* Con le presenze della squadra le ore sono lì sotto: la riga «Vedi presenze squadra» era un doppione. */}
               {!confermaCliente && !(oreLavorate === "" && Object.keys(presenzeSel).length > 0) && <div className="flex justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Le tue ore ordinarie</span>
-                <span className="text-primary font-bold">{oreNonMie ? "Le registra il capocantiere" : oreLavorate === "" ? "Da indicare" : oreBrevi(Number(oreLavorate))}</span>
+                <span className="text-muted-foreground">{t("Le tue ore ordinarie")}</span>
+                <span className="text-primary font-bold">{oreNonMie ? t("Le registra il capocantiere") : oreLavorate === "" ? t("Da indicare") : oreBrevi(Number(oreLavorate))}</span>
               </div>}
-              {confermaCliente && <p className="text-xs text-muted-foreground">Conferma del cliente, senza nuove ore o presenze.</p>}
+              {confermaCliente && <p className="text-xs text-muted-foreground">{t("Conferma del cliente, senza nuove ore o presenze.")}</p>}
               {Object.keys(presenzeSel).length > 0 && (
                 <div className="space-y-1 border-t border-border pt-2">
-                  <p className="text-xs font-medium text-muted-foreground">Presenze squadra</p>
+                  <p className="text-xs font-medium text-muted-foreground">{t("Presenze squadra")}</p>
                   {squadra.filter(m => m.key in presenzeSel).map(m => (
                     <div key={m.key} className="flex items-start justify-between gap-3 text-sm">
                       <span className="min-w-0 break-words">{m.nome}{m.subappaltatore_id ? " · sub" : ""}</span>
-                      <span className="shrink-0 font-semibold">{presenzeSel[m.key] === "" ? "Da indicare" : `${presenzeSel[m.key]} h`}</span>
+                      <span className="shrink-0 font-semibold">{presenzeSel[m.key] === "" ? t("Da indicare") : `${presenzeSel[m.key]} h`}</span>
                     </div>
                   ))}
                 </div>
               )}
               {!confermaCliente && !oreNonMie && straordinarioDaInviare > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Ore straordinario</span>
+                  <span className="text-muted-foreground">{t("Ore straordinario")}</span>
                   <span className="text-primary font-bold">{oreInTesto(straordinarioDaInviare)}</span>
                 </div>
               )}
               {!confermaCliente && parti.avanzamento && puoDichiararePercentuali && !fasiCommessa.length && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Avanzamento</span>
+                  <span className="text-muted-foreground">{t("Avanzamento")}</span>
                   <span className="text-primary font-bold">{percentuale}%</span>
                 </div>
               )}
@@ -1992,32 +1991,32 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
               const materialiFase = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === f.id);
               const fotoFaseConto = fotoUrls.filter(u => faseDiAppartenenza(fotoFase[u], idsFasiDichiarate) === f.id).length;
               const finale = percentualiFinali.get(f.id) ?? fasiDichiarate[f.id];
-              const esito = !puoDichiararePercentuali ? (workDay === today ? "lavorata oggi" : "lavorata nella giornata") : finale === 100 ? "✓ completata" : `→ ${finale}%`;
+              const esito = !puoDichiararePercentuali ? t(workDay === today ? "lavorata oggi" : "lavorata nella giornata") : finale === 100 ? t("✓ completata") : `→ ${finale}%`;
               return (
                 <BloccoRiepilogo key={f.id} titolo={f.name} dettaglio={<span className="shrink-0 text-xs font-semibold text-primary">{esito}</span>}>
-                  {materialiFase.length === 0 && fotoFaseConto === 0 && <p className="text-xs text-muted-foreground">Nessun materiale né foto legati a questa fase.</p>}
+                  {materialiFase.length === 0 && fotoFaseConto === 0 && <p className="text-xs text-muted-foreground">{t("Nessun materiale né foto legati a questa fase.")}</p>}
                   {materialiFase.map((m, i) => (
                     <p key={i} className="text-sm text-foreground">
-                      {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || "· unità da scegliere"}</span>
+                      {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || t("· unità da scegliere")}</span>
                     </p>
                   ))}
-                  {fotoFaseConto > 0 && <p className="text-sm text-foreground">{fotoFaseConto} foto di questa fase</p>}
+                  {fotoFaseConto > 0 && <p className="text-sm text-foreground">{t("{n} foto di questa fase", { n: fotoFaseConto })}</p>}
                 </BloccoRiepilogo>
               );
             })}
 
             {(materialiGenerali.length > 0 || fotoGenerali > 0 || fasiSelezionate.length === 0) && (
-              <BloccoRiepilogo titolo={fasiSelezionate.length ? "Altro" : "Foto e materiali"}>
+              <BloccoRiepilogo titolo={t(fasiSelezionate.length ? "Altro" : "Foto e materiali")}>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Foto</span>
-                  <span className="text-foreground">{fasiSelezionate.length ? fotoGenerali : fotoUrls.length} foto</span>
+                  <span className="text-muted-foreground">{t("Foto")}</span>
+                  <span className="text-foreground">{t("{n} foto", { n: fasiSelezionate.length ? fotoGenerali : fotoUrls.length })}</span>
                 </div>
                 {materialiGenerali.length > 0 && (
                   <div className="border-t border-border pt-2">
-                    <p className="mb-1 text-xs text-muted-foreground">Materiali usati</p>
+                    <p className="mb-1 text-xs text-muted-foreground">{t("Materiali usati")}</p>
                     {materialiGenerali.map((m, i) => (
                       <p key={i} className="text-sm text-foreground">
-                        {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || "· unità da scegliere"}</span>
+                        {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || t("· unità da scegliere")}</span>
                       </p>
                     ))}
                   </div>
@@ -2026,7 +2025,7 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             )}
 
             {valoriDaRivedere.length > 0 && (
-              <BloccoRiepilogo titolo="Altre informazioni">
+              <BloccoRiepilogo titolo={t("Altre informazioni")}>
                 {valoriDaRivedere.map(v => (
                   <div key={`${v.chiave}@${v.phase_id ?? ""}`} className="flex justify-between gap-3 text-sm">
                     <span className="min-w-0 text-muted-foreground">{v.etichetta}{v.fase_nome ? ` · ${v.fase_nome}` : ""}</span>
@@ -2037,18 +2036,18 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
             )}
 
             {descrizione && (
-              <BloccoRiepilogo titolo="Descrizione">
-                <p className="whitespace-pre-line text-sm text-foreground">{descrizione}</p>
+              <BloccoRiepilogo titolo={t("Descrizione")}>
+                <p dir="auto" className="whitespace-pre-line text-sm text-foreground">{descrizione}</p>
               </BloccoRiepilogo>
             )}
 
             {/* Firma dell'autore su OGNI rapportino: finisce nel PDF generato
                 all'invio. Facoltativa, ma il pad qui la rende un gesto solo. */}
             <details className="rounded-2xl border px-3 py-1 [&[open]]:pb-3">
-              <summary className="cursor-pointer py-2.5 text-sm font-semibold">La tua firma · facoltativa{firmaOperaio ? " · aggiunta" : ""}</summary>
-              <p className="mb-2 text-xs text-muted-foreground">Questa è la firma di chi compila, non del cliente.</p>
+              <summary className="cursor-pointer py-2.5 text-sm font-semibold">{t("La tua firma · facoltativa")}{firmaOperaio ? " · " + t("aggiunta") : ""}</summary>
+              <p className="mb-2 text-xs text-muted-foreground">{t("Questa è la firma di chi compila, non del cliente.")}</p>
               <FirmaPad
-                label={isCapocantiere ? "Firma del capocantiere (facoltativa)" : isCaposquadra ? "Firma del caposquadra (facoltativa)" : "Firma dell'operaio (facoltativa)"}
+                label={t(isCapocantiere ? "Firma del capocantiere (facoltativa)" : isCaposquadra ? "Firma del caposquadra (facoltativa)" : "Firma dell'operaio (facoltativa)")}
                 onChange={setFirmaOperaio}
               />
             </details>
@@ -2058,35 +2057,35 @@ function CampoRapportinoEditor({ companyId, workDay, tipo }: { companyId: string
         {/* ── Step 3: Firma del cliente (solo fine lavori) ── */}
         {step === 3 && lavoro_completato && (
           <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Firma del cliente</h2>
+            <h2 className="text-lg font-black text-foreground md:text-xl">{t("Firma del cliente")}</h2>
             <p className="text-sm text-muted-foreground">
-              La firma conferma i lavori indicati. Non approva costi extra: il verbale formale con eventuali riserve si manda da firmare via email, dal tab Collaudo.
+              {t("La firma conferma i lavori indicati. Non approva costi extra: il verbale formale con eventuali riserve si manda da firmare via email, dal tab Collaudo.")}
             </p>
 
-            <BloccoRiepilogo titolo="Da mostrare al cliente">
+            <BloccoRiepilogo titolo={t("Da mostrare al cliente")}>
               <p className="text-sm font-semibold">{dayLabel}</p>
-              <p className="whitespace-pre-line text-sm">{descrizione}</p>
-              <p className="text-xs text-muted-foreground">{fotoUrls.length} foto allegate · I dati completi sono nel PDF del rapporto.</p>
+              <p dir="auto" className="whitespace-pre-line text-sm">{descrizione}</p>
+              <p className="text-xs text-muted-foreground">{t("{n} foto allegate · I dati completi sono nel PDF del rapporto.", { n: fotoUrls.length })}</p>
             </BloccoRiepilogo>
 
             <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-              <label htmlFor="firma-cliente-nome" className="mb-2 block text-sm font-semibold text-foreground">Nome e cognome del cliente</label>
+              <label htmlFor="firma-cliente-nome" className="mb-2 block text-sm font-semibold text-foreground">{t("Nome e cognome del cliente")}</label>
               <input
                 id="firma-cliente-nome"
                 autoComplete="name"
                 type="text"
                 className="w-full rounded-xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Es: Mario Rossi"
+                placeholder={t("Es: Mario Rossi")}
                 value={firmaClienteNome}
                 onChange={e => setFirmaClienteNome(e.target.value)}
               />
             </div>
 
-            <FirmaPad label="Firma del cliente" onChange={setFirmaCliente} />
+            <FirmaPad label={t("Firma del cliente")} onChange={setFirmaCliente} />
 
             {firmeMancanti && (
               <p className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                Per inviare il collaudo servono la firma del cliente e il suo nome e cognome.
+                {t("Per inviare il collaudo servono la firma del cliente e il suo nome e cognome.")}
               </p>
             )}
           </>

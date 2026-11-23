@@ -82,7 +82,7 @@ export function avvisiPreparazione(esito: Omit<EsitoPreparazione, "pronte">, mas
     avvisi.push(`Massimo ${massimo} foto: ${esito.oltreLimite} ${esito.oltreLimite === 1 ? "foto non è stata aggiunta" : "foto non sono state aggiunte"}.`);
   }
   if (esito.troppoPesanti > 0) {
-    avvisi.push(`${esito.troppoPesanti} ${esito.troppoPesanti === 1 ? "foto è troppo pesante" : "foto sono troppo pesanti"} anche dopo la compressione: scattala di nuovo dall'app.`);
+    avvisi.push(`${esito.troppoPesanti} ${esito.troppoPesanti === 1 ? "foto è troppo pesante" : "foto sono troppo pesanti"} anche dopo la compressione: ${esito.troppoPesanti === 1 ? "scattala" : "scattale"} di nuovo dall'app.`);
   }
   if (esito.nonImmagini > 0) {
     avvisi.push(`${esito.nonImmagini} ${esito.nonImmagini === 1 ? "file non è una foto" : "file non sono foto"}.`);

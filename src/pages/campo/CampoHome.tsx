@@ -205,6 +205,7 @@ export default function CampoHome() {
 // Assistente Campo Operaio — guida pratica con dati già presenti
 // ─────────────────────────────────────────────────────────────────────────────
 function AssistenteCampoOperaio() {
+  const t = useT();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id ?? null;
@@ -268,12 +269,12 @@ function AssistenteCampoOperaio() {
     : prossimoLavoro?.order ?? null;
 
   const suggestion = focusRapportino
-    ? "Prima chiudi il rapportino: aggiorna ore, diario lavori e avanzamento del cantiere."
+    ? t("Prima chiudi il rapportino: aggiorna ore, diario lavori e avanzamento del cantiere.")
     : prossimoTask
-      ? "Parti dalla task più urgente, poi timbra sul cantiere e manda il rapportino a fine lavoro."
+      ? t("Parti dalla task più urgente, poi timbra sul cantiere e manda il rapportino a fine lavoro.")
       : focusOrder
-        ? "Vai al cantiere e timbra collegando la commessa. Nel giornaliero trovi le indicazioni scelte dalla tua azienda: puoi scrivere o parlare."
-        : "Nessun cantiere prioritario trovato: controlla calendario o chiedi indicazioni al responsabile.";
+        ? t("Vai al cantiere e timbra collegando la commessa. Nel giornaliero trovi le indicazioni scelte dalla tua azienda: puoi scrivere o parlare.")
+        : t("Nessun cantiere prioritario trovato: controlla calendario o chiedi indicazioni al responsabile.");
 
   const openMaps = () => {
     const address = focusOrder?.indirizzo_lavori;
@@ -301,14 +302,14 @@ function AssistenteCampoOperaio() {
               <span className="rounded-xl bg-blue-600 p-2 text-white">
                 <Sparkles className="h-4 w-4" />
               </span>
-              AI Campo
+              {t("AI Campo")}
             </CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Ti dice cosa fare adesso e cosa non dimenticare.
+              {t("Ti dice cosa fare adesso e cosa non dimenticare.")}
             </p>
           </div>
           <Badge className={focusRapportino ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}>
-            {focusRapportino ? "Azione richiesta" : "Pronto"}
+            {focusRapportino ? t("Azione richiesta") : t("Pronto")}
           </Badge>
         </div>
       </CardHeader>
@@ -320,15 +321,15 @@ function AssistenteCampoOperaio() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                Prossima mossa
+                {t("Prossima mossa")}
               </p>
               <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
                 {suggestion}
               </p>
               {focusOrder && (
                 <div className="mt-2 min-w-0 rounded-xl bg-muted/60 px-3 py-2">
-                  <p className="truncate text-sm font-bold">{focusOrder.order_code ?? "Cantiere"}</p>
-                  <p className="truncate text-xs text-muted-foreground">{focusOrder.description ?? "Nessuna descrizione"}</p>
+                  <p className="truncate text-sm font-bold">{focusOrder.order_code ?? t("Cantiere")}</p>
+                  <p dir="auto" className="truncate text-xs text-muted-foreground">{focusOrder.description ?? t("Nessuna descrizione")}</p>
                 </div>
               )}
             </div>
@@ -342,8 +343,8 @@ function AssistenteCampoOperaio() {
             className="flex w-full items-center justify-between rounded-xl border border-blue-100 bg-white/70 px-3 py-2 text-left transition-colors hover:bg-white active:scale-[0.99]"
           >
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Task consigliata</p>
-              <p className="truncate text-sm font-semibold">{prossimoTask.title}</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">{t("Task consigliata")}</p>
+              <p dir="auto" className="truncate text-sm font-semibold">{prossimoTask.title}</p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-blue-700" />
           </button>
@@ -357,7 +358,7 @@ function AssistenteCampoOperaio() {
               onClick={() => navigate(`/campo/lavoro/${focusOrder.id}`)}
             >
               <ClipboardCheck className="h-4 w-4" />
-              Lavoro
+              {t("Lavoro")}
             </Button>
           )}
           {focusOrder && (
@@ -368,7 +369,7 @@ function AssistenteCampoOperaio() {
               onClick={() => navigate(`/campo/timbratura?order_id=${focusOrder.id}`)}
             >
               <Clock className="h-4 w-4" />
-              Timbra
+              {t("Timbra")}
             </Button>
           )}
           {focusOrder?.indirizzo_lavori && (
@@ -385,15 +386,15 @@ function AssistenteCampoOperaio() {
               onClick={() => navigate(`/campo/lavoro/${focusRapportino.order_id}/rapportino?data=${focusRapportino.data_lavoro}`)}
             >
               <Send className="h-4 w-4" />
-              Invia
+              {t("Invia")}
             </Button>
           ) : null}
         </div>
 
         <div className="hidden md:flex flex-wrap gap-1.5">
-          {["Ore", "Diario", "Avanzamento", "Foto"].map((item) => (
+          {["aggiorna Ore", "aggiorna Diario", "aggiorna Avanzamento", "aggiorna Foto"].map((item) => (
             <span key={item} className="rounded-full bg-background/80 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
-              aggiorna {item}
+              {t(item)}
             </span>
           ))}
         </div>
@@ -430,8 +431,8 @@ function CantieriAssegnati() {
           </div>
         ) : isError ? (
           <div role="alert" className="space-y-2 py-4 text-center">
-            <p className="text-sm">Non riesco a caricare i cantieri assegnati.</p>
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>Riprova</Button>
+            <p className="text-sm">{t("Non riesco a caricare i cantieri assegnati.")}</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>{t("Riprova")}</Button>
           </div>
         ) : lavori.length === 0 ? (
           <div className="flex flex-col items-center py-6 text-center">
@@ -456,14 +457,14 @@ function CantieriAssegnati() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{a.order?.description}</p>
+                    <p dir="auto" className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{a.order?.description}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                 </div>
                 {a.order?.indirizzo_lavori && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                     <MapPin className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{a.order.indirizzo_lavori}</span>
+                    <span dir="auto" className="truncate">{a.order.indirizzo_lavori}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -506,13 +507,14 @@ function CantieriAssegnati() {
 // Cantieri Sub (subappaltatore)
 // ─────────────────────────────────────────────────────────────────────────────
 function CantieriSub() {
+  const t = useT();
   const navigate = useNavigate();
   const { data: cantieri = [], isLoading, isError, refetch, isFetching } = useCampoAssignments();
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Cantieri attivi</CardTitle>
+          <CardTitle className="text-base">{t("Cantieri attivi")}</CardTitle>
           {cantieri.length > 0 && (
             <Badge variant="secondary" className="text-xs">{cantieri.length}</Badge>
           )}
@@ -527,15 +529,15 @@ function CantieriSub() {
           /* Errore onesto: prima uno errore di rete/permessi restava uno
              skeleton infinito o mentiva con "Nessun cantiere attivo". */
           <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-sm font-medium text-foreground">Non riesco a caricare i cantieri</p>
-            <p className="text-xs text-muted-foreground">Controlla la connessione e riprova.</p>
+            <p className="text-sm font-medium text-foreground">{t("Non riesco a caricare i cantieri")}</p>
+            <p className="text-xs text-muted-foreground">{t("Controlla la connessione e riprova.")}</p>
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-              {isFetching ? "Riprovo…" : "Riprova"}
+              {isFetching ? t("Riprovo…") : t("Riprova")}
             </Button>
           </div>
         ) : cantieri.length === 0 ? (
           <div className="flex flex-col items-center py-6 text-center">
-            <p className="text-sm text-muted-foreground">Nessun cantiere attivo</p>
+            <p className="text-sm text-muted-foreground">{t("Nessun cantiere attivo")}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -548,11 +550,11 @@ function CantieriSub() {
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-sm text-foreground">{c.order?.order_code}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.order?.description}</p>
+                    <p dir="auto" className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.order?.description}</p>
                     {c.order?.indirizzo_lavori && (
                       <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                         <MapPin className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{c.order.indirizzo_lavori}</span>
+                        <span dir="auto" className="truncate">{c.order.indirizzo_lavori}</span>
                       </div>
                     )}
                   </div>
@@ -630,7 +632,7 @@ function MiniCalendarioCampo() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarDays className="h-4 w-4" /> Calendario
+            <CalendarDays className="h-4 w-4" /> {tr("Calendario")}
           </CardTitle>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
@@ -697,7 +699,7 @@ function MiniCalendarioCampo() {
                         {tr("{data} — {n} attività", { data: format(day, "d MMMM", { locale: dateFnsCampo() }), n: dayTasks.length })}
                       </p>
                       {dayTasks.slice(0, 4).map((t: any) => (
-                        <p key={t.id} className="text-xs text-muted-foreground truncate">• {t.title}</p>
+                        <p key={t.id} dir="auto" className="text-xs text-muted-foreground truncate">• {t.title}</p>
                       ))}
                     </TooltipContent>
                   )}
@@ -715,7 +717,7 @@ function MiniCalendarioCampo() {
               {selectedTasks.length > 0 && ` — ${tr("{n} attività", { n: selectedTasks.length })}`}
             </p>
             {selectedTasks.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">Nessuna scadenza per questo giorno</p>
+              <p className="text-xs text-muted-foreground italic">{tr("Nessuna scadenza per questo giorno")}</p>
             ) : (
               <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
                 {selectedTasks.map((t: any) => {
@@ -724,9 +726,9 @@ function MiniCalendarioCampo() {
                   return (
                     <div key={t.id} className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${isDone ? "bg-green-50" : "bg-muted/50"}`}>
                       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-green-500" : cfg.dotClass}`} />
-                      <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
+                      <span dir="auto" className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
                       <Badge className={`text-[11px] px-1.5 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>
-                        {isDone ? "Fatto" : cfg.label}
+                        {isDone ? tr("Fatto") : tr(cfg.label)}
                       </Badge>
                     </div>
                   );
@@ -795,7 +797,7 @@ function MieAttivitaCampo() {
               className="text-xs text-primary"
               onClick={() => navigate("/campo/attivita")}
             >
-              Vedi tutte <ChevronRight className="w-3 h-3 ml-0.5" />
+              {tr("Vedi tutte")} <ChevronRight className="w-3 h-3 ml-0.5" />
             </Button>
           </div>
         </div>
@@ -808,7 +810,7 @@ function MieAttivitaCampo() {
           </div>
         ) : tasks.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            Nessuna attività in corso
+            {tr("Nessuna attività in corso")}
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -822,7 +824,7 @@ function MieAttivitaCampo() {
                 >
                   <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{t.title}</p>
+                    <p dir="auto" className="text-sm font-medium truncate">{t.title}</p>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       {t.order?.order_code && <span>{t.order.order_code}</span>}
                       {t.due_date && (
@@ -830,7 +832,7 @@ function MieAttivitaCampo() {
                       )}
                     </div>
                   </div>
-                  <Badge className={`text-[11px] px-1.5 py-0 ${cfg.badgeClass}`}>{cfg.label}</Badge>
+                  <Badge className={`text-[11px] px-1.5 py-0 ${cfg.badgeClass}`}>{tr(cfg.label)}</Badge>
                 </div>
               );
             })}

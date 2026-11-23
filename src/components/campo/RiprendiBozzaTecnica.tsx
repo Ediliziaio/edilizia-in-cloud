@@ -7,8 +7,10 @@ import { destinazioneAvanzamento, type BozzaTecnica, type DestinazioneAvanzament
 import { isOnline } from "@/lib/campo/network-status";
 import { statoInvioTecnico } from "@/lib/campo/tecnicaInCoda";
 import { withAbortableClientTimeout } from "@/lib/query-timeout";
+import { useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function RiprendiBozzaTecnica({ bozza, chiudi }: { bozza: BozzaTecnica; chiudi: () => void }) {
+  const t = useT();
   const [iniziale] = useState(bozza);
   const [esito, setEsito] = useState<{ target?: DestinazioneAvanzamento; errore?: string }>();
   const [tentativo, setTentativo] = useState(0);
@@ -42,12 +44,12 @@ export function RiprendiBozzaTecnica({ bozza, chiudi }: { bozza: BozzaTecnica; c
     return () => controller.abort();
   }, [iniziale, tentativo]);
 
-  if (!esito) return <p role="status" className="text-sm text-muted-foreground">Apro la bozza…</p>;
+  if (!esito) return <p role="status" className="text-sm text-muted-foreground">{t("Apro la bozza…")}</p>;
   if (esito.errore) return <div role="alert" className="space-y-1 rounded-xl border bg-card p-3 text-sm">
-    <p>{esito.errore}</p>
+    <p>{t(esito.errore)}</p>
     <div className="flex gap-2">
-      <Button type="button" variant="outline" className="min-h-11" onClick={() => { setEsito(undefined); setTentativo(n => n + 1); }}>Riprova</Button>
-      <Button type="button" variant="ghost" className="min-h-11" onClick={chiudi}>Chiudi</Button>
+      <Button type="button" variant="outline" className="min-h-11" onClick={() => { setEsito(undefined); setTentativo(n => n + 1); }}>{t("Riprova")}</Button>
+      <Button type="button" variant="ghost" className="min-h-11" onClick={chiudi}>{t("Chiudi")}</Button>
     </div>
   </div>;
   const { payload } = iniziale;

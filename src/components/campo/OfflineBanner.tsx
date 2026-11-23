@@ -37,14 +37,14 @@ export default function OfflineBanner(): JSX.Element | null {
     if (!esito || esito.companyId !== companyId || esito.userId !== user?.id) return;
     if (esito.tipo === "prelievo") {
       aggiornaPrelieviCampo(queryClient, esito);
-      if (esito.errore) toast.error("Controlla il prelievo", { description: esito.errore });
-      else if (esito.stato === "rifiutato") toast.info("Prelievo rifiutato");
-      else toast.success(esito.stato === "richiesto" ? "Richiesta al magazzino inviata" : "Prelievo registrato");
+      if (esito.errore) toast.error(t("Controlla il prelievo"), { description: esito.errore });
+      else if (esito.stato === "rifiutato") toast.info(t("Prelievo rifiutato"));
+      else toast.success(esito.stato === "richiesto" ? t("Richiesta al magazzino inviata") : t("Prelievo registrato"));
       return;
     }
     void refreshCommessaCampoQueries(queryClient, esito.orderId, esito.companyId);
     if (esito.tipo === "avanzamento" || esito.tipo === "rilievo") {
-      toast.success(esito.tipo === "avanzamento" ? "Aggiornamento inviato" : "Visita inviata",
+      toast.success(esito.tipo === "avanzamento" ? t("Aggiornamento inviato") : t("Visita inviata"),
         { id: esito.id ? `invio-campo:${esito.id}` : undefined });
       return;
     }

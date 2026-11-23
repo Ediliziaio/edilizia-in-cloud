@@ -11,7 +11,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, parseISO, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   FileText, AlertTriangle, CheckCircle, Clock,
   Download, Loader2, RefreshCcw,
@@ -24,6 +23,7 @@ import { calcStato, categoriaLabel } from "@/types/hrDocumenti";
 import { cn } from "@/lib/utils";
 import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import SubDocumenti from "./subappaltatore/SubDocumenti";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const PRIVATE_DOC_BUCKET = "hr-documenti";
 const DOCUMENTI_TIMEOUT_MS = 8000;
@@ -57,6 +57,7 @@ interface DocOperaio {
 }
 
 function CampoDocumentiDipendente() {
+  const t = useT();
   const { user, profile } = useAuth();
   const companyId = profile?.company_id ?? null;
   const { data: hrProfilo } = useMyHrProfilo();
@@ -107,9 +108,9 @@ function CampoDocumentiDipendente() {
 
   const pageHeader = (
     <div>
-      <h1 className="text-lg font-bold tracking-tight text-foreground">Documenti</h1>
+      <h1 className="text-lg font-bold tracking-tight text-foreground">{t("Documenti")}</h1>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Contratti, certificazioni e documenti caricati dall'ufficio.
+        {t("Contratti, certificazioni e documenti caricati dall'ufficio.")}
       </p>
     </div>
   );
@@ -120,9 +121,9 @@ function CampoDocumentiDipendente() {
         {pageHeader}
         <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-2xl border bg-background p-6 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="text-sm font-medium text-foreground">Caricamento documenti...</p>
+          <p className="text-sm font-medium text-foreground">{t("Caricamento documenti...")}</p>
           <p className="max-w-xs text-xs text-muted-foreground">
-            Se la connessione in cantiere e' lenta, ti mostro un messaggio invece di lasciare la pagina vuota.
+            {t("Se la connessione in cantiere e' lenta, ti mostro un messaggio invece di lasciare la pagina vuota.")}
           </p>
         </div>
       </div>
@@ -137,9 +138,10 @@ function CampoDocumentiDipendente() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">Documenti non caricati</p>
+              <p className="text-sm font-bold">{t("Documenti non caricati")}</p>
               <p className="mt-1 text-xs leading-relaxed">
-                {(error as Error)?.message || "La richiesta non ha risposto in tempo."} Riprova quando la rete e' stabile.
+                {(error as Error)?.message === "Caricamento documenti troppo lento" ? t("Caricamento documenti troppo lento")
+                  : (error as Error)?.message || t("La richiesta non ha risposto in tempo.")} {t("Riprova quando la rete e' stabile.")}
               </p>
             </div>
           </div>
@@ -150,7 +152,7 @@ function CampoDocumentiDipendente() {
             className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-background px-3 text-xs font-bold text-amber-900 shadow-sm disabled:opacity-60"
           >
             {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            Riprova
+            {t("Riprova")}
           </button>
         </div>
       </div>
@@ -171,7 +173,7 @@ function CampoDocumentiDipendente() {
       const { data, error } = await supabase.storage.from(PRIVATE_DOC_BUCKET).createSignedUrl(url, 60 * 5);
       return error ? null : data?.signedUrl;
     });
-    if (!aperto) toast.error("Impossibile aprire il documento");
+    if (!aperto) toast.error(t("Impossibile aprire il documento"));
   };
 
   return (
@@ -183,7 +185,7 @@ function CampoDocumentiDipendente() {
         <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-500/30 rounded-xl">
           <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
           <p className="text-xs text-red-600">
-            {scadutiCount} document{scadutiCount > 1 ? "i" : "o"} scadut{scadutiCount > 1 ? "i" : "o"} — contatta l'ufficio
+            {t(scadutiCount > 1 ? "{n} documenti scaduti — contatta l'ufficio" : "{n} documento scaduto — contatta l'ufficio", { n: scadutiCount })}
           </p>
         </div>
       )}
@@ -191,7 +193,7 @@ function CampoDocumentiDipendente() {
         <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
           <Clock className="w-4 h-4 text-primary shrink-0" />
           <p className="text-xs text-primary">
-            {inScadenzaCount} document{inScadenzaCount > 1 ? "i" : "o"} in scadenza
+            {t(inScadenzaCount > 1 ? "{n} documenti in scadenza" : "{n} documento in scadenza", { n: inScadenzaCount })}
           </p>
         </div>
       )}
@@ -199,8 +201,8 @@ function CampoDocumentiDipendente() {
       {documenti.length === 0 ? (
         <div className="flex flex-col items-center py-16 gap-3 text-center">
           <FileText className="w-10 h-10 text-muted-foreground" />
-          <p className="text-muted-foreground text-sm">Nessun documento disponibile</p>
-          <p className="text-muted-foreground text-xs">I tuoi documenti caricati dall'ufficio appariranno qui</p>
+          <p className="text-muted-foreground text-sm">{t("Nessun documento disponibile")}</p>
+          <p className="text-muted-foreground text-xs">{t("I tuoi documenti caricati dall'ufficio appariranno qui")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -222,11 +224,11 @@ function CampoDocumentiDipendente() {
                       <FileText className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">
-                        {doc.nome_file || categoriaLabel(doc.tipo)}
+                      <p className="font-medium text-foreground" dir="auto">
+                        {doc.nome_file || t(categoriaLabel(doc.tipo))}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {categoriaLabel(doc.tipo)}
+                        {t(categoriaLabel(doc.tipo))}
                       </p>
                     </div>
                   </div>
@@ -235,29 +237,29 @@ function CampoDocumentiDipendente() {
                   {status === "scaduto" && (
                     <span className="flex items-center gap-1 text-[10px] bg-red-500/20 text-red-600 border border-red-500/20 rounded-full px-2 py-0.5 shrink-0">
                       <AlertTriangle className="w-3 h-3" />
-                      Scaduto
+                      {t("Scaduto")}
                     </span>
                   )}
                   {status === "in_scadenza" && (
                     <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 shrink-0">
                       <Clock className="w-3 h-3" />
-                      In scadenza
+                      {t("In scadenza")}
                     </span>
                   )}
                   {status === "valido" && (
                     <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-600 border border-green-500/20 rounded-full px-2 py-0.5 shrink-0">
                       <CheckCircle className="w-3 h-3" />
-                      Valido
+                      {t("Valido")}
                     </span>
                   )}
                 </div>
 
                 {doc.data_scadenza && (
                   <p className="text-xs text-muted-foreground mt-1 ml-12">
-                    Scadenza: {format(parseISO(doc.data_scadenza), "d MMMM yyyy", { locale: it })}
+                    {t("Scadenza: {data}", { data: format(parseISO(doc.data_scadenza), "d MMMM yyyy", { locale: dateFnsCampo() }) })}
                     {status === "in_scadenza" && (
                       <span className="text-primary ml-1">
-                        (tra {differenceInDays(parseISO(doc.data_scadenza), today)} giorni)
+                        {t("(tra {n} giorni)", { n: differenceInDays(parseISO(doc.data_scadenza), today) })}
                       </span>
                     )}
                   </p>
@@ -269,7 +271,7 @@ function CampoDocumentiDipendente() {
                     className="mt-3 flex items-center gap-1.5 text-xs text-primary ml-12"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    Visualizza documento
+                    {t("Visualizza documento")}
                   </button>
                 )}
               </div>

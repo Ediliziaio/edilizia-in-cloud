@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useBozzaTecnica } from "@/hooks/campo/useBozzaTecnica";
 import { valoreAttualeAvanzamento, valoreBozzaAvanzamento, type BozzaAvanzamento, type DestinazioneAvanzamento } from "@/lib/campo/bozzaTecnica";
-
-const numero = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+import { intlCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 export function ModificaAvanzamentoCampo({ target, orderId, companyId, userId, cantiere, onClose, onSaved }: {
   target: DestinazioneAvanzamento;
@@ -21,6 +20,8 @@ export function ModificaAvanzamentoCampo({ target, orderId, companyId, userId, c
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
+  const numero = new Intl.NumberFormat(intlCampo(), { maximumFractionDigits: 3 });
   const attuale = valoreAttualeAvanzamento(target);
   const bozza = useBozzaTecnica<BozzaAvanzamento>({
     tipo: "avanzamento", target, order_id: orderId, company_id: companyId, user_id: userId, nomeCantiere: cantiere,
@@ -37,7 +38,7 @@ export function ModificaAvanzamentoCampo({ target, orderId, companyId, userId, c
   const deveRileggere = !!base && (cambiaUnita || valoreAttualeAvanzamento(base) !== attuale || base.misura?.totale !== target.misura?.totale);
   const { valido, avanzamento } = dati ? valoreBozzaAvanzamento(dati) : { valido: false, avanzamento: null };
   const puoSalvare = valido && (avanzamento !== null || Boolean(dati?.note.trim()) || !!dati?.foto.length);
-  const unita = target.misura ? target.misura.unita?.trim() || "unità" : "%";
+  const unita = target.misura ? target.misura.unita?.trim() || t("unità") : "%";
 
   function scegliValore(valore: string, chiudiFase = false) {
     modifica({ valore, chiusuraRichiesta: chiudiFase && !target.completata });
@@ -51,7 +52,7 @@ export function ModificaAvanzamentoCampo({ target, orderId, companyId, userId, c
     try {
       const id = await bozza.accoda();
       if (id) {
-        toast.message("Aggiornamento in coda", { id: `invio-campo:${id}` });
+        toast.message(t("Aggiornamento in coda"), { id: `invio-campo:${id}` });
         onSaved();
       }
     } finally {
@@ -65,14 +66,14 @@ export function ModificaAvanzamentoCampo({ target, orderId, companyId, userId, c
   }}>
     <DialogContent className="gap-3" onPointerDownOutside={event => event.preventDefault()}>
       <DialogHeader className="pr-8">
-        <DialogTitle>Aggiorna {target.sottofaseId ? "sottofase" : "fase"}</DialogTitle>
-        <DialogDescription className="break-words">{target.nome}</DialogDescription>
+        <DialogTitle>{target.sottofaseId ? t("Aggiorna sottofase") : t("Aggiorna fase")}</DialogTitle>
+        <DialogDescription className="break-words" dir="auto">{target.nome}</DialogDescription>
       </DialogHeader>
-      {!dati ? (bozza.errore ? <StatoBozzaTecnica {...bozza} /> : <p role="status" className="text-sm">Carico la bozza…</p>) :
+      {!dati ? (bozza.errore ? <StatoBozzaTecnica {...bozza} /> : <p role="status" className="text-sm">{t("Carico la bozza…")}</p>) :
         <form onSubmit={salva} className="space-y-3">
-          {target.derivata ? <p className="text-sm text-muted-foreground">Avanzamento dalle sottofasi · {target.percentuale}%</p> :
+          {target.derivata ? <p className="text-sm text-muted-foreground">{t("Avanzamento dalle sottofasi · {n}%", { n: target.percentuale })}</p> :
             <div className="space-y-1.5">
-              <Label htmlFor="misura-avanzamento">{target.misura ? `Eseguito (${unita})` : "Avanzamento (%)"}</Label>
+              <Label htmlFor="misura-avanzamento">{target.misura ? t("Eseguito ({unita})", { unita }) : t("Avanzamento (%)")}</Label>
               <div className="flex flex-wrap items-center gap-2">
                 <Input id="misura-avanzamento" className="h-11 w-24 text-base tabular-nums"
                   inputMode={target.misura ? "decimal" : "numeric"} value={dati.valore} disabled={bloccato || deveRileggere}
@@ -80,30 +81,30 @@ export function ModificaAvanzamentoCampo({ target, orderId, companyId, userId, c
                 {!target.misura && <Button type="button" variant="outline" className="min-h-11 px-2.5"
                   disabled={bloccato || deveRileggere} onClick={() => scegliValore("50")}>50%</Button>}
                 <Button type="button" variant="outline" className="min-h-11 px-2.5" disabled={bloccato || deveRileggere}
-                  onClick={() => scegliValore(String(target.misura ? Math.ceil(target.misura.totale * 1000) / 1000 : 100), true)}>Completata</Button>
+                  onClick={() => scegliValore(String(target.misura ? Math.ceil(target.misura.totale * 1000) / 1000 : 100), true)}>{t("Completata")}</Button>
               </div>
               <p className="text-xs text-muted-foreground" aria-live="polite">
-                {target.misura ? `Attuale ${numero.format(attuale)} / ${numero.format(target.misura.totale)} ${unita}` : `Attuale ${attuale}%`}
+                {target.misura ? t("Attuale {attuale} / {totale} {unita}", { attuale: numero.format(attuale), totale: numero.format(target.misura.totale), unita }) : t("Attuale {n}%", { n: attuale })}
               </p>
             </div>}
           {deveRileggere && <div className="space-y-1 rounded-md border p-2">
-            <p role="status" className="text-xs text-muted-foreground">L’avanzamento è cambiato. Controlla il valore prima di inviare.</p>
+            <p role="status" className="text-xs text-muted-foreground">{t("L’avanzamento è cambiato. Controlla il valore prima di inviare.")}</p>
             <Button type="button" variant="outline" className="min-h-11 w-full" disabled={bloccato} onClick={() => {
               modifica({
                 target, valore: cambiaUnita || avanzamento === null ? String(attuale) : dati.valore,
                 chiusuraRichiesta: !cambiaUnita && !target.completata && dati.chiusuraRichiesta,
               });
-            }}>Usa valore attuale</Button>
+            }}>{t("Usa valore attuale")}</Button>
           </div>}
           <div className="space-y-1.5">
-            <Label htmlFor="note-avanzamento">Nota</Label>
+            <Label htmlFor="note-avanzamento">{t("Nota")}</Label>
             <Textarea id="note-avanzamento" rows={2} maxLength={3000} className="min-h-16 text-base" value={dati.note}
               onChange={event => modifica({ note: event.target.value })} disabled={bloccato} />
           </div>
           <FotoBozzaTecnica foto={dati.foto} onChange={foto => modifica({ foto })} onBusy={setFotoInCorso} disabled={salvaInCorso} />
           <StatoBozzaTecnica {...bozza} />
           <Button type="submit" className="min-h-11 w-full" disabled={bloccato || deveRileggere || !puoSalvare}>
-            {salvaInCorso ? "Salvo…" : "Salva aggiornamento"}
+            {salvaInCorso ? t("Salvo…") : t("Salva aggiornamento")}
           </Button>
         </form>}
     </DialogContent>

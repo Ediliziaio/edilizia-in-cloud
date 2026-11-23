@@ -5,7 +5,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import {
   Plus, CalendarDays, Loader2, CheckCircle, XCircle, AlertCircle,
 } from "lucide-react";
@@ -18,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { dateFnsCampo, useT } from "@/lib/campo/lingua/LinguaCampo";
 
 const TIPI_RICHIESTA = [
   { value: "ferie", label: "Ferie" },
@@ -37,6 +37,7 @@ const STATO_CONFIG: Record<string, { label: string; icon: any; color: string; ba
 };
 
 export default function CampoFerie() {
+  const tr = useT();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -68,8 +69,8 @@ export default function CampoFerie() {
   // Invia nuova richiesta
   const { mutate: inviaRichiesta, isPending: submitting } = useMutation({
     mutationFn: async () => {
-      if (!dataInizio || !dataFine) throw new Error("Seleziona le date");
-      if (dataFine < dataInizio) throw new Error("La data fine deve essere dopo la data inizio");
+      if (!dataInizio || !dataFine) throw new Error(tr("Seleziona le date"));
+      if (dataFine < dataInizio) throw new Error(tr("La data fine deve essere dopo la data inizio"));
 
       // STESSE regole dell'ufficio (prima questo form le bypassava: si
       // potevano chiedere ferie oltre il saldo o sovrapposte a richieste
@@ -110,12 +111,12 @@ export default function CampoFerie() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Richiesta inviata! L'ufficio ti notifichera.");
+      toast.success(tr("Richiesta inviata! L'ufficio ti notifichera."));
       queryClient.invalidateQueries({ queryKey: ["campo-mie-richieste"] });
       setShowForm(false);
       setNote("");
     },
-    onError: (err: any) => toast.error(err.message ?? "Errore nell'invio"),
+    onError: (err: any) => toast.error(err.message ?? tr("Errore nell'invio")),
   });
 
   // KPI
@@ -127,23 +128,23 @@ export default function CampoFerie() {
     <div className="space-y-4 md:space-y-6 max-w-3xl mx-auto">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg md:text-xl font-semibold tracking-tight">Ferie e permessi</h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Chiedi ferie e permessi e vedi le risposte</p>
+          <h1 className="text-lg md:text-xl font-semibold tracking-tight">{tr("Ferie e permessi")}</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{tr("Chiedi ferie e permessi e vedi le risposte")}</p>
         </div>
         {/* Col modulo aperto il pulsante sparisce: un'azione piena sola in vista, «Invia richiesta» (collaudo 23/11). */}
         {!showForm && <Button onClick={() => setShowForm(true)} size="sm" className="shrink-0">
           <Plus className="w-4 h-4 mr-1" />
-          <span className="hidden sm:inline">Nuova richiesta</span>
-          <span className="sm:hidden">Nuova</span>
+          <span className="hidden sm:inline">{tr("Nuova richiesta")}</span>
+          <span className="sm:hidden">{tr("Nuova")}</span>
         </Button>}
       </div>
 
       {/* KPI — solo se c'è qualcosa da contare: tre zeri occupavano una riga senza dire niente. */}
       {inAttesa + approvate + rifiutate > 0 && <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "In attesa", value: inAttesa, color: "text-amber-500" },
-          { label: "Approvate", value: approvate, color: "text-green-600" },
-          { label: "Rifiutate", value: rifiutate, color: "text-red-500" },
+          { label: tr("In attesa"), value: inAttesa, color: "text-amber-500" },
+          { label: tr("Approvate"), value: approvate, color: "text-green-600" },
+          { label: tr("Rifiutate"), value: rifiutate, color: "text-red-500" },
         ].map(kpi => (
           <Card key={kpi.label}>
             <CardContent className="p-4 text-center">
@@ -158,11 +159,11 @@ export default function CampoFerie() {
       {showForm && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Nuova richiesta</CardTitle>
+            <CardTitle className="text-base">{tr("Nuova richiesta")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm text-muted-foreground mb-1.5 block">Tipo</label>
+              <label className="text-sm text-muted-foreground mb-1.5 block">{tr("Tipo")}</label>
               <div className="flex flex-wrap gap-1.5 md:gap-2">
                 {TIPI_RICHIESTA.map(t => (
                   <button
@@ -175,7 +176,7 @@ export default function CampoFerie() {
                         : "bg-muted text-muted-foreground border-border"
                     )}
                   >
-                    {t.label}
+                    {tr(t.label)}
                   </button>
                 ))}
               </div>
@@ -183,7 +184,7 @@ export default function CampoFerie() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-muted-foreground mb-1.5 block">Data inizio</label>
+                <label className="text-sm text-muted-foreground mb-1.5 block">{tr("Data inizio")}</label>
                 <input
                   type="date"
                   className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground"
@@ -197,7 +198,7 @@ export default function CampoFerie() {
                 />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground mb-1.5 block">Data fine</label>
+                <label className="text-sm text-muted-foreground mb-1.5 block">{tr("Data fine")}</label>
                 <input
                   type="date"
                   className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground"
@@ -209,11 +210,11 @@ export default function CampoFerie() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground mb-1.5 block">Note (opzionale)</label>
+              <label className="text-sm text-muted-foreground mb-1.5 block">{tr("Note (opzionale)")}</label>
               <textarea
                 className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground resize-none placeholder:text-muted-foreground"
                 rows={2}
-                placeholder="Motivo della richiesta..."
+                placeholder={tr("Motivo della richiesta...")}
                 value={note}
                 onChange={e => setNote(e.target.value)}
               />
@@ -221,11 +222,11 @@ export default function CampoFerie() {
 
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setShowForm(false)} className="flex-1">
-                Annulla
+                {tr("Annulla")}
               </Button>
               <Button onClick={() => inviaRichiesta()} disabled={submitting} className="flex-1">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Invia richiesta
+                {tr("Invia richiesta")}
               </Button>
             </div>
           </CardContent>
@@ -235,7 +236,7 @@ export default function CampoFerie() {
       {/* Lista richieste */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Le mie richieste</CardTitle>
+          <CardTitle className="text-base">{tr("Le mie richieste")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -245,7 +246,7 @@ export default function CampoFerie() {
           ) : richieste.length === 0 ? (
             <div className="text-center py-8">
               <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">Nessuna richiesta inviata</p>
+              <p className="text-muted-foreground text-sm">{tr("Nessuna richiesta inviata")}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -260,18 +261,18 @@ export default function CampoFerie() {
                     <Icon className={cn("w-5 h-5 mt-0.5 shrink-0", statoConf.color)} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-semibold text-foreground capitalize">{r.tipo}</span>
+                        <span className="text-sm font-semibold text-foreground capitalize">{(() => { const etichetta = TIPI_RICHIESTA.find(x => x.value === r.tipo)?.label; return etichetta ? tr(etichetta) : r.tipo; })()}</span>
                         <Badge className={cn("text-[10px]", statoConf.badgeClass)}>
-                          {statoConf.label}
+                          {tr(statoConf.label)}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {r.data_inizio === r.data_fine
-                          ? format(new Date(r.data_inizio), "d MMMM yyyy", { locale: it })
-                          : <>{format(new Date(r.data_inizio), "d MMM", { locale: it })} — {format(new Date(r.data_fine), "d MMM yyyy", { locale: it })}</>}
+                          ? format(new Date(r.data_inizio), "d MMMM yyyy", { locale: dateFnsCampo() })
+                          : <>{format(new Date(r.data_inizio), "d MMM", { locale: dateFnsCampo() })} — {format(new Date(r.data_fine), "d MMM yyyy", { locale: dateFnsCampo() })}</>}
                       </p>
                       {r.motivo && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.motivo}</p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2" dir="auto">{r.motivo}</p>
                       )}
                     </div>
                   </div>
