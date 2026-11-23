@@ -7,6 +7,9 @@ import { createFinancialLiveRefresh } from "@/lib/finance/financialLiveRefresh";
 import { shareSubscription } from "@/lib/realtime/shareSubscription";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 
+let progressivoCanale = 0;
+const nuovoSuffissoCanale = () => `${Date.now().toString(36)}-${(progressivoCanale++).toString(36)}`;
+
 export function useFinancialLive() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -28,7 +31,11 @@ export function useFinancialLive() {
         },
         refresh: () => client.invalidateQueries({ predicate }, { cancelRefetch: false, throwOnError: true }),
       });
-      const channel = supabase.channel(`finanza-live:${companyId}`)
+      // Nome unico a ogni apertura: supabase.channel() restituisce il canale già esistente con
+      // lo stesso nome, e se è ancora iscritto (la chiusura precedente non è finita, es. l'azienda
+      // che arriva al ripristino della sessione) `.on()` lancia «cannot add postgres_changes
+      // callbacks … after subscribe()» e l'errore abbatte l'app intera (visto il 23/11/2026).
+      const channel = supabase.channel(`finanza-live:${companyId}:${nuovoSuffissoCanale()}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "finanza_revisioni", filter: `company_id=eq.${companyId}` }, () => queue.request());
       subscribeChannel(channel, "finanza-live", { onSubscribed: queue.request, onDead: queue.request });
       // Ritorno, riconnessione ed eventi persi: si rilegge solo il piccolo
