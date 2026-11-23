@@ -990,5 +990,18 @@ const dizionario: Dizionario = {
   "Indica anche le ore ordinarie prima dello straordinario.": "Indicá también las horas normales antes de las extra.",
   "Indica le ore effettive di ogni persona selezionata, oppure rimuovila dalle presenze.": "Indicá las horas reales de cada persona elegida, o sacala de las asistencias.",
   "Compilato da {nome} il {data} alle {ora}": "Completado por {nome} el {data} a las {ora}",
+  // Campanella e notifiche (23/11/2026). Da far rivedere a un madrelingua.
+  "Cantiere {codice}. Le ore sono passate in commessa.": "Obra {codice}. Las horas pasaron al proyecto.",
+  "Le ore sono passate in commessa.": "Las horas pasaron al proyecto.",
+  "Cantiere {codice}. Rifallo e rimandalo.": "Obra {codice}. Rehacelo y volvé a mandarlo.",
+  "Rifallo e rimandalo.": "Rehacelo y volvé a mandarlo.",
+  "Sei capocantiere di un cantiere": "Sos jefe de obra de una obra",
+  "Sei capocantiere di {codice}": "Sos jefe de obra de {codice}",
+  "Non hai timbrato l'uscita": "No fichaste la salida",
+  "Sei entrato alle {ora}. Se hai finito, timbra l'uscita.": "Entraste a las {ora}. Si terminaste, fichá la salida.",
+  "Attività riassegnata a te": "Actividad reasignada a vos",
+  "tagliando": "service",
+  "bollo": "patente",
+  "Non riesco ad aggiornare le notifiche. Tocca Aggiorna per riprovare.": "No puedo actualizar las notificaciones. Tocá Actualizar para reintentar.",
 };
 export default dizionario;

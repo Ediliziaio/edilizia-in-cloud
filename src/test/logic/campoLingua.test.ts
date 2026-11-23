@@ -60,6 +60,8 @@ describe("Lingue dell'area operai (23/11/2026)", () => {
       ...cartelle.flatMap(c => (readdirSync(c, { recursive: true }) as string[]).filter(f => f.endsWith(".tsx")).map(f => join(c, f))),
       "src/components/layouts/CampoLayout.tsx", "src/pages/azienda/InternalChat.tsx",
       "src/pages/azienda/impostazioni/MioProfilo.tsx", "src/pages/azienda/sopralluoghi/SopralluogoEditor.tsx",
+      // Campanella comune: nel campo si traduce (anche le notifiche, vedi lib/campo/lingua/notifiche.ts).
+      "src/components/notifications/NotificationsBellPopover.tsx", "src/components/notifications/PannelloNotifiche.tsx",
     ].filter(f => /\b(useT|useLinguaCampo)\b/.test(readFileSync(f, "utf8")));
     const frasi = new Set<string>();
     for (const file of schermate) {

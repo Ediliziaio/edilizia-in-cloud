@@ -34,6 +34,9 @@ export const SORGENTI = [
   "src/pages/azienda/sopralluoghi/SopralluogoEditor.tsx",
   "src/components/sopralluoghi",
   "src/components/surveys/engine",
+  // Campanella comune (nel campo è tradotta).
+  "src/components/notifications/NotificationsBellPopover.tsx",
+  "src/components/notifications/PannelloNotifiche.tsx",
 ];
 const USCITA = "src/lib/campo/lingua/rtlCampo.css";
 

@@ -331,7 +331,7 @@ computer, verificata nel browser, test verdi, tutto in locale, niente pubblicato
    controllata l'area operai sul sito vero.
 3. Fase 2 bis, app dell'ufficio: scelta della lingua anche fuori da `/campo`, contenitore per tutta l'app, traduzione
    a blocchi.
-4. Fase 3: notifiche, WhatsApp ed email nella lingua della persona (testi del server).
+4. Fase 3: WhatsApp, email e notifiche push nella lingua della persona (testi del server). **Fatta la parte «leggera»**: la campanella dell'area operai riconosce i modelli delle notifiche (esito rapportino, nuovo cantiere, promemoria, attività, correzione timbratura, ticket, scadenze mezzi) e li mostra tradotti, senza toccare il server (`lib/campo/lingua/notifiche.ts`).
 5. Domande ancora aperte:
    - darija in lettere latine;
    - lingua impostata dall'ufficio nella scheda dell'operaio.

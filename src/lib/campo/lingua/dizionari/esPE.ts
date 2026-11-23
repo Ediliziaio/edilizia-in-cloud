@@ -257,5 +257,12 @@ const dizionario: Dizionario = {
   "Scarpe antinfortunistiche indossate": "Zapatos de seguridad puestos",
   // Avvisi composti nelle funzioni di supporto (scadenza, ore, compilato da), 23/11/2026.
   "Compilato da {nome} il {data} alle {ora}": "Llenado por {nome} el {data} a las {ora}",
+  // Campanella e notifiche (23/11/2026). Da far rivedere a un madrelingua.
+  "Non hai timbrato l'uscita": "No marcaste la salida",
+  "Sei entrato alle {ora}. Se hai finito, timbra l'uscita.": "Entraste a las {ora}. Si ya terminaste, marca la salida.",
+  "bollo": "impuesto vehicular",
+  // Notifiche: correzione timbratura e ticket (23/11/2026).
+  "Correzione timbratura approvata": "Corrección de la marcación aprobada",
+  "Correzione timbratura respinta": "Corrección de la marcación rechazada",
 };
 export default dizionario;
