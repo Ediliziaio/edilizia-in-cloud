@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ImportaBusinessPlan, type VoceImportata, type OrigineBusinessPlan } from "../piano/ImportaBusinessPlan";
 import { conservaOriginaleAi } from "@/lib/orders/documentImportAi";
 import { ipotesiDaPiano } from "@/lib/orders/generali/simulatoreImport";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Rocket, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,10 +28,16 @@ import { euro, percento } from "@/components/orders/generali/piano/formato";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useImpostazioniCommesseGenerali } from "@/hooks/useCommesseGenerali";
-import { useEliminaIpotesi, useIpotesiSalvate, useSalvaIpotesi, type IpotesiSalvata } from "@/hooks/useGeneraleSimulatore";
+import { useEliminaIpotesi, useIpotesiSalvata, useIpotesiSalvate, useSalvaIpotesi, type IpotesiSalvata } from "@/hooks/useGeneraleSimulatore";
 import { messaggioErrore } from "@/lib/controlloGestione/formatCG";
 import { DEFINIZIONI_MODELLI } from "@/lib/orders/commesseGenerali";
 import { calcolaIpotesi, ipotesiDiPartenza, MODELLI_SIMULATI, type Ipotesi, type ModelloSimulato } from "@/lib/orders/generali/simulatore";
+import { fonteDaParametri, importoLavoriDaComputo, ipotesiDaPlanimetria } from "@/lib/orders/generali/ipotesiDaPlanimetria";
+import { caricaPlanimetria, caricaVersione } from "@/lib/planimetrie/archivio";
+import { idComputoStudio, studioVariante, type FonteStudio } from "@/lib/planimetrie/studioImmobiliare";
+import type { Planimetria } from "../../../../../shared/planimetrie/modello.ts";
+import { leggiComputoCloud } from "@/lib/computo/cloudComputo";
+import { percorsoVariantePlanimetria, percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 
 const APERTA = "__aperta";
 const meseProssimo = () => {
@@ -38,8 +45,29 @@ const meseProssimo = () => {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth() + 1, 1)).toISOString().slice(0, 7);
 };
 const dataIt = (d: string) => new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+const euroConCentesimi = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 2, useGrouping: "always" });
 
 interface Aperta { id: string | null; nome: string; ipotesi: Ipotesi }
+interface OrigineStudio { livelloId?: string }
+
+function stessaVariante(a?: FonteStudio, b?: FonteStudio) {
+  return !!a && !!b && a.planimetriaId === b.planimetriaId && a.versione === b.versione && a.varianteId === b.varianteId;
+}
+
+async function leggiCostoDellaVariante(companyId: string, fonte: FonteStudio, documento?: Planimetria) {
+  const computo = await leggiComputoCloud(companyId, await idComputoStudio(fonte));
+  if (!computo || !stessaVariante(fonte, computo.bozza.fontePlanimetria)) return null;
+  if (!documento) {
+    const pianta = await caricaPlanimetria(fonte.planimetriaId);
+    if (pianta.riga.company_id!==companyId) throw new Error("La planimetria non appartiene a questa azienda.");
+    documento = (fonte.versione===pianta.versione.numero ? pianta.versione : await caricaVersione(fonte.planimetriaId,fonte.versione)).documento;
+  }
+  const studio = studioVariante(documento,fonte.varianteId);
+  const sospese = new Set(studio.righe.filter(r=>r.quantificazioneSospesa).map(r=>r.id));
+  const riepilogo = importoLavoriDaComputo(computo.bozza,sospese);
+  const riscontriStrutturali = studio.paretiDaRiscontrare.length;
+  return { id:computo.id,...riepilogo,importo:riscontriStrutturali ? null : riepilogo.importo,riscontriStrutturali };
+}
 
 const nuova = (modello: ModelloSimulato): Aperta => ({
   id: null,
@@ -49,10 +77,41 @@ const nuova = (modello: ModelloSimulato): Aperta => ({
 
 export function SimulatorePagina() {
   const permissions = usePermissions();
+  const { effectiveCompany } = useAuth();
+  const [params] = useSearchParams();
   const isMobile = useIsMobile();
   const puoVedere = !!(permissions.isAdmin || permissions.canViewMargins);
   const elenco = useIpotesiSalvate(puoVedere);
+  const richiestaIpotesi = params.get("ipotesi");
+  const idIpotesi = richiestaIpotesi && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(richiestaIpotesi) ? richiestaIpotesi : null;
+  const selezionata = useIpotesiSalvata(idIpotesi,puoVedere && !permissions.isLoading);
+  const recuperata = selezionata.data ?? null;
+  const salvate = elenco.data ?? [];
+  const elencoCompleto = recuperata && !salvate.some(s=>s.id===recuperata.id) ? [recuperata,...salvate] : salvate;
   const { modelli } = useImpostazioniCommesseGenerali();
+  const fonte = fonteDaParametri(params);
+  const rif = params.get("riferimento"), altra = params.get("confronta");
+  const confrontoIniziale = rif && altra && rif !== altra ? [rif,altra] : undefined;
+  const apriPrezzi = params.get("prezzi") === "1";
+  const ipotesiConfrontata = confrontoIniziale && elenco.data?.find(s => s.id === altra);
+  const daPlanimetria = useQuery({
+    queryKey:["simulatore-da-planimetria",effectiveCompany?.id,fonte],
+    enabled:!!fonte && !!effectiveCompany?.id && puoVedere && permissions.canViewRenderAi && !isMobile && !permissions.isLoading,
+    refetchOnMount:"always",
+    refetchOnWindowFocus:false,
+    queryFn:async () => {
+      if (!fonte || !effectiveCompany?.id) throw new Error("Riferimento alla planimetria mancante.");
+      const pianta = await caricaPlanimetria(fonte.planimetriaId);
+      if (pianta.riga.company_id !== effectiveCompany.id) throw new Error("La planimetria non appartiene a questa azienda.");
+      const versione = fonte.versione === pianta.versione.numero ? pianta.versione : await caricaVersione(fonte.planimetriaId,fonte.versione);
+      const lavori = permissions.canViewPreventivi ? await leggiCostoDellaVariante(effectiveCompany.id, fonte, versione.documento).catch((): null => null) : null;
+      const livelloId = versione.documento.livelli.find(l => l.proposte.some(p => p.id === fonte.varianteId))?.id;
+      return {
+        ipotesi: ipotesiDaPlanimetria({ documento:versione.documento, fonte, inizio:meseProssimo(), importoComputo:lavori?.importo ?? null }),
+        origine: { livelloId },
+      };
+    },
+  });
 
   if (permissions.isLoading) return <Skeleton className="h-64 w-full" />;
   if (!puoVedere) {
@@ -63,8 +122,21 @@ export function SimulatorePagina() {
       </div>
     );
   }
-  if (isMobile) return <SoloLettura elenco={elenco.data ?? []} caricamento={elenco.isPending} />;
-  return <Editor salvate={elenco.data ?? []} caricamento={elenco.isPending} modelliAttivi={modelli} puoCreare={!!(permissions.isAdmin || permissions.canEditOrders)} />;
+  if (params.has("ipotesi") && (!idIpotesi || !effectiveCompany?.id)) return <p role="alert" className="rounded-lg border p-4">Riferimento all’ipotesi non valido.</p>;
+  if (idIpotesi && selezionata.isPending) return <Skeleton className="h-64 w-full" />;
+  if (idIpotesi && !recuperata) return <p role="alert" className="rounded-lg border p-4">L’ipotesi collegata non è disponibile.</p>;
+  if (isMobile) return <SoloLettura key={idIpotesi} elenco={elencoCompleto} caricamento={elenco.isPending} apriId={idIpotesi} />;
+  if (fonte && !permissions.canViewRenderAi) return <p role="alert" className="rounded-lg border p-4">Serve il permesso per consultare le planimetrie.</p>;
+  if (fonte && !effectiveCompany?.id) return <p role="alert" className="rounded-lg border p-4">Seleziona l’azienda della planimetria.</p>;
+  if (params.has("planimetria") && !fonte) return <p role="alert" className="rounded-lg border p-4">Riferimento alla variante non valido.</p>;
+  if (confrontoIniziale && elenco.isPending) return <Skeleton className="h-64 w-full" />;
+  if (fonte && (daPlanimetria.isPending || (daPlanimetria.isFetching && !daPlanimetria.isFetchedAfterMount))) return <Skeleton className="h-64 w-full" />;
+  if (fonte && daPlanimetria.error) return <div role="alert" className="space-y-3 rounded-lg border p-4"><p>{daPlanimetria.error.message}</p><Button asChild variant="outline"><Link to={percorsiPlanimetrie.pianta(fonte.planimetriaId)}>Torna alla planimetria</Link></Button></div>;
+  return <Editor key={JSON.stringify([fonte,confrontoIniziale,apriPrezzi,idIpotesi])}
+    iniziale={recuperata ?? daPlanimetria.data?.ipotesi ?? ipotesiConfrontata} origineStudio={daPlanimetria.data?.origine}
+    confrontoIniziale={confrontoIniziale} apriPrezzi={apriPrezzi}
+    salvate={elencoCompleto} caricamento={elenco.isPending} modelliAttivi={modelli} puoCreare={!!(permissions.isAdmin || permissions.canEditOrders)}
+    puoLeggereComputi={!!permissions.canViewPreventivi && !!permissions.canViewRenderAi} />;
 }
 
 function Intestazione({ children }: { children?: ReactNode }) {
@@ -83,8 +155,8 @@ function Intestazione({ children }: { children?: ReactNode }) {
 }
 
 /** Telefono: le ipotesi salvate con i loro numeri, senza modificarle. */
-function SoloLettura({ elenco, caricamento }: { elenco: IpotesiSalvata[]; caricamento: boolean }) {
-  const [aperta, setAperta] = useState<string | null>(null);
+function SoloLettura({ elenco, caricamento, apriId }: { elenco: IpotesiSalvata[]; caricamento: boolean; apriId: string | null }) {
+  const [aperta, setAperta] = useState(apriId);
   return (
     <div className="space-y-3">
       <Intestazione />
@@ -108,19 +180,25 @@ function SoloLettura({ elenco, caricamento }: { elenco: IpotesiSalvata[]; carica
   );
 }
 
-function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
+function Editor({ salvate, caricamento, modelliAttivi, puoCreare, puoLeggereComputi, iniziale, origineStudio, confrontoIniziale, apriPrezzi }: {
   salvate: IpotesiSalvata[];
   caricamento: boolean;
   modelliAttivi: ReturnType<typeof useImpostazioniCommesseGenerali>["modelli"];
   puoCreare: boolean;
+  puoLeggereComputi: boolean;
+  iniziale?: Aperta;
+  origineStudio?: OrigineStudio;
+  confrontoIniziale?: string[];
+  apriPrezzi: boolean;
 }) {
   const { effectiveCompany } = useAuth();
+  const [,setParametri] = useSearchParams();
   const [importAperto, setImportAperto] = useState(false);
   const [importando, setImportando] = useState(false);
   const primoModello: ModelloSimulato = modelliAttivi.includes("sviluppo") || !modelliAttivi.includes("compravendita") ? "sviluppo" : "compravendita";
-  const [aperta, setAperta] = useState<Aperta>(() => nuova(primoModello));
-  const [scheda, setScheda] = useState("ipotesi");
-  const [confronto, setConfronto] = useState<string[]>([]);
+  const [aperta, setAperta] = useState<Aperta>(() => iniziale ?? nuova(primoModello));
+  const [scheda, setScheda] = useState(confrontoIniziale ? "confronto" : "ipotesi");
+  const [confronto, setConfronto] = useState<string[]>(confrontoIniziale ?? []);
   const [diventa, setDiventa] = useState<IpotesiSalvata | null>(null);
   const conferma = useConfirm();
   const salva = useSalvaIpotesi();
@@ -131,6 +209,33 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
   const modificata = !salvata || salvata.nome !== aperta.nome.trim() || JSON.stringify(salvata.ipotesi) !== JSON.stringify(aperta.ipotesi);
   const giaOperazione = salvata?.generaleId ?? null;
   const importDaConfermare = !!aperta.ipotesi.importazione && !aperta.ipotesi.importazione.confermata;
+  const f = aperta.ipotesi.planimetria;
+  const origine = stessaVariante(f, iniziale?.ipotesi.planimetria) ? origineStudio : undefined;
+  const computo = useQuery({
+    queryKey: ["simulatore-computo-variante", effectiveCompany?.id, f?.planimetriaId, f?.versione, f?.varianteId],
+    enabled: !!f && !!effectiveCompany?.id && puoLeggereComputi && scheda === "ipotesi",
+    queryFn: () => leggiCostoDellaVariante(effectiveCompany!.id, f!),
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+  const abbinato = computo.data;
+  const costoLavori = risultato.numeri.costoLavori;
+  const differenzaCosto = abbinato?.importo == null ? null : abbinato.importo - costoLavori;
+  const usaCostoDelComputo = async () => {
+    const lettura = await computo.refetch();
+    const aggiornato = lettura.data?.importo;
+    if (lettura.isError || aggiornato == null) return;
+    setAperta(a => {
+      const fonte = a.ipotesi.planimetria;
+      if (!fonte || a.id !== aperta.id || !stessaVariante(fonte, f)) return a;
+      return { ...a, ipotesi: {
+        ...a.ipotesi,
+        ritocchi: { ...a.ipotesi.ritocchi, costruzione: { ...a.ipotesi.ritocchi.costruzione, importo: aggiornato } },
+        planimetria: { ...fonte, computoImportato: true, confermata: false },
+      } };
+    });
+  };
+  const datiDaConfermare = importDaConfermare || (!!f && !f.confermata);
   const importaPiano = async (voci: VoceImportata[], origine?: OrigineBusinessPlan) => {
     if (!origine || !effectiveCompany?.id || importando) return;
     setImportando(true);
@@ -149,7 +254,8 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
     ...salvate.map((s) => ({ id: s.id, nome: s.nome, ipotesi: s.ipotesi })),
   ], [modificata, aperta, salvate]);
   // Di partenza le prime due salvate; l'ipotesi aperta solo se non ce ne sono abbastanza.
-  const scelteConfronto = confronto.length ? confronto : (salvate.length >= 2 ? salvate.map((s) => s.id) : disponibili.map((d) => d.id)).slice(0, 2);
+  const confrontabili = confronto.filter(id => disponibili.some(d => d.id === id));
+  const scelteConfronto = confrontabili.length ? confrontabili : (salvate.length >= 2 ? salvate.map((s) => s.id) : disponibili.map((d) => d.id)).slice(0, 2);
 
   const salvaOra = async (comeNuova = false): Promise<IpotesiSalvata | null> => {
     try {
@@ -162,6 +268,11 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
       toast.error(`Non è stato possibile salvare l'ipotesi. ${messaggioErrore(e)}`);
       return null;
     }
+  };
+
+  const salvaEApri = async (comeNuova = false) => {
+    const salvata = await salvaOra(comeNuova);
+    if (salvata) setParametri({ipotesi:salvata.id},{replace:true});
   };
 
   const eliminaOra = async () => {
@@ -180,7 +291,7 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
   };
 
   const apriDiventa = async () => {
-    if (importDaConfermare) { toast.error("Conferma prima i dati dell’ipotesi importata."); return; }
+    if (datiDaConfermare) { toast.error("Conferma prima i dati dell’ipotesi importata."); return; }
     const s = modificata ? await salvaOra() : salvata;
     if (s) setDiventa(s);
   };
@@ -210,24 +321,47 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
         </div>
       </Intestazione>
 
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card px-4 py-3">
+      {scheda === "ipotesi" && <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-card px-4 py-3">
         <div className="min-w-[14rem] flex-1 space-y-1">
           <Label htmlFor="sim-nome" className="text-sm font-normal text-muted-foreground">Nome dell'ipotesi · {DEFINIZIONI_MODELLI[aperta.ipotesi.modello].nome}</Label>
           <Input id="sim-nome" value={aperta.nome} maxLength={200} className="h-9 text-sm" placeholder="Es. Residenza 6 appartamenti" onChange={(e) => setAperta((a) => ({ ...a, nome: e.target.value }))} />
         </div>
-        <Button onClick={() => void salvaOra()} disabled={salva.isPending || !modificata}><Save className="mr-1 h-4 w-4" />{aperta.id ? "Salva" : "Salva l'ipotesi"}</Button>
-        {aperta.id && <Button variant="outline" onClick={() => void salvaOra(true)} disabled={salva.isPending}><Copy className="mr-1 h-4 w-4" />Salva come nuova</Button>}
+        <Button onClick={() => void salvaEApri()} disabled={salva.isPending || !modificata}><Save className="mr-1 h-4 w-4" />{aperta.id ? "Salva" : "Salva l'ipotesi"}</Button>
+        {aperta.id && <Button variant="outline" onClick={() => void salvaEApri(true)} disabled={salva.isPending}><Copy className="mr-1 h-4 w-4" />Salva come nuova</Button>}
         {aperta.id && <Button variant="ghost" size="icon" aria-label="Elimina l'ipotesi" onClick={() => void eliminaOra()}><Trash2 className="h-4 w-4" /></Button>}
         {giaOperazione ? (
           <Button variant="outline" asChild><Link to={`/azienda/ordini/${giaOperazione}`}>Apri l'operazione creata</Link></Button>
         ) : puoCreare ? (
-          <Button variant="default" onClick={() => void apriDiventa()} disabled={salva.isPending || importDaConfermare} className="bg-emerald-700 hover:bg-emerald-800">
+          <Button variant="default" onClick={() => void apriDiventa()} disabled={salva.isPending || datiDaConfermare} className="bg-emerald-700 hover:bg-emerald-800">
             <Rocket className="mr-1 h-4 w-4" />Diventa operazione
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">Per trasformarla in operazione serve il permesso «Ordini e Commesse».</p>
         )}
-      </div>
+      </div>}
+      {scheda === "ipotesi" && f && <div className="space-y-2 rounded-lg border bg-blue-50/50 p-4 text-sm">
+        <p className="font-medium">Unità dalla variante {f.varianteId} · planimetria v{f.versione}</p>
+        <p className="text-muted-foreground">{f.computoImportato && differenzaCosto === 0 ? "Costo lavori dal computo" : "Costo lavori nell’ipotesi"}{" "}
+          <strong className="tabular-nums text-foreground">{euroConCentesimi.format(costoLavori)}</strong></p>
+        {abbinato?.importo != null && (differenzaCosto !== 0 || !f.computoImportato) && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card p-2.5">
+          <p>Importo lavori nel computo <strong className="tabular-nums">{euroConCentesimi.format(abbinato.importo)}</strong>
+            {!!differenzaCosto && <span className="ml-2 tabular-nums text-muted-foreground">{differenzaCosto > 0 ? "+" : "−"}{euroConCentesimi.format(Math.abs(differenzaCosto))}</span>}</p>
+          <Button size="sm" variant="outline" disabled={computo.isFetching} onClick={() => void usaCostoDelComputo()}>Aggiorna costo dal computo</Button>
+        </div>}
+        {abbinato?.incomplete ? <p className="text-muted-foreground">Costo dal computo in attesa di {abbinato.incomplete} {abbinato.incomplete === 1 ? "voce" : "voci"}.{abbinato.daMisurare ? ` ${abbinato.daMisurare} quantità da completare.` : ""}{abbinato.daPrezzare ? ` ${abbinato.daPrezzare} ${abbinato.daPrezzare===1 ? "prezzo da inserire" : "prezzi da inserire"}.` : ""}</p> : null}
+        {!!abbinato?.riscontriStrutturali && <p className="text-amber-800">Il costo della variante resta da completare finché ci sono interventi su pareti portanti da riscontrare nel fascicolo.</p>}
+        {computo.isError && <p role="status" className="text-muted-foreground">Costo del computo al momento non disponibile.</p>}
+        <p className="text-muted-foreground">Controlla acquisto, prezzi di vendita e calendario prima di usare margine e cassa.</p>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={f.confermata} onChange={e=> {
+          const confermata = e.target.checked;
+          setAperta(a=>({ ...a,ipotesi:{...a.ipotesi,planimetria:{...f,confermata}} }));
+        }} />Ho verificato importi, superfici e mesi. Gli eventuali zeri sono intenzionali.</label>
+        <div className="flex flex-wrap gap-x-4">
+          <Link className="font-medium text-primary underline" to={percorsoVariantePlanimetria(f,{livello:origine?.livelloId,studio:true,
+            torna:aperta.id ? `/azienda/ordini/simulatore?ipotesi=${aperta.id}` : undefined})}>Apri la variante di origine</Link>
+          {abbinato && <Link className="font-medium text-primary underline" to={`/azienda/marketing/preventivi/computo?bozza=${abbinato.id}&esistente=1&fase=3`}>Apri il computo metrico</Link>}
+        </div>
+      </div>}
 
       {aperta.ipotesi.importazione && <div className="space-y-2 rounded-lg border bg-amber-50/40 p-4 text-sm"><p>Importato da <strong>{aperta.ipotesi.importazione.originale.name}</strong> · {aperta.ipotesi.importazione.scenario}</p><ul className="list-disc pl-5 text-muted-foreground">{aperta.ipotesi.importazione.avvisi.map(a => <li key={a}>{a}</li>)}</ul><label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={aperta.ipotesi.importazione.confermata} onChange={e => { const confermata = e.target.checked; setAperta(a => ({ ...a, ipotesi: { ...a.ipotesi, importazione: { ...a.ipotesi.importazione!, confermata } } })); }}/>Ho verificato importi, mesi, unità, superfici e fonti. Gli eventuali zeri rimasti sono intenzionali.</label></div>}
       <Dialog open={importAperto} onOpenChange={o => { if (!importando) setImportAperto(o); }}><DialogContent ampiezza="spazio" className="max-h-[92vh] overflow-y-auto"><DialogHeader><DialogTitle>Importa business plan nel simulatore</DialogTitle><DialogDescription>Scegli un solo scenario. L’anteprima è la stessa del piano economico; le ipotesi già salvate restano disponibili.</DialogDescription></DialogHeader>{importAperto && <ImportaBusinessPlan companyId={effectiveCompany?.id ?? null} destinazione="simulatore" occupato={importando} onAnnulla={() => setImportAperto(false)} onImporta={(voci, origine) => void importaPiano(voci, origine)}/>}</DialogContent></Dialog>
@@ -250,7 +384,7 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
           </div>
         </TabsContent>
         <TabsContent value="confronto" className="mt-3">
-          <Confronto disponibili={disponibili} scelte={scelteConfronto} onScelte={setConfronto} />
+          <Confronto disponibili={disponibili} scelte={scelteConfronto} onScelte={setConfronto} apriPrezzi={apriPrezzi} />
         </TabsContent>
       </Tabs>
 

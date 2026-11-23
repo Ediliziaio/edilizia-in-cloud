@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { MODELLI } from "@/lib/planimetrie/tred/elementi";
 import { CATALOGO } from "@/components/planimetrie/editor/catalogo";
 import { TIPI_SU_TUTTI_I_PIANI } from "@/lib/planimetrie/copiaSuiPiani";
+import { aPlanimetria, daPlanimetria } from "@/components/planimetrie/editor/adattatore";
+import { pianiDaPlanimetria, scenaEdificio } from "@/lib/planimetrie/tred/edificio";
+import { meshFondazioni } from "@/lib/planimetrie/tred/scena";
+import type { PiantaPer3D } from "@/lib/planimetrie/tred/tipi";
+import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
+import { nuovaPlanimetria, validaPlanimetria, type AlzataCad } from "../../../shared/planimetrie/modello";
 
 const alto = (bl: Array<{ y: number; h: number }>) => Math.max(...bl.map((x) => x.y + x.h));
 
@@ -39,10 +45,26 @@ describe("scale a U e a chiocciola", () => {
   });
 });
 
-import { meshFondazioni } from "@/lib/planimetrie/tred/scena";
-import { scenaEdificio } from "@/lib/planimetrie/tred/edificio";
-import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
-import type { PiantaPer3D } from "@/lib/planimetrie/tred/tipi";
+it("conserva il tracciato di una scala CAD nell'editor e lo usa per le pedate in 3D", () => {
+  const doc = nuovaPlanimetria("Scala CAD");
+  const piano = doc.livelli[0];
+  const alzateCad: AlzataCad[] = [
+    [{ x: -0.5, y: -0.5 }, { x: 0.15, y: -0.5 }],
+    [{ x: -0.4, y: 0 }, { x: 0.2, y: -0.1 }],
+    [{ x: -0.2, y: 0.5 }, { x: 0.5, y: 0.2 }],
+  ];
+  piano.fatto.elementi.push({
+    id: "scala-cad", tipo: "scala", posizione: { x: 100, y: 150 },
+    rotazione: 0, larghezza: 200, profondita: 300, altezza: 320, origine: "da_documento", alzateCad,
+  });
+  const salvato = aPlanimetria(daPlanimetria(doc, piano.id), doc, piano.id);
+  expect(validaPlanimetria(salvato).ok).toBe(true);
+  expect(salvato.livelli[0].fatto.elementi[0].alzateCad).toEqual(alzateCad);
+  const scena = scenaEdificio(pianiDaPlanimetria(salvato), { vista: "fatto" });
+  const mesh = scena.mesh.find((m) => m.riferimento === "scala-cad");
+  expect(mesh?.facce).toBe(12);
+  expect(Math.max(...(mesh?.posizioni.filter((_, i) => i % 3 === 1) ?? []))).toBeCloseTo(3.2);
+});
 
 describe("fondazioni", () => {
   const pianta = (): PiantaPer3D => ({

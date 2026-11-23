@@ -250,7 +250,7 @@ export default function ComputoCapitoli({ voci, capitoliVuoti, aperta, onApri, o
                         </td>
                         <td className="text-right align-middle tabular-nums max-md:self-center max-md:text-left md:px-2 md:py-1">
                           <span aria-hidden="true" className="mr-2 text-xs text-slate-500 md:hidden">Importo</span>
-                          <strong className={`whitespace-nowrap text-sm md:text-[13px] ${calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
+                          <strong className={`whitespace-nowrap text-sm md:text-[13px] ${calcolo.importo === null || calcolo.errori.length ? "font-normal text-slate-400" : voce.opzionale ? "font-medium text-slate-500" : "font-semibold text-slate-900"}`}>{calcolo.importo === null || calcolo.errori.length ? "—" : `${formatEuro(calcolo.importo ?? 0)} €`}</strong>
                         </td>
                         <td className="align-middle max-md:col-span-2 md:py-1 md:pr-1">
                           <div className="flex flex-wrap items-center justify-end gap-0.5 md:flex-nowrap">

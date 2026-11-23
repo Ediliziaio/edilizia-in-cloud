@@ -13,6 +13,9 @@ import { altezzaPensiliCucina, altezzaTestieraLetto, disposizioneIsola, PROFONDI
 import { costruisciPiscina } from "./piscina";
 import type { V3 } from "./tipi";
 import type { AttaccoDoccia3D } from "./doccia";
+import { costruisciDivanoLino } from "./divanoLino";
+import { costruisciOlivo } from "./olivo";
+import { costruisciQuadro, costruisciScaldasalviette, costruisciTenda } from "./decorazioni";
 
 export interface Blocco {
   materiale: string;
@@ -53,9 +56,10 @@ function fasceLavello(materiale: string, l: number, p: number, base: number, h: 
     ...[-1, 1].map(s => b(materiale, x, s * (p / 2 - laterali / 2), base, foroL, laterali, h))];
 }
 
-function basiCucina(l: number, p: number, h: number, attrezzata = true): Blocco[] {
+function basiCucina(l: number, p: number, h: number, attrezzata = true, gola = false): Blocco[] {
   const n = Math.max(1, Math.min(30, Math.round(l / .6))), sp = Math.min(.023, p / 7), passo = l / n;
   const zoccolo = Math.min(.095, h * .15), piano = Math.min(.034, h * .08);
+  const mobile = gola ? "rovere_chiaro" : "laccato", lastra = gola ? "piano_travertino" : "quarzo";
   const corpo = h - zoccolo - piano;
   const d = attrezzata ? dotazioneCucina(l, p, h) : null;
   const fondo = d ? h - Math.min(.18, h * .25) : h - piano;
@@ -63,17 +67,17 @@ function basiCucina(l: number, p: number, h: number, attrezzata = true): Blocco[
   const indiceForno = d && n >= 3 ? Math.floor((d.cotturaX + l / 2) / passo) : -1;
   return [
     b("guarnizione", 0, 0, 0, l * .965, p * .83, zoccolo, .003),
-    b("laccato", 0, 0, zoccolo, l - .004, profonditaCorpo, fondo - zoccolo, .002),
-    ...(d ? fasceLavello("laccato", l - .004, profonditaCorpo, fondo, h - piano - fondo, d.lavelloX, d.lavelloL, d.lavelloP) : []),
-    ...(d ? fasceLavello("quarzo", l, p, h - piano, piano, d.lavelloX, d.lavelloL, d.lavelloP)
-      : [b("quarzo", 0, 0, h - piano, l, p, piano, Math.min(.007, piano * .24))]),
+    b(mobile, 0, 0, zoccolo, l - .004, profonditaCorpo, fondo - zoccolo, .002),
+    ...(d ? fasceLavello(mobile, l - .004, profonditaCorpo, fondo, h - piano - fondo, d.lavelloX, d.lavelloL, d.lavelloP) : []),
+    ...(d ? fasceLavello(lastra, l, p, h - piano, piano, d.lavelloX, d.lavelloL, d.lavelloP)
+      : [b(lastra, 0, 0, h - piano, l, p, piano, Math.min(.007, piano * .24))]),
     ...(d ? [b("induzione", d.cotturaX, 0, h + .001, d.cotturaL, d.cotturaP, .008, .003)] : []),
     ...Array.from({ length: n }, (_, i) => {
       const x = -l / 2 + (i + .5) * passo;
       const larg = passo - Math.min(.005, passo * .09), fronte = p / 2 - sp * .52;
       const presa = Math.min(.012, p / 8, h * .12);
       if (i === indiceForno) return [
-        b("laccato", x, fronte, zoccolo + .004, larg, sp, corpo - .009, .003),
+        b(mobile, x, fronte, zoccolo + .004, larg, sp, corpo - .009, .003),
         b("induzione", x, p / 2 - .008, zoccolo + corpo * .16, larg * .91, .015, corpo * .67, .006),
         b("schermo", x, p / 2 - .004, zoccolo + corpo * .26, larg * .77, .007, corpo * .41, .003),
         b("inox", x, p / 2 - .007, zoccolo + corpo * .735, larg * .80, .013, .011, .004),
@@ -82,36 +86,92 @@ function basiCucina(l: number, p: number, h: number, attrezzata = true): Blocco[
       const altezzaAnta = corpo / cassetti;
       return Array.from({ length: cassetti }, (_, part) => {
         const base = zoccolo + part * altezzaAnta;
-        return [b("laccato", x, fronte, base + .003, larg, sp, altezzaAnta - .006, .003),
-          b("inox", x, p / 2 - presa * .55, base + altezzaAnta * .79, Math.min(.19, passo * .46), presa, .009, .002)];
+        const fuga = gola ? Math.min(.019, altezzaAnta * .1) : .003;
+        return [b(mobile, x, fronte, base + .003, larg, sp, altezzaAnta - fuga - .003, .003),
+          gola ? b("grafite", x, fronte - sp * .67, base + altezzaAnta - fuga, larg, sp * .35, fuga * .88, .001)
+            : b("inox", x, p / 2 - presa * .55, base + altezzaAnta * .79, Math.min(.19, passo * .46), presa, .009, .002)];
       }).flat();
     }).flat(),
   ];
 }
 
-function blocchiPensili(l: number, p: number, h: number): Blocco[] {
+function blocchiPensili(l: number, p: number, h: number, led = false): Blocco[] {
   const profondita = Math.min(.35, p * .83), n = Math.max(1, Math.min(30, Math.round(l / .65))), passo = l / n;
   const y = altezzaPensiliCucina(h * 100) / 100, z = -p / 2 + profondita / 2;
   const separazione = Math.min(.006, passo * .085);
   return [
     ...Array.from({ length: n }, (_, i) => b("laccato", (i + .5 - n / 2) * passo, z, y, passo - separazione, profondita, .69, .004)),
     b("grafite", 0, z + profondita * .36, y - .016, l * .972, profondita * .22, .016, .003),
-    b("lino_avorio", 0, z + profondita * .36, y - .019, l * .92, profondita * .12, .004),
+    b(led ? "luce_calda" : "lino_avorio", 0, z + profondita * .36, y - .020, l * .92, profondita * .12, .004),
   ];
 }
 
-function blocchiCucinaAngolare(l: number, p: number, h: number, attrezzata = true): Blocco[] {
+function pensiliConNicchie(l: number, p: number, h: number): Blocco[] {
+  const d = Math.min(.34, p * .78), y = altezzaPensiliCucina(h * 100) / 100;
+  const retro = -p / 2, centro = retro + d / 2, quota = .68;
+  const n = Math.max(1, Math.min(12, Math.round(l / .65))), passo = l / n;
+  const fascia = Math.min(.018, passo * .1, d * .12);
+  return [
+    b("piano_travertino", 0, retro + fascia * .5, h, l, fascia, y - h - .01, .002),
+    ...Array.from({ length: n }, (_, i) => {
+      const x = (i + .5 - n / 2) * passo, larg = passo - Math.min(.005, passo * .065);
+      const nicchia = n >= 3 && (i === Math.floor(n * .57) || (n >= 5 && i === n - 1));
+      if (!nicchia) return [b("rovere_chiaro", x, centro, y, larg, d, quota, .003)];
+      return [
+        b("rovere_chiaro", x, retro + fascia / 2, y, larg, fascia, quota),
+        ...[-1, 1].map(lato => b("rovere_chiaro", x + lato * (larg - fascia) / 2, centro, y, fascia, d, quota)),
+        ...[0, .49, 1].map(rapporto =>
+          b("rovere_chiaro", x, centro, y + rapporto * (quota - fascia), larg - 2 * fascia, d, fascia, .002)),
+        b("luce_calda", x, centro + d * .31, y + quota - fascia - .004, larg - 3 * fascia, d * .063, .003),
+        ...[0, 1].map(indice => b("lino_avorio", x + (indice - .5) * larg * .39, centro - d * .022,
+          y + fascia, larg * .23, d * .36, .10 + .034 * indice, .018)),
+      ];
+    }).flat(),
+    b("grafite", 0, centro + d * .32, y - .015, l * .97, d * .13, .014, .002),
+    b("luce_calda", 0, centro + d * .32, y - .016, l * .945, d * .082, .003),
+  ];
+}
+
+function blocchiCucinaAngolare(l: number, p: number, h: number, attrezzata = true, led = false, nicchie = false): Blocco[] {
   const [principale, ritorno] = rettangoliIngombroArredo("cucina_angolare", l * 100, p * 100);
   const pr = principale.profondita / 100;
   return [
-    ...basiCucina(l, pr, h, attrezzata).map(v => ({ ...v, z: v.z + principale.y / 100 })),
-    ...(ritorno ? basiCucina(ritorno.profondita / 100, ritorno.larghezza / 100, h, false)
+    ...basiCucina(l, pr, h, attrezzata, nicchie).map(v => ({ ...v, z: v.z + principale.y / 100 })),
+    ...(ritorno ? basiCucina(ritorno.profondita / 100, ritorno.larghezza / 100, h, false, nicchie)
       .map(v => ({ ...v, x: ritorno.x / 100 + v.z, z: ritorno.y / 100 - v.x, girata: -Math.PI / 2 })) : []),
-    ...blocchiPensili(l, pr, h).map(v => ({ ...v, z: v.z + principale.y / 100 })),
+    ...(nicchie ? pensiliConNicchie(l, pr, h) : blocchiPensili(l, pr, h, led)).map(v => ({ ...v, z: v.z + principale.y / 100 })),
   ];
 }
 
-function blocchiDivanoAngolare(l: number, p: number, h: number): Blocco[] {
+function isolaInTravertino(l: number, p: number, h: number): Blocco[] {
+  const { banco, diametro, sedute, zSeduta } = disposizioneIsola(l * 100, p * 100);
+  const profondita = banco / 100, retro = -p / 2, z = zSeduta / 100, d = diametro / 100;
+  const pietra = "piano_travertino", mobile = "rovere_chiaro";
+  const lastra = Math.min(.045, h * .066), fianco = Math.min(.093, l * .115, profondita * .25);
+  const quota = h - lastra, sotto = Math.min(.065, h * .12);
+  const sp = Math.min(.019, profondita * .12), centro = retro + profondita / 2;
+  const larghezza = l - 2 * fianco, corpo = profondita * .72, cassa = corpo - sp;
+  const passo = larghezza / sedute.length;
+  const altezzaSeduta = h * .665, gamba = d * .087;
+  return [
+    b(pietra, 0, centro, quota, l, profondita, lastra, .014),
+    ...[-1, 1].map(sx => b(pietra, sx * (l - fianco) / 2, centro, 0, fianco, profondita, quota, .016)),
+    b("grafite", 0, retro + corpo / 2, 0, larghezza * .956, corpo * .92, sotto),
+    b(mobile, 0, retro + cassa / 2, sotto, larghezza, cassa, quota - sotto - .014, .003),
+    ...sedute.flatMap((xCm, i) => {
+      const x = xCm / 100, fronte = (i + .5 - sedute.length / 2) * passo;
+      return [
+        b(mobile, fronte, retro + corpo - sp / 2, sotto + .005, passo - Math.min(.005, passo * .09), sp, quota - sotto - .027, .003),
+        b(mobile, x, z, altezzaSeduta - .023, d, d * .86, .029, .012),
+        b("lino_avorio", x, z, altezzaSeduta, d * .94, d * .84, Math.min(.038, h * .07), .018),
+        ...[-1, 1].flatMap(sx => [-1, 1].map(sz =>
+          b(mobile, x + sx * d * .36, z + sz * d * .33, 0, gamba, gamba, altezzaSeduta, .005))),
+        b("ottone", x, z + d * .32, altezzaSeduta * .39, d * .78, gamba, gamba * .69),
+      ];
+    }),
+  ];
+}
+function blocchiDivanoAngolare(l: number, p: number, h: number, lino = false): Blocco[] {
   const quote = quoteDivanoAngolare(l * 100, p * 100);
   const { posti } = quote;
   const schienale = quote.schienale / 100, bracciolo = quote.bracciolo / 100, penisola = quote.penisola / 100;
@@ -121,11 +181,13 @@ function blocchiDivanoAngolare(l: number, p: number, h: number): Blocco[] {
   const seduta = Math.min(.47, h * .53);
   const cuscino = Math.min(.16, seduta * .34);
   const baseSeduta = seduta - cuscino;
-  const tessuto = "tessuto_divano";
+  const tessuto = lino ? "tessuto" : "tessuto_divano";
   const passo = (giunto - (-l / 2 + bracciolo)) / posti;
   const cucitura = Math.min(.018, passo * .09, penisola * .07);
   const zSeduta = retro + schienale + cucitura;
   const braccioloDestro = Math.min(bracciolo, penisola * .32);
+  const profonditaBracciolo = corpo - schienale * .52;
+  const centroBracciolo = fronte - profonditaBracciolo / 2;
   const moduli = [
     ...Array.from({ length: posti }, (_, i) => ({ x: -l / 2 + bracciolo + (i + .5) * passo, l: passo, fronte })),
     { x: (giunto + l / 2 - braccioloDestro) / 2, l: penisola - braccioloDestro, fronte: p / 2 },
@@ -137,12 +199,13 @@ function blocchiDivanoAngolare(l: number, p: number, h: number): Blocco[] {
       const gamba = Math.min(.068, w * .2, d * .2);
       return [
         b(tessuto, x, z, piedino, w, d, baseSeduta - piedino, .026),
-        ...[-1, 1].flatMap(sx => [-1, 1].map(sz => b("grafite", x + sx * w * .35, z + sz * d * .34, 0, gamba, gamba, piedino, .008))),
+        ...(lino ? [b("rovere_chiaro", x, z, 0, w * .96, d * .96, piedino, .009)]
+          : [-1, 1].flatMap(sx => [-1, 1].map(sz => b("grafite", x + sx * w * .35, z + sz * d * .34, 0, gamba, gamba, piedino, .008)))),
       ];
     }),
-    b(tessuto, 0, retro + schienale * .26, piedino, l, schienale * .52, h - piedino, .05),
-    b(tessuto, -l / 2 + bracciolo / 2, retro + corpo / 2, piedino, bracciolo, corpo, h * .68 - piedino, .047),
-    b(tessuto, l / 2 - braccioloDestro / 2, retro + corpo / 2, piedino, braccioloDestro, corpo, h * .68 - piedino, .047),
+    b(tessuto, 0, retro + schienale * .26, baseSeduta, l, schienale * .52, h - baseSeduta, .05),
+    b(tessuto, -l / 2 + bracciolo / 2, centroBracciolo, baseSeduta, bracciolo, profonditaBracciolo, h * .68 - baseSeduta, .047),
+    b(tessuto, l / 2 - braccioloDestro / 2, centroBracciolo, baseSeduta, braccioloDestro, profonditaBracciolo, h * .68 - baseSeduta, .047),
     ...moduli.flatMap(m => [
       b(tessuto, m.x, (zSeduta + m.fronte - cucitura) / 2, baseSeduta, m.l - cucitura, m.fronte - zSeduta - cucitura, cuscino, .045),
       b(tessuto, m.x, retro + schienale * .78, seduta, m.l - cucitura, schienale * .6, (h - seduta) * .91, .065),
@@ -244,16 +307,64 @@ function dettagliDoccia(l: number, p: number, h: number, centro: { x: number; z:
   }
 }
 
-function blocchiDoccia(l: number, p: number, h: number, lato?: AttaccoDoccia3D["lato"]): Blocco[] {
+function blocchiDoccia(l: number, p: number, h: number, lato?: AttaccoDoccia3D["lato"], variante?: string): Blocco[] {
   const s = Math.min(.025, l / 10, p / 10);
   const x = (l / 2 - s / 2) * (lato === "destra" ? -1 : 1);
   const z = (p / 2 - s / 2) * (lato === "fronte" ? -1 : 1);
+  if (variante === "walk_in" || variante === "spa") {
+    const quota = Math.min(.038, h * .05);
+    const cristallo = Math.min(.009, s * .55);
+    const latoLungo = p >= l;
+    const ampiezza = latoLungo ? p : l;
+    const varco = Math.min(.78, ampiezza * .55);
+    const pannello = ampiezza - varco - s;
+    const w = latoLungo ? cristallo : pannello, d = latoLungo ? pannello : cristallo;
+    const cx = latoLungo ? x : varco / 2;
+    const cz = latoLungo ? -varco / 2 * Math.sign(z) : z;
+    const scaricoL = latoLungo ? l * .69 : l * .085;
+    const scaricoP = latoLungo ? p * .052 : p * .63;
+    const scaricoX = latoLungo ? 0 : -x * .82;
+    const scaricoZ = latoLungo ? -z * .79 : 0;
+    return [
+      b("ceramica", 0, 0, 0, l, p, quota, .005),
+      b("vetro", cx, cz, quota, w, d, h - quota),
+      ...[-1, 1].map(f => b("grafite", cx + (latoLungo ? 0 : f * (w - s) / 2), cz + (latoLungo ? f * (d - s) / 2 : 0),
+        quota, s, s, h - quota, .002)),
+      b("grafite", cx, cz, h - s, w, d, s),
+      b("inox", scaricoX, scaricoZ, quota + .0005, scaricoL, scaricoP, .003, .001),
+      ...[-.24, 0, .24].map(f => b("guarnizione", scaricoX + (latoLungo ? 0 : f * scaricoL), scaricoZ + (latoLungo ? f * scaricoP : 0),
+        quota + .0035, scaricoL * (latoLungo ? .93 : .12), scaricoP * (latoLungo ? .12 : .93), .001)),
+      ...(variante === "spa" && l > 1 && p > .80 ? [
+        b("piano_travertino", l * .265, -p * .27, quota, l * .34, p * .25, .33, .008),
+        b("piano_travertino", l * .265, -p * .255, quota + .33, l * .39, p * .31, .082, .012),
+        b("luce_calda", l * .265, -p * .113, quota + .322, l * .318, .013, .004),
+      ] : []),
+    ];
+  }
   return [b("ceramica", 0, 0, 0, l, p, .04), ...bordoVasca(l, p, .04, .025),
     b("metallo", 0, 0, .041, Math.min(.09, l / 4), Math.min(.09, p / 4), .006),
     b("vetro", x, 0, .065, s, p, h - .065), b("vetro", 0, z, .065, l, s, h - .065),
     ...[-1, 1].map(latoZ => b("metallo", x, latoZ * (p / 2 - s / 2), .065, s, s, h - .065)),
     b("metallo", -x, z, .065, s, s, h - .065),
     b("metallo", x, 0, h - s, s, p, s), b("metallo", 0, z, h - s, l, s, s)];
+}
+
+function frigoInox(l: number, p: number, h: number): Blocco[] {
+  const basamento = Math.min(.061, h * .058);
+  const anta = Math.min(.061, p * .15), lato = Math.min(.004, l * .015);
+  const gola = Math.min(.028, h * .033), fronte = p / 2 - anta / 2;
+  const giunto = h * .315, corpo = p - anta;
+  const presa = Math.min(.102, l * .24), bordo = Math.min(.006, anta * .22);
+  return [
+    b("grafite", 0, -anta / 2, 0, l * .9, corpo * .87, basamento, .005),
+    b("inox", 0, -anta / 2, basamento, l, corpo, h - basamento, .011),
+    b("guarnizione", 0, fronte - bordo, basamento + .004, l - 2 * lato, anta - 2 * bordo, h - basamento - .010, .004),
+    b("inox", 0, fronte, basamento + .009, l - 2 * lato, anta, giunto - basamento - gola - .009, .007),
+    b("inox", 0, fronte, giunto + gola, l - 2 * lato, anta, h - giunto - gola, .009),
+    ...[-1, 1].map(s => b("inox", -l / 2 + lato + presa / 2, fronte, giunto + s * (gola - .004),
+      presa, anta, .005, .0014)),
+    b("schermo", l * .245, p / 2 - .0006, h * .745, Math.min(.036, l * .085), .0012, h * .019, .0006),
+  ];
 }
 
 function costruisciAuto(l: number, p: number, h: number, c: { x: number; z: number }, r: number, suv: boolean,
@@ -427,6 +538,11 @@ export const MODELLI: Record<string, ModelloElemento> = {
       ...[-1, 1].map(x => b("legno", x * l * .29, 0, 0, Math.min(.08, l * .15), p * .69, h - .045, .013)),
     ],
   },
+  tappeto: {
+    nome: "Tappeto",
+    misure: { l: 2.4, p: 1.7, h: .02 },
+    blocchi: (l, p, h) => [b("tessuto", 0, 0, .002, l, p, h, .006)],
+  },
   scrivania: {
     nome: "Scrivania",
     misure: { l: 1.2, p: 0.6, h: 0.75 },
@@ -480,6 +596,11 @@ export const MODELLI: Record<string, ModelloElemento> = {
     misure: { l: .35, p: .35, h: 1.54 },
     blocchi: () => [],
   },
+  lampada_sospensione: {
+    nome: "Lampada a sospensione",
+    misure: { l: .36, p: .36, h: 2.8 },
+    blocchi: () => [],
+  },
   lavatrice: {
     nome: "Lavatrice",
     misure: { l: .6, p: .6, h: .85 },
@@ -489,7 +610,7 @@ export const MODELLI: Record<string, ModelloElemento> = {
   divano_angolare: {
     nome: "Divano angolare",
     misure: { l: 2.8, p: 1.7, h: 0.85 },
-    blocchi: blocchiDivanoAngolare,
+    blocchi: (l, p, h) => blocchiDivanoAngolare(l, p, h),
   },
   poltrona: {
     nome: "Poltrona",
@@ -518,6 +639,11 @@ export const MODELLI: Record<string, ModelloElemento> = {
       return [b("legno", -l / 2 + s / 2, 0, 0, s, p, h), b("legno", l / 2 - s / 2, 0, 0, s, p, h), ...Array.from({ length: ripiani + 1 }, (_, i) => b("legno", 0, 0, (h - s) * i / ripiani, l - 2 * s, p, s))];
     },
   },
+  vetrinetta: { nome: "Vetrinetta illuminata", misure: { l: 1.12, p: .39, h: 1.64 }, blocchi: blocchiVetrinetta },
+  tenda: { nome: "Tenda a binario", misure: { l: 3.2, p: .18, h: 2.75 }, blocchi: () => [] },
+  quadro: { nome: "Quadro a parete", misure: { l: .82, p: .04, h: 1.81 }, blocchi: () => [] },
+  pianta_vaso: { nome: "Pianta in vaso", misure: { l: .37, p: .37, h: .32 }, blocchi: () => [] },
+  scaldasalviette: { nome: "Scaldasalviette", misure: { l: .52, p: .13, h: 1.65 }, blocchi: () => [] },
   tavolo_rotondo: {
     nome: "Tavolo rotondo",
     misure: { l: 1.1, p: 1.1, h: 0.75 },
@@ -828,7 +954,246 @@ function mobileTv(l: number, p: number, h: number, sospeso: boolean): Blocco[] {
   ];
 }
 
-function pareteTv(l: number, p: number, h: number): Blocco[] {
+function mobileTvOLED(l: number, p: number, h: number): Blocco[] {
+  const base = h * .24, fronte = p * .448, n = Math.max(2, Math.round(l / .52)), modulo = l / n;
+  const w = Math.min(1.222, l * .95), quota = h + .21, d = Math.min(.0451, p * .22);
+  const schermo = w * .703 / 1.222;
+  const retro = -p / 2 + d / 2 + .011;
+  const doghe = Math.max(1, Math.ceil(modulo / .031));
+  return [
+    b("rovere_chiaro", 0, -p * .032, base, l, p * .9, h - base, .008),
+    ...Array.from({ length: n }, (_, i) => {
+      const x = (i + .5 - n / 2) * modulo;
+      return [
+        b("grafite", x, fronte, base + .007, modulo - .007, p * .065, h - base - .015, .003),
+        ...Array.from({ length: doghe }, (_, j) => b("rovere_chiaro", x + (j + .5 - doghe / 2) * modulo / doghe,
+          fronte + p * .028, base + .009, modulo / doghe * .79, p * .038, h - base - .020, .002)),
+      ];
+    }).flat(),
+    b("grafite", 0, retro, quota + .012, w * .63, d, schermo * .58, .005),
+    b("grafite", 0, retro + d * .55, quota, w, .009, schermo, .003),
+    b("schermo", 0, retro + d * .55 + .0045, quota + .006, w - .011, .0018, schermo - .011, .001),
+    b("spia", w * .417, retro + d * .55 + .005, quota + .002, .003, .002, .002),
+  ];
+}
+
+function armadioRovere(l: number, p: number, h: number, cannettato = false): Blocco[] {
+  const moduli = Math.max(2, Math.min(12, Math.round(l / .55))), passo = l / moduli;
+  const zoccolo = Math.min(.072, h * .1), anta = Math.min(.022, p * .12), fronte = (p - anta) / 2;
+  const gola = Math.min(.021, passo * .11);
+  return [
+    b("grafite", 0, 0, 0, l * .95, p * .86, zoccolo),
+    b("rovere_chiaro", 0, -anta, zoccolo, l, p - 2 * anta, h - zoccolo, .003),
+    ...Array.from({ length: moduli }, (_, i) => {
+      const x = (i + .5 - moduli / 2) * passo;
+      const doghe = Math.max(3, Math.round(passo / .032));
+      return [
+        b("rovere_chiaro", x - gola / 2, fronte - (cannettato ? .006 : 0), zoccolo + .004, passo - gola - .004, anta, h - zoccolo - .007, .0025),
+        b("grafite", x + (passo - gola) / 2, fronte - anta * .30, zoccolo + .006, gola, anta * .22, h - zoccolo - .010, .001),
+        ...(cannettato ? Array.from({ length: doghe }, (_, j) => {
+          const d = (passo - gola - .007) / doghe;
+          return b("rovere_chiaro", x - gola / 2 + (j + .5 - doghe / 2) * d, fronte + anta * .18, zoccolo + .009,
+            d * .76, anta * .34, h - zoccolo - .018, .0016);
+        }) : []),
+      ];
+    }).flat(),
+  ];
+}
+
+function libreriaConLibri(l: number, p: number, h: number): Blocco[] {
+  const s = Math.min(.024, p * .11, h * .065, l * .085), base = h * .27, mezzo = (l - s) / 2;
+  const ripiani = 4, passo = (h - base - s) / ripiani, frontale = p / 2 - s / 2;
+  const colori = ["libro_ruggine", "libro_verde", "libro_tela", "grafite"];
+  return [
+    ...[-1, 1].map(x => b("rovere_chiaro", x * mezzo, 0, 0, s, p, h - s, .003)),
+    b("rovere_chiaro", 0, -p / 2 + s / 2, 0, l - s * 2, s, h - s),
+    b("rovere_chiaro", 0, -s / 2, .01, l - s * 2, p - s * 2, base - .009, .004),
+    ...[-1, 1].flatMap(x => [
+      b("rovere_chiaro", x * l * .24, frontale, .013, l * .47 - s, s, base - .024, .003),
+      b("grafite", x * l * .24, p / 2 - .005, base - .046, l * .1, .01, .009, .002),
+    ]),
+    b("rovere_chiaro", 0, 0, h - s, l, p, s, .003),
+    ...Array.from({ length: ripiani }, (_, i) => {
+      const quota = base + i * passo, n = i % 2 ? 5 : 8, lato = i % 2 ? 1 : -1;
+      const luce = Math.min(l * .49, p * 1.32), larghezza = luce / n;
+      return [
+        b("rovere_chiaro", 0, 0, quota, l - 2 * s, p, s, .003),
+        ...Array.from({ length: n }, (_, j) => {
+          const x = lato * (l / 2 - s * 1.65 - (j + .5) * larghezza);
+          const altezza = (passo - s) * (.59 + ((i * 13 + j * 7) % 9) * .033);
+          const d = p * (.58 + (j % 3) * .042), z = p * .075;
+          return [
+            b(colori[(i + j) % colori.length], x, z, quota + s + .0005, larghezza * .91, d, altezza, .002),
+            b("carta", x, z - .002, quota + s + altezza * .08, larghezza * .69, d * .88, altezza * .93, .001),
+          ];
+        }).flat(),
+      ];
+    }).flat(),
+  ];
+}
+
+function blocchiVetrinetta(l: number, p: number, h: number): Blocco[] {
+  const bordo = Math.min(.023, l * .065, p * .115, h * .09);
+  const base = h * .105, alto = h - bordo, vano = alto - base;
+  const dentro = l - 2 * bordo, fronte = p / 2 - bordo / 2;
+  const gomma = Math.min(.017, bordo * .68);
+  return [
+    b("grafite", 0, 0, 0, l * .91, p * .84, base, .006),
+    ...[-1, 1].map(x => b("rovere_chiaro", (l - bordo) / 2 * x, 0, base, bordo, p, vano, .003)),
+    b("rovere_chiaro", 0, -p / 2 + bordo / 2, base, dentro, bordo, vano),
+    b("rovere_chiaro", 0, 0, alto, l, p, bordo, .004),
+    ...[0, .36, .67].map(y => b("rovere_chiaro", 0, -bordo * .5, base + vano * y, dentro, p - 2 * bordo, bordo, .002)),
+    ...[-1, 1].flatMap(i => {
+      const larghezza = dentro / 2 - gomma * .22, centro = i * dentro / 4;
+      return [
+        b("vetro_fume", centro, fronte, base + gomma, larghezza - gomma * 1.8, bordo * .22, vano - gomma * 2),
+        ...[-1, 1].map(x => b("grafite", centro + x * (larghezza - gomma) / 2, fronte, base, gomma, bordo, vano)),
+        ...[base, alto - gomma].map(y => b("grafite", centro, fronte, y, larghezza - 2 * gomma, bordo, gomma)),
+        b("ottone", centro - i * larghezza * .36, p / 2 - bordo * .07, base + vano * .52,
+          gomma * .43, bordo * .13, vano * .087, .001),
+      ];
+    }),
+    b("luce_calda", 0, -p * .275, alto - bordo * .29, dentro * .93, bordo * .57, bordo * .28),
+    b("libro_verde", l * .13, -.06 * p, base + bordo, l * .06, p * .40, vano * .12, .004),
+    b("libro_ruggine", l * .21, -.06 * p, base + bordo, l * .06, p * .42, vano * .15, .004),
+  ];
+}
+
+function ceramicheNellaVetrina(l: number, p: number, h: number, centro: { x: number; z: number }, r: number,
+  costruttore: (materiale: string) => CostruttoreMesh) {
+  const bordo = Math.min(.023, l * .065, p * .115, h * .09), base = h * .105, vano = h - bordo - base;
+  const raggio = Math.min(l * .098, p * .21), cos = Math.cos(r), sin = Math.sin(r);
+  const vaso = (materiale: string, x: number, quota: number, altezza: number, larghezza: number, profilo: [number, number][]) =>
+    profiloTondo(costruttore(materiale), centro.x + x * cos, centro.z + x * sin,
+      profilo.map(([y, rr]) => [quota + y * altezza, rr * larghezza]));
+  const ripianoMedio = base + vano * .36 + bordo;
+  const collo: [number, number][] = [[0, .03], [0, .63], [.07, .73], [.30, .96], [.52, 1],
+    [.67, .83], [.80, .49], [.91, .41], [1, .43], [1, .36], [.82, .34], [.58, .72], [.23, .73], [.14, .03]];
+  vaso("ceramica_satinata", -l * .19, ripianoMedio, vano * .23, raggio * .85, collo);
+  vaso("terracotta", l * .21, ripianoMedio, vano * .15, raggio, collo);
+  vaso("piano_travertino", -l * .20, base + vano * .67 + bordo, vano * .055, raggio * 1.35,
+    [[0, .03], [0, .62], [.30, .79], [1, 1], [1, .91], [.54, .77], [.31, .03]]);
+}
+
+function grillDaEsterno(l: number, p: number, h: number): Blocco[] {
+  const top = h * .758, lastra = Math.min(.054, h * .085), base = h * .085;
+  const piano = top + lastra, corpo = top - base;
+  const box = l * .52, x = l * .19, sportello = Math.min(.028, p * .12);
+  return [
+    b("grafite", 0, 0, 0, l * .90, p * .83, base, .008),
+    b("pietra", 0, -sportello / 2, base, l, p - sportello, corpo, .005),
+    b("piano_travertino", 0, 0, top, l, p, lastra, .009),
+    ...[-1, 1].flatMap(i => {
+      const centro = i * l * .247, w = l * .478, n = 12;
+      return [
+        b("grafite", centro, p / 2 - sportello / 2, base + .007, w, sportello * .44, corpo - .012, .004),
+        ...Array.from({ length: n }, (_, j) =>
+          b("rovere_chiaro", centro + w * ((j + .5) / n - .5), p / 2 - sportello * .17, base + .011,
+            w / n * .73, sportello * .32, corpo - .021, .002)),
+      ];
+    }),
+    b("inox", x, -.025 * p, piano, box, p * .87, (h - piano) * .27, .014),
+    b("inox", x, -.067 * p, piano + (h - piano) * .27, box * .985, p * .742, (h - piano) * .73, .044),
+    b("ottone", x, p * .327, piano + (h - piano) * .50, box * .68, p * .035, (h - piano) * .086, .007),
+    ...[-1, 0, 1].map(i => b("grafite", x + i * box * .225, p * .446, piano + (h - piano) * .075,
+      box * .084, p * .06, (h - piano) * .11, .006)),
+    b("guarnizione", x, p * .406, piano + (h - piano) * .258, box * .974, p * .016, (h - piano) * .032, .002),
+  ];
+}
+
+function specchioLuminoso(l: number, p: number, h: number): Blocco[] {
+  const lastra = Math.min(l * 1.12, h * .54), base = h - lastra;
+  const bordo = Math.min(.026, l * .086, lastra * .082);
+  return [
+    b("grafite", 0, -p * .19, base, l, p * .62, lastra, bordo * .73),
+    b("luce_specchio", 0, p * .202, base + .001, l * .991, p * .15, lastra - .002, bordo * .71),
+    b("specchio", 0, p * .375, base + bordo, l - bordo * 2, p * .248, lastra - bordo * 2, bordo * .58),
+  ];
+}
+
+function sedutaTeak(l: number, p: number, h: number): Blocco[] {
+  const telaio = Math.min(.055, l * .1, p * .12), seduta = h * .54, zoccolo = h * .168;
+  const posti = Math.max(1, Math.round(l / .64)), passi = (l - 3 * telaio) / posti;
+  return [
+    ...[-1, 1].flatMap(x => [-1, 1].map(z => b("rovere_chiaro", x * (l - telaio) / 2, z * (p - telaio) / 2, 0,
+      telaio, telaio, z < 0 ? h * .87 : h * .73, .005))),
+    ...[-1, 1].map(f => b("rovere_chiaro", f * (l - telaio) / 2, 0, h * .70, telaio, p, telaio, .008)),
+    b("rovere_chiaro", 0, 0, zoccolo, l, p, Math.min(.068, h * .18), .006),
+    ...[.34, .52, .70].map(y => b("rovere_chiaro", 0, -p / 2 + telaio / 2, h * y, l, telaio, telaio * .84, .005)),
+    ...Array.from({ length: posti }, (_, i) => {
+      const x = (i + .5 - posti / 2) * passi;
+      return [
+        b("tessuto", x, p * .055, zoccolo + Math.min(.068, h * .18), passi * .97, p * .79,
+          seduta - zoccolo - Math.min(.068, h * .18), .035),
+        { ...b("tessuto", x, -p * .335, seduta - .01, passi * .95, p * .204, h - seduta + .010, .051), girata: i % 2 ? .03 : -.028 },
+      ];
+    }).flat(),
+  ];
+}
+
+function pergolaLuce(l: number, p: number, h: number): Blocco[] {
+  const trave = Math.min(.13, l / 9, p / 9, h / 4), sotto = h - trave, montante = trave * .78;
+  const n = Math.max(4, Math.round(p / .185));
+  return [
+    ...[-1, 1].flatMap(x => [-1, 1].map(z => b("grafite", x * (l - montante) / 2, z * (p - montante) / 2,
+      0, montante, montante, sotto, .003))),
+    ...[-1, 1].flatMap(z => [
+      b("grafite", 0, z * (p - trave) / 2, sotto, l, trave, trave, .003),
+    ]),
+    b("luce_calda", 0, (p - trave) / 2, sotto - .005, l - trave * 2, trave * .105, .005),
+    ...[-1, 1].map(x => b("grafite", x * (l - trave) / 2, 0, sotto, trave, p - 2 * trave, trave, .003)),
+    ...Array.from({ length: n }, (_, i) => b("rovere_chiaro", 0, (i + .5 - n / 2) * (p - 2 * trave) / n,
+      sotto + trave * .41, l - 2 * trave, p / n * .60, trave * .45, .003)),
+  ];
+}
+
+function lettoInLino(l: number, p: number, h: number, centro: { x: number; z: number }, r: number,
+  fabbrica: (materiale: string) => CostruttoreMesh, cassetti = false) {
+  const quota = h > .12 ? h : .5;
+  const struttura = MODELLI.letto.blocchi(l, p, quota).filter(bl => bl.materiale !== "copriletto" && bl.materiale !== "tessuto");
+  for (const bl of struttura) {
+    const contenitore = cassetti && bl.materiale === "legno" && bl.l === l;
+    fabbrica(contenitore ? "rovere_chiaro" : bl.materiale).scatola(centro.x, centro.z, bl.y,
+      contenitore ? l * .94 : bl.l, bl.p, bl.h, r, bl.x, bl.z, 0, bl.raggio);
+  }
+  if (cassetti) {
+    for (const lato of [-1, 1]) for (const z of [-p * .215, p * .224]) {
+      const y = Math.min(.068, quota * .15), sp = Math.min(.02, l * .041);
+      fabbrica("rovere_chiaro").scatola(centro.x, centro.z, y + .007, sp, p * .407, quota * .47 - y, r, lato * (l - sp) / 2, z, 0, .005);
+      fabbrica("grafite").scatola(centro.x, centro.z, quota * .41, .004, p * .079, .012, r, lato * (l / 2 - .002), z, 0, .002);
+    }
+  }
+  const tessuto = fabbrica("tessuto");
+  const testiera = altezzaTestieraLetto(quota * 100) / 100, moduli = Math.max(3, Math.min(12, Math.round(l / .23)));
+  const sp = Math.min(.095, p * .085), base = Math.min(.067, quota * .15), intervallo = l / moduli;
+  for (let i = 0; i < moduli; i++) tessuto.scatola(centro.x, centro.z, base, intervallo * .99, sp, testiera - base,
+    r, (i + .5 - moduli / 2) * intervallo, -(p - sp) / 2, 0, Math.min(.035, sp * .38));
+
+  // Il copriletto segue il materasso e scende sui lati con pieghe.
+  const coperta = fabbrica("copriletto"), c = Math.cos(r), s = Math.sin(r);
+  const abbassamento = Math.min(.18, quota * .37);
+  const avvolgi = (u: number, v: number) => abbassamento * Math.max(Math.abs(u) ** 16, Math.max(0, v) ** 22);
+  const y = (u: number, v: number) => quota + .03 - avvolgi(u, v)
+    + Math.sin(u * 18 + v * 4) * Math.cos(v * 8 + u * 2) * (.006 + .009 * Math.abs(u) ** 4);
+  const punto = (u: number, v: number): V3 => {
+    const x = u * l / 2, z = p * (.177 + .322 * v);
+    return [centro.x + x * c - z * s, y(u, v), centro.z + x * s + z * c];
+  };
+  const normale = (u: number, v: number): V3 => {
+    const dx = -(y(u + .001, v) - y(u - .001, v)) / (.001 * l);
+    const dz = -(y(u, v + .001) - y(u, v - .001)) / (.000644 * p);
+    const k = Math.hypot(dx, 1, dz);
+    return [(dx * c - dz * s) / k, 1 / k, (dx * s + dz * c) / k];
+  };
+  for (let i = 0; i < 40; i++) for (let j = 0; j < 36; j++) {
+    const u = i / 20 - 1, v = j / 18 - 1, du = .05, dv = 1 / 18;
+    coperta.quadLiscio([punto(u, v), punto(u + du, v), punto(u + du, v + dv), punto(u, v + dv)],
+      [normale(u, v), normale(u + du, v), normale(u + du, v + dv), normale(u, v + dv)]);
+  }
+  coperta.tubo(Array.from({ length: 45 }, (_, i) => punto(i / 22 - 1, -1)), .004, 7);
+}
+
+function pareteTv(l: number, p: number, h: number, led: boolean): Blocco[] {
   const moduli = Math.max(3, Math.ceil(l / .58));
   const modulo = l / moduli;
   const base = Math.min(.43, h * .28);
@@ -836,6 +1201,8 @@ function pareteTv(l: number, p: number, h: number): Blocco[] {
   const fuga = Math.min(.004, modulo * .09, base * .05);
   const pannello = Math.min(.055, p * .22);
   const schermo = { l: Math.min(1.55, l * .65), h: Math.min(.88, h * .43) };
+  const profilo = Math.min(.048, p * .17, h * .04);
+  const quotaLed = h - profilo;
   return [
     b("legno", 0, -p * .07, zoccolo, l - 2 * fuga, p * .86, base - zoccolo, .006),
     ...Array.from({ length: moduli }, (_, i) => {
@@ -846,7 +1213,37 @@ function pareteTv(l: number, p: number, h: number): Blocco[] {
       ];
     }).flat(),
     b("schermo", 0, -p / 2 + pannello + .029, base + Math.min(.25, h * .11), schermo.l, .06, schermo.h, .009),
+    ...(led ? [
+      b("legno", 0, -p / 2 + pannello + profilo / 2, quotaLed, l, profilo, profilo, .003),
+      b("luce_calda", 0, -p / 2 + pannello + profilo / 2, quotaLed - .005, l * .96, profilo * .45, .005),
+    ] : []),
   ];
+}
+
+function scalaConRinghiera(gradini: Blocco[], centro: { x: number; z: number }, r: number, costruttore: (materiale: string) => CostruttoreMesh): void {
+  const legno = costruttore("legno"), metallo = costruttore("grafite");
+  const c = Math.cos(r), s = Math.sin(r);
+  const punto = (x: number, y: number, z: number): V3 => [centro.x + c * x - s * z, y, centro.z + s * x + c * z];
+  for (const gradino of gradini) {
+    const quota = gradino.y + gradino.h;
+    const spessore = Math.min(.052, quota * .64);
+    legno.scatola(centro.x, centro.z, quota - spessore, gradino.l, gradino.p, spessore, r, 0, gradino.z, 0, .006);
+  }
+  // Geometria di visualizzazione. La quota di camminamento è la stessa delle pedate standard.
+  const bordo = Math.max(0, gradini[0].l / 2 - .045);
+  const altezzaCorrimano = .9;
+  for (const lato of [-bordo, bordo]) {
+    const corrimano: V3[] = [];
+    const cosciale: V3[] = [];
+    for (const gradino of gradini) {
+      const quota = gradino.y + gradino.h;
+      metallo.scatola(centro.x, centro.z, quota, .017, .017, altezzaCorrimano, r, lato, gradino.z, 0, .002);
+      corrimano.push(punto(lato, quota + altezzaCorrimano, gradino.z));
+      cosciale.push(punto(lato * .84, Math.max(.037, quota - .093), gradino.z));
+    }
+    legno.tubo(corrimano, .024);
+    metallo.tubo(cosciale, .037);
+  }
 }
 
 /** Profili circolari e superficie liscia per ceramiche e lampade. */
@@ -919,6 +1316,29 @@ export function costruisciElemento(
   const h = misure.h ?? modello.misure.h;
   if (tipo === "scala" && misure.alzateCad) return costruisciScalaCad(misure.alzateCad, l, p, h, centro, rotazione, costruttore("legno"));
   const variante = misure.modello;
+  if (tipo === "tenda") return costruisciTenda(centro, rotazione, l, p, h, variante === "lino_chiusa", costruttore);
+  if (tipo === "quadro") return costruisciQuadro(centro, rotazione, l, p, h, variante === "salvia", costruttore);
+  if (tipo === "scaldasalviette") return costruisciScaldasalviette(centro, rotazione, l, p, h, costruttore);
+  if (tipo === "pianta_vaso" && h > 0) {
+    const r = Math.min(l, p) * .35, { x, z } = centro;
+    profiloTondo(costruttore("terracotta"), x, z, [[0, .001], [0, r * .8], [h * .49, r], [h * .52, r], [h * .52, .001]]);
+    const foglie = costruttore("fogliame");
+    for (let i = 0; i < 13; i++) {
+      const angolo = rotazione + i * Math.PI * (3 - Math.sqrt(5)), cos = Math.cos(angolo), sin = Math.sin(angolo);
+      const lunghezza = r * (1.38 - i * .049), y = h * (.72 + i * .023);
+      const radice: V3 = [x, h * .49, z], punta: V3 = [x + cos * lunghezza, y, z + sin * lunghezza];
+      const dx = cos * lunghezza * .52, dz = sin * lunghezza * .52, w = r * .21;
+      foglie.poligono([radice, [x + dx + sin * w, h * .62, z + dz - cos * w], punta,
+        [x + dx - sin * w, h * .62, z + dz + cos * w]], [0, 1, 0]);
+    }
+    return;
+  }
+  if (modello === MODELLI.albero && variante === "olivo") return costruisciOlivo(l, p, h || 3.5, centro, rotazione, costruttore);
+  if (modello === MODELLI.divano && variante === "lino_base_rovere") return costruisciDivanoLino(l, p, h, centro, rotazione, costruttore);
+  if (modello === MODELLI.letto && (variante === "lino_trapuntato" || variante === "cassettoni") && l > .4 && p > .8) {
+    return lettoInLino(l, p, h, centro, rotazione, costruttore, variante === "cassettoni");
+  }
+  if (tipo === "scala" && variante === "alzatine_legno") return scalaConRinghiera(modello.blocchi(l, p, h), centro, rotazione, costruttore);
   if (modello === MODELLI.piscina) return costruisciPiscina(l, p, h, centro, rotazione, variante, misure.quota ?? 0, costruttore);
   if (modello === MODELLI.lettino) return costruisciLettino(l, p, h, centro, rotazione, costruttore);
   if (modello === MODELLI.auto) return costruisciAuto(l, p, h, centro, rotazione, variante === "suv", costruttore);
@@ -930,6 +1350,18 @@ export function costruisciElemento(
     profiloTondo(costruttore("grafite"), x, z, [[0, .001], [0, r * .83], [base, r * .77], [base, .001]]);
     costruttore("ottone").tubo([[x, base, z], [x, h * .88, z]], Math.min(.011, r * .12));
     profiloTondo(costruttore("lino_avorio"), x, z, [[h * .79, r * .972], [h, r * .69], [h, r * .65], [h * .79, r * .93], [h * .79, r * .972]]);
+    return;
+  }
+  if (modello === MODELLI.lampada_sospensione && h > 1.9) {
+    const { x, z } = centro, diametro = Math.min(l, p), bordo = .008;
+    const r = diametro / 2, lampada = Math.max(1.68, h - .8), cima = lampada + r * 1.22;
+    const metallo = costruttore("grafite");
+    metallo.tubo([[x, cima, z], [x, h - .017, z]], .0025, 8);
+    profiloTondo(metallo, x, z, [[h - .018, .048], [h - .014, .057], [h, .057], [h, .001]]);
+    profiloTondo(metallo, x, z, [[lampada, r - bordo], [lampada, r], [lampada + r * .40, r * .83],
+      [cima, r * .30], [cima + .012, r * .27], [cima + .012, .005]]);
+    profiloTondo(costruttore("luce_calda"), x, z, [[lampada + .021, .001], [lampada + .021, r * .80],
+      [lampada + .034, r * .80], [lampada + .034, .001]]);
     return;
   }
   if (modello === MODELLI.tavolino && variante === "marmo_tondo") {
@@ -947,17 +1379,32 @@ export function costruisciElemento(
     }
     return;
   }
-  const blocchi = modello === MODELLI.doccia ? blocchiDoccia(l, p, h, misure.attaccoDoccia?.lato)
+  const blocchi = modello === MODELLI.doccia ? blocchiDoccia(l, p, h, misure.attaccoDoccia?.lato, variante)
     : modello === MODELLI.cucina && variante === "basi" ? basiCucina(l, p, h > 0 ? h : .9, false)
-    : modello === MODELLI.cucina && variante === "pensili" ? [...basiCucina(l, p, h > 0 ? h : .9), ...blocchiPensili(l, p, h > 0 ? h : .9)]
+    : modello === MODELLI.cucina && variante === "rovere_nicchie" ? [...basiCucina(l, p, h > 0 ? h : .9, true, true), ...pensiliConNicchie(l, p, h > 0 ? h : .9)]
+    : modello === MODELLI.cucina && (variante === "pensili" || variante === "pensili_led") ? [...basiCucina(l, p, h > 0 ? h : .9), ...blocchiPensili(l, p, h > 0 ? h : .9, variante === "pensili_led")]
     : modello === MODELLI.cucina_angolare && variante === "basi" ? blocchiCucinaAngolare(l, p, h > 0 ? h : .9, false)
+    : modello === MODELLI.cucina_angolare && variante === "pensili_led" ? blocchiCucinaAngolare(l, p, h > 0 ? h : .9, true, true)
+    : modello === MODELLI.cucina_angolare && variante === "rovere_nicchie" ? blocchiCucinaAngolare(l, p, h > 0 ? h : .9, true, true, true)
+    : modello === MODELLI.isola_cucina && variante === "travertino_rovere" ? isolaInTravertino(l, p, h > 0 ? h : .9)
     : modello === MODELLI.armadio && variante === "scorrevole" ? blocchiArmadio(l, p, h, true)
+    : modello === MODELLI.armadio && (variante === "rovere_gola" || variante === "cannettato") ? armadioRovere(l, p, h, variante === "cannettato")
+    : modello === MODELLI.libreria && variante === "rovere_libri" ? libreriaConLibri(l, p, h)
+    : modello === MODELLI.specchio_parete && variante === "retroilluminato" ? specchioLuminoso(l, p, h)
+    : modello === MODELLI.barbecue && variante === "modulo_inox" ? grillDaEsterno(l, p, h || 1.14)
+    : modello === MODELLI.divano && variante === "teak_esterno" ? sedutaTeak(l, p, h)
+    : modello === MODELLI.pergola && variante === "lamelle_led" ? pergolaLuce(l, p, h)
+    : modello === MODELLI.frigorifero && variante === "inox_incassato" && l > .30 && p > .26 && h > .65 ? frigoInox(l, p, h)
     : modello === MODELLI.divano && variante === "modulare" ? blocchiModulari(l, p, h)
-    : modello === MODELLI.mobile_tv && variante === "boiserie" ? pareteTv(l, p, h)
+    : modello === MODELLI.divano_angolare && variante === "chaise_lino" ? blocchiDivanoAngolare(l, p, h, true)
+    : modello === MODELLI.mobile_tv && (variante === "boiserie" || variante === "boiserie_led") ? pareteTv(l, p, h, variante === "boiserie_led")
+    : modello === MODELLI.mobile_tv && variante === "oled_55" ? mobileTvOLED(l, p, h)
     : modello === MODELLI.mobile_tv && variante ? mobileTv(l, p, h, variante === "sospeso")
     : modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina, interpiano: misure.interpiano });
   for (const bl of blocchi) {
-    const materiale = modello === MODELLI.letto && variante === "testiera_rovere" && bl.materiale === "tessuto" ? "legno" : bl.materiale;
+    const frontaliLegno = variante === "pensili_led" && (modello === MODELLI.cucina || modello === MODELLI.cucina_angolare) && bl.materiale === "laccato";
+    const testieraLegno = modello === MODELLI.letto && variante === "testiera_rovere" && bl.materiale === "tessuto";
+    const materiale = frontaliLegno || testieraLegno ? "legno" : bl.materiale;
     costruttore(materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z, bl.girata ?? 0, bl.raggio);
   }
   if (variante !== "basi" && (modello === MODELLI.cucina || modello === MODELLI.cucina_angolare)) {
@@ -966,4 +1413,5 @@ export function costruisciElemento(
   }
   if (modello === MODELLI.doccia && misure.attaccoDoccia) dettagliDoccia(l, p, h, centro, rotazione, misure.attaccoDoccia, costruttore);
   if (modello === MODELLI.tavolo && variante === "apparecchiato") dettagliTavolo(l, p, h, centro, rotazione, costruttore);
+  if (modello === MODELLI.vetrinetta && h > .05) ceramicheNellaVetrina(l, p, h, centro, rotazione, costruttore);
 }

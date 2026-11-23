@@ -150,18 +150,6 @@ export function RecentRenderCard({
       >
         <RenderPreview item={item} title={`Render ${title}`} list={list} />
         <div className={`min-w-0 space-y-2 ${list ? "flex-1 py-1" : "p-4"}`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              {moduleName}
-            </span>
-            <Badge
-              variant="secondary"
-              className={`gap-1 border-0 px-2 py-0.5 text-[11px] font-medium ${statusClass}`}
-            >
-              <StatusIcon className="h-3 w-3" aria-hidden="true" />
-              {stale ? "Da verificare" : renderStatusLabel(item.status)}
-            </Badge>
-          </div>
           <div className="flex items-start justify-between gap-2">
             <Heading
               className="line-clamp-2 text-sm font-semibold leading-snug text-foreground sm:text-base"
@@ -173,6 +161,18 @@ export function RecentRenderCard({
               className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
               aria-hidden="true"
             />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {title !== moduleName && (
+              <span className="text-xs font-medium text-muted-foreground">{moduleName}</span>
+            )}
+            <Badge
+              variant="secondary"
+              className={`gap-1 border-0 px-2 py-0.5 text-[11px] font-medium ${statusClass}`}
+            >
+              <StatusIcon className="h-3 w-3" aria-hidden="true" />
+              {stale ? "Da verificare" : renderStatusLabel(item.status)}
+            </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
             <time dateTime={item.created_at}>
@@ -194,7 +194,7 @@ export function RecentRenderCard({
       </Link>
       {item.planOrigin && (
         <div
-          className={`border-t bg-muted/25 px-4 py-3 ${list ? "sm:w-56 sm:shrink-0 sm:border-l sm:border-t-0" : "mt-auto"}`}
+          className={`border-t bg-muted/25 px-4 py-2.5 ${list ? "sm:w-56 sm:shrink-0 sm:border-l sm:border-t-0" : "mt-auto"}`}
         >
           {item.planOrigin.projectAvailable === false ? (
             <p className="text-xs text-muted-foreground">
@@ -219,7 +219,7 @@ export function RecentRenderCard({
                   {item.planOrigin.projectTitle || "Planimetria collegata"}
                 </span>
                 <span className="mt-0.5 block">
-                  Dalla planimetria · versione {item.planOrigin.version}
+                  Versione {item.planOrigin.version}
                 </span>
               </span>
             </Link>

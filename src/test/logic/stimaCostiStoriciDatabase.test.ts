@@ -15,7 +15,6 @@ beforeAll(async () => {
   db = new PGlite();
   await db.exec(readFileSync("src/test/fixtures/stimaCostiSchema.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290507120300_preventivo_stima_storico.sql", "utf8"));
-  await db.exec(readFileSync("supabase/migrations/20290507120300_preventivo_stima_storico.sql", "utf8"));
   await db.exec(`set test.azienda = '${azienda}'; set test.uid = '10000000-0000-4000-8000-000000000004'; set role authenticated;`);
 }, 20000);
 afterAll(async () => db?.close());

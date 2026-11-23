@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
+import { ProgettoOperazioneImmobiliare } from "@/components/orders/generali/ProgettoOperazioneImmobiliare";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
 import { FattureOperazione } from "@/components/orders/generali/design/FattureOperazione";
 import { QuadroPrevisionale } from "@/components/orders/generali/design/QuadroPrevisionale";
@@ -197,6 +198,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
         {elencoCommesse}
       </>}
       <QuadroGenerale r={r} t={totali} quote={quote} costiInAttesa={costiComuni.inAttesa} puoModificare={puoModificare} />
+      {immobiliare && <ProgettoOperazioneImmobiliare dati={r.generale.dati} generaleId={generaleId} puoDocumenti={schede.some(s => s.id === "documenti")} />}
 
       {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il
           resto». «Completa l'operazione» sta attaccato ai numeri perché spiega proprio perché

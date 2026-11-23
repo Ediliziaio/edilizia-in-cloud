@@ -15,7 +15,7 @@ export interface VoceListino {
   id: string;
   descrizione: string;
   unita: "n" | "ml" | "mq" | "mc";
-  prezzo: number;
+  prezzo: number | null;
   capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni" | "Copertura" | "Sport" | "Scavi e terreno";
 }
 
@@ -37,6 +37,9 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "impianti:clima.condensa_ml", descrizione: "Tubo scarico condensa", unita: "ml", prezzo: 7, capitolo: "Climatizzazione e riscaldamento" },
   { id: "elementi:termosifone.numero", descrizione: "Radiatore in alluminio con valvola termostatica e detentore", unita: "n", prezzo: 290, capitolo: "Climatizzazione e riscaldamento" },
   { id: "impianti:riscaldamento.tubo_ml", descrizione: "Tubo multistrato coibentato per riscaldamento, mandata e ritorno", unita: "ml", prezzo: 12, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "impianti:radiante.superficie_mq", descrizione: "Pannelli per pavimento radiante", unita: "mq", prezzo: null, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "impianti:radiante.tubo_ml", descrizione: "Tubo per pavimento radiante, compresi i collegamenti al collettore quando disegnati", unita: "ml", prezzo: null, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "impianti:radiante.collettori", descrizione: "Collettore per pavimento radiante", unita: "n", prezzo: null, capitolo: "Climatizzazione e riscaldamento" },
   { id: "elementi:termostato.numero", descrizione: "Termostato ambiente programmabile, posa e collegamento", unita: "n", prezzo: 140, capitolo: "Climatizzazione e riscaldamento" },
   { id: "impianti:fotovoltaico.kwp", descrizione: "Impianto fotovoltaico su tetto: moduli da 430 Wp, strutture, cavi e quadro di campo (inverter e accumulo a parte), per kWp", unita: "n", prezzo: 1450, capitolo: "Energia" },
   { id: "tetto:copertura.superficie_mq", descrizione: "Copertura: manto in tegole (o guaina sul piano) con impermeabilizzazione e isolamento", unita: "mq", prezzo: 135, capitolo: "Copertura" },

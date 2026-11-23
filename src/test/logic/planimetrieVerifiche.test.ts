@@ -28,12 +28,10 @@ function casa(opz: { finestraCamera?: number; bidet?: boolean; altezzaCamera?: n
   p = C.aggiungiElemento(p, voce("letto_matrimoniale"), { x: 650, y: 250 }).pianta;
   const sanitari: Array<[string, number]> = [["wc", 830], ["lavabo", 900], ["doccia", 960], ...(opz.bidet ? [["bidet", 870] as [string, number]] : [])];
   for (const [t, x] of sanitari) p = C.aggiungiElemento(p, voce(t), { x, y: 360 }).pianta;
-  const doc = aPlanimetria(p, nuovaPlanimetria("Casa"));
-  for (const apertura of doc.livelli[0].fatto.aperture) {
-    if (apertura.tipo === "portafinestra") apertura.superficieApribileMq = 3.1;
-    if (apertura.tipo === "finestra") apertura.superficieApribileMq = 1.6;
-  }
-  return doc;
+  const documento = aPlanimetria(p, nuovaPlanimetria("Casa"));
+  documento.livelli[0].fatto.aperture[0].superficieApribileMq = 2.8;
+  if (opz.finestraCamera) documento.livelli[0].fatto.aperture[1].superficieApribileMq = 1.6;
+  return documento;
 }
 
 describe("verifiche igienico-sanitarie", () => {
@@ -52,6 +50,17 @@ describe("verifiche igienico-sanitarie", () => {
     expect(v.find((x) => x.oggetto === "Camera" && x.codice === "rai")!.esito).toBe("ok");
     expect(v.find((x) => x.oggetto === "Camera" && x.codice === "altezza")!.esito).toBe("attenzione");
     expect(v.some((x) => x.codice === "alloggio" && /Bagno completo/.test(x.messaggio))).toBe(true);
+  });
+  it("chiede la misura apribile con il solo vano lordo e scarta una vetrata fissa", () => {
+    const documento = casa();
+    const apertura = documento.livelli[0].fatto.aperture[0];
+    const risultato = () => verificaPianta(documento).find(v => v.oggetto === "Soggiorno" && v.codice === "rai");
+    delete apertura.superficieApribileMq;
+    expect(risultato()).toMatchObject({ esito: "attenzione", valore: "Fino a 3,36 m² dai vani in tavola" });
+    apertura.superficieApribileMq = 1.5;
+    expect(risultato()).toMatchObject({ esito: "non_conforme", valore: "1,5 m² apribili" });
+    apertura.sistema = "fisso";
+    expect(risultato()).toMatchObject({ esito: "non_conforme", valore: "0 m² apribili" });
   });
   it("la relazione PDF", async () => {
     const { PDFDocument } = await import("pdf-lib");

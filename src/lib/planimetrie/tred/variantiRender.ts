@@ -46,7 +46,7 @@ export function scenaConVarianti(pianta: PiantaPer3D, scena: Scena3D, vista: Vis
   }));
   const mesh = [...scena.mesh.filter(m => !aggiorna(m)), ...nuova.mesh.filter(aggiorna).map(m => {
     const piano = piani.get(m.riferimento);
-    return piano && m.materiale === "quarzo" ? { ...m, materiale: piano } : m;
+    return piano && (m.materiale === "quarzo" || m.materiale === "piano_travertino") ? { ...m, materiale: piano } : m;
   })];
   return { pianta: piantaVariante, scena: { ...scena, mesh, materiali } };
 }

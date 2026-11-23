@@ -50,7 +50,7 @@ export function PlanimetriaProjectCard({
       })
     : "Data non disponibile";
   const renderPath = `/azienda/render?${new URLSearchParams({ progetto: p.id, vista: "projects" })}`;
-  const stats = a
+  const stats = a?.tavola ? "Tavola da ricalcare" : a
     ? `${a.piano} · ${a.stanze} ${a.stanze === 1 ? "stanza" : "stanze"} · ${a.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²${a.piani > 1 ? ` · ${a.piani} piani` : ""}`
     : `Versione ${p.versione_corrente}`;
   return (

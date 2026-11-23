@@ -389,6 +389,8 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
         linea(-w + 3, piega + 6, w - 3, piega + 6),
       ];
     }
+    case "tappeto":
+      return [rett(-w, -h, w, h, "none", 3)];
     case "divano": {
       const bracciolo = Math.min(L * 0.11, 22), schienale = P * 0.26;
       const posti = Math.max(2, Math.round((L - 2 * bracciolo) / 65));
@@ -421,6 +423,24 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       return [rett(-w, -h, w, h, C.legno, 2), cerchio(0, 0, Math.min(w, h) * 0.45, C.lenzuolo), cerchio(0, 0, Math.min(w, h) * 0.15)];
     case "scrivania":
       return [rett(-w, -h, w, h, C.legnoChiaro, 2), rett(-w * 0.35, -h + 4, w * 0.35, -h + 8, C.scuro, 1), ell(w * 0.55, h * 0.3, 5, 4)];
+    case "tenda":
+      return [linea(-w, -h * .8, w, -h * .8), {
+        punti: Array.from({ length: 49 }, (_, i) => ({ x: -w + L * i / 48, y: h * .65 * Math.sin(i * Math.PI / 4) })),
+        chiuso: false,
+      }];
+    case "vetrinetta":
+      return [rett(-w, -h, w, h, C.legnoChiaro, 2), rett(-w * .94, h * .61, w * .94, h * .85, C.acqua),
+        linea(0, h * .5, 0, h), linea(-w * .16, h * .5, -w * .16, h), linea(w * .16, h * .5, w * .16, h)];
+    case "quadro": case "specchio_parete":
+      return [rett(-w, -h, w, h, C.legnoChiaro), linea(-w * .90, h * .54, w * .90, h * .54)];
+    case "scaldasalviette":
+      return [rett(-w, -h * .38, w, h * .44, C.metallo, Math.min(w, h) * .22),
+        ...[-.81, .81].map(x => linea(w * x, -h, w * x, h * .44))];
+    case "pianta_vaso":
+      return [ell(0, 0, w * .56, h * .56, C.legno), ...Array.from({ length: 8 }, (_, i) => {
+        const a = i * Math.PI / 4;
+        return uovo(Math.cos(a) * w * .58, Math.sin(a) * h * .58, w * .24, h * .23, h * .23, C.verde);
+      })];
     default:
       return [rett(-w, -h, w, h, C.piano), linea(-w, -h, w, h)];
   }
@@ -432,6 +452,7 @@ export const TIPI_CON_FORME = new Set([
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "muro_contenimento", "trave", "solaio", "scala", "scala_u", "scala_chiocciola", "ascensore",
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
+  "tenda", "vetrinetta", "quadro", "pianta_vaso", "scaldasalviette", "specchio_parete",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
   "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
   "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);

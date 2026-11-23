@@ -40,6 +40,7 @@ export function riallineaPianoAllaTavola(documento: Planimetria, livelloId: stri
     testi: s.testi.map(t => ({ ...t, posizione: punto(t.posizione) })),
     aree: s.aree?.map(a => ({ ...a, contorno: a.contorno.map(punto) })),
     tracciatiImpianti: s.tracciatiImpianti?.map(t => ({ ...t, vertici: t.vertici.map(punto) })),
+    collettoreRadiante: s.collettoreRadiante && { ...s.collettoreRadiante, posizione: punto(s.collettoreRadiante.posizione) },
   });
   const nuovo: Planimetria = {
     ...documento,

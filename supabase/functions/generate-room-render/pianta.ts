@@ -1,6 +1,6 @@
 import { esigiVerificaDocumento } from "../../../shared/planimetrie/verificaDocumento.ts";
 import { puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
-import { materialiDelProgetto, type MaterialiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { materialiDellaStanza, type MaterialiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 // generate-room-render — render della stanza partendo dalla pianta (Planimetrie, fase 5b).
 //
 // Quando la sessione ha `config.planimetria`, il render conosce la stanza vera: misure,
@@ -15,12 +15,13 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
 import { ambitiDi, validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
 import { vincoliDellaStanza, statoPerAmbito, type VincoliStanza } from "../../../shared/render-planimetria/vincoli.ts";
-import { inquadrateValide, type AperturaInquadrata, type PartenzaRender } from "../../../shared/render-planimetria/prompt.ts";
+import { inquadrateValide, modelliInquadratiPerRender, type AperturaInquadrata, type PartenzaRender } from "../../../shared/render-planimetria/prompt.ts";
 
 export interface PiantaDelRender {
   vincoli: VincoliStanza;
   materiali: MaterialiProgetto;
   inventario: Record<string, number>;
+  modelliInquadrati: string[];
   partenza: PartenzaRender;
   inquadrate: AperturaInquadrata[];
   /** La pianta della stanza vista dall'alto, da allegare al modello (null se manca). */
@@ -121,15 +122,18 @@ export async function caricaPiantaDelRender(
 
   const stato = statoPerAmbito(esito.planimetria, livelloId, ambito);
   const locale = stato?.locali.find((l) => l.id === localeId);
+  const elementi = (stato?.elementi ?? []).filter(e =>
+    e.stato !== "da_demolire" && (e.localeId === localeId || (!e.localeId && locale && puntoNelPoligono(e.posizione, locale.contorno))));
   const inventario: Record<string, number> = {};
-  for (const e of stato?.elementi ?? []) {
-    if (e.stato === "da_demolire" || !(e.localeId === localeId || (!e.localeId && locale && puntoNelPoligono(e.posizione, locale.contorno)))) continue;
+  for (const e of elementi) {
     inventario[e.tipo] = (inventario[e.tipo] ?? 0) + 1;
   }
+  const modelliInquadrati = partenza === "vista_3d" ? modelliInquadratiPerRender(elementi, rif.arredi_inquadrati, rif.posizioni_arredi) : [];
   return {
     vincoli,
     inventario,
-    materiali: materialiDelProgetto(esito.planimetria, materialiAmbito),
+    modelliInquadrati,
+    materiali: materialiDellaStanza(esito.planimetria,materialiAmbito,vincoli.locale.finiture),
     partenza,
     inquadrate,
     immagine,
@@ -144,6 +148,7 @@ export async function caricaPiantaDelRender(
       locale: vincoli.locale,
       aperture: vincoli.aperture.map((a) => ({ id: a.id, etichetta: a.etichetta, parete: a.parete })),
       inquadrate: inquadrate.map((q) => q.id),
+      ...(modelliInquadrati.length ? { modelli_inquadrati: modelliInquadrati } : {}),
       immagine_pianta: immagine !== null,
     },
   };

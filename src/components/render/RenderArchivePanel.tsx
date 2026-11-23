@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -132,14 +132,16 @@ export function RenderArchivePanel({
       }),
       { replace: true },
     );
-  const hasFilters =
-    !!filters.search ||
-    filters.module !== "all" ||
-    filters.crm !== "all" ||
-    filters.onlyPlan ||
-    !!filters.from ||
-    !!filters.to ||
-    filters.project !== "all";
+  const advancedCount = [
+    filters.module !== "all",
+    filters.crm !== "all",
+    filters.onlyPlan,
+    !!filters.from || !!filters.to,
+    filters.project !== "all",
+  ].filter(Boolean).length;
+  const hasFilters = !!filters.search || advancedCount > 0;
+  const [advancedOpen, setAdvancedOpen] = useState(advancedCount > 0);
+  const advancedId = useId();
   const needsWholeHistory =
     hasFilters ||
     filters.status !== "completed" ||
@@ -263,17 +265,12 @@ export function RenderArchivePanel({
   return (
     <section
       ref={section}
-      className="scroll-mt-24 space-y-3 sm:space-y-4"
+      className="scroll-mt-24 space-y-3"
       aria-label={title}
       aria-busy={isLoading}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
-            Risultati, varianti e scelte del progetto in un unico archivio.
-          </p>
-        </div>
+        <h2 className="self-center text-lg font-semibold tracking-tight">{title}</h2>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -322,7 +319,7 @@ export function RenderArchivePanel({
       <div
         role="group"
         aria-label="Stato dei render"
-        className="flex gap-1 overflow-x-auto border-b pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1 overflow-x-auto rounded-lg bg-muted/60 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {[
           ...states,
@@ -342,17 +339,17 @@ export function RenderArchivePanel({
           return (
             <Button
               key={id}
-              variant={filters.status === id ? "default" : "ghost"}
+              variant={filters.status === id ? "outline" : "ghost"}
               size="sm"
               aria-label={`${label} ${count}`}
               aria-pressed={filters.status === id}
               onClick={() => change({ status: id })}
-              className="shrink-0 gap-1 px-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+              className={`h-8 shrink-0 gap-1 px-2 text-xs sm:gap-2 sm:px-3 sm:text-sm ${filters.status === id ? "bg-card font-semibold text-primary shadow-sm hover:bg-card" : "text-muted-foreground"}`}
             >
               <span className="sm:hidden">{short || label}</span>
               <span className="hidden sm:inline">{label}</span>
               <span
-                className={`rounded px-0.5 py-0.5 text-[11px] tabular-nums sm:px-1.5 ${filters.status === id ? "bg-white/20" : "bg-muted"}`}
+                className={`rounded px-0.5 py-0.5 text-[11px] tabular-nums sm:px-1.5 ${filters.status === id ? "bg-primary/10 text-primary" : "bg-background/75"}`}
               >
                 {count}
               </span>
@@ -360,23 +357,47 @@ export function RenderArchivePanel({
           );
         })}
       </div>
-      <div className="rounded-xl border bg-card p-3 sm:p-4">
-        <div
-          className={`grid grid-cols-2 gap-2 ${modules.length > 1 ? "lg:grid-cols-[minmax(220px,1fr)_180px_180px]" : "lg:grid-cols-[minmax(220px,1fr)_180px]"}`}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="relative min-w-[11rem] flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Input
+            aria-label="Cerca nei render recenti"
+            placeholder="Cerca stanza, progetto, contatto…"
+            value={filters.search}
+            onChange={(event) => change({ search: event.target.value })}
+            className="bg-card pl-9"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={advancedOpen}
+          aria-controls={advancedId}
+          onClick={() => setAdvancedOpen((open) => !open)}
+          className="shrink-0 gap-2"
         >
-          <div className="relative col-span-2 lg:col-span-1">
-            <Search
-              className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              aria-label="Cerca nei render recenti"
-              placeholder="Cerca stanza, progetto, contatto…"
-              value={filters.search}
-              onChange={(event) => change({ search: event.target.value })}
-              className="pl-9"
-            />
-          </div>
+          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          Filtri
+          {advancedCount > 0 && (
+            <span className="rounded bg-primary/10 px-1.5 text-xs tabular-nums text-primary">{advancedCount}</span>
+          )}
+        </Button>
+        {hasFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="Azzera filtri"
+            title="Azzera filtri"
+            className="gap-1.5 px-2"
+            onClick={() => change({ search: "", module: "all", crm: "all", onlyPlan: false, from: "", to: "", project: "all" })}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Azzera</span>
+          </Button>
+        )}
+      </div>
+      <div id={advancedId} hidden={!advancedOpen} className="rounded-xl border bg-card p-3 sm:p-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           {modules.length > 1 && (
             <Select
               value={filters.module}
@@ -399,10 +420,7 @@ export function RenderArchivePanel({
             value={filters.crm}
             onValueChange={(value) => change({ crm: value })}
           >
-            <SelectTrigger
-              aria-label="Filtra collegamenti CRM"
-              className={modules.length === 1 ? "col-span-2 lg:col-span-1" : ""}
-            >
+            <SelectTrigger aria-label="Filtra collegamenti CRM">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -411,101 +429,63 @@ export function RenderArchivePanel({
               <SelectItem value="unlinked">Non collegati al CRM</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span>Progetto</span>
+            <Select
+              value={filters.project}
+              onValueChange={(value) => change({ project: value })}
+            >
+              <SelectTrigger aria-label="Filtra progetto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i progetti</SelectItem>
+                {filters.project !== "all" &&
+                  !projects.has(filters.project) && (
+                    <SelectItem value={filters.project}>
+                      Progetto selezionato
+                    </SelectItem>
+                  )}
+                {[...projects].map(([id, name]) => (
+                  <SelectItem key={id} value={id}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span>Dal</span>
+            <Input
+              type="date"
+              aria-label="Render dal"
+              value={filters.from}
+              onChange={(event) => change({ from: event.target.value })}
+            />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span>Al</span>
+            <Input
+              type="date"
+              aria-label="Render al"
+              value={filters.to}
+              onChange={(event) => change({ to: event.target.value })}
+            />
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 self-end py-2 text-sm text-muted-foreground">
             <Checkbox
               checked={filters.onlyPlan}
               onCheckedChange={(value) => change({ onlyPlan: value === true })}
             />
             Solo da planimetria
           </label>
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 text-xs"
-              onClick={() =>
-                change({
-                  search: "",
-                  module: "all",
-                  crm: "all",
-                  onlyPlan: false,
-                  from: "",
-                  to: "",
-                  project: "all",
-                })
-              }
-            >
-              <X className="h-3.5 w-3.5" />
-              Azzera filtri
-            </Button>
-          )}
         </div>
-        <details
-          className="mt-3 border-t pt-2"
-          open={
-            filters.project !== "all" ||
-            !!filters.from ||
-            !!filters.to ||
-            undefined
-          }
-        >
-          <summary className="cursor-pointer text-xs text-muted-foreground">
-            <SlidersHorizontal className="mr-1 inline h-3 w-3" />
-            Progetto e periodo
-          </summary>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Progetto</span>
-              <Select
-                value={filters.project}
-                onValueChange={(value) => change({ project: value })}
-              >
-                <SelectTrigger aria-label="Filtra progetto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i progetti</SelectItem>
-                  {filters.project !== "all" &&
-                    !projects.has(filters.project) && (
-                      <SelectItem value={filters.project}>
-                        Progetto selezionato
-                      </SelectItem>
-                    )}
-                  {[...projects].map(([id, name]) => (
-                    <SelectItem key={id} value={id}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Dal</span>
-              <Input
-                type="date"
-                aria-label="Render dal"
-                value={filters.from}
-                onChange={(event) => change({ from: event.target.value })}
-              />
-            </label>
-            <label className="space-y-1 text-xs text-muted-foreground">
-              <span>Al</span>
-              <Input
-                type="date"
-                aria-label="Render al"
-                value={filters.to}
-                onChange={(event) => change({ to: event.target.value })}
-              />
-            </label>
-          </div>
-          {filters.from && filters.to && filters.from > filters.to && (
-            <p role="alert" className="mt-2 text-xs text-destructive">
-              La data iniziale deve precedere quella finale.
-            </p>
-          )}
-        </details>
+        {filters.from && filters.to && filters.from > filters.to && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            La data iniziale deve precedere quella finale.
+          </p>
+        )}
       </div>
       {stale > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">

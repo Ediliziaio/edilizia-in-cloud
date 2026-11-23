@@ -13,6 +13,8 @@ import { localPlanOcrPlugin } from "./dev/preventivatore-ai/planOcrPlugin.mts";
 import { localQuoteChatProxy } from "./dev/preventivatore-ai/chatProxyPlugin.mts";
 import { PERCORSO_MIMIT, rispostaPrezziMimit } from "./shared/carburanti/mimit";
 import { localCadPlugin } from "./dev/preventivatore-ai/cadPlugin.mts";
+import { cadPreviewPlugin } from "./dev/planimetria-editor/cadPreviewPlugin.mts";
+import { renderFotorealisticoPlugin } from "./dev/planimetria-editor/renderFotorealisticoPlugin.mts";
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
@@ -59,6 +61,10 @@ export default defineConfig(({ command, mode }) => ({
         });
       },
     },
+    process.env.VITE_PLANIMETRIE_DWG_LOCALE === "1" && cadPreviewPlugin(),
+    command === "serve" && process.env.VITE_PLANIMETRIE_CYCLES_LOCALE === "1"
+      && process.env.PLANIMETRIE_CYCLES_BIN && process.env.PLANIMETRIE_CYCLES_CACHE
+      && renderFotorealisticoPlugin(process.env.PLANIMETRIE_CYCLES_BIN, process.env.PLANIMETRIE_CYCLES_CACHE),
     // Explicitly authorized Demo 2 trial. Dev-only, fixed function, tenant checked twice.
     localQuoteChatProxy({ allowDemoRemote: true }),
     // v8.6.109 — Defer del CSS principale per migliorare FCP/LCP mobile.

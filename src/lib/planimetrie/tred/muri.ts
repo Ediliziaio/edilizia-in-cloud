@@ -265,10 +265,32 @@ export function costruisciMuro(m: MuroCalc, e: EstremiMuro, vani: VanoMuro[], mu
   }
 }
 
-/** Vetro a metà spessore del muro, visibile dai due lati. */
-export function costruisciVetro(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh): void {
-  const p = (s: number, y: number) => puntoFaccia(m, 0, s, y);
+function profiloVano(v: VanoMuro, profilo: number) {
+  return Math.min(profilo, (v.s1 - v.s0) / 5, (v.z1 - v.z0) / 5);
+}
+
+function anteSuiBinari(v: VanoMuro, ante: number, sp: number) {
+  const l = (v.s1 - v.s0 - 2 * sp) / ante;
+  const lato = Math.min(sp * .78, l * .18);
+  return Array.from({ length: ante }, (_, i) => ({
+    a: v.s0 + sp + i * l, b: v.s0 + sp + (i + 1) * l,
+    binario: (i % 2 ? 1 : -1) * .029, lato,
+  }));
+}
+
+/** Vetri allineati alle rispettive ante nei serramenti a due binari. */
+export function costruisciVetro(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, anteScorrevoli = 0, profilo = .05): void {
   const n: V3 = [m.n.x, 0, m.n.y];
+  if (anteScorrevoli > 0) {
+    const sp = profiloVano(v, profilo);
+    for (const { a, b, binario, lato } of anteSuiBinari(v, anteScorrevoli, sp)) {
+      const p = (s: number, y: number): V3 => [m.a.x + m.d.x * s + m.n.x * binario, y, m.a.y + m.d.y * s + m.n.y * binario];
+      const sotto = v.z0 + sp + lato, sopra = v.z1 - sp - lato;
+      c.quad(p(a + lato, sotto), p(b - lato, sotto), p(b - lato, sopra), p(a + lato, sopra), n);
+    }
+    return;
+  }
+  const p = (s: number, y: number) => puntoFaccia(m, 0, s, y);
   c.quad(p(v.s0, v.z0), p(v.s1, v.z0), p(v.s1, v.z1), p(v.s0, v.z1), n);
   c.quad(p(v.s0, v.z0), p(v.s1, v.z0), p(v.s1, v.z1), p(v.s0, v.z1), [-n[0], 0, -n[2]]);
 }
@@ -284,22 +306,53 @@ export function costruisciTelaio(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, a
     const n = { x: -m.d.y, y: m.d.x };
     c.scatola(mezzo.x + n.x * fuori, mezzo.y + n.y * fuori, z0, s1 - s0, profondita, z1 - z0, rot);
   };
-  const t = Math.min(profilo, (v.s1 - v.s0) / 5, (v.z1 - v.z0) / 5);
-  asta(v.s0, v.s0 + t, v.z0, v.z1);
-  asta(v.s1 - t, v.s1, v.z0, v.z1);
-  if (soglia) asta(v.s0 + t, v.s1 - t, v.z0, v.z0 + t);
-  asta(v.s0 + t, v.s1 - t, v.z1 - t, v.z1);
+  const t = profiloVano(v, profilo);
+  const profondita = scorrevole ? .114 : .07;
+  asta(v.s0, v.s0 + t, v.z0, v.z1, profondita);
+  asta(v.s1 - t, v.s1, v.z0, v.z1, profondita);
+  if (soglia) asta(v.s0 + t, v.s1 - t, v.z0, v.z0 + t, profondita);
+  asta(v.s0 + t, v.s1 - t, v.z1 - t, v.z1, profondita);
   const n = Math.max(1, ante);
+  if (scorrevole) {
+    for (const { a, b, binario, lato } of anteSuiBinari(v, n, t)) {
+      const sotto = v.z0 + t, sopra = v.z1 - t;
+      asta(a, a + lato, sotto, sopra, .035, binario);
+      asta(b - lato, b, sotto, sopra, .035, binario);
+      asta(a + lato, b - lato, sotto, sotto + lato, .035, binario);
+      asta(a + lato, b - lato, sopra - lato, sopra, .035, binario);
+      asta(a, b, sotto - .003, sotto + .004, .013, binario);
+    }
+    return;
+  }
   for (let i = 1; i < n; i++) {
     const s = v.s0 + ((v.s1 - v.s0) * i) / n;
-    asta(s - t / 2, s + t / 2, v.z0 + (soglia ? t : 0), v.z1 - t, scorrevole ? 0.09 : 0.07);
+    asta(s - t / 2, s + t / 2, v.z0 + (soglia ? t : 0), v.z1 - t);
   }
-  if (scorrevole) {
-    // le ante scorrono su binari diversi: ogni anta ha il suo telaio, un po' avanti o indietro
-    for (let i = 0; i < n; i++) {
-      const s0 = v.s0 + ((v.s1 - v.s0) * i) / n, s1 = v.s0 + ((v.s1 - v.s0) * (i + 1)) / n, fuori = i % 2 ? 0.035 : -0.035;
-      asta(s0, s1, v.z0 + t, v.z0 + 2 * t, 0.03, fuori);
-      asta(s0, s1, v.z1 - 2 * t, v.z1 - t, 0.03, fuori);
+}
+
+export function costruisciPorta(m: MuroCalc, v: VanoMuro, ante: number, scorrevole: boolean, cardineP2: boolean,
+  pannelli: CostruttoreMesh, ferramenta: CostruttoreMesh) {
+  const w = v.s1 - v.s0;
+  const h = v.z1 - v.z0 - .047;
+  if (w < .12 * ante || h < .12) return;
+  const larghezza = (w - .07) / ante, rot = Math.atan2(m.d.y, m.d.x);
+  const base = v.z0 + .012;
+  const portone = w >= 2.2 && scorrevole;
+  for (let i = 0; i < ante; i++) {
+    const centro = piu(m.a, per(m.d, v.s0 + .035 + (i + .5) * larghezza));
+    pannelli.scatola(centro.x, centro.y, base, larghezza - .005, .042, h, rot, 0, 0, 0, .003);
+    if (portone) {
+      for (let quota = .30; quota < h; quota += .31) ferramenta.scatola(centro.x, centro.y,
+        base + quota, larghezza - .009, .002, .004, rot, 0, .022);
+      continue;
+    }
+    const sinistra = ante === 1 ? cardineP2 : i % 2 === 1;
+    const maniglia = (sinistra ? -1 : 1) * (larghezza / 2 - Math.min(.083, larghezza * .27));
+    const quota = base + Math.min(1.035, h * .5);
+    for (const segno of [-1, 1]) {
+      ferramenta.scatola(centro.x, centro.y, quota - .016, .032, .010, .043, rot, maniglia, segno * .024, 0, .004);
+      if (!scorrevole) ferramenta.scatola(centro.x, centro.y, quota, Math.min(.102, larghezza * .31), .022, .014, rot,
+        maniglia + (sinistra ? 1 : -1) * Math.min(.045, larghezza * .14), segno * .037, 0, .005);
     }
   }
 }

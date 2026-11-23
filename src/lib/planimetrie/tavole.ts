@@ -5,8 +5,10 @@
  * L'impaginazione (`impaginaDisegni`) è pura e si prova senza pdf-lib; pdf-lib si carica solo quando serve.
  */
 import { STILE_DISEGNO, type Disegno2D } from "./prospetti";
-import type { StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import type { Punto, StatoPianta } from "../../../shared/planimetrie/modello.ts";
 import { metriConSfrido, percorsiImpianti, puntiPercorso } from "../../../shared/planimetrie/impianti.ts";
+import { COLORE_RADIANTE, fasceRadianti, zoneRadianti } from "../../../shared/planimetrie/pavimentoRadiante.ts";
+import { circuitiRadianti, COLORI_CIRCUITO, quoteCollettoreRadiante } from "../../../shared/planimetrie/circuitiRadianti.ts";
 
 export type Foglio = "A4" | "A3";
 
@@ -185,7 +187,10 @@ const NOME_LINEA: Record<string, string> = { elettrica: "Linee elettriche", acqu
 /** Accoda un foglio con la pianta, i punti impianto, le linee stimate, legenda e metri. */
 export async function accodaFoglioImpianti(pdf: Uint8Array | null, stato: StatoPianta, o: { formato?: Foglio; intestazione: string; numero?: number }): Promise<{ dati: Uint8Array; punti: number } | null> {
   const punti = stato.elementi.filter((e) => SIGLE_IMPIANTI[e.tipo] && e.stato !== "da_demolire");
-  if (!punti.length) return null;
+  const radianti = zoneRadianti(stato);
+  const collettore = stato.collettoreRadiante;
+  const circuiti = circuitiRadianti(stato);
+  if (!punti.length && !radianti.length && !collettore) return null;
   const lib = await import("pdf-lib");
   const doc = pdf ? await lib.PDFDocument.load(pdf) : await lib.PDFDocument.create();
   const normale = await doc.embedFont(lib.StandardFonts.Helvetica);
@@ -201,10 +206,11 @@ export async function accodaFoglioImpianti(pdf: Uint8Array | null, stato: StatoP
   const { percorsi, mancano } = percorsiImpianti(stato);
   const vertici = percorsi.flatMap(r => r.vertici ?? []);
   const haTracciati = percorsi.some(r => r.vertici !== undefined);
-  p.drawText(ansi(haTracciati ? "Impianti - punti e percorsi" : "Impianti - punti e linee stimate"), { x: (W - MARGINE - 70) * PT, y: (H - MARGINE - 6) * PT, size: 8, font: normale, color: col("#475569") });
+  p.drawText(ansi(!punti.length ? "Impianti - pavimento radiante" : haTracciati ? "Impianti - punti e percorsi" : "Impianti - punti e linee stimate"), { x: (W - MARGINE - 70) * PT, y: (H - MARGINE - 6) * PT, size: 8, font: normale, color: col("#475569") });
 
   // scala: tutta la pianta dentro l'area, al passo standard più grande che entra
-  const coordinate = [...stato.muri.flatMap(m => [m.p1, m.p2]), ...punti.map(e => e.posizione), ...vertici];
+  const coordinate = [...stato.muri.flatMap(m => [m.p1, m.p2]), ...punti.map(e => e.posizione), ...vertici,
+    ...radianti.flatMap(z => z.locale.contorno), ...(collettore ? [collettore.posizione] : [])];
   const xs = coordinate.map(p => p.x), ys = coordinate.map(p => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const serve = Math.max(((maxX - minX) * 10) / area.w, ((maxY - minY) * 10) / area.h, 1);
@@ -217,6 +223,13 @@ export async function accodaFoglioImpianti(pdf: Uint8Array | null, stato: StatoP
   for (const m of stato.muri) {
     if (m.stato === "da_demolire") continue;
     p.drawLine({ start: { x: X(m.p1.x), y: Y(m.p1.y) }, end: { x: X(m.p2.x), y: Y(m.p2.y) }, thickness: Math.max(0.6, m.spessore * k * PT), color: col("#cbd5e1") });
+  }
+  const coloreRadiante = col(COLORE_RADIANTE);
+  for (const { locale, zona } of radianti) {
+    if (circuiti.some(c => c.localeId === locale.id)) continue;
+    for (const [a, b] of fasceRadianti(locale.contorno, zona.passoCm)) {
+      p.drawLine({ start: { x: X(a.x), y: Y(a.y) }, end: { x: X(b.x), y: Y(b.y) }, thickness: 0.55, color: coloreRadiante });
+    }
   }
   for (const r of percorsi) {
     const c = col(COLORE_LINEA[r.linea] ?? "#64748b");
@@ -232,25 +245,79 @@ export async function accodaFoglioImpianti(pdf: Uint8Array | null, stato: StatoP
     const w = grassetto.widthOfTextAtSize(s.sigla, 5);
     p.drawText(s.sigla, { x: cx - w / 2, y: cy - 1.8, size: 5, font: grassetto, color: col(s.colore) });
   }
+  const lineaRadiante = (tratti: Punto[], colore: string, tratteggio?: number[]) => {
+    for (let i = 1; i < tratti.length; i++) {
+      const a = tratti[i - 1], b = tratti[i];
+      if (a.x !== b.x || a.y !== b.y) p.drawLine({ start: { x: X(a.x), y: Y(a.y) }, end: { x: X(b.x), y: Y(b.y) },
+        thickness: .85, color: col(colore), dashArray: tratteggio });
+    }
+  };
+  for (const c of circuiti) lineaRadiante(c.serpentina, COLORE_RADIANTE);
+  for (const c of circuiti) lineaRadiante(c.mandata, COLORI_CIRCUITO.mandata);
+  for (const c of circuiti) {
+    lineaRadiante(c.ritorno, COLORI_CIRCUITO.ritorno, [2, 2]);
+    for (const { punto } of c.attraversamenti) p.drawCircle({ x: X(punto.x), y: Y(punto.y), size: 1.8,
+      color: col("#fef3c7"), borderColor: col("#92400e"), borderWidth: .6 });
+  }
+  if (collettore) p.drawCircle({ x: X(collettore.posizione.x), y: Y(collettore.posizione.y), size: 4,
+    color: col("#ffffff"), borderColor: col("#334155"), borderWidth: 1.1 });
 
   // legenda e metri
   let y = H - MARGINE - TESTATA - 4;
   const lx = (W - MARGINE - LEGENDA) * PT;
   const riga = (testo: string, colore = "#0f172a", font = normale, size = 7) => { p.drawText(ansi(testo), { x: lx, y: y * PT, size, font, color: col(colore), maxWidth: LEGENDA * PT }); y -= size * 0.55; };
+  const numero = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
   riga("Legenda", "#0f172a", grassetto, 9); y -= 1;
   const conta = new Map<string, number>();
   for (const e of punti) conta.set(e.tipo, (conta.get(e.tipo) ?? 0) + 1);
   for (const [tipo, n] of conta) riga(`${SIGLE_IMPIANTI[tipo].sigla}  ${SIGLE_IMPIANTI[tipo].nome}: ${n}`, SIGLE_IMPIANTI[tipo].colore);
-  y -= 3;
-  riga(haTracciati ? "Metri con 10% di sfrido" : "Linee stimate (con 10% di sfrido)", "#0f172a", grassetto, 8);
+  if (percorsi.length) {
+    y -= 3;
+    riga(haTracciati ? "Metri con 10% di sfrido" : "Linee stimate (con 10% di sfrido)", "#0f172a", grassetto, 8);
+  }
   const tot = new Map<string, number>();
   for (const r of percorsi) tot.set(r.linea, (tot.get(r.linea) ?? 0) + r.lunghezzaCm);
   for (const [l, cm] of tot) riga(`${NOME_LINEA[l] ?? l}: ${metriConSfrido(cm).toLocaleString("it-IT")} m`, COLORE_LINEA[l]);
   if (mancano.length) { y -= 2; riga("Mancano le partenze: " + mancano.map((m) => SIGLE_IMPIANTI[m]?.nome ?? m).join(", "), "#b45309"); }
-  y -= 3;
-  riga(haTracciati ? "Linea continua: disegnata. Tratteggio: stimata." : "Percorsi indicativi a squadra lungo le pareti,", "#64748b");
-  riga(haTracciati ? "Calate in verticale da riscontrare." : "con le calate in verticale: da verificare in cantiere.", "#64748b");
+  if (percorsi.length) {
+    y -= 3;
+    riga(haTracciati ? "Linea continua: disegnata. Tratteggio: stimata." : "Percorsi indicativi a squadra lungo le pareti,", "#64748b");
+    riga(haTracciati ? "Calate in verticale da riscontrare." : "con le calate in verticale: da verificare in cantiere.", "#64748b");
+  }
+  if (radianti.length) {
+    const area = radianti.reduce((totale, z) => totale + z.superficieMq, 0);
+    const tubo = radianti.reduce((totale, z) => totale + z.tuboM, 0) + circuiti.reduce((s, c) => s + c.mandataM + c.ritornoM, 0);
+    y -= 3;
+    riga("Pavimento radiante", COLORE_RADIANTE, grassetto, 8);
+    riga(`Area riscaldata ${numero(area)} m² / tubo stimato ${numero(tubo)} m`);
+    if (circuiti.length) {
+      riga(`Collettore · ${circuiti.length} circuiti (vedi tabella)`);
+      riga("Mandata", COLORI_CIRCUITO.mandata);
+      riga("Ritorno (tratteggio)", COLORI_CIRCUITO.ritorno);
+      riga("Cerchi gialli · passaggi da verificare", "#92400e");
+    } else riga("Zone indicative. Circuiti e collegamenti da dimensionare.", "#64748b");
+  }
   p.drawText(ansi(`Scala 1:${scala}`), { x: MARGINE * PT, y: (MARGINE + 1) * PT, size: 7, font: normale, color: col("#64748b") });
   if (o.numero) p.drawText(ansi(`Foglio ${o.numero}`), { x: (W - MARGINE - 20) * PT, y: (MARGINE + 1) * PT, size: 7, font: normale, color: col("#64748b") });
+  if (collettore && circuiti.length) {
+    const passoRiga = 6, capienza = Math.floor((H - 62) / passoRiga);
+    const quote = quoteCollettoreRadiante(collettore.quotaCm);
+    const xs = [MARGINE, W * .36, W * .49, W * .63, W * .75, W * .86];
+    for (let i = 0; i < circuiti.length; i += capienza) {
+      const tabella = doc.addPage([W * PT, H * PT]);
+      const testo = (t: string, x: number, y: number, font = normale, size = 8) => tabella.drawText(ansi(t),
+        { x: x * PT, y: y * PT, font, size, color: col("#0f172a") });
+      testo("Circuiti radianti", MARGINE, H - 14, grassetto, 13);
+      testo(o.intestazione, MARGINE, H - 21);
+      testo(`Collettore · quote mandata/ritorno ${numero(quote.mandata)} / ${numero(quote.ritorno)} cm · obiettivo ${numero(collettore.limiteCircuitoM)} m per circuito`, MARGINE, H - 30);
+      ["Locale e circuito", "Mandata", "Serpentina", "Ritorno", "Totale", "Verifiche"].forEach((t, k) => testo(t, xs[k], H - 41, grassetto));
+      circuiti.slice(i, i + capienza).forEach((c, j) => {
+        const voci = [`${c.localeNome.slice(0, 38)} · ${c.numero}`, `${numero(c.mandataM)} m`, `${numero(c.tuboAttivoM)} m`,
+          `${numero(c.ritornoM)} m`, `${numero(c.totaleM)} m`, [c.superaObiettivo && "Lunghezza", c.attraversamenti.length && `${c.attraversamenti.length} pass.`].filter(Boolean).join(" / ") || "—"];
+        voci.forEach((t, k) => testo(t, xs[k], H - 48 - j * passoRiga));
+      });
+      testo("Sviluppi indicativi. Portate, perdite di carico, bilanciamento e posa da dimensionare.", MARGINE, MARGINE);
+    }
+  }
   return { dati: await doc.save(), punti: punti.length };
 }

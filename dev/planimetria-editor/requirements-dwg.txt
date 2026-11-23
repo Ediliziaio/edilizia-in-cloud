@@ -1,0 +1,4 @@
+# Dipendenze del convertitore locale configurato con PLANIMETRIE_DWG_PYTHON.
+ezdxf==1.4.5
+Pillow==13.0.0
+shapely==2.1.2

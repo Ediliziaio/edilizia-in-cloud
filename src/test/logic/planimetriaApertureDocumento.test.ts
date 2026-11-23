@@ -133,6 +133,7 @@ describe("il render da pianta non consegna aperture o materiali bocciati", () =>
   });
   it("un pass contraddetto da un difetto strutturale non nasconde l'errore", () => {
     expect(rifiutaRenderStanza({ checked: true, pass: true, issues: [{ category: "invented_openings" }] }, contesto)).toBe(true);
+    expect(rifiutaRenderStanza({ checked: true, pass: true, issues: [{ category: "unrealistic_scale" }] }, contesto)).toBe(true);
   });
   it("anche fuori dalla pianta, un retry non verificato non cancella una bocciatura sui campioni", () => {
     expect(rifiutaRenderStanza({ checked: false, pass: true, issues: [] }, { daPianta: false, materiali: true, da3D: false }, true)).toBe(true);

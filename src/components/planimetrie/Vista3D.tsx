@@ -7,9 +7,11 @@
 import { forwardRef, lazy, Suspense, useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Building, Cable, Download, Eye, Focus, Footprints, Layers, Map as MappaIcona, Maximize2, Minimize2, Rotate3d, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
+import { Box, Building, Cable, Download, Eye, Focus, Footprints, Layers, Map as MappaIcona, Maximize2, Minimize2, PaintRoller, Rotate3d, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { CircuitiRadiantiElenco } from "./CircuitiRadiantiElenco";
+import { COLORI_CIRCUITO } from "../../../shared/planimetrie/circuitiRadianti.ts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -44,13 +46,15 @@ import { esportaGlbConFiniture } from "@/lib/planimetrie/esportaGlbConFiniture";
 import { eCampo } from "@/lib/planimetrie/campiSport";
 import type { InquadraturaSalvata, StanzaDaInquadrare, VersioneRenderVisita } from "@/lib/planimetrie/renderVisitaArchivio";
 import { InquadratureStanza } from "./tred/InquadratureStanza";
-import { interpolaPercorso, luogoVisita, mappaVisita, OCCHI_VISITA, percorsoVisita, spostaVisita,
+import { interpolaPercorso, luogoVisita, mappaVisita, OCCHI_VISITA, percorsoSulPavimentoVisita, percorsoVisita, spostaVisita,
   type PassaggioVisita, type PosizioneVisita } from "@/lib/planimetrie/tred/visita";
 import { IndicazioniVisita, MovimentoVisita, PartenzaVisita } from "./tred/ComandiVisita3D";
 import { MinimappaVisita, type MinimappaVisitaHandle } from "./tred/MinimappaVisita";
+import { TASTI_CAMMINATA, useCamminata3D } from "./tred/useCamminata3D";
 import type { InquadraturaRender3D } from "./tred/RenderInquadratura3D";
 import type { Punto } from "../../../shared/planimetrie/modello";
 import { rettangoliIngombroArredo } from "../../../shared/planimetrie/modelliArredo";
+import { LUCI_RENDER_LOCALE, NOMI_LUCE_RENDER_LOCALE, type LuceRenderLocale } from "../../../shared/planimetrie/renderLocale";
 
 const RenderInquadratura3D = lazy(() => import("./tred/RenderInquadratura3D"));
 
@@ -74,6 +78,7 @@ interface ComandiStudio3D {
   onRender?: (inquadratura: InquadraturaVista3D) => void;
   renderLabel?: string;
   renderDisabilitato?: boolean;
+  rapide?: { aperte: boolean; onCambia: (aperte: boolean) => void };
 }
 
 export interface Vista3DProps {
@@ -136,7 +141,7 @@ interface Motore {
   disegna: () => void;
 }
 
-const PASSO = 0.25;
+const PASSO_BREVE = .16;
 const fovPerProporzioni = (fov: number, da: number, a: number) =>
   Math.min(105, 2 * Math.atan(Math.tan(fov * Math.PI / 360) * Math.max(1, da / a)) * 180 / Math.PI);
 
@@ -153,9 +158,10 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const schemaCanali = !!piante.progetto.canaliAria;
   const compatta = !!anteprimaEditor;
   const contenitore = useRef<HTMLDivElement>(null);
+  const barraVisita = useRef<HTMLDivElement>(null);
   const motore = useRef<Motore | null>(null);
   const [vistaInterna, setVista] = useState<VistaLavori>(vistaIniziale);
-  const vista = anteprimaEditor?.vista ?? vistaInterna;
+  const vista = anteprimaEditor?.vista ?? (studio ? vistaIniziale : vistaInterna);
   const pianta = vista === "fatto" ? piante.fatto : piante.progetto;
   const locali = pianta.locali;
   const [modoInterno, setModo] = useState<ModoVista>(esplosoIniziale ? "giro" : modoIniziale);
@@ -204,6 +210,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const [luogo, setLuogo] = useState<ReturnType<typeof luogoVisita>>(null);
   const [passaggioVicino, setPassaggioVicino] = useState<PassaggioVisita>();
   const [attraversamento, setAttraversamento] = useState("");
+  const [avvisoVisita, setAvvisoVisita] = useState("");
   const framePassaggio = useRef<number | undefined>(undefined);
   const completaPassaggio = useRef<(() => void) | null>(null);
   const ridotto = usePreferisceMenoMovimento();
@@ -247,19 +254,19 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       return !strato || !stratiNascosti.has(strato);
     }),
   }, [scenaCompleta, strutturaStrati, stratiNascosti]);
-  const [scenaAuto, setScenaAuto] = useState<{ base: Scena3D; risultato: Scena3D }>();
+  const [scenaDettagliata, setScenaDettagliata] = useState<{ base: Scena3D; risultato: Scena3D }>();
   useEffect(() => {
-    if (!scenaVisibile.mesh.some(m => m.auto)) return;
+    if (!scenaVisibile.mesh.some(m => m.auto || m.arredoCatalogo)) return;
     let chiuso = false;
-    void import("@/lib/planimetrie/tred/modelliAuto").then(({ scenaConModelliAuto }) => scenaConModelliAuto(scenaVisibile))
-      .then(risultato => { if (!chiuso) setScenaAuto({ base: scenaVisibile, risultato }); })
+    void import("@/lib/planimetrie/tred/modelliDettagliati").then(({ scenaConModelliDettagliati }) => scenaConModelliDettagliati(scenaVisibile))
+      .then(risultato => { if (!chiuso) setScenaDettagliata({ base: scenaVisibile, risultato }); })
       .catch(() => {
-        if (!chiuso) setScenaAuto({ base: scenaVisibile, risultato: { ...scenaVisibile,
-          avvisi: [...scenaVisibile.avvisi, "Modello auto di dettaglio non disponibile."] } });
+        if (!chiuso) setScenaDettagliata({ base: scenaVisibile, risultato: { ...scenaVisibile,
+          avvisi: [...scenaVisibile.avvisi, "Modelli di dettaglio non disponibili."] } });
       });
     return () => { chiuso = true; };
   }, [scenaVisibile]);
-  const scena = scenaAuto?.base === scenaVisibile ? scenaAuto.risultato : scenaVisibile;
+  const scena = scenaDettagliata?.base === scenaVisibile ? scenaDettagliata.risultato : scenaVisibile;
   const mappa = useMemo(() => inVisita ? mappaVisita(pianiVisita, vistaVisita, scena) : null, [inVisita, pianiVisita, vistaVisita, scena]);
   const pianoPartenza = livelloIniziale ?? piani?.find(p => p.piante === piante)?.id;
   const tappaVisita = mappa?.partenza.find(t => t.id === partenzaVisita) ??
@@ -284,6 +291,11 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   }, [modo]);
   useEffect(() => { if (movimentoRidotto) completaPassaggio.current?.(); }, [movimentoRidotto]);
   useEffect(() => { onVisita?.(inVisita); }, [inVisita, onVisita]);
+  useEffect(() => {
+    if (!avvisoVisita) return;
+    const timeout = window.setTimeout(() => setAvvisoVisita(""), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [avvisoVisita]);
 
   // Avvio di three.js, una volta.
   useEffect(() => {
@@ -358,12 +370,13 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (!m || !m.gruppo) return;
     adattaAmbiente(m.ambiente, scena);
     const dentro = modo === "dentro" || (inVisita && !!luogo && !luogo.esterno);
+    const finestra = modo === "dentro" ? finestraPerLuce(pianta, localeId, vista)
+      : dentro && luogo?.localeId && pianoInVisita ? finestraPerLuce(pianoInVisita.pianta, luogo.localeId, vistaVisita, pianoInVisita.quota) : undefined;
     m.aspetto.applica(m.gruppo, scena, { ...asp, dentro, sfondoNeutro: (compatta || !!studio) && !inVisita,
-      ...(strutturaStrati ? { realistico: false, effetti: false } : {}) }, m.ambiente,
-      modo === "dentro" ? finestraPerLuce(pianta, localeId, vista) : undefined);
+      ...(strutturaStrati ? { realistico: false, effetti: false } : {}) }, m.ambiente, finestra);
     if (strutturaStrati) m.ambiente.terreno.visible = false;
     m.disegna();
-  }, [scena, asp, modo, inVisita, strutturaStrati, luogo?.esterno, !!luogo, pianta, localeId, vista, !!studio, compatta]);
+  }, [scena, asp, modo, inVisita, strutturaStrati, luogo?.esterno, luogo?.localeId, !!luogo, pianoInVisita, pianta, localeId, vista, vistaVisita, !!studio, compatta]);
 
   // Con tutto l'edificio non si entra nelle stanze (sono del piano scelto): si gira intorno.
   useEffect(() => {
@@ -373,9 +386,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   // Telecamera e comandi: si rifanno quando cambia il modo o la stanza.
   const limiti = scena.limiti;
   // Nell'editor si confrontano le geometrie dalla stessa inquadratura.
-  const chiaveLimiti = compatta ? "" : limiti.min.concat(limiti.max).map((x) => x.toFixed(2)).join(",");
-  const vistaCamera = compatta ? undefined : vista;
-  const localeCamera = compatta && modo !== "dentro" ? undefined : localeId;
+  const chiaveLimiti = compatta || inVisita || (studio && modo === "dentro") ? "" : limiti.min.concat(limiti.max).map((x) => x.toFixed(2)).join(",");
+  const vistaCamera = compatta || inVisita || studio ? undefined : vista;
+  const localeCamera = inVisita || (compatta && modo !== "dentro") ? undefined : localeId;
   useEffect(() => {
     const m = motore.current;
     if (!m) return;
@@ -467,13 +480,15 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     };
   }, [mostraIngombro]);
 
-  const puntoNellaScena = (x: number, y: number, m: Motore) => {
-    if (!m.gruppo) return;
+  const intersezioniInScena = (x: number, y: number, m: Motore) => {
+    if (!m.gruppo) return [];
     const r = m.renderer.domElement.getBoundingClientRect();
     raggio.current.setFromCamera(new THREE.Vector2(2 * (x - r.left) / r.width - 1, 1 - 2 * (y - r.top) / r.height), m.camera);
-    return raggio.current.intersectObjects(m.gruppo.children, false)
-      .find(({ object }) => object.userData.riferimento && object.visible && (!studio?.posa || object.userData.genere === "pavimento"));
+    return raggio.current.intersectObjects(m.gruppo.children, false);
   };
+  const puntoNellaScena = (x: number, y: number, m: Motore) =>
+    intersezioniInScena(x, y, m)
+      .find(({ object }) => object.userData.riferimento && object.visible && (!studio?.posa || object.userData.genere === "pavimento"));
   const puntoSullaPianta = (p: THREE.Vector3): Punto => ({ x: Math.round(p.x * 100), y: Math.round(-p.z * 100) });
 
   const anteprimaIngombro = (e?: React.PointerEvent) => {
@@ -517,7 +532,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     else anteprimaEditor?.onSelezione?.(riferimento);
   };
 
-  // Frecce/WASD e rotella muovono la camera rispetto alla direzione in cui guarda.
+  // Gli spostamenti sono in metri, relativi alla direzione in cui si guarda.
   const cammina = useCallback((avanti: number, lato: number) => {
     const m = motore.current;
     if (!m?.controlli || completaPassaggio.current) return;
@@ -527,7 +542,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (dir.lengthSq() < 1e-6) return;
     dir.normalize();
     const destra = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
-    let passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    let passo = dir.multiplyScalar(avanti).add(destra.multiplyScalar(lato));
     if (mappa && posizione.current) {
       const nuova = spostaVisita(mappa, posizione.current, passo.x, passo.z);
       if (!nuova) return;
@@ -555,6 +570,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     m.controlli.update();
     m.disegna();
   }, [pianta, vista, mappa, aggiornaVisita]);
+  const camminata = useCamminata3D((modo === "dentro" || (inVisita && !!tappaVisita)) && !attraversamento, cammina);
 
   const giraVisita = (lato: number) => {
     const m = motore.current;
@@ -577,11 +593,11 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     contenitore.current?.focus({ preventScroll: true });
   };
 
-  const percorri = (passaggio: PassaggioVisita) => {
-    const m = motore.current, p = posizione.current, c = m?.controlli;
-    if (!m || !c || !p || !mappa || completaPassaggio.current) return;
-    const punti = percorsoVisita(mappa, p, passaggio);
-    if (!punti) return;
+  const animaPercorso = (punti: V3[], arrivo: PosizioneVisita, messaggio: string) => {
+    const m = motore.current, c = m?.controlli;
+    if (!m || !c || completaPassaggio.current) return;
+    camminata.ferma();
+    setAvvisoVisita("");
     contenitore.current?.focus({ preventScroll: true });
     const sentiero = interpolaPercorso(punti);
     const verso = m.camera.getWorldDirection(new THREE.Vector3());
@@ -599,16 +615,16 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       framePassaggio.current = undefined;
       completaPassaggio.current = null;
       const precedente = sentiero.punto(Math.max(0, sentiero.metri - .22));
-      mostra(precedente, passaggio.a.piedi, 1);
-      mostra(passaggio.a.piedi, passaggio.a.piedi, 1);
+      mostra(precedente, arrivo.piedi, 1);
+      mostra(arrivo.piedi, arrivo.piedi, 1);
       c.enabled = true;
       setAttraversamento("");
-      aggiornaVisita(passaggio.a);
+      aggiornaVisita(arrivo);
     };
     if (movimentoRidotto) { termina(); return; }
     completaPassaggio.current = termina;
     c.enabled = false;
-    setAttraversamento(passaggio.tipo === "sali" ? "Salita in corso" : passaggio.tipo === "scendi" ? "Discesa in corso" : "Attraverso la soglia");
+    setAttraversamento(messaggio);
     const tempo = Math.max(600, Math.min(4900, sentiero.metri * 700));
     const inizio = performance.now();
     let precedente = inizio;
@@ -623,26 +639,59 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     framePassaggio.current = requestAnimationFrame(muovi);
   };
 
+  const percorri = (passaggio: PassaggioVisita) => {
+    if (!mappa || !posizione.current) return;
+    const punti = percorsoVisita(mappa, posizione.current, passaggio);
+    if (!punti) return;
+    animaPercorso(punti, passaggio.a, passaggio.tipo === "sali" ? "Salita in corso" : passaggio.tipo === "scendi" ? "Discesa in corso" : "Attraverso la soglia");
+  };
+
+  const raggiungiPavimento = (e: React.PointerEvent<HTMLDivElement>) => {
+    const inizio = puntatore.current, m = motore.current, p = posizione.current;
+    puntatore.current = null;
+    if (!m || !mappa || !p || !inizio || completaPassaggio.current || e.pointerId !== inizio.id ||
+      e.target !== m.renderer.domElement || Math.hypot(e.clientX - inizio.x, e.clientY - inizio.y) > 6) return;
+    const tappeti = new Set(pianoInVisita?.pianta.elementi.filter(a => a.tipo === "tappeto").map(a => a.id));
+    const hit = intersezioniInScena(e.clientX, e.clientY, m).find(({ object }) =>
+      object.visible && !tappeti.has(object.userData.riferimento));
+    if (!hit || hit.object.userData.genere !== "pavimento") return;
+    const id = hit.object.userData.id as string;
+    if (id !== "terreno" && !id.startsWith(p.pianoId + "/")) return;
+    const { x, y, z } = hit.point;
+    if (Math.hypot(x - p.piedi[0], z - p.piedi[2]) < .18) return;
+    const punti = percorsoSulPavimentoVisita(mappa, p, [x, y, z]);
+    const piedi = punti?.at(-1);
+    if (!punti || !piedi) {
+      setAvvisoVisita("Punto non raggiungibile in linea diretta.");
+      return;
+    }
+    animaPercorso(punti, { pianoId: p.pianoId, piedi }, "Spostamento in corso");
+  };
+
   useEffect(() => {
     const m = motore.current;
     if (!m || (modo !== "dentro" && !inVisita)) return;
     const tela = m.renderer.domElement;
     const rotella = (e: WheelEvent) => {
       e.preventDefault();
-      cammina(e.deltaY < 0 ? 1 : -1, 0);
+      const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      if (delta) cammina(THREE.MathUtils.clamp(-delta * .003, -.24, .24), 0);
     };
     tela.addEventListener("wheel", rotella, { passive: false });
     return () => tela.removeEventListener("wheel", rotella);
   }, [modo, inVisita, cammina]);
 
   const tasto = (e: React.KeyboardEvent) => {
-    if ((modo !== "dentro" && !inVisita) || e.target !== e.currentTarget) return;
+    if ((modo !== "dentro" && !inVisita) || e.target !== e.currentTarget || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (k === "e" && inVisita && passaggioVicino) { e.preventDefault(); percorri(passaggioVicino); return; }
-    const mosse: Record<string, [number, number]> = { arrowup: [1, 0], w: [1, 0], arrowdown: [-1, 0], s: [-1, 0], arrowleft: [0, -1], a: [0, -1], arrowright: [0, 1], d: [0, 1] };
-    if (mosse[k]) {
+    if (k === "e" && inVisita && passaggioVicino && !e.repeat) { e.preventDefault(); percorri(passaggioVicino); return; }
+    const direzione = TASTI_CAMMINATA[k];
+    if (direzione) {
       e.preventDefault();
-      cammina(...mosse[k]);
+      if (!e.repeat) {
+        if (avvisoVisita) setAvvisoVisita("");
+        camminata.premi(k, direzione);
+      }
     }
   };
 
@@ -700,9 +749,14 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     setInquadraturaLocale(false);
     setModo(v as ModoVista);
     setSoffitto(v === "dentro");
+    setAvvisoVisita("");
     if (v === "visita") {
       mostraOpzioni(false);
       contenitore.current?.focus({ preventScroll: true });
+      requestAnimationFrame(() => {
+        const tela = contenitore.current;
+        if (tela && tela.getBoundingClientRect().bottom > window.innerHeight) barraVisita.current?.scrollIntoView({ block: "start" });
+      });
     }
   };
 
@@ -743,7 +797,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     setRender({ scena, pianta: pianoInVisita.pianta, vista: vistaVisita, telecamera, proporzioni: m.camera.aspect,
       aspetto: { ...asp, dentro: !luogo.esterno, effetti: false }, localeId: luogo.localeId,
       nome: luogo.nome, piano: luogo.piano, ambiente: luogo.esterno ? "facciata" : "interni",
-      esterno: luogo.esterno, versione, archivio, pianoId: pianoInVisita.id });
+      esterno: luogo.esterno, versione, archivio, pianoId: pianoInVisita.id, quotaPiano: pianoInVisita.quota });
   };
   const puoRenderDaQui = inVisita && !!luogo && !attraversamento && !errore && fotorealisticoLocaleDisponibile();
   const stanzaInquadrature = modo === "dentro" && !errore && !compatta && locali.find(l => l.id === localeId);
@@ -775,7 +829,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       ? "Trascina per spostarti, rotella o due dita per avvicinarti."
       : modo === "giro"
         ? "Trascina per girare intorno, rotella o due dita per avvicinarti, tasto destro per spostarti."
-        : inVisita ? "Trascina per guardarti intorno. Usa i comandi sullo schermo, le frecce o WASD per camminare."
+        : inVisita ? "Tocca un punto sul pavimento per raggiungerlo. Trascina per guardarti intorno. Puoi camminare anche con le frecce o WASD."
           : "Trascina per guardarti intorno. Frecce o rotella per camminare.";
 
   const comandiVista = <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare" className="[&>*]:whitespace-nowrap">
@@ -813,7 +867,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      <div className="flex flex-wrap items-center gap-2">
+      <div ref={barraVisita} className="flex scroll-mt-16 flex-wrap items-center gap-2">
         {comandiVista}
         {stanzaInquadrature && archivioStanza && <InquadratureStanza key={JSON.stringify([archivioStanza.planimetriaId, archivioStanza.livelloId, localeId])}
           stanza={{ ...archivioStanza, localeId }} nomeStanza={stanzaInquadrature.nome} onLeggiCamera={() => {
@@ -834,6 +888,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           } : undefined} />}
         {!inVisita && !schemaCanali && <Button type="button" size="sm" variant={strutturaStrati ? "secondary" : "outline"} aria-pressed={strutturaStrati}
           className="gap-1.5" onClick={cambiaVistaEsplosa}><Layers className="size-4" />Vista esplosa</Button>}
+        {!inVisita && !schemaCanali && !!pianta.pavimentoRadiante?.length &&
+          <Button type="button" size="sm" variant={impianti ? "secondary" : "outline"} aria-pressed={impianti}
+            className="gap-1.5" onClick={() => setImpianti(v => !v)}><Cable className="size-4" />Impianti</Button>}
         {!studio && modo === "dentro" && locali.length > 0 && (
           <Select value={localeId} onValueChange={setLocaleId}>
             <SelectTrigger className="h-9 w-44" aria-label="Stanza">
@@ -849,12 +906,28 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           </Select>
         )}
         {inVisita && <PartenzaVisita tappe={mappa?.partenza ?? []} partenza={tappaVisita?.id ?? ""} occupato={!!attraversamento}
-          onParti={id => { setPartenzaVisita(id); risistemaInquadratura(n => n + 1); }} />}
+          onParti={id => {
+            setAvvisoVisita("");
+            setPartenzaVisita(id);
+            risistemaInquadratura(n => n + 1);
+          }} onArrivo={() => contenitore.current?.focus({ preventScroll: true })} />}
+        {studio?.rapide && <Button type="button" size="sm" variant={studio.rapide.aperte ? "secondary" : "outline"} className="gap-1.5"
+          aria-expanded={studio.rapide.aperte} aria-controls={studio.rapide.aperte ? "modifiche-rapide-3d" : undefined}
+          onClick={() => studio.rapide?.onCambia(!studio.rapide.aperte)}>
+          <PaintRoller className="size-4" />Modifiche rapide
+        </Button>}
+        {!schemaCanali && asp.realistico && !strutturaStrati && (modo === "dentro" || inVisita) &&
+          <Select value={asp.luce ?? "giorno"} onValueChange={luce => cambiaAsp({ luce: luce as LuceRenderLocale })} disabled={!!attraversamento}>
+            <SelectTrigger className="h-9 w-auto gap-1.5 px-2.5" aria-label="Illuminazione della vista 3D">
+              <Sun className="size-4 shrink-0 text-muted-foreground" /><SelectValue />
+            </SelectTrigger>
+            <SelectContent fitContent>{LUCI_RENDER_LOCALE.map(luce => <SelectItem key={luce} value={luce}>{NOMI_LUCE_RENDER_LOCALE[luce]}</SelectItem>)}</SelectContent>
+          </Select>}
         {inVisita && <div className="ml-auto flex items-center gap-1">
           <Button type="button" size="icon" variant="ghost" className="size-8" aria-label="Torna al punto di partenza" title="Torna al punto di partenza"
             disabled={!tappaVisita || !!attraversamento} onClick={() => risistemaInquadratura(n => n + 1)}><Focus className="size-4"/></Button>
-          <Button type="button" size="sm" variant="ghost" aria-pressed={opzioniVisibili} disabled={!!attraversamento} onClick={() => mostraOpzioni(v => !v)}
-            className="gap-1.5"><SlidersHorizontal className="size-4"/><span className="max-sm:sr-only">Impostazioni 3D</span></Button>
+          <Button type="button" size="icon" variant="ghost" aria-pressed={opzioniVisibili} disabled={!!attraversamento} onClick={() => mostraOpzioni(v => !v)}
+            aria-label="Impostazioni 3D" title="Impostazioni 3D" className="size-8"><SlidersHorizontal className="size-4"/></Button>
         </div>}
         {studio && !inVisita && <div className="ml-auto flex flex-wrap items-center gap-1">
           {onVediInPianta && livelloIniziale && <Button type="button" size="sm" variant="ghost" className="gap-1.5" aria-label="Mostra sulla pianta"
@@ -1003,11 +1076,13 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         ref={contenitore}
         tabIndex={0}
         onKeyDown={tasto}
+        onKeyUp={e => camminata.rilascia(e.key.toLowerCase())}
+        onBlur={e => { if (e.target === e.currentTarget) camminata.ferma(); }}
         onPointerDown={e => {
           if (inVisita && e.target === motore.current?.renderer.domElement) contenitore.current?.focus({ preventScroll: true });
-          if (studio && !inVisita) memorizzaPuntatore(e);
+          if (studio || inVisita) memorizzaPuntatore(e);
         }}
-        onPointerUp={studio && !strutturaStrati ? selezionaConPuntatore : undefined}
+        onPointerUp={inVisita ? raggiungiPavimento : studio && !strutturaStrati ? selezionaConPuntatore : undefined}
         onPointerMove={mostraIngombro ? anteprimaIngombro : undefined}
         onPointerLeave={mostraIngombro ? () => anteprimaIngombro() : undefined}
         onPointerCancel={() => { puntatore.current = null; anteprimaIngombro(); }}
@@ -1017,7 +1092,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       >
         {studio?.istruzione && !inVisita && <p role="status" className="pointer-events-none absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-lg bg-slate-900/90 px-3 py-2 text-xs font-medium text-white">{studio.istruzione}</p>}
         {errore && <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">{errore}</div>}
-        {inVisita && !errore && <><IndicazioniVisita luogo={luogo} vicino={passaggioVicino} passaggioInCorso={attraversamento}
+        {inVisita && !errore && <><IndicazioniVisita luogo={luogo} vicino={passaggioVicino} passaggioInCorso={attraversamento} avviso={avvisoVisita}
           invito={mappa?.passaggi.length ? "Avvicinati a una scala o a un’uscita." : conPiani ? "Collegamenti tra i piani da disegnare." : undefined}
           onPassaggio={percorri} onRender={puoRenderDaQui ? () => preparaRenderDaQui() : undefined}
           mostraMappa={mostraMappa} onMappa={pianoInVisita ? () => setMostraMappa(v => !v) : undefined}
@@ -1026,16 +1101,29 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             vista={vistaVisita} localeId={luogo?.localeId} esterno={luogo?.esterno} passaggi={mappa.passaggi} leggiPosizione={leggiPosizioneMappa}
             onVediInPianta={onVediInPianta && !attraversamento ? () => onVediInPianta({ livelloId: pianoInVisita.id, localeId: luogo?.localeId }) : undefined}/>}
           <div className="absolute bottom-3 right-3 z-10"><MovimentoVisita disabilitato={!tappaVisita || !!attraversamento}
-            onCammina={cammina} onGira={giraVisita} /></div></>}
+            onCammina={(avanti, lato) => cammina(avanti * PASSO_BREVE, lato * PASSO_BREVE)}
+            onPremi={(avanti, lato) => { if (avvisoVisita) setAvvisoVisita(""); camminata.premi("pulsante", [avanti, lato]); }}
+            onRilascia={() => camminata.rilascia("pulsante")} onGira={giraVisita} /></div></>}
         {!inVisita && impianti && (scena.impianti?.length ?? 0) > 0 && (
           <div className="pointer-events-none absolute bottom-3 left-3 max-w-[16rem] space-y-0.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
-            <p className="font-semibold">Impianti (percorsi stimati)</p>
+            <p className="font-semibold">Impianti · stime</p>
             {scena.impianti!.map((l) => (
               <p key={l.linea} className="flex items-center gap-1.5">
                 <span className="inline-block h-1 w-4 rounded-full" style={{ background: l.colore }} />
-                {l.nome}: {l.metri.toLocaleString("it-IT")} m
+                {l.nome} · {l.superficieMq !== undefined ? `${l.superficieMq.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m² / ` : ""}
+                {l.metri.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m
               </p>
             ))}
+            {!!scena.impianti!.find(l => l.linea === "radiante")?.circuiti?.length && <details className="pointer-events-auto pt-1">
+              <summary className="cursor-pointer font-semibold">Circuiti radianti</summary>
+              <div className="max-h-52 space-y-2 overflow-auto py-1">
+                <p className="flex gap-3 font-medium">
+                  <span style={{ color: COLORI_CIRCUITO.mandata }}>Mandata</span>
+                  <span style={{ color: COLORI_CIRCUITO.ritorno }}>Ritorno</span>
+                </p>
+                <CircuitiRadiantiElenco circuiti={scena.impianti!.find(l => l.linea === "radiante")!.circuiti!} />
+              </div>
+            </details>}
           </div>
         )}
         {vista === "confronto" && !inVisita && (

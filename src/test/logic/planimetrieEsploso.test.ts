@@ -14,25 +14,23 @@ describe("vista esplosa a strati", () => {
     expect(esplodiInStrati(scena, 0)).toBe(scena);
   });
 
-  it("separa pavimenti, pareti e soffitti di almeno la distanza richiesta", () => {
+  it("stacca gli arredi dalle pareti e lascia il distacco richiesto fra gli ingombri dei gruppi", () => {
     const d = 1.5;
     const es = esplodiInStrati(scena, d);
-    const pavimenti = es.mesh.filter(m => stratoDi(m) === "pavimenti");
-    const pareti = es.mesh.filter(m => stratoDi(m) === "pareti");
-    const soffitti = es.mesh.filter(m => stratoDi(m) === "soffitti");
-    expect(Math.min(...pareti.map(minY)) - Math.max(...pavimenti.map(maxY))).toBeGreaterThanOrEqual(d - 1e-6);
-    expect(Math.min(...soffitti.map(minY)) - Math.max(...pareti.map(maxY))).toBeGreaterThanOrEqual(d - 1e-6);
-    expect(es.mesh.some(m => stratoDi(m) === "fondazioni")).toBe(false);
+    const gruppi = ["pavimenti", "pareti", "arredi", "soffitti"].map(id => es.mesh.filter(m => stratoDi(m) === id));
+    for (const [i, gruppo] of gruppi.entries()) {
+      expect(gruppo.length).toBeGreaterThan(0);
+      if (i > 0) expect(Math.min(...gruppo.map(minY))).toBeGreaterThanOrEqual(Math.max(...gruppi[i - 1].map(maxY)) + d - 1e-6);
+    }
   });
 
-  it("separa le fondazioni già presenti sotto il pavimento senza duplicarle", () => {
-    const casa = costruisciScena(piante.progetto, { vista: "progetto", soffitto: true, fondazioni: true });
-    const es = esplodiInStrati(casa, 1.5);
-    const fondazioni = es.mesh.find(m => m.id === "fondazioni")!;
-    expect(fondazioni).toBeTruthy();
-    const pavimenti = es.mesh.filter(m => stratoDi(m) === "pavimenti");
-    expect(Math.min(...pavimenti.map(minY)) - maxY(fondazioni)).toBeGreaterThanOrEqual(1.5 - 1e-6);
-    expect(esplodiInStrati(es, 1.5).mesh.filter(m => m.id === fondazioni.id)).toHaveLength(1);
+  it("esplode le mesh del modello senza aggiungere una platea", () => {
+    const es = esplodiInStrati(scena, 1.5);
+    expect(es.mesh.map(m => m.id)).toEqual(scena.mesh.map(m => m.id));
+    expect(es.mesh.some(m => stratoDi(m) === "fondazioni")).toBe(false);
+    const conFondazioni = costruisciScena(piante.progetto, { fondazioni: true });
+    const esplosoConFondazioni = esplodiInStrati(conFondazioni, 1.5);
+    expect(esplosoConFondazioni.mesh.map(m => m.id)).toEqual(conFondazioni.mesh.map(m => m.id));
   });
 
   it("i soffitti si vedono anche da sopra: ogni faccia ha la sua opposta", () => {
@@ -46,12 +44,13 @@ describe("vista esplosa a strati", () => {
   it("i limiti della scena seguono gli strati spostati", () => {
     const es = esplodiInStrati(scena, 2);
     expect(es.limiti.max[1]).toBeGreaterThan(scena.limiti.max[1] + 3);
-    expect(es.limiti.min[1]).toBeCloseTo(Math.min(...es.mesh.map(minY)), 6);
+    expect(es.limiti.min[1]).toBeCloseTo(scena.limiti.min[1]);
   });
 
   it("le aree esterne non si muovono; il tetto va in cima", () => {
     expect(stratoDi({ id: "area:a1", riferimento: "a1", genere: "pavimento" })).toBeNull();
     expect(stratoDi({ id: "terreno", riferimento: "terreno", genere: "pavimento" })).toBeNull();
+    expect(stratoDi({ id: "pavimento:veranda", riferimento: "veranda", genere: "pavimento", stratoEsploso: null })).toBeNull();
     expect(stratoDi({ id: "tetto", riferimento: "tetto", genere: "soffitto" })).toBe("copertura");
     expect(stratoDi({ id: "p1/soffitto:l1", riferimento: "l1", genere: "soffitto" })).toBe("soffitti");
     expect(stratoDi({ id: "muro:m1", riferimento: "m1", genere: "muro" })).toBe("pareti");

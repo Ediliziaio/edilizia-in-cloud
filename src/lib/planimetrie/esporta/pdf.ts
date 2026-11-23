@@ -455,7 +455,7 @@ export async function esportaPdf(vista: VistaPianta, cartiglio: DatiCartiglio, o
     y += disegnaLegenda(d, colX, y, colL, vista) + 3;
     if (opzioni.tabellaLocali ?? true) {
       const spazio = informazioni.y + informazioni.altezza - y - 30;
-      y += disegnaTabellaLocali(d, colX, y, colL, spazio, vista) + 3;
+      disegnaTabellaLocali(d, colX, y, colL, spazio, vista);
     }
     disegnaBarraScala(d, colX, informazioni.y + informazioni.altezza - 26, colL, piano.scala);
   } else {

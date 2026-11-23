@@ -33,6 +33,7 @@ type Scheda = "rapportini" | "acquisti" | "contabilita" | "squadre";
 const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
   rapportini: "rapportini",
   lavorazioni: "rapportini",
+  computi: "rapportini",
   acquisti: "acquisti",
   forniture: "acquisti",
   controllo: "acquisti",
@@ -90,6 +91,7 @@ const Lavorazioni = lazy(() =>
     default: m.OrderWorkPhases,
   })),
 );
+const Computo = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 const Bolle = lazy(() =>
   import("@/components/orders/OrderDocumentiFornitore").then((m) => ({
     default: m.OrderBolleDdtCard,
@@ -273,6 +275,13 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                     orderCode={scelto.codice}
                   />
                 </Sezione>
+                {effectiveCompany?.id && permessi.canViewOrders && g.modello !== "appalto" && (
+                  <Sezione id="computi" titolo="Computi del cantiere">
+                    <Computo key={`${orderId}:${parametri.get("computo") ?? ""}`} orderId={orderId} companyId={effectiveCompany.id}
+                      canEdit={puoModificare} canViewAmounts={riepilogo.permessi.importi} orderLabel={scelto.codice}
+                      computoInizialeId={parametri.get("computo") || undefined} />
+                  </Sezione>
+                )}
               </TabsContent>
               <TabsContent value="acquisti" className="space-y-6 pt-2">
                 <Sezione id="forniture" titolo="Ordini e DDT">

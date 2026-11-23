@@ -37,7 +37,8 @@ function caricaCampione(url: string, mimeType?: CampioneGlb["mimeType"]) {
 }
 
 export async function esportaGlbConFiniture(base: Scena3D, aggiuntivi: ReadonlyMap<string, CampioneGlb> = new Map()) {
-  const scena = base.mesh.some(m => m.auto) ? await (await import("./tred/modelliAuto")).scenaConModelliAuto(base) : base;
+  const scena = base.mesh.some(m => m.auto || m.arredoCatalogo)
+    ? await (await import("./tred/modelliDettagliati")).scenaConModelliDettagliati(base) : base;
   const trame = new Set(scena.mesh.flatMap(m => {
     const trama = scena.materiali[m.materiale]?.tessitura?.trama;
     return trama ? [trama] : [];

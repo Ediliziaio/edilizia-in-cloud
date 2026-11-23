@@ -607,7 +607,7 @@ export function rinominaStanza(
 /** Come per le pareti: nel progetto un arredo di oggi non si sposta, si toglie (e se ne mette uno nuovo). */
 export function aggiungiElemento(
   pianta: Pianta,
-  voce: Pick<ElementoLavoro, "tipo" | "larghezza" | "profondita" | "altezza" | "etichetta" | "alzateCad">,
+  voce: Pick<ElementoLavoro, "tipo" | "larghezza" | "profondita" | "altezza" | "etichetta" | "alzateCad" | "modello">,
   centro: Punto,
   o: { stato?: StatoElemento; rotazione?: number } = {},
 ): { pianta: Pianta; id: string } {
@@ -622,6 +622,7 @@ export function aggiungiElemento(
     profondita: voce.profondita,
     ...(voce.altezza ? { altezza: voce.altezza } : {}),
     ...(voce.alzateCad ? { alzateCad: voce.alzateCad } : {}),
+    ...(voce.modello ? { modello: voce.modello } : {}),
     stato: o.stato ?? "esistente",
     origine: "rilevata",
   };
@@ -636,7 +637,7 @@ export function modificaElemento(
   const norm = { ...campi };
   if (norm.rotazione != null) norm.rotazione = ((Math.round(norm.rotazione) % 360) + 360) % 360;
   return { ...pianta, elementi: (pianta.elementi ?? []).map((e) => (e.id === id
-    ? { ...e, ...norm, origine: "rilevata", ...(norm.tipo && norm.tipo !== e.tipo ? { alzateCad: undefined } : {}) }
+    ? { ...e, ...norm, origine: "rilevata", ...(norm.tipo && norm.tipo !== e.tipo ? { alzateCad: undefined, modello: undefined } : {}) }
     : e)) };
 }
 

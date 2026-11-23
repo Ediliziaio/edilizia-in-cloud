@@ -138,10 +138,12 @@ describe("telaio dei serramenti in 3D", () => {
     aperture: [{ id: "f1", muroId: "m1", tipo: "finestra", posizione: 300, larghezza: 140, altezza: 130, davanzale: 90, stato: "esistente", ...extra }],
     locali: [], elementi: [],
   }) as never;
-  it("una finestra con valori predefiniti ha il telaio e più ante aggiungono montanti", () => {
-    expect(costruisciScena(pianta({}), { vista: "fatto" }).mesh.some((m) => m.id.startsWith("telaio:"))).toBe(true);
+  it("anche il vano importato ha una cornice, con un montante per ogni separazione fra ante", () => {
+    const base = costruisciScena(pianta({}), { vista: "fatto" }).mesh.find((m) => m.id === "telaio:f1")!;
     const a = costruisciScena(pianta({ ante: 2, scorrevole: false }), { vista: "fatto" }).mesh.find((m) => m.id === "telaio:f1")!;
     const b = costruisciScena(pianta({ ante: 3, scorrevole: false }), { vista: "fatto" }).mesh.find((m) => m.id === "telaio:f1")!;
+    expect(base.facce).toBeGreaterThan(0);
+    expect(a.facce).toBeGreaterThan(base.facce);
     expect(b.facce).toBeGreaterThan(a.facce);
     const s = costruisciScena(pianta({ ante: 2, scorrevole: true }), { vista: "fatto" }).mesh.find((m) => m.id === "telaio:f1")!;
     expect(s.facce).toBeGreaterThan(a.facce);

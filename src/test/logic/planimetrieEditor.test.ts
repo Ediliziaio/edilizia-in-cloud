@@ -228,8 +228,8 @@ describe("porte e finestre", () => {
   });
 
   it("quando la parete si accorcia la porta resta nello stesso punto o rientra", () => {
-    let { pianta, id } = aggiungiParete(piantaVuota(), { x: 0, y: 0 }, { x: 400, y: 0 });
-    pianta = aggiungiApertura(pianta, id!, "porta", 100).pianta;
+    const { pianta: piantaConParete, id } = aggiungiParete(piantaVuota(), { x: 0, y: 0 }, { x: 400, y: 0 });
+    const pianta = aggiungiApertura(piantaConParete, id!, "porta", 100).pianta;
     // si sposta l'inizio della parete: la porta non deve muoversi nel disegno
     const dopo = spostaAngolo(pianta, { x: 0, y: 0 }, { x: 50, y: 0 });
     expect(dopo.aperture[0].posizione).toBe(50);
@@ -318,9 +318,9 @@ describe("aggancio del cursore", () => {
     expect(aggancia(p, { x: 404, y: 296 }, { tolleranza: 10 })).toMatchObject({ punto: { x: 400, y: 300 }, guida: "angolo", ancora: { tipo: "estremo" } });
   });
   it("si aggancia a una parete", () => {
-    const a = aggancia(p, { x: 203, y: 6 }, { tolleranza: 10, precisione: false });
+    const a = aggancia(p, { x: 213, y: 6 }, { tolleranza: 10 });
     expect(a.guida).toBe("parete");
-    expect(a.punto).toEqual({ x: 205, y: 0 });
+    expect(a.punto).toEqual({ x: 215, y: 0 });
   });
   it("una parete in corso va dritta a 90°", () => {
     const a = aggancia(p, { x: 700, y: 512 }, { tolleranza: 10, da: { x: 500, y: 500 } });

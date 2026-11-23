@@ -549,7 +549,7 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   }
   const note = [
     ["Lavorazioni incluse", i.inclusioni], ["Esclusioni e limiti", i.esclusioni],
-    ["Tempi di esecuzione", i.tempi], ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", i.mostraImporti !== false, i.ritenutaPagamenti)], ["Modalità di pagamento", i.pagamenti], ["Note e condizioni", i.condizioni],
+    ["Tempi di esecuzione", i.tempi], ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", mostraImporti, i.ritenutaPagamenti)], ["Modalità di pagamento", i.pagamenti], ["Note e condizioni", i.condizioni],
   ].filter((r): r is [string, string] => !!r[1]?.trim());
   if (note.length) {
     ensure(125); y += 12; paragraph("Perimetro e condizioni", 13, t.inchiostro, true); y += 6; rule();

@@ -4,6 +4,44 @@ import { triangola, v2 } from "./geometria2d";
 
 const vuota = (): PiantaPer3D => ({ muri: [], aperture: [], locali: [], elementi: [] });
 
+it("la porta a due ante chiude la vista statica e resta percorribile durante la visita", () => {
+  const p = vuota();
+  p.muri.push({ id: "facciata", a: { x: 0, y: 0 }, b: { x: 395, y: 0 }, spessore: 37.5, altezza: 270, stato: "esistente" });
+  p.aperture.push({ id: "ingresso", muroId: "facciata", tipo: "porta", posizione: 195, larghezza: 172, altezza: 210,
+    davanzale: 0, ante: 2, stato: "esistente" });
+  const statica = costruisciScena(p);
+  expect(statica.mesh.find(m => m.id === "ante-porta:ingresso")?.posizioni.length).toBeGreaterThan(100);
+  const soglia = statica.mesh.find(m => m.id === "soglia:ingresso")!;
+  expect(soglia.genere).toBe("pavimento");
+  expect(limitiDi([soglia]).max[1]).toBeCloseTo(-.003);
+  const visita = costruisciScena(p, { passaggiAperti: true });
+  expect(visita.mesh.some(m => m.id === "soglia:ingresso")).toBe(true);
+  expect(visita.mesh.some(m => m.id === "ante-porta:ingresso")).toBe(false);
+});
+
+it("la vetrata scorrevole mostra due lastre su piani distinti senza cambiare il vano", () => {
+  const aperture: PiantaPer3D["aperture"] = [{ id: "scorrevole", muroId: "m", tipo: "portafinestra",
+    posizione: 195, larghezza: 250, altezza: 230, davanzale: 0, ante: 2, scorrevole: true, stato: "esistente" }];
+  const p = muroSolo(aperture);
+  const scena = costruisciScena(p);
+  const vetro = scena.mesh.find(m => m.id === "vetro:scorrevole")!;
+  expect(vetro.facce).toBe(2);
+  expect(new Set(vetro.posizioni.filter((_, i) => i % 3 === 2))).toEqual(new Set([-.029, .029]));
+  expect(scena.mesh.find(m => m.id === "muro:m")?.posizioni).toEqual(
+    costruisciScena(muroSolo([{ ...aperture[0], scorrevole: false }])).mesh.find(m => m.id === "muro:m")?.posizioni);
+  expect(costruisciScena(p, { passaggiAperti: true }).mesh.some(m => m.id === vetro.id)).toBe(false);
+});
+
+it("la porta a un’anta ha pannello e maniglia rispettando il lato delle cerniere", () => {
+  const p = muroSolo([{ id: "p", muroId: "m", tipo: "porta", posizione: 195, larghezza: 90, altezza: 210,
+    davanzale: 0, cardineP2: true, stato: "esistente" }]);
+  const { mesh } = costruisciScena(p);
+  const pannello = mesh.find(m => m.id === "ante-porta:p")!;
+  const maniglia = mesh.find(m => m.id === "ferramenta-porta:p")!;
+  expect(limitiDi([pannello]).max[1]).toBeCloseTo(2.065);
+  expect(limitiDi([maniglia]).max[0]).toBeLessThan(1.95);
+});
+
 /** Volume racchiuso (teorema della divergenza): torna solo se la superficie è chiusa e le normali guardano fuori. */
 function volume(mesh: Mesh3D[]): number {
   let v = 0;

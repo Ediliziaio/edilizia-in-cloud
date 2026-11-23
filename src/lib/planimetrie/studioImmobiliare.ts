@@ -2,6 +2,8 @@ import { areaPoligono, assiDelMuro, interniSovrapposti, lunghezzaMuro, puntoNelP
 import { eAmbienteInterno, funzionePareteDaVerificare, origineMisura, scalaModelloDaVerificare, type Livello, type Locale, type Muro, type Planimetria, type PrezzoVocePlanimetria, type Proposta } from "../../../shared/planimetrie/modello.ts";
 import { calcolaQuantita, OPZIONI_QUANTITA_PREDEFINITE, type MappaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { percorsiImpianti, type LineaImpianto } from "../../../shared/planimetrie/impianti.ts";
+import { zoneRadianti } from "../../../shared/planimetrie/pavimentoRadiante.ts";
+import { circuitiRadianti, nomeCircuito } from "../../../shared/planimetrie/circuitiRadianti.ts";
 import { firmaRiscontroTecnico, muriPortantiModificati } from "../../../shared/planimetrie/urbanistica.ts";
 import { bozzaVuota, calcolaVoce, misuraVuota, voceVuota, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { unitaDellEdificio } from "./unita";
@@ -88,6 +90,45 @@ function impiantiNelComputo(doc: Planimetria, piano: Livello, proposta: Proposta
       stimata: true, quantificazioneSospesa: sospesa,
     }];
   });
+}
+
+function radianteNelComputo(piano: Livello, proposta: Proposta, scalaIncerta: boolean): RigaStudio[] {
+  const precedenti = new Map(zoneRadianti(piano.fatto).map(z => [z.locale.id, z]));
+  const circuiti = circuitiRadianti(proposta);
+  const retiUguali = JSON.stringify(piano.fatto.collettoreRadiante) === JSON.stringify(proposta.collettoreRadiante);
+  const numero = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  const righe = zoneRadianti(proposta).flatMap(({ locale, zona, superficieMq, tuboM }): RigaStudio[] => {
+    const prima = precedenti.get(locale.id);
+    const zonaUguale = prima && prima.zona.passoCm === zona.passoCm && prima.zona.superficieEsclusaMq === zona.superficieEsclusaMq &&
+      prima.locale.contorno.length === locale.contorno.length &&
+      locale.contorno.every(p => prima.locale.contorno.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 0.1));
+    if (zonaUguale && retiUguali) return [];
+    const base: Pick<RigaStudio, "livelloId" | "piano" | "fase" | "gruppo" | "criterio" | "stimata" | "quantificazioneSospesa" | "riferimento"> = {
+      livelloId: piano.id, piano: piano.nome, fase: "Impianti di riscaldamento", gruppo: etichettaGruppo(nomeGruppo(locale)),
+      criterio: scalaIncerta ? SCALA_DA_RISCONTRARE :
+        `Passo ${zona.passoCm.toLocaleString("it-IT")} cm. Dimensiona circuiti, collegamenti al collettore e posa.`,
+      stimata: true, quantificazioneSospesa: scalaIncerta, riferimento: { tipo: "locale", id: locale.id },
+    };
+    const chiave = `progetto:${proposta.id}:locale:${locale.id}`;
+    const delLocale = circuiti.filter(c => c.localeId === locale.id);
+    const locali: RigaStudio[] = [
+      ...(!zonaUguale ? [{ ...base, id: `${locale.id}-radiante-pannelli`, descrizione: `Pannelli per pavimento radiante · ${locale.nome}`,
+        chiave: `${chiave}.radiante_mq`, unita: "m²" as const, quantita: scalaIncerta ? null : arrotonda(superficieMq) }] : []),
+      ...delLocale.map(c => ({ ...base, id: `${locale.id}-radiante-circuito-${c.numero}`, descrizione: `Tubo radiante · ${nomeCircuito(c)}`,
+        chiave: `${chiave}.radiante_circuito_${c.numero}_ml`, unita: "m" as const, quantita: scalaIncerta ? null : arrotonda(c.totaleM),
+        criterio: scalaIncerta ? SCALA_DA_RISCONTRARE :
+          `Passo ${numero(zona.passoCm)} cm. Mandata ${numero(c.mandataM)} m, serpentina ${numero(c.tuboAttivoM)} m, ritorno ${numero(c.ritornoM)} m.` })),
+    ];
+    if (!delLocale.length && !zonaUguale) locali.push({ ...base, id: `${locale.id}-radiante-tubo`, descrizione: `Tubo per pavimento radiante · ${locale.nome}`,
+      chiave: `${chiave}.radiante_tubo_ml`, unita: "m", quantita: scalaIncerta ? null : arrotonda(tuboM) });
+    return locali;
+  });
+  if (proposta.collettoreRadiante && !piano.fatto.collettoreRadiante) righe.push({
+    id: `impianto-${piano.id}-radiante-collettore`, livelloId: piano.id, piano: piano.nome, fase: "Impianti di riscaldamento", gruppo: "Impianti del piano",
+    descrizione: "Collettore per pavimento radiante", unita: "cad", quantita: 1, stimata: false,
+    criterio: `${circuiti.length} circuiti stimati. Verifica numero di uscite e componenti di regolazione.`,
+  });
+  return righe;
 }
 
 function verificheBilocaliNelComputo(piano: Livello, proposta: Proposta): RigaStudio[] {
@@ -336,7 +377,8 @@ export function studioVariante(doc: Planimetria, variante: string | null) {
         });
       }
     }
-    righe.push(...impiantiNelComputo(doc, piano, p, scalaNonCalibrata, mappa), ...verificheBilocaliNelComputo(piano, p));
+    righe.push(...impiantiNelComputo(doc, piano, p, scalaNonCalibrata, mappa), ...radianteNelComputo(piano, p, scalaNonCalibrata),
+      ...verificheBilocaliNelComputo(piano, p));
   }
   const prezzi = new Map(doc.livelli.map(p => [p.id, p.proposte.find(pr => pr.id === variante)?.prezziLavorazioni]));
   const righeConPrezzi = righe.map(r => {

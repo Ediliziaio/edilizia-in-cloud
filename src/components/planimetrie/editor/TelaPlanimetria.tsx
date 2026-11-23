@@ -7,6 +7,8 @@ import { quoteNellaVista, type DatiVista, type Muro, type Pianta, type Punto, ty
 import { visibile, type Vista } from "./comandi";
 import { NOMI_AREA } from "../../../../shared/planimetrie/modello.ts";
 import { chiaveTratto, puntiPercorso, type AttraversamentoImpianto, type Percorso } from "../../../../shared/planimetrie/impianti.ts";
+import type { StatoPianta } from "../../../../shared/planimetrie/modello.ts";
+import { ZoneRadiantiSvg } from "../ZoneRadiantiSvg";
 import { pedateCad } from "../../../../shared/planimetrie/geometria.ts";
 import {
   COLORE_STANZA,
@@ -90,6 +92,7 @@ interface Props extends Gestori {
   /** Più oggetti selezionati insieme (arredi, quote, testi). */
   gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
   lineeImpianti?: Percorso[];
+  statoRadiante?: StatoPianta;
   modificaTracciati?: boolean;
   tracciato?: Percorso;
   tracciatoPrima?: Percorso;
@@ -129,7 +132,7 @@ export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqu
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
     { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, verificaEvidenziata, animazioneChat, confrontoChat, confrontoTramezzo, layerDwg, gruppo,
-      lineeImpianti, modificaTracciati, tracciato, tracciatoPrima, attraversamentiTracciato, puntoTracciatoAttivo,
+      lineeImpianti, statoRadiante, modificaTracciati, tracciato, tracciatoPrima, attraversamentiTracciato, puntoTracciatoAttivo,
       sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
@@ -525,6 +528,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
               ));
             })()}
 
+          {statoRadiante && <ZoneRadiantiSvg stato={statoRadiante} />}
           {/* anteprime mentre si disegna */}
           {lineeImpianti?.map(l => {
             const id = chiaveTratto(l);

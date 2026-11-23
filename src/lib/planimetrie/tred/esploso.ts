@@ -78,8 +78,10 @@ export function esplodiInStrati(scena: Scena3D, distanza: number): Scena3D {
     const sorgente = strato === "soffitti" ? aDoppiaFaccia(m) : m;
     const posizioni = sorgente.posizioni.slice();
     for (let k = 1; k < posizioni.length; k += 3) posizioni[k] += dy;
-    const auto = sorgente.auto;
-    return { ...sorgente, posizioni, ...(auto ? { auto: { ...auto, centro: [auto.centro[0], auto.centro[1] + dy, auto.centro[2]] } } : {}) };
+    const { auto, arredoCatalogo } = sorgente;
+    return { ...sorgente, posizioni, ...(auto ? { auto: { ...auto, centro: [auto.centro[0], auto.centro[1] + dy, auto.centro[2]] } } : {}),
+      ...(arredoCatalogo ? { arredoCatalogo: { ...arredoCatalogo,
+        centro: [arredoCatalogo.centro[0], arredoCatalogo.centro[1] + dy, arredoCatalogo.centro[2]] } } : {}) };
   });
   return { ...scena, mesh, limiti: limitiDi(mesh) };
 }

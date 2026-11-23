@@ -19,7 +19,7 @@ import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
 import { calibraRicalco, riallineaPianoAllaTavola } from "@/lib/planimetrie/calibrazioneTavola";
 import { FINITURE_TETTO, NOMI_FINITURA_TETTO, scalaModelloDaVerificare, validaPlanimetria, type FinituraTetto, type Ricalco, type RiscontroScalaModello, type Tetto } from "../../../../shared/planimetrie/modello.ts";
-import { funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { eAmbienteInterno, funzionePareteDaVerificare, NOMI_AREA, TIPI_AREA, type CollettoreRadiante, type TipoArea, type ZonaRadiante } from "../../../../shared/planimetrie/modello.ts";
 import { baricentro, STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type Ref } from "react";
 import { flushSync } from "react-dom";
@@ -66,6 +66,8 @@ import { CATALOGO, GRUPPI_CATALOGO, urlImmagineSimbolo, type VoceCatalogo } from
 import { SimboloArredo } from "./SimboloArredo";
 import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldamentoStanza } from "./arreda";
 import { attraversamentiImpianto, btuConsigliati, chiaveTratto, metriConSfrido, percorsoConVertici, percorsiImpianti } from "../../../../shared/planimetrie/impianti.ts";
+import { COLORE_RADIANTE, zoneRadianti } from "../../../../shared/planimetrie/pavimentoRadiante.ts";
+import { puntoNelPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type AnimazioneChatTela, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
@@ -282,7 +284,9 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const pianoDwg = /^cad-\d+$/.test(livelloId ?? "") || ricalco?.bloccata !== undefined;
   const ricalcoBloccato = ricalco?.bloccata ?? (pianoDwg && !!ricalco);
   const ricalcoCorrente = useRef({ ricalco, bloccata: ricalcoBloccato, livelloId });
-  useLayoutEffect(() => { ricalcoCorrente.current = { ricalco, bloccata: ricalcoBloccato, livelloId }; }, [ricalco, ricalcoBloccato, livelloId]);
+  useLayoutEffect(() => {
+    ricalcoCorrente.current = { ricalco, bloccata: ricalcoBloccato, livelloId };
+  }, [ricalco, ricalcoBloccato, livelloId]);
   const [vistaLayerDwg, setVistaLayerDwg] = useState(vistaLayerDwgIniziale);
   const [riscontroScala, setRiscontroScala] = useState<RiscontroScalaModello | undefined>(pianoDiApertura?.riscontroScala);
   const [verificaScala, setVerificaScala] = useState<{ muroId: string; misura: string; errore?: string } | null>(null);
@@ -324,7 +328,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     // Quando si registra un riscontro senza ridisegnare, conserva i contorni importati.
     const d = baseDisegno.pianta === storia.presente
       ? baseDisegno.documento
-      : aPlanimetria(storia.presente, baseDisegno.documento, livelloId, propostaId);
+      : aPlanimetria(storia.presente, baseDisegno.documento, livelloId, propostaId, baseDisegno.pianta);
     // l'immagine locale (senza archivio) non entra nel documento
     const lid = livelloId ?? d.livelli[0]?.id;
     if (!lid) return d;
@@ -332,7 +336,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     return { ...conSfondo, livelli: conSfondo.livelli.map(l => l.id === lid ? { ...l, riscontroScala } : l) };
   }, [storia.presente, livelloId, propostaId, ricalco, riscontroScala, baseDisegno]);
   const documento = useMemo(() => pianta !== storia.presente
-    ? aPlanimetria(pianta, documentoConfermato, livelloId, propostaId)
+    ? aPlanimetria(pianta, documentoConfermato, livelloId, propostaId, storia.presente)
     : documentoConfermato, [pianta, storia.presente, documentoConfermato, livelloId, propostaId]);
   const mostraProposta3D = !!propostaChat && propostaChat.pianta !== storia.presente && !vistaPrimaChat;
   const documento3D = mostraProposta3D ? documento : documentoConfermato;
@@ -351,6 +355,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const [gruppo, setGruppo] = useState<C.Gruppo>(C.gruppoVuoto);
   // Linee stimate degli impianti, dal quadro / collettore / colonna / unità esterna.
   const [mostraLinee, setMostraLinee] = useState(false);
+  const [posaCollettore, setPosaCollettore] = useState<Omit<CollettoreRadiante, "posizione"> | null>(null);
   const [pannelloTracciati, setPannelloTracciati] = useState(false);
   const [trattoId, setTrattoId] = useState("");
   const [verticiTracciato, setVerticiTracciato] = useState<Punto[] | null>(null);
@@ -362,8 +367,9 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   }, [setTrattoId, setVerticiTracciato, setPuntoDaSpostare]);
   const chiudiTracciati = useCallback(() => {
     setPannelloTracciati(false);
+    setPosaCollettore(null);
     scegliTratto("");
-  }, [scegliTratto, setPannelloTracciati]);
+  }, [scegliTratto, setPannelloTracciati, setPosaCollettore]);
   // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
   const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
@@ -987,6 +993,18 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     const pan = () => (gesto.current = { tipo: "pan", da: s, camera: stato.current.camera, mosso: false, bersaglio: b });
 
     if (sola || bloccoChat || e.button === 1 || spazioPremuto.current) return pan();
+
+    if (posaCollettore) {
+      const posizione = { x: Math.round(p.x), y: -Math.round(p.y) };
+      if (!statoImpianti.locali.some(l => eAmbienteInterno(l) && puntoNelPoligono(posizione, l.contorno))) {
+        setAvviso("Scegli un punto all’interno di un locale.");
+        return;
+      }
+      aggiornaCollettore({ ...posaCollettore, posizione });
+      setPosaCollettore(null);
+      setAvviso(null);
+      return;
+    }
 
     // Metti in scala l'immagine da ricalcare: due clic, poi la distanza vera
     if (calibra !== null && ricalco) {
@@ -1897,19 +1915,22 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
     ? "Indica il lato sul disegno per creare la parallela." : comandoCad === "taglia"
     ? "Clicca la parte di parete da rimuovere." : "Clicca l’estremità della parete da estendere.";
   const cursore =
-    calibra || verticiTracciato || comandoCad || strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "demolizioni" || strumento === "quota" ? "crosshair"
+    posaCollettore || calibra || verticiTracciato || comandoCad || strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "demolizioni" || strumento === "quota" ? "crosshair"
       : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
       : strumento === "testo" ? "text" : "default";
 
   // ─── interfaccia ──────────────────────────────────────────────────────────
-  const statoImpianti = (vista === "progetto" && livelloCorrente.proposte.find(p => p.id === propostaId)) || livelloCorrente.fatto;
-  const impianti = useMemo(() => percorsiImpianti(statoImpianti), [statoImpianti]);
-  const lineePrimaChat = useMemo(() => {
+  const { statoImpianti, impianti } = useMemo(() => {
+    const statoImpianti = (vista === "progetto" && livelloCorrente.proposte.find(p => p.id === propostaId)) || livelloCorrente.fatto;
+    return { statoImpianti, impianti: percorsiImpianti(statoImpianti) };
+  }, [livelloCorrente, propostaId, vista]);
+  const impiantiPrimaChat = useMemo(() => {
     if (!vistaPrimaChat || !mostraLinee) return undefined;
     const pianoPrima = documentoConfermato.livelli.find(l => l.id === livelloId) ?? documentoConfermato.livelli[0];
     const statoPrima = (vista === "progetto" && pianoPrima.proposte.find(p => p.id === propostaId)) || pianoPrima.fatto;
-    return percorsiImpianti(statoPrima).percorsi;
+    return { linee: percorsiImpianti(statoPrima).percorsi, stato: statoPrima };
   }, [vistaPrimaChat, mostraLinee, documentoConfermato, livelloId, propostaId, vista]);
+  const totaleRadiante = mostraLinee ? zoneRadianti(statoImpianti).reduce((totale, zona) => totale + zona.superficieMq, 0) : 0;
   const totaliLinee = useMemo(() => {
     const t = new Map<(typeof impianti.percorsi)[number]["linea"], number>();
     for (const p of impianti.percorsi) t.set(p.linea, (t.get(p.linea) ?? 0) + p.lunghezzaCm);
@@ -1921,6 +1942,16 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
   const confrontoScarico = propostaChat?.confrontoScarico;
   const tracciatoVisibile = anteprimaTratto ?? tratto ?? confrontoScarico?.dopo;
   const attraversamenti = tracciatoVisibile ? attraversamentiImpianto(tracciatoVisibile, statoImpianti) : [];
+  const aggiornaRadiante = (localeId: string, zona: ZonaRadiante | null) => {
+    const corrente = stato.current.storia.presente;
+    const zone = (statoImpianti.pavimentoRadiante ?? []).filter(z => z.localeId !== localeId);
+    if (zona) zone.push(zona);
+    applica({ ...corrente, pavimentoRadiante: { ...corrente.pavimentoRadiante, [vista]: zone } });
+  };
+  const aggiornaCollettore = (collettore: CollettoreRadiante | null) => {
+    const corrente = stato.current.storia.presente;
+    applica({ ...corrente, collettoriRadianti: { ...corrente.collettoriRadianti, [vista]: collettore } });
+  };
   const aggiornaTracciato = (chiave: string, vertici?: Punto[]) => {
     const corrente = stato.current.storia.presente;
     const tracciati = (corrente.tracciatiImpianti ?? []).filter(t => chiaveTratto(t) !== chiave);
@@ -2185,11 +2216,11 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
               />
             )}
             {!sola && strumentiVisibili && (
-              <Button size="sm" variant={mostraLinee ? "default" : "outline"} aria-pressed={mostraLinee} onClick={() => { if (mostraLinee) chiudiTracciati(); setMostraLinee(v => !v); }} title="Percorsi di cavi, tubi e linee del clima">
+              <Button size="sm" variant={mostraLinee ? "default" : "outline"} aria-pressed={mostraLinee} onClick={() => { if (mostraLinee) chiudiTracciati(); setMostraLinee(v => !v); }} title="Mostra percorsi e zone radianti sulla pianta">
                 Linee impianti
               </Button>
             )}
-            {!sola && strumentiVisibili && vista === "progetto" && <Button size="sm" variant={pannelloTracciati ? "secondary" : "outline"} aria-pressed={pannelloTracciati}
+            {!sola && strumentiVisibili && <Button size="sm" variant={pannelloTracciati ? "secondary" : "outline"} aria-pressed={pannelloTracciati}
               onClick={() => {
                 if (pannelloTracciati) { chiudiTracciati(); return; }
                 if (chatAperta) chiudiChatDisegno();
@@ -2201,7 +2232,7 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
                 setMostraLinee(true);
                 setPiantaRipiegata(false);
                 setPannelloTracciati(true);
-              }}>Tracciati impianti</Button>}
+              }}>{vista === "progetto" ? "Tracciati impianti" : "Pavimento radiante"}</Button>}
             {!sola && strumentiVisibili && <NordPianta nord={documentoConfermato.nord} onCambia={nord => {
               setBaseDisegno({ documento: { ...documentoConfermato, nord }, pianta: storia.presente });
             }} />}
@@ -2389,7 +2420,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
             confrontoTramezzo={vistaDifferenzeChat ? propostaChat?.confrontoTramezzo : undefined}
             verificaEvidenziata={vista === "fatto" && !vistaPrimaChat && (confrontoAperto || chatAperta) ? documento.letturaDocumento?.verifiche?.find((v) => v.id === evidenzaId && v.riferimento?.livelloId === (livelloId ?? documento.livelli[0]?.id) && v.riferimento?.oggettoId === selezione?.id) : undefined}
             gruppo={gruppo}
-            lineeImpianti={vistaPrimaChat ? lineePrimaChat : mostraLinee ? impianti.percorsi : undefined}
+            lineeImpianti={vistaPrimaChat ? impiantiPrimaChat?.linee : mostraLinee ? impianti.percorsi : undefined}
+            statoRadiante={vistaPrimaChat ? impiantiPrimaChat?.stato : mostraLinee ? statoImpianti : undefined}
             modificaTracciati={pannelloTracciati && !verticiTracciato}
             tracciato={vistaPrimaChat ? undefined : tracciatoVisibile}
             tracciatoPrima={vistaDifferenzeChat ? confrontoScarico?.prima : undefined}
@@ -2484,11 +2516,13 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
           </div>}
           {mostraLinee && !vistaPrimaChat && !pannelloTracciati && !confrontoScarico && (
             <div className="pointer-events-none absolute right-2 top-2 max-w-xs space-y-1 rounded-md bg-background/95 p-2 text-xs shadow-sm">
-              <p className="font-semibold">Linee impianti stimate e disegnate · 10% di sfrido</p>
+              <p className="font-semibold">Impianti in pianta</p>
+              {totaliLinee.size > 0 && <p className="text-muted-foreground">Metri delle linee con 10% di sfrido</p>}
               {[...totaliLinee].map(([l, cm]) => (
                 <p key={l} className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4" style={{ background: COLORI_LINEE[l] }} />{NOMI_LINEE[l] ?? l}: {metriConSfrido(cm).toLocaleString("it-IT")} m</p>
               ))}
-              {!totaliLinee.size && !impianti.mancano.length && <p className="text-muted-foreground">Metti prese, sanitari o split (dal pannello della stanza o da Arredi → Impianti).</p>}
+              {totaleRadiante > 0 && <p className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4" style={{ background: COLORE_RADIANTE }} />Pavimento radiante · {totaleRadiante.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m²</p>}
+              {!totaliLinee.size && !impianti.mancano.length && !totaleRadiante && <p className="text-muted-foreground">Posa simboli impianto o aggiungi un pavimento radiante.</p>}
               {impianti.mancano.map(m => {
                 const unita = impianti.mancanoPerUnita.filter(v => v.partenza === m).map(v => v.unita);
                 return <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]}{unita.length ? ` · ${unita.join(", ")}` : ""} (Arredi → Impianti).</p>;
@@ -2543,6 +2577,8 @@ export default function EditorPlanimetria({ companyId, piantaIniziale, livelloIn
         {pannelloTracciati && <TracciatiImpianti percorsi={impianti.percorsi} daRicollegare={impianti.tracciatiDaRicollegare} elementi={statoImpianti.elementi}
           selezionato={tratto} anteprima={anteprimaTratto} vertici={verticiTracciato} sposta={puntoDaSpostare}
           attraversamenti={attraversamenti} scalaIncerta={scalaModelloDaVerificare(livelloCorrente)}
+          stato={statoImpianti} soloRadiante={vista === "fatto"} onCambiaRadiante={aggiornaRadiante}
+          posaCollettore={!!posaCollettore} onPosaCollettore={setPosaCollettore} onCambiaCollettore={aggiornaCollettore}
           onScegli={scegliTratto} onModifica={() => setVerticiTracciato(tratto?.vertici?.map(p => ({ x: p.x, y: -p.y })) ?? [])}
           onSposta={setPuntoDaSpostare} onTogliUltimo={() => { setVerticiTracciato(v => v?.slice(0, -1) ?? null); setPuntoDaSpostare(null); }}
           onAzzera={() => { setVerticiTracciato([]); setPuntoDaSpostare(null); }}

@@ -36,8 +36,9 @@ function scolpisciBacino(c: CostruttoreMesh, centro: Centro, rotazione: number, 
 }
 
 export function costruisciSanitario(tipo: "wc" | "bidet", centro: Centro, r: number, l: number, p: number, h: number, fabbrica: Fabbrica, modello?: string) {
-  const c = fabbrica("ceramica");
-  const sospeso = modello === "sospeso", filoMuro = modello === "filo_muro";
+  const compatto = modello === "sospeso_soft";
+  const c = fabbrica(compatto ? "ceramica_satinata" : "ceramica");
+  const sospeso = modello === "sospeso" || compatto, filoMuro = modello === "filo_muro";
   const wc = tipo === "wc";
   const ry = h * (sospeso ? .38 : .16);
   const zc = wc ? p * .06 : 0;
@@ -58,6 +59,22 @@ export function costruisciSanitario(tipo: "wc" | "bidet", centro: Centro, r: num
     const aggancio = sospeso ? h * .44 : 0;
     c.scatola(centro.x, centro.z, aggancio, l * .72, p * .25, h * .89 - aggancio, r, 0, -p * .375, 0, .018);
   }
+  if (compatto && wc) {
+    const bordo = Math.min(.018, h * .057);
+    scolpisciBacino(fabbrica("ceramica_smalto"), centro, r, [
+      { rx: rx * .95, rz: rz * .95, quota: h - bordo * .32 },
+      { rx: rx * .97, rz: rz * .97, quota: h + bordo * .62 },
+      { rx: rx * .92, rz: rz * .93, quota: h + bordo },
+      { rx: l * .347, rz: p * .308, quota: h + bordo },
+      { rx: l * .345, rz: p * .305, quota: h - bordo * .34 },
+    ], zc);
+    const placca = fabbrica("grafite");
+    const y = Math.max(1.03, h * 2.24), larghezza = Math.min(.23, l * .68);
+    const z = -p / 2 + .008;
+    placca.scatola(centro.x, centro.z, y, larghezza, .014, .142, r, 0, z, 0, .006);
+    for (const [i, x] of [-.18, .18].entries()) fabbrica("inox").scatola(centro.x, centro.z, y + .047,
+      larghezza * .238, .007, i ? .035 : .044, r, larghezza * x, z + .009, 0, .004);
+  }
   if (!wc) rubinetto(fabbrica("metallo"), centro, r, p, h);
 }
 
@@ -74,7 +91,7 @@ export function costruisciLavabo(centro: Centro, r: number, l: number, p: number
   const fondo = appoggio ? piano + (h - piano) * .13 : h - spessore * .81;
   const ceramica = fabbrica("ceramica");
   if (!sospeso) {
-    const legno = fabbrica("legno");
+    const legno = fabbrica(modello === "incasso_rovere" ? "rovere_chiaro" : "legno");
     const base = h * .31;
     const frontale = p * .46;
     const sottopiano = piano - spessore;
@@ -85,6 +102,8 @@ export function costruisciLavabo(centro: Centro, r: number, l: number, p: number
       legno.scatola(centro.x, centro.z, y + fuga, l * .945, p * .035, cassetto - fuga * 2,
         r, 0, frontale, 0, .006);
     }
+    if (modello === "incasso_rovere") fabbrica("grafite").scatola(centro.x, centro.z, base + cassetto - .002,
+      l * .88, p * .022, .005, r, 0, frontale - p * .020, 0, .001);
   }
   if (appoggio) {
     ceramica.scatola(centro.x, centro.z, piano - spessore, l, p, spessore, r, 0, 0, 0, .011);
@@ -110,11 +129,26 @@ export function costruisciLavabo(centro: Centro, r: number, l: number, p: number
 
 export function costruisciVasca(centro: Centro, r: number, l: number, p: number, h: number, fabbrica: Fabbrica, modello: string) {
   const incasso = modello === "incasso", forma = incasso ? .22 : 1;
-  scolpisciBacino(fabbrica("ceramica"), centro, r, [
-    { rx: l * (incasso ? .5 : .392), rz: p * (incasso ? .5 : .357), quota: 0, forma },
-    { rx: l * .5, rz: p * .5, quota: h - Math.min(.034, h * .1), forma },
-    { rx: l * .491, rz: p * .488, quota: h, forma },
-    { rx: l * .433, rz: p * .401, quota: h, forma: incasso ? .4 : .85 },
-    { rx: l * .337, rz: p * .301, quota: h * .21, forma: incasso ? .57 : .95 },
+  const spa = modello === "spa_freestanding" && l >= 1.20 && p >= .52 && h >= .32;
+  const c = Math.cos(r), s = Math.sin(r);
+  const punto = (x: number, quota: number, z: number): V3 => [centro.x + x * c - z * s, quota, centro.z + x * s + z * c];
+  const asse = spa ? l * .043 : 0, larghezza = l * (spa ? .914 : 1);
+  const [x0, , z0] = punto(asse, 0, 0);
+  scolpisciBacino(fabbrica("ceramica"), { x: x0, z: z0 }, r, [
+    { rx: larghezza * (incasso ? .5 : .392), rz: p * (incasso ? .5 : .357), quota: 0, forma },
+    { rx: larghezza * .5, rz: p * .5, quota: h - Math.min(.034, h * .1), forma },
+    { rx: larghezza * .491, rz: p * .488, quota: h, forma },
+    { rx: larghezza * (spa ? .459 : .433), rz: p * (spa ? .448 : .401), quota: h, forma: incasso ? .4 : .85 },
+    { rx: larghezza * .337, rz: p * .301, quota: h * .21, forma: incasso ? .57 : .95 },
   ]);
+  if (!spa) return;
+  const acciaio = fabbrica("inox"), x = -l * .464, y = h + .165, bocca = -l * .295;
+  acciaio.tubo([punto(x, .001, 0), punto(x, .015, 0)], Math.min(.038, l * .034), 18);
+  acciaio.tubo([punto(x, .014, 0), punto(x, y - .058, 0),
+    punto(x + .010, y - .017, 0), punto(x + .045, y, 0), punto(bocca - .022, y, 0),
+    punto(bocca, y - .013, 0), punto(bocca, y - .036, 0)], .015, 14);
+  acciaio.tubo([punto(x, h + .017, 0), punto(x, h + .017, .076), punto(x, h + .056, .080)], .008, 12);
+  acciaio.tubo([punto(asse - l * .16, h * .21, 0), punto(asse - l * .16, h * .21 + .005, 0)], .024, 20);
+  const troppoPieno = -l * .365;
+  acciaio.tubo([punto(troppoPieno, h * .83, 0), punto(troppoPieno + .012, h * .83, 0)], .021, 18);
 }

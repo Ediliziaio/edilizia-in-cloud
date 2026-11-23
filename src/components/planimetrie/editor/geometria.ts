@@ -136,7 +136,6 @@ export function aggancia(
   // 2. Direzione dritta rispetto al punto di partenza
   let q = p;
   let guida: Guida | null = null;
-  let riferimento: Punto | undefined;
   if (da) {
     const dx = p.x - da.x;
     const dy = p.y - da.y;
@@ -172,7 +171,7 @@ export function aggancia(
       if (da && q.x === da.x && Math.abs(a.y - q.y) <= tolleranza) return { punto: { x: q.x, y: a.y }, guida: "allineato", riferimento: a };
     }
   }
-  if (guida) return { punto: q, guida, riferimento };
+  if (guida) return { punto: q, guida };
 
   return { punto: arrotonda(p), guida: "griglia" };
 }

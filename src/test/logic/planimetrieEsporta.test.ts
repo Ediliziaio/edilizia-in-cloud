@@ -145,6 +145,17 @@ describe("scena", () => {
     expect(valori).toContain("7,70");
     expect(costruisciScena(fatto(), { scala: 50, unitaQuote: "cm" }).primitive.some((p) => p.tipo === "testo" && p.testo === "990")).toBe(true);
   });
+
+  it("nella tavola di presentazione la quota complessiva lascia spazio alla quota della tavola originale", () => {
+    const vista = stanza();
+    vista.quote = [{ p1: { x: 10, y: 310 }, p2: { x: 410, y: 310 }, scostamento: -67, testo: "4,00 m" }];
+    const testi = costruisciScena(vista, { scala: 100, quoteAutomatiche: "ingombri" }).primitive;
+    const ordinata = (testo: string) => {
+      const quota = testi.find(p => p.tipo === "testo" && p.layer === "QUOTE" && p.testo === testo);
+      return quota?.tipo === "testo" ? quota.posizione.y : NaN;
+    };
+    expect(ordinata("4,40") - ordinata("4,00 m")).toBeCloseTo(70);
+  });
 });
 
 describe("impaginazione e scala", () => {

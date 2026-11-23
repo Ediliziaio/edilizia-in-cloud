@@ -35,12 +35,14 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
   const acceso = modelliAttivi.includes(ip.modello);
   const motivo = motivoSenzaUnita(ip);
   const op = operazioneDaIpotesi(ip, { nome, conUnita });
+  const verificaAperta = (ip.importazione && !ip.importazione.confermata) || (ip.planimetria && !ip.planimetria.confermata);
 
   const conferma = () => {
-    if (!nome.trim() || (ip.importazione && !ip.importazione.confermata)) return;
-    crea.mutate({ ipotesiId: salvata.id, operazione: op, origine: ip.importazione?.originale }, {
-      onSuccess: (id) => {
-        toast.success("Operazione creata", { description: "Il piano economico è in bozza: controllalo e approvalo." });
+    if (!nome.trim() || verificaAperta) return;
+    crea.mutate({ ipotesiId: salvata.id, operazione: op, origine: ip.importazione?.originale, planimetria:ip.planimetria }, {
+      onSuccess: ({id,avviso}) => {
+        toast.success("Operazione creata", { description: "Il piano economico è in bozza." });
+        if (avviso) toast.warning(avviso);
         onOpenChange(false);
         navigate(`/azienda/ordini/${id}`);
       },
@@ -70,6 +72,7 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
             <ul className="space-y-1 text-sm">
               <li>Ricavi previsti: <span className="font-medium">{euro(op.valore)}</span></li>
               <li>Piano economico in bozza con {op.voci.length} voci, coi loro mesi.</li>
+              {ip.planimetria && <li>Planimetria e fascicolo alla versione {ip.planimetria.versione}.</li>}
               <li>{op.fonti.length ? `Fonti: ${op.fonti.map((f) => `${f.nome} ${euro(f.impegno)}`).join(", ")}.` : "Nessuna fonte: le aggiungi dopo."}</li>
             </ul>
             <div className="flex items-start gap-2">
@@ -86,7 +89,7 @@ export function DiventaOperazioneDialog({ open, onOpenChange, salvata, modelliAt
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          {acceso && <Button onClick={conferma} disabled={!nome.trim() || crea.isPending || (ip.importazione && !ip.importazione.confermata)}>{crea.isPending ? "Creazione…" : "Crea l'operazione"}</Button>}
+          {acceso && <Button onClick={conferma} disabled={!nome.trim() || crea.isPending || verificaAperta}>{crea.isPending ? "Creazione…" : "Crea l'operazione"}</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

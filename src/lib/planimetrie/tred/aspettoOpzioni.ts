@@ -4,6 +4,7 @@
  * Le scelte si ricordano nel browser: quelle fatte nel 3D valgono anche per i render esterni con l'AI.
  */
 import type { Scena3D } from "./tipi";
+import { LUCI_RENDER_LOCALE, type LuceRenderLocale } from "../../../../shared/planimetrie/renderLocale";
 
 export type IdFacciata = "intonaco_bianco" | "intonaco_caldo" | "intonaco_grigio" | "intonaco_terra" | "mattone" | "pietra" | "legno" | "cemento";
 export type IdInfissi = "bianco" | "antracite" | "legno" | "verde" | "grigio";
@@ -35,6 +36,7 @@ export interface OpzioniAspetto {
   infissi: IdInfissi;
   /** Ora del giorno, da 7 a 19. */
   ora: number;
+  luce?: LuceRenderLocale;
   alberi: boolean;
   /** Occlusione ambientale (ombre negli angoli): più bella, più pesante. */
   effetti: boolean;
@@ -61,6 +63,7 @@ export function leggiAspetto(): OpzioniAspetto {
       facciata: g.facciata && g.facciata in FACCIATE ? g.facciata : base.facciata,
       infissi: g.infissi && g.infissi in INFISSI ? g.infissi : base.infissi,
       ora: typeof g.ora === "number" && g.ora >= 7 && g.ora <= 19 ? g.ora : base.ora,
+      luce: g.luce && LUCI_RENDER_LOCALE.includes(g.luce) ? g.luce : undefined,
       alberi: typeof g.alberi === "boolean" ? g.alberi : base.alberi,
       effetti: typeof g.effetti === "boolean" ? g.effetti : base.effetti,
     };

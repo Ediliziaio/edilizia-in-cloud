@@ -8,7 +8,7 @@ import { finituraDi, SUBSTRATO_VERDE_CM } from "../../../shared/planimetrie/tett
 import { pianteDaPlanimetria, costruisciScena, scenaEdificio, pianiDaPlanimetria } from "@/lib/planimetrie/tred";
 import { esplodiInStrati } from "@/lib/planimetrie/tred/esploso";
 import { CostruttoreMesh } from "@/lib/planimetrie/tred/costruttore";
-import { FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, postiAlberi, sole, TRAME, uvPerProiezione } from "@/components/planimetrie/tred/aspetto";
+import { FACCIATE, finestraPerLuce, ID_FACCIATE, ID_INFISSI, INFISSI, postiAlberi, sole, TRAME, uvPerProiezione } from "@/components/planimetrie/tred/aspetto";
 import { prospettoQuotato, pianiProspetto } from "@/lib/planimetrie/prospetti";
 import { ASPETTO_PREDEFINITO, descriviAspetto, leggiAspetto, salvaAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
@@ -181,6 +181,19 @@ describe("aspetto realistico: funzioni pure", () => {
 });
 
 describe("aspetto scelto: memoria e descrizione per l'AI", () => {
+  it("eredita lo scenario di luce e usa la quota esatta del piano visitato", () => {
+    const pianta = pianteDaPlanimetria(carica("trilocale.json")).fatto;
+    const locale = pianta.locali.find(l => finestraPerLuce(pianta, l.id, "fatto"))!;
+    const terra = finestraPerLuce(pianta, locale.id, "fatto")!;
+    const sopra = finestraPerLuce(pianta, locale.id, "fatto", 3.1)!;
+    expect(sopra.centro[1]).toBeCloseTo(terra.centro[1] + 3.1, 6);
+    expect(sopra.fuori).toEqual(terra.fuori);
+    salvaAspetto({ ...ASPETTO_PREDEFINITO, luce: "sera" });
+    expect(leggiAspetto().luce).toBe("sera");
+    window.localStorage.setItem("planimetrie:aspetto:v1", JSON.stringify({ luce: "guasta" }));
+    expect(leggiAspetto().luce).toBeUndefined();
+    window.localStorage.removeItem("planimetrie:aspetto:v1");
+  });
   it("le scelte si ricordano nel browser e un valore rotto torna al predefinito", () => {
     window.localStorage.removeItem("planimetrie:aspetto:v1");
     expect(leggiAspetto()).toMatchObject({ realistico: true, facciata: ASPETTO_PREDEFINITO.facciata, infissi: ASPETTO_PREDEFINITO.infissi });

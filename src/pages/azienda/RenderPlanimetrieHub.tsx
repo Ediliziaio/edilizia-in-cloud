@@ -15,29 +15,16 @@ import { toast } from "sonner";
 import esempioTrilocale from "../../../shared/planimetrie/esempi/trilocale.json";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import {
-  ChevronDown,
-  ClipboardList,
-  FileUp,
   Grid2X2,
   ImageIcon,
-  LayoutPanelTop,
   List,
-  MessageSquareText,
-  PenLine,
   Plus,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   accessiCollegamenti,
@@ -66,59 +53,7 @@ import {
 } from "@/lib/planimetrie/archivio";
 import {
   percorsiPlanimetrie,
-  type ModoNuovaPianta,
 } from "@/lib/planimetrie/render/percorsi";
-
-const INGRESSI: {
-  modo: ModoNuovaPianta;
-  titolo: string;
-  testo: string;
-  icona: LucideIcon;
-}[] = [
-  {
-    modo: "disegno",
-    titolo: "Disegna",
-    testo: "Trascina le stanze e scrivi le misure",
-    icona: PenLine,
-  },
-  {
-    modo: "documento",
-    titolo: "Carica PDF o foto",
-    testo: "Catastale, disegno del tecnico o schizzo a mano",
-    icona: FileUp,
-  },
-  {
-    modo: "testo",
-    titolo: "Descrivi a parole",
-    testo: "«Bilocale di 60 mq, bagno 2 × 2,5»",
-    icona: MessageSquareText,
-  },
-  {
-    modo: "sopralluogo",
-    titolo: "Dal sopralluogo",
-    testo: "Detta le misure stanza per stanza, aggiungi le foto",
-    icona: ClipboardList,
-  },
-];
-
-const PASSI: { titolo: string; testo: string; icona: LucideIcon }[] = [
-  {
-    titolo: "Carica o disegna",
-    testo: "PDF, foto o schizzo: l'AI legge stanze, porte e misure.",
-    icona: FileUp,
-  },
-  {
-    titolo: "Disegna il progetto",
-    testo: "Demolizioni in giallo, opere nuove in rosso.",
-    icona: PenLine,
-  },
-  {
-    titolo: "Dalla scheda",
-    testo:
-      "3D, render delle stanze, prima e dopo con i costi, preventivo e PDF.",
-    icona: LayoutPanelTop,
-  },
-];
 
 export default function RenderPlanimetrieHub() {
   const { effectiveCompany, user } = useAuth();
@@ -197,10 +132,10 @@ export default function RenderPlanimetrieHub() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-12 max-md:space-y-3">
+    <div className="mx-auto max-w-7xl space-y-5 pb-12 sm:space-y-6">
       <TestataPlanimetrie
         titolo="Planimetrie"
-        sottotitolo="Progetti, disegno 2D, viste 3D e fascicolo PDF. Da ogni pianta avvii i render collegati alle sue stanze."
+        sottotitolo="Disegni 2D, viste 3D e render organizzati per progetto."
         azioni={
           <>
             <Button asChild variant="outline" size="sm">
@@ -213,93 +148,21 @@ export default function RenderPlanimetrieHub() {
               <RenderCreditsWidget />
             </div>
             {!permessi.solaLettura && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Nuova planimetria
-                    <ChevronDown className="ml-1.5 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {INGRESSI.map(({ modo, titolo, icona: Icona }) => (
-                    <DropdownMenuItem key={modo} asChild>
-                      <Link to={percorsiPlanimetrie.nuova(modo)}>
-                        <Icona className="mr-2 h-4 w-4" />
-                        {titolo}
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button asChild size="sm">
+                <Link to={percorsiPlanimetrie.nuova()}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Nuova planimetria
+                </Link>
+              </Button>
             )}
           </>
         }
       />
 
-      {!piante.length && !isLoading && !error && (
-        <ol
-          aria-label="Dalla pianta al render"
-          className="grid grid-cols-2 gap-2 rounded-2xl border bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-4 sm:grid-cols-4"
-        >
-          {[
-            ["Crea la pianta", "Disegna, carica o descrivi"],
-            ["Controlla le misure", "Stanze, porte e finestre"],
-            ["Scegli i materiali", "Finiture comuni e arredi"],
-            ["Genera i render", "Interni, esterni e varianti"],
-          ].map(([nome, testo], i) => (
-            <li key={nome} className="flex items-start gap-2.5">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-primary shadow-sm">
-                {i + 1}
-              </span>
-              <div>
-                <p className="text-sm font-semibold">{nome}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{testo}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {!piante.length && !isLoading && !error && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-            Nuova pianta
-          </h2>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {INGRESSI.map(({ modo, titolo, testo, icona: Icona }) => (
-              <Link
-                key={modo}
-                to={percorsiPlanimetrie.nuova(modo)}
-                className="group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                <Card className="h-full transition-all group-hover:-translate-y-0.5 group-hover:border-primary/50 group-hover:shadow-md">
-                  <CardContent className="flex items-start gap-4 p-5 max-md:gap-3 max-md:p-4">
-                    <div className="flex h-12 w-12 max-md:h-10 max-md:w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                      <Icona className="h-6 w-6 max-md:h-5 max-md:w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-base font-semibold max-md:text-sm">
-                        {titolo}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{testo}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">I tuoi progetti</h2>
-            <p className="text-xs text-muted-foreground">
-              {piante.length} planimetrie · disegni, materiali e render del
-              progetto
-            </p>
+            <h2 className="text-lg font-semibold tracking-tight">I tuoi progetti</h2>
           </div>
           <div
             className="inline-flex rounded-lg border bg-muted/30 p-1"
@@ -386,7 +249,7 @@ export default function RenderPlanimetrieHub() {
           </Card>
         ) : piante.length === 0 ? (
           <Card className="border-dashed">
-            <CardContent className="space-y-5 p-6">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
               <div>
                 <p className="text-lg font-semibold">
                   Nessuna planimetria ancora
@@ -396,24 +259,11 @@ export default function RenderPlanimetrieHub() {
                   preventivo.
                 </p>
               </div>
-              <Button
-                onClick={apriEsempio}
-                disabled={esempio || permessi.solaLettura}
-              >
-                {esempio ? "Preparo l'esempio…" : "Apri una pianta d'esempio"}
-              </Button>
-              <ol className="grid gap-3 md:grid-cols-3">
-                {PASSI.map(({ titolo, testo }, i) => (
-                  <li key={titolo} className="rounded-xl bg-muted/40 p-4">
-                    <p className="text-sm font-medium">
-                      {i + 1}. {titolo}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {testo}
-                    </p>
-                  </li>
-                ))}
-              </ol>
+              {!permessi.solaLettura && (
+                <Button variant="outline" onClick={apriEsempio} disabled={esempio}>
+                  {esempio ? "Preparo l'esempio…" : "Apri una pianta d'esempio"}
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : filtrate.length === 0 ? (

@@ -6,7 +6,7 @@ import { costruisciScena, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { CAMPI, disegnoCampo } from "@/lib/planimetrie/campiSport";
 import { formeSimbolo, TIPI_CON_FORME } from "@/lib/planimetrie/esporta/simboli";
 import { LISTINO_IMPIANTI, vociDallaPianta } from "@/lib/planimetrie/listinoImpianti";
-import { facceTetto, fotovoltaicoSulTetto, superficieFalde } from "../../../shared/planimetrie/tetto.ts";
+import { facceTetto, fotovoltaicoSulTetto, quotaFalde, superficieFalde } from "../../../shared/planimetrie/tetto.ts";
 import { nuovaPlanimetria, validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { tipoElementoDa } from "../../../supabase/functions/planimetria-genera/rispostaAI";
@@ -24,6 +24,18 @@ describe("tetti", () => {
     expect(due.filter((f) => f.genere === "falda").map((f) => f.esposizione).sort()).toEqual(["nord", "sud"]);
     // superficie di una falda inclinata > della sua proiezione
     expect(superficieFalde(una)).toBeGreaterThan(12 * 8);
+  });
+  it.each([R, { ...R, x1: R.y1, y1: R.x1 }])("chiude i timpani fino alle falde in presenza dello sporto", (r) => {
+    const facce = facceTetto(r, 280, { tipo: "due_falde", pendenza: 19, sporto: 39 });
+    const timpani = facce.filter((f) => f.genere === "timpano");
+    expect(timpani).toHaveLength(2);
+    for (const { vertici } of timpani) {
+      expect(vertici).toHaveLength(5);
+      expect(vertici.slice(0, 2).map((p) => p.z)).toEqual([280, 280]);
+      for (const vertice of vertici.slice(2)) {
+        expect(vertice.z).toBeCloseTo(quotaFalde(facce, vertice.x, vertice.y)!);
+      }
+    }
   });
   it("fotovoltaico: pannelli solo sulla falda a sud, dentro il tetto; il massimo si rispetta", () => {
     const due = facceTetto(R, 300, { tipo: "due_falde", pendenza: 30, sporto: 0 });

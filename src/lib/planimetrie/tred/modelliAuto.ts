@@ -1,7 +1,7 @@
 import { Box3, DoubleSide, Matrix3, Mesh, MeshStandardMaterial, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import type { Materiale3D, Mesh3D, ModelloAuto3D, PosizioneAuto3D, Scena3D } from "./tipi";
+import type { Materiale3D, Mesh3D, ModelloAuto3D, PosizioneModello3D, Scena3D } from "./tipi";
 
 interface ParteAuto {
   materiale: Materiale3D;
@@ -91,7 +91,7 @@ async function leggiGlb(modello: ModelloAuto3D): Promise<ParteAuto[]> {
   return [...parti.values()];
 }
 
-function inScala(parte: ParteAuto, auto: PosizioneAuto3D) {
+function inScala(parte: ParteAuto, auto: PosizioneModello3D<ModelloAuto3D>) {
   const posizioni: number[] = [], normali: number[] = [];
   const [x0, y0, z0] = auto.centro, [l, h, p] = auto.misure;
   const c = Math.cos(auto.rotazione), s = Math.sin(auto.rotazione);
@@ -107,7 +107,7 @@ function inScala(parte: ParteAuto, auto: PosizioneAuto3D) {
 
 /** Inserisce la stessa carrozzeria ad alta definizione in visore, fotogramma e GLB per Cycles. */
 export async function scenaConModelliAuto(scena: Scena3D): Promise<Scena3D> {
-  const auto = scena.mesh.filter((m): m is Mesh3D & { auto: PosizioneAuto3D } => !!m.auto);
+  const auto = scena.mesh.filter((m): m is Mesh3D & { auto: PosizioneModello3D<ModelloAuto3D> } => !!m.auto);
   if (!auto.length) return scena;
   const materiali = { ...scena.materiali };
   const prefissi = auto.map(m => m.id.slice(0, -":carrozzeria".length));

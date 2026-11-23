@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatta, formattaDifferenza } from "@/components/orders/generali/simulatore/formato";
 import { calcolaIpotesi, confrontaIpotesi, type Ipotesi } from "@/lib/orders/generali/simulatore";
 import { cn } from "@/lib/utils";
+import { ProvaPrezziVendita } from "./ProvaPrezziVendita";
 
 export interface IpotesiDaConfrontare {
   id: string;
@@ -15,12 +16,14 @@ export interface IpotesiDaConfrontare {
 }
 
 const NESSUNA = "__nessuna";
+const euroPreciso = new Intl.NumberFormat("it-IT", { style:"currency", currency:"EUR", useGrouping:"always" });
 
-export function Confronto({ disponibili, scelte, onScelte }: {
+export function Confronto({ disponibili, scelte, onScelte, apriPrezzi = false }: {
   disponibili: IpotesiDaConfrontare[];
   /** Gli id nelle colonne, in ordine; la prima è il riferimento delle differenze. */
   scelte: string[];
   onScelte: (ids: string[]) => void;
+  apriPrezzi?: boolean;
 }) {
   const colonne = useMemo(
     () => scelte.map((id) => disponibili.find((d) => d.id === id)).filter((d): d is IpotesiDaConfrontare => !!d),
@@ -55,6 +58,8 @@ export function Confronto({ disponibili, scelte, onScelte }: {
         ))}
       </div>
 
+      {colonne.length >= 2 && <ProvaPrezziVendita key={`${colonne[0].id}:${colonne[1].id}`} riferimento={colonne[0]}
+        progetto={colonne[1]} apertoIniziale={apriPrezzi} />}
       {colonne.length >= 2 && (
         <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-sm">
@@ -70,9 +75,11 @@ export function Confronto({ disponibili, scelte, onScelte }: {
                   <td className="px-3 py-1.5">{r.metrica.nome}</td>
                   {r.valori.map((v, i) => (
                     <td key={colonne[i].id} className={cn("px-3 py-1.5 text-right", r.migliore === i && "font-semibold text-emerald-700 dark:text-emerald-400")}>
-                      {formatta(v, r.metrica.formato)}
+                      {v !== null && r.metrica.formato === "euro" ? euroPreciso.format(v) : formatta(v, r.metrica.formato)}
                       {i > 0 && r.diversa && r.differenze[i] !== null && Math.abs(r.differenze[i]!) > 0 && (
-                        <span className="block text-xs font-normal text-muted-foreground">{formattaDifferenza(r.differenze[i], r.metrica.formato)}</span>
+                        <span className="block text-xs font-normal text-muted-foreground">{r.metrica.formato === "euro"
+                          ? (r.differenze[i]! > 0 ? "+" : "−") + euroPreciso.format(Math.abs(r.differenze[i]!))
+                          : formattaDifferenza(r.differenze[i], r.metrica.formato)}</span>
                       )}
                     </td>
                   ))}

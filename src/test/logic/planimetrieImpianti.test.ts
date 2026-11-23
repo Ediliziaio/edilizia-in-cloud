@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { aPlanimetria, type Pianta } from "@/components/planimetrie/editor/adattatore";
+import { aPlanimetria, daPlanimetria, type Pianta } from "@/components/planimetrie/editor/adattatore";
 import { climaStanza, dotazioneCei, impiantoElettrico, riscaldamentoStanza } from "@/components/planimetrie/editor/arreda";
 import * as C from "@/components/planimetrie/editor/comandi";
 import { CATALOGO } from "@/components/planimetrie/editor/catalogo";
-import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../shared/planimetrie/impianti.ts";
+import { attraversamentiImpianto, btuConsigliati, metriConSfrido, percorsiDaElementi, percorsiImpianti } from "../../../shared/planimetrie/impianti.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
-import { validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
+import { nuovaPlanimetria, validaPlanimetria, type Apertura, type Elemento, type Muro, type Proposta, type TracciatoImpianto } from "../../../shared/planimetrie/modello.ts";
+import { studioVariante } from "@/lib/planimetrie/studioImmobiliare";
+import { daStatoPianta } from "@/lib/planimetrie/tred/adattatore";
+import { meshImpianti } from "@/lib/planimetrie/tred/impianti3d";
 
 const voce = (t: string) => CATALOGO.find((v) => v.tipo === t)!;
 const el = (id: string, tipo: string, x: number, y: number) => ({ id, tipo, posizione: { x, y } });
@@ -26,6 +29,47 @@ describe("linee stimate degli impianti", () => {
     expect(r.percorsi).toEqual([expect.objectContaining({ linea: "elettrica", lunghezzaCm: 890 })]);
     expect(metriConSfrido(890)).toBe(9.8);
   });
+  it("ricalcola la sola rete del tratto disegnato dopo il salvataggio, anche nel computo e nel 3D", () => {
+    const doc = nuovaPlanimetria();
+    const piano = doc.livelli[0];
+    const muri: Muro[] = [{ id:"parete", p1:{x:150,y:-200}, p2:{x:150,y:200},
+      spessore:20, altezza:270, tipo:"portante", stato:"esistente", origine:"rilevata" }];
+    const aperture: Apertura[] = [{ id:"P1", muroId:"parete", tipo:"porta", offset:280, larghezza:60, altezza:210,
+      davanzale:0, manovra:"battente", stato:"esistente", origine:"rilevata" }];
+    const elementi: Elemento[] = [
+      el("q","quadro_elettrico",0,0), el("p","presa",300,0), el("c","collettore",0,-100), el("l","lavabo",200,-100),
+    ].map(p => ({ ...p, rotazione:0, larghezza:10, profondita:10, origine:"stimata", stato:"nuovo" }));
+    const tracciato: TracciatoImpianto = { linea:"elettrica", daId:"q", aId:"p", vertici:[{x:0,y:100},{x:300,y:100}] };
+    piano.fatto = { ...piano.fatto, muri, aperture };
+    const proposta: Proposta = { ...piano.fatto, id:"A", nome:"Progetto", elementi };
+    piano.proposte = [proposta];
+    const prima = calcolaQuantita(doc);
+    const pianta = daPlanimetria(doc,piano.id,"A");
+    const editata: Pianta = { ...pianta, tracciatiImpianti:[{ ...tracciato, vertici:tracciato.vertici.map(p => ({ x:p.x, y:-p.y })) }] };
+    const salvata = aPlanimetria(editata,doc,piano.id,"A");
+    expect(validaPlanimetria(salvata).ok).toBe(true);
+    expect(daPlanimetria(salvata,piano.id,"A").tracciatiImpianti).toEqual(editata.tracciatiImpianti);
+    expect(salvata.livelli[0].fatto.tracciatiImpianti).toBeUndefined();
+    const stato = salvata.livelli[0].proposte[0];
+    expect(stato.tracciatiImpianti).toEqual([tracciato]);
+    const linee = percorsiImpianti(stato).percorsi;
+    const elettrico = linee.filter(p => p.linea === "elettrica");
+    expect(elettrico).toMatchObject([{ daId:"q", aId:"p", lunghezzaCm:690 }]);
+    expect(attraversamentiImpianto(elettrico[0],stato)).toEqual([{ muroId:"parete", tipoMuro:"portante", aperturaId:"P1", punto:{x:150,y:100} }]);
+    expect(attraversamentiImpianto(elettrico[0],{ ...stato, muri:[{ ...muri[0], stato:"da_demolire" }] })).toEqual([]);
+    const dopo = calcolaQuantita(salvata);
+    expect(prima["progetto:A:impianti:elettrico.corrugato_ml"].valore).toBe(5.4);
+    expect(dopo["progetto:A:impianti:elettrico.corrugato_ml"].valore).toBe(7.6);
+    expect(dopo["progetto:A:impianti:acqua.tubo_ml"]).toEqual(prima["progetto:A:impianti:acqua.tubo_ml"]);
+    expect(studioVariante(salvata,"A").righe).toContainEqual(expect.objectContaining({ descrizione:"Corrugato elettrico",
+      quantita:7.6, criterio:expect.stringContaining("1 tratto disegnato") }));
+    expect(meshImpianti(daStatoPianta(stato)).impianti).toContainEqual(expect.objectContaining({ linea:"elettrica", metri:7.6 }));
+    const rimossa = aPlanimetria({ ...editata, elementi:editata.elementi?.filter(e=>e.id!=="p") },salvata,piano.id,"A");
+    expect(rimossa.livelli[0].proposte[0].tracciatiImpianti).toEqual([]);
+    const altrePartenze = percorsiDaElementi([...elementi,el("q2","quadro_elettrico",295,0)],[],[tracciato]);
+    expect(altrePartenze.tracciatiDaRicollegare).toEqual([tracciato]);
+    expect(altrePartenze.percorsi.find(p=>p.aId==="p")?.vertici).toBeUndefined();
+  });
   it("ogni utenza va alla partenza più vicina; senza partenza la linea non si stima e si dice", () => {
     const r = percorsiDaElementi([el("q1", "quadro_elettrico", 0, 0), el("q2", "quadro_elettrico", 1000, 0), el("p", "presa", 900, 0), el("w", "wc", 0, 0), el("s", "split", 0, 0)]);
     expect(r.percorsi.find((x) => x.aId === "p")!.daId).toBe("q2");
@@ -41,6 +85,26 @@ describe("linee stimate degli impianti", () => {
   });
   it("i simboli da togliere non contano", () => {
     expect(percorsiDaElementi([el("q", "quadro_elettrico", 0, 0), { ...el("p", "presa", 100, 0), stato: "da_demolire" as const }]).percorsi).toHaveLength(0);
+  });
+  it("rispetta i quadri e le partenze di scarico delle singole unità", () => {
+    const riquadro = (da: number, a: number) => [{ x: da, y: 0 }, { x: a, y: 0 }, { x: a, y: 200 }, { x: da, y: 200 }];
+    const locali = [
+      { unita: "A", contorno: riquadro(0, 200) },
+      { unita: "B", contorno: riquadro(200, 400) },
+      { unita: "Parti comuni", contorno: riquadro(400, 500) },
+    ];
+    const elementi = [el("quadroA", "quadro_elettrico", 190, 100), el("quadroB", "quadro_elettrico", 370, 100),
+      el("presaB", "presa", 210, 100), el("sanitarioA", "wc", 185, 170), el("scaricoB", "colonna_scarico", 215, 165)];
+    const reti = percorsiDaElementi(elementi, locali);
+    expect(reti.percorsi.find(p => p.aId === "presaB")?.daId).toBe("quadroB");
+    expect(reti.percorsi.some(p => p.aId === "sanitarioA" && p.linea === "scarico")).toBe(false);
+    expect(reti.mancanoPerUnita).toContainEqual({ partenza: "colonna_scarico", unita: "A" });
+    const comune = percorsiDaElementi([...elementi, el("scaricoComune", "colonna_scarico", 430, 165)], locali);
+    expect(comune.percorsi.find(p => p.aId === "sanitarioA" && p.linea === "scarico")?.daId).toBe("scaricoComune");
+    const fuori = percorsiDaElementi([...elementi, el("quadroFuori", "quadro_elettrico", 510, 100),
+      el("presaFuori", "presa", 530, 100), el("luceFuori", "punto_luce", 540, 100)], locali);
+    expect(fuori.puntiSenzaUnita).toEqual(["presaFuori", "luceFuori"]);
+    expect(fuori.percorsi.some(p => p.daId === "quadroFuori" || p.aId === "presaFuori" || p.aId === "luceFuori")).toBe(false);
   });
   it("nel computo: corrugato, cavo ×3, tubi acqua ×2, scarico, rame ×2 e condensa, stimati", () => {
     let p: Pianta = { versione: 1, unita: "cm", muri: [], aperture: [], locali: [] };

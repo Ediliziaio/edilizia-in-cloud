@@ -3,13 +3,15 @@ import { webcrypto } from "node:crypto";
 import fs from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
 import { bagnoDaVerificare, bagnoVerificatoSintetico } from "../fixtures/bagnoDaVerificare";
-import { PDFDocument } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName } from "pdf-lib";
 
 const immagini = vi.hoisted(() => ({ catture: 0 }));
 // L'impaginazione PDF e i disegni vettoriali sono reali. Solo WebGL e raster SVG
 // sono sostituiti: queste immagini non sono render AI del documento dell'utente.
 const pixel = () => new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4d0AAAAASUVORK5CYII=", "base64"));
-vi.mock("@/components/planimetrie/Vista3DPigra", () => ({ caricaFotogramma: async () => async () => { immagini.catture++; return { png: new NodeBlob([pixel()], { type: "image/png" }) }; } }));
+vi.mock("@/components/planimetrie/tred/fotogramma", () => ({
+  catturaVistaProgetto: async () => { immagini.catture++; return new NodeBlob([pixel()], { type: "image/png" }); },
+}));
 vi.mock("@/lib/planimetrie/render/renderDallaPianta", () => ({ pngDaSvg: async () => new NodeBlob([pixel()], { type: "image/png" }) }));
 import { esportaFascicolo, type DatiFascicolo } from "@/lib/planimetrie/fascicoloPdf";
 const dati = (): Omit<DatiFascicolo, "documento"> => ({ titolo: "Verifica software - dati sintetici", versione: 1, ambito: "fatto", renders: [], cartiglio: { azienda: { nome: "Verifica locale" }, data: new Date("2026-11-10T12:00:00Z") } });
@@ -25,10 +27,18 @@ it("il fascicolo verificato conserva originale, quote alternative e conferme con
   vi.stubGlobal("crypto", webcrypto);
   const documento = bagnoVerificatoSintetico();
   documento.letturaDocumento!.sorgente = { percorso: "azienda/ricalco/esempio.png", nome: "Documento sintetico per test" };
-  const esito = await esportaFascicolo({ ...dati(), documento, leggiDocumentoOriginale: async () => pixel() });
+  const immagine = () => new NodeBlob([pixel()], { type: "image/png" }) as Blob;
+  const esito = await esportaFascicolo({
+    ...dati(), documento, leggiDocumentoOriginale: async () => pixel(),
+    renderVisita: [{ id: "ingresso", nome: "Ingresso", piano: "Piano terra", data: "2026-11-10", anteprima: immagine(), render: immagine() }],
+  });
   const letto = await PDFDocument.load(esito.dati);
   expect(letto.getPageCount()).toBe(esito.pagine);
   expect(esito.pagine).toBeGreaterThan(8);
   expect(letto.getTitle()).toContain("dati sintetici");
+  expect(esito).toMatchObject({ avvisi: 0, immaginiRender: 1 });
+  const link = letto.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).lookup(0, PDFDict);
+  const ref = link.lookup(PDFName.of("Dest"), PDFArray).get(0);
+  expect(letto.getPages().slice(2).some(p => p.ref === ref)).toBe(true);
   if (process.env.PLANIMETRIA_PDF_QA) fs.writeFileSync(process.env.PLANIMETRIA_PDF_QA, esito.dati);
 }, 20000);
